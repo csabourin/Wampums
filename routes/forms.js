@@ -255,156 +255,6 @@ module.exports = (pool, logger) => {
     }
   });
 
-  router.get('/:id', authenticate, async (req, res) => {
-    try {
-      if (!hasAnyPermission(req, ['forms.view', 'forms.manage'])) {
-        return error(res, 'Forbidden', 403);
-      }
-      const organizationId = await getOrganizationId(req, pool);
-      const formId = Number.parseInt(req.params.id, 10);
-
-      if (!Number.isInteger(formId) || !/^\d+$/.test(req.params.id)) {
-        return error(res, 'Form not found', 404);
-      }
-
-      const result = await pool.query(
-        `SELECT id, name, type, version, organization_id, schema, is_active, created_at, updated_at
-         FROM forms
-         WHERE id = $1 AND organization_id = $2`,
-        [formId, organizationId]
-      );
-
-      if (result.rows.length === 0) {
-        return error(res, 'Form not found', 404);
-      }
-
-      return success(res, {
-        ...result.rows[0],
-        schema: parseFormSchema(result.rows[0].schema)
-      }, 'Form loaded');
-    } catch (err) {
-      logger.error('Error loading form:', err);
-      return error(res, 'Unable to load form', 500);
-    }
-  });
-
-  router.post('/:id/submit', authenticate, async (req, res) => {
-    try {
-      if (!hasAnyPermission(req, ['forms.submit', 'forms.manage'])) {
-        return error(res, 'Forbidden', 403);
-      }
-      const organizationId = await getOrganizationId(req, pool);
-      const formId = Number.parseInt(req.params.id, 10);
-      const { participant_id, data } = req.body || {};
-
-      if (!participant_id || !data || typeof data !== 'object' || Array.isArray(data)) {
-        return error(res, 'participant_id and data are required', 400);
-      }
-
-      const formResult = await pool.query(
-        'SELECT id, schema FROM forms WHERE id = $1 AND organization_id = $2',
-        [formId, organizationId]
-      );
-
-      if (formResult.rows.length === 0) {
-        return error(res, 'Form not found', 404);
-      }
-
-      const schema = parseFormSchema(formResult.rows[0].schema);
-      const requiredFields = (schema.fields || []).filter((field) => field.required).map((field) => field.name);
-      const missing = requiredFields.filter((fieldName) => !Object.prototype.hasOwnProperty.call(data, fieldName));
-      if (missing.length > 0) {
-        return error(res, `Missing required fields: ${missing.join(', ')}`, 400);
-      }
-
-      const isParent = Array.isArray(req.user?.roleNames) && req.user.roleNames.includes('parent');
-      if (isParent) {
-        const childAccess = await pool.query(
-          'SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2',
-          [req.user.id, participant_id]
-        );
-
-        if (childAccess.rows.length === 0) {
-          return error(res, 'Access denied', 403);
-        }
-      }
-
-      const result = await pool.query(
-        `INSERT INTO form_submissions (form_id, participant_id, organization_id, data, status, submitted_by, submitted_at)
-         VALUES ($1, $2, $3, $4, 'submitted', $5, NOW())
-         RETURNING id, form_id, participant_id, organization_id, data, status, submitted_at`,
-        [formId, participant_id, organizationId, JSON.stringify(data), req.user.id]
-      );
-
-      return success(res, result.rows[0], 'Form submitted', 201);
-    } catch (err) {
-      logger.error('Error submitting form:', err);
-      return error(res, 'Unable to submit form', 500);
-    }
-  });
-
-  router.get('/:id/submissions', authenticate, async (req, res) => {
-    try {
-      if (!hasAnyPermission(req, ['forms.view', 'forms.manage'])) {
-        return error(res, 'Forbidden', 403);
-      }
-      const organizationId = await getOrganizationId(req, pool);
-      const formId = Number.parseInt(req.params.id, 10);
-      const { status } = req.query;
-      const params = [formId, organizationId];
-      let whereClause = 'WHERE form_id = $1 AND organization_id = $2';
-
-      if (status) {
-        params.push(status);
-        whereClause += ` AND status = $${params.length}`;
-      }
-
-      const result = await pool.query(
-        `SELECT id, form_id, participant_id, organization_id, data, status, submitted_at, approved_at, approved_by, approved_notes
-         FROM form_submissions
-         ${whereClause}
-         ORDER BY submitted_at DESC`,
-        params
-      );
-
-      return success(res, result.rows.map((submission) => ({
-        ...submission,
-        data: parseFormSchema(submission.data)
-      })), 'Form submissions loaded');
-    } catch (err) {
-      logger.error('Error loading form submissions:', err);
-      return error(res, 'Unable to load submissions', 500);
-    }
-  });
-
-  router.put('/:id/submissions/:submissionId/approve', authenticate, async (req, res) => {
-    try {
-      if (!hasAnyPermission(req, ['forms.manage'])) {
-        return error(res, 'Forbidden', 403);
-      }
-      const organizationId = await getOrganizationId(req, pool);
-      const formId = Number.parseInt(req.params.id, 10);
-      const submissionId = Number.parseInt(req.params.submissionId, 10);
-      const { approved_notes } = req.body || {};
-
-      const result = await pool.query(
-        `UPDATE form_submissions SET status = 'approved', approved_at = NOW(), approved_by = $1, approved_notes = $2
-         WHERE id = $3 AND form_id = $4 AND organization_id = $5
-         RETURNING id, form_id, participant_id, status, approved_at, approved_by, approved_notes`,
-        [req.user.id, approved_notes || null, submissionId, formId, organizationId]
-      );
-
-      if (result.rows.length === 0) {
-        return error(res, 'Submission not found', 404);
-      }
-
-      return success(res, result.rows[0], 'Submission approved');
-    } catch (err) {
-      logger.error('Error approving form submission:', err);
-      return error(res, 'Unable to approve submission', 500);
-    }
-  });
-
   /**
    * @swagger
    * /api/form-submission:
@@ -1817,6 +1667,158 @@ module.exports = (pool, logger) => {
       }
       logger.error('Error updating form permissions:', error);
       res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  // ---- Parameterized /:id routes MUST be last to avoid shadowing literal paths ----
+
+  router.get('/:id', authenticate, async (req, res) => {
+    try {
+      if (!hasAnyPermission(req, ['forms.view', 'forms.manage'])) {
+        return error(res, 'Forbidden', 403);
+      }
+      const organizationId = await getOrganizationId(req, pool);
+      const formId = Number.parseInt(req.params.id, 10);
+
+      if (!Number.isInteger(formId) || !/^\d+$/.test(req.params.id)) {
+        return error(res, 'Form not found', 404);
+      }
+
+      const result = await pool.query(
+        `SELECT id, name, type, version, organization_id, schema, is_active, created_at, updated_at
+         FROM forms
+         WHERE id = $1 AND organization_id = $2`,
+        [formId, organizationId]
+      );
+
+      if (result.rows.length === 0) {
+        return error(res, 'Form not found', 404);
+      }
+
+      return success(res, {
+        ...result.rows[0],
+        schema: parseFormSchema(result.rows[0].schema)
+      }, 'Form loaded');
+    } catch (err) {
+      logger.error('Error loading form:', err);
+      return error(res, 'Unable to load form', 500);
+    }
+  });
+
+  router.post('/:id/submit', authenticate, async (req, res) => {
+    try {
+      if (!hasAnyPermission(req, ['forms.submit', 'forms.manage'])) {
+        return error(res, 'Forbidden', 403);
+      }
+      const organizationId = await getOrganizationId(req, pool);
+      const formId = Number.parseInt(req.params.id, 10);
+      const { participant_id, data } = req.body || {};
+
+      if (!participant_id || !data || typeof data !== 'object' || Array.isArray(data)) {
+        return error(res, 'participant_id and data are required', 400);
+      }
+
+      const formResult = await pool.query(
+        'SELECT id, schema FROM forms WHERE id = $1 AND organization_id = $2',
+        [formId, organizationId]
+      );
+
+      if (formResult.rows.length === 0) {
+        return error(res, 'Form not found', 404);
+      }
+
+      const schema = parseFormSchema(formResult.rows[0].schema);
+      const requiredFields = (schema.fields || []).filter((field) => field.required).map((field) => field.name);
+      const missing = requiredFields.filter((fieldName) => !Object.prototype.hasOwnProperty.call(data, fieldName));
+      if (missing.length > 0) {
+        return error(res, `Missing required fields: ${missing.join(', ')}`, 400);
+      }
+
+      const isParent = Array.isArray(req.user?.roleNames) && req.user.roleNames.includes('parent');
+      if (isParent) {
+        const childAccess = await pool.query(
+          'SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2',
+          [req.user.id, participant_id]
+        );
+
+        if (childAccess.rows.length === 0) {
+          return error(res, 'Access denied', 403);
+        }
+      }
+
+      const result = await pool.query(
+        `INSERT INTO form_submissions (form_id, participant_id, organization_id, data, status, submitted_by, submitted_at)
+         VALUES ($1, $2, $3, $4, 'submitted', $5, NOW())
+         RETURNING id, form_id, participant_id, organization_id, data, status, submitted_at`,
+        [formId, participant_id, organizationId, JSON.stringify(data), req.user.id]
+      );
+
+      return success(res, result.rows[0], 'Form submitted', 201);
+    } catch (err) {
+      logger.error('Error submitting form:', err);
+      return error(res, 'Unable to submit form', 500);
+    }
+  });
+
+  router.get('/:id/submissions', authenticate, async (req, res) => {
+    try {
+      if (!hasAnyPermission(req, ['forms.view', 'forms.manage'])) {
+        return error(res, 'Forbidden', 403);
+      }
+      const organizationId = await getOrganizationId(req, pool);
+      const formId = Number.parseInt(req.params.id, 10);
+      const { status } = req.query;
+      const params = [formId, organizationId];
+      let whereClause = 'WHERE form_id = $1 AND organization_id = $2';
+
+      if (status) {
+        params.push(status);
+        whereClause += ` AND status = $${params.length}`;
+      }
+
+      const result = await pool.query(
+        `SELECT id, form_id, participant_id, organization_id, data, status, submitted_at, approved_at, approved_by, approved_notes
+         FROM form_submissions
+         ${whereClause}
+         ORDER BY submitted_at DESC`,
+        params
+      );
+
+      return success(res, result.rows.map((submission) => ({
+        ...submission,
+        data: parseFormSchema(submission.data)
+      })), 'Form submissions loaded');
+    } catch (err) {
+      logger.error('Error loading form submissions:', err);
+      return error(res, 'Unable to load submissions', 500);
+    }
+  });
+
+  router.put('/:id/submissions/:submissionId/approve', authenticate, async (req, res) => {
+    try {
+      if (!hasAnyPermission(req, ['forms.manage'])) {
+        return error(res, 'Forbidden', 403);
+      }
+      const organizationId = await getOrganizationId(req, pool);
+      const formId = Number.parseInt(req.params.id, 10);
+      const submissionId = Number.parseInt(req.params.submissionId, 10);
+      const { approved_notes } = req.body || {};
+
+      const result = await pool.query(
+        `UPDATE form_submissions SET status = 'approved', approved_at = NOW(), approved_by = $1, approved_notes = $2
+         WHERE id = $3 AND form_id = $4 AND organization_id = $5
+         RETURNING id, form_id, participant_id, status, approved_at, approved_by, approved_notes`,
+        [req.user.id, approved_notes || null, submissionId, formId, organizationId]
+      );
+
+      if (result.rows.length === 0) {
+        return error(res, 'Submission not found', 404);
+      }
+
+      return success(res, result.rows[0], 'Submission approved');
+    } catch (err) {
+      logger.error('Error approving form submission:', err);
+      return error(res, 'Unable to approve submission', 500);
     }
   });
 
