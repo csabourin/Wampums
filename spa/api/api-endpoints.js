@@ -269,14 +269,14 @@ export async function verifyEmail(token) {
  * Request password reset
  */
 export async function requestPasswordReset(email) {
-    return API.post('auth/request-reset', { email });
+    return API.post('api/auth/request-reset', { email });
 }
 
 /**
  * Reset password with token
  */
 export async function resetPassword(token, newPassword) {
-    return API.post('auth/reset-password', { token, new_password: newPassword });
+    return API.post('api/auth/reset-password', { token, new_password: newPassword });
 }
 
 /**
@@ -290,7 +290,7 @@ export async function refreshToken() {
  * Refresh JWT token
  */
 export async function verifySession() {
-    await API.post('v1/auth/verify-session');
+    await API.post('api/auth/verify-session');
 }
 
 /**
@@ -2846,7 +2846,7 @@ export async function checkAuthStatus() {
     }
 
     try {
-        await API.post('v1/auth/verify-session');
+        await API.post('api/auth/verify-session');
         return { isValid: true };
     } catch (error) {
         return { isValid: false, reason: 'invalid_token' };
