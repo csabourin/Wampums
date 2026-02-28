@@ -252,7 +252,7 @@ module.exports = (pool) => {
    * Returns organization participants with their carpool assignment status
    * Accessible by: animation, admin, parent
    */
-  router.get('/:id/participants', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
+  router.get('/:id/participants', authenticate, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 
