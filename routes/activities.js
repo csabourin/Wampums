@@ -248,6 +248,71 @@ module.exports = (pool) => {
   }));
 
   /**
+   * Get all participants for an activity (used by carpool dashboard)
+   * Returns organization participants with their carpool assignment status
+   * Accessible by: animation, admin, parent
+   */
+  router.get('/:id/participants', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const organizationId = await getOrganizationId(req, pool);
+
+    // Verify activity exists and belongs to organization
+    const activityCheck = await pool.query(
+      'SELECT id FROM activities WHERE id = $1 AND organization_id = $2 AND is_active = TRUE',
+      [id, organizationId]
+    );
+
+    if (activityCheck.rows.length === 0) {
+      return error(res, 'Activity not found', 404);
+    }
+
+    const result = await pool.query(
+      `SELECT
+        p.id,
+        p.first_name,
+        p.last_name,
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'user_id', up.user_id,
+              'guardian_name', u.full_name,
+              'guardian_email', u.email
+            )
+          ) FILTER (WHERE up.user_id IS NOT NULL),
+          '[]'
+        ) as guardians,
+        CASE
+          WHEN ca_going.participant_id IS NOT NULL THEN TRUE
+          ELSE FALSE
+        END as has_ride_going,
+        CASE
+          WHEN ca_return.participant_id IS NOT NULL THEN TRUE
+          ELSE FALSE
+        END as has_ride_return
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN user_participants up ON p.id = up.participant_id
+       LEFT JOIN users u ON up.user_id = u.id
+       LEFT JOIN carpool_assignments ca_going ON p.id = ca_going.participant_id
+         AND ca_going.trip_direction IN ('both', 'to_activity')
+         AND ca_going.carpool_offer_id IN (
+           SELECT co.id FROM carpool_offers co WHERE co.activity_id = $1 AND co.is_active = TRUE
+         )
+       LEFT JOIN carpool_assignments ca_return ON p.id = ca_return.participant_id
+         AND ca_return.trip_direction IN ('both', 'from_activity')
+         AND ca_return.carpool_offer_id IN (
+           SELECT co.id FROM carpool_offers co WHERE co.activity_id = $1 AND co.is_active = TRUE
+         )
+       WHERE po.organization_id = $2
+       GROUP BY p.id, ca_going.participant_id, ca_return.participant_id
+       ORDER BY p.last_name, p.first_name`,
+      [id, organizationId]
+    );
+
+    return success(res, result.rows);
+  }));
+
+  /**
    * Get a specific activity by ID
    * Accessible by: animation, admin, parent
    */
