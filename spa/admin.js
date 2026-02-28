@@ -6,7 +6,8 @@ import {
 } from "./utils/DebugUtils.js";
 import {
         getUsers,
-        updateUserRole,
+        updateUserRolesV1,
+        getRoleCatalog,
         approveUser,
         getSubscribers,
         sendNotification,
@@ -24,6 +25,7 @@ export class Admin {
                 this.app = app;
                 this.users = [];
                 this.subscribers = [];
+                this.roleCatalog = [];
                 this.currentOrganizationId = null;
                 this.permissions = {
                         canAccessAdmin: false,
@@ -123,6 +125,19 @@ export class Admin {
                         } else {
                                 this.subscribers = [];
                         }
+
+                        if (loadUsers && this.roleCatalog.length === 0) {
+                                try {
+                                        const rolesResult = await getRoleCatalog({
+                                                organizationId: this.currentOrganizationId,
+                                        });
+                                        this.roleCatalog = Array.isArray(rolesResult?.data)
+                                                ? rolesResult.data
+                                                : [];
+                                } catch (roleError) {
+                                        debugWarn("Unable to load role catalog", roleError);
+                                }
+                        }
                 } catch (error) {
                         debugError("Error fetching data:", error);
                         this.users = [];
@@ -214,33 +229,33 @@ ${showNotifications ? `
                 setContent(document.getElementById("app"), content);
         }
 
-        getRoleOptions() {
-                const roleLabels = {
-                        district: translate("district") || "District",
-                        unitadmin: translate("unitadmin") || translate("admin"),
-                        leader: translate("leader"),
-                        parent: translate("parent"),
-                        finance: translate("finance"),
-                        equipment: translate("equipment") || translate("inventory"),
-                        administration: translate("administration") || translate("reports"),
-                        demoadmin: translate("demoadmin") || translate("demo_admin"),
-                        demoparent: translate("demoparent") || translate("demo_parent"),
-                };
+        /**
+         * Get display label for a role, using the catalog or built-in translations.
+         * @param {object|string} role - Role object {id, role_name, display_name} or role name string
+         * @returns {string}
+         */
+        getRoleLabel(role) {
+                if (typeof role === "object" && role !== null) {
+                        return role.display_name || translate(role.role_name) || role.role_name;
+                }
+                return translate(role) || role;
+        }
 
-                return [
-                        "district",
-                        "unitadmin",
-                        "leader",
-                        "finance",
-                        "equipment",
-                        "administration",
-                        "parent",
-                        "demoadmin",
-                        "demoparent",
-                ].map((role) => ({
-                        value: role,
-                        label: roleLabels[role] || role,
-                }));
+        /**
+         * Extract the array of role IDs currently assigned to a user.
+         * @param {object} user
+         * @returns {number[]}
+         */
+        getUserRoleIds(user) {
+                if (Array.isArray(user.roles)) {
+                        return user.roles
+                                .map((r) => (typeof r === "object" ? r.id : r))
+                                .filter((id) => id != null);
+                }
+                if (Array.isArray(user.role_ids)) {
+                        return user.role_ids;
+                }
+                return [];
         }
 
         renderUsers() {
@@ -248,7 +263,6 @@ ${showNotifications ? `
                         ? this.users
                         : this.normalizeUserList(this.users);
                 const canModifyUsers = this.permissions.canManageUsers;
-                const roleSelectAttributes = canModifyUsers ? "" : ' disabled aria-disabled="true"';
 
                 debugLog(users);
                 if (!users.length) {
@@ -257,7 +271,7 @@ ${showNotifications ? `
 
                 return users
                         .map((user) => {
-                        const safeFullName = escapeHTML(
+                                const safeFullName = escapeHTML(
                                         user.full_name || user.fullName || "",
                                 );
                                 const safeEmail = escapeHTML(user.email || "");
@@ -265,20 +279,22 @@ ${showNotifications ? `
                                         user.isVerified !== undefined
                                                 ? user.isVerified
                                                 : user.is_verified;
-                                const roleOptions = this.getRoleOptions();
-                                const primaryRole = Array.isArray(user.roles)
-                                        ? user.roles[0]
-                                        : user.role;
+
+                                const userRoles = Array.isArray(user.roles) ? user.roles : [];
+                                const roleBadges = userRoles.length > 0
+                                        ? userRoles.map((r) => `<span class="role-badge">${escapeHTML(this.getRoleLabel(r))}</span>`).join(" ")
+                                        : `<span class="role-badge role-badge--empty">${escapeHTML(translate("no_role"))}</span>`;
+
+                                const manageBtn = canModifyUsers
+                                        ? `<button class="manage-roles-btn secondary-button" data-user-id="${user.id}">${translate("manage_roles")}</button>`
+                                        : "";
 
                                 return `
                         <tr>
                                 <td>${safeFullName} - ${safeEmail}</td>
-                                <td>
-                                        <select class="role-select" data-user-id="${user.id}"${roleSelectAttributes}>
-                                                ${roleOptions.map((role) => `
-                                                        <option value="${role.value}" ${primaryRole === role.value ? "selected" : ""}>${role.label}</option>
-                                                `).join("")}
-                                        </select>
+                                <td class="roles-cell">
+                                        ${roleBadges}
+                                        ${manageBtn}
                                 </td>
                                 <td>${isVerified ? "✅" : "❌"}</td>
                                 <td>
@@ -290,12 +306,12 @@ ${showNotifications ? `
         }
 
         /**
-         * Optimistically update the local user list with a new role selection.
+         * Optimistically update the local user list with new role IDs.
          *
          * @param {string|number} userId - Identifier of the user being updated
-         * @param {string} newRole - New primary role value
+         * @param {number[]} roleIds - Array of new role IDs
          */
-        applyOptimisticRoleUpdate(userId, newRole) {
+        applyOptimisticRoleUpdate(userId, roleIds) {
                 if (!Array.isArray(this.users)) {
                         return;
                 }
@@ -305,13 +321,13 @@ ${showNotifications ? `
                                 return user;
                         }
 
-                        const updatedRoles = Array.isArray(user.roles)
-                                ? [newRole, ...user.roles.filter((role) => role !== newRole)]
-                                : [newRole];
+                        const updatedRoles = this.roleCatalog.filter((r) =>
+                                roleIds.includes(r.id),
+                        );
 
                         return {
                                 ...user,
-                                role: newRole,
+                                role_ids: roleIds,
                                 roles: updatedRoles,
                         };
                 });
@@ -370,34 +386,14 @@ ${showNotifications ? `
                 const usersTable = document.getElementById("users-table");
                 if (usersTable && this.permissions.canManageUsers) {
                         usersTable.addEventListener(
-                                "change",
-                                async (event) => {
-                                        if (
-                                                event.target.classList.contains(
-                                                        "role-select",
-                                                )
-                                        ) {
-                                                const userId =
-                                                        event.target.dataset.userId;
-                                                const newRole = event.target.value;
-                                                await this.updateUserRole(
-                                                        userId,
-                                                        newRole,
-                                                );
-                                        }
-                                },
-                        );
-
-                        usersTable.addEventListener(
                                 "click",
                                 async (event) => {
-                                        if (
-                                                event.target.classList.contains(
-                                                        "approve-btn",
-                                                )
-                                        ) {
-                                                const userId =
-                                                        event.target.dataset.userId;
+                                        const target = event.target;
+                                        if (target.classList.contains("manage-roles-btn")) {
+                                                const userId = target.dataset.userId;
+                                                this.showRoleModal(userId);
+                                        } else if (target.classList.contains("approve-btn")) {
+                                                const userId = target.dataset.userId;
                                                 await this.approveUser(userId);
                                         }
                                 },
@@ -410,39 +406,112 @@ ${showNotifications ? `
                 this.initImportHandlers();
         }
 
-        async updateUserRole(userId, newRole) {
+        showRoleModal(userId) {
+                const user = (Array.isArray(this.users) ? this.users : []).find(
+                        (u) => `${u.id}` === `${userId}`,
+                );
+                if (!user) {
+                        return;
+                }
+
+                const currentRoleIds = this.getUserRoleIds(user);
+                const safeName = escapeHTML(user.full_name || user.fullName || user.email || "");
+                const roles = this.roleCatalog.length > 0
+                        ? this.roleCatalog
+                        : [];
+
+                if (roles.length === 0) {
+                        debugWarn("No roles available in catalog");
+                        this.app.showMessage(translate("error_loading_data"), "error");
+                        return;
+                }
+
+                const checkboxes = roles.map((role) => {
+                        const checked = currentRoleIds.includes(role.id) ? "checked" : "";
+                        const label = escapeHTML(role.display_name || translate(role.role_name) || role.role_name);
+                        return `
+                                <label class="role-modal-checkbox">
+                                        <input type="checkbox" name="role" value="${role.id}" ${checked}>
+                                        <span>${label}</span>
+                                </label>`;
+                }).join("");
+
+                const modalHTML = `
+                        <div class="modal-overlay show" id="role-modal" role="dialog" aria-modal="true" aria-labelledby="role-modal-title">
+                                <div class="modal-content">
+                                        <div class="modal-header">
+                                                <h2 id="role-modal-title">${translate("manage_roles")} — ${safeName}</h2>
+                                                <button class="modal-close" id="role-modal-close" aria-label="${translate("close")}">✕</button>
+                                        </div>
+                                        <div class="modal-body">
+                                                <div class="role-modal-checkboxes">
+                                                        ${checkboxes}
+                                                </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                                <button class="secondary-button" id="role-modal-cancel">${translate("cancel")}</button>
+                                                <button class="primary-button" id="role-modal-save">${translate("save")}</button>
+                                        </div>
+                                </div>
+                        </div>`;
+
+                document.body.insertAdjacentHTML("beforeend", modalHTML);
+
+                const modal = document.getElementById("role-modal");
+                const closeModal = () => modal?.remove();
+
+                document.getElementById("role-modal-close")?.addEventListener("click", closeModal);
+                document.getElementById("role-modal-cancel")?.addEventListener("click", closeModal);
+
+                modal?.addEventListener("click", (e) => {
+                        if (e.target === modal) {
+                                closeModal();
+                        }
+                });
+
+                document.getElementById("role-modal-save")?.addEventListener("click", async () => {
+                        const selected = Array.from(
+                                modal.querySelectorAll('input[name="role"]:checked'),
+                        ).map((cb) => parseInt(cb.value, 10));
+
+                        if (selected.length === 0) {
+                                this.app.showMessage(translate("select_at_least_one_role"), "error");
+                                return;
+                        }
+
+                        closeModal();
+                        await this.updateUserRoles(userId, selected);
+                });
+        }
+
+        async updateUserRoles(userId, roleIds) {
                 try {
-                        const result = await updateUserRole(
-                                userId,
-                                newRole,
-                                this.currentOrganizationId,
-                        );
+                        const result = await updateUserRolesV1(userId, roleIds, {
+                                organizationId: this.currentOrganizationId,
+                        });
                         if (result.success) {
                                 this.app.showMessage(
-                                        this.app.translate(
-                                                "role_updated_successfully",
-                                        ),
+                                        translate("role_updated_successfully"),
                                         "success",
                                 );
-                                this.applyOptimisticRoleUpdate(userId, newRole);
+                                this.applyOptimisticRoleUpdate(userId, roleIds);
                                 await clearUserCaches(this.currentOrganizationId);
                                 await this.fetchData({
                                         ...this.getDataFetchOptions(),
                                         userCacheOptions: { forceRefresh: true },
                                 });
                                 this.render();
+                                this.initEventListeners();
                         } else {
                                 this.app.showMessage(
-                                        this.app.translate(
-                                                "error_updating_role",
-                                        ),
+                                        translate("error_updating_role"),
                                         "error",
                                 );
                         }
                 } catch (error) {
-                        debugError("Error updating user role:", error);
+                        debugError("Error updating user roles:", error);
                         this.app.showMessage(
-                                this.app.translate("error_updating_role"),
+                                translate("error_updating_role"),
                                 "error",
                         );
                 }
