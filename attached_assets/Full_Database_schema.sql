@@ -335,6 +335,18 @@ CREATE TABLE public.fee_definitions (
   CONSTRAINT fee_definitions_budget_category_id_fkey FOREIGN KEY (budget_category_id) REFERENCES public.budget_categories(id),
   CONSTRAINT fee_definitions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
+CREATE TABLE public.first_aid_supplies (
+  id integer NOT NULL DEFAULT nextval('first_aid_supplies_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  name character varying NOT NULL,
+  description text,
+  administrable_medication boolean DEFAULT false,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT first_aid_supplies_pkey PRIMARY KEY (id),
+  CONSTRAINT first_aid_supplies_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
 CREATE TABLE public.form_format_versions (
   id integer NOT NULL DEFAULT nextval('form_format_versions_id_seq'::regclass),
   form_format_id integer NOT NULL,
@@ -527,6 +539,41 @@ CREATE TABLE public.local_groups (
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT local_groups_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.medication_admin_authorization_requirements (
+  authorization_id integer NOT NULL,
+  medication_requirement_id integer NOT NULL,
+  initiales character varying,
+  CONSTRAINT medication_admin_authorization_requirements_pkey PRIMARY KEY (authorization_id, medication_requirement_id),
+  CONSTRAINT maar_authorization_id_fkey FOREIGN KEY (authorization_id) REFERENCES public.medication_admin_authorizations(id),
+  CONSTRAINT maar_medication_requirement_id_fkey FOREIGN KEY (medication_requirement_id) REFERENCES public.medication_requirements(id)
+);
+CREATE TABLE public.medication_admin_authorizations (
+  id integer NOT NULL DEFAULT nextval('medication_admin_authorizations_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  participant_id integer NOT NULL,
+  guardian_id integer NOT NULL,
+  admin_user_id_1 uuid,
+  admin_user_id_2 uuid,
+  deja_pris_a_la_maison boolean DEFAULT false,
+  remettre_contenant_origine boolean DEFAULT false,
+  etiquette_pharmacie_et_avis boolean DEFAULT false,
+  reconnait_risques_et_accepte boolean DEFAULT false,
+  nom_parent_ou_tuteur_legal character varying,
+  signature_parent_ou_tuteur_legal text,
+  date_signature timestamp with time zone,
+  signature_type character varying DEFAULT 'drawn'::character varying,
+  status character varying DEFAULT 'signed'::character varying,
+  created_by uuid,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT medication_admin_authorizations_pkey PRIMARY KEY (id),
+  CONSTRAINT maa_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT maa_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT maa_guardian_id_fkey FOREIGN KEY (guardian_id) REFERENCES public.parents_guardians(id),
+  CONSTRAINT maa_admin_user_id_1_fkey FOREIGN KEY (admin_user_id_1) REFERENCES public.users(id),
+  CONSTRAINT maa_admin_user_id_2_fkey FOREIGN KEY (admin_user_id_2) REFERENCES public.users(id),
+  CONSTRAINT maa_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.medication_distributions (
   id integer NOT NULL DEFAULT nextval('medication_distributions_id_seq'::regclass),
   organization_id integer NOT NULL,
@@ -545,6 +592,7 @@ CREATE TABLE public.medication_distributions (
   witness_name character varying,
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  reminder_sent_at timestamp without time zone,
   CONSTRAINT medication_distributions_pkey PRIMARY KEY (id),
   CONSTRAINT medication_distributions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT medication_distributions_medication_requirement_id_fkey FOREIGN KEY (medication_requirement_id) REFERENCES public.medication_requirements(id),
@@ -599,6 +647,37 @@ CREATE TABLE public.medication_requirements (
   CONSTRAINT medication_requirements_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT medication_requirements_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
   CONSTRAINT medication_requirements_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id)
+);
+CREATE TABLE public.medication_treatment_authorization_supplies (
+  authorization_id integer NOT NULL,
+  first_aid_supply_id integer NOT NULL,
+  is_allowed boolean DEFAULT false,
+  CONSTRAINT medication_treatment_authorization_supplies_pkey PRIMARY KEY (authorization_id, first_aid_supply_id),
+  CONSTRAINT mtas_authorization_id_fkey FOREIGN KEY (authorization_id) REFERENCES public.medication_treatment_authorizations(id),
+  CONSTRAINT mtas_first_aid_supply_id_fkey FOREIGN KEY (first_aid_supply_id) REFERENCES public.first_aid_supplies(id)
+);
+CREATE TABLE public.medication_treatment_authorizations (
+  id integer NOT NULL DEFAULT nextval('medication_treatment_authorizations_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  participant_id integer NOT NULL,
+  guardian_id integer NOT NULL,
+  autorise_gestes_securite_bien_etre boolean DEFAULT false,
+  accepte_soins_medicaux_urgence boolean DEFAULT false,
+  autorise_transmission_fiche_medicale boolean DEFAULT false,
+  reconnait_responsabilite_aviser_changements_sante boolean DEFAULT false,
+  signature_parent_tuteur text,
+  nom_en_caractere_d_imprimerie character varying,
+  date_signature timestamp with time zone,
+  signature_type character varying DEFAULT 'drawn'::character varying,
+  status character varying DEFAULT 'signed'::character varying,
+  created_by uuid,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT medication_treatment_authorizations_pkey PRIMARY KEY (id),
+  CONSTRAINT mta_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT mta_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT mta_guardian_id_fkey FOREIGN KEY (guardian_id) REFERENCES public.parents_guardians(id),
+  CONSTRAINT mta_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
 CREATE TABLE public.names (
   id integer NOT NULL DEFAULT nextval('names_id_seq'::regclass),
