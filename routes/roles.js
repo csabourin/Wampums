@@ -22,11 +22,11 @@ const { success, error, asyncHandler } = require('../middleware/response');
  */
 module.exports = (pool, logger) => {
   /**
-   * GET /api/roles
+   * GET /v1/roles
    * Get all available roles
    * Available to: district, unitadmin
    */
-  router.get('/api/roles',
+  router.get('/v1/roles',
     authenticate,
     requirePermission('roles.view'),
     asyncHandler(async (req, res) => {
@@ -77,11 +77,11 @@ module.exports = (pool, logger) => {
   );
 
   /**
-   * GET /api/roles/:roleId/permissions
+   * GET /v1/roles/:roleId/permissions
    * Get permissions for a specific role
    * Available to: district, unitadmin
    */
-  router.get('/api/roles/:roleId/permissions',
+  router.get('/v1/roles/:roleId/permissions',
     authenticate,
     requirePermission('roles.view'),
     asyncHandler(async (req, res) => {
@@ -107,11 +107,11 @@ module.exports = (pool, logger) => {
   );
 
   /**
-   * GET /api/permissions
+   * GET /v1/permissions
    * Get all available permissions grouped by category
    * Available to: district, unitadmin
    */
-  router.get('/api/permissions',
+  router.get('/v1/permissions',
     authenticate,
     requirePermission('roles.view'),
     asyncHandler(async (req, res) => {
@@ -142,11 +142,11 @@ module.exports = (pool, logger) => {
   );
 
   /**
-   * GET /api/users/:userId/roles
+   * GET /v1/users/:userId/roles
    * Get roles assigned to a specific user in this organization
    * Available to: district, unitadmin
    */
-  router.get('/api/users/:userId/roles',
+  router.get('/v1/users/:userId/roles',
     authenticate,
     requirePermission('users.view'),
     asyncHandler(async (req, res) => {
@@ -181,11 +181,11 @@ module.exports = (pool, logger) => {
   );
 
   /**
-   * PUT /api/users/:userId/roles
+   * PUT /v1/users/:userId/roles
    * Update roles for a specific user in this organization
    * Available to: district, unitadmin (unitadmin cannot assign district role)
    */
-  router.put('/api/users/:userId/roles',
+  router.put('/v1/users/:userId/roles',
     authenticate,
     blockDemoRoles,
     requirePermission('users.assign_roles'),
@@ -241,11 +241,11 @@ module.exports = (pool, logger) => {
   );
 
   /**
-   * POST /api/roles/:roleId/permissions
+   * POST /v1/roles/:roleId/permissions
    * Add permission to a role (custom roles only)
    * Available to: district only
    */
-  router.post('/api/roles/:roleId/permissions',
+  router.post('/v1/roles/:roleId/permissions',
     authenticate,
     blockDemoRoles,
     requirePermission('roles.manage'),
@@ -291,11 +291,11 @@ module.exports = (pool, logger) => {
   );
 
   /**
-   * DELETE /api/roles/:roleId/permissions/:permissionId
+   * DELETE /v1/roles/:roleId/permissions/:permissionId
    * Remove permission from a role (custom roles only)
    * Available to: district only
    */
-  router.delete('/api/roles/:roleId/permissions/:permissionId',
+  router.delete('/v1/roles/:roleId/permissions/:permissionId',
     authenticate,
     blockDemoRoles,
     requirePermission('roles.manage'),
@@ -332,11 +332,11 @@ module.exports = (pool, logger) => {
   );
 
   /**
-   * POST /api/roles
+   * POST /v1/roles
    * Create a new custom role
    * Available to: district only
    */
-  router.post('/api/roles',
+  router.post('/v1/roles',
     authenticate,
     blockDemoRoles,
     requirePermission('roles.manage'),
@@ -370,11 +370,11 @@ module.exports = (pool, logger) => {
   );
 
   /**
-   * DELETE /api/roles/:roleId
+   * DELETE /v1/roles/:roleId
    * Delete a custom role
    * Available to: district only
    */
-  router.delete('/api/roles/:roleId',
+  router.delete('/v1/roles/:roleId',
     authenticate,
     blockDemoRoles,
     requirePermission('roles.manage'),
