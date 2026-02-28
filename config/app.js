@@ -47,6 +47,14 @@ function createApp() {
             return respondWithOrganizationFallback(res);
         }
 
+        if (err instanceof URIError) {
+            return res.status(400).json({
+                success: false,
+                message: "invalid_url_encoding",
+                timestamp: new Date().toISOString()
+            });
+        }
+
         if (err?.type === "entity.too.large") {
             return res.status(413).json({
                 success: false,

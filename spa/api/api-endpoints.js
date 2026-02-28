@@ -269,14 +269,14 @@ export async function verifyEmail(token) {
  * Request password reset
  */
 export async function requestPasswordReset(email) {
-    return API.post('auth/request-reset', { email });
+    return API.post('api/auth/request-reset', { email });
 }
 
 /**
  * Reset password with token
  */
 export async function resetPassword(token, newPassword) {
-    return API.post('auth/reset-password', { token, new_password: newPassword });
+    return API.post('api/auth/reset-password', { token, new_password: newPassword });
 }
 
 /**
@@ -290,7 +290,7 @@ export async function refreshToken() {
  * Refresh JWT token
  */
 export async function verifySession() {
-    await API.post('v1/auth/verify-session');
+    await API.post('api/auth/verify-session');
 }
 
 /**
@@ -1459,10 +1459,7 @@ export async function updateBadgeStatus(badgeId, status) {
  * Update badge progress fields (stars, description, status, etc.)
  */
 export async function updateBadgeProgress(badgeId, updates) {
-    return API.put(`v1/badges/${badgeId}/progress`, updates, {
-        cacheKey: `badge_progress_${badgeId}`,
-        invalidate: ['badge_summary']
-    });
+    return API.put(`v1/badges/badge-progress/${badgeId}`, updates);
 }
 
 /**
@@ -1486,14 +1483,14 @@ export async function fetchPublicOrganizationSettings() {
  * Get badges awaiting physical delivery
  */
 export async function getBadgesAwaitingDelivery() {
-    return API.getNoCache('v1/badges/awaiting-delivery');
+    return API.getNoCache('v1/badges/badges-awaiting-delivery');
 }
 
 /**
  * Mark badge as physically delivered
  */
 export async function markBadgeDelivered(badgeId) {
-    const result = await API.post('v1/badges/mark-delivered', { badge_id: badgeId });
+    const result = await API.post('v1/badges/mark-badge-delivered', { badge_id: badgeId });
     await clearBadgeRelatedCaches();
     return result;
 }
@@ -1502,7 +1499,7 @@ export async function markBadgeDelivered(badgeId) {
  * Mark multiple badges as delivered in bulk
  */
 export async function markBadgesDeliveredBulk(badgeIds) {
-    const result = await API.post('v1/badges/mark-delivered-bulk', { badge_ids: badgeIds });
+    const result = await API.post('v1/badges/mark-badges-delivered-bulk', { badge_ids: badgeIds });
     await clearBadgeRelatedCaches();
     return result;
 }
@@ -2849,7 +2846,7 @@ export async function checkAuthStatus() {
     }
 
     try {
-        await API.post('v1/auth/verify-session');
+        await API.post('api/auth/verify-session');
         return { isValid: true };
     } catch (error) {
         return { isValid: false, reason: 'invalid_token' };
