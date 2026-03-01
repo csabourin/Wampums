@@ -1,13 +1,13 @@
-// yearly_planner.js
+// YearlyPlanner.js
 // Yearly Meeting Planner module - Plan an entire year of meetings, periods, and objectives
-import { translate } from './app.js';
-import { debugLog, debugError } from './utils/DebugUtils.js';
-import { setContent, loadStylesheet } from './utils/DOMUtils.js';
-import { escapeHTML } from './utils/SecurityUtils.js';
-import { formatDate, parseDate } from './utils/DateUtils.js';
-import { BaseModule } from './utils/BaseModule.js';
-import { hasPermission } from './utils/PermissionUtils.js';
-import { skeletonTable } from './utils/SkeletonUtils.js';
+import { translate } from '../../app.js';
+import { debugLog, debugError } from '../../utils/DebugUtils.js';
+import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { formatDate, parseDate } from '../../utils/DateUtils.js';
+import { BaseModule } from '../../utils/BaseModule.js';
+import { hasPermission } from '../../utils/PermissionUtils.js';
+import { skeletonTable } from '../../utils/SkeletonUtils.js';
 import {
   getYearPlans,
   getYearPlan,
@@ -28,7 +28,7 @@ import {
   deleteLibraryActivity,
   createDistributionRule,
   deleteDistributionRule
-} from './api/api-yearly-planner.js';
+} from '../../api/api-yearly-planner.js';
 
 const VIEW = {
   LIST: 'list',
@@ -946,7 +946,7 @@ export class YearlyPlanner extends BaseModule {
       this.app.showMessage(translate('yearly_planner_activity_added'), 'success');
 
       // Reload meeting detail
-      const { getYearPlanMeeting } = await import('./api/api-yearly-planner.js');
+      const { getYearPlanMeeting } = await import('../../api/api-yearly-planner.js');
       const response = await getYearPlanMeeting(meetingId);
       this.currentMeeting = response?.data || this.currentMeeting;
       this.render();
@@ -1051,7 +1051,7 @@ export class YearlyPlanner extends BaseModule {
 
       // Reload meeting
       if (this.currentMeeting) {
-        const { getYearPlanMeeting } = await import('./api/api-yearly-planner.js');
+        const { getYearPlanMeeting } = await import('../../api/api-yearly-planner.js');
         const response = await getYearPlanMeeting(this.currentMeeting.id);
         this.currentMeeting = response?.data || this.currentMeeting;
         this.render();
@@ -1143,7 +1143,7 @@ export class YearlyPlanner extends BaseModule {
         const meetingId = parseInt(el.dataset.meetingId);
         if (!meetingId) return;
         try {
-          const { getYearPlanMeeting } = await import('./api/api-yearly-planner.js');
+          const { getYearPlanMeeting } = await import('../../api/api-yearly-planner.js');
           const response = await getYearPlanMeeting(meetingId);
           this.currentMeeting = response?.data || null;
           this.view = VIEW.MEETING_DETAIL;

@@ -111,7 +111,7 @@ const lazyModules = {
   CommunicationSettings: () => import('./communication-settings.js').then(m => m.CommunicationSettings),
   OfflinePreparation: () => import('./offline_preparation.js').then(m => m.OfflinePreparation),
   IncidentReport: () => import('./modules/incident-report/incident-report.js').then(m => m.IncidentReport),
-  YearlyPlanner: () => import('./yearly_planner.js').then(m => m.YearlyPlanner)
+  YearlyPlanner: () => import('./modules/yearly-planner/YearlyPlanner.js').then(m => m.YearlyPlanner)
 };
 
 // Cache for loaded modules
