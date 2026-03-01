@@ -57,6 +57,8 @@ const SHARED_ADMIN_PERMISSIONS = [
   "forms.create",
   "forms.edit",
   "forms.manage",
+  "meetings.view",
+  "meetings.manage",
 ];
 
 const DISTRICT_PERMISSIONS = [
@@ -107,6 +109,8 @@ export const ROLE_BUNDLES = {
       "communications.send",
       "reports.view",
       "badges.view",
+      "meetings.view",
+      "meetings.manage",
       "permission_slips.sign",
     ],
     level: 1,

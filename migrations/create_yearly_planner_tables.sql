@@ -201,3 +201,16 @@ CREATE TABLE IF NOT EXISTS year_plan_reminders (
 
 CREATE INDEX IF NOT EXISTS idx_yp_reminders_meeting ON year_plan_reminders(meeting_id);
 CREATE INDEX IF NOT EXISTS idx_yp_reminders_status ON year_plan_reminders(status, scheduled_at);
+
+-- =============================================================================
+-- 10. GRANT MEETING PERMISSIONS TO ROLES
+-- =============================================================================
+
+-- Grant meetings.view + meetings.manage to unitadmin, district, leader roles
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.role_name IN ('unitadmin', 'district', 'leader')
+  AND p.permission_key IN ('meetings.view', 'meetings.manage')
+ON CONFLICT DO NOTHING;

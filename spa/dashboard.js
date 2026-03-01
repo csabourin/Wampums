@@ -331,6 +331,7 @@ export class Dashboard extends BaseModule {
       { href: "/medication-planning", icon: "fa-pills", label: "medication_planning_link" },
       { href: "/medication-reception", icon: "fa-hospital", label: "med_reception_link" },
       { href: "/permission-slips", icon: "fa-file-signature", label: "manage_permission_slips" },
+      { href: "/yearly-planner", icon: "fa-calendar-alt", label: "yearly_planner_nav" },
     ]));
 
     // --- Unit Management ---
