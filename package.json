@@ -112,5 +112,8 @@
     "transformIgnorePatterns": [
       "/node_modules/(?!(?:@supabase/supabase-js|@googleapis/chat|openai|@veryfi/veryfi-sdk|@whiskeysockets/baileys)/)"
     ]
+  },
+  "overrides": {
+    "serialize-javascript": "7.0.3"
   }
 }
