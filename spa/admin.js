@@ -258,6 +258,26 @@ ${showNotifications ? `
                 return [];
         }
 
+        /**
+         * Build a deduplicated role list from the roles already present on loaded users.
+         * Used as a fallback when the role catalog endpoint is not accessible.
+         * @returns {Array<{id: number, role_name: string, display_name: string}>}
+         */
+        buildRoleCatalogFromUsers() {
+                const seen = new Set();
+                const roles = [];
+                for (const user of this.users) {
+                        if (!Array.isArray(user.roles)) continue;
+                        for (const r of user.roles) {
+                                if (typeof r === "object" && r.id != null && !seen.has(r.id)) {
+                                        seen.add(r.id);
+                                        roles.push(r);
+                                }
+                        }
+                }
+                return roles;
+        }
+
         renderUsers() {
                 const users = Array.isArray(this.users)
                         ? this.users
@@ -418,7 +438,7 @@ ${showNotifications ? `
                 const safeName = escapeHTML(user.full_name || user.fullName || user.email || "");
                 const roles = this.roleCatalog.length > 0
                         ? this.roleCatalog
-                        : [];
+                        : this.buildRoleCatalogFromUsers();
 
                 if (roles.length === 0) {
                         debugWarn("No roles available in catalog");
