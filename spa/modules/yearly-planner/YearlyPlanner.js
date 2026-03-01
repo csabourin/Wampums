@@ -522,7 +522,7 @@ export class YearlyPlanner extends BaseModule {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.id = 'yp-modal';
-    modal.innerHTML = `
+    setContent(modal, `
       <div class="modal">
         <div class="modal__header">
           <h2>${translate('yearly_planner_create')}</h2>
@@ -560,7 +560,7 @@ export class YearlyPlanner extends BaseModule {
           <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
         </div>
       </div>
-    `;
+    `);
     document.body.appendChild(modal);
 
     modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
@@ -575,7 +575,7 @@ export class YearlyPlanner extends BaseModule {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.id = 'yp-modal';
-    modal.innerHTML = `
+    setContent(modal, `
       <div class="modal">
         <div class="modal__header">
           <h2>${translate('yearly_planner_add_period')}</h2>
@@ -602,7 +602,7 @@ export class YearlyPlanner extends BaseModule {
           <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
         </div>
       </div>
-    `;
+    `);
     document.body.appendChild(modal);
 
     modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
@@ -621,7 +621,7 @@ export class YearlyPlanner extends BaseModule {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.id = 'yp-modal';
-    modal.innerHTML = `
+    setContent(modal, `
       <div class="modal">
         <div class="modal__header">
           <h2>${translate('yearly_planner_add_objective')}</h2>
@@ -665,7 +665,7 @@ export class YearlyPlanner extends BaseModule {
           <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
         </div>
       </div>
-    `;
+    `);
     document.body.appendChild(modal);
 
     modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
@@ -680,7 +680,7 @@ export class YearlyPlanner extends BaseModule {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.id = 'yp-modal';
-    modal.innerHTML = `
+    setContent(modal, `
       <div class="modal">
         <div class="modal__header">
           <h2>${translate('yearly_planner_edit_meeting')}</h2>
@@ -721,7 +721,7 @@ export class YearlyPlanner extends BaseModule {
           <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
         </div>
       </div>
-    `;
+    `);
     document.body.appendChild(modal);
 
     modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
@@ -736,7 +736,7 @@ export class YearlyPlanner extends BaseModule {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.id = 'yp-modal';
-    modal.innerHTML = `
+    setContent(modal, `
       <div class="modal">
         <div class="modal__header">
           <h2>${translate('add_activity')}</h2>
@@ -761,7 +761,7 @@ export class YearlyPlanner extends BaseModule {
           <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
         </div>
       </div>
-    `;
+    `);
     document.body.appendChild(modal);
 
     modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
@@ -776,7 +776,7 @@ export class YearlyPlanner extends BaseModule {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.id = 'yp-modal';
-    modal.innerHTML = `
+    setContent(modal, `
       <div class="modal">
         <div class="modal__header">
           <h2>${translate('yearly_planner_add_library_activity')}</h2>
@@ -815,7 +815,7 @@ export class YearlyPlanner extends BaseModule {
           <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
         </div>
       </div>
-    `;
+    `);
     document.body.appendChild(modal);
 
     modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
