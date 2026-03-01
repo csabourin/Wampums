@@ -32,6 +32,7 @@ export const DASHBOARD_TILES = {
       id: "carpool-quick-access",
     },
     { href: "/preparation-reunions", icon: "fa-clipboard-list", label: "preparation_reunions" },
+    { href: "/yearly-planner", icon: "fa-calendar-alt", label: "yearly_planner_nav" },
     { href: "/view-participant-documents", icon: "fa-file-lines", label: "view_participant_documents" },
     { href: "/inventory", icon: "fa-warehouse", label: "inventory_link" },
     { href: "/material-management", icon: "fa-calendar-check", label: "material_management_link" },

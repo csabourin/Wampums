@@ -110,7 +110,8 @@ const lazyModules = {
   FormPermissions: () => import('./form_permissions.js').then(m => m.initFormPermissions),
   CommunicationSettings: () => import('./communication-settings.js').then(m => m.CommunicationSettings),
   OfflinePreparation: () => import('./offline_preparation.js').then(m => m.OfflinePreparation),
-  IncidentReport: () => import('./modules/incident-report/incident-report.js').then(m => m.IncidentReport)
+  IncidentReport: () => import('./modules/incident-report/incident-report.js').then(m => m.IncidentReport),
+  YearlyPlanner: () => import('./modules/yearly-planner/YearlyPlanner.js').then(m => m.YearlyPlanner)
 };
 
 // Cache for loaded modules
@@ -191,7 +192,8 @@ const routes = {
   "/incident-reports": "incidentReports",
   "/incident-reports/new": "incidentReportNew",
   "/incident-reports/:id": "incidentReportView",
-  "/incident-reports/:id/edit": "incidentReportEdit"
+  "/incident-reports/:id/edit": "incidentReportEdit",
+  "/yearly-planner": "yearlyPlanner"
 
 };
 
@@ -507,6 +509,12 @@ export class Router {
           const incidentEdit = new IncidentReportEdit(this.app, { view: 'edit', incidentId: parseInt(param) });
           this.currentModuleInstance = incidentEdit;
           await incidentEdit.init();
+          break;
+        case "yearlyPlanner":
+          const YearlyPlanner = await this.loadModule('YearlyPlanner');
+          const yearlyPlanner = new YearlyPlanner(this.app);
+          this.currentModuleInstance = yearlyPlanner;
+          await yearlyPlanner.init();
           break;
         case "offlinePreparation":
           // Available to all logged-in users
