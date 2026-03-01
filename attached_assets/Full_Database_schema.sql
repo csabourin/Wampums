@@ -524,6 +524,67 @@ CREATE TABLE public.honors (
   CONSTRAINT honors_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
   CONSTRAINT honors_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id)
 );
+CREATE TABLE public.incident_email_queue (
+  id integer NOT NULL DEFAULT nextval('incident_email_queue_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  incident_report_id integer NOT NULL,
+  recipient_email character varying NOT NULL,
+  recipient_name character varying,
+  subject character varying NOT NULL,
+  body_text text NOT NULL,
+  body_html text,
+  status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying::text, 'sending'::character varying::text, 'sent'::character varying::text, 'failed'::character varying::text])),
+  attempts integer DEFAULT 0,
+  max_attempts integer DEFAULT 5,
+  last_attempt_at timestamp with time zone,
+  error_message text,
+  sent_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT incident_email_queue_pkey PRIMARY KEY (id),
+  CONSTRAINT incident_email_queue_org_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT incident_email_queue_incident_fkey FOREIGN KEY (incident_report_id) REFERENCES public.incident_reports(id)
+);
+CREATE TABLE public.incident_escalation_contacts (
+  id integer NOT NULL DEFAULT nextval('incident_escalation_contacts_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  email character varying NOT NULL,
+  name character varying,
+  role_description character varying,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT incident_escalation_contacts_pkey PRIMARY KEY (id),
+  CONSTRAINT incident_escalation_contacts_org_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.incident_reports (
+  id integer NOT NULL DEFAULT nextval('incident_reports_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  form_submission_id integer,
+  status character varying NOT NULL DEFAULT 'draft'::character varying CHECK (status::text = ANY (ARRAY['draft'::character varying::text, 'submitted'::character varying::text])),
+  victim_type character varying NOT NULL DEFAULT 'participant'::character varying CHECK (victim_type::text = ANY (ARRAY['participant'::character varying::text, 'leader'::character varying::text, 'parent'::character varying::text, 'other'::character varying::text])),
+  victim_participant_id integer,
+  victim_user_id uuid,
+  victim_name character varying,
+  activity_id integer,
+  incident_date date,
+  incident_time time without time zone,
+  incident_location text,
+  escalation_sent_at timestamp with time zone,
+  escalation_sent_to ARRAY,
+  created_by uuid NOT NULL,
+  submitted_at timestamp with time zone,
+  submitted_by uuid,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT incident_reports_pkey PRIMARY KEY (id),
+  CONSTRAINT incident_reports_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT incident_reports_form_submission_id_fkey FOREIGN KEY (form_submission_id) REFERENCES public.form_submissions(id),
+  CONSTRAINT incident_reports_victim_participant_id_fkey FOREIGN KEY (victim_participant_id) REFERENCES public.participants(id),
+  CONSTRAINT incident_reports_victim_user_id_fkey FOREIGN KEY (victim_user_id) REFERENCES public.users(id),
+  CONSTRAINT incident_reports_activity_id_fkey FOREIGN KEY (activity_id) REFERENCES public.activities(id),
+  CONSTRAINT incident_reports_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
+  CONSTRAINT incident_reports_submitted_by_fkey FOREIGN KEY (submitted_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.languages (
   id integer NOT NULL DEFAULT nextval('languages_id_seq'::regclass),
   code character varying NOT NULL,
