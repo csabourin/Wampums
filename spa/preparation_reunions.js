@@ -5,7 +5,7 @@ import { escapeHTML } from "./utils/SecurityUtils.js";
 import { isoToDateString, formatDate, parseDate } from "./utils/DateUtils.js";
 import { formatHonorText } from "./utils/HonorUtils.js";
 import {
-        getActivitesRencontre,
+        getMeetingActivities,
         getAnimateurs,
         getHonorsHistory,
         saveReunionPreparation,
@@ -175,7 +175,7 @@ export class PreparationReunions {
 
                 // Load data with individual error handling to prevent total failure
                 const [activitiesResponse, animateursResponse, badgeSettingsResponse, participantsResponse] = await Promise.all([
-                        getActivitesRencontre().catch(error => {
+                        getMeetingActivities().catch(error => {
                                 debugError("Error loading activities:", error);
                                 return { data: [] };
                         }),
