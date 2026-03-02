@@ -721,7 +721,14 @@ module.exports = (pool, logger) => {
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const meetingSections = await getMeetingSectionConfig(pool, organizationId, logger);
         const result = await pool.query(
-          `SELECT * FROM activites_rencontre ORDER BY activity`
+          `SELECT id, name AS activity, category AS type,
+                  estimated_duration_min AS estimated_time_min,
+                  estimated_duration_max AS estimated_time_max,
+                  material, description
+           FROM activity_library
+           WHERE organization_id = $1 AND is_active = TRUE
+           ORDER BY name`,
+          [organizationId]
         );
 
         res.json({ success: true, data: result.rows, meetingSections });
@@ -729,7 +736,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, error, logger)) {
           return;
         }
-        logger.error('Error fetching activites rencontre:', error);
+        logger.error('Error fetching meeting activities:', error);
         res.status(500).json({ success: false, message: error.message });
       }
     });
@@ -762,9 +769,13 @@ module.exports = (pool, logger) => {
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
         const result = await pool.query(
-          `SELECT * FROM activites_rencontre
-         WHERE organization_id = $1 OR organization_id = 0
-         ORDER BY category, name`,
+          `SELECT id, name AS activity, category AS type,
+                  estimated_duration_min AS estimated_time_min,
+                  estimated_duration_max AS estimated_time_max,
+                  material, description
+           FROM activity_library
+           WHERE organization_id = $1 AND is_active = TRUE
+           ORDER BY category, name`,
           [organizationId]
         );
 

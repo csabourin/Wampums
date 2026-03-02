@@ -1801,11 +1801,9 @@ export async function getReunionDates() {
 }
 
 /**
- * Get meeting activities
+ * @deprecated Use getMeetingActivities() instead
  */
-export async function getActivitesRencontre() {
-    return API.get('v1/meetings/activities');
-}
+export const getActivitesRencontre = () => getMeetingActivities();
 
 /**
  * Get all activities for the organization

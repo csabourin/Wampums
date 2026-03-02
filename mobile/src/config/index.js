@@ -119,7 +119,7 @@ const CONFIG = {
     REUNION_PREPARATION: '/reunion-preparation',
     SAVE_REUNION_PREPARATION: '/save-reunion-preparation',
     REUNION_DATES: '/reunion-dates',
-    MEETING_ACTIVITIES: '/activites-rencontre',
+    MEETING_ACTIVITIES: '/v1/meetings/activities',
     NEXT_MEETING_INFO: '/next-meeting-info',
     ANIMATEURS: '/animateurs',
   },

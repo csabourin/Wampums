@@ -266,6 +266,7 @@ export {
     getReunionPreparation,
     saveReunionPreparation,
     getReunionDates,
+    getMeetingActivities,
     getActivitesRencontre,
     saveReminder,
     getReminder,
