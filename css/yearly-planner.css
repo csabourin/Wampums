@@ -395,19 +395,11 @@
   color: var(--muted-color, #94a3b8);
 }
 
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-}
-
-.modal {
+/* Modal - scoped under .modal-overlay to override global .modal { display: none } */
+.modal-overlay > .modal {
+  display: block;
+  position: relative;
+  inset: auto;
   background: var(--card-bg, #fff);
   border-radius: 0.75rem;
   width: 100%;
@@ -415,9 +407,10 @@
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  backdrop-filter: none;
 }
 
-.modal__header {
+.modal-overlay > .modal .modal__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -425,12 +418,12 @@
   border-bottom: 1px solid var(--border-color, #e2e8f0);
 }
 
-.modal__header h2 {
+.modal-overlay > .modal .modal__header h2 {
   margin: 0;
   font-size: 1.1rem;
 }
 
-.modal__close {
+.modal-overlay > .modal .modal__close {
   background: none;
   border: none;
   font-size: 1.5rem;
@@ -440,11 +433,11 @@
   padding: 0.25rem;
 }
 
-.modal__body {
+.modal-overlay > .modal .modal__body {
   padding: 1.25rem;
 }
 
-.modal__footer {
+.modal-overlay > .modal .modal__footer {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
