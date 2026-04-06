@@ -62,7 +62,7 @@
     "stripe": "^20.3.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
-    "vite": "^7.2.4",
+    "vite": "^7.3.2",
     "vite-plugin-pwa": "^1.2.0",
     "web-push": "^3.6.7",
     "winston": "^3.17.0",
