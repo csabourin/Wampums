@@ -679,16 +679,26 @@ module.exports = (pool, logger) => {
 
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
-                COALESCE(SUM(pts.value), 0) as total_points,
-                COUNT(DISTINCT h.id) as honors_count
+                COALESCE(point_totals.total_points, 0) as total_points,
+                COALESCE(honor_counts.honors_count, 0) as honors_count
          FROM participants p
          JOIN participant_organizations po ON p.id = po.participant_id
          LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
          LEFT JOIN groups g ON pg.group_id = g.id
-         LEFT JOIN points pts ON p.id = pts.participant_id AND pts.organization_id = $1
-         LEFT JOIN honors h ON p.id = h.participant_id
+         LEFT JOIN (
+           SELECT participant_id, SUM(value) AS total_points
+           FROM points
+           WHERE organization_id = $1 AND participant_id IS NOT NULL
+           GROUP BY participant_id
+         ) point_totals ON point_totals.participant_id = p.id
+         LEFT JOIN (
+           SELECT participant_id, COUNT(DISTINCT id) AS honors_count
+           FROM honors
+           WHERE organization_id = $1
+           GROUP BY participant_id
+         ) honor_counts ON honor_counts.participant_id = p.id
          WHERE po.organization_id = $1
-         GROUP BY p.id, p.first_name, p.last_name, g.name
+         GROUP BY p.id, p.first_name, p.last_name, g.name, point_totals.total_points, honor_counts.honors_count
          ORDER BY total_points DESC, p.first_name, p.last_name`,
       [organizationId]
     );

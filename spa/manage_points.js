@@ -250,10 +250,13 @@ export class ManagePoints {
             <div class="group-header" data-group-id="${group.id
           }" data-type="group" data-points="${group.total_points}">
               <span>${group.name}</span>
-              <span id="group-points-${group.id}">${group.total_points}</span>
+              <span>${translate("group_points")}: ${group.total_points}</span>
             </div>
             <div class="group-content">
               ${this.renderParticipantsForGroup(group.id)}
+              <div class="group-points" id="group-points-${group.id}">
+                ${translate("total_points")}: ${this.getGroupIndividualTotal(group.id)}
+              </div>
             </div>
           `,
       )
@@ -309,6 +312,15 @@ export class ManagePoints {
         `,
       )
       .join("");
+  }
+
+  getGroupIndividualTotal(groupId) {
+    return this.participants
+      .filter((participant) => participant.group_id == groupId)
+      .reduce(
+        (sum, participant) => sum + (parseInt(participant.total_points, 10) || 0),
+        0,
+      );
   }
 
   // Event delegation for attaching listeners to dynamically added elements
@@ -593,18 +605,10 @@ export class ManagePoints {
         : groupElement.textContent.split(" - ")[0];
 
       // Update the main group header display
-      const pointsDisplay = `${groupName} - ${totalPoints} `;
+      const pointsDisplay = `${groupName} - ${translate("group_points")}: ${totalPoints}`;
       setContent(groupElement, pointsDisplay);
       groupElement.dataset.points = totalPoints;
       this.addHighlightEffect(groupElement);
-
-      // Update the group points total element if it exists
-      const groupPointsElement = document.querySelector(
-        `#group-points-${groupId}`,
-      );
-      if (groupPointsElement) {
-        groupPointsElement.textContent = `${translate("total_points")}: ${totalPoints}`;
-      }
 
       // Update the group's total_points in our data
       if (group) {
@@ -621,6 +625,13 @@ export class ManagePoints {
       memberTotals.forEach((member) => {
         this.updateIndividualPoints(member.id, member.totalPoints);
       });
+    }
+
+    const groupPointsElement = document.querySelector(
+      `#group-points-${groupId}`,
+    );
+    if (groupPointsElement) {
+      groupPointsElement.textContent = `${translate("total_points")}: ${this.getGroupIndividualTotal(groupId)}`;
     }
   }
 
@@ -688,11 +699,17 @@ export class ManagePoints {
       });
 
       // Update group total display
+      const group = this.groups.find((candidate) => candidate.id == id);
+      const groupName = group ? group.name : element.textContent.split(" - ")[0];
+      setContent(element, `${groupName} - ${translate("group_points")}: ${newPoints}`);
       const groupPointsElement = document.querySelector(`#group-points-${id}`);
       if (groupPointsElement) {
-        groupPointsElement.textContent = `${translate("total_points")}: ${newPoints}`;
+        groupPointsElement.textContent = `${translate("total_points")}: ${this.getGroupIndividualTotal(id)}`;
       }
       element.dataset.points = newPoints;
+      if (group) {
+        group.total_points = newPoints;
+      }
     } else {
       // Update individual points
       const pointsElement = element.querySelector(`#name-points-${id}`);
@@ -820,12 +837,12 @@ export class ManagePoints {
         (group) => `
         <div class="group-header" data-group-id="${group.id
           }" data-type="group" data-points="${group.total_points}">
-          ${group.name} - ${group.total_points} 
+          ${group.name} - ${translate("group_points")}: ${group.total_points}
         </div>
         <div class="group-content">
           ${this.renderParticipantsForGroup(group.id)}
           <div class="group-points" id="group-points-${group.id}">
-            ${translate("total_points")}: ${group.total_points}
+            ${translate("total_points")}: ${this.getGroupIndividualTotal(group.id)}
           </div>
         </div>
       `,
@@ -1000,7 +1017,7 @@ export class ManagePoints {
         const totalPoints = parseInt(group.total_points) || 0;
 
         // Update group points display
-        const pointsDisplay = `${group.name} - ${totalPoints} `;
+        const pointsDisplay = `${group.name} - ${translate("group_points")}: ${totalPoints}`;
         setContent(groupElement, pointsDisplay);
         groupElement.dataset.points = totalPoints;
 
@@ -1009,7 +1026,7 @@ export class ManagePoints {
           `#group-points-${group.id}`,
         );
         if (groupPointsElement) {
-          groupPointsElement.textContent = `${translate("total_points")}: ${totalPoints}`;
+          groupPointsElement.textContent = `${translate("total_points")}: ${this.getGroupIndividualTotal(group.id)}`;
         }
       }
     });

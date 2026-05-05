@@ -183,6 +183,20 @@ const ManagePointsScreen = () => {
   };
 
   /**
+   * Calculate the visible total for a group's current participants.
+   * @param {number|string} groupId - Group identifier.
+   * @returns {number} Sum of participant point ledgers for current members.
+   */
+  const getGroupIndividualTotal = useCallback((groupId) => {
+    return participants
+      .filter((participant) => participant.group_id === groupId)
+      .reduce(
+        (sum, participant) => sum + (Number(participant.total_points) || 0),
+        0
+      );
+  }, [participants]);
+
+  /**
    * Submit a points update to the API.
    * @param {number} points - Points delta.
    */
@@ -243,7 +257,10 @@ const ManagePointsScreen = () => {
         }}
       >
         <Text style={styles.groupHeaderText}>
-          {group.name} - {Number(group.total_points || 0)}
+          {group.name}
+        </Text>
+        <Text style={styles.groupHeaderMeta}>
+          {t('group')}: {Number(group.total_points || 0)} | {t('total_points')}: {getGroupIndividualTotal(group.id)}
         </Text>
       </TouchableOpacity>
     );
@@ -474,6 +491,11 @@ const styles = StyleSheet.create({
     ...commonStyles.heading3,
     fontWeight: theme.fontWeight.bold,
     color: theme.colors.text,
+  },
+  groupHeaderMeta: {
+    ...commonStyles.caption,
+    color: theme.colors.textSecondary,
+    marginTop: theme.spacing.xs,
   },
   groupContent: {
     paddingLeft: theme.spacing.md,

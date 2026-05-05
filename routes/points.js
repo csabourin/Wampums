@@ -41,13 +41,32 @@ module.exports = (pool, logger) => {
   router.get('/', authenticate, requirePermission('points.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
-    // Fetch all groups with total points
+    // Fetch all groups with group-only points plus the sum of current member points.
     const groupsResult = await pool.query(
-      `SELECT g.id, g.name, COALESCE(SUM(p.value), 0) AS total_points
+      `SELECT g.id,
+              g.name,
+              COALESCE(group_points.total_points, 0) AS total_points,
+              COALESCE(member_points.total_points, 0) AS individual_total_points
        FROM groups g
-       LEFT JOIN points p ON g.id = p.group_id AND p.organization_id = $1
+       LEFT JOIN (
+         SELECT group_id, SUM(value) AS total_points
+         FROM points
+         WHERE organization_id = $1 AND participant_id IS NULL
+         GROUP BY group_id
+       ) group_points ON group_points.group_id = g.id
+       LEFT JOIN (
+         SELECT pg.group_id, SUM(COALESCE(participant_points.total_points, 0)) AS total_points
+         FROM participant_groups pg
+         LEFT JOIN (
+           SELECT participant_id, SUM(value) AS total_points
+           FROM points
+           WHERE organization_id = $1 AND participant_id IS NOT NULL
+           GROUP BY participant_id
+         ) participant_points ON participant_points.participant_id = pg.participant_id
+         WHERE pg.organization_id = $1
+         GROUP BY pg.group_id
+       ) member_points ON member_points.group_id = g.id
        WHERE g.organization_id = $1
-       GROUP BY g.id, g.name
        ORDER BY g.name`,
       [organizationId]
     );
@@ -358,16 +377,25 @@ module.exports = (pool, logger) => {
     const resultLimit = parseInt(limit) || 10;
 
     if (type === 'groups') {
-      // Group leaderboard
+      // Group leaderboard uses only group-attributed point records.
       const result = await pool.query(
         `SELECT g.id, g.name,
-                COALESCE(SUM(pts.value), 0) as total_points,
-                COUNT(DISTINCT pg.participant_id) as member_count
+                COALESCE(group_points.total_points, 0) as total_points,
+                COALESCE(member_counts.member_count, 0) as member_count
          FROM groups g
-         LEFT JOIN participant_groups pg ON g.id = pg.group_id AND pg.organization_id = $1
-         LEFT JOIN points pts ON pts.group_id = g.id AND pts.organization_id = $1
+         LEFT JOIN (
+           SELECT group_id, SUM(value) AS total_points
+           FROM points
+           WHERE organization_id = $1 AND participant_id IS NULL
+           GROUP BY group_id
+         ) group_points ON group_points.group_id = g.id
+         LEFT JOIN (
+           SELECT group_id, COUNT(DISTINCT participant_id) AS member_count
+           FROM participant_groups
+           WHERE organization_id = $1
+           GROUP BY group_id
+         ) member_counts ON member_counts.group_id = g.id
          WHERE g.organization_id = $1
-         GROUP BY g.id, g.name
          ORDER BY total_points DESC
          LIMIT $2`,
         [organizationId, resultLimit]
@@ -416,16 +444,26 @@ module.exports = (pool, logger) => {
 
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
-              COALESCE(SUM(pts.value), 0) as total_points,
-              COUNT(DISTINCT h.id) as honors_count
+              COALESCE(point_totals.total_points, 0) as total_points,
+              COALESCE(honor_counts.honors_count, 0) as honors_count
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
        LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
        LEFT JOIN groups g ON pg.group_id = g.id
-       LEFT JOIN points pts ON p.id = pts.participant_id AND pts.organization_id = $1
-       LEFT JOIN honors h ON p.id = h.participant_id
+       LEFT JOIN (
+         SELECT participant_id, SUM(value) AS total_points
+         FROM points
+         WHERE organization_id = $1 AND participant_id IS NOT NULL
+         GROUP BY participant_id
+       ) point_totals ON point_totals.participant_id = p.id
+       LEFT JOIN (
+         SELECT participant_id, COUNT(DISTINCT id) AS honors_count
+         FROM honors
+         WHERE organization_id = $1
+         GROUP BY participant_id
+       ) honor_counts ON honor_counts.participant_id = p.id
        WHERE po.organization_id = $1
-       GROUP BY p.id, p.first_name, p.last_name, g.name
+       GROUP BY p.id, p.first_name, p.last_name, g.name, point_totals.total_points, honor_counts.honors_count
        ORDER BY total_points DESC, p.first_name, p.last_name`,
       [organizationId]
     );

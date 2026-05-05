@@ -50,13 +50,22 @@ module.exports = (pool) => {
 
     const result = await pool.query(
       `SELECT g.*,
-              COUNT(DISTINCT pg.participant_id) as member_count,
-              COALESCE(SUM(p.value), 0) as total_points
+              COALESCE(member_counts.member_count, 0) as member_count,
+              COALESCE(group_points.total_points, 0) as total_points
        FROM groups g
-       LEFT JOIN participant_groups pg ON g.id = pg.group_id AND pg.organization_id = $1
-       LEFT JOIN points p ON g.id = p.group_id AND p.participant_id IS NULL AND p.organization_id = $1
+       LEFT JOIN (
+         SELECT group_id, COUNT(DISTINCT participant_id) AS member_count
+         FROM participant_groups
+         WHERE organization_id = $1
+         GROUP BY group_id
+       ) member_counts ON member_counts.group_id = g.id
+       LEFT JOIN (
+         SELECT group_id, SUM(value) AS total_points
+         FROM points
+         WHERE organization_id = $1 AND participant_id IS NULL
+         GROUP BY group_id
+       ) group_points ON group_points.group_id = g.id
        WHERE g.organization_id = $1
-       GROUP BY g.id
        ORDER BY g.name`,
       [organizationId]
     );
