@@ -1,7 +1,6 @@
 // api-yearly-planner.js
 // API endpoint functions for the Yearly Meeting Planner module
 import { API } from './api-core.js';
-import { CONFIG } from '../config.js';
 
 // ============================================================================
 // YEAR PLANS

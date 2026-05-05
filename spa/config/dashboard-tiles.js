@@ -33,6 +33,7 @@ export const DASHBOARD_TILES = {
     },
     { href: "/preparation-reunions", icon: "fa-clipboard-list", label: "preparation_reunions" },
     { href: "/view-participant-documents", icon: "fa-file-lines", label: "view_participant_documents" },
+    { href: "/yearly-planner", icon: "fa-calendar-alt", label: "yearly_planner_nav" },
     { href: "/inventory", icon: "fa-warehouse", label: "inventory_link" },
     { href: "/material-management", icon: "fa-calendar-check", label: "material_management_link" },
     { href: "/medication-planning", icon: "fa-pills", label: "medication_planning_link" },

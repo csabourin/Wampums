@@ -1,1199 +1,1358 @@
-// YearlyPlanner.js
-// Yearly Meeting Planner module - Plan an entire year of meetings, periods, and objectives
 import { translate } from '../../app.js';
 import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { formatDate, parseDate } from '../../utils/DateUtils.js';
+import { formatDate } from '../../utils/DateUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { skeletonTable } from '../../utils/SkeletonUtils.js';
 import {
   getYearPlans,
   getYearPlan,
+  getYearPlanMeeting,
   createYearPlan,
   updateYearPlan,
   deleteYearPlan,
   createPeriod,
-  updatePeriod,
   deletePeriod,
   createObjective,
-  updateObjective,
   deleteObjective,
-  updateYearPlanMeeting,
   addMeetingActivity,
   deleteMeetingActivity,
   getActivityLibrary,
   createLibraryActivity,
-  deleteLibraryActivity,
-  createDistributionRule,
-  deleteDistributionRule
+  updateLibraryActivity,
+  deleteLibraryActivity
 } from '../../api/api-yearly-planner.js';
+import DragDropManager from '../../utils/DragDropManager.js';
 
 const VIEW = {
-  LIST: 'list',
-  PLAN_DETAIL: 'plan_detail',
-  MEETING_DETAIL: 'meeting_detail',
-  LIBRARY: 'library'
+  PLAN_LIST: 'plan_list',
+  PLANNER: 'planner'
 };
+
+const PERIOD_COLORS = ['#e85d04', '#2a9d8f', '#3a86ff', '#bc6c25', '#006d77', '#d62828'];
+const OBJECTIVE_COLORS = ['#ef4444', '#06b6d4', '#f59e0b', '#8b5cf6', '#10b981', '#f97316'];
+const MEETING_FETCH_CONCURRENCY = 6;
 
 export class YearlyPlanner extends BaseModule {
   constructor(app) {
     super(app);
+    this.view = VIEW.PLAN_LIST;
+    this.isLoading = true;
     this.plans = [];
     this.currentPlan = null;
-    this.currentMeeting = null;
     this.activityLibrary = [];
-    this.view = VIEW.LIST;
-    this.isLoading = true;
+    this.meetingActivitiesById = {};
+    this.dragDropManager = null;
+    this.selectedActivityId = null;
+    this.librarySearch = '';
+    this.libraryCategory = 'all';
+    this.objectiveColorMap = {};
+    this.periodColorMap = {};
+    this.canView = hasPermission('meetings.view');
     this.canManage = hasPermission('meetings.manage');
-    this.lang = localStorage.getItem('language') || 'en';
+    this.lang = app?.lang || localStorage.getItem('lang') || 'en';
   }
 
   async init() {
     await loadStylesheet('/css/yearly-planner.css');
+
+    if (!this.canView) {
+      this.isLoading = false;
+      this.render();
+      return;
+    }
+
     this.isLoading = true;
     this.render();
 
     try {
-      await this.loadPlans();
-    } catch (err) {
-      debugError('Failed to init yearly planner:', err);
-    }
-
-    this.isLoading = false;
-    this.render();
-    this.attachEventListeners();
-  }
-
-  async loadPlans() {
-    try {
-      const response = await getYearPlans();
-      this.plans = response?.data || [];
-      debugLog('Loaded year plans:', this.plans.length);
-    } catch (err) {
-      debugError('Error loading year plans:', err);
-      this.plans = [];
-    }
-  }
-
-  async loadPlanDetail(planId) {
-    try {
-      this.isLoading = true;
-      this.view = VIEW.PLAN_DETAIL;
-      this.render();
-
-      const response = await getYearPlan(planId);
-      this.currentPlan = response?.data || null;
-
+      await this.refreshPlans();
+      if (this.plans.length > 0) {
+        await this.openPlan(this.plans[0].id);
+      }
+    } catch (error) {
+      debugError('[YearlyPlanner] Failed to initialize:', error);
+      this.app.showMessage(this.t('yearly_planner_error_loading', 'Unable to load year plans.'), 'error');
       this.isLoading = false;
       this.render();
       this.attachEventListeners();
-    } catch (err) {
-      debugError('Error loading plan detail:', err);
-      this.isLoading = false;
-      this.app.showMessage(translate('yearly_planner_error_loading'), 'error');
-      this.render();
     }
   }
 
-  async loadLibrary() {
+  destroy() {
+    this.destroyDragDrop();
+    super.destroy();
+  }
+
+  t(key, fallback = '') {
+    const value = translate(key);
+    if (!value || value === key) {
+      return fallback || key;
+    }
+    return value;
+  }
+
+  async refreshPlans() {
+    const response = await getYearPlans();
+    this.plans = Array.isArray(response?.data) ? response.data : [];
+    debugLog('[YearlyPlanner] Loaded plans:', this.plans.length);
+  }
+
+  async openPlan(planId) {
+    this.isLoading = true;
+    this.view = VIEW.PLANNER;
+    this.render();
+
     try {
-      const response = await getActivityLibrary();
-      this.activityLibrary = response?.data || [];
-    } catch (err) {
-      debugError('Error loading activity library:', err);
-      this.activityLibrary = [];
+      const [planResponse, libraryResponse] = await Promise.all([
+        getYearPlan(planId),
+        getActivityLibrary()
+      ]);
+
+      this.currentPlan = this.normalizePlan(planResponse?.data || null);
+      this.activityLibrary = this.normalizeLibrary(libraryResponse?.data || []);
+      this.librarySearch = '';
+      this.libraryCategory = 'all';
+      await this.loadMeetingActivities();
+      this.isLoading = false;
+      this.render();
+      this.attachEventListeners();
+    } catch (error) {
+      debugError('[YearlyPlanner] Failed to open plan:', error);
+      this.isLoading = false;
+      this.currentPlan = null;
+      this.app.showMessage(this.t('yearly_planner_error_loading', 'Unable to load this plan.'), 'error');
+      this.render();
+      this.attachEventListeners();
     }
   }
 
-  // =========================================================================
-  // RENDERING
-  // =========================================================================
+  normalizePlan(plan) {
+    if (!plan) return null;
+
+    const periods = Array.isArray(plan.periods)
+      ? [...plan.periods].sort((a, b) => String(a.start_date).localeCompare(String(b.start_date)))
+      : [];
+    const meetings = Array.isArray(plan.meetings)
+      ? [...plan.meetings].sort((a, b) => String(a.meeting_date).localeCompare(String(b.meeting_date)))
+      : [];
+    const objectives = Array.isArray(plan.objectives)
+      ? [...plan.objectives].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
+      : [];
+
+    this.periodColorMap = {};
+    periods.forEach((period, index) => {
+      this.periodColorMap[String(period.id)] = PERIOD_COLORS[index % PERIOD_COLORS.length];
+    });
+
+    this.objectiveColorMap = {};
+    objectives.forEach((objective, index) => {
+      this.objectiveColorMap[String(objective.id)] = OBJECTIVE_COLORS[index % OBJECTIVE_COLORS.length];
+    });
+
+    return {
+      ...plan,
+      periods,
+      meetings,
+      objectives
+    };
+  }
+
+  normalizeLibrary(library) {
+    if (!Array.isArray(library)) return [];
+
+    return library.map((activity) => ({
+      ...activity,
+      objective_ids: this.normalizeIdArray(activity.objective_ids)
+    }));
+  }
+
+  normalizeIdArray(value) {
+    let raw = value;
+
+    if (typeof raw === 'string') {
+      try {
+        raw = JSON.parse(raw);
+      } catch (_error) {
+        raw = [];
+      }
+    }
+
+    if (!Array.isArray(raw)) return [];
+
+    const numeric = raw
+      .map((entry) => Number.parseInt(entry, 10))
+      .filter((entry) => Number.isFinite(entry));
+
+    return [...new Set(numeric)];
+  }
+
+  normalizeMeetingActivities(activities) {
+    if (!Array.isArray(activities)) return [];
+
+    return activities.map((activity) => ({
+      ...activity,
+      objective_ids: this.normalizeIdArray(activity.objective_ids)
+    }));
+  }
+
+  async loadMeetingActivities() {
+    const meetings = this.currentPlan?.meetings || [];
+    const cache = {};
+
+    const worker = async (meeting) => {
+      const response = await getYearPlanMeeting(meeting.id);
+      const details = response?.data || {};
+      cache[meeting.id] = this.normalizeMeetingActivities(details.activities || []);
+    };
+
+    await this.runBatched(meetings, MEETING_FETCH_CONCURRENCY, worker);
+    this.meetingActivitiesById = cache;
+  }
+
+  async runBatched(items, size, task) {
+    let index = 0;
+    const workers = new Array(size).fill(null).map(async () => {
+      while (index < items.length) {
+        const current = items[index];
+        index += 1;
+        try {
+          await task(current);
+        } catch (error) {
+          debugError('[YearlyPlanner] batched task failed:', error);
+        }
+      }
+    });
+
+    await Promise.all(workers);
+  }
 
   render() {
-    const container = document.getElementById('app');
-    if (!container) return;
+    const appNode = document.getElementById('app');
+    if (!appNode) return;
 
-    if (this.isLoading) {
-      setContent(container, this.renderLoading());
+    if (!this.canView) {
+      setContent(
+        appNode,
+        `<section class="yearly-planner"><p class="yearly-planner__error">${escapeHTML(
+          this.t('not_authorized', 'You are not authorized to access this page.')
+        )}</p></section>`
+      );
       return;
     }
 
-    switch (this.view) {
-      case VIEW.PLAN_DETAIL:
-        setContent(container, this.renderPlanDetail());
-        break;
-      case VIEW.MEETING_DETAIL:
-        setContent(container, this.renderMeetingDetail());
-        break;
-      case VIEW.LIBRARY:
-        setContent(container, this.renderLibraryView());
-        break;
-      default:
-        setContent(container, this.renderPlanList());
+    if (this.isLoading) {
+      setContent(appNode, this.renderLoading());
+      return;
     }
+
+    if (this.view === VIEW.PLANNER && this.currentPlan) {
+      setContent(appNode, this.renderPlanner());
+      return;
+    }
+
+    setContent(appNode, this.renderPlanList());
   }
 
   renderLoading() {
     return `
-      <section class="page yearly-planner">
-        <header class="page__header">
-          <h1>${translate('yearly_planner_title')}</h1>
+      <section class="yearly-planner">
+        <header class="yearly-planner__header">
+          <h1>${escapeHTML(this.t('yearly_planner_title', 'Yearly Meeting Planner'))}</h1>
         </header>
-        ${skeletonTable ? skeletonTable(5) : '<div class="loading-spinner"></div>'}
+        ${skeletonTable ? skeletonTable(6) : '<div class="loading-spinner"></div>'}
       </section>
     `;
   }
 
   renderPlanList() {
+    const cards = this.plans
+      .map((plan) => {
+        const periodCount = Number(plan.period_count || 0);
+        const meetingCount = Number(plan.meeting_count || 0);
+        return `
+          <article class="plan-card" data-plan-id="${plan.id}">
+            <h3 class="plan-card__title">${escapeHTML(plan.title || this.t('untitled', 'Untitled'))}</h3>
+            <p class="plan-card__meta">
+              ${escapeHTML(formatDate(plan.start_date, this.lang, { year: 'numeric', month: 'short', day: 'numeric' }))}
+              -
+              ${escapeHTML(formatDate(plan.end_date, this.lang, { year: 'numeric', month: 'short', day: 'numeric' }))}
+            </p>
+            <p class="plan-card__stats">
+              ${meetingCount} ${escapeHTML(this.t('yearly_planner_meetings', 'meetings'))}
+              &middot;
+              ${periodCount} ${escapeHTML(this.t('yearly_planner_periods', 'periods'))}
+            </p>
+            <div class="plan-card__actions">
+              <button class="button button--primary yp-open-plan-btn" data-plan-id="${plan.id}">
+                ${escapeHTML(this.t('yearly_planner_open', 'Open Plan'))}
+              </button>
+              ${
+                this.canManage
+                  ? `<button class="button button--ghost yp-delete-plan-btn" data-plan-id="${plan.id}">${escapeHTML(
+                      this.t('delete', 'Delete')
+                    )}</button>`
+                  : ''
+              }
+            </div>
+          </article>
+        `;
+      })
+      .join('');
+
     return `
-      <section class="page yearly-planner">
-        <header class="page__header">
-          <h1>${translate('yearly_planner_title')}</h1>
-          <div class="page__actions">
-            ${this.canManage ? `
-              <button class="button button--secondary" id="yp-library-btn">
-                <i class="fas fa-book"></i> ${translate('yearly_planner_activity_library')}
-              </button>
-              <button class="button button--primary" id="yp-create-btn">
-                <i class="fas fa-plus"></i> ${translate('yearly_planner_create')}
-              </button>
-            ` : ''}
-          </div>
+      <section class="yearly-planner">
+        <header class="yearly-planner__header">
+          <h1>${escapeHTML(this.t('yearly_planner_title', 'Yearly Meeting Planner'))}</h1>
+          ${
+            this.canManage
+              ? `<button id="yp-create-plan-btn" class="button button--primary">${escapeHTML(
+                  this.t('create_year_plan', 'Create Year Plan')
+                )}</button>`
+              : ''
+          }
         </header>
 
-        ${this.plans.length === 0 ? `
-          <div class="empty-state">
-            <i class="fas fa-calendar-alt empty-state__icon"></i>
-            <p>${translate('yearly_planner_empty')}</p>
-            ${this.canManage ? `
-              <button class="button button--primary" id="yp-create-empty-btn">
-                ${translate('yearly_planner_create_first')}
-              </button>
-            ` : ''}
-          </div>
-        ` : `
-          <div class="yp-plan-list">
-            ${this.plans.map(plan => this.renderPlanCard(plan)).join('')}
-          </div>
-        `}
+        ${
+          this.plans.length === 0
+            ? `<div class="yearly-planner__empty">
+                <p>${escapeHTML(this.t('yearly_planner_empty', 'No year plans yet.'))}</p>
+                ${
+                  this.canManage
+                    ? `<button id="yp-create-first-plan-btn" class="button button--primary">${escapeHTML(
+                        this.t('create_year_plan', 'Create Year Plan')
+                      )}</button>`
+                    : ''
+                }
+              </div>`
+            : `<div class="plan-list">${cards}</div>`
+        }
       </section>
     `;
   }
 
-  renderPlanCard(plan) {
-    const startDate = formatDate(plan.start_date, this.lang);
-    const endDate = formatDate(plan.end_date, this.lang);
-    const safeName = escapeHTML(plan.title);
-    const meetingCount = plan.meeting_count || 0;
-    const periodCount = plan.period_count || 0;
+  renderPlanner() {
+    const plan = this.currentPlan;
+    const filteredLibrary = this.getFilteredLibrary();
 
     return `
-      <div class="yp-plan-card" data-plan-id="${plan.id}">
-        <div class="yp-plan-card__header">
-          <h3 class="yp-plan-card__title">${safeName}</h3>
-          ${this.canManage ? `
-            <button class="button button--small button--danger yp-delete-plan-btn" data-id="${plan.id}" title="${translate('delete')}">
-              <i class="fas fa-trash"></i>
-            </button>
-          ` : ''}
+      <section class="yearly-planner">
+        <header class="yearly-planner__header yearly-planner__header--planner">
+          <button class="button button--ghost" id="yp-back-to-plans">&larr; ${escapeHTML(
+            this.t('back', 'Back')
+          )}</button>
+          <h1>${escapeHTML(this.t('yearly_planner_title', 'Yearly Meeting Planner'))}: ${escapeHTML(
+            plan.title || ''
+          )}</h1>
+          ${
+            this.canManage
+              ? `<button class="button button--secondary" id="yp-edit-plan-btn">${escapeHTML(
+                  this.t('edit', 'Edit')
+                )}</button>`
+              : ''
+          }
+        </header>
+
+        <div class="planner-toolbar">
+          <details class="library-panel" ${this.activityLibrary.length > 0 ? 'open' : ''}>
+            <summary>${escapeHTML(this.t('activity_library', 'Activity Library'))}</summary>
+            <div class="library-panel__content">
+              <div class="library-panel__controls">
+                <input
+                  type="search"
+                  id="yp-library-search"
+                  value="${escapeHTML(this.librarySearch)}"
+                  placeholder="${escapeHTML(this.t('search_activities', 'Search activities'))}"
+                />
+                <select id="yp-library-category">
+                  ${this.renderLibraryCategoryOptions()}
+                </select>
+                ${
+                  this.canManage
+                    ? `<button class="button button--secondary" id="yp-add-library-activity">${escapeHTML(
+                        this.t('add_activity', 'Add Activity')
+                      )}</button>`
+                    : ''
+                }
+              </div>
+              ${
+                filteredLibrary.length === 0
+                  ? `<p class="library-panel__empty">${escapeHTML(
+                      this.t('yearly_planner_library_empty', 'No activities in the library.')
+                    )}</p>`
+                  : `<div class="library-panel__items">
+                      ${filteredLibrary.map((activity) => this.renderLibraryItem(activity)).join('')}
+                    </div>`
+              }
+            </div>
+          </details>
+
+          <details class="objectives-panel" open>
+            <summary>${escapeHTML(this.t('objectives', 'Objectives'))}</summary>
+            <div class="objectives-panel__content">
+              <div class="objectives-panel__actions">
+                ${
+                  this.canManage
+                    ? `<button class="button button--ghost" id="yp-add-period-btn">${escapeHTML(
+                        this.t('add_period', 'Add Period')
+                      )}</button>
+                       <button class="button button--ghost" id="yp-add-objective-btn">${escapeHTML(
+                         this.t('add_objective', 'Add Objective')
+                       )}</button>`
+                    : ''
+                }
+              </div>
+              ${this.renderObjectiveProgress()}
+            </div>
+          </details>
         </div>
-        <div class="yp-plan-card__meta">
-          <span><i class="fas fa-calendar"></i> ${startDate} — ${endDate}</span>
-          <span><i class="fas fa-layer-group"></i> ${periodCount} ${translate('yearly_planner_periods')}</span>
-          <span><i class="fas fa-calendar-check"></i> ${meetingCount} ${translate('yearly_planner_meetings')}</span>
+
+        <div class="period-list">
+          ${this.renderMeetingSections()}
         </div>
-        <button class="button button--primary button--block yp-open-plan-btn" data-id="${plan.id}">
-          ${translate('yearly_planner_open')}
-        </button>
+
+        ${this.renderFloatingIndicator()}
+      </section>
+    `;
+  }
+
+  renderLibraryCategoryOptions() {
+    const categories = this.getLibraryCategories();
+
+    const options = [`<option value="all">${escapeHTML(this.t('all', 'All'))}</option>`]
+      .concat(
+        categories.map(
+          (category) =>
+            `<option value="${escapeHTML(category)}" ${
+              this.libraryCategory === category ? 'selected' : ''
+            }>${escapeHTML(category)}</option>`
+        )
+      )
+      .join('');
+
+    return options;
+  }
+
+  renderLibraryItem(activity) {
+    const durationLabel = this.getActivityDurationLabel(activity);
+    const payload = escapeHTML(JSON.stringify(activity));
+
+    return `
+      <div
+        class="library-panel__item"
+        data-activity-id="${activity.id}"
+        data-activity-payload="${payload}"
+        title="${escapeHTML(this.t('assign_activity', 'Assign activity'))}"
+      >
+        <div class="library-panel__item-main">
+          <strong>${escapeHTML(activity.name || '')}</strong>
+          <span>${escapeHTML(durationLabel)}</span>
+          ${
+            activity.category
+              ? `<span class="library-panel__category">${escapeHTML(activity.category)}</span>`
+              : ''
+          }
+          ${this.renderObjectiveDots(activity.objective_ids)}
+        </div>
+        ${
+          this.canManage
+            ? `<div class="library-panel__item-actions" data-ignore-assign="true">
+                <button class="button button--tiny yp-edit-library-btn" data-ignore-assign="true" data-activity-id="${
+                  activity.id
+                }">${escapeHTML(this.t('edit', 'Edit'))}</button>
+                <button class="button button--tiny button--danger yp-delete-library-btn" data-ignore-assign="true" data-activity-id="${
+                  activity.id
+                }">${escapeHTML(this.t('delete', 'Delete'))}</button>
+              </div>`
+            : ''
+        }
       </div>
     `;
   }
 
-  renderPlanDetail() {
-    if (!this.currentPlan) {
-      return `<p>${translate('yearly_planner_not_found')}</p>`;
-    }
-
-    const plan = this.currentPlan;
-    const safeName = escapeHTML(plan.title);
-    const periods = plan.periods || [];
-    const meetings = plan.meetings || [];
-    const objectives = plan.objectives || [];
-
-    // Separate root and sub objectives
-    const rootObjectives = objectives.filter(o => !o.parent_id);
-    const subObjectiveMap = {};
-    objectives.filter(o => o.parent_id).forEach(o => {
-      if (!subObjectiveMap[o.parent_id]) subObjectiveMap[o.parent_id] = [];
-      subObjectiveMap[o.parent_id].push(o);
-    });
-
-    const today = new Date().toISOString().split('T')[0];
+  renderObjectiveDots(objectiveIds) {
+    const ids = Array.isArray(objectiveIds) ? objectiveIds : [];
+    if (ids.length === 0) return '';
 
     return `
-      <section class="page yearly-planner">
-        <header class="page__header">
-          <button class="button button--text yp-back-btn" id="yp-back-to-list">
-            <i class="fas fa-arrow-left"></i> ${translate('back')}
-          </button>
-          <h1>${safeName}</h1>
+      <span class="objective-dots">
+        ${ids
+          .map((id) => {
+            const objective = this.getObjectiveById(id);
+            return `<span
+              class="objective-dot"
+              style="--objective-color:${this.getObjectiveColor(id)}"
+              title="${escapeHTML(objective?.title || this.t('objective', 'Objective'))}"
+            ></span>`;
+          })
+          .join('')}
+      </span>
+    `;
+  }
+
+  renderObjectiveProgress() {
+    const objectives = this.currentPlan?.objectives || [];
+    if (objectives.length === 0) {
+      return `<p class="objectives-panel__empty">${escapeHTML(
+        this.t('yearly_planner_no_objectives', 'No objectives yet.')
+      )}</p>`;
+    }
+
+    const progress = this.calculateObjectiveProgress();
+
+    return `
+      <ul class="objective-progress-list">
+        ${objectives
+          .map((objective) => {
+            const count = progress[objective.id] || 0;
+            return `<li class="objective-progress-item" data-objective-id="${objective.id}">
+              <span class="objective-progress-item__title">
+                <span class="objective-dot" style="--objective-color:${this.getObjectiveColor(objective.id)}"></span>
+                ${escapeHTML(objective.title || this.t('objective', 'Objective'))}
+              </span>
+              <span class="objective-progress-item__value">${count}</span>
+              ${
+                this.canManage
+                  ? `<button class="button button--tiny button--danger yp-delete-objective-btn" data-objective-id="${
+                      objective.id
+                    }">${escapeHTML(this.t('delete', 'Delete'))}</button>`
+                  : ''
+              }
+            </li>`;
+          })
+          .join('')}
+      </ul>
+    `;
+  }
+
+  calculateObjectiveProgress() {
+    const progress = {};
+    const meetings = this.currentPlan?.meetings || [];
+
+    meetings.forEach((meeting) => {
+      const activities = this.meetingActivitiesById[meeting.id] || [];
+      const uniqueObjectiveIds = new Set();
+
+      activities.forEach((activity) => {
+        this.normalizeIdArray(activity.objective_ids).forEach((objectiveId) => {
+          uniqueObjectiveIds.add(objectiveId);
+        });
+      });
+
+      uniqueObjectiveIds.forEach((objectiveId) => {
+        progress[objectiveId] = Number(progress[objectiveId] || 0) + 1;
+      });
+    });
+
+    return progress;
+  }
+
+  renderMeetingSections() {
+    const plan = this.currentPlan;
+    const periodMeetings = {};
+
+    (plan.periods || []).forEach((period) => {
+      periodMeetings[period.id] = [];
+    });
+
+    const unassignedKey = '__unassigned__';
+    periodMeetings[unassignedKey] = [];
+
+    (plan.meetings || []).forEach((meeting) => {
+      if (meeting.period_id && periodMeetings[meeting.period_id]) {
+        periodMeetings[meeting.period_id].push(meeting);
+      } else {
+        periodMeetings[unassignedKey].push(meeting);
+      }
+    });
+
+    const sections = [];
+
+    (plan.periods || []).forEach((period) => {
+      sections.push(this.renderPeriodSection(period, periodMeetings[period.id] || []));
+    });
+
+    if ((periodMeetings[unassignedKey] || []).length > 0) {
+      sections.push(
+        this.renderPeriodSection(
+          {
+            id: unassignedKey,
+            title: this.t('yearly_planner_unassigned', 'Unassigned'),
+            start_date: null,
+            end_date: null
+          },
+          periodMeetings[unassignedKey]
+        )
+      );
+    }
+
+    if (sections.length === 0) {
+      return `<div class="yearly-planner__empty">${escapeHTML(
+        this.t('yearly_planner_no_meetings', 'No meetings generated for this plan.')
+      )}</div>`;
+    }
+
+    return sections.join('');
+  }
+
+  renderPeriodSection(period, meetings) {
+    const dateRange = period.start_date && period.end_date
+      ? `${formatDate(period.start_date, this.lang, { month: 'short', day: 'numeric' })} - ${formatDate(
+          period.end_date,
+          this.lang,
+          { month: 'short', day: 'numeric' }
+        )}`
+      : '';
+
+    const periodColor = this.getPeriodColor(period.id);
+
+    return `
+      <section class="period-section" data-period-id="${period.id}">
+        <header class="period-divider" style="--period-color:${periodColor}">
+          <span>${escapeHTML(this.t('periods', 'Periods'))}: ${escapeHTML(period.title || '')}</span>
+          ${dateRange ? `<small>${escapeHTML(dateRange)}</small>` : ''}
+          ${
+            this.canManage && period.id !== '__unassigned__'
+              ? `<button class="button button--tiny button--danger yp-delete-period-btn" data-period-id="${period.id}">${escapeHTML(
+                  this.t('delete', 'Delete')
+                )}</button>`
+              : ''
+          }
         </header>
 
-        <div class="yp-plan-meta">
-          <span><i class="fas fa-calendar"></i> ${formatDate(plan.start_date, this.lang)} — ${formatDate(plan.end_date, this.lang)}</span>
-          ${plan.default_location ? `<span><i class="fas fa-map-marker-alt"></i> ${escapeHTML(plan.default_location)}</span>` : ''}
-          <span><i class="fas fa-repeat"></i> ${plan.recurrence_pattern === 'biweekly' ? translate('yearly_planner_biweekly') : translate('yearly_planner_weekly')}</span>
-        </div>
-
-        <!-- Tabs -->
-        <div class="yp-tabs" role="tablist">
-          <button class="yp-tab yp-tab--active" data-tab="timeline" role="tab">${translate('yearly_planner_tab_timeline')}</button>
-          <button class="yp-tab" data-tab="periods" role="tab">${translate('yearly_planner_tab_periods')}</button>
-          <button class="yp-tab" data-tab="objectives" role="tab">${translate('yearly_planner_tab_objectives')}</button>
-        </div>
-
-        <!-- Timeline Tab -->
-        <div class="yp-tab-content yp-tab-content--active" id="yp-tab-timeline">
-          ${this.renderTimeline(meetings, periods, today)}
-        </div>
-
-        <!-- Periods Tab -->
-        <div class="yp-tab-content" id="yp-tab-periods" style="display:none;">
-          ${this.renderPeriodsTab(periods)}
-        </div>
-
-        <!-- Objectives Tab -->
-        <div class="yp-tab-content" id="yp-tab-objectives" style="display:none;">
-          ${this.renderObjectivesTab(rootObjectives, subObjectiveMap, periods)}
+        <div class="meeting-list">
+          ${meetings.map((meeting) => this.renderMeetingRow(meeting, periodColor)).join('')}
         </div>
       </section>
     `;
   }
 
-  renderTimeline(meetings, periods, today) {
-    if (meetings.length === 0) {
-      return `<div class="empty-state"><p>${translate('yearly_planner_no_meetings')}</p></div>`;
+  renderMeetingRow(meeting, periodColor) {
+    const activities = this.meetingActivitiesById[meeting.id] || [];
+
+    return `
+      <article class="meeting-row" data-meeting-id="${meeting.id}" data-meeting-date="${escapeHTML(
+      meeting.meeting_date
+    )}" style="--period-color:${periodColor}">
+        <header class="meeting-row__header">
+          <div>
+            <h3>${escapeHTML(
+              formatDate(meeting.meeting_date, this.lang, {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+              })
+            )}</h3>
+            ${meeting.start_time ? `<small>${escapeHTML(String(meeting.start_time).slice(0, 5))}</small>` : ''}
+          </div>
+          <a
+            class="meeting-row__detail"
+            data-ignore-assign="true"
+            href="/preparation-reunions?date=${encodeURIComponent(meeting.meeting_date)}"
+            data-meeting-date="${escapeHTML(meeting.meeting_date)}"
+          >${escapeHTML(this.t('edit_in_detail', 'Edit in detail'))}</a>
+        </header>
+
+        <div class="meeting-row__activities">
+          ${
+            activities.length === 0
+              ? `<p class="meeting-row__empty">${escapeHTML(
+                  this.t('tap_to_assign', 'Tap an activity, then tap this meeting to assign.')
+                )}</p>`
+              : activities.map((activity) => this.renderMeetingActivityChip(meeting.id, activity)).join('')
+          }
+        </div>
+      </article>
+    `;
+  }
+
+  renderMeetingActivityChip(meetingId, activity) {
+    const duration = Number.parseInt(activity.duration_minutes, 10);
+    const durationLabel = Number.isFinite(duration) ? `${duration}m` : '';
+
+    return `
+      <span class="activity-chip" data-ignore-assign="true">
+        <span>${escapeHTML(activity.name || '')} ${durationLabel ? `- ${escapeHTML(durationLabel)}` : ''}</span>
+        ${this.renderObjectiveDots(activity.objective_ids)}
+        ${
+          this.canManage
+            ? `<button
+                class="activity-chip__remove"
+                data-ignore-assign="true"
+                data-meeting-id="${meetingId}"
+                data-meeting-activity-id="${activity.id}"
+                aria-label="${escapeHTML(this.t('remove_from_meeting', 'Remove from meeting'))}"
+              >&times;</button>`
+            : ''
+        }
+      </span>
+    `;
+  }
+
+  renderFloatingIndicator() {
+    const selectedActivity = this.getSelectedActivityFromState();
+    if (!selectedActivity) return '';
+
+    return `
+      <div class="floating-indicator" id="yp-floating-indicator">
+        <span>${escapeHTML(this.t('floating_assign_hint', 'Assigning'))}: ${escapeHTML(
+      selectedActivity.name || ''
+    )}</span>
+        <button class="button button--ghost" id="yp-done-assigning">${escapeHTML(
+          this.t('done_assigning', 'Done')
+        )}</button>
+      </div>
+    `;
+  }
+
+  attachEventListeners() {
+    this.destroyDragDrop();
+
+    // Plan list controls
+    this.addEventListener(document.getElementById('yp-create-plan-btn'), 'click', () =>
+      this.showPlanModal()
+    );
+    this.addEventListener(document.getElementById('yp-create-first-plan-btn'), 'click', () =>
+      this.showPlanModal()
+    );
+
+    this.addEventListeners(document.querySelectorAll('.yp-open-plan-btn'), 'click', async (event) => {
+      const id = Number.parseInt(event.currentTarget.dataset.planId, 10);
+      if (Number.isFinite(id)) {
+        await this.openPlan(id);
+      }
+    });
+
+    this.addEventListeners(document.querySelectorAll('.yp-delete-plan-btn'), 'click', async (event) => {
+      const id = Number.parseInt(event.currentTarget.dataset.planId, 10);
+      if (!Number.isFinite(id)) return;
+      await this.handleDeletePlan(id);
+    });
+
+    // Planner controls
+    this.addEventListener(document.getElementById('yp-back-to-plans'), 'click', async () => {
+      this.view = VIEW.PLAN_LIST;
+      this.currentPlan = null;
+      this.isLoading = true;
+      this.render();
+      await this.refreshPlans();
+      this.isLoading = false;
+      this.render();
+      this.attachEventListeners();
+    });
+
+    this.addEventListener(document.getElementById('yp-edit-plan-btn'), 'click', () =>
+      this.showPlanModal(this.currentPlan)
+    );
+
+    this.addEventListener(document.getElementById('yp-library-search'), 'input', (event) => {
+      this.librarySearch = String(event.target.value || '');
+      this.render();
+      this.attachEventListeners();
+    });
+
+    this.addEventListener(document.getElementById('yp-library-category'), 'change', (event) => {
+      this.libraryCategory = String(event.target.value || 'all');
+      this.render();
+      this.attachEventListeners();
+    });
+
+    this.addEventListener(document.getElementById('yp-add-library-activity'), 'click', () =>
+      this.showLibraryActivityModal()
+    );
+
+    this.addEventListeners(document.querySelectorAll('.yp-edit-library-btn'), 'click', (event) => {
+      const id = Number.parseInt(event.currentTarget.dataset.activityId, 10);
+      const activity = this.activityLibrary.find((item) => Number(item.id) === id);
+      if (activity) this.showLibraryActivityModal(activity);
+    });
+
+    this.addEventListeners(document.querySelectorAll('.yp-delete-library-btn'), 'click', async (event) => {
+      const id = Number.parseInt(event.currentTarget.dataset.activityId, 10);
+      if (!Number.isFinite(id)) return;
+      await this.handleDeleteLibraryActivity(id);
+    });
+
+    this.addEventListener(document.getElementById('yp-add-period-btn'), 'click', () => this.showPeriodModal());
+    this.addEventListener(document.getElementById('yp-add-objective-btn'), 'click', () =>
+      this.showObjectiveModal()
+    );
+
+    this.addEventListeners(document.querySelectorAll('.yp-delete-period-btn'), 'click', async (event) => {
+      const id = Number.parseInt(event.currentTarget.dataset.periodId, 10);
+      if (!Number.isFinite(id)) return;
+      await this.handleDeletePeriod(id);
+    });
+
+    this.addEventListeners(document.querySelectorAll('.yp-delete-objective-btn'), 'click', async (event) => {
+      const id = Number.parseInt(event.currentTarget.dataset.objectiveId, 10);
+      if (!Number.isFinite(id)) return;
+      await this.handleDeleteObjective(id);
+    });
+
+    this.addEventListeners(document.querySelectorAll('.activity-chip__remove'), 'click', async (event) => {
+      const meetingId = Number.parseInt(event.currentTarget.dataset.meetingId, 10);
+      const meetingActivityId = Number.parseInt(event.currentTarget.dataset.meetingActivityId, 10);
+      if (!Number.isFinite(meetingId) || !Number.isFinite(meetingActivityId)) return;
+      await this.handleRemoveMeetingActivity(meetingId, meetingActivityId);
+    });
+
+    this.addEventListeners(document.querySelectorAll('.meeting-row__detail'), 'click', (event) => {
+      event.preventDefault();
+      const date = event.currentTarget.dataset.meetingDate;
+      this.navigateToMeetingDetail(date);
+    });
+
+    this.addEventListeners(document.querySelectorAll('.meeting-row'), 'click', (event) => {
+      if (event.defaultPrevented) return;
+      if (event.target.closest('[data-ignore-assign="true"]')) return;
+      if (this.dragDropManager?.hasSelection()) return;
+
+      const date = event.currentTarget.dataset.meetingDate;
+      this.navigateToMeetingDetail(date);
+    });
+
+    this.setupDragDrop();
+    this.updateFloatingIndicator();
+  }
+
+  setupDragDrop() {
+    this.destroyDragDrop();
+
+    if (!this.canManage) return;
+
+    this.dragDropManager = new DragDropManager({
+      onAssign: async ({ activity, meeting }) => {
+        await this.assignActivityToMeeting(activity, meeting);
+      },
+      onSelectionChange: (activity) => {
+        this.selectedActivityId = activity?.id || null;
+        this.updateFloatingIndicator();
+      }
+    });
+
+    document.querySelectorAll('.library-panel__item').forEach((element) => {
+      const payload = element.dataset.activityPayload;
+      if (!payload) return;
+
+      try {
+        const activity = JSON.parse(payload);
+        this.dragDropManager.registerActivityElement(element, activity);
+      } catch (error) {
+        debugError('[YearlyPlanner] Invalid activity payload:', error);
+      }
+    });
+
+    document.querySelectorAll('.meeting-row').forEach((element) => {
+      const meetingId = Number.parseInt(element.dataset.meetingId, 10);
+      const meeting = this.currentPlan?.meetings?.find((entry) => Number(entry.id) === meetingId);
+      if (!meeting) return;
+      this.dragDropManager.registerMeetingZone(element, meeting);
+    });
+
+    this.dragDropManager.restoreSelection(this.selectedActivityId);
+    this.updateFloatingIndicator();
+  }
+
+  destroyDragDrop() {
+    if (this.dragDropManager) {
+      this.dragDropManager.destroy();
+      this.dragDropManager = null;
     }
+  }
 
-    // Group meetings by period
-    const periodMap = {};
-    periods.forEach(p => { periodMap[p.id] = p; });
+  getFilteredLibrary() {
+    const searchTerm = this.librarySearch.trim().toLowerCase();
+    const category = this.libraryCategory;
 
-    let currentPeriodId = null;
-    let html = '<div class="yp-timeline">';
-
-    for (const meeting of meetings) {
-      // Period header
-      if (meeting.period_id !== currentPeriodId) {
-        if (currentPeriodId !== null) html += '</div>'; // Close previous group
-        currentPeriodId = meeting.period_id;
-        const period = periodMap[meeting.period_id];
-        html += `
-          <div class="yp-timeline-group">
-            <h3 class="yp-timeline-group__title">
-              ${period ? escapeHTML(period.title) : translate('yearly_planner_unassigned')}
-            </h3>
-        `;
+    return this.activityLibrary.filter((activity) => {
+      if (category !== 'all' && (activity.category || '').toLowerCase() !== category.toLowerCase()) {
+        return false;
       }
 
-      const isLocked = meeting.meeting_date < today;
-      const isCancelled = meeting.is_cancelled;
-      const stateClass = isCancelled ? 'yp-meeting--cancelled' : isLocked ? 'yp-meeting--locked' : '';
-      const activityCount = meeting.activity_count || 0;
+      if (!searchTerm) return true;
 
-      html += `
-        <div class="yp-meeting ${stateClass}" data-meeting-id="${meeting.id}">
-          <div class="yp-meeting__date">
-            <span class="yp-meeting__day">${formatDate(meeting.meeting_date, this.lang)}</span>
-            ${meeting.start_time ? `<span class="yp-meeting__time">${meeting.start_time.substring(0, 5)}</span>` : ''}
-          </div>
-          <div class="yp-meeting__info">
-            ${meeting.theme ? `<span class="yp-meeting__theme">${escapeHTML(meeting.theme)}</span>` : ''}
-            ${meeting.location ? `<span class="yp-meeting__location"><i class="fas fa-map-marker-alt"></i> ${escapeHTML(meeting.location)}</span>` : ''}
-            <span class="yp-meeting__activities">${activityCount} ${translate('activities')}</span>
-          </div>
-          <div class="yp-meeting__status">
-            ${isCancelled ? `<span class="badge badge--danger">${translate('yearly_planner_cancelled')}</span>` :
-              isLocked ? `<span class="badge badge--muted"><i class="fas fa-lock"></i> ${translate('yearly_planner_locked')}</span>` :
-              `<button class="button button--small yp-edit-meeting-btn" data-id="${meeting.id}">${translate('edit')}</button>`}
-          </div>
-        </div>
-      `;
+      const text = `${activity.name || ''} ${activity.description || ''}`.toLowerCase();
+      return text.includes(searchTerm);
+    });
+  }
+
+  getLibraryCategories() {
+    const categories = this.activityLibrary
+      .map((activity) => (activity.category || '').trim())
+      .filter(Boolean);
+
+    return [...new Set(categories)].sort((a, b) => a.localeCompare(b, this.lang));
+  }
+
+  getObjectiveById(id) {
+    return (this.currentPlan?.objectives || []).find((objective) => Number(objective.id) === Number(id));
+  }
+
+  getObjectiveColor(id) {
+    return this.objectiveColorMap[String(id)] || OBJECTIVE_COLORS[Math.abs(Number(id) || 0) % OBJECTIVE_COLORS.length];
+  }
+
+  getPeriodColor(id) {
+    return this.periodColorMap[String(id)] || PERIOD_COLORS[Math.abs(Number(id) || 0) % PERIOD_COLORS.length];
+  }
+
+  getActivityDurationLabel(activity) {
+    const min = Number.parseInt(activity.estimated_duration_min, 10);
+    const max = Number.parseInt(activity.estimated_duration_max, 10);
+
+    if (Number.isFinite(min) && Number.isFinite(max) && max > min) {
+      return `${min}-${max} min`;
     }
 
-    if (currentPeriodId !== null) html += '</div>'; // Close last group
-    html += '</div>';
-    return html;
-  }
-
-  renderPeriodsTab(periods) {
-    return `
-      <div class="yp-periods">
-        ${this.canManage ? `
-          <button class="button button--primary" id="yp-add-period-btn">
-            <i class="fas fa-plus"></i> ${translate('yearly_planner_add_period')}
-          </button>
-        ` : ''}
-        ${periods.length === 0 ? `
-          <div class="empty-state"><p>${translate('yearly_planner_no_periods')}</p></div>
-        ` : periods.map(p => `
-          <div class="yp-period-card" data-period-id="${p.id}">
-            <div class="yp-period-card__header">
-              <h4>${escapeHTML(p.title)}</h4>
-              ${this.canManage ? `
-                <div class="yp-period-card__actions">
-                  <button class="button button--small yp-edit-period-btn" data-id="${p.id}"><i class="fas fa-edit"></i></button>
-                  <button class="button button--small button--danger yp-delete-period-btn" data-id="${p.id}"><i class="fas fa-trash"></i></button>
-                </div>
-              ` : ''}
-            </div>
-            <div class="yp-period-card__meta">
-              <span>${formatDate(p.start_date, this.lang)} — ${formatDate(p.end_date, this.lang)}</span>
-              <span>${p.objective_count || 0} ${translate('yearly_planner_objectives')}</span>
-              <span>${p.meeting_count || 0} ${translate('yearly_planner_meetings')}</span>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  renderObjectivesTab(rootObjectives, subObjectiveMap, periods) {
-    return `
-      <div class="yp-objectives">
-        ${this.canManage ? `
-          <button class="button button--primary" id="yp-add-objective-btn">
-            <i class="fas fa-plus"></i> ${translate('yearly_planner_add_objective')}
-          </button>
-        ` : ''}
-        ${rootObjectives.length === 0 ? `
-          <div class="empty-state"><p>${translate('yearly_planner_no_objectives')}</p></div>
-        ` : rootObjectives.map(obj => `
-          <div class="yp-objective" data-objective-id="${obj.id}">
-            <div class="yp-objective__header">
-              <h4>${escapeHTML(obj.title)}</h4>
-              <span class="badge">${obj.scope === 'participant' ? translate('yearly_planner_scope_participant') : translate('yearly_planner_scope_unit')}</span>
-              ${obj.period_title ? `<span class="badge badge--info">${escapeHTML(obj.period_title)}</span>` : ''}
-              ${obj.achievement_count > 0 ? `<span class="badge badge--success">${obj.achievement_count} ✓</span>` : ''}
-              ${this.canManage ? `
-                <button class="button button--small button--danger yp-delete-obj-btn" data-id="${obj.id}"><i class="fas fa-trash"></i></button>
-              ` : ''}
-            </div>
-            ${obj.description ? `<p class="yp-objective__desc">${escapeHTML(obj.description)}</p>` : ''}
-            ${(subObjectiveMap[obj.id] || []).length > 0 ? `
-              <div class="yp-sub-objectives">
-                ${subObjectiveMap[obj.id].map(sub => `
-                  <div class="yp-sub-objective">
-                    <span>${escapeHTML(sub.title)}</span>
-                    ${sub.achievement_count > 0 ? `<span class="badge badge--success">${sub.achievement_count} ✓</span>` : ''}
-                    ${this.canManage ? `
-                      <button class="button button--tiny button--danger yp-delete-obj-btn" data-id="${sub.id}"><i class="fas fa-times"></i></button>
-                    ` : ''}
-                  </div>
-                `).join('')}
-              </div>
-            ` : ''}
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  renderMeetingDetail() {
-    if (!this.currentMeeting) {
-      return `<p>${translate('meeting_not_found')}</p>`;
+    if (Number.isFinite(min)) {
+      return `${min} min`;
     }
 
-    const m = this.currentMeeting;
-    const isLocked = m.is_locked;
-    const activities = m.activities || [];
-
-    return `
-      <section class="page yearly-planner">
-        <header class="page__header">
-          <button class="button button--text" id="yp-back-to-plan">
-            <i class="fas fa-arrow-left"></i> ${translate('back')}
-          </button>
-          <h1>${formatDate(m.meeting_date, this.lang)}</h1>
-          ${isLocked ? `<span class="badge badge--muted"><i class="fas fa-lock"></i> ${translate('yearly_planner_locked')}</span>` : ''}
-        </header>
-
-        <div class="yp-meeting-detail">
-          <div class="yp-meeting-detail__info">
-            ${m.theme ? `<p><strong>${translate('yearly_planner_theme')}:</strong> ${escapeHTML(m.theme)}</p>` : ''}
-            ${m.location ? `<p><strong>${translate('meeting_location')}:</strong> ${escapeHTML(m.location)}</p>` : ''}
-            ${m.start_time ? `<p><strong>${translate('meeting_time')}:</strong> ${m.start_time.substring(0, 5)} — ${m.end_time ? m.end_time.substring(0, 5) : ''}</p>` : ''}
-            ${m.notes ? `<p><strong>${translate('notes')}:</strong> ${escapeHTML(m.notes)}</p>` : ''}
-          </div>
-
-          <h3>${translate('activities')} (${activities.length})</h3>
-
-          ${!isLocked && this.canManage ? `
-            <button class="button button--primary" id="yp-add-activity-btn">
-              <i class="fas fa-plus"></i> ${translate('add_activity')}
-            </button>
-          ` : ''}
-
-          ${activities.length === 0 ? `
-            <div class="empty-state"><p>${translate('no_activities_scheduled')}</p></div>
-          ` : `
-            <div class="yp-activity-list">
-              ${activities.map(a => `
-                <div class="yp-activity-item" data-activity-id="${a.id}">
-                  <div class="yp-activity-item__info">
-                    <strong>${escapeHTML(a.name)}</strong>
-                    ${a.duration_minutes ? `<span class="yp-activity-item__duration">${a.duration_minutes} min</span>` : ''}
-                    ${a.description ? `<p>${escapeHTML(a.description)}</p>` : ''}
-                    ${(a.objective_ids || []).length > 0 ? `
-                      <span class="badge badge--info"><i class="fas fa-bullseye"></i> ${a.objective_ids.length} ${translate('yearly_planner_objectives')}</span>
-                    ` : ''}
-                    ${a.series_id ? `<span class="badge"><i class="fas fa-link"></i> ${translate('yearly_planner_multi_meeting')}</span>` : ''}
-                  </div>
-                  ${!isLocked && this.canManage ? `
-                    <button class="button button--small button--danger yp-remove-activity-btn" data-id="${a.id}">
-                      <i class="fas fa-trash"></i>
-                    </button>
-                  ` : ''}
-                </div>
-              `).join('')}
-            </div>
-          `}
-        </div>
-      </section>
-    `;
+    return this.t('duration_minutes_placeholder', 'Duration');
   }
 
-  renderLibraryView() {
-    return `
-      <section class="page yearly-planner">
-        <header class="page__header">
-          <button class="button button--text" id="yp-back-from-library">
-            <i class="fas fa-arrow-left"></i> ${translate('back')}
-          </button>
-          <h1>${translate('yearly_planner_activity_library')}</h1>
-          ${this.canManage ? `
-            <button class="button button--primary" id="yp-add-library-btn">
-              <i class="fas fa-plus"></i> ${translate('yearly_planner_add_library_activity')}
-            </button>
-          ` : ''}
-        </header>
-
-        <div class="yp-library-search">
-          <input type="text" id="yp-library-search-input" class="input"
-            placeholder="${translate('yearly_planner_search_activities')}" />
-        </div>
-
-        ${this.activityLibrary.length === 0 ? `
-          <div class="empty-state"><p>${translate('yearly_planner_library_empty')}</p></div>
-        ` : `
-          <div class="yp-library-list">
-            ${this.activityLibrary.map(a => `
-              <div class="yp-library-item" data-lib-id="${a.id}">
-                <div class="yp-library-item__info">
-                  <strong>${escapeHTML(a.name)}</strong>
-                  ${a.category ? `<span class="badge">${escapeHTML(a.category)}</span>` : ''}
-                  ${a.description ? `<p>${escapeHTML(a.description)}</p>` : ''}
-                  <div class="yp-library-item__meta">
-                    ${a.estimated_duration_min ? `<span>${a.estimated_duration_min}–${a.estimated_duration_max || a.estimated_duration_min} min</span>` : ''}
-                    ${a.times_used > 0 ? `<span>${translate('yearly_planner_used')} ${a.times_used}×</span>` : ''}
-                    ${a.avg_rating ? `<span><i class="fas fa-star"></i> ${a.avg_rating}</span>` : ''}
-                  </div>
-                </div>
-                ${this.canManage ? `
-                  <button class="button button--small button--danger yp-delete-lib-btn" data-id="${a.id}">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                ` : ''}
-              </div>
-            `).join('')}
-          </div>
-        `}
-      </section>
-    `;
-  }
-
-  // =========================================================================
-  // MODALS
-  // =========================================================================
-
-  showCreatePlanModal() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'yp-modal';
-    setContent(modal, `
-      <div class="modal">
-        <div class="modal__header">
-          <h2>${translate('yearly_planner_create')}</h2>
-          <button class="modal__close" id="yp-modal-close">&times;</button>
-        </div>
-        <div class="modal__body">
-          <div class="form-group">
-            <label>${translate('yearly_planner_plan_title')}</label>
-            <input type="text" id="yp-plan-title" class="input" required />
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>${translate('yearly_planner_start_date')}</label>
-              <input type="date" id="yp-plan-start" class="input" required />
-            </div>
-            <div class="form-group">
-              <label>${translate('yearly_planner_end_date')}</label>
-              <input type="date" id="yp-plan-end" class="input" required />
-            </div>
-          </div>
-          <div class="form-group">
-            <label>${translate('yearly_planner_default_location')}</label>
-            <input type="text" id="yp-plan-location" class="input" />
-          </div>
-          <div class="form-group">
-            <label>${translate('yearly_planner_recurrence')}</label>
-            <select id="yp-plan-recurrence" class="input">
-              <option value="weekly">${translate('yearly_planner_weekly')}</option>
-              <option value="biweekly">${translate('yearly_planner_biweekly')}</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal__footer">
-          <button class="button button--secondary" id="yp-modal-cancel">${translate('cancel')}</button>
-          <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
-        </div>
-      </div>
-    `);
-    document.body.appendChild(modal);
-
-    modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-cancel').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleCreatePlan(modal));
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.remove();
-    });
-  }
-
-  showCreatePeriodModal() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'yp-modal';
-    setContent(modal, `
-      <div class="modal">
-        <div class="modal__header">
-          <h2>${translate('yearly_planner_add_period')}</h2>
-          <button class="modal__close" id="yp-modal-close">&times;</button>
-        </div>
-        <div class="modal__body">
-          <div class="form-group">
-            <label>${translate('yearly_planner_period_title')}</label>
-            <input type="text" id="yp-period-title" class="input" required />
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>${translate('yearly_planner_start_date')}</label>
-              <input type="date" id="yp-period-start" class="input" required />
-            </div>
-            <div class="form-group">
-              <label>${translate('yearly_planner_end_date')}</label>
-              <input type="date" id="yp-period-end" class="input" required />
-            </div>
-          </div>
-        </div>
-        <div class="modal__footer">
-          <button class="button button--secondary" id="yp-modal-cancel">${translate('cancel')}</button>
-          <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
-        </div>
-      </div>
-    `);
-    document.body.appendChild(modal);
-
-    modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-cancel').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleCreatePeriod(modal));
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.remove();
-    });
-  }
-
-  showCreateObjectiveModal() {
-    const periods = this.currentPlan?.periods || [];
-    const objectives = this.currentPlan?.objectives || [];
-    const rootObjectives = objectives.filter(o => !o.parent_id);
-
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'yp-modal';
-    setContent(modal, `
-      <div class="modal">
-        <div class="modal__header">
-          <h2>${translate('yearly_planner_add_objective')}</h2>
-          <button class="modal__close" id="yp-modal-close">&times;</button>
-        </div>
-        <div class="modal__body">
-          <div class="form-group">
-            <label>${translate('yearly_planner_objective_title')}</label>
-            <input type="text" id="yp-obj-title" class="input" required />
-          </div>
-          <div class="form-group">
-            <label>${translate('yearly_planner_objective_description')}</label>
-            <textarea id="yp-obj-desc" class="input" rows="3"></textarea>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>${translate('period')}</label>
-              <select id="yp-obj-period" class="input">
-                <option value="">${translate('yearly_planner_none')}</option>
-                ${periods.map(p => `<option value="${p.id}">${escapeHTML(p.title)}</option>`).join('')}
-              </select>
-            </div>
-            <div class="form-group">
-              <label>${translate('yearly_planner_scope')}</label>
-              <select id="yp-obj-scope" class="input">
-                <option value="unit">${translate('yearly_planner_scope_unit')}</option>
-                <option value="participant">${translate('yearly_planner_scope_participant')}</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>${translate('yearly_planner_parent_objective')}</label>
-            <select id="yp-obj-parent" class="input">
-              <option value="">${translate('yearly_planner_none')}</option>
-              ${rootObjectives.map(o => `<option value="${o.id}">${escapeHTML(o.title)}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        <div class="modal__footer">
-          <button class="button button--secondary" id="yp-modal-cancel">${translate('cancel')}</button>
-          <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
-        </div>
-      </div>
-    `);
-    document.body.appendChild(modal);
-
-    modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-cancel').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleCreateObjective(modal));
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.remove();
-    });
-  }
-
-  showMeetingEditModal(meeting) {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'yp-modal';
-    setContent(modal, `
-      <div class="modal">
-        <div class="modal__header">
-          <h2>${translate('yearly_planner_edit_meeting')}</h2>
-          <button class="modal__close" id="yp-modal-close">&times;</button>
-        </div>
-        <div class="modal__body">
-          <div class="form-group">
-            <label>${translate('yearly_planner_theme')}</label>
-            <input type="text" id="yp-meeting-theme" class="input" value="${escapeHTML(meeting.theme || '')}" />
-          </div>
-          <div class="form-group">
-            <label>${translate('meeting_location')}</label>
-            <input type="text" id="yp-meeting-location" class="input" value="${escapeHTML(meeting.location || '')}" />
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>${translate('meeting_time')}</label>
-              <input type="time" id="yp-meeting-start" class="input" value="${meeting.start_time ? meeting.start_time.substring(0, 5) : ''}" />
-            </div>
-            <div class="form-group">
-              <label>${translate('yearly_planner_end_time')}</label>
-              <input type="time" id="yp-meeting-end" class="input" value="${meeting.end_time ? meeting.end_time.substring(0, 5) : ''}" />
-            </div>
-          </div>
-          <div class="form-group">
-            <label>${translate('notes')}</label>
-            <textarea id="yp-meeting-notes" class="input" rows="3">${escapeHTML(meeting.notes || '')}</textarea>
-          </div>
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input type="checkbox" id="yp-meeting-cancel" ${meeting.is_cancelled ? 'checked' : ''} />
-              ${translate('yearly_planner_cancel_meeting')}
-            </label>
-          </div>
-        </div>
-        <div class="modal__footer">
-          <button class="button button--secondary" id="yp-modal-cancel">${translate('cancel')}</button>
-          <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
-        </div>
-      </div>
-    `);
-    document.body.appendChild(modal);
-
-    modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-cancel').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleUpdateMeeting(modal, meeting.id));
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.remove();
-    });
-  }
-
-  showAddActivityModal(meetingId) {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'yp-modal';
-    setContent(modal, `
-      <div class="modal">
-        <div class="modal__header">
-          <h2>${translate('add_activity')}</h2>
-          <button class="modal__close" id="yp-modal-close">&times;</button>
-        </div>
-        <div class="modal__body">
-          <div class="form-group">
-            <label>${translate('activity_label')}</label>
-            <input type="text" id="yp-act-name" class="input" required />
-          </div>
-          <div class="form-group">
-            <label>${translate('activity_description_label')}</label>
-            <textarea id="yp-act-desc" class="input" rows="2"></textarea>
-          </div>
-          <div class="form-group">
-            <label>${translate('duration_minutes')}</label>
-            <input type="number" id="yp-act-duration" class="input" min="5" max="300" />
-          </div>
-        </div>
-        <div class="modal__footer">
-          <button class="button button--secondary" id="yp-modal-cancel">${translate('cancel')}</button>
-          <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
-        </div>
-      </div>
-    `);
-    document.body.appendChild(modal);
-
-    modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-cancel').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleAddActivity(modal, meetingId));
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.remove();
-    });
-  }
-
-  showAddLibraryActivityModal() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'yp-modal';
-    setContent(modal, `
-      <div class="modal">
-        <div class="modal__header">
-          <h2>${translate('yearly_planner_add_library_activity')}</h2>
-          <button class="modal__close" id="yp-modal-close">&times;</button>
-        </div>
-        <div class="modal__body">
-          <div class="form-group">
-            <label>${translate('activity_label')}</label>
-            <input type="text" id="yp-lib-name" class="input" required />
-          </div>
-          <div class="form-group">
-            <label>${translate('activity_description_label')}</label>
-            <textarea id="yp-lib-desc" class="input" rows="2"></textarea>
-          </div>
-          <div class="form-group">
-            <label>${translate('yearly_planner_category')}</label>
-            <input type="text" id="yp-lib-category" class="input" />
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>${translate('yearly_planner_min_duration')}</label>
-              <input type="number" id="yp-lib-min-dur" class="input" min="5" />
-            </div>
-            <div class="form-group">
-              <label>${translate('yearly_planner_max_duration')}</label>
-              <input type="number" id="yp-lib-max-dur" class="input" min="5" />
-            </div>
-          </div>
-          <div class="form-group">
-            <label>${translate('yearly_planner_material')}</label>
-            <textarea id="yp-lib-material" class="input" rows="2"></textarea>
-          </div>
-        </div>
-        <div class="modal__footer">
-          <button class="button button--secondary" id="yp-modal-cancel">${translate('cancel')}</button>
-          <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
-        </div>
-      </div>
-    `);
-    document.body.appendChild(modal);
-
-    modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-cancel').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleAddLibraryActivity(modal));
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.remove();
-    });
-  }
-
-  // =========================================================================
-  // HANDLERS
-  // =========================================================================
-
-  async handleCreatePlan(modal) {
-    const title = modal.querySelector('#yp-plan-title').value.trim();
-    const start_date = modal.querySelector('#yp-plan-start').value;
-    const end_date = modal.querySelector('#yp-plan-end').value;
-    const default_location = modal.querySelector('#yp-plan-location').value.trim();
-    const recurrence_pattern = modal.querySelector('#yp-plan-recurrence').value;
-
-    if (!title || !start_date || !end_date) {
-      this.app.showMessage(translate('plan_fields_required'), 'error');
+  async assignActivityToMeeting(activity, meeting) {
+    if (!this.canManage) {
+      this.app.showMessage(this.t('not_authorized', 'Not authorized'), 'error');
       return;
     }
 
-    try {
-      await createYearPlan({ title, start_date, end_date, default_location, recurrence_pattern });
-      modal.remove();
-      this.app.showMessage(translate('yearly_planner_plan_created'), 'success');
-      await this.loadPlans();
-      this.render();
-      this.attachEventListeners();
-    } catch (err) {
-      debugError('Error creating plan:', err);
-      this.app.showMessage(translate('yearly_planner_error_creating'), 'error');
-    }
+    const existing = this.meetingActivitiesById[meeting.id] || [];
+
+    const payload = {
+      activity_library_id: Number(activity.id),
+      name: activity.name,
+      description: activity.description || null,
+      duration_minutes: Number.parseInt(activity.estimated_duration_min, 10) || null,
+      objective_ids: this.normalizeIdArray(activity.objective_ids),
+      sort_order: existing.length
+    };
+
+    await addMeetingActivity(meeting.id, payload);
+    this.app.showMessage(this.t('activity_assigned_success', 'Activity assigned'), 'success');
+
+    const updated = await getYearPlanMeeting(meeting.id);
+    this.meetingActivitiesById[meeting.id] = this.normalizeMeetingActivities(updated?.data?.activities || []);
+
+    this.render();
+    this.attachEventListeners();
   }
 
-  async handleCreatePeriod(modal) {
-    const title = modal.querySelector('#yp-period-title').value.trim();
-    const start_date = modal.querySelector('#yp-period-start').value;
-    const end_date = modal.querySelector('#yp-period-end').value;
+  async handleRemoveMeetingActivity(meetingId, meetingActivityId) {
+    if (!this.canManage) return;
 
-    if (!title || !start_date || !end_date) {
-      this.app.showMessage(translate('plan_fields_required'), 'error');
-      return;
-    }
+    await deleteMeetingActivity(meetingActivityId);
+    const current = this.meetingActivitiesById[meetingId] || [];
+    this.meetingActivitiesById[meetingId] = current.filter(
+      (entry) => Number(entry.id) !== Number(meetingActivityId)
+    );
 
-    try {
-      await createPeriod(this.currentPlan.id, { title, start_date, end_date });
-      modal.remove();
-      this.app.showMessage(translate('yearly_planner_period_created'), 'success');
-      await this.loadPlanDetail(this.currentPlan.id);
-    } catch (err) {
-      debugError('Error creating period:', err);
-      this.app.showMessage(translate('yearly_planner_error_creating'), 'error');
-    }
-  }
-
-  async handleCreateObjective(modal) {
-    const title = modal.querySelector('#yp-obj-title').value.trim();
-    const description = modal.querySelector('#yp-obj-desc').value.trim();
-    const period_id = modal.querySelector('#yp-obj-period').value || null;
-    const scope = modal.querySelector('#yp-obj-scope').value;
-    const parent_id = modal.querySelector('#yp-obj-parent').value || null;
-
-    if (!title) {
-      this.app.showMessage(translate('plan_fields_required'), 'error');
-      return;
-    }
-
-    try {
-      await createObjective(this.currentPlan.id, {
-        title, description,
-        period_id: period_id ? parseInt(period_id) : null,
-        scope,
-        parent_id: parent_id ? parseInt(parent_id) : null
-      });
-      modal.remove();
-      this.app.showMessage(translate('yearly_planner_objective_created'), 'success');
-      await this.loadPlanDetail(this.currentPlan.id);
-    } catch (err) {
-      debugError('Error creating objective:', err);
-      this.app.showMessage(translate('yearly_planner_error_creating'), 'error');
-    }
-  }
-
-  async handleUpdateMeeting(modal, meetingId) {
-    const theme = modal.querySelector('#yp-meeting-theme').value.trim();
-    const location = modal.querySelector('#yp-meeting-location').value.trim();
-    const start_time = modal.querySelector('#yp-meeting-start').value;
-    const end_time = modal.querySelector('#yp-meeting-end').value;
-    const notes = modal.querySelector('#yp-meeting-notes').value.trim();
-    const is_cancelled = modal.querySelector('#yp-meeting-cancel').checked;
-
-    try {
-      await updateYearPlanMeeting(meetingId, {
-        theme: theme || null,
-        location: location || null,
-        start_time: start_time || null,
-        end_time: end_time || null,
-        notes: notes || null,
-        is_cancelled
-      });
-      modal.remove();
-      this.app.showMessage(translate('yearly_planner_meeting_updated'), 'success');
-      await this.loadPlanDetail(this.currentPlan.id);
-    } catch (err) {
-      debugError('Error updating meeting:', err);
-      this.app.showMessage(translate('yearly_planner_error_updating'), 'error');
-    }
-  }
-
-  async handleAddActivity(modal, meetingId) {
-    const name = modal.querySelector('#yp-act-name').value.trim();
-    const description = modal.querySelector('#yp-act-desc').value.trim();
-    const duration_minutes = parseInt(modal.querySelector('#yp-act-duration').value) || null;
-
-    if (!name) {
-      this.app.showMessage(translate('plan_fields_required'), 'error');
-      return;
-    }
-
-    try {
-      await addMeetingActivity(meetingId, { name, description, duration_minutes });
-      modal.remove();
-      this.app.showMessage(translate('yearly_planner_activity_added'), 'success');
-
-      // Reload meeting detail
-      const { getYearPlanMeeting } = await import('../../api/api-yearly-planner.js');
-      const response = await getYearPlanMeeting(meetingId);
-      this.currentMeeting = response?.data || this.currentMeeting;
-      this.render();
-      this.attachEventListeners();
-    } catch (err) {
-      debugError('Error adding activity:', err);
-      this.app.showMessage(translate('yearly_planner_error_creating'), 'error');
-    }
-  }
-
-  async handleAddLibraryActivity(modal) {
-    const name = modal.querySelector('#yp-lib-name').value.trim();
-    const description = modal.querySelector('#yp-lib-desc').value.trim();
-    const category = modal.querySelector('#yp-lib-category').value.trim();
-    const estimated_duration_min = parseInt(modal.querySelector('#yp-lib-min-dur').value) || null;
-    const estimated_duration_max = parseInt(modal.querySelector('#yp-lib-max-dur').value) || null;
-    const material = modal.querySelector('#yp-lib-material').value.trim();
-
-    if (!name) {
-      this.app.showMessage(translate('plan_fields_required'), 'error');
-      return;
-    }
-
-    try {
-      await createLibraryActivity({
-        name, description, category,
-        estimated_duration_min, estimated_duration_max, material
-      });
-      modal.remove();
-      this.app.showMessage(translate('yearly_planner_library_activity_added'), 'success');
-      await this.loadLibrary();
-      this.render();
-      this.attachEventListeners();
-    } catch (err) {
-      debugError('Error adding library activity:', err);
-      this.app.showMessage(translate('yearly_planner_error_creating'), 'error');
-    }
+    this.app.showMessage(this.t('activity_removed_success', 'Activity removed'), 'success');
+    this.render();
+    this.attachEventListeners();
   }
 
   async handleDeletePlan(planId) {
-    if (!confirm(translate('yearly_planner_confirm_delete_plan'))) return;
+    if (!this.canManage) return;
+    if (!window.confirm(this.t('yearly_planner_confirm_delete_plan', 'Delete this year plan?'))) return;
 
-    try {
-      await deleteYearPlan(planId);
-      this.app.showMessage(translate('yearly_planner_plan_deleted'), 'success');
-      await this.loadPlans();
-      this.render();
-      this.attachEventListeners();
-    } catch (err) {
-      debugError('Error deleting plan:', err);
-      this.app.showMessage(translate('yearly_planner_error_deleting'), 'error');
+    await deleteYearPlan(planId);
+    await this.refreshPlans();
+
+    if (this.currentPlan?.id === planId) {
+      this.currentPlan = null;
+      this.view = VIEW.PLAN_LIST;
     }
+
+    this.app.showMessage(this.t('yearly_planner_plan_deleted', 'Year plan deleted'), 'success');
+    this.render();
+    this.attachEventListeners();
+  }
+
+  async handleDeleteLibraryActivity(activityId) {
+    if (!this.canManage) return;
+    if (!window.confirm(this.t('yearly_planner_confirm_delete_library', 'Delete this activity?'))) return;
+
+    await deleteLibraryActivity(activityId);
+    this.activityLibrary = this.activityLibrary.filter((entry) => Number(entry.id) !== Number(activityId));
+    this.app.showMessage(this.t('yearly_planner_library_activity_deleted', 'Library activity deleted'), 'success');
+    this.render();
+    this.attachEventListeners();
   }
 
   async handleDeletePeriod(periodId) {
-    if (!confirm(translate('yearly_planner_confirm_delete_period'))) return;
+    if (!this.canManage) return;
+    if (!window.confirm(this.t('yearly_planner_confirm_delete_period', 'Delete this period?'))) return;
 
-    try {
-      await deletePeriod(periodId);
-      this.app.showMessage(translate('yearly_planner_period_deleted'), 'success');
-      await this.loadPlanDetail(this.currentPlan.id);
-    } catch (err) {
-      debugError('Error deleting period:', err);
-      this.app.showMessage(translate('yearly_planner_error_deleting'), 'error');
-    }
+    await deletePeriod(periodId);
+    await this.openPlan(this.currentPlan.id);
   }
 
-  async handleDeleteObjective(objId) {
-    if (!confirm(translate('yearly_planner_confirm_delete_objective'))) return;
+  async handleDeleteObjective(objectiveId) {
+    if (!this.canManage) return;
+    if (!window.confirm(this.t('yearly_planner_confirm_delete_objective', 'Delete this objective?'))) return;
 
-    try {
-      await deleteObjective(objId);
-      this.app.showMessage(translate('yearly_planner_objective_deleted'), 'success');
-      await this.loadPlanDetail(this.currentPlan.id);
-    } catch (err) {
-      debugError('Error deleting objective:', err);
-      this.app.showMessage(translate('yearly_planner_error_deleting'), 'error');
-    }
+    await deleteObjective(objectiveId);
+    await this.openPlan(this.currentPlan.id);
   }
 
-  async handleDeleteLibraryActivity(libId) {
-    if (!confirm(translate('yearly_planner_confirm_delete_library'))) return;
+  navigateToMeetingDetail(date) {
+    if (!date) return;
 
-    try {
-      await deleteLibraryActivity(libId);
-      this.app.showMessage(translate('yearly_planner_library_activity_deleted'), 'success');
-      await this.loadLibrary();
-      this.render();
-      this.attachEventListeners();
-    } catch (err) {
-      debugError('Error deleting library activity:', err);
-      this.app.showMessage(translate('yearly_planner_error_deleting'), 'error');
+    const target = `/preparation-reunions?date=${encodeURIComponent(date)}`;
+    if (this.app?.router) {
+      this.app.router.navigate(target);
+      return;
     }
+
+    window.location.assign(target);
   }
 
-  async handleRemoveActivity(activityId) {
-    if (!confirm(translate('yearly_planner_confirm_remove_activity'))) return;
+  getSelectedActivityFromState() {
+    if (!this.selectedActivityId) return null;
+    return (
+      this.activityLibrary.find((activity) => Number(activity.id) === Number(this.selectedActivityId)) ||
+      null
+    );
+  }
 
-    try {
-      await deleteMeetingActivity(activityId);
-      this.app.showMessage(translate('yearly_planner_activity_removed'), 'success');
+  updateFloatingIndicator() {
+    const root = document.querySelector('.yearly-planner');
+    if (!root) return;
 
-      // Reload meeting
-      if (this.currentMeeting) {
-        const { getYearPlanMeeting } = await import('../../api/api-yearly-planner.js');
-        const response = await getYearPlanMeeting(this.currentMeeting.id);
-        this.currentMeeting = response?.data || this.currentMeeting;
+    const existing = root.querySelector('#yp-floating-indicator');
+    if (existing) existing.remove();
+
+    const markup = this.renderFloatingIndicator();
+    if (!markup) return;
+
+    const wrapper = document.createElement('div');
+    setContent(wrapper, markup);
+    const indicator = wrapper.firstElementChild;
+    if (!indicator) return;
+
+    root.appendChild(indicator);
+    this.addEventListener(indicator.querySelector('#yp-done-assigning'), 'click', () => {
+      this.selectedActivityId = null;
+      this.dragDropManager?.clearSelection();
+      this.updateFloatingIndicator();
+    });
+  }
+
+  showModal({ title, body, onSave }) {
+    const modal = document.createElement('div');
+    modal.className = 'yp-modal-overlay';
+    modal.innerHTML = `
+      <div class="yp-modal">
+        <header class="yp-modal__header">
+          <h2>${escapeHTML(title)}</h2>
+          <button class="button button--ghost yp-modal-close" aria-label="${escapeHTML(
+            this.t('close', 'Close')
+          )}">&times;</button>
+        </header>
+        <div class="yp-modal__body">${body}</div>
+        <footer class="yp-modal__footer">
+          <button class="button button--secondary yp-modal-cancel">${escapeHTML(
+            this.t('cancel', 'Cancel')
+          )}</button>
+          <button class="button button--primary yp-modal-save">${escapeHTML(
+            this.t('save', 'Save')
+          )}</button>
+        </footer>
+      </div>
+    `;
+
+    const close = () => modal.remove();
+
+    modal.querySelector('.yp-modal-close')?.addEventListener('click', close);
+    modal.querySelector('.yp-modal-cancel')?.addEventListener('click', close);
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) close();
+    });
+
+    modal.querySelector('.yp-modal-save')?.addEventListener('click', async () => {
+      try {
+        await onSave(modal);
+        close();
+      } catch (error) {
+        debugError('[YearlyPlanner] Modal save failed:', error);
+        this.app.showMessage(this.t('yearly_planner_error_creating', 'Unable to save changes.'), 'error');
+      }
+    });
+
+    document.body.appendChild(modal);
+  }
+
+  showPlanModal(existingPlan = null) {
+    const isEdit = Boolean(existingPlan && existingPlan.id);
+
+    this.showModal({
+      title: isEdit
+        ? this.t('yearly_planner_title', 'Yearly Meeting Planner')
+        : this.t('create_year_plan', 'Create Year Plan'),
+      body: `
+        <label>${escapeHTML(this.t('yearly_planner_plan_title', 'Plan title'))}</label>
+        <input id="yp-plan-title" type="text" value="${escapeHTML(existingPlan?.title || '')}" />
+
+        <label>${escapeHTML(this.t('yearly_planner_start_date', 'Start date'))}</label>
+        <input id="yp-plan-start" type="date" value="${escapeHTML(existingPlan?.start_date || '')}" />
+
+        <label>${escapeHTML(this.t('yearly_planner_end_date', 'End date'))}</label>
+        <input id="yp-plan-end" type="date" value="${escapeHTML(existingPlan?.end_date || '')}" />
+
+        <label>${escapeHTML(this.t('yearly_planner_default_location', 'Default location'))}</label>
+        <input id="yp-plan-location" type="text" value="${escapeHTML(existingPlan?.default_location || '')}" />
+
+        <label>${escapeHTML(this.t('yearly_planner_recurrence', 'Meeting frequency'))}</label>
+        <select id="yp-plan-recurrence">
+          <option value="weekly" ${existingPlan?.recurrence_pattern === 'weekly' ? 'selected' : ''}>${escapeHTML(
+            this.t('yearly_planner_weekly', 'Weekly')
+          )}</option>
+          <option value="biweekly" ${
+            existingPlan?.recurrence_pattern === 'biweekly' ? 'selected' : ''
+          }>${escapeHTML(this.t('yearly_planner_biweekly', 'Biweekly'))}</option>
+        </select>
+
+        <label>${escapeHTML(this.t('yearly_planner_blackout_dates', 'Blackout dates (YYYY-MM-DD, comma separated)'))}</label>
+        <textarea id="yp-plan-blackout" rows="2">${escapeHTML(
+          Array.isArray(existingPlan?.blackout_dates) ? existingPlan.blackout_dates.join(', ') : ''
+        )}</textarea>
+      `,
+      onSave: async (modal) => {
+        const title = String(modal.querySelector('#yp-plan-title')?.value || '').trim();
+        const startDate = String(modal.querySelector('#yp-plan-start')?.value || '').trim();
+        const endDate = String(modal.querySelector('#yp-plan-end')?.value || '').trim();
+        const defaultLocation = String(modal.querySelector('#yp-plan-location')?.value || '').trim();
+        const recurrence = String(modal.querySelector('#yp-plan-recurrence')?.value || 'weekly');
+        const blackoutDates = this.parseCsvDates(modal.querySelector('#yp-plan-blackout')?.value || '');
+
+        if (!title || !startDate || !endDate) {
+          throw new Error('required_fields');
+        }
+
+        const payload = {
+          title,
+          start_date: startDate,
+          end_date: endDate,
+          default_location: defaultLocation || null,
+          recurrence_pattern: recurrence,
+          blackout_dates: blackoutDates
+        };
+
+        let createdPlanId = null;
+        if (isEdit) {
+          await updateYearPlan(existingPlan.id, payload);
+        } else {
+          const response = await createYearPlan(payload);
+          createdPlanId = Number(response?.data?.id || response?.id || null);
+        }
+
+        await this.refreshPlans();
+
+        if (isEdit && this.currentPlan?.id === existingPlan.id) {
+          await this.openPlan(existingPlan.id);
+        } else if (!isEdit && createdPlanId) {
+          await this.openPlan(createdPlanId);
+        } else if (!isEdit && this.plans.length > 0) {
+          await this.openPlan(this.plans[0].id);
+        } else {
+          this.view = VIEW.PLAN_LIST;
+          this.render();
+          this.attachEventListeners();
+        }
+      }
+    });
+  }
+
+  parseCsvDates(value) {
+    if (!value) return [];
+
+    const items = String(value)
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    return items.filter((entry) => /^\d{4}-\d{2}-\d{2}$/.test(entry));
+  }
+
+  showPeriodModal() {
+    this.showModal({
+      title: this.t('add_period', 'Add Period'),
+      body: `
+        <label>${escapeHTML(this.t('yearly_planner_period_title', 'Period title'))}</label>
+        <input id="yp-period-title" type="text" />
+
+        <label>${escapeHTML(this.t('yearly_planner_start_date', 'Start date'))}</label>
+        <input id="yp-period-start" type="date" />
+
+        <label>${escapeHTML(this.t('yearly_planner_end_date', 'End date'))}</label>
+        <input id="yp-period-end" type="date" />
+      `,
+      onSave: async (modal) => {
+        const title = String(modal.querySelector('#yp-period-title')?.value || '').trim();
+        const startDate = String(modal.querySelector('#yp-period-start')?.value || '').trim();
+        const endDate = String(modal.querySelector('#yp-period-end')?.value || '').trim();
+
+        if (!title || !startDate || !endDate) {
+          throw new Error('required_fields');
+        }
+
+        await createPeriod(this.currentPlan.id, {
+          title,
+          start_date: startDate,
+          end_date: endDate
+        });
+
+        await this.openPlan(this.currentPlan.id);
+      }
+    });
+  }
+
+  showObjectiveModal() {
+    const periods = this.currentPlan?.periods || [];
+
+    this.showModal({
+      title: this.t('add_objective', 'Add Objective'),
+      body: `
+        <label>${escapeHTML(this.t('yearly_planner_objective_title', 'Objective title'))}</label>
+        <input id="yp-objective-title" type="text" />
+
+        <label>${escapeHTML(this.t('yearly_planner_objective_description', 'Description'))}</label>
+        <textarea id="yp-objective-description" rows="2"></textarea>
+
+        <label>${escapeHTML(this.t('periods', 'Periods'))}</label>
+        <select id="yp-objective-period">
+          <option value="">${escapeHTML(this.t('yearly_planner_none', 'None'))}</option>
+          ${periods
+            .map(
+              (period) =>
+                `<option value="${period.id}">${escapeHTML(period.title || this.t('periods', 'Period'))}</option>`
+            )
+            .join('')}
+        </select>
+      `,
+      onSave: async (modal) => {
+        const title = String(modal.querySelector('#yp-objective-title')?.value || '').trim();
+        const description = String(modal.querySelector('#yp-objective-description')?.value || '').trim();
+        const periodIdRaw = String(modal.querySelector('#yp-objective-period')?.value || '').trim();
+
+        if (!title) throw new Error('required_fields');
+
+        await createObjective(this.currentPlan.id, {
+          title,
+          description,
+          period_id: periodIdRaw ? Number.parseInt(periodIdRaw, 10) : null,
+          scope: 'unit'
+        });
+
+        await this.openPlan(this.currentPlan.id);
+      }
+    });
+  }
+
+  showLibraryActivityModal(existingActivity = null) {
+    const isEdit = Boolean(existingActivity?.id);
+    const objectives = this.currentPlan?.objectives || [];
+    const selectedObjectiveIds = this.normalizeIdArray(existingActivity?.objective_ids || []);
+
+    this.showModal({
+      title: isEdit
+        ? this.t('edit', 'Edit')
+        : this.t('yearly_planner_add_library_activity', 'Add library activity'),
+      body: `
+        <label>${escapeHTML(this.t('activity_label', 'Activity'))}</label>
+        <input id="yp-lib-name" type="text" value="${escapeHTML(existingActivity?.name || '')}" />
+
+        <label>${escapeHTML(this.t('activity_description_label', 'Description'))}</label>
+        <textarea id="yp-lib-description" rows="2">${escapeHTML(existingActivity?.description || '')}</textarea>
+
+        <label>${escapeHTML(this.t('yearly_planner_category', 'Category'))}</label>
+        <input id="yp-lib-category" type="text" value="${escapeHTML(existingActivity?.category || '')}" />
+
+        <label>${escapeHTML(this.t('yearly_planner_min_duration', 'Min duration'))}</label>
+        <input id="yp-lib-min-duration" type="number" min="5" value="${escapeHTML(
+          existingActivity?.estimated_duration_min || ''
+        )}" />
+
+        <label>${escapeHTML(this.t('yearly_planner_max_duration', 'Max duration'))}</label>
+        <input id="yp-lib-max-duration" type="number" min="5" value="${escapeHTML(
+          existingActivity?.estimated_duration_max || ''
+        )}" />
+
+        <label>${escapeHTML(this.t('yearly_planner_material', 'Material'))}</label>
+        <textarea id="yp-lib-material" rows="2">${escapeHTML(existingActivity?.material || '')}</textarea>
+
+        <fieldset class="yp-objective-selector">
+          <legend>${escapeHTML(this.t('objectives', 'Objectives'))}</legend>
+          ${
+            objectives.length === 0
+              ? `<p>${escapeHTML(this.t('yearly_planner_no_objectives', 'No objectives yet.'))}</p>`
+              : objectives
+                  .map(
+                    (objective) =>
+                      `<label>
+                        <input
+                          type="checkbox"
+                          class="yp-lib-objective"
+                          value="${objective.id}"
+                          ${selectedObjectiveIds.includes(Number(objective.id)) ? 'checked' : ''}
+                        />
+                        <span>${escapeHTML(objective.title || this.t('objective', 'Objective'))}</span>
+                      </label>`
+                  )
+                  .join('')
+          }
+        </fieldset>
+      `,
+      onSave: async (modal) => {
+        const name = String(modal.querySelector('#yp-lib-name')?.value || '').trim();
+        const description = String(modal.querySelector('#yp-lib-description')?.value || '').trim();
+        const category = String(modal.querySelector('#yp-lib-category')?.value || '').trim();
+        const minDuration = Number.parseInt(modal.querySelector('#yp-lib-min-duration')?.value || '', 10);
+        const maxDuration = Number.parseInt(modal.querySelector('#yp-lib-max-duration')?.value || '', 10);
+        const material = String(modal.querySelector('#yp-lib-material')?.value || '').trim();
+
+        const objectiveIds = Array.from(modal.querySelectorAll('.yp-lib-objective:checked'))
+          .map((checkbox) => Number.parseInt(checkbox.value, 10))
+          .filter((value) => Number.isFinite(value));
+
+        if (!name) {
+          throw new Error('required_fields');
+        }
+
+        const payload = {
+          name,
+          description: description || null,
+          category: category || null,
+          estimated_duration_min: Number.isFinite(minDuration) ? minDuration : null,
+          estimated_duration_max: Number.isFinite(maxDuration) ? maxDuration : null,
+          material: material || null,
+          objective_ids: objectiveIds
+        };
+
+        if (isEdit) {
+          await updateLibraryActivity(existingActivity.id, payload);
+          this.activityLibrary = this.activityLibrary.map((entry) =>
+            Number(entry.id) === Number(existingActivity.id)
+              ? { ...entry, ...payload, id: existingActivity.id, objective_ids: objectiveIds }
+              : entry
+          );
+        } else {
+          const response = await createLibraryActivity(payload);
+          const created = response?.data || response;
+          this.activityLibrary.unshift({
+            ...created,
+            objective_ids: this.normalizeIdArray(created?.objective_ids || objectiveIds)
+          });
+        }
+
         this.render();
         this.attachEventListeners();
       }
-    } catch (err) {
-      debugError('Error removing activity:', err);
-      this.app.showMessage(translate('yearly_planner_error_deleting'), 'error');
-    }
-  }
-
-  // =========================================================================
-  // EVENT LISTENERS
-  // =========================================================================
-
-  attachEventListeners() {
-    // Plan list view
-    document.getElementById('yp-create-btn')?.addEventListener('click', () => this.showCreatePlanModal(), { signal: this.signal });
-    document.getElementById('yp-create-empty-btn')?.addEventListener('click', () => this.showCreatePlanModal(), { signal: this.signal });
-
-    document.getElementById('yp-library-btn')?.addEventListener('click', async () => {
-      this.view = VIEW.LIBRARY;
-      await this.loadLibrary();
-      this.render();
-      this.attachEventListeners();
-    }, { signal: this.signal });
-
-    document.querySelectorAll('.yp-open-plan-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.loadPlanDetail(parseInt(btn.dataset.id)), { signal: this.signal });
     });
-
-    document.querySelectorAll('.yp-delete-plan-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.handleDeletePlan(parseInt(btn.dataset.id));
-      }, { signal: this.signal });
-    });
-
-    // Plan detail view
-    document.getElementById('yp-back-to-list')?.addEventListener('click', async () => {
-      this.view = VIEW.LIST;
-      this.currentPlan = null;
-      await this.loadPlans();
-      this.render();
-      this.attachEventListeners();
-    }, { signal: this.signal });
-
-    // Tabs
-    document.querySelectorAll('.yp-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('.yp-tab').forEach(t => t.classList.remove('yp-tab--active'));
-        document.querySelectorAll('.yp-tab-content').forEach(c => {
-          c.classList.remove('yp-tab-content--active');
-          c.style.display = 'none';
-        });
-        tab.classList.add('yp-tab--active');
-        const target = document.getElementById(`yp-tab-${tab.dataset.tab}`);
-        if (target) {
-          target.classList.add('yp-tab-content--active');
-          target.style.display = '';
-        }
-      }, { signal: this.signal });
-    });
-
-    // Period actions
-    document.getElementById('yp-add-period-btn')?.addEventListener('click', () => this.showCreatePeriodModal(), { signal: this.signal });
-    document.querySelectorAll('.yp-delete-period-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.handleDeletePeriod(parseInt(btn.dataset.id)), { signal: this.signal });
-    });
-
-    // Objective actions
-    document.getElementById('yp-add-objective-btn')?.addEventListener('click', () => this.showCreateObjectiveModal(), { signal: this.signal });
-    document.querySelectorAll('.yp-delete-obj-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.handleDeleteObjective(parseInt(btn.dataset.id)), { signal: this.signal });
-    });
-
-    // Meeting actions
-    document.querySelectorAll('.yp-edit-meeting-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const meetingId = parseInt(btn.dataset.id);
-        const meeting = this.currentPlan?.meetings?.find(m => m.id === meetingId);
-        if (meeting) this.showMeetingEditModal(meeting);
-      }, { signal: this.signal });
-    });
-
-    document.querySelectorAll('.yp-meeting').forEach(el => {
-      el.addEventListener('click', async (e) => {
-        if (e.target.closest('.yp-edit-meeting-btn')) return;
-        const meetingId = parseInt(el.dataset.meetingId);
-        if (!meetingId) return;
-        try {
-          const { getYearPlanMeeting } = await import('../../api/api-yearly-planner.js');
-          const response = await getYearPlanMeeting(meetingId);
-          this.currentMeeting = response?.data || null;
-          this.view = VIEW.MEETING_DETAIL;
-          this.render();
-          this.attachEventListeners();
-        } catch (err) {
-          debugError('Error loading meeting:', err);
-        }
-      }, { signal: this.signal });
-    });
-
-    // Meeting detail view
-    document.getElementById('yp-back-to-plan')?.addEventListener('click', () => {
-      this.view = VIEW.PLAN_DETAIL;
-      this.currentMeeting = null;
-      this.render();
-      this.attachEventListeners();
-    }, { signal: this.signal });
-
-    document.getElementById('yp-add-activity-btn')?.addEventListener('click', () => {
-      if (this.currentMeeting) this.showAddActivityModal(this.currentMeeting.id);
-    }, { signal: this.signal });
-
-    document.querySelectorAll('.yp-remove-activity-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.handleRemoveActivity(parseInt(btn.dataset.id)), { signal: this.signal });
-    });
-
-    // Library view
-    document.getElementById('yp-back-from-library')?.addEventListener('click', () => {
-      this.view = VIEW.LIST;
-      this.render();
-      this.attachEventListeners();
-    }, { signal: this.signal });
-
-    document.getElementById('yp-add-library-btn')?.addEventListener('click', () => this.showAddLibraryActivityModal(), { signal: this.signal });
-
-    document.querySelectorAll('.yp-delete-lib-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.handleDeleteLibraryActivity(parseInt(btn.dataset.id)), { signal: this.signal });
-    });
-
-    // Library search
-    const searchInput = document.getElementById('yp-library-search-input');
-    if (searchInput) {
-      searchInput.addEventListener('input', () => {
-        const term = searchInput.value.toLowerCase();
-        document.querySelectorAll('.yp-library-item').forEach(item => {
-          const name = item.querySelector('strong')?.textContent?.toLowerCase() || '';
-          item.style.display = name.includes(term) ? '' : 'none';
-        });
-      }, { signal: this.signal });
-    }
   }
 }

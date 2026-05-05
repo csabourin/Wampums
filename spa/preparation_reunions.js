@@ -128,7 +128,7 @@ export class PreparationReunions {
                 }
         }
 
-        async init() {
+        async init(targetDate = null) {
                 try {
                         // Fetch all required data
                         await this.fetchData();
@@ -150,14 +150,23 @@ export class PreparationReunions {
                         const reminder = await this.fetchReminder();
                         this.formManager.setReminder(reminder);
 
-                        // Load the default next meeting
-                        const nextMeeting = await this.loadNextMeeting();
-                        this.currentMeetingData = nextMeeting;
+                        const normalizedTargetDate = this.formatDateForInput(targetDate);
+
+                        if (normalizedTargetDate) {
+                                await this.updateHonorsForMeeting(normalizedTargetDate);
+                                const plannedMeeting = await this.fetchMeetingData(normalizedTargetDate);
+                                this.dateManager.setCurrentDate(normalizedTargetDate);
+                                this.currentMeetingData = plannedMeeting || this.createNewMeeting(normalizedTargetDate);
+                        } else {
+                                // Load the default next meeting
+                                const nextMeeting = await this.loadNextMeeting();
+                                this.currentMeetingData = nextMeeting;
+                        }
                         this.isLoadingTemplate = false;
 
                         // Render the page
                         this.render();
-                        await this.formManager.populateForm(nextMeeting, nextMeeting.date);
+                        await this.formManager.populateForm(this.currentMeetingData, this.currentMeetingData.date);
                         this.formManager.populateReminderForm();
 
                         // Attach event listeners
