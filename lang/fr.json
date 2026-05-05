@@ -739,6 +739,7 @@
   "group_name_required": "Le nom du groupe est obligatoire",
   "group_name_updated_successfully": "Nom du groupe mis à jour avec succès",
   "group_not_found": "Groupe non trouvé",
+  "group_points": "Points de groupe",
   "group_removed_successfully": "Groupe supprimé avec succès",
   "group_removed_successfully_action": "Groupe supprimé avec succès",
   "group_updated_successfully": "Groupe mis à jour avec succès",

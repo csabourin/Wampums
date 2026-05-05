@@ -98,7 +98,7 @@ module.exports = (pool, logger) => {
                     `SELECT g.id, g.name, g.section,
                             COALESCE(SUM(pts.value), 0) AS total_points
                      FROM groups g
-                     LEFT JOIN points pts ON g.id = pts.group_id AND pts.organization_id = $1
+                     LEFT JOIN points pts ON g.id = pts.group_id AND pts.participant_id IS NULL AND pts.organization_id = $1
                      WHERE g.organization_id = $1
                      GROUP BY g.id, g.name, g.section
                      ORDER BY g.name`,

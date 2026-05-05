@@ -88,14 +88,19 @@ module.exports = (pool) => {
                  ) FILTER (WHERE fs.id IS NOT NULL),
                  '[]'::json
                ) as form_submissions,
-               COALESCE(SUM(pts.value), 0) as total_points,
+               COALESCE(point_totals.total_points, 0) as total_points,
                po.inscription_date
         FROM participants p
         JOIN participant_organizations po ON p.id = po.participant_id
         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
         LEFT JOIN groups g ON pg.group_id = g.id
         LEFT JOIN form_submissions fs ON fs.participant_id = p.id AND fs.organization_id = $1
-        LEFT JOIN points pts ON pts.participant_id = p.id AND pts.organization_id = $1
+        LEFT JOIN (
+          SELECT participant_id, SUM(value) AS total_points
+          FROM points
+          WHERE organization_id = $1 AND participant_id IS NOT NULL
+          GROUP BY participant_id
+        ) point_totals ON point_totals.participant_id = p.id
         WHERE po.organization_id = $1
       `;
 
@@ -107,7 +112,7 @@ module.exports = (pool) => {
       }
 
       // GROUP BY required for aggregation functions
-      query += ` GROUP BY p.id, pg.group_id, g.name, pg.first_leader, pg.second_leader, pg.roles, po.inscription_date`;
+      query += ` GROUP BY p.id, pg.group_id, g.name, pg.first_leader, pg.second_leader, pg.roles, po.inscription_date, point_totals.total_points`;
       query += ` ORDER BY p.first_name, p.last_name LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
       params.push(limit, offset);
 
@@ -131,7 +136,7 @@ module.exports = (pool) => {
                  ) FILTER (WHERE fs.id IS NOT NULL),
                  '[]'::json
                ) as form_submissions,
-               COALESCE(SUM(pts.value), 0) as total_points,
+               COALESCE(point_totals.total_points, 0) as total_points,
                po.inscription_date
         FROM participants p
         JOIN user_participants up ON p.id = up.participant_id
@@ -139,7 +144,12 @@ module.exports = (pool) => {
         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
         LEFT JOIN groups g ON pg.group_id = g.id
         LEFT JOIN form_submissions fs ON fs.participant_id = p.id AND fs.organization_id = $1
-        LEFT JOIN points pts ON pts.participant_id = p.id AND pts.organization_id = $1
+        LEFT JOIN (
+          SELECT participant_id, SUM(value) AS total_points
+          FROM points
+          WHERE organization_id = $1 AND participant_id IS NOT NULL
+          GROUP BY participant_id
+        ) point_totals ON point_totals.participant_id = p.id
         WHERE up.user_id = $2 AND po.organization_id = $1
       `;
 
@@ -151,7 +161,7 @@ module.exports = (pool) => {
       }
 
       // GROUP BY required for aggregation functions
-      query += ` GROUP BY p.id, pg.group_id, g.name, pg.first_leader, pg.second_leader, pg.roles, po.inscription_date`;
+      query += ` GROUP BY p.id, pg.group_id, g.name, pg.first_leader, pg.second_leader, pg.roles, po.inscription_date, point_totals.total_points`;
       query += ` ORDER BY p.first_name, p.last_name LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
       params.push(limit, offset);
 
