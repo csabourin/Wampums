@@ -22,6 +22,12 @@ const FOCUSABLE_SELECTOR =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 let activeDialog = null;
+let dialogInstanceCounter = 0;
+
+function getNextDialogInstanceId() {
+  dialogInstanceCounter += 1;
+  return dialogInstanceCounter;
+}
 
 function tr(key, fallback) {
   try {
@@ -46,8 +52,9 @@ function buildDialog({ title, message, kind = "info", isPrompt = false, promptVa
   dialog.setAttribute("role", "alertdialog");
   dialog.setAttribute("aria-modal", "true");
 
-  const titleId = `dialog-title-${Date.now()}`;
-  const bodyId = `dialog-body-${Date.now()}`;
+  const dialogInstanceId = getNextDialogInstanceId();
+  const titleId = `dialog-title-${dialogInstanceId}`;
+  const bodyId = `dialog-body-${dialogInstanceId}`;
   dialog.setAttribute("aria-labelledby", titleId);
   dialog.setAttribute("aria-describedby", bodyId);
 
