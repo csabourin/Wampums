@@ -22,7 +22,7 @@ import { hexStringToUint8Array, base64UrlEncode } from "./functions.js";
 import { CONFIG } from "./config.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
-import { isParent } from "./utils/PermissionUtils.js";
+import { isParent, canViewFinance, canManageFinance, canViewBudget, canManageBudget } from "./utils/PermissionUtils.js";
 import { formatDateShort, parseDate } from "./utils/DateUtils.js";
 import {
         formatActivityDateRange,
@@ -37,6 +37,15 @@ export class ParentDashboard {
                 this.participantStatements = new Map();
                 this.permissionSlips = new Map();
                 this.permissionSlipHandlerBound = false;
+        }
+
+        canAccessFinanceWorkspace() {
+                return (
+                        canViewFinance() ||
+                        canManageFinance() ||
+                        canViewBudget() ||
+                        canManageBudget()
+                );
         }
 
         async init() {
@@ -413,6 +422,10 @@ export class ParentDashboard {
                         ? ``
                         : `<a href="/dashboard" class="back-link">${translate("back_to_dashboard")}</a>`;
 
+                const financeWorkspaceLink = this.canAccessFinanceWorkspace()
+                        ? `<a href="/main-dashboard" class="dashboard-button dashboard-button--secondary">${translate("dashboard_finance_section")}</a>`
+                        : "";
+
                 // Dynamically replace the title with the organization name
                 const userName =
                         this.app.userFullName ||
@@ -435,6 +448,7 @@ export class ParentDashboard {
                                                 <a href="/parent-finance" class="dashboard-button dashboard-button--primary">
                                                         ${translate("my_finances")}
                                                 </a>
+                                                ${financeWorkspaceLink}
                                                 <a href="/account-info" class="dashboard-button dashboard-button--secondary">
                                                         ${translate("account_settings")}
                                                 </a>

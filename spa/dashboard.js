@@ -22,6 +22,7 @@ import {
   canManageRoles,
   canViewRoles,
   canManageForms,
+  isParent,
 } from "./utils/PermissionUtils.js";
 import { DASHBOARD_TILES, SECTION_HEADINGS, SECTION_ORDER } from "./config/dashboard-tiles.js";
 import { DashboardTileRenderer } from "./utils/DashboardTileRenderer.js";
@@ -30,13 +31,14 @@ import { NewsFeed } from "./modules/NewsFeed.js";
 import { CarpoolQuickAccessModal } from "./modules/modals/CarpoolQuickAccessModal.js";
 
 export class Dashboard extends BaseModule {
-  constructor(app) {
+  constructor(app, options = {}) {
     super(app);
     this.groups = [];
     this.participants = [];
     this.newsFeed = new NewsFeed(app);
     this.pointsCollapsed = this.loadPointsCollapsedState();
     this.isLoading = true;
+    this.mode = options.mode || "default";
   }
 
   async init() {
@@ -303,6 +305,8 @@ export class Dashboard extends BaseModule {
       });
     };
 
+    const financeWorkspaceMode = this.mode === "finance-focused";
+
     // --- Top Row (fixed order) ---
     const topTiles = filterOffline([
       { href: "/managePoints", icon: "fa-coins", label: "manage_points" },
@@ -366,6 +370,26 @@ export class Dashboard extends BaseModule {
         ].filter(Boolean))
       : []);
 
+    const financeWorkspaceTiles = filterOffline(
+      sortByLabel([
+        hasPermission("finance.view") && { href: "/finance", icon: "fa-coins", label: "finance_memberships_tab" },
+        hasPermission("finance.view") && { href: "/finance?tab=definitions", icon: "fa-file-invoice-dollar", label: "finance_definitions_tab" },
+        hasPermission("finance.view") && { href: "/finance?tab=reports", icon: "fa-chart-pie", label: "financial_report" },
+        hasAnyPermission("finance.manage", "finance.view") && { href: "/expenses", icon: "fa-wallet", label: "expense_tracking" },
+        hasAnyPermission("finance.manage", "finance.view") && { href: "/external-revenue", icon: "fa-hand-holding-dollar", label: "external_revenue" },
+        hasAnyPermission("finance.view", "fundraisers.view") && { href: "/revenue-dashboard", icon: "fa-chart-column", label: "revenue_dashboard" },
+        hasPermission("fundraisers.view") && { href: "/fundraisers", icon: "fa-hand-holding-heart", label: "fundraisers" },
+        hasPermission("budget.view") && { href: "/budgets", icon: "fa-sack-dollar", label: "budget_management" },
+      ].filter(Boolean))
+    );
+
+    const crossRoleTiles = filterOffline(
+      sortByLabel([
+        isParent() && { href: "/parent-dashboard", icon: "fa-users", label: "parent_dashboard" },
+        { href: "/account-info", icon: "fa-user-gear", label: "account_settings" },
+      ].filter(Boolean))
+    );
+
     // --- News & Communications ---
     const newsCommsTiles = filterOffline(sortByLabel([
       hasPermission("communications.send") && { href: "/communications", icon: "fa-comments", label: "communications_title" },
@@ -391,7 +415,15 @@ export class Dashboard extends BaseModule {
     };
 
     // --- Render content ---
-    const content = `
+    const content = financeWorkspaceMode
+      ? `
+      <h1>${translate("dashboard_finance_section")}</h1>
+      <h2>${this.organizationName}</h2>
+      ${renderTileGroup("dashboard_finance_section", financeWorkspaceTiles)}
+      ${renderTileGroup("main_actions", crossRoleTiles)}
+      <p><a href="/logout" id="logout-link">${translate("logout")}</a></p>
+    `
+      : `
       <h1>${translate("dashboard_title")}</h1>
       <h2>${this.organizationName}</h2>
       <div class="dashboard-section">
