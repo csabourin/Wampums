@@ -944,6 +944,13 @@ export async function getGuardiansForParticipant(participantId) {
 }
 
 /**
+ * Get all users with leader/animation roles for the current organization
+ */
+export async function getLeaders() {
+    return API.get('v1/users/leaders');
+}
+
+/**
  * Save parent/guardian
  */
 export async function saveParent(parentData) {

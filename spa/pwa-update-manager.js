@@ -14,6 +14,7 @@ import {
 } from "./utils/DebugUtils.js";
 import { deleteIndexedDB } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { translate } from "./app.js";
 
 class PWAUpdateManager {
     constructor() {
@@ -296,16 +297,17 @@ class PWAUpdateManager {
         prompt.id = "pwa-update-prompt";
         prompt.className = "pwa-update-prompt";
 
+        // Prefer i18n keys; fall back to inline strings if translations are not
+        // yet loaded (PWA update can fire before app.translations is populated).
         const lang =
             localStorage.getItem("lang") ||
             localStorage.getItem("language") ||
             CONFIG.DEFAULT_LANG;
 
-        const messages = {
+        const fallback = {
             fr: {
                 title: "Nouvelle version disponible",
-                message:
-                    "Une nouvelle version de l'application est disponible.",
+                message: "Une nouvelle version de l'application est disponible.",
                 update: "Mettre à jour",
                 later: "Plus tard",
             },
@@ -322,9 +324,22 @@ class PWAUpdateManager {
                 later: "Пізніше",
             },
         };
+        const fb = fallback[lang] || fallback[CONFIG.DEFAULT_LANG] || fallback.fr;
 
-        const msg =
-            messages[lang] || messages[CONFIG.DEFAULT_LANG] || messages.fr;
+        const withFallback = (key, defaultValue) => {
+            try {
+                const result = translate(key);
+                return result && result !== key ? result : defaultValue;
+            } catch (_) {
+                return defaultValue;
+            }
+        };
+        const msg = {
+            title: withFallback("new_version_available", fb.title),
+            message: withFallback("new_version_message", fb.message),
+            update: withFallback("new_version_update", fb.update),
+            later: withFallback("new_version_later", fb.later),
+        };
 
         setContent(
             prompt,
@@ -431,6 +446,7 @@ class PWAUpdateManager {
 
             .pwa-update-btn {
                 flex: 1;
+                min-height: 44px;
                 padding: 12px 24px;
                 border: none;
                 border-radius: 8px;
@@ -439,6 +455,8 @@ class PWAUpdateManager {
                 cursor: pointer;
                 transition: all 0.2s ease;
                 font-family: inherit;
+                touch-action: manipulation;
+                -webkit-tap-highlight-color: transparent;
             }
 
             .pwa-update-btn-primary {

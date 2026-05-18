@@ -77,10 +77,15 @@ export class BadgeTracker {
 
   async loadData(forceRefresh = false) {
     try {
-      // Parallelize independent API calls for faster loading
+      // Parallelize independent API calls for faster loading. Unprocessed
+      // achievements are non-critical — failing should not break the tracker —
+      // but the failure is logged for diagnostics.
       const [response, unprocessedResponse] = await Promise.all([
         getBadgeTrackerSummary({ forceRefresh }),
-        getUnprocessedAchievements().catch(() => ({ meetings: [] })),
+        getUnprocessedAchievements().catch((err) => {
+          debugError("[BadgeTracker] Failed to load unprocessed achievements", err);
+          return { meetings: [] };
+        }),
       ]);
 
       this.unprocessedMeetings = unprocessedResponse?.meetings || [];

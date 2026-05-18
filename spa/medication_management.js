@@ -5,6 +5,7 @@ import { formatDate, getTodayISO } from "./utils/DateUtils.js";
 import { deleteCachedData, getCachedData, getCachedDataIgnoreExpiration, setCachedData } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { OptimisticUpdateManager } from "./utils/OptimisticUpdateManager.js";
+import { getGuardiansForParticipant, getLeaders } from "./api/api-endpoints.js";
 import {
   getParticipants,
   getMedicationRequirements,
@@ -2517,12 +2518,16 @@ export class MedicationManagement {
         const isDuplicate = err?.message?.includes('already been given');
         if (isDuplicate) {
           this.app.showMessage(translate("medication_dose_already_given"), "warning");
-          // Refresh to get actual state from server (if online)
+          // Refresh to get actual state from server (if online). If the refresh
+          // itself fails (e.g. offline), the user already saw the warning toast,
+          // so we only need to log the failure for diagnostics.
           this.invalidateCaches().then(() => this.refreshData(true)).then(() => {
             this.updateSplitCards();
             this.renderAlertArea();
             this.attachEventListeners();
-          }).catch(() => { });
+          }).catch((err) => {
+            debugError("Failed to refresh after duplicate dose detection", err);
+          });
         } else {
           this.updateSplitCards();
           this.renderAlertArea();
@@ -2553,11 +2558,20 @@ export class MedicationManagement {
   async loadAuthorizationData() {
     if (!this.participantId) return;
     try {
+      // Guardians and leaders are non-critical (we show empty lists rather than
+      // failing the whole view), but we still log the underlying error so
+      // diagnostics aren't lost.
+      const safeFetch = (label, fn) =>
+        fn().catch((err) => {
+          debugError(`Error loading ${label} for authorization view`, err);
+          return { data: [] };
+        });
+
       const [suppliesRes, authsRes, guardianRes, leadersRes] = await Promise.all([
         getFirstAidSupplies(),
         getMedicationAuthorizations(this.participantId),
-        fetch(`/api/v1/participants/${this.participantId}/guardians`, { credentials: 'include' }).then(r => r.json()).catch(() => ({ data: [] })),
-        fetch('/api/v1/users/leaders', { credentials: 'include' }).then(r => r.json()).catch(() => ({ data: [] }))
+        safeFetch("guardians", () => getGuardiansForParticipant(this.participantId)),
+        safeFetch("leaders", () => getLeaders()),
       ]);
 
       this.firstAidSupplies = suppliesRes?.data?.supplies || suppliesRes?.supplies || [];

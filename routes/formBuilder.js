@@ -15,7 +15,7 @@ const router = express.Router();
 
 // Import middleware
 const { authenticate, requirePermission, blockDemoRoles } = require('../middleware/auth');
-const { success, error: errorResponse } = require('../middleware/response');
+const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
