@@ -43,6 +43,10 @@ import {
   isParent
 } from "./utils/PermissionUtils.js";
 
+function canAccessFinanceWorkspace() {
+  return canViewFinance() || canManageFinance() || canViewBudget() || canManageBudget();
+}
+
 // Custom error for offline module loading failures
 class OfflineModuleError extends Error {
   constructor(moduleName) {
@@ -124,6 +128,7 @@ const routes = {
   "/": "dashboard",
   "/admin": "admin",
   "/dashboard": "dashboard",
+  "/main-dashboard": "mainDashboard",
   "/login": "login",
   "/logout": "logout",
   "/parent-dashboard": "parentDashboard",
@@ -293,6 +298,12 @@ export class Router {
           } else {
             await this.loadDashboard();
           }
+          break;
+        case "mainDashboard":
+          if (!guard(canAccessFinanceWorkspace())) {
+            break;
+          }
+          await this.loadDashboard({ mode: isParent() ? "finance-focused" : "default" });
           break;
         case 'PrintableGroupParticipantReport':
           const PrintableGroupParticipantReport = await this.loadModule('PrintableGroupParticipantReport');
@@ -812,8 +823,8 @@ export class Router {
   }
 
 
-  async loadDashboard() {
-    const dashboard = new Dashboard(this.app);
+  async loadDashboard(options = {}) {
+    const dashboard = new Dashboard(this.app, options);
     await dashboard.init();
   }
 
