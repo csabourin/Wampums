@@ -6,6 +6,7 @@ import { getTodayISO, formatDate, isValidDate, isPastDate as isDateInPast } from
 import { setContent } from "./utils/DOMUtils.js";
 import { deleteCachedData, getCachedData } from "./indexedDB.js";
 import { sanitizeHTML } from "./utils/SecurityUtils.js";
+import { confirmDestructive } from "./utils/DialogUtils.js";
 import { offlineManager } from "./modules/OfflineManager.js";
 
 export class ManageHonors {
@@ -959,7 +960,7 @@ export class ManageHonors {
     const participant = this.allParticipants.find(p => p.participant_id === honor.participant_id);
     const participantName = participant ? `${participant.first_name} ${participant.last_name}` : '';
 
-    if (!confirm(`${translate("confirm_delete_honor")} ${participantName}?`)) {
+    if (!(await confirmDestructive(`${translate("confirm_delete_honor")} ${participantName}?`))) {
       return;
     }
 

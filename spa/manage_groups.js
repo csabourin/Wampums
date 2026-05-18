@@ -11,6 +11,7 @@ import { debugError } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { canViewGroups } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { confirmDestructive } from "./utils/DialogUtils.js";
 
 export class ManageGroups {
   constructor(app) {
@@ -176,7 +177,7 @@ export class ManageGroups {
 
   async handleRemoveGroup(e) {
     const groupId = e.target.getAttribute("data-group-id");
-    if (confirm(translate("confirm_delete_group"))) {
+    if (await confirmDestructive(translate("confirm_delete_group"))) {
       try {
         const result = await removeGroup(groupId);
         if (result.success) {

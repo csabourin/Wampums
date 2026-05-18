@@ -17,6 +17,7 @@ import {
   linkGuardianToParticipant,
 } from './api/api-endpoints.js';
 import { validateEmail } from './utils/ValidationUtils.js';
+import { confirmDestructive } from './utils/DialogUtils.js';
 
 export class GuardianManagementModule {
   constructor(app, participantId, participantName) {
@@ -451,7 +452,7 @@ export class GuardianManagementModule {
     const guardian = this.guardians.find((g) => g.id === guardianId);
     const guardianName = `${guardian.prenom} ${guardian.nom}`;
 
-    if (!confirm(translate('confirm_remove_guardian', { name: guardianName }))) {
+    if (!(await confirmDestructive(translate('confirm_remove_guardian', { name: guardianName })))) {
       return;
     }
 

@@ -16,6 +16,7 @@ import { setContent } from './utils/DOMUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
 import { parseDate } from './utils/DateUtils.js';
 import { debounce } from './utils/PerformanceUtils.js';
+import { confirmDestructive } from './utils/DialogUtils.js';
 import {
   formatActivityDateRange,
   getActivityEndDate,
@@ -247,7 +248,7 @@ export class Activities {
     document.querySelectorAll('.delete-activity-btn').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         const activityId = parseInt(e.target.dataset.activityId);
-        if (confirm(translate('confirm_delete_activity'))) {
+        if (await confirmDestructive(translate('confirm_delete_activity'))) {
           const button = e.target;
           setButtonLoading(button, true);
           try {

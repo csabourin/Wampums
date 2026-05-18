@@ -13,6 +13,7 @@ import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
+import { confirmDestructive } from "./utils/DialogUtils.js";
 import { LoadingStateManager, debounce, retryWithBackoff } from "./utils/PerformanceUtils.js";
 import { validateMoney, validateDateField, validateRequired } from "./utils/ValidationUtils.js";
 import { canApproveFinance, canManageFinance } from "./utils/PermissionUtils.js";
@@ -673,7 +674,7 @@ export class Expenses {
     document.querySelectorAll(".delete-expense-btn").forEach(btn => {
       btn.addEventListener("click", async (e) => {
         const id = parseInt(e.target.dataset.id);
-        if (confirm(translate("confirm_delete_expense"))) {
+        if (await confirmDestructive(translate("confirm_delete_expense"))) {
           await this.deleteExpense(id);
         }
       });

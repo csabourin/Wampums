@@ -20,6 +20,7 @@ import {
   archivePermissionSlip
 } from "./api/api-endpoints.js";
 import { getGroups } from "./api/api-endpoints.js";
+import { confirm as confirmDialog, confirmDestructive } from "./utils/DialogUtils.js";
 import { getParticipants } from "./api/api-endpoints.js";
 import { deleteCachedData } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
@@ -595,7 +596,7 @@ export class PermissionSlipDashboard {
       button.addEventListener('click', async (event) => {
         event.preventDefault();
         const slipId = event.currentTarget.getAttribute('data-id');
-        if (!confirm(translate("permission_slip_archive_confirm"))) {
+        if (!(await confirmDestructive(translate("permission_slip_archive_confirm")))) {
           return;
         }
 
@@ -618,7 +619,7 @@ export class PermissionSlipDashboard {
       button.addEventListener('click', async (event) => {
         event.preventDefault();
         const slipId = event.currentTarget.getAttribute('data-id');
-        if (!confirm(translate("permission_slip_delete_confirm"))) {
+        if (!(await confirmDestructive(translate("permission_slip_delete_confirm")))) {
           return;
         }
 
@@ -799,7 +800,7 @@ export class PermissionSlipDashboard {
         return `${participant?.first_name} ${participant?.last_name}`;
       }).join(', ');
 
-      if (!confirm(translate("permission_slip_duplicate_warning") + `: ${duplicateNames}. ${translate("continue_anyway")}`)) {
+      if (!(await confirmDialog(translate("permission_slip_duplicate_warning") + `: ${duplicateNames}. ${translate("continue_anyway")}`))) {
         return;
       }
     }
@@ -881,7 +882,7 @@ export class PermissionSlipDashboard {
   }
 
   async handleSendEmails(date, activityTitle) {
-    if (!confirm(`${translate("send_emails_confirm")} "${activityTitle}"?\n\n${translate("emails_only_not_sent_note")}`)) {
+    if (!(await confirmDialog(`${translate("send_emails_confirm")} "${activityTitle}"?\n\n${translate("emails_only_not_sent_note")}`))) {
       return;
     }
 
@@ -920,7 +921,7 @@ export class PermissionSlipDashboard {
   }
 
   async handleSendReminders(date, activityTitle) {
-    if (!confirm(`${translate("send_reminder_confirm")} "${activityTitle}"?\n\n${translate("reminder_only_unsigned_note")}`)) {
+    if (!(await confirmDialog(`${translate("send_reminder_confirm")} "${activityTitle}"?\n\n${translate("reminder_only_unsigned_note")}`))) {
       return;
     }
 

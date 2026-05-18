@@ -5,6 +5,7 @@ import { clearFundraiserRelatedCaches } from './indexedDB.js';
 import { canManageFundraisers, canViewFundraisers } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { confirmDestructive } from "./utils/DialogUtils.js";
 
 export class Fundraisers {
         constructor(app) {
@@ -250,7 +251,7 @@ export class Fundraisers {
 
                                 if (archiveBtn) {
                                         const fundraiserId = parseInt(archiveBtn.dataset.id);
-                                        if (confirm(translate("confirm_archive_fundraiser"))) {
+                                        if (await confirmDestructive(translate("confirm_archive_fundraiser"))) {
                                                 await this.archiveFundraiser(fundraiserId);
                                         }
                                         return;

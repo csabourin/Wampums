@@ -4,10 +4,11 @@ import { translate } from "./app.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
 import { canViewParticipants } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { BaseModule } from "./utils/BaseModule.js";
 
-export class ViewParticipantDocuments {
+export class ViewParticipantDocuments extends BaseModule {
   constructor(app) {
-    this.app = app;
+    super(app);
     this.participants = [];
     this.organizationSettings = null;
     this.formRenderers = {};
@@ -125,17 +126,23 @@ export class ViewParticipantDocuments {
 
   attachEventListeners() {
     document.querySelectorAll('.view-form').forEach(button => {
-      button.addEventListener('click', (e) => this.handleViewForm(e));
+      this.addEventListener(button, 'click', (e) => this.handleViewForm(e));
     });
 
     const modal = document.getElementById('form-view-modal');
+    if (!modal) return;
     const span = modal.querySelector('.close');
-    span.onclick = () => modal.style.display = "none";
-    window.onclick = (event) => {
-      if (event.target == modal) {
+    if (span) {
+      this.addEventListener(span, 'click', () => {
+        modal.style.display = "none";
+      });
+    }
+    // Close on backdrop click — scoped to this module, not global
+    this.addEventListener(modal, 'click', (event) => {
+      if (event.target === modal) {
         modal.style.display = "none";
       }
-    };
+    });
   }
 
   async handleViewForm(e) {

@@ -12,6 +12,7 @@
 import { translate } from "./app.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { sanitizeHTML } from "./utils/SecurityUtils.js";
+import { confirm as confirmDialog, confirmDestructive } from "./utils/DialogUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { formatDateShort } from "./utils/DateUtils.js";
 import {
@@ -857,6 +858,25 @@ export class BadgeTracker {
     this.attachSearchListener();
   }
 
+  /**
+   * Remove listeners and clean up state. Called by the router on navigation.
+   */
+  destroy() {
+    const app = document.getElementById("app");
+    if (app && this.boundClickHandler) {
+      app.removeEventListener("click", this.boundClickHandler);
+    }
+    if (this.modalKeydownHandler) {
+      document.removeEventListener("keydown", this.modalKeydownHandler);
+    }
+    if (this.searchTimeout) {
+      cancelAnimationFrame(this.searchTimeout);
+      this.searchTimeout = null;
+    }
+    this.boundClickHandler = null;
+    this.listenersAttached = false;
+  }
+
   attachSearchListener() {
     const searchInput = document.querySelector('[data-action="search"]');
     if (searchInput && !searchInput.dataset.listenerAttached) {
@@ -1111,10 +1131,10 @@ export class BadgeTracker {
 
   async handleReject(badgeId) {
     if (
-      !confirm(
+      !(await confirmDestructive(
         translate("badge_confirm_reject") ||
           "Êtes-vous sûr de vouloir rejeter cette étoile?",
-      )
+      ))
     )
       return;
 
@@ -1163,10 +1183,10 @@ export class BadgeTracker {
     if (deliveryItems.length === 0) return;
 
     if (
-      !confirm(
+      !(await confirmDialog(
         translate("badge_confirm_deliver_all") ||
           `Marquer ${deliveryItems.length} étoile(s) comme remise(s)?`,
-      )
+      ))
     )
       return;
 

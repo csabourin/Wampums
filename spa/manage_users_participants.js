@@ -9,6 +9,7 @@ import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { canViewUsers } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { confirmDestructive } from "./utils/DialogUtils.js";
 
 export class ManageUsersParticipants {
   constructor(app) {
@@ -234,7 +235,7 @@ export class ManageUsersParticipants {
 
   async handleRemoveFromOrganization(event) {
     const participantId = event.target.getAttribute("data-participant-id");
-    if (confirm(translate("confirm_remove_participant_from_organization"))) {
+    if (await confirmDestructive(translate("confirm_remove_participant_from_organization"))) {
       try {
         const result = await removeParticipantFromOrganization(participantId);
         if (result.success) {

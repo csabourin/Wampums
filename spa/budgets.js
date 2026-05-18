@@ -27,6 +27,7 @@ import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.
 import { validateMoney, validateRequired } from "./utils/ValidationUtils.js";
 import { canViewBudget } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { confirmDestructive } from "./utils/DialogUtils.js";
 import { getCurrentFiscalYear, getFiscalYearOptions } from "./utils/FiscalYearUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
@@ -1104,7 +1105,7 @@ export class Budgets {
     document.querySelectorAll(".delete-category-btn").forEach((btn) => {
       btn.addEventListener("click", async (e) => {
         const id = parseInt(e.target.dataset.id);
-        if (confirm(translate("confirm_delete_category"))) {
+        if (await confirmDestructive(translate("confirm_delete_category"))) {
           await this.deleteCategory(id);
         }
       });
@@ -1131,7 +1132,7 @@ export class Budgets {
     document.querySelectorAll(".delete-budget-item-btn").forEach((btn) => {
       btn.addEventListener("click", async (e) => {
         const id = parseInt(e.target.dataset.id);
-        if (confirm(translate("confirm_delete_budget_item"))) {
+        if (await confirmDestructive(translate("confirm_delete_budget_item"))) {
           await this.deleteBudgetItem(id);
         }
       });
@@ -1158,7 +1159,7 @@ export class Budgets {
     document.querySelectorAll(".delete-expense-btn").forEach((btn) => {
       btn.addEventListener("click", async (e) => {
         const id = parseInt(e.target.dataset.id);
-        if (confirm(translate("confirm_delete_expense"))) {
+        if (await confirmDestructive(translate("confirm_delete_expense"))) {
           await this.deleteExpense(id);
         }
       });
@@ -1185,7 +1186,7 @@ export class Budgets {
     document.querySelectorAll(".delete-plan-btn").forEach((btn) => {
       btn.addEventListener("click", async (e) => {
         const id = parseInt(e.target.dataset.id);
-        if (confirm(translate("confirm_delete_budget_plan"))) {
+        if (await confirmDestructive(translate("confirm_delete_budget_plan"))) {
           await this.deletePlan(id);
         }
       });
