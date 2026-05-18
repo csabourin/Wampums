@@ -625,7 +625,7 @@ module.exports = (pool, logger) => {
    *         description: Honors and participants retrieved
    *     deprecated: true
    */
-  router.get('/honors', async (req, res) => {
+  router.get('/honors', asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -684,7 +684,7 @@ module.exports = (pool, logger) => {
       logger.error('Error fetching honors:', error);
       return errorResponse(res, error.message, 500);
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -720,7 +720,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Honor(s) awarded successfully
    */
-  router.post('/award-honor', async (req, res) => {
+  router.post('/award-honor', asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -809,7 +809,7 @@ module.exports = (pool, logger) => {
       logger.error('Error awarding honor:', error);
       res.status(500).json({ success: false, message: error.message });
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -839,7 +839,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Honors history retrieved
    */
-  router.get('/honors-history', async (req, res) => {
+  router.get('/honors-history', asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -919,7 +919,7 @@ module.exports = (pool, logger) => {
       logger.error('Error fetching honors history:', error);
       res.status(500).json({ success: false, message: error.message });
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -936,7 +936,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/honors-report', async (req, res) => {
+  router.get('/honors-report', asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -972,7 +972,7 @@ module.exports = (pool, logger) => {
       logger.error('Error fetching honors report:', error);
       res.status(500).json({ success: false, message: error.message });
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -993,7 +993,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Recent honors
    */
-  router.get('/recent-honors', async (req, res) => {
+  router.get('/recent-honors', asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -1025,7 +1025,7 @@ module.exports = (pool, logger) => {
       logger.error('Error fetching recent honors:', error);
       res.status(500).json({ success: false, message: error.message });
     }
-  });
+  }));
 
   return router;
 };

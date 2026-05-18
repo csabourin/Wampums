@@ -16,6 +16,7 @@
  */
 
 const express = require('express');
+const { asyncHandler } = require('../middleware/response');
 const router = express.Router();
 const { check } = require('express-validator');
 
@@ -78,7 +79,7 @@ module.exports = (pool, logger) => {
     check('credentials.private_key').notEmpty().withMessage('Private key is required'),
     check('credentials.client_email').isEmail().withMessage('Valid service account email is required'),
     checkValidation,
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const token = req.headers.authorization?.split(' ')[1];
         const payload = verifyJWT(token);
@@ -131,7 +132,7 @@ module.exports = (pool, logger) => {
         logger.error('Error configuring Google Chat:', error);
         res.status(500).json({ error: error.message });
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -149,7 +150,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/google-chat/config', async (req, res) => {
+  router.get('/google-chat/config', asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const payload = verifyJWT(token);
@@ -194,7 +195,7 @@ module.exports = (pool, logger) => {
       logger.error('Error fetching Google Chat configuration:', error);
       res.status(500).json({ error: error.message });
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -236,7 +237,7 @@ module.exports = (pool, logger) => {
     check('isBroadcastSpace').optional().isBoolean(),
     check('description').optional().isString(),
     checkValidation,
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const token = req.headers.authorization?.split(' ')[1];
         const payload = verifyJWT(token);
@@ -311,7 +312,7 @@ module.exports = (pool, logger) => {
         logger.error('Error registering Google Chat space:', error);
         res.status(500).json({ error: error.message });
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -327,7 +328,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Spaces retrieved successfully
    */
-  router.get('/google-chat/spaces', async (req, res) => {
+  router.get('/google-chat/spaces', asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const payload = verifyJWT(token);
@@ -365,7 +366,7 @@ module.exports = (pool, logger) => {
       logger.error('Error fetching Google Chat spaces:', error);
       res.status(500).json({ error: error.message });
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -404,7 +405,7 @@ module.exports = (pool, logger) => {
     check('message').notEmpty().withMessage('Message is required').isLength({ max: 4096 }).withMessage('Message must not exceed 4096 characters'),
     check('subject').optional().isString().isLength({ max: 500 }).withMessage('Subject must not exceed 500 characters'),
     checkValidation,
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const token = req.headers.authorization?.split(' ')[1];
         const payload = verifyJWT(token);
@@ -477,7 +478,7 @@ module.exports = (pool, logger) => {
 
         res.status(500).json({ error: error.message });
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -515,7 +516,7 @@ module.exports = (pool, logger) => {
     check('subject').notEmpty().withMessage('Subject is required').isLength({ max: 500 }).withMessage('Subject must not exceed 500 characters'),
     check('message').notEmpty().withMessage('Message is required').isLength({ max: 4096 }).withMessage('Message must not exceed 4096 characters'),
     checkValidation,
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const token = req.headers.authorization?.split(' ')[1];
         const payload = verifyJWT(token);
@@ -551,7 +552,7 @@ module.exports = (pool, logger) => {
         logger.error('Error sending Google Chat broadcast:', error);
         res.status(500).json({ error: error.message });
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -573,7 +574,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Message history retrieved
    */
-  router.get('/google-chat/messages', async (req, res) => {
+  router.get('/google-chat/messages', asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const payload = verifyJWT(token);
@@ -618,7 +619,7 @@ module.exports = (pool, logger) => {
       logger.error('Error fetching Google Chat messages:', error);
       res.status(500).json({ error: error.message });
     }
-  });
+  }));
 
   return router;
 };

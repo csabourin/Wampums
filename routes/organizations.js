@@ -343,7 +343,7 @@ module.exports = (pool, logger) => {
     }
   }));
 
-  router.put('/settings', authenticate, requirePermission('organization.manage'), asyncHandler(async (req, res) => {
+  router.put('/settings', authenticate, blockDemoRoles, requirePermission('organization.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { setting_key, setting_value } = req.body || {};
 

@@ -8,6 +8,7 @@
  */
 
 const express = require('express');
+const { asyncHandler } = require('../middleware/response');
 const router = express.Router();
 
 // Import utilities
@@ -48,7 +49,7 @@ module.exports = (pool, logger) => {
    *             schema:
    *               type: string
    */
-  router.get('/initial', async (req, res) => {
+  router.get('/initial', asyncHandler(async (req, res) => {
     try {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
       const token = req.headers.authorization?.split(' ')[1];
@@ -162,7 +163,7 @@ document.addEventListener("DOMContentLoaded", function() {
       logger.error('Error generating initial data:', error);
       res.status(500).type('application/javascript').send('console.error("Failed to load initial data");');
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -181,7 +182,7 @@ document.addEventListener("DOMContentLoaded", function() {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/parent', async (req, res) => {
+  router.get('/parent', asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -386,7 +387,7 @@ document.addEventListener("DOMContentLoaded", function() {
       logger.error('Error fetching parent dashboard:', error);
       res.status(500).json({ success: false, message: error.message });
     }
-  });
+  }));
 
   return router;
 };

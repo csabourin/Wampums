@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, getOrganizationId } = require('../middleware/auth');
+const { authenticate, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
 const {
@@ -104,7 +104,7 @@ module.exports = (pool, logger) => {
    * Create a new external revenue entry
    * Permission: finance.manage
    */
-  router.post('/v1/revenue/external', authenticate, asyncHandler(async (req, res) => {
+  router.post('/v1/revenue/external', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     try {
       logger.info('[external-revenue] POST request received:', { body: req.body, user: req.user?.id });
 
@@ -200,7 +200,7 @@ module.exports = (pool, logger) => {
    * Update an external revenue entry
    * Permission: finance.manage
    */
-  router.put('/v1/revenue/external/:id', authenticate, asyncHandler(async (req, res) => {
+  router.put('/v1/revenue/external/:id', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
       requiredPermissions: ['finance.manage'],
@@ -296,7 +296,7 @@ module.exports = (pool, logger) => {
    * Delete an external revenue entry
    * Permission: finance.manage
    */
-  router.delete('/v1/revenue/external/:id', authenticate, asyncHandler(async (req, res) => {
+  router.delete('/v1/revenue/external/:id', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
       requiredPermissions: ['finance.manage'],

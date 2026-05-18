@@ -11,7 +11,7 @@ const express = require('express');
 const router = express.Router();
 const { check } = require('express-validator');
 const { authenticate, getOrganizationId } = require('../middleware/auth');
-const { success, error } = require('../middleware/response');
+const { success, error, asyncHandler } = require('../middleware/response');
 
 // Import utilities
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
@@ -37,7 +37,7 @@ module.exports = (pool, logger) => {
     check('keys.p256dh').notEmpty().withMessage('keys.p256dh is required'),
     check('keys.auth').notEmpty().withMessage('keys.auth is required'),
     checkValidation,
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
 
@@ -75,7 +75,7 @@ module.exports = (pool, logger) => {
         logger.error('Error initiating subscription save:', error);
         error(res, 'Failed to save subscription', 500);
       }
-    });
+    }));
 
   // Lightweight health check to prevent expensive 404 handling on accidental GET requests
   router.get('/subscription', (req, res) => {
@@ -88,7 +88,7 @@ module.exports = (pool, logger) => {
    * GET /api/v1/notifications/subscribers
    * Get all push notification subscribers
    */
-  router.get('/subscribers', async (req, res) => {
+  router.get('/subscribers', asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -123,7 +123,7 @@ module.exports = (pool, logger) => {
       logger.error('Error fetching push subscribers:', error);
       res.status(500).json({ success: false, message: error.message });
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -135,7 +135,7 @@ module.exports = (pool, logger) => {
     check('title').trim().notEmpty().withMessage('Title is required').isLength({ max: 200 }).withMessage('Title must not exceed 200 characters'),
     check('body').trim().notEmpty().withMessage('Body is required').isLength({ max: 1000 }).withMessage('Body must not exceed 1000 characters'),
     checkValidation,
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const token = req.headers.authorization?.split(' ')[1];
         const payload = verifyJWT(token);
@@ -238,7 +238,7 @@ module.exports = (pool, logger) => {
         logger.error('Error sending notification:', error);
         res.status(500).json({ error: error.message });
       }
-    });
+    }));
 
   return router;
 };

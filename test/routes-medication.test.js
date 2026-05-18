@@ -126,6 +126,11 @@ describe('POST /api/v1/medication/requirements', () => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+
+        return Promise.resolve({ rows: [] });
+
+      }
       if (query.includes('JOIN roles r')) {
         return Promise.resolve({ rows: [{ role_name: 'district' }] });
       }
@@ -171,6 +176,11 @@ describe('POST /api/v1/medication/requirements', () => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+
+        return Promise.resolve({ rows: [] });
+
+      }
       if (query.includes('JOIN roles r')) {
         return Promise.resolve({ rows: [{ role_name: 'district' }] });
       }
@@ -204,6 +214,11 @@ describe('POST /api/v1/medication/requirements', () => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+
+        return Promise.resolve({ rows: [] });
+
+      }
       if (query.includes('JOIN roles r')) {
         return Promise.resolve({ rows: [{ role_name: 'district' }] });
       }
@@ -236,6 +251,11 @@ describe('POST /api/v1/medication/requirements', () => {
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
+      }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+
+        return Promise.resolve({ rows: [] });
+
       }
       if (query.includes('JOIN roles r')) {
         return Promise.resolve({ rows: [{ role_name: 'district' }] });
@@ -291,6 +311,11 @@ describe('POST /api/v1/medication/requirements', () => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+
+        return Promise.resolve({ rows: [] });
+
+      }
       if (query.includes('JOIN roles r')) {
         return Promise.resolve({ rows: [{ role_name: 'district' }] });
       }
@@ -325,6 +350,11 @@ describe('POST /api/v1/medication/requirements', () => {
         return Promise.resolve({
           rows: [{ permission_key: 'medication.view' }]
         });
+      }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+
+        return Promise.resolve({ rows: [] });
+
       }
       if (query.includes('JOIN roles r')) {
         return Promise.resolve({
@@ -367,6 +397,11 @@ describe('POST /api/v1/medication/distributions', () => {
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
+      }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+
+        return Promise.resolve({ rows: [] });
+
       }
       if (query.includes('JOIN roles r')) {
         return Promise.resolve({ rows: [{ role_name: 'district' }] });
@@ -422,6 +457,11 @@ describe('POST /api/v1/medication/distributions', () => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+
+        return Promise.resolve({ rows: [] });
+
+      }
       if (query.includes('JOIN roles r')) {
         return Promise.resolve({ rows: [{ role_name: 'district' }] });
       }
@@ -455,6 +495,11 @@ describe('POST /api/v1/medication/distributions', () => {
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
+      }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+
+        return Promise.resolve({ rows: [] });
+
       }
       if (query.includes('JOIN roles r')) {
         return Promise.resolve({ rows: [{ role_name: 'district' }] });
@@ -514,6 +559,11 @@ describe('POST /api/v1/medication/receptions', () => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+
+        return Promise.resolve({ rows: [] });
+
+      }
       if (query.includes('JOIN roles r')) {
         return Promise.resolve({ rows: [{ role_name: 'district' }] });
       }
@@ -558,6 +608,11 @@ describe('POST /api/v1/medication/receptions', () => {
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
+      }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+
+        return Promise.resolve({ rows: [] });
+
       }
       if (query.includes('JOIN roles r')) {
         return Promise.resolve({ rows: [{ role_name: 'district' }] });
@@ -604,6 +659,11 @@ describe('GET /api/v1/medication/requirements', () => {
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
+      }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+
+        return Promise.resolve({ rows: [] });
+
       }
       if (query.includes('JOIN roles r')) {
         return Promise.resolve({ rows: [{ role_name: 'district' }] });
@@ -657,6 +717,11 @@ describe('GET /api/v1/medication/requirements', () => {
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [] });
+      }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+
+        return Promise.resolve({ rows: [] });
+
       }
       if (query.includes('JOIN roles r')) {
         return Promise.resolve({ rows: [{ role_name: 'parent' }] });

@@ -17,7 +17,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import middleware and utilities
-const { authenticate, getOrganizationId, requirePermission } = require('../middleware/auth');
+const { authenticate, blockDemoRoles, getOrganizationId, requirePermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 
 /**
@@ -145,7 +145,7 @@ module.exports = (pool) => {
    *       404:
    *         description: Participant not found
    */
-  router.post('/', authenticate, requirePermission('guardians.manage'), asyncHandler(async (req, res) => {
+  router.post('/', authenticate, blockDemoRoles, requirePermission('guardians.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { participant_id, guardian_id, nom, prenom, lien, courriel,
       telephone_residence, telephone_travail, telephone_cellulaire,
@@ -270,7 +270,7 @@ module.exports = (pool) => {
    *       404:
    *         description: Guardian link not found
    */
-  router.delete('/', authenticate, requirePermission('guardians.manage'), asyncHandler(async (req, res) => {
+  router.delete('/', authenticate, blockDemoRoles, requirePermission('guardians.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { participant_id, guardian_id } = req.query;
 
@@ -308,7 +308,7 @@ module.exports = (pool) => {
    *     security:
    *       - bearerAuth: []
    */
-  router.post('/form-submission', authenticate, requirePermission('guardians.manage'), asyncHandler(async (req, res) => {
+  router.post('/form-submission', authenticate, blockDemoRoles, requirePermission('guardians.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { participant_id, form_type, submission_data } = req.body;
 
