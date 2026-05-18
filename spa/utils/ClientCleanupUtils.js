@@ -34,6 +34,24 @@ async function clearAllCaches() {
 }
 
 /**
+ * Ask the active service worker to wipe its scoped API cache. The SW also
+ * keys cache entries by user/org, but doing both prevents a stale entry from
+ * leaking if the next signed-in user happens to share the same scope.
+ * @returns {Promise<void>}
+ */
+async function clearServiceWorkerApiCache() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const registration = await navigator.serviceWorker.getRegistration();
+    const sw = registration?.active;
+    if (!sw) return;
+    sw.postMessage({ type: 'CLEAR_API_CACHE' });
+  } catch (error) {
+    debugWarn('Could not message service worker to clear API cache:', error);
+  }
+}
+
+/**
  * Clear all client-side storage, caches, and IndexedDB data.
  * Intended for logout flows to prevent cross-account data leakage.
  * Preserves device-level preferences like 2FA device trust tokens.
@@ -47,9 +65,10 @@ export async function clearAllClientData() {
   clearUserData(false); // localStorage - selective clearing
   clearUserData(true);  // sessionStorage - full clearing (no device prefs here)
 
-  // Clear Cache Storage and IndexedDB
+  // Clear Cache Storage and IndexedDB (SPA + SW-side)
   await Promise.all([
     clearAllCaches(),
-    deleteIndexedDB().catch((error) => debugError('IndexedDB cleanup failed:', error))
+    deleteIndexedDB().catch((error) => debugError('IndexedDB cleanup failed:', error)),
+    clearServiceWorkerApiCache(),
   ]);
 }
