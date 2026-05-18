@@ -21,6 +21,7 @@ import { debugError, debugLog } from './utils/DebugUtils.js';
 import { CONFIG } from './config.js';
 import { offlineManager } from './modules/OfflineManager.js';
 import { getCachedData, setCachedData } from './indexedDB.js';
+import { confirm as confirmDialog, confirmDestructive, prompt as promptDialog } from './utils/DialogUtils.js';
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { parseDate } from './utils/DateUtils.js';
@@ -980,10 +981,10 @@ export class CarpoolDashboard {
     let reason = '';
 
     if (hasAssignments) {
-      reason = prompt(translate('cancel_ride_with_assignments_prompt'));
+      reason = await promptDialog(translate('cancel_ride_with_assignments_prompt'));
       confirmed = reason !== null; // null means cancelled prompt
     } else {
-      confirmed = confirm(translate('confirm_cancel_ride'));
+      confirmed = await confirmDestructive(translate('confirm_cancel_ride'));
     }
 
     if (!confirmed) return;
@@ -1035,7 +1036,7 @@ export class CarpoolDashboard {
   }
 
   async handleRemoveAssignment(assignmentId) {
-    if (!confirm(translate('confirm_remove_assignment'))) {
+    if (!(await confirmDestructive(translate('confirm_remove_assignment')))) {
       return;
     }
 

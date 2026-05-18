@@ -11,6 +11,7 @@ import { makeApiRequest } from "../api/api-core.js";
 import { debugLog, debugError } from "../utils/DebugUtils.js";
 import { translate } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
+import { confirmDestructive } from "../utils/DialogUtils.js";
 
 // Socket.io client is loaded from CDN or served by Socket.io server
 // The io object will be available globally after loading the script
@@ -370,7 +371,7 @@ export class WhatsAppConnectionModule {
   async handleDisconnect() {
     if (this.isLoading) return;
 
-    const confirmed = confirm(
+    const confirmed = await confirmDestructive(
       translate("whatsapp_disconnect_confirm") ||
       "Are you sure you want to disconnect WhatsApp? You will need to scan the QR code again to reconnect."
     );

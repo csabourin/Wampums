@@ -15,6 +15,7 @@ import { CONFIG } from "./config.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { BaseModule } from "./utils/BaseModule.js";
+import { confirmDestructive } from "./utils/DialogUtils.js";
 
 /**
  * FormBuilder class - Main form builder component
@@ -855,8 +856,8 @@ export class FormBuilder extends BaseModule {
     /**
      * Delete a field
      */
-    deleteField(index) {
-        if (confirm(translate("confirm_delete_field"))) {
+    async deleteField(index) {
+        if (await confirmDestructive(translate("confirm_delete_field"))) {
             this.currentFields.splice(index, 1);
             this.updateFieldsList();
         }
@@ -979,7 +980,7 @@ export class FormBuilder extends BaseModule {
      * Delete format
      */
     async deleteFormat(formatId) {
-        if (!confirm(translate("confirm_delete_format"))) return;
+        if (!(await confirmDestructive(translate("confirm_delete_format")))) return;
 
         try {
             const response = await API.delete(`v1/form-builder/form-formats/${formatId}`);

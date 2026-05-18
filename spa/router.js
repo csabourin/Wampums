@@ -547,6 +547,9 @@ export class Router {
           }
           break;
         case "registerOrganization":
+          if (!guard(canCreateOrganization())) {
+            break;
+          }
           const RegisterOrganization = await this.loadModule('RegisterOrganization');
           const registerOrganization = new RegisterOrganization(this.app);
           await registerOrganization.init();
@@ -673,15 +676,27 @@ export class Router {
           await this.loadParentProgramProgress();
           break;
         case "ficheSante":
+          if (!guard(isParent() || canViewParticipants())) {
+            break;
+          }
           await this.loadFicheSante(param);
           break;
         case "acceptationRisque":
+          if (!guard(isParent() || canViewParticipants())) {
+            break;
+          }
           await this.loadAcceptationRisque(param);
           break;
         case "badgeForm":
+          if (!guard(canViewBadges() || canApproveBadges())) {
+            break;
+          }
           await this.loadBadgeForm(param);
           break;
         case 'preparation_reunions':
+          if (!guard(canViewActivities() || canManageActivities())) {
+            break;
+          }
           await this.loadPreparationReunions();
           break;
         case "accountInfo":
@@ -966,6 +981,7 @@ export class Router {
   async loadViewParticipantDocuments() {
     const ViewParticipantDocuments = await this.loadModule('ViewParticipantDocuments');
     const viewParticipantDocuments = new ViewParticipantDocuments(this.app);
+    this.currentModuleInstance = viewParticipantDocuments;
     await viewParticipantDocuments.init();
   }
 
@@ -996,6 +1012,7 @@ export class Router {
   async loadBadgeTracker() {
     const BadgeTracker = await this.loadModule('BadgeTracker');
     const badgeTracker = new BadgeTracker(this.app);
+    this.currentModuleInstance = badgeTracker;
     await badgeTracker.init();
   }
 

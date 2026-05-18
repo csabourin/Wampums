@@ -13,6 +13,7 @@ import { translate, app as appInstance } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
 import { isParent } from "../utils/PermissionUtils.js";
 import { setContent, loadStylesheet } from "../utils/DOMUtils.js";
+import { confirm as confirmDialog } from "../utils/DialogUtils.js";
 import { getStorage, setStorage } from "../utils/StorageUtils.js";
 import { CONFIG, getStorageKey } from "../config.js";
 
@@ -720,7 +721,7 @@ export class AccountInfoModule {
     }
 
     // Confirm action since it will log them out
-    if (!confirm(translate("email_changed_logout_warning") || translate("account_info_email_warning"))) {
+    if (!(await confirmDialog(translate("email_changed_logout_warning") || translate("account_info_email_warning")))) {
       return;
     }
 
@@ -996,7 +997,7 @@ export class AccountInfoModule {
    * Handle logout
    */
   async handleLogout() {
-    if (!confirm(translate("confirm_logout_message") || translate("confirm_logout") || "Are you sure you want to log out?")) {
+    if (!(await confirmDialog(translate("confirm_logout_message") || translate("confirm_logout") || "Are you sure you want to log out?"))) {
       return;
     }
 

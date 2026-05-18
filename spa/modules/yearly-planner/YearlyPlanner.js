@@ -5,6 +5,7 @@ import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { formatDate, parseDate } from '../../utils/DateUtils.js';
+import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { skeletonTable } from '../../utils/SkeletonUtils.js';
@@ -987,7 +988,7 @@ export class YearlyPlanner extends BaseModule {
   }
 
   async handleDeletePlan(planId) {
-    if (!confirm(translate('yearly_planner_confirm_delete_plan'))) return;
+    if (!(await confirmDestructive(translate('yearly_planner_confirm_delete_plan')))) return;
 
     try {
       await deleteYearPlan(planId);
@@ -1002,7 +1003,7 @@ export class YearlyPlanner extends BaseModule {
   }
 
   async handleDeletePeriod(periodId) {
-    if (!confirm(translate('yearly_planner_confirm_delete_period'))) return;
+    if (!(await confirmDestructive(translate('yearly_planner_confirm_delete_period')))) return;
 
     try {
       await deletePeriod(periodId);
@@ -1015,7 +1016,7 @@ export class YearlyPlanner extends BaseModule {
   }
 
   async handleDeleteObjective(objId) {
-    if (!confirm(translate('yearly_planner_confirm_delete_objective'))) return;
+    if (!(await confirmDestructive(translate('yearly_planner_confirm_delete_objective')))) return;
 
     try {
       await deleteObjective(objId);
@@ -1028,7 +1029,7 @@ export class YearlyPlanner extends BaseModule {
   }
 
   async handleDeleteLibraryActivity(libId) {
-    if (!confirm(translate('yearly_planner_confirm_delete_library'))) return;
+    if (!(await confirmDestructive(translate('yearly_planner_confirm_delete_library')))) return;
 
     try {
       await deleteLibraryActivity(libId);
@@ -1043,7 +1044,7 @@ export class YearlyPlanner extends BaseModule {
   }
 
   async handleRemoveActivity(activityId) {
-    if (!confirm(translate('yearly_planner_confirm_remove_activity'))) return;
+    if (!(await confirmDestructive(translate('yearly_planner_confirm_remove_activity')))) return;
 
     try {
       await deleteMeetingActivity(activityId);

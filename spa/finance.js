@@ -25,6 +25,7 @@ import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import { clearFinanceRelatedCaches } from "./indexedDB.js";
 import { LoadingStateManager, CacheWithTTL, retryWithBackoff, withButtonLoading, debounce } from "./utils/PerformanceUtils.js";
 import { exportToCSV } from "./utils/ExportUtils.js";
+import { confirmDestructive } from "./utils/DialogUtils.js";
 import { validateMoney, validateDateField, validatePositiveInteger } from "./utils/ValidationUtils.js";
 import { canManageFinance, canViewFinance } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
@@ -847,7 +848,7 @@ export class Finance extends BaseModule {
     document.querySelectorAll('[data-action="delete-definition"]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         const id = e.currentTarget.dataset.id;
-        if (confirm(translate('confirm_delete'))) {
+        if (await confirmDestructive(translate('confirm_delete'))) {
           await withButtonLoading(e.currentTarget, async () => {
             await deleteFeeDefinition(id);
             await this.loadCoreData();
@@ -1530,7 +1531,7 @@ export class Finance extends BaseModule {
     const planId = form?.dataset.planId;
     const feeId = form?.participant_fee_id.value;
     if (!planId || !feeId) return;
-    if (!confirm(translate('confirm_delete'))) return;
+    if (!(await confirmDestructive(translate('confirm_delete')))) return;
     try {
       await deletePaymentPlan(planId);
 

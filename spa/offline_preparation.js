@@ -9,6 +9,7 @@ import { setContent, loadStylesheet } from './utils/DOMUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
 import { formatDate } from './utils/DateUtils.js';
 import { skeletonList } from './utils/SkeletonUtils.js';
+import { confirmDestructive } from './utils/DialogUtils.js';
 
 export class OfflinePreparation {
     constructor(app) {
@@ -340,11 +341,11 @@ export class OfflinePreparation {
         this.attachEventListeners();
     }
 
-    handleClearPrep(event) {
+    async handleClearPrep(event) {
         const id = event.target.dataset.activityId;
         const idParsed = isNaN(parseInt(id)) ? id : parseInt(id);
 
-        if (confirm(translate('confirm_clear_preparation'))) {
+        if (await confirmDestructive(translate('confirm_clear_preparation'))) {
             offlineManager.preparedActivities.delete(idParsed);
             offlineManager.savePreparedActivities();
 
@@ -358,8 +359,8 @@ export class OfflinePreparation {
         }
     }
 
-    handleClearAllPrep() {
-        if (confirm(translate('confirm_clear_all_preparations'))) {
+    async handleClearAllPrep() {
+        if (await confirmDestructive(translate('confirm_clear_all_preparations'))) {
             offlineManager.clearPreparedActivities();
             this.app.showMessage(translate('preparations_cleared'), 'success');
             this.render();

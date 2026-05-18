@@ -10,6 +10,7 @@ import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { clearExternalRevenueCaches } from "./indexedDB.js";
 import { debugError, debugLog, debugWarn } from "./utils/DebugUtils.js";
+import { confirmDestructive } from "./utils/DialogUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import {
   LoadingStateManager,
@@ -474,7 +475,7 @@ export class ExternalRevenue {
     document.querySelectorAll(".delete-revenue-btn").forEach((btn) => {
       btn.addEventListener("click", async (e) => {
         const id = parseInt(e.target.dataset.id);
-        if (confirm(translate("confirm_delete_external_revenue"))) {
+        if (await confirmDestructive(translate("confirm_delete_external_revenue"))) {
           await this.deleteRevenue(id);
         }
       });

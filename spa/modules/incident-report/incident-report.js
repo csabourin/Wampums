@@ -13,6 +13,7 @@ import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
+import { confirm as confirmDialog, confirmDestructive } from '../../utils/DialogUtils.js';
 
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { JSONFormRenderer } from '../../JSONFormRenderer.js';
@@ -190,7 +191,7 @@ export class IncidentReport {
 
     document.querySelectorAll('.incident-delete-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm(translate('incident_confirm_delete'))) return;
+        if (!(await confirmDestructive(translate('incident_confirm_delete')))) return;
         try {
           await deleteIncidentReport(parseInt(btn.dataset.id));
           this.app.showMessage(translate('incident_deleted'), 'success');
@@ -416,7 +417,7 @@ export class IncidentReport {
 
     // Submit
     document.getElementById('incident-submit-btn')?.addEventListener('click', async () => {
-      if (!confirm(translate('incident_confirm_submit'))) return;
+      if (!(await confirmDialog(translate('incident_confirm_submit')))) return;
       await this.handleSubmit();
     });
 
