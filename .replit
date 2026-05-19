@@ -1,7 +1,7 @@
 run = "npm start"
 
 entrypoint = "api.js"
-modules = ["postgresql-16", "nodejs-20"]
+modules = ["postgresql-16", "nodejs-20", "python-3.11"]
 
 [nix]
 channel = "stable-22_11"
