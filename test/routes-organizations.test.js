@@ -407,6 +407,11 @@ describe('GET /api/v1/organizations/settings', () => {
           rows: [{ permission_key: 'organization.manage' }]
         });
       }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+
+        return Promise.resolve({ rows: [] });
+
+      }
       if (query.includes('role_name')) {
         return Promise.resolve({
           rows: [{ role_name: 'admin' }]
@@ -672,6 +677,11 @@ describe('JWT token integrity after organization switch', () => {
         return Promise.resolve({
           rows: [{ id: ORG_ID_2, name: 'Org 2' }]
         });
+      }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+
+        return Promise.resolve({ rows: [] });
+
       }
       if (query.includes('role_name')) {
         return Promise.resolve({

@@ -11,6 +11,7 @@ import { escapeHTML } from "./utils/SecurityUtils.js";
 import { clearExternalRevenueCaches } from "./indexedDB.js";
 import { debugError, debugLog, debugWarn } from "./utils/DebugUtils.js";
 import { confirmDestructive } from "./utils/DialogUtils.js";
+import { CONFIG } from "./config.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import {
   LoadingStateManager,
@@ -25,7 +26,7 @@ import {
 import { canApproveFinance, canManageFinance } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 
-const DEFAULT_CURRENCY = "CAD";
+const DEFAULT_CURRENCY = CONFIG.DEFAULT_CURRENCY;
 
 /**
  * External Revenue Management Module

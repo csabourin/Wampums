@@ -1151,6 +1151,9 @@
   "new_parent_guardian": "Nouveau parent/tuteur",
   "new_password": "Nouveau mot de passe",
   "new_version_available": "Nouvelle version disponible",
+  "new_version_message": "Une nouvelle version de l'application est disponible.",
+  "new_version_update": "Mettre à jour",
+  "new_version_later": "Plus tard",
   "news_empty": "Aucune annonce disponible pour le moment.",
   "news_error": "Impossible de charger les annonces pour le moment.",
   "news_loading": "Chargement des annonces...",
@@ -2607,5 +2610,9 @@
   "yearly_planner_error_creating": "Erreur lors de la création.",
   "yearly_planner_error_updating": "Erreur lors de la mise à jour.",
   "yearly_planner_error_deleting": "Erreur lors de la suppression.",
-  "yearly_planner_nav": "Plan annuel"
+  "yearly_planner_nav": "Plan annuel",
+  "medication_authorizations_description": "Gérer les autorisations parentales pour le traitement médical et l'administration des médicaments.",
+  "medication_switch_to_authorizations": "Voir les autorisations",
+  "medication_auth_tab": "Autorisations",
+  "error_loading_manage_points": "Erreur lors du chargement de la gestion des points"
 }

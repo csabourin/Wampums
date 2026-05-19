@@ -8,6 +8,7 @@
  */
 
 const express = require('express');
+const { asyncHandler } = require('../middleware/response');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
@@ -148,7 +149,7 @@ module.exports = (pool, logger) => {
     validateEmail,
     validatePassword,
     checkValidation,
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const { email, password } = req.body;
@@ -326,7 +327,7 @@ module.exports = (pool, logger) => {
           message: 'internal_server_error'
         });
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -361,7 +362,7 @@ module.exports = (pool, logger) => {
     authLimiter,
     validateEmail,
     checkValidation,
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const { email, code } = req.body;
@@ -486,7 +487,7 @@ module.exports = (pool, logger) => {
           message: 'internal_server_error'
         });
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -528,7 +529,7 @@ module.exports = (pool, logger) => {
     validateStrongPassword,
     validateFullName,
     checkValidation,
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       const client = await pool.connect();
       try {
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
@@ -637,7 +638,7 @@ module.exports = (pool, logger) => {
       } finally {
         client.release();
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -657,7 +658,7 @@ module.exports = (pool, logger) => {
     validateStrongPassword,
     validateFullName,
     checkValidation,
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       const client = await pool.connect();
       try {
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
@@ -737,7 +738,7 @@ module.exports = (pool, logger) => {
       } finally {
         client.release();
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -756,7 +757,7 @@ module.exports = (pool, logger) => {
     passwordResetLimiter,
     validateEmail,
     checkValidation,
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const { email } = req.body;
         const normalizedEmail = normalizeEmailValue(email);
@@ -888,7 +889,7 @@ module.exports = (pool, logger) => {
         logger.error('Error requesting password reset:', error);
         res.status(500).json({ success: false, message: error.message });
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -908,7 +909,7 @@ module.exports = (pool, logger) => {
     validateToken,
     validateNewPassword,
     checkValidation,
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const { new_password } = req.body;
         const token = req.body.token || req.query.token;
@@ -961,7 +962,7 @@ module.exports = (pool, logger) => {
         logger.error('Error resetting password:', error);
         res.status(500).json({ success: false, message: error.message });
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -978,7 +979,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Invalid session
    */
-  router.post('/api/auth/verify-session', authenticate, async (req, res) => {
+  router.post('/api/auth/verify-session', authenticate, asyncHandler(async (req, res) => {
     try {
       // If authenticate middleware passed, session is valid
       res.json({
@@ -997,7 +998,7 @@ module.exports = (pool, logger) => {
       logger.error('Error verifying session:', error);
       res.status(500).json({ success: false, message: error.message });
     }
-  });
+  }));
 
   /**
    * Stateless logout response handler used by legacy and v1 routes.

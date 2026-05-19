@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, getOrganizationId } = require('../middleware/auth');
+const { authenticate, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
 
@@ -98,7 +98,7 @@ module.exports = (pool, logger) => {
    * Create a medication requirement and participant assignments
    * Permission: participants.edit
    */
-  router.post('/v1/medication/requirements', authenticate, asyncHandler(async (req, res) => {
+  router.post('/v1/medication/requirements', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
       requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
@@ -221,7 +221,7 @@ module.exports = (pool, logger) => {
    * Update a medication requirement and participant assignments
    * Permission: participants.edit
    */
-  router.put('/v1/medication/requirements/:id', authenticate, asyncHandler(async (req, res) => {
+  router.put('/v1/medication/requirements/:id', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
       requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
@@ -429,7 +429,7 @@ module.exports = (pool, logger) => {
    * Schedule or update medication distributions for a single participant per entry
    * Permission: participants.edit
    */
-  router.post('/v1/medication/distributions', authenticate, asyncHandler(async (req, res) => {
+  router.post('/v1/medication/distributions', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
       requiredPermissions: MEDICATION_READ_PERMISSIONS,
@@ -585,7 +585,7 @@ module.exports = (pool, logger) => {
    * Update the status of a medication distribution entry
    * Permission: participants.edit
    */
-  router.patch('/v1/medication/distributions/:id', authenticate, asyncHandler(async (req, res) => {
+  router.patch('/v1/medication/distributions/:id', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
       requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
@@ -708,7 +708,7 @@ module.exports = (pool, logger) => {
    * Create or update medication reception record
    * Permission: participants.edit
    */
-  router.post('/v1/medication/receptions', authenticate, asyncHandler(async (req, res) => {
+  router.post('/v1/medication/receptions', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
       requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
@@ -820,7 +820,7 @@ module.exports = (pool, logger) => {
    * Update medication reception record
    * Permission: participants.edit
    */
-  router.patch('/v1/medication/receptions/:id', authenticate, asyncHandler(async (req, res) => {
+  router.patch('/v1/medication/receptions/:id', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
       requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
@@ -882,7 +882,7 @@ module.exports = (pool, logger) => {
    * Delete medication reception record
    * Permission: participants.edit
    */
-  router.delete('/v1/medication/receptions/:id', authenticate, asyncHandler(async (req, res) => {
+  router.delete('/v1/medication/receptions/:id', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
       requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
@@ -995,7 +995,7 @@ module.exports = (pool, logger) => {
    * POST /v1/medication/authorizations/treatment
    * Saves or updates a PDF A authorization
    */
-  router.post('/v1/medication/authorizations/treatment', authenticate, asyncHandler(async (req, res) => {
+  router.post('/v1/medication/authorizations/treatment', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const {
       participant_id, guardian_id,
@@ -1070,7 +1070,7 @@ module.exports = (pool, logger) => {
    * POST /v1/medication/authorizations/administration
    * Saves or updates a PDF B authorization
    */
-  router.post('/v1/medication/authorizations/administration', authenticate, asyncHandler(async (req, res) => {
+  router.post('/v1/medication/authorizations/administration', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const {
       participant_id, guardian_id,

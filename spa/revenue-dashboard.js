@@ -12,8 +12,9 @@ import { getTodayISO } from "./utils/DateUtils.js";
 import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { getCurrentFiscalYear, getFiscalYearOptions } from "./utils/FiscalYearUtils.js";
+import { CONFIG } from "./config.js";
 
-const DEFAULT_CURRENCY = "CAD";
+const DEFAULT_CURRENCY = CONFIG.DEFAULT_CURRENCY;
 
 /**
  * Revenue Dashboard Module

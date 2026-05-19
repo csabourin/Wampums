@@ -8,6 +8,7 @@
  */
 
 const express = require('express');
+const { asyncHandler } = require('../middleware/response');
 const router = express.Router();
 const { check } = require('express-validator');
 
@@ -57,7 +58,7 @@ module.exports = (pool, logger) => {
    */
   router.get('/achievements/unprocessed',
     checkValidation,
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
@@ -104,7 +105,7 @@ module.exports = (pool, logger) => {
       } catch (error) {
         handleOrganizationResolutionError(error, res, logger);
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -127,7 +128,7 @@ module.exports = (pool, logger) => {
   router.get('/preparation',
     validateDateOptional('date'),
     checkValidation,
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const reunionDate = req.query.date || new Date().toISOString().split('T')[0];
@@ -190,7 +191,7 @@ module.exports = (pool, logger) => {
           message: 'Error fetching reunion preparation'
         });
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -239,7 +240,7 @@ module.exports = (pool, logger) => {
       Array.isArray(value) || typeof value === 'string'
     ).withMessage('youth_of_honor must be an array or string'),
     checkValidation,
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const token = req.headers.authorization?.split(' ')[1];
         const decoded = verifyJWT(token);
@@ -329,7 +330,7 @@ module.exports = (pool, logger) => {
           message: error.message
         });
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -347,7 +348,7 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.get('/dates',
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const token = req.headers.authorization?.split(' ')[1];
         const decoded = verifyJWT(token);
@@ -374,7 +375,7 @@ module.exports = (pool, logger) => {
         logger.error('Error fetching reunion dates:', error);
         res.status(500).json({ success: false, message: error.message });
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -392,7 +393,7 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.get('/next',
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const token = req.headers.authorization?.split(' ')[1];
         const decoded = verifyJWT(token);
@@ -434,7 +435,7 @@ module.exports = (pool, logger) => {
         logger.error('Error fetching next meeting info:', error);
         res.status(500).json({ success: false, message: error.message });
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -459,7 +460,7 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.get('/guests',
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const token = req.headers.authorization?.split(' ')[1];
         const decoded = verifyJWT(token);
@@ -495,7 +496,7 @@ module.exports = (pool, logger) => {
         logger.error('Error fetching guests:', error);
         res.status(500).json({ success: false, message: error.message });
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -532,7 +533,7 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.post('/guests',
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const token = req.headers.authorization?.split(' ')[1];
         const decoded = verifyJWT(token);
@@ -578,7 +579,7 @@ module.exports = (pool, logger) => {
         logger.error('Error saving guest:', error);
         res.status(500).json({ success: false, message: error.message });
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -629,7 +630,7 @@ module.exports = (pool, logger) => {
   };
 
   // Register reminder endpoint
-  router.get('/reminders', getReminderHandler);
+  router.get('/reminders', asyncHandler(getReminderHandler));
 
   /**
    * @swagger
@@ -661,7 +662,7 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.post('/reminders',
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const token = req.headers.authorization?.split(' ')[1];
         const decoded = verifyJWT(token);
@@ -691,7 +692,7 @@ module.exports = (pool, logger) => {
         logger.error('Error saving reminder:', error);
         res.status(500).json({ success: false, message: error.message });
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -709,7 +710,7 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.get('/activities',
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const token = req.headers.authorization?.split(' ')[1];
         const decoded = verifyJWT(token);
@@ -739,7 +740,7 @@ module.exports = (pool, logger) => {
         logger.error('Error fetching meeting activities:', error);
         res.status(500).json({ success: false, message: error.message });
       }
-    });
+    }));
 
   /**
    * @swagger
@@ -757,7 +758,7 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.get('/activities/templates',
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const token = req.headers.authorization?.split(' ')[1];
         const decoded = verifyJWT(token);
@@ -787,7 +788,7 @@ module.exports = (pool, logger) => {
         logger.error('Error fetching activity templates:', error);
         res.status(500).json({ success: false, message: error.message });
       }
-    });
+    }));
 
   return router;
 };

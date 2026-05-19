@@ -15,7 +15,7 @@ const router = express.Router();
 
 // Import middleware
 const { authenticate, requirePermission, blockDemoRoles } = require('../middleware/auth');
-const { success, error: errorResponse } = require('../middleware/response');
+const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
@@ -46,7 +46,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/form-formats', authenticate, requirePermission('forms.view'), async (req, res) => {
+  router.get('/form-formats', authenticate, requirePermission('forms.view'), asyncHandler(async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
 
@@ -63,7 +63,7 @@ module.exports = (pool, logger) => {
       logger.error('Error fetching form formats:', error);
       return errorResponse(res, 'Failed to fetch form formats', 500);
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -86,7 +86,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Form format not found
    */
-  router.get('/form-formats/:id', authenticate, requirePermission('forms.view'), async (req, res) => {
+  router.get('/form-formats/:id', authenticate, requirePermission('forms.view'), asyncHandler(async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
       const formFormatId = parseInt(req.params.id, 10);
@@ -107,7 +107,7 @@ module.exports = (pool, logger) => {
       logger.error('Error fetching form format:', error);
       return errorResponse(res, 'Failed to fetch form format', 500);
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -140,7 +140,7 @@ module.exports = (pool, logger) => {
    *       400:
    *         description: Invalid input
    */
-  router.post('/form-formats', authenticate, blockDemoRoles, requirePermission('forms.manage'), async (req, res) => {
+  router.post('/form-formats', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
       const { form_type, form_structure, display_type } = req.body;
@@ -180,7 +180,7 @@ module.exports = (pool, logger) => {
       logger.error('Error creating form format:', error);
       return errorResponse(res, 'Failed to create form format', 500);
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -214,7 +214,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Form format not found
    */
-  router.put('/form-formats/:id', authenticate, blockDemoRoles, requirePermission('forms.manage'), async (req, res) => {
+  router.put('/form-formats/:id', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
       const formFormatId = parseInt(req.params.id, 10);
@@ -259,7 +259,7 @@ module.exports = (pool, logger) => {
       logger.error('Error updating form format:', error);
       return errorResponse(res, 'Failed to update form format', 500);
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -282,7 +282,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Form format not found
    */
-  router.delete('/form-formats/:id', authenticate, blockDemoRoles, requirePermission('forms.manage'), async (req, res) => {
+  router.delete('/form-formats/:id', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
       const formFormatId = parseInt(req.params.id, 10);
@@ -304,7 +304,7 @@ module.exports = (pool, logger) => {
       logger.error('Error deleting form format:', error);
       return errorResponse(res, 'Failed to delete form format', 500);
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -319,7 +319,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Organizations retrieved successfully
    */
-  router.get('/user-organizations', authenticate, async (req, res) => {
+  router.get('/user-organizations', authenticate, asyncHandler(async (req, res) => {
     try {
       const userId = req.user.id;
 
@@ -341,7 +341,7 @@ module.exports = (pool, logger) => {
       logger.error('Error fetching user organizations:', error);
       return errorResponse(res, 'Failed to fetch organizations', 500);
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -363,7 +363,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Translations retrieved successfully
    */
-  router.get('/translations/keys', authenticate, async (req, res) => {
+  router.get('/translations/keys', authenticate, asyncHandler(async (req, res) => {
     try {
       const { keys } = req.query;
 
@@ -396,7 +396,7 @@ module.exports = (pool, logger) => {
       logger.error('Error fetching translations:', error);
       return errorResponse(res, 'Failed to fetch translations', 500);
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -430,7 +430,7 @@ module.exports = (pool, logger) => {
    *       201:
    *         description: Translations added successfully
    */
-  router.post('/translations', authenticate, blockDemoRoles, requirePermission('forms.manage'), async (req, res) => {
+  router.post('/translations', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
     const client = await pool.connect();
     try {
       const { key, translations } = req.body;
@@ -481,7 +481,7 @@ module.exports = (pool, logger) => {
     } finally {
       client.release();
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -509,7 +509,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Source form format not found
    */
-  router.post('/form-formats/:sourceOrgId/:formType/copy', authenticate, blockDemoRoles, requirePermission('forms.manage'), async (req, res) => {
+  router.post('/form-formats/:sourceOrgId/:formType/copy', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
       const sourceOrgId = parseInt(req.params.sourceOrgId, 10);
@@ -573,7 +573,7 @@ module.exports = (pool, logger) => {
       logger.error('Error copying form format:', error);
       return errorResponse(res, 'Failed to copy form format', 500);
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -611,7 +611,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Form format not found
    */
-  router.post('/form-formats/:id/versions', authenticate, blockDemoRoles, requirePermission('forms.manage'), async (req, res) => {
+  router.post('/form-formats/:id/versions', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
     const client = await pool.connect();
     try {
       const organizationId = req.user.organizationId;
@@ -668,7 +668,7 @@ module.exports = (pool, logger) => {
     } finally {
       client.release();
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -691,7 +691,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Version not found
    */
-  router.post('/form-versions/:versionId/publish', authenticate, blockDemoRoles, requirePermission('forms.manage'), async (req, res) => {
+  router.post('/form-versions/:versionId/publish', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
     const client = await pool.connect();
     try {
       const organizationId = req.user.organizationId;
@@ -730,7 +730,7 @@ module.exports = (pool, logger) => {
     } finally {
       client.release();
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -753,7 +753,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Form format not found
    */
-  router.post('/form-formats/:id/archive', authenticate, blockDemoRoles, requirePermission('forms.manage'), async (req, res) => {
+  router.post('/form-formats/:id/archive', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
       const formFormatId = parseInt(req.params.id, 10);
@@ -778,7 +778,7 @@ module.exports = (pool, logger) => {
       logger.error('Error archiving form format:', error);
       return errorResponse(res, 'Failed to archive form format', 500);
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -801,7 +801,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Form format not found
    */
-  router.get('/form-formats/:id/versions', authenticate, requirePermission('forms.view'), async (req, res) => {
+  router.get('/form-formats/:id/versions', authenticate, requirePermission('forms.view'), asyncHandler(async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
       const formFormatId = parseInt(req.params.id, 10);
@@ -840,7 +840,7 @@ module.exports = (pool, logger) => {
       logger.error('Error fetching form versions:', error);
       return errorResponse(res, 'Failed to fetch form versions', 500);
     }
-  });
+  }));
 
   return router;
 };

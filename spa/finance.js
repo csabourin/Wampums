@@ -30,8 +30,9 @@ import { validateMoney, validateDateField, validatePositiveInteger } from "./uti
 import { canManageFinance, canViewFinance } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { BaseModule } from "./utils/BaseModule.js";
+import { CONFIG } from "./config.js";
 
-const DEFAULT_CURRENCY = "CAD";
+const DEFAULT_CURRENCY = CONFIG.DEFAULT_CURRENCY;
 
 export class Finance extends BaseModule {
   constructor(app) {

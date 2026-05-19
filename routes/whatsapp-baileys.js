@@ -8,6 +8,7 @@
  */
 
 const express = require('express');
+const { asyncHandler } = require('../middleware/response');
 const router = express.Router();
 const {
   verifyJWT,
@@ -28,7 +29,7 @@ module.exports = (pool, logger, whatsappService) => {
    * Initialize WhatsApp connection (generates QR code)
    * POST /api/v1/whatsapp/baileys/connect
    */
-  router.post('/v1/whatsapp/baileys/connect', async (req, res) => {
+  router.post('/v1/whatsapp/baileys/connect', asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const payload = verifyJWT(token);
@@ -74,13 +75,13 @@ module.exports = (pool, logger, whatsappService) => {
       logger.error('Error initiating WhatsApp connection:', error);
       res.status(500).json({ success: false, message: error.message });
     }
-  });
+  }));
 
   /**
    * Disconnect WhatsApp
    * POST /api/v1/whatsapp/baileys/disconnect
    */
-  router.post('/v1/whatsapp/baileys/disconnect', async (req, res) => {
+  router.post('/v1/whatsapp/baileys/disconnect', asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const payload = verifyJWT(token);
@@ -115,13 +116,13 @@ module.exports = (pool, logger, whatsappService) => {
       logger.error('Error disconnecting WhatsApp:', error);
       res.status(500).json({ success: false, message: error.message });
     }
-  });
+  }));
 
   /**
    * Get WhatsApp connection status
    * GET /api/v1/whatsapp/baileys/status
    */
-  router.get('/v1/whatsapp/baileys/status', async (req, res) => {
+  router.get('/v1/whatsapp/baileys/status', asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const payload = verifyJWT(token);
@@ -161,13 +162,13 @@ module.exports = (pool, logger, whatsappService) => {
       logger.error('Error getting WhatsApp status:', error);
       res.status(500).json({ success: false, message: error.message });
     }
-  });
+  }));
 
   /**
    * Send test WhatsApp message
    * POST /api/v1/whatsapp/baileys/test
    */
-  router.post('/v1/whatsapp/baileys/test', async (req, res) => {
+  router.post('/v1/whatsapp/baileys/test', asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const payload = verifyJWT(token);
@@ -213,7 +214,7 @@ module.exports = (pool, logger, whatsappService) => {
       logger.error('Error sending test WhatsApp message:', error);
       res.status(500).json({ success: false, message: error.message });
     }
-  });
+  }));
 
   return router;
 };

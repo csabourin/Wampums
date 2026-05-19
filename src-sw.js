@@ -280,6 +280,48 @@ async function setCachedData(key, data, expirationTime) {
   }
 }
 
+/**
+ * Clear cached API responses. If `scopePrefix` is provided, only entries whose
+ * key starts with that prefix are removed (e.g. "u42:o1|"). Otherwise the
+ * entire api-cache store is wiped.
+ *
+ * @param {string|undefined} scopePrefix
+ */
+async function clearApiCache(scopePrefix) {
+  if (indexedDBBlocked) return;
+  try {
+    const db = await openIndexedDB();
+    await new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      if (!scopePrefix) {
+        const req = store.clear();
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+        return;
+      }
+      const cursorReq = store.openCursor();
+      cursorReq.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (!cursor) {
+          resolve();
+          return;
+        }
+        const key = cursor.value?.url;
+        if (typeof key === 'string' && key.startsWith(scopePrefix)) {
+          cursor.delete();
+        }
+        cursor.continue();
+      };
+      cursorReq.onerror = () => reject(cursorReq.error);
+    });
+  } catch (error) {
+    if (isStorageAccessError(error)) {
+      indexedDBBlocked = true;
+    }
+  }
+}
+
 async function getCachedData(key) {
   if (indexedDBBlocked) {
     return null;
@@ -309,8 +351,57 @@ async function getCachedData(key) {
   }
 }
 
+/**
+ * Decode a JWT payload without verifying the signature. Used only to derive
+ * a per-user cache scope so two users sharing a device cannot see each
+ * other's cached API responses. Never trust this for auth decisions.
+ *
+ * @param {string} token
+ * @returns {{user_id?: string|number, organizationId?: string|number} | null}
+ */
+function decodeJwtPayload(token) {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    // base64url → base64
+    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
+    return JSON.parse(self.atob(padded));
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Build a cache key scoped to the authenticated user + organization. Without
+ * a scope, two users on the same device share cache entries — a leader could
+ * see a parent's cached data after they sign in, and vice versa.
+ *
+ * Falls back to "anon" when no Authorization header is present (public
+ * endpoints like /public/login).
+ *
+ * @param {Request} request
+ * @returns {string}
+ */
+function buildScopedCacheKey(request) {
+  const auth = request.headers.get('Authorization') || '';
+  const orgHeader = request.headers.get('x-organization-id') || '';
+  let scope = 'anon';
+  if (auth.startsWith('Bearer ')) {
+    const payload = decodeJwtPayload(auth.slice(7));
+    if (payload) {
+      const uid = payload.user_id ?? payload.sub ?? '?';
+      const oid = payload.organizationId ?? payload.organization_id ?? orgHeader ?? '?';
+      scope = `u${uid}:o${oid}`;
+    }
+  } else if (orgHeader) {
+    scope = `anon:o${orgHeader}`;
+  }
+  return `${scope}|${request.url}`;
+}
+
 async function fetchAndCacheInIndexedDB(request) {
-  const cacheKey = request.url;
+  const cacheKey = buildScopedCacheKey(request);
 
   try {
     if (indexedDBBlocked) {
@@ -843,6 +934,17 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SET_CAMP_MODE') {
     campModeEnabled = event.data.enabled;
     debugLog('Camp mode:', campModeEnabled ? 'enabled' : 'disabled');
+  }
+  // Belt-and-suspenders: scoped cache keys already isolate users, but on
+  // logout / role switch the client wipes its known scope so any future
+  // request that lands before the next login (or fallback to "anon" scope)
+  // cannot read stale rows.
+  if (event.data && event.data.type === 'CLEAR_API_CACHE') {
+    event.waitUntil(
+      clearApiCache(event.data.scope).catch((err) => {
+        debugError('CLEAR_API_CACHE failed:', err);
+      }),
+    );
   }
   if (event.data && event.data.type === 'GET_PENDING_COUNT') {
     const messagePort = event.ports && event.ports[0];

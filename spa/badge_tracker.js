@@ -14,7 +14,7 @@ import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { sanitizeHTML } from "./utils/SecurityUtils.js";
 import { confirm as confirmDialog, confirmDestructive } from "./utils/DialogUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
-import { formatDateShort } from "./utils/DateUtils.js";
+import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import {
   canApproveBadges,
   canManageBadges,
@@ -77,10 +77,15 @@ export class BadgeTracker {
 
   async loadData(forceRefresh = false) {
     try {
-      // Parallelize independent API calls for faster loading
+      // Parallelize independent API calls for faster loading. Unprocessed
+      // achievements are non-critical — failing should not break the tracker —
+      // but the failure is logged for diagnostics.
       const [response, unprocessedResponse] = await Promise.all([
         getBadgeTrackerSummary({ forceRefresh }),
-        getUnprocessedAchievements().catch(() => ({ meetings: [] })),
+        getUnprocessedAchievements().catch((err) => {
+          debugError("[BadgeTracker] Failed to load unprocessed achievements", err);
+          return { meetings: [] };
+        }),
       ]);
 
       this.unprocessedMeetings = unprocessedResponse?.meetings || [];
@@ -827,7 +832,7 @@ export class BadgeTracker {
 
           <div class="form-group">
             <label for="modal-date" class="form-label form-label--required">${translate("achievement_date") || "Date d'obtention"}</label>
-            <input type="date" id="modal-date" name="date_obtention" required value="${new Date().toISOString().split("T")[0]}">
+            <input type="date" id="modal-date" name="date_obtention" required value="${getTodayISO()}">
           </div>
 
           <div class="badge-tracker__modal-footer">

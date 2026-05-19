@@ -8,6 +8,7 @@
  */
 
 const express = require('express');
+const { asyncHandler } = require('../middleware/response');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs').promises;
@@ -78,7 +79,7 @@ module.exports = (pool, logger) => {
    *       500:
    *         description: Failed to load translations
    */
-  router.get('/translations', async (req, res) => {
+  router.get('/translations', asyncHandler(async (req, res) => {
     try {
       const translations = await Promise.all(
         SUPPORTED_TRANSLATION_LANGS.map(async (langCode) => {
@@ -93,7 +94,7 @@ module.exports = (pool, logger) => {
       logger.error('Error loading translations:', error);
       res.status(500).json({ error: 'Failed to load translations' });
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -129,7 +130,7 @@ module.exports = (pool, logger) => {
    *       500:
    *         description: Failed to fetch news
    */
-  router.get('/news', async (req, res) => {
+  router.get('/news', asyncHandler(async (req, res) => {
     try {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
       const lang = SUPPORTED_TRANSLATION_LANGS.includes(req.query.lang) ? req.query.lang : 'en';
@@ -200,7 +201,7 @@ module.exports = (pool, logger) => {
       logger.error('Error fetching news:', error);
       res.status(500).json({ error: 'Failed to fetch news' });
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -291,7 +292,7 @@ module.exports = (pool, logger) => {
           return true;
         }),
     ],
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         // Validate input
         const errors = validationResult(req);
@@ -425,7 +426,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
           message: 'An error occurred while processing your request'
         });
       }
-    }
+    })
   );
 
   return router;

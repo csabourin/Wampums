@@ -7,6 +7,7 @@ import {
 } from "./ajax-functions.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { getTodayISO } from "./utils/DateUtils.js";
 
 export class AcceptationRisque {
   constructor(app) {
@@ -139,7 +140,7 @@ export class AcceptationRisque {
                 )}:</label>
                 <input type="date" id="date_signature" name="date_signature" value="${escapeHTML(
                   this.acceptationRisque?.date_signature ||
-                  new Date().toISOString().split("T")[0]
+                  getTodayISO()
                 )}" required>
 
                 <input type="submit" value="${translate(

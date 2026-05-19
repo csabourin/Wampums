@@ -5,6 +5,7 @@
  */
 
 const express = require('express');
+const { asyncHandler } = require('../middleware/response');
 const { check } = require('express-validator');
 const router = express.Router();
 const {
@@ -594,7 +595,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
       check('send_now').optional().isBoolean(),
     ],
     checkValidation,
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const token = req.headers.authorization?.split(' ')[1];
         const payload = verifyJWT(token);
@@ -654,13 +655,13 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
         logger.error('Error creating announcement:', error);
         res.status(500).json({ success: false, message: error.message });
       }
-    },
+    }),
   );
 
   /**
    * List announcements with delivery logs
    */
-  router.get('/v1/announcements', async (req, res) => {
+  router.get('/v1/announcements', asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const payload = verifyJWT(token);
@@ -720,7 +721,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
       logger.error('Error fetching announcements:', error);
       res.status(500).json({ success: false, message: error.message });
     }
-  });
+  }));
 
   return router;
 };
