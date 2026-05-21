@@ -10,6 +10,7 @@ import updateManager from "./pwa-update-manager.js";
 import { initOfflineSupport } from "./offline-init.js";
 import { offlineManager } from "./modules/OfflineManager.js";
 import { setContent, clearElement, createElement } from "./utils/DOMUtils.js";
+import { applyPalette as applyDashboardPalette } from "./utils/DashboardPreferences.js";
 
 const debugMode = isDebugMode();
 
@@ -117,6 +118,8 @@ export const app = {
 
         async init() {
                 debugLog("App init started");
+                // Apply user's saved dashboard palette so colors are right before first paint.
+                try { applyDashboardPalette(); } catch (e) { debugLog("Palette apply skipped:", e); }
                 this.createMessageBanner();
 
                 try {

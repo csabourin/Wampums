@@ -24,11 +24,14 @@ import {
   canManageForms,
   isParent,
 } from "./utils/PermissionUtils.js";
-import { DASHBOARD_TILES, SECTION_HEADINGS, SECTION_ORDER } from "./config/dashboard-tiles.js";
-import { DashboardTileRenderer } from "./utils/DashboardTileRenderer.js";
 import { DashboardCacheManager } from "./utils/DashboardCacheManager.js";
 import { NewsFeed } from "./modules/NewsFeed.js";
 import { CarpoolQuickAccessModal } from "./modules/modals/CarpoolQuickAccessModal.js";
+import { getTileContext, ROLE_WEIGHTS } from "./config/dashboard-customization.js";
+import { applyPalette, isTileHidden } from "./utils/DashboardPreferences.js";
+import { CommandPalette } from "./modules/CommandPalette.js";
+import { DashboardSettingsModal } from "./modules/DashboardSettingsModal.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class Dashboard extends BaseModule {
   constructor(app, options = {}) {
@@ -265,6 +268,9 @@ export class Dashboard extends BaseModule {
       return;
     }
 
+    // Apply user's chosen palette as CSS variables (idempotent).
+    applyPalette();
+
     // Permission checks
     const showFinanceSection = hasAnyPermission("finance.view", "budget.view");
     const showRoleManagement = canViewRoles();
@@ -415,37 +421,61 @@ export class Dashboard extends BaseModule {
     };
 
     // --- Render content ---
-    const content = financeWorkspaceMode
-      ? `
-      <h1>${translate("dashboard_finance_section")}</h1>
-      <h2>${this.organizationName}</h2>
-      ${renderTileGroup("dashboard_finance_section", financeWorkspaceTiles)}
-      ${renderTileGroup("main_actions", crossRoleTiles)}
-      <p><a href="/logout" id="logout-link">${translate("logout")}</a></p>
-    `
-      : `
-      <h1>${translate("dashboard_title")}</h1>
-      <h2>${this.organizationName}</h2>
-      <div class="dashboard-section">
-        <div class="manage-items">
-          ${topTiles
-            .map(
-              (tile) =>
-                `<a href="${tile.href}"><i class="fa-solid ${tile.icon}"></i><span>${translate(tile.label)}</span></a>`
-            )
-            .join("\n")}
-        </div>
-      </div>
-      <div class="logo-container">
-        <img class="logo" src="${this.organizationLogo}" width="335" height="366" alt="Logo">
-      </div>
-      ${renderTileGroup("dashboard_day_to_day_section", dayToDayTiles)}
-      ${renderTileGroup("dashboard_planning_section", planningTiles)}
-      ${renderTileGroup("dashboard_unit_management_section", unitTiles)}
-      ${renderTileGroup("dashboard_district_system_section", districtTiles)}
-      ${renderTileGroup("dashboard_finance_section", financeTiles)}
-      ${renderTileGroup("dashboard_news_communications_section", newsCommsTiles)}
-      <!-- NEWS -->
+    if (financeWorkspaceMode) {
+      const content = `
+        <h1>${translate("dashboard_finance_section")}</h1>
+        <h2>${this.organizationName}</h2>
+        ${renderTileGroup("dashboard_finance_section", financeWorkspaceTiles)}
+        ${renderTileGroup("main_actions", crossRoleTiles)}
+        <p><a href="/logout" id="logout-link">${translate("logout")}</a></p>
+      `;
+      setContent(container, content);
+      this.updateNewsSection();
+      return;
+    }
+
+    // --- Moment-based layout ---
+    // Pool all permission-granted tiles, then route them by tile context.
+    const allTiles = [
+      ...topTiles,
+      ...dayToDayTiles,
+      ...planningTiles,
+      ...unitTiles,
+      ...districtTiles,
+      ...financeTiles,
+      ...newsCommsTiles,
+    ];
+
+    this._allTiles = allTiles.filter((t) => !isTileHidden(t.href));
+    const stats = this._computeTileStats();
+
+    // Bucket tiles by moment. Apply user-hidden filter.
+    const buckets = { now: [], week: [], tools: [] };
+    this._allTiles.forEach((tile) => {
+      const ctx = getTileContext(tile.href);
+      const enriched = { ...tile, ...ctx, stat: stats[tile.href] };
+      buckets[ctx.moment].push(enriched);
+    });
+
+    // Sort each bucket by role-aware domain weight, then by translated label.
+    const roleKey = this._dominantRoleKey();
+    const weights = ROLE_WEIGHTS[roleKey] || ROLE_WEIGHTS.default;
+    const sortBucket = (arr) =>
+      arr.sort((a, b) => {
+        const wa = weights[a.domain] ?? 50;
+        const wb = weights[b.domain] ?? 50;
+        if (wa !== wb) return wa - wb;
+        return translate(a.label).localeCompare(translate(b.label));
+      });
+    sortBucket(buckets.now);
+    sortBucket(buckets.week);
+    sortBucket(buckets.tools);
+
+    const content = `
+      ${this._renderTopBar()}
+      ${this._renderHero(buckets.now)}
+      ${this._renderWeek(buckets.week)}
+      ${this._renderTools(buckets.tools)}
       <div class="dashboard-card" id="news-section">
         <div class="section-header">
           <h3>${translate("news_updates")}</h3>
@@ -453,12 +483,209 @@ export class Dashboard extends BaseModule {
         </div>
         <div id="news-content"></div>
       </div>
+      ${this._renderFab()}
       <p><a href="/logout" id="logout-link">${translate("logout")}</a></p>
     `;
 
-    setContent(container, content);
+    setContent(container, `<div class="dashboard-v2">${content}</div>`);
     this.updatePointsList();
     this.updateNewsSection();
+  }
+
+  // -----------------------------
+  //   Moment-layout helpers
+  // -----------------------------
+
+  _dominantRoleKey() {
+    const roles = (this.app?.userRoles || []).map((r) => (r || "").toString().toLowerCase());
+    if (roles.includes("admin") || roles.includes("super_admin")) return "admin";
+    if (roles.some((r) => r.includes("treasur") || r.includes("tresor"))) return "treasurer";
+    if (roles.includes("parent") || roles.includes("guardian")) return "parent";
+    if (roles.includes("animator") || roles.includes("animateur") || roles.includes("leader")) return "animator";
+    return "default";
+  }
+
+  _computeTileStats() {
+    // Counters derived from data already loaded — fast, no extra fetches.
+    // Tiles without a stat just won't show one.
+    const stats = {};
+    const participantCount = this.participants?.length || 0;
+    const groupCount = this.groups?.length || 0;
+    const totalPoints = (this.participants || []).reduce(
+      (sum, p) => sum + (parseInt(p.total_points) || 0),
+      0,
+    );
+    if (participantCount) {
+      stats["/manage-participants"] = { value: participantCount, label: translate("participants_short") };
+      stats["/parent-contact-list"] = { value: participantCount, label: translate("contacts_short") };
+    }
+    if (groupCount) {
+      stats["/manage-groups"] = { value: groupCount, label: translate("groups_short") };
+    }
+    if (totalPoints) {
+      stats["/managePoints"] = { value: totalPoints, label: translate("points_short") };
+    }
+    return stats;
+  }
+
+  _renderTopBar() {
+    const initials = (this.organizationName || "?")
+      .split(/\s+/)
+      .map((w) => w[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+    const avatarHtml = this.organizationLogo
+      ? `<img src="${escapeHTML(this.organizationLogo)}" alt="">`
+      : escapeHTML(initials);
+    const subtitle = this.app?.userFullName
+      ? escapeHTML(this.app.userFullName)
+      : escapeHTML(translate("dashboard_title"));
+
+    return `
+      <div class="dashboard-v2__topbar">
+        <div class="dashboard-v2__org">
+          <span class="dashboard-v2__org-avatar" aria-hidden="true">${avatarHtml}</span>
+          <span class="dashboard-v2__org-text">
+            <strong>${escapeHTML(this.organizationName || "")}</strong>
+            <span>${subtitle}</span>
+          </span>
+        </div>
+        <div class="dashboard-v2__top-actions">
+          <button type="button" class="dashboard-v2__icon-btn" id="dashboard-search-btn"
+                  aria-label="${escapeHTML(translate("dashboard_search_label"))}" title="${escapeHTML(translate("dashboard_search_label"))} (Ctrl+K)">
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="dashboard-v2__icon-btn" id="dashboard-settings-btn"
+                  aria-label="${escapeHTML(translate("dashboard_settings"))}">
+            <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  _renderHero(nowTiles) {
+    if (!nowTiles.length) {
+      return `
+        <section class="dashboard-v2__section" aria-labelledby="moment-now">
+          <h2 id="moment-now" class="dashboard-v2__section-title">${escapeHTML(translate("dashboard_now_section"))}</h2>
+          <div class="dashboard-v2__empty">
+            <i class="fa-solid fa-mug-hot" aria-hidden="true"></i>
+            <p>${escapeHTML(translate("dashboard_empty_now"))}</p>
+          </div>
+        </section>
+      `;
+    }
+
+    // First tile is the hero; up to two more become hero chip actions.
+    const [hero, ...rest] = nowTiles;
+    const chips = rest.slice(0, 3);
+    const heroDomain = hero.domain || "attendance";
+    const heroStyles = `--tile-bg-attendance: var(--tile-bg-${heroDomain}); --tile-fg-attendance: var(--tile-fg-${heroDomain});`;
+    const chipsHtml = chips
+      .map(
+        (t) => `
+        <a href="${escapeHTML(t.href)}" class="dashboard-v2__hero-action"${t.id ? ` id="${escapeHTML(t.id)}"` : ""}>
+          <i class="fa-solid ${escapeHTML(t.icon)}" aria-hidden="true"></i>
+          <span>${escapeHTML(translate(t.label))}</span>
+        </a>`,
+      )
+      .join("");
+
+    return `
+      <section class="dashboard-v2__section" aria-labelledby="moment-now">
+        <h2 id="moment-now" class="dashboard-v2__section-title">${escapeHTML(translate("dashboard_now_section"))}</h2>
+        <div class="dashboard-v2__hero">
+          <a href="${escapeHTML(hero.href)}" class="dashboard-v2__hero-card" style="${heroStyles}"${hero.id ? ` id="${escapeHTML(hero.id)}"` : ""}>
+            <span class="dashboard-v2__hero-eyebrow">
+              <i class="fa-solid ${escapeHTML(hero.icon)}" aria-hidden="true"></i>
+              ${escapeHTML(translate("dashboard_primary_action"))}
+            </span>
+            <h3 class="dashboard-v2__hero-title">${escapeHTML(translate(hero.label))}</h3>
+            ${hero.stat
+              ? `<span class="dashboard-v2__hero-meta">${escapeHTML(String(hero.stat.value))} ${escapeHTML(hero.stat.label || "")}</span>`
+              : ""}
+            ${chipsHtml ? `<div class="dashboard-v2__hero-actions">${chipsHtml}</div>` : ""}
+          </a>
+        </div>
+      </section>
+    `;
+  }
+
+  _renderWeek(weekTiles) {
+    if (!weekTiles.length) return "";
+    const gridHtml = weekTiles.map((t) => this._renderTile(t)).join("");
+    return `
+      <section class="dashboard-v2__section" aria-labelledby="moment-week">
+        <h2 id="moment-week" class="dashboard-v2__section-title">${escapeHTML(translate("dashboard_this_week_section"))}</h2>
+        <div class="dashboard-v2__grid">${gridHtml}</div>
+      </section>
+    `;
+  }
+
+  _renderTools(toolTiles) {
+    if (!toolTiles.length) return "";
+    // Sub-group by domain for the collapsible "Tools" section.
+    const groups = new Map();
+    toolTiles.forEach((tile) => {
+      const key = tile.domain || "neutral";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(tile);
+    });
+
+    const groupHtml = Array.from(groups.entries())
+      .map(([domain, tiles]) => {
+        const title = translate(`domain_${domain}`) || domain;
+        const grid = tiles.map((t) => this._renderTile(t, { small: true })).join("");
+        return `
+          <div class="dashboard-v2__group" data-collapsed="false" data-group="${escapeHTML(domain)}">
+            <button type="button" class="dashboard-v2__group-toggle" aria-expanded="true">
+              <span><i class="fa-solid fa-folder-open" aria-hidden="true"></i> ${escapeHTML(title)}</span>
+              <i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i>
+            </button>
+            <div class="dashboard-v2__group-body">
+              <div class="dashboard-v2__grid">${grid}</div>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+
+    return `
+      <section class="dashboard-v2__section" aria-labelledby="moment-tools">
+        <h2 id="moment-tools" class="dashboard-v2__section-title">${escapeHTML(translate("dashboard_tools_section"))}</h2>
+        ${groupHtml}
+      </section>
+    `;
+  }
+
+  _renderTile(tile, { small = false } = {}) {
+    const domain = tile.domain || "neutral";
+    const style = `--tile-bg: var(--tile-bg-${domain}); --tile-fg: var(--tile-fg-${domain}); --tile-accent: var(--tile-accent-${domain});`;
+    const stat = tile.stat
+      ? `<span class="dashboard-v2__tile-stat" aria-label="${escapeHTML(tile.stat.label || "")}">${escapeHTML(String(tile.stat.value))}${tile.stat.label ? ` <span>${escapeHTML(tile.stat.label)}</span>` : ""}</span>`
+      : "";
+    const cls = `dashboard-v2__tile${small ? " dashboard-v2__tile--sm" : ""}`;
+    return `
+      <a href="${escapeHTML(tile.href)}" class="${cls}" style="${style}" data-domain="${escapeHTML(domain)}"${tile.id ? ` id="${escapeHTML(tile.id)}"` : ""}>
+        <i class="fa-solid ${escapeHTML(tile.icon)} dashboard-v2__tile-icon" aria-hidden="true"></i>
+        <span class="dashboard-v2__tile-label">${escapeHTML(translate(tile.label))}</span>
+        ${stat}
+      </a>
+    `;
+  }
+
+  _renderFab() {
+    return `
+      <button type="button" class="dashboard-fab" id="dashboard-fab"
+              aria-label="${escapeHTML(translate("dashboard_quick_actions"))}"
+              title="${escapeHTML(translate("dashboard_quick_actions"))}">
+        <i class="fa-solid fa-bolt" aria-hidden="true"></i>
+        <span class="dashboard-fab__label">${escapeHTML(translate("dashboard_quick_actions"))}</span>
+      </button>
+    `;
   }
 
   // --- Translation key suggestions for new section headings ---
@@ -617,6 +844,50 @@ export class Dashboard extends BaseModule {
         }
       }
     });
+
+    // --- v2 dashboard controls ---
+    this._setupCommandPalette();
+
+    this.addEventListener(document.getElementById("dashboard-search-btn"), "click", () => {
+      this.commandPalette?.open();
+    });
+
+    this.addEventListener(document.getElementById("dashboard-fab"), "click", () => {
+      this.commandPalette?.open();
+    });
+
+    this.addEventListener(document.getElementById("dashboard-settings-btn"), "click", () => {
+      const modal = new DashboardSettingsModal({
+        onChange: () => {
+          // Palette CSS vars are already updated by the modal; rerender to refresh
+          // any computed styles tied to tiles.
+          this.render();
+          this.attachEventListeners();
+        },
+      });
+      modal.open();
+    });
+
+    // Collapse/expand "Tools" groups
+    document.querySelectorAll(".dashboard-v2__group-toggle").forEach((btn) => {
+      this.addEventListener(btn, "click", () => {
+        const group = btn.closest(".dashboard-v2__group");
+        if (!group) return;
+        const collapsed = group.getAttribute("data-collapsed") === "true";
+        group.setAttribute("data-collapsed", String(!collapsed));
+        btn.setAttribute("aria-expanded", String(collapsed));
+      });
+    });
+  }
+
+  _setupCommandPalette() {
+    const tiles = this._allTiles || [];
+    if (!this.commandPalette) {
+      this.commandPalette = new CommandPalette(this.app, tiles);
+      this.commandPalette.attachGlobalShortcut();
+    } else {
+      this.commandPalette.setTiles(tiles);
+    }
   }
 
   /**
@@ -680,8 +951,14 @@ export class Dashboard extends BaseModule {
    */
   destroy() {
     super.destroy();
+    // Detach global keyboard shortcut and close any open palette
+    if (this.commandPalette) {
+      this.commandPalette.detach();
+      this.commandPalette = null;
+    }
     // Clear data references
     this.groups = [];
     this.participants = [];
+    this._allTiles = null;
   }
 }
