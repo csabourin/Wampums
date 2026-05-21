@@ -75,7 +75,7 @@ export class CommandPalette {
     overlay.setAttribute("aria-modal", "true");
     overlay.setAttribute("aria-label", translate("dashboard_search_label"));
 
-    overlay.innerHTML = `
+    setContent(overlay, `
       <div class="cmd-palette__backdrop" data-close="true"></div>
       <div class="cmd-palette__panel" role="document">
         <div class="cmd-palette__drag-handle" aria-hidden="true"></div>
@@ -105,7 +105,7 @@ export class CommandPalette {
           <span><kbd>Esc</kbd> ${escapeHTML(translate("close"))}</span>
         </div>
       </div>
-    `;
+    `);
 
     document.body.appendChild(overlay);
     this._overlay = overlay;

@@ -34,7 +34,7 @@ export class DashboardSettingsModal {
     overlay.setAttribute("role", "dialog");
     overlay.setAttribute("aria-modal", "true");
     overlay.setAttribute("aria-labelledby", "dash-settings-title");
-    overlay.innerHTML = this._render(prefs.paletteId);
+    setContent(overlay, this._render(prefs.paletteId));
     document.body.appendChild(overlay);
     this.modal = overlay;
     document.body.classList.add("dash-settings-open");
