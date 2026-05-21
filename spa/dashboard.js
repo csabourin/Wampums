@@ -53,7 +53,7 @@ export class Dashboard extends BaseModule {
     this.counters = {
       medicationDosesToday: null,
       permissionSlipsPending: null,
-      activitiesThisMonth: null,
+      activitiesUpcoming: null,
     };
   }
 
