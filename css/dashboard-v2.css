@@ -174,6 +174,7 @@
   color: inherit;
   text-decoration: none;
   position: static;
+  border-radius: inherit;
 }
 
 .dashboard-v2__hero-card-link::after {
