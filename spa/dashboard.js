@@ -5,13 +5,20 @@ import {
   getOrganizationSettings,
   CONFIG,
 } from "./ajax-functions.js";
-import { getAttendanceDates, getAttendance } from "./api/api-endpoints.js";
+import {
+  getAttendanceDates,
+  getAttendance,
+  getNextMeetingInfo,
+  getPermissionSlips,
+  getMedicationDistributions,
+} from "./api/api-endpoints.js";
+import { getActivities } from "./api/api-activities.js";
 import { translate } from "./app.js";
 import { getCachedData, setCachedData, clearActivityRelatedCaches } from "./indexedDB.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { skeletonDashboard } from "./utils/SkeletonUtils.js";
-import { getTodayISO } from "./utils/DateUtils.js";
+import { getTodayISO, formatDate } from "./utils/DateUtils.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
 import { BaseModule } from "./utils/BaseModule.js";
 import {
@@ -24,11 +31,14 @@ import {
   canManageForms,
   isParent,
 } from "./utils/PermissionUtils.js";
-import { DASHBOARD_TILES, SECTION_HEADINGS, SECTION_ORDER } from "./config/dashboard-tiles.js";
-import { DashboardTileRenderer } from "./utils/DashboardTileRenderer.js";
 import { DashboardCacheManager } from "./utils/DashboardCacheManager.js";
 import { NewsFeed } from "./modules/NewsFeed.js";
 import { CarpoolQuickAccessModal } from "./modules/modals/CarpoolQuickAccessModal.js";
+import { getTileContext, ROLE_WEIGHTS } from "./config/dashboard-customization.js";
+import { applyPalette, isTileHidden } from "./utils/DashboardPreferences.js";
+import { CommandPalette } from "./modules/CommandPalette.js";
+import { DashboardSettingsModal } from "./modules/DashboardSettingsModal.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class Dashboard extends BaseModule {
   constructor(app, options = {}) {
@@ -39,6 +49,12 @@ export class Dashboard extends BaseModule {
     this.pointsCollapsed = this.loadPointsCollapsedState();
     this.isLoading = true;
     this.mode = options.mode || "default";
+    this.nextMeeting = null;
+    this.counters = {
+      medicationDosesToday: null,
+      permissionSlipsPending: null,
+      activitiesUpcoming: null,
+    };
   }
 
   async init() {
@@ -66,6 +82,9 @@ export class Dashboard extends BaseModule {
       // Prefetch critical pages data after dashboard is ready
       // This is non-blocking and runs in background
       this.prefetchCriticalPages();
+
+      // Counters / next-meeting fetch is non-blocking. Re-renders on arrival.
+      this.refreshDashboardCounters();
 
       this.loadNews();
     } catch (error) {
@@ -265,6 +284,9 @@ export class Dashboard extends BaseModule {
       return;
     }
 
+    // Apply user's chosen palette as CSS variables (idempotent).
+    applyPalette();
+
     // Permission checks
     const showFinanceSection = hasAnyPermission("finance.view", "budget.view");
     const showRoleManagement = canViewRoles();
@@ -415,37 +437,61 @@ export class Dashboard extends BaseModule {
     };
 
     // --- Render content ---
-    const content = financeWorkspaceMode
-      ? `
-      <h1>${translate("dashboard_finance_section")}</h1>
-      <h2>${this.organizationName}</h2>
-      ${renderTileGroup("dashboard_finance_section", financeWorkspaceTiles)}
-      ${renderTileGroup("main_actions", crossRoleTiles)}
-      <p><a href="/logout" id="logout-link">${translate("logout")}</a></p>
-    `
-      : `
-      <h1>${translate("dashboard_title")}</h1>
-      <h2>${this.organizationName}</h2>
-      <div class="dashboard-section">
-        <div class="manage-items">
-          ${topTiles
-            .map(
-              (tile) =>
-                `<a href="${tile.href}"><i class="fa-solid ${tile.icon}"></i><span>${translate(tile.label)}</span></a>`
-            )
-            .join("\n")}
-        </div>
-      </div>
-      <div class="logo-container">
-        <img class="logo" src="${this.organizationLogo}" width="335" height="366" alt="Logo">
-      </div>
-      ${renderTileGroup("dashboard_day_to_day_section", dayToDayTiles)}
-      ${renderTileGroup("dashboard_planning_section", planningTiles)}
-      ${renderTileGroup("dashboard_unit_management_section", unitTiles)}
-      ${renderTileGroup("dashboard_district_system_section", districtTiles)}
-      ${renderTileGroup("dashboard_finance_section", financeTiles)}
-      ${renderTileGroup("dashboard_news_communications_section", newsCommsTiles)}
-      <!-- NEWS -->
+    if (financeWorkspaceMode) {
+      const content = `
+        <h1>${translate("dashboard_finance_section")}</h1>
+        <h2>${this.organizationName}</h2>
+        ${renderTileGroup("dashboard_finance_section", financeWorkspaceTiles)}
+        ${renderTileGroup("main_actions", crossRoleTiles)}
+        <p><a href="/logout" id="logout-link">${translate("logout")}</a></p>
+      `;
+      setContent(container, content);
+      this.updateNewsSection();
+      return;
+    }
+
+    // --- Moment-based layout ---
+    // Pool all permission-granted tiles, then route them by tile context.
+    const allTiles = [
+      ...topTiles,
+      ...dayToDayTiles,
+      ...planningTiles,
+      ...unitTiles,
+      ...districtTiles,
+      ...financeTiles,
+      ...newsCommsTiles,
+    ];
+
+    this._allTiles = allTiles.filter((t) => !isTileHidden(t.href));
+    const stats = this._computeTileStats();
+
+    // Bucket tiles by moment. Apply user-hidden filter.
+    const buckets = { now: [], week: [], tools: [] };
+    this._allTiles.forEach((tile) => {
+      const ctx = getTileContext(tile.href);
+      const enriched = { ...tile, ...ctx, stat: stats[tile.href] };
+      buckets[ctx.moment].push(enriched);
+    });
+
+    // Sort each bucket by role-aware domain weight, then by translated label.
+    const roleKey = this._dominantRoleKey();
+    const weights = ROLE_WEIGHTS[roleKey] || ROLE_WEIGHTS.default;
+    const sortBucket = (arr) =>
+      arr.sort((a, b) => {
+        const wa = weights[a.domain] ?? 50;
+        const wb = weights[b.domain] ?? 50;
+        if (wa !== wb) return wa - wb;
+        return translate(a.label).localeCompare(translate(b.label));
+      });
+    sortBucket(buckets.now);
+    sortBucket(buckets.week);
+    sortBucket(buckets.tools);
+
+    const content = `
+      ${this._renderTopBar()}
+      ${this._renderHero(buckets.now)}
+      ${this._renderWeek(buckets.week)}
+      ${this._renderTools(buckets.tools)}
       <div class="dashboard-card" id="news-section">
         <div class="section-header">
           <h3>${translate("news_updates")}</h3>
@@ -453,12 +499,369 @@ export class Dashboard extends BaseModule {
         </div>
         <div id="news-content"></div>
       </div>
+      ${this._renderFab()}
       <p><a href="/logout" id="logout-link">${translate("logout")}</a></p>
     `;
 
-    setContent(container, content);
+    setContent(container, `<div class="dashboard-v2">${content}</div>`);
     this.updatePointsList();
     this.updateNewsSection();
+  }
+
+  // -----------------------------
+  //   Moment-layout helpers
+  // -----------------------------
+
+  _dominantRoleKey() {
+    const roles = (this.app?.userRoles || []).map((r) => (r || "").toString().toLowerCase());
+    if (roles.includes("admin") || roles.includes("super_admin")) return "admin";
+    if (roles.some((r) => r.includes("treasur") || r.includes("tresor"))) return "treasurer";
+    if (roles.includes("parent") || roles.includes("guardian")) return "parent";
+    if (roles.includes("animator") || roles.includes("animateur") || roles.includes("leader")) return "animator";
+    return "default";
+  }
+
+  _computeTileStats() {
+    // Counters derived from data already loaded — fast, no extra fetches.
+    // Tiles without a stat just won't show one.
+    const stats = {};
+    const participantCount = this.participants?.length || 0;
+    const groupCount = this.groups?.length || 0;
+    const totalPoints = (this.participants || []).reduce(
+      (sum, p) => sum + (parseInt(p.total_points) || 0),
+      0,
+    );
+    if (participantCount) {
+      stats["/manage-participants"] = { value: participantCount, label: translate("participants_short") };
+      stats["/parent-contact-list"] = { value: participantCount, label: translate("contacts_short") };
+    }
+    if (groupCount) {
+      stats["/manage-groups"] = { value: groupCount, label: translate("groups_short") };
+    }
+    if (totalPoints) {
+      stats["/managePoints"] = { value: totalPoints, label: translate("points_short") };
+    }
+
+    // Counters from the background fetch — only added if a value arrived.
+    const c = this.counters || {};
+    if (typeof c.medicationDosesToday === "number" && c.medicationDosesToday > 0) {
+      stats["/medication-dispensing"] = {
+        value: c.medicationDosesToday,
+        label: translate("doses_short"),
+        urgent: true,
+      };
+    }
+    if (typeof c.permissionSlipsPending === "number" && c.permissionSlipsPending > 0) {
+      stats["/permission-slips"] = {
+        value: c.permissionSlipsPending,
+        label: translate("pending_short"),
+        urgent: true,
+      };
+    }
+    if (typeof c.activitiesUpcoming === "number" && c.activitiesUpcoming > 0) {
+      stats["/activities"] = {
+        value: c.activitiesUpcoming,
+        label: translate("upcoming_short"),
+      };
+    }
+    return stats;
+  }
+
+  /**
+   * Fetch lightweight counter and "next meeting" data in parallel.
+   * Every call is best-effort: failures are silent, missing permissions
+   * just skip the fetch. Re-renders the dashboard when anything new arrives.
+   */
+  async refreshDashboardCounters() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayOut = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const canSeeMedication = hasAnyPermission("medication.manage", "medication.view");
+    const canSeeSlips = hasPermission("participants.view");
+    const canSeeActivities = hasAnyPermission("activities.view", "activities.manage");
+
+    const tasks = [
+      ["nextMeeting", getNextMeetingInfo()],
+      canSeeSlips ? ["slips", getPermissionSlips({})] : null,
+      canSeeMedication ? ["meds", getMedicationDistributions({ upcoming_only: true })] : null,
+      canSeeActivities ? ["activities", getActivities()] : null,
+    ].filter(Boolean);
+
+    const results = await Promise.allSettled(tasks.map(([, p]) => p));
+
+    let changed = false;
+    results.forEach((res, i) => {
+      if (res.status !== "fulfilled") return;
+      const key = tasks[i][0];
+      const value = res.value;
+      try {
+        if (key === "nextMeeting") {
+          const meeting = value?.meeting || value?.data?.meeting || null;
+          if (meeting && meeting.date) {
+            this.nextMeeting = meeting;
+            changed = true;
+          }
+        } else if (key === "slips") {
+          const list = value?.data?.permission_slips || value?.permission_slips || [];
+          const pending = list.filter((s) => {
+            const status = (s.status || "").toLowerCase();
+            return status === "pending" || status === "sent" || status === "unsigned";
+          }).length;
+          this.counters.permissionSlipsPending = pending;
+          changed = true;
+        } else if (key === "meds") {
+          const list = value?.data?.distributions || value?.distributions || [];
+          const todayISO = getTodayISO();
+          const todays = list.filter((d) => {
+            if (!d.scheduled_for) return false;
+            const scheduled = String(d.scheduled_for).slice(0, 10);
+            const status = (d.status || "").toLowerCase();
+            return scheduled === todayISO && status !== "given" && status !== "skipped";
+          }).length;
+          this.counters.medicationDosesToday = todays;
+          changed = true;
+        } else if (key === "activities") {
+          const list = Array.isArray(value) ? value : value?.data || [];
+          const upcoming = list.filter((a) => {
+            const dateStr = a.activity_date || a.start_date || a.date;
+            if (!dateStr) return false;
+            const d = new Date(dateStr);
+            return d >= today && d <= dayOut;
+          }).length;
+          this.counters.activitiesUpcoming = upcoming;
+          changed = true;
+        }
+      } catch (error) {
+        debugLog("Counter parse skipped:", key, error);
+      }
+    });
+
+    if (changed && !this.isLoading) {
+      this.render();
+      this.attachEventListeners();
+    }
+  }
+
+  _renderTopBar() {
+    const initials = (this.organizationName || "?")
+      .split(/\s+/)
+      .map((w) => w[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+    const avatarHtml = this.organizationLogo
+      ? `<img src="${escapeHTML(this.organizationLogo)}" alt="">`
+      : escapeHTML(initials);
+    const subtitle = this.app?.userFullName
+      ? escapeHTML(this.app.userFullName)
+      : escapeHTML(translate("dashboard_title"));
+
+    return `
+      <div class="dashboard-v2__topbar">
+        <div class="dashboard-v2__org">
+          <span class="dashboard-v2__org-avatar" aria-hidden="true">${avatarHtml}</span>
+          <span class="dashboard-v2__org-text">
+            <strong>${escapeHTML(this.organizationName || "")}</strong>
+            <span>${subtitle}</span>
+          </span>
+        </div>
+        <div class="dashboard-v2__top-actions">
+          <button type="button" class="dashboard-v2__icon-btn" id="dashboard-search-btn"
+                  aria-label="${escapeHTML(translate("dashboard_search_label"))}" title="${escapeHTML(translate("dashboard_search_label"))} (Ctrl+K)">
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="dashboard-v2__icon-btn" id="dashboard-settings-btn"
+                  aria-label="${escapeHTML(translate("dashboard_settings"))}">
+            <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  _renderHero(nowTiles) {
+    if (!nowTiles.length) {
+      return `
+        <section class="dashboard-v2__section" aria-labelledby="moment-now">
+          <h2 id="moment-now" class="dashboard-v2__section-title">${escapeHTML(translate("dashboard_now_section"))}</h2>
+          <div class="dashboard-v2__empty">
+            <i class="fa-solid fa-mug-hot" aria-hidden="true"></i>
+            <p>${escapeHTML(translate("dashboard_empty_now"))}</p>
+          </div>
+        </section>
+      `;
+    }
+
+    // Promote the upcoming-meeting tile to hero position when meeting data
+    // is loaded — its date is the most useful "right now" anchor.
+    const meetingTileIdx = this.nextMeeting
+      ? nowTiles.findIndex((t) => t.href === "/upcoming-meeting")
+      : -1;
+    let hero, rest;
+    if (meetingTileIdx > 0) {
+      hero = nowTiles[meetingTileIdx];
+      rest = nowTiles.filter((_, i) => i !== meetingTileIdx);
+    } else {
+      [hero, ...rest] = nowTiles;
+    }
+
+    const isMeetingHero = hero.href === "/upcoming-meeting" && this.nextMeeting;
+    const chips = rest.slice(0, 3);
+    const heroDomain = hero.domain || "attendance";
+    const heroStyles = `--tile-bg-attendance: var(--tile-bg-${heroDomain}); --tile-fg-attendance: var(--tile-fg-${heroDomain});`;
+
+    let eyebrow;
+    let title;
+    let meta = "";
+
+    if (isMeetingHero) {
+      const lang = this.app?.lang || "fr";
+      const formattedDate = this._formatMeetingDate(this.nextMeeting.date, lang);
+      eyebrow = escapeHTML(translate("dashboard_next_meeting_eyebrow"));
+      title = escapeHTML(formattedDate);
+      const place = this.nextMeeting.endroit;
+      const animator = this.nextMeeting.animateur_responsable;
+      const metaParts = [];
+      if (place) metaParts.push(`<i class="fa-solid fa-location-dot" aria-hidden="true"></i> ${escapeHTML(place)}`);
+      if (animator) metaParts.push(`<i class="fa-solid fa-user" aria-hidden="true"></i> ${escapeHTML(animator)}`);
+      meta = metaParts.length
+        ? `<span class="dashboard-v2__hero-meta">${metaParts.join(' &nbsp;·&nbsp; ')}</span>`
+        : "";
+    } else {
+      eyebrow = `<i class="fa-solid ${escapeHTML(hero.icon)}" aria-hidden="true"></i> ${escapeHTML(translate("dashboard_primary_action"))}`;
+      title = escapeHTML(translate(hero.label));
+      if (hero.stat) {
+        meta = `<span class="dashboard-v2__hero-meta">${escapeHTML(String(hero.stat.value))} ${escapeHTML(hero.stat.label || "")}</span>`;
+      }
+    }
+
+    const chipsHtml = chips
+      .map((t) => {
+        const badge = t.stat
+          ? `<span class="dashboard-v2__hero-action-badge${t.stat.urgent ? " is-urgent" : ""}">${escapeHTML(String(t.stat.value))}</span>`
+          : "";
+        return `
+          <a href="${escapeHTML(t.href)}" class="dashboard-v2__hero-action"${t.id ? ` id="${escapeHTML(t.id)}"` : ""}>
+            <i class="fa-solid ${escapeHTML(t.icon)}" aria-hidden="true"></i>
+            <span>${escapeHTML(translate(t.label))}</span>
+            ${badge}
+          </a>`;
+      })
+      .join("");
+
+    return `
+      <section class="dashboard-v2__section" aria-labelledby="moment-now">
+        <h2 id="moment-now" class="dashboard-v2__section-title">${escapeHTML(translate("dashboard_now_section"))}</h2>
+        <div class="dashboard-v2__hero">
+          <a href="${escapeHTML(hero.href)}" class="dashboard-v2__hero-card" style="${heroStyles}"${hero.id ? ` id="${escapeHTML(hero.id)}"` : ""}>
+            <span class="dashboard-v2__hero-eyebrow">${eyebrow}</span>
+            <h3 class="dashboard-v2__hero-title">${title}</h3>
+            ${meta}
+            ${chipsHtml ? `<div class="dashboard-v2__hero-actions">${chipsHtml}</div>` : ""}
+          </a>
+        </div>
+      </section>
+    `;
+  }
+
+  /**
+   * Format a YYYY-MM-DD meeting date into a friendly hero label.
+   * Shows "Today" / "Tomorrow" when applicable, otherwise weekday + date.
+   */
+  _formatMeetingDate(dateStr, lang) {
+    if (!dateStr) return "";
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const parts = String(dateStr).slice(0, 10).split("-").map(Number);
+    if (parts.length !== 3 || parts.some(Number.isNaN)) return dateStr;
+    const meetingDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    const dayDiff = Math.round((meetingDate - today) / (1000 * 60 * 60 * 24));
+
+    const formatted = formatDate(String(dateStr).slice(0, 10), lang, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
+
+    if (dayDiff === 0) return `${translate("today")} — ${formatted}`;
+    if (dayDiff === 1) return `${translate("tomorrow")} — ${formatted}`;
+    return formatted;
+  }
+
+  _renderWeek(weekTiles) {
+    if (!weekTiles.length) return "";
+    const gridHtml = weekTiles.map((t) => this._renderTile(t)).join("");
+    return `
+      <section class="dashboard-v2__section" aria-labelledby="moment-week">
+        <h2 id="moment-week" class="dashboard-v2__section-title">${escapeHTML(translate("dashboard_this_week_section"))}</h2>
+        <div class="dashboard-v2__grid">${gridHtml}</div>
+      </section>
+    `;
+  }
+
+  _renderTools(toolTiles) {
+    if (!toolTiles.length) return "";
+    // Sub-group by domain for the collapsible "Tools" section.
+    const groups = new Map();
+    toolTiles.forEach((tile) => {
+      const key = tile.domain || "neutral";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(tile);
+    });
+
+    const groupHtml = Array.from(groups.entries())
+      .map(([domain, tiles]) => {
+        const title = translate(`domain_${domain}`) || domain;
+        const grid = tiles.map((t) => this._renderTile(t, { small: true })).join("");
+        return `
+          <div class="dashboard-v2__group" data-collapsed="false" data-group="${escapeHTML(domain)}">
+            <button type="button" class="dashboard-v2__group-toggle" aria-expanded="true">
+              <span><i class="fa-solid fa-folder-open" aria-hidden="true"></i> ${escapeHTML(title)}</span>
+              <i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i>
+            </button>
+            <div class="dashboard-v2__group-body">
+              <div class="dashboard-v2__grid">${grid}</div>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+
+    return `
+      <section class="dashboard-v2__section" aria-labelledby="moment-tools">
+        <h2 id="moment-tools" class="dashboard-v2__section-title">${escapeHTML(translate("dashboard_tools_section"))}</h2>
+        ${groupHtml}
+      </section>
+    `;
+  }
+
+  _renderTile(tile, { small = false } = {}) {
+    const domain = tile.domain || "neutral";
+    const style = `--tile-bg: var(--tile-bg-${domain}); --tile-fg: var(--tile-fg-${domain}); --tile-accent: var(--tile-accent-${domain});`;
+    const stat = tile.stat
+      ? `<span class="dashboard-v2__tile-stat${tile.stat.urgent ? " is-urgent" : ""}" aria-label="${escapeHTML(tile.stat.label || "")}">${escapeHTML(String(tile.stat.value))}${tile.stat.label ? ` <span>${escapeHTML(tile.stat.label)}</span>` : ""}</span>`
+      : "";
+    const cls = `dashboard-v2__tile${small ? " dashboard-v2__tile--sm" : ""}`;
+    return `
+      <a href="${escapeHTML(tile.href)}" class="${cls}" style="${style}" data-domain="${escapeHTML(domain)}"${tile.id ? ` id="${escapeHTML(tile.id)}"` : ""}>
+        <i class="fa-solid ${escapeHTML(tile.icon)} dashboard-v2__tile-icon" aria-hidden="true"></i>
+        <span class="dashboard-v2__tile-label">${escapeHTML(translate(tile.label))}</span>
+        ${stat}
+      </a>
+    `;
+  }
+
+  _renderFab() {
+    return `
+      <button type="button" class="dashboard-fab" id="dashboard-fab"
+              aria-label="${escapeHTML(translate("dashboard_quick_actions"))}"
+              title="${escapeHTML(translate("dashboard_quick_actions"))}">
+        <i class="fa-solid fa-bolt" aria-hidden="true"></i>
+        <span class="dashboard-fab__label">${escapeHTML(translate("dashboard_quick_actions"))}</span>
+      </button>
+    `;
   }
 
   // --- Translation key suggestions for new section headings ---
@@ -617,6 +1020,50 @@ export class Dashboard extends BaseModule {
         }
       }
     });
+
+    // --- v2 dashboard controls ---
+    this._setupCommandPalette();
+
+    this.addEventListener(document.getElementById("dashboard-search-btn"), "click", () => {
+      this.commandPalette?.open();
+    });
+
+    this.addEventListener(document.getElementById("dashboard-fab"), "click", () => {
+      this.commandPalette?.open();
+    });
+
+    this.addEventListener(document.getElementById("dashboard-settings-btn"), "click", () => {
+      const modal = new DashboardSettingsModal({
+        onChange: () => {
+          // Palette CSS vars are already updated by the modal; rerender to refresh
+          // any computed styles tied to tiles.
+          this.render();
+          this.attachEventListeners();
+        },
+      });
+      modal.open();
+    });
+
+    // Collapse/expand "Tools" groups
+    document.querySelectorAll(".dashboard-v2__group-toggle").forEach((btn) => {
+      this.addEventListener(btn, "click", () => {
+        const group = btn.closest(".dashboard-v2__group");
+        if (!group) return;
+        const collapsed = group.getAttribute("data-collapsed") === "true";
+        group.setAttribute("data-collapsed", String(!collapsed));
+        btn.setAttribute("aria-expanded", String(collapsed));
+      });
+    });
+  }
+
+  _setupCommandPalette() {
+    const tiles = this._allTiles || [];
+    if (!this.commandPalette) {
+      this.commandPalette = new CommandPalette(this.app, tiles);
+      this.commandPalette.attachGlobalShortcut();
+    } else {
+      this.commandPalette.setTiles(tiles);
+    }
   }
 
   /**
@@ -680,8 +1127,14 @@ export class Dashboard extends BaseModule {
    */
   destroy() {
     super.destroy();
+    // Detach global keyboard shortcut and close any open palette
+    if (this.commandPalette) {
+      this.commandPalette.detach();
+      this.commandPalette = null;
+    }
     // Clear data references
     this.groups = [];
     this.participants = [];
+    this._allTiles = null;
   }
 }
