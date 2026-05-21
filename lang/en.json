@@ -2655,5 +2655,9 @@
   "participants_short": "members",
   "contacts_short": "contacts",
   "groups_short": "groups",
-  "points_short": "pts"
+  "points_short": "pts",
+  "doses_short": "today",
+  "pending_short": "to sign",
+  "upcoming_short": "this week",
+  "dashboard_next_meeting_eyebrow": "Next meeting"
 }

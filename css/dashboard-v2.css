@@ -218,6 +218,29 @@
   outline-offset: 2px;
 }
 
+.dashboard-v2__hero-action-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.32);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.dashboard-v2__hero-action-badge.is-urgent {
+  background: #d45a51;
+  color: #ffffff;
+}
+
+.dashboard-v2__hero-meta i {
+  margin-inline-end: 0.25rem;
+  opacity: 0.85;
+}
+
 /* ---------- Tile grid (week + tools) ---------- */
 .dashboard-v2__grid {
   display: grid;
@@ -299,6 +322,32 @@
 
 .dashboard-v2__tile-stat--alert {
   background: rgba(0, 0, 0, 0.18);
+}
+
+.dashboard-v2__tile-stat.is-urgent {
+  background: rgba(255, 255, 255, 0.92);
+  color: #9a3f38;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4);
+}
+
+.dashboard-v2__tile-stat.is-urgent::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #d45a51;
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(1.25); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-v2__tile-stat.is-urgent::before {
+    animation: none;
+  }
 }
 
 /* Tile size variations */

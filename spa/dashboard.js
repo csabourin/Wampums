@@ -5,13 +5,20 @@ import {
   getOrganizationSettings,
   CONFIG,
 } from "./ajax-functions.js";
-import { getAttendanceDates, getAttendance } from "./api/api-endpoints.js";
+import {
+  getAttendanceDates,
+  getAttendance,
+  getNextMeetingInfo,
+  getPermissionSlips,
+  getMedicationDistributions,
+} from "./api/api-endpoints.js";
+import { getActivities } from "./api/api-activities.js";
 import { translate } from "./app.js";
 import { getCachedData, setCachedData, clearActivityRelatedCaches } from "./indexedDB.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { skeletonDashboard } from "./utils/SkeletonUtils.js";
-import { getTodayISO } from "./utils/DateUtils.js";
+import { getTodayISO, formatDate } from "./utils/DateUtils.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
 import { BaseModule } from "./utils/BaseModule.js";
 import {
@@ -42,6 +49,12 @@ export class Dashboard extends BaseModule {
     this.pointsCollapsed = this.loadPointsCollapsedState();
     this.isLoading = true;
     this.mode = options.mode || "default";
+    this.nextMeeting = null;
+    this.counters = {
+      medicationDosesToday: null,
+      permissionSlipsPending: null,
+      activitiesThisMonth: null,
+    };
   }
 
   async init() {
@@ -69,6 +82,9 @@ export class Dashboard extends BaseModule {
       // Prefetch critical pages data after dashboard is ready
       // This is non-blocking and runs in background
       this.prefetchCriticalPages();
+
+      // Counters / next-meeting fetch is non-blocking. Re-renders on arrival.
+      this.refreshDashboardCounters();
 
       this.loadNews();
     } catch (error) {
@@ -525,7 +541,106 @@ export class Dashboard extends BaseModule {
     if (totalPoints) {
       stats["/managePoints"] = { value: totalPoints, label: translate("points_short") };
     }
+
+    // Counters from the background fetch — only added if a value arrived.
+    const c = this.counters || {};
+    if (typeof c.medicationDosesToday === "number" && c.medicationDosesToday > 0) {
+      stats["/medication-dispensing"] = {
+        value: c.medicationDosesToday,
+        label: translate("doses_short"),
+        urgent: true,
+      };
+    }
+    if (typeof c.permissionSlipsPending === "number" && c.permissionSlipsPending > 0) {
+      stats["/permission-slips"] = {
+        value: c.permissionSlipsPending,
+        label: translate("pending_short"),
+        urgent: true,
+      };
+    }
+    if (typeof c.activitiesUpcoming === "number" && c.activitiesUpcoming > 0) {
+      stats["/activities"] = {
+        value: c.activitiesUpcoming,
+        label: translate("upcoming_short"),
+      };
+    }
     return stats;
+  }
+
+  /**
+   * Fetch lightweight counter and "next meeting" data in parallel.
+   * Every call is best-effort: failures are silent, missing permissions
+   * just skip the fetch. Re-renders the dashboard when anything new arrives.
+   */
+  async refreshDashboardCounters() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayOut = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const canSeeMedication = hasAnyPermission("medication.manage", "medication.view");
+    const canSeeSlips = hasPermission("participants.view");
+    const canSeeActivities = hasAnyPermission("activities.view", "activities.manage");
+
+    const tasks = [
+      ["nextMeeting", getNextMeetingInfo()],
+      canSeeSlips ? ["slips", getPermissionSlips({})] : null,
+      canSeeMedication ? ["meds", getMedicationDistributions({ upcoming_only: true })] : null,
+      canSeeActivities ? ["activities", getActivities()] : null,
+    ].filter(Boolean);
+
+    const results = await Promise.allSettled(tasks.map(([, p]) => p));
+
+    let changed = false;
+    results.forEach((res, i) => {
+      if (res.status !== "fulfilled") return;
+      const key = tasks[i][0];
+      const value = res.value;
+      try {
+        if (key === "nextMeeting") {
+          const meeting = value?.meeting || value?.data?.meeting || null;
+          if (meeting && meeting.date) {
+            this.nextMeeting = meeting;
+            changed = true;
+          }
+        } else if (key === "slips") {
+          const list = value?.data?.permission_slips || value?.permission_slips || [];
+          const pending = list.filter((s) => {
+            const status = (s.status || "").toLowerCase();
+            return status === "pending" || status === "sent" || status === "unsigned";
+          }).length;
+          this.counters.permissionSlipsPending = pending;
+          changed = true;
+        } else if (key === "meds") {
+          const list = value?.data?.distributions || value?.distributions || [];
+          const todayISO = getTodayISO();
+          const todays = list.filter((d) => {
+            if (!d.scheduled_for) return false;
+            const scheduled = String(d.scheduled_for).slice(0, 10);
+            const status = (d.status || "").toLowerCase();
+            return scheduled === todayISO && status !== "given" && status !== "skipped";
+          }).length;
+          this.counters.medicationDosesToday = todays;
+          changed = true;
+        } else if (key === "activities") {
+          const list = Array.isArray(value) ? value : value?.data || [];
+          const upcoming = list.filter((a) => {
+            const dateStr = a.activity_date || a.start_date || a.date;
+            if (!dateStr) return false;
+            const d = new Date(dateStr);
+            return d >= today && d <= dayOut;
+          }).length;
+          this.counters.activitiesUpcoming = upcoming;
+          changed = true;
+        }
+      } catch (error) {
+        debugLog("Counter parse skipped:", key, error);
+      }
+    });
+
+    if (changed && !this.isLoading) {
+      this.render();
+      this.attachEventListeners();
+    }
   }
 
   _renderTopBar() {
@@ -579,19 +694,61 @@ export class Dashboard extends BaseModule {
       `;
     }
 
-    // First tile is the hero; up to two more become hero chip actions.
-    const [hero, ...rest] = nowTiles;
+    // Promote the upcoming-meeting tile to hero position when meeting data
+    // is loaded — its date is the most useful "right now" anchor.
+    const meetingTileIdx = this.nextMeeting
+      ? nowTiles.findIndex((t) => t.href === "/upcoming-meeting")
+      : -1;
+    let hero, rest;
+    if (meetingTileIdx > 0) {
+      hero = nowTiles[meetingTileIdx];
+      rest = nowTiles.filter((_, i) => i !== meetingTileIdx);
+    } else {
+      [hero, ...rest] = nowTiles;
+    }
+
+    const isMeetingHero = hero.href === "/upcoming-meeting" && this.nextMeeting;
     const chips = rest.slice(0, 3);
     const heroDomain = hero.domain || "attendance";
     const heroStyles = `--tile-bg-attendance: var(--tile-bg-${heroDomain}); --tile-fg-attendance: var(--tile-fg-${heroDomain});`;
+
+    let eyebrow;
+    let title;
+    let meta = "";
+
+    if (isMeetingHero) {
+      const lang = this.app?.lang || "fr";
+      const formattedDate = this._formatMeetingDate(this.nextMeeting.date, lang);
+      eyebrow = escapeHTML(translate("dashboard_next_meeting_eyebrow"));
+      title = escapeHTML(formattedDate);
+      const place = this.nextMeeting.endroit;
+      const animator = this.nextMeeting.animateur_responsable;
+      const metaParts = [];
+      if (place) metaParts.push(`<i class="fa-solid fa-location-dot" aria-hidden="true"></i> ${escapeHTML(place)}`);
+      if (animator) metaParts.push(`<i class="fa-solid fa-user" aria-hidden="true"></i> ${escapeHTML(animator)}`);
+      meta = metaParts.length
+        ? `<span class="dashboard-v2__hero-meta">${metaParts.join(' &nbsp;·&nbsp; ')}</span>`
+        : "";
+    } else {
+      eyebrow = `<i class="fa-solid ${escapeHTML(hero.icon)}" aria-hidden="true"></i> ${escapeHTML(translate("dashboard_primary_action"))}`;
+      title = escapeHTML(translate(hero.label));
+      if (hero.stat) {
+        meta = `<span class="dashboard-v2__hero-meta">${escapeHTML(String(hero.stat.value))} ${escapeHTML(hero.stat.label || "")}</span>`;
+      }
+    }
+
     const chipsHtml = chips
-      .map(
-        (t) => `
-        <a href="${escapeHTML(t.href)}" class="dashboard-v2__hero-action"${t.id ? ` id="${escapeHTML(t.id)}"` : ""}>
-          <i class="fa-solid ${escapeHTML(t.icon)}" aria-hidden="true"></i>
-          <span>${escapeHTML(translate(t.label))}</span>
-        </a>`,
-      )
+      .map((t) => {
+        const badge = t.stat
+          ? `<span class="dashboard-v2__hero-action-badge${t.stat.urgent ? " is-urgent" : ""}">${escapeHTML(String(t.stat.value))}</span>`
+          : "";
+        return `
+          <a href="${escapeHTML(t.href)}" class="dashboard-v2__hero-action"${t.id ? ` id="${escapeHTML(t.id)}"` : ""}>
+            <i class="fa-solid ${escapeHTML(t.icon)}" aria-hidden="true"></i>
+            <span>${escapeHTML(translate(t.label))}</span>
+            ${badge}
+          </a>`;
+      })
       .join("");
 
     return `
@@ -599,19 +756,38 @@ export class Dashboard extends BaseModule {
         <h2 id="moment-now" class="dashboard-v2__section-title">${escapeHTML(translate("dashboard_now_section"))}</h2>
         <div class="dashboard-v2__hero">
           <a href="${escapeHTML(hero.href)}" class="dashboard-v2__hero-card" style="${heroStyles}"${hero.id ? ` id="${escapeHTML(hero.id)}"` : ""}>
-            <span class="dashboard-v2__hero-eyebrow">
-              <i class="fa-solid ${escapeHTML(hero.icon)}" aria-hidden="true"></i>
-              ${escapeHTML(translate("dashboard_primary_action"))}
-            </span>
-            <h3 class="dashboard-v2__hero-title">${escapeHTML(translate(hero.label))}</h3>
-            ${hero.stat
-              ? `<span class="dashboard-v2__hero-meta">${escapeHTML(String(hero.stat.value))} ${escapeHTML(hero.stat.label || "")}</span>`
-              : ""}
+            <span class="dashboard-v2__hero-eyebrow">${eyebrow}</span>
+            <h3 class="dashboard-v2__hero-title">${title}</h3>
+            ${meta}
             ${chipsHtml ? `<div class="dashboard-v2__hero-actions">${chipsHtml}</div>` : ""}
           </a>
         </div>
       </section>
     `;
+  }
+
+  /**
+   * Format a YYYY-MM-DD meeting date into a friendly hero label.
+   * Shows "Today" / "Tomorrow" when applicable, otherwise weekday + date.
+   */
+  _formatMeetingDate(dateStr, lang) {
+    if (!dateStr) return "";
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const parts = String(dateStr).slice(0, 10).split("-").map(Number);
+    if (parts.length !== 3 || parts.some(Number.isNaN)) return dateStr;
+    const meetingDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    const dayDiff = Math.round((meetingDate - today) / (1000 * 60 * 60 * 24));
+
+    const formatted = formatDate(String(dateStr).slice(0, 10), lang, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
+
+    if (dayDiff === 0) return `${translate("today")} — ${formatted}`;
+    if (dayDiff === 1) return `${translate("tomorrow")} — ${formatted}`;
+    return formatted;
   }
 
   _renderWeek(weekTiles) {
@@ -665,7 +841,7 @@ export class Dashboard extends BaseModule {
     const domain = tile.domain || "neutral";
     const style = `--tile-bg: var(--tile-bg-${domain}); --tile-fg: var(--tile-fg-${domain}); --tile-accent: var(--tile-accent-${domain});`;
     const stat = tile.stat
-      ? `<span class="dashboard-v2__tile-stat" aria-label="${escapeHTML(tile.stat.label || "")}">${escapeHTML(String(tile.stat.value))}${tile.stat.label ? ` <span>${escapeHTML(tile.stat.label)}</span>` : ""}</span>`
+      ? `<span class="dashboard-v2__tile-stat${tile.stat.urgent ? " is-urgent" : ""}" aria-label="${escapeHTML(tile.stat.label || "")}">${escapeHTML(String(tile.stat.value))}${tile.stat.label ? ` <span>${escapeHTML(tile.stat.label)}</span>` : ""}</span>`
       : "";
     const cls = `dashboard-v2__tile${small ? " dashboard-v2__tile--sm" : ""}`;
     return `
