@@ -616,8 +616,8 @@ export class Dashboard extends BaseModule {
           const todays = list.filter((d) => {
             if (!d.scheduled_for) return false;
             const scheduled = String(d.scheduled_for).slice(0, 10);
-            const status = (d.status || "").toLowerCase();
-            return scheduled === todayISO && status !== "given" && status !== "skipped";
+            const status = (d.status || "scheduled").toLowerCase();
+            return scheduled === todayISO && status === "scheduled";
           }).length;
           this.counters.medicationDosesToday = todays;
           changed = true;
@@ -751,16 +751,23 @@ export class Dashboard extends BaseModule {
       })
       .join("");
 
+    // Hero is a non-anchor container so the chip links inside are not
+    // nested inside another <a>. The title block is its own stretched-link
+    // anchor (see .dashboard-v2__hero-card-link::after in dashboard-v2.css);
+    // chips sit above that overlay via z-index so each click hits its own
+    // target.
     return `
       <section class="dashboard-v2__section" aria-labelledby="moment-now">
         <h2 id="moment-now" class="dashboard-v2__section-title">${escapeHTML(translate("dashboard_now_section"))}</h2>
         <div class="dashboard-v2__hero">
-          <a href="${escapeHTML(hero.href)}" class="dashboard-v2__hero-card" style="${heroStyles}"${hero.id ? ` id="${escapeHTML(hero.id)}"` : ""}>
-            <span class="dashboard-v2__hero-eyebrow">${eyebrow}</span>
-            <h3 class="dashboard-v2__hero-title">${title}</h3>
-            ${meta}
+          <div class="dashboard-v2__hero-card" style="${heroStyles}">
+            <a href="${escapeHTML(hero.href)}" class="dashboard-v2__hero-card-link"${hero.id ? ` id="${escapeHTML(hero.id)}"` : ""}>
+              <span class="dashboard-v2__hero-eyebrow">${eyebrow}</span>
+              <h3 class="dashboard-v2__hero-title">${title}</h3>
+              ${meta}
+            </a>
             ${chipsHtml ? `<div class="dashboard-v2__hero-actions">${chipsHtml}</div>` : ""}
-          </a>
+          </div>
         </div>
       </section>
     `;
