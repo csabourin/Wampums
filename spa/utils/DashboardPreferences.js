@@ -61,10 +61,6 @@ export function setCollapsedToolGroups(groups) {
   writePrefs(prefs);
 }
 
-export function isTileHidden(href) {
-  return readPrefs().hiddenTiles.includes(href);
-}
-
 /**
  * Push palette colors as CSS variables under `--tile-bg-<domain>` etc.
  * Called once at boot and whenever the palette changes.

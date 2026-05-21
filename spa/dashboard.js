@@ -16,7 +16,7 @@ import { getActivities } from "./api/api-activities.js";
 import { translate } from "./app.js";
 import { getCachedData, setCachedData, clearActivityRelatedCaches } from "./indexedDB.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
-import { setContent } from "./utils/DOMUtils.js";
+import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { skeletonDashboard } from "./utils/SkeletonUtils.js";
 import { getTodayISO, formatDate } from "./utils/DateUtils.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
@@ -35,7 +35,11 @@ import { DashboardCacheManager } from "./utils/DashboardCacheManager.js";
 import { NewsFeed } from "./modules/NewsFeed.js";
 import { CarpoolQuickAccessModal } from "./modules/modals/CarpoolQuickAccessModal.js";
 import { getTileContext, ROLE_WEIGHTS } from "./config/dashboard-customization.js";
-import { applyPalette, isTileHidden } from "./utils/DashboardPreferences.js";
+import {
+  applyPalette,
+  getDashboardPrefs,
+  setCollapsedToolGroups,
+} from "./utils/DashboardPreferences.js";
 import { CommandPalette } from "./modules/CommandPalette.js";
 import { DashboardSettingsModal } from "./modules/DashboardSettingsModal.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
@@ -61,6 +65,13 @@ export class Dashboard extends BaseModule {
     try {
       // Font Awesome is preloaded in index.html with font-display: swap
       // No additional loading strategy needed
+
+      // Dashboard-specific styles aren't critical for the skeleton, but we
+      // want them in place before the real render. Loaded on-demand so
+      // non-dashboard pages don't pay for them.
+      loadStylesheet("/css/dashboard-v2.css").catch((error) => {
+        debugError("Failed to load dashboard-v2 stylesheet:", error);
+      });
 
       // Show loading skeleton immediately
       this.isLoading = true;
@@ -462,7 +473,12 @@ export class Dashboard extends BaseModule {
       ...newsCommsTiles,
     ];
 
-    this._allTiles = allTiles.filter((t) => !isTileHidden(t.href));
+    // Snapshot user prefs once per render — avoids re-reading localStorage
+    // for every tile (hiddenTiles lookup) and every Tools group (collapsed
+    // lookup) downstream.
+    this._prefs = getDashboardPrefs();
+    const hiddenSet = new Set(this._prefs.hiddenTiles || []);
+    this._allTiles = allTiles.filter((t) => !hiddenSet.has(t.href));
     const stats = this._computeTileStats();
 
     // Bucket tiles by moment. Apply user-hidden filter.
@@ -616,8 +632,8 @@ export class Dashboard extends BaseModule {
           const todays = list.filter((d) => {
             if (!d.scheduled_for) return false;
             const scheduled = String(d.scheduled_for).slice(0, 10);
-            const status = (d.status || "").toLowerCase();
-            return scheduled === todayISO && status !== "given" && status !== "skipped";
+            const status = (d.status || "scheduled").toLowerCase();
+            return scheduled === todayISO && status === "scheduled";
           }).length;
           this.counters.medicationDosesToday = todays;
           changed = true;
@@ -751,16 +767,23 @@ export class Dashboard extends BaseModule {
       })
       .join("");
 
+    // Hero is a non-anchor container so the chip links inside are not
+    // nested inside another <a>. The title block is its own stretched-link
+    // anchor (see .dashboard-v2__hero-card-link::after in dashboard-v2.css);
+    // chips sit above that overlay via z-index so each click hits its own
+    // target.
     return `
       <section class="dashboard-v2__section" aria-labelledby="moment-now">
         <h2 id="moment-now" class="dashboard-v2__section-title">${escapeHTML(translate("dashboard_now_section"))}</h2>
         <div class="dashboard-v2__hero">
-          <a href="${escapeHTML(hero.href)}" class="dashboard-v2__hero-card" style="${heroStyles}"${hero.id ? ` id="${escapeHTML(hero.id)}"` : ""}>
-            <span class="dashboard-v2__hero-eyebrow">${eyebrow}</span>
-            <h3 class="dashboard-v2__hero-title">${title}</h3>
-            ${meta}
+          <div class="dashboard-v2__hero-card" style="${heroStyles}">
+            <a href="${escapeHTML(hero.href)}" class="dashboard-v2__hero-card-link"${hero.id ? ` id="${escapeHTML(hero.id)}"` : ""}>
+              <span class="dashboard-v2__hero-eyebrow">${eyebrow}</span>
+              <h3 class="dashboard-v2__hero-title">${title}</h3>
+              ${meta}
+            </a>
             ${chipsHtml ? `<div class="dashboard-v2__hero-actions">${chipsHtml}</div>` : ""}
-          </a>
+          </div>
         </div>
       </section>
     `;
@@ -811,13 +834,15 @@ export class Dashboard extends BaseModule {
       groups.get(key).push(tile);
     });
 
+    const collapsedSet = new Set(this._prefs?.collapsedToolGroups || []);
     const groupHtml = Array.from(groups.entries())
       .map(([domain, tiles]) => {
         const title = translate(`domain_${domain}`) || domain;
         const grid = tiles.map((t) => this._renderTile(t, { small: true })).join("");
+        const isCollapsed = collapsedSet.has(domain);
         return `
-          <div class="dashboard-v2__group" data-collapsed="false" data-group="${escapeHTML(domain)}">
-            <button type="button" class="dashboard-v2__group-toggle" aria-expanded="true">
+          <div class="dashboard-v2__group" data-collapsed="${isCollapsed}" data-group="${escapeHTML(domain)}">
+            <button type="button" class="dashboard-v2__group-toggle" aria-expanded="${!isCollapsed}">
               <span><i class="fa-solid fa-folder-open" aria-hidden="true"></i> ${escapeHTML(title)}</span>
               <i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i>
             </button>
@@ -1044,14 +1069,24 @@ export class Dashboard extends BaseModule {
       modal.open();
     });
 
-    // Collapse/expand "Tools" groups
+    // Collapse/expand "Tools" groups — persisted across renders/sessions.
     document.querySelectorAll(".dashboard-v2__group-toggle").forEach((btn) => {
       this.addEventListener(btn, "click", () => {
         const group = btn.closest(".dashboard-v2__group");
         if (!group) return;
-        const collapsed = group.getAttribute("data-collapsed") === "true";
-        group.setAttribute("data-collapsed", String(!collapsed));
-        btn.setAttribute("aria-expanded", String(collapsed));
+        const wasCollapsed = group.getAttribute("data-collapsed") === "true";
+        const nowCollapsed = !wasCollapsed;
+        group.setAttribute("data-collapsed", String(nowCollapsed));
+        btn.setAttribute("aria-expanded", String(!nowCollapsed));
+
+        const domain = group.dataset.group;
+        if (!domain) return;
+        const collapsed = new Set(this._prefs?.collapsedToolGroups || []);
+        if (nowCollapsed) collapsed.add(domain);
+        else collapsed.delete(domain);
+        setCollapsedToolGroups(Array.from(collapsed));
+        // Keep the per-render prefs snapshot in sync without a re-read.
+        if (this._prefs) this._prefs.collapsedToolGroups = Array.from(collapsed);
       });
     });
   }
