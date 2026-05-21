@@ -190,6 +190,8 @@ export class CommandPalette {
         list,
         `<li class="cmd-palette__empty">${escapeHTML(translate("dashboard_search_no_results"))}</li>`,
       );
+      const input = this._overlay?.querySelector("#cmd-palette-input");
+      input?.removeAttribute("aria-activedescendant");
       return;
     }
 
@@ -199,7 +201,9 @@ export class CommandPalette {
         const icon = escapeHTML(tile.icon || "fa-circle");
         return `
           <li role="option"
+              id="cmd-palette-option-${idx}"
               class="cmd-palette__item${idx === 0 ? " is-active" : ""}"
+              aria-selected="${idx === 0 ? "true" : "false"}"
               data-href="${escapeHTML(tile.href)}"
               tabindex="-1">
             <i class="fa-solid ${icon}" aria-hidden="true"></i>
@@ -210,6 +214,8 @@ export class CommandPalette {
       })
       .join("");
     setContent(list, html);
+    const input = this._overlay?.querySelector("#cmd-palette-input");
+    input?.setAttribute("aria-activedescendant", "cmd-palette-option-0");
   }
 
   _moveActive(delta) {
@@ -217,8 +223,14 @@ export class CommandPalette {
     if (!items.length) return;
     let idx = Array.from(items).findIndex((el) => el.classList.contains("is-active"));
     items[idx]?.classList.remove("is-active");
+    items[idx]?.setAttribute("aria-selected", "false");
     idx = (idx + delta + items.length) % items.length;
     items[idx].classList.add("is-active");
+    items[idx].setAttribute("aria-selected", "true");
+    const input = this._overlay?.querySelector("#cmd-palette-input");
+    if (items[idx].id) {
+      input?.setAttribute("aria-activedescendant", items[idx].id);
+    }
     items[idx].scrollIntoView({ block: "nearest" });
   }
 
