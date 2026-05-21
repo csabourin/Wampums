@@ -13,7 +13,6 @@ import { PALETTES } from "../config/dashboard-customization.js";
 import {
   getDashboardPrefs,
   setPaletteId,
-  applyPalette,
   resetDashboardPrefs,
 } from "../utils/DashboardPreferences.js";
 
@@ -21,13 +20,11 @@ export class DashboardSettingsModal {
   constructor({ onChange } = {}) {
     this.onChange = onChange || (() => {});
     this.modal = null;
-    this._previousPalette = null;
   }
 
   open() {
     if (this.modal) return;
     const prefs = getDashboardPrefs();
-    this._previousPalette = prefs.paletteId;
 
     const overlay = document.createElement("div");
     overlay.className = "dash-settings";
@@ -44,6 +41,7 @@ export class DashboardSettingsModal {
 
   close() {
     if (!this.modal) return;
+    document.removeEventListener("keydown", this._escClose);
     this.modal.remove();
     this.modal = null;
     document.body.classList.remove("dash-settings-open");
@@ -81,7 +79,7 @@ export class DashboardSettingsModal {
         <section class="dash-settings__section">
           <h3>${escapeHTML(translate("dashboard_palette"))}</h3>
           <p class="dash-settings__hint">${escapeHTML(translate("dashboard_palette_hint"))}</p>
-          <div class="dash-settings__palettes" role="radiogroup" aria-label="${escapeHTML(translate("dashboard_palette"))}">
+          <div class="dash-settings__palettes" role="group" aria-label="${escapeHTML(translate("dashboard_palette"))}">
             ${cards}
           </div>
         </section>
