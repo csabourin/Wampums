@@ -352,9 +352,10 @@ module.exports = (pool, logger) => {
     }
 
     await pool.query(
-      `UPDATE organization_settings
-       SET setting_value = $1, updated_at = NOW()
-       WHERE organization_id = $2 AND setting_key = $3`,
+      `INSERT INTO organization_settings (organization_id, setting_key, setting_value, created_at, updated_at)
+       VALUES ($2, $3, $1, NOW(), NOW())
+       ON CONFLICT (organization_id, setting_key)
+       DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = NOW()`,
       [JSON.stringify(setting_value), organizationId, setting_key]
     );
 

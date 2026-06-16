@@ -128,16 +128,16 @@ export const DEFAULT_PALETTE_ID = "domains";
  * Properties:
  *   moment: "now" | "week" | "tools"  (which slot on the dashboard)
  *   domain: one of DOMAINS
+ *   priority: optional ordering inside a moment bucket (lower wins)
  *   rolePriority: optional map of role name -> integer priority (lower wins).
  *                 If absent, defaults are used.
  */
 export const TILE_CONTEXT = {
   // --- "Now" tiles: actions tied to a meeting in progress / today ---
-  "/attendance": { moment: "now", domain: "attendance" },
-  "/managePoints": { moment: "now", domain: "attendance" },
-  "/manageHonors": { moment: "now", domain: "attendance" },
-  "/upcoming-meeting": { moment: "now", domain: "attendance" },
-  "/medication-dispensing": { moment: "now", domain: "safety" },
+  "/managePoints": { moment: "now", domain: "attendance", priority: 0 },
+  "/attendance": { moment: "now", domain: "attendance", priority: 1 },
+  "/manageHonors": { moment: "now", domain: "attendance", priority: 2 },
+  "/upcoming-meeting": { moment: "now", domain: "attendance", priority: 3 },
 
   // --- "This week" tiles: planning horizon ---
   "/activities": { moment: "week", domain: "logistics" },
@@ -155,6 +155,7 @@ export const TILE_CONTEXT = {
   "/parent-dashboard": { moment: "tools", domain: "people" },
   "/view-participant-documents": { moment: "tools", domain: "people" },
   "/inventory": { moment: "tools", domain: "logistics" },
+  "/medication-dispensing": { moment: "tools", domain: "safety" },
   "/medication-reception": { moment: "tools", domain: "safety" },
   "/manage-participants": { moment: "tools", domain: "people" },
   "/manage-groups": { moment: "tools", domain: "people" },
