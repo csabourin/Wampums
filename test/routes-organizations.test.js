@@ -398,7 +398,7 @@ describe('GET /api/v1/organizations/settings', () => {
     let updateCalled = false;
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
-      if (query.includes('UPDATE organization_settings')) {
+      if (query.includes('INSERT INTO organization_settings')) {
         updateCalled = true;
         return Promise.resolve({ rows: [{}] });
       }
