@@ -1,16 +1,16 @@
-import { BaseModule } from "./utils/BaseModule.js";
-import { translate } from "./app.js";
-import { setContent } from "./utils/DOMUtils.js";
-import { debugError } from "./utils/DebugUtils.js";
-import { makeApiRequest } from "./api/api-core.js";
-import { escapeHTML } from "./utils/SecurityUtils.js";
+import { BaseModule } from "../../utils/BaseModule.js";
+import { translate } from "../../app.js";
+import { setContent } from "../../utils/DOMUtils.js";
+import { debugError } from "../../utils/DebugUtils.js";
+import { makeApiRequest } from "../../api/api-core.js";
+import { escapeHTML } from "../../utils/SecurityUtils.js";
 import {
   hasPermission,
   canSendCommunications,
   canAccessAdminPanel,
   canViewRoles,
   canManageForms,
-} from "./utils/PermissionUtils.js";
+} from "../../utils/PermissionUtils.js";
 
 const SUPPORTED_LANGUAGES = [
   { code: "fr", label: "Français" },
