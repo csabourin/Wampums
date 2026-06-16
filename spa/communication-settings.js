@@ -5,7 +5,7 @@ import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { makeApiRequest } from "./api/api-core.js";
 import { WhatsAppConnectionModule } from "./modules/whatsapp-connection.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
-import { canSendCommunications, canAccessAdminPanel, hasPermission } from "./utils/PermissionUtils.js";
+import { canSendCommunications, canAccessAdminPanel } from "./utils/PermissionUtils.js";
 
 export class CommunicationSettings extends BaseModule {
   constructor(app) {
@@ -15,42 +15,24 @@ export class CommunicationSettings extends BaseModule {
     this.googleChatSpaces = [];
     this.isLoading = true;
     this.googleChatError = null;
-    this.twoFactorDisabled = false;
-    this.canManageOrg = false;
   }
 
   async init() {
     const container = document.getElementById("app");
     setContent(container, `<div class="page-loading">${translate("loading") || "Loading..."}</div>`);
 
-    this.canManageOrg = hasPermission('organization.manage');
-
     try {
-      await Promise.all([
-        this.whatsappModule.init(),
-        this.loadGoogleChatData(),
-        this.canManageOrg ? this.loadSecuritySettings() : Promise.resolve(),
-      ]);
+      await this.whatsappModule.init();
+      await this.loadGoogleChatData();
       this.isLoading = false;
       this.render();
       this.whatsappModule.attachEventListeners();
       this.attachGoogleChatListeners();
-      this.attachSecurityListeners();
     } catch (error) {
       debugError("Error loading communication settings:", error);
       this.googleChatError = error.message;
       this.isLoading = false;
       this.render();
-    }
-  }
-
-  async loadSecuritySettings() {
-    try {
-      const response = await makeApiRequest("v1/organizations/settings", { method: "GET" });
-      const security = response?.data?.security || response?.security || {};
-      this.twoFactorDisabled = security?.two_factor_disabled === true;
-    } catch (error) {
-      debugError("Failed to load security settings:", error);
     }
   }
 
@@ -94,8 +76,6 @@ export class CommunicationSettings extends BaseModule {
       ? this.renderGoogleChatSection()
       : `<div class="info-box">${translate("communications_permissions_error") || "You do not have permission to configure Google Chat."}</div>`;
 
-    const securitySection = this.canManageOrg ? this.renderSecuritySection() : '';
-
     setContent(
       container,
       `
@@ -112,8 +92,6 @@ export class CommunicationSettings extends BaseModule {
             ${googleChatSection}
           </div>
         </div>
-
-        ${securitySection}
       </div>
       `,
     );
@@ -199,61 +177,6 @@ export class CommunicationSettings extends BaseModule {
         </form>
       </section>
     `;
-  }
-
-  renderSecuritySection() {
-    const checked = this.twoFactorDisabled ? 'checked' : '';
-    return `
-      <section class="account-section security-settings-section">
-        <h2>${translate("security_settings_title") || "Security Settings"}</h2>
-        <p class="section-description">${translate("security_settings_description") || "Configure organization-wide security policies."}</p>
-
-        <div class="setting-row">
-          <label class="toggle-label" for="disable-2fa-toggle">
-            <div class="toggle-label__text">
-              <strong>${translate("two_factor_disable_label") || "Disable Two-Factor Authentication"}</strong>
-              <span class="muted-text">${translate("two_factor_disable_description") || "When disabled, users will log in with their password only. Not recommended for organizations with sensitive data."}</span>
-            </div>
-            <input type="checkbox" id="disable-2fa-toggle" role="switch" ${checked} />
-          </label>
-          ${this.twoFactorDisabled ? `<p class="warning-text">${translate("two_factor_disabled_warning") || "Warning: Two-factor authentication is currently disabled for this organization."}</p>` : ''}
-        </div>
-      </section>
-    `;
-  }
-
-  attachSecurityListeners() {
-    const toggle = document.getElementById("disable-2fa-toggle");
-    if (!toggle) return;
-
-    this.addEventListener(toggle, "change", (event) => this.handleTwoFactorToggle(event.target.checked));
-  }
-
-  async handleTwoFactorToggle(disabled) {
-    const toggle = document.getElementById("disable-2fa-toggle");
-    if (toggle) toggle.disabled = true;
-
-    try {
-      await makeApiRequest("v1/organizations/settings", {
-        method: "PUT",
-        body: { setting_key: "security", setting_value: { two_factor_disabled: disabled } },
-      });
-
-      this.twoFactorDisabled = disabled;
-      this.app?.showMessage?.(
-        translate("two_factor_setting_saved") || "Security setting saved.",
-        "success"
-      );
-      this.render();
-      this.attachGoogleChatListeners();
-      this.attachSecurityListeners();
-    } catch (error) {
-      debugError("Failed to save 2FA setting:", error);
-      this.app?.showMessage?.(error.message || translate("error_saving") || "Failed to save setting.", "error");
-      if (toggle) toggle.checked = !disabled;
-    } finally {
-      if (toggle) toggle.disabled = false;
-    }
   }
 
   attachGoogleChatListeners() {

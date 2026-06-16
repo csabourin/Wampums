@@ -389,6 +389,7 @@ export class Dashboard extends BaseModule {
       showFormPermissions && { href: "/form-permissions", icon: "fa-clipboard-check", label: "form_permissions" },
       showOrgCreation && { href: "/create-organization", icon: "fa-building", label: "create_unit" },
       showAdminPanel && { href: "/admin", icon: "fa-user-shield", label: "administration", id: "admin-link" },
+      showAdminPanel && { href: "/unit-settings", icon: "fa-sliders", label: "unit_settings_title" },
     ].filter(Boolean)));
 
     // --- Finance & Fundraising ---
