@@ -113,6 +113,7 @@ const lazyModules = {
   DistrictManagement: () => import('./district_management.js').then(m => m.DistrictManagement),
   FormPermissions: () => import('./form_permissions.js').then(m => m.initFormPermissions),
   CommunicationSettings: () => import('./communication-settings.js').then(m => m.CommunicationSettings),
+  UnitSettings: () => import('./modules/unit-settings/unit-settings.js').then(m => m.UnitSettings),
   OfflinePreparation: () => import('./offline_preparation.js').then(m => m.OfflinePreparation),
   IncidentReport: () => import('./modules/incident-report/incident-report.js').then(m => m.IncidentReport),
   YearlyPlanner: () => import('./modules/yearly-planner/YearlyPlanner.js').then(m => m.YearlyPlanner)
@@ -198,7 +199,8 @@ const routes = {
   "/incident-reports/new": "incidentReportNew",
   "/incident-reports/:id": "incidentReportView",
   "/incident-reports/:id/edit": "incidentReportEdit",
-  "/yearly-planner": "yearlyPlanner"
+  "/yearly-planner": "yearlyPlanner",
+  "/unit-settings": "unitSettings"
 
 };
 
@@ -492,6 +494,15 @@ export class Router {
           const communicationSettings = new CommunicationSettings(this.app);
           this.currentModuleInstance = communicationSettings;
           await communicationSettings.init();
+          break;
+        case "unitSettings":
+          if (!guard(canAccessAdminPanel())) {
+            break;
+          }
+          const UnitSettings = await this.loadModule('UnitSettings');
+          const unitSettings = new UnitSettings(this.app);
+          this.currentModuleInstance = unitSettings;
+          await unitSettings.init();
           break;
         case "incidentReports":
           if (!guard(canViewIncidents())) break;

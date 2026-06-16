@@ -177,6 +177,7 @@ export const TILE_CONTEXT = {
   "/budgets": { moment: "tools", domain: "money" },
   "/communications": { moment: "tools", domain: "communications" },
   "/mailing-list": { moment: "tools", domain: "communications" },
+  "/unit-settings": { moment: "tools", domain: "admin" },
   "/account-info": { moment: "tools", domain: "admin" },
 };
 
