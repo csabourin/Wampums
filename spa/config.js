@@ -234,6 +234,15 @@ export const CONFIG = {
     },
 
     /**
+     * Dashboard behavior settings
+     */
+    DASHBOARD: {
+        // Promote medication dispensing only around the scheduled dose time.
+        MEDICATION_DUE_WINDOW_BEFORE_MINUTES: 90,
+        MEDICATION_DUE_WINDOW_AFTER_MINUTES: 15,
+    },
+
+    /**
      * Photo upload processing and safety constraints
      */
     PHOTO_UPLOAD: {
@@ -376,6 +385,7 @@ Object.freeze(CONFIG.DEFAULT_POINTS.ATTENDANCE);
 Object.freeze(CONFIG.DEFAULT_POINTS.HONORS);
 Object.freeze(CONFIG.DEFAULT_POINTS.BADGES);
 Object.freeze(CONFIG.UI);
+Object.freeze(CONFIG.DASHBOARD);
 Object.freeze(CONFIG.PUSH_NOTIFICATIONS);
 Object.freeze(CONFIG.FEATURES);
 Object.freeze(CONFIG.INDEXEDDB);

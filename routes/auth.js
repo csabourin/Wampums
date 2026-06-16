@@ -218,8 +218,27 @@ module.exports = (pool, logger) => {
           });
         }
 
-        // Check if device is trusted (2FA) - skip for demo users
-        if (!isDemoUser) {
+        // Check if the organization has disabled 2FA entirely
+        let orgTwoFactorDisabled = false;
+        try {
+          const securitySettingResult = await pool.query(
+            `SELECT setting_value FROM organization_settings WHERE organization_id = $1 AND setting_key = 'security'`,
+            [organizationId]
+          );
+          if (securitySettingResult.rows.length > 0) {
+            const security = JSON.parse(securitySettingResult.rows[0].setting_value);
+            orgTwoFactorDisabled = security?.two_factor_disabled === true;
+          }
+        } catch (err) {
+          logger.warn('Failed to read org security setting, defaulting 2FA to enabled', { organizationId, err: err.message });
+        }
+
+        if (orgTwoFactorDisabled) {
+          logger.info('2FA bypassed: disabled by organization setting', { userId: user.id, organizationId });
+        }
+
+        // Check if device is trusted (2FA) - skip for demo users or orgs with 2FA disabled
+        if (!isDemoUser && !orgTwoFactorDisabled) {
           const deviceToken = req.headers['x-device-token'];
           const isTrustedDevice = await verifyTrustedDevice(pool, user.id, organizationId, deviceToken);
 

@@ -43,6 +43,7 @@ import {
 import { CommandPalette } from "./modules/CommandPalette.js";
 import { DashboardSettingsModal } from "./modules/DashboardSettingsModal.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { offlineManager } from "./modules/OfflineManager.js";
 
 export class Dashboard extends BaseModule {
   constructor(app, options = {}) {
@@ -54,6 +55,7 @@ export class Dashboard extends BaseModule {
     this.isLoading = true;
     this.mode = options.mode || "default";
     this.nextMeeting = null;
+    this.medicationDoseIsTimeSensitive = false;
     this.counters = {
       medicationDosesToday: null,
       permissionSlipsPending: null,
@@ -484,7 +486,7 @@ export class Dashboard extends BaseModule {
     // Bucket tiles by moment. Apply user-hidden filter.
     const buckets = { now: [], week: [], tools: [] };
     this._allTiles.forEach((tile) => {
-      const ctx = getTileContext(tile.href);
+      const ctx = this._getTileContext(tile);
       const enriched = { ...tile, ...ctx, stat: stats[tile.href] };
       buckets[ctx.moment].push(enriched);
     });
@@ -494,6 +496,9 @@ export class Dashboard extends BaseModule {
     const weights = ROLE_WEIGHTS[roleKey] || ROLE_WEIGHTS.default;
     const sortBucket = (arr) =>
       arr.sort((a, b) => {
+        const pa = a.priority ?? 50;
+        const pb = b.priority ?? 50;
+        if (pa !== pb) return pa - pb;
         const wa = weights[a.domain] ?? 50;
         const wb = weights[b.domain] ?? 50;
         if (wa !== wb) return wa - wb;
@@ -535,6 +540,15 @@ export class Dashboard extends BaseModule {
     if (roles.includes("parent") || roles.includes("guardian")) return "parent";
     if (roles.includes("animator") || roles.includes("animateur") || roles.includes("leader")) return "animator";
     return "default";
+  }
+
+  _getTileContext(tile) {
+    const ctx = getTileContext(tile.href);
+    if (tile.href !== "/medication-dispensing") return ctx;
+
+    return this.medicationDoseIsTimeSensitive
+      ? { ...ctx, moment: "now", priority: -1 }
+      : ctx;
   }
 
   _computeTileStats() {
@@ -607,6 +621,8 @@ export class Dashboard extends BaseModule {
     const results = await Promise.allSettled(tasks.map(([, p]) => p));
 
     let changed = false;
+    let medicationDistributions = null;
+    let activities = null;
     results.forEach((res, i) => {
       if (res.status !== "fulfilled") return;
       const key = tasks[i][0];
@@ -628,6 +644,7 @@ export class Dashboard extends BaseModule {
           changed = true;
         } else if (key === "meds") {
           const list = value?.data?.distributions || value?.distributions || [];
+          medicationDistributions = list;
           const todayISO = getTodayISO();
           const todays = list.filter((d) => {
             if (!d.scheduled_for) return false;
@@ -639,6 +656,7 @@ export class Dashboard extends BaseModule {
           changed = true;
         } else if (key === "activities") {
           const list = Array.isArray(value) ? value : value?.data || [];
+          activities = list;
           const upcoming = list.filter((a) => {
             const dateStr = a.activity_date || a.start_date || a.date;
             if (!dateStr) return false;
@@ -653,10 +671,131 @@ export class Dashboard extends BaseModule {
       }
     });
 
+    if (medicationDistributions || activities) {
+      const shouldPromoteMedication = this._shouldPromoteMedicationAction(
+        medicationDistributions || [],
+        activities || [],
+      );
+      if (this.medicationDoseIsTimeSensitive !== shouldPromoteMedication) {
+        this.medicationDoseIsTimeSensitive = shouldPromoteMedication;
+        changed = true;
+      }
+    }
+
     if (changed && !this.isLoading) {
       this.render();
       this.attachEventListeners();
     }
+  }
+
+  /**
+   * Medication becomes the dashboard primary action only when a scheduled dose
+   * is near and the unit is currently in a camp/field-trip style activity.
+   *
+   * @param {Array<Object>} distributions
+   * @param {Array<Object>} activities
+   * @returns {boolean}
+   */
+  _shouldPromoteMedicationAction(distributions = [], activities = []) {
+    const now = new Date();
+    const activeActivity = this._getActiveMedicationActivity(activities, now)
+      || this._getActivePreparedCampActivity();
+
+    if (!activeActivity) return false;
+
+    const beforeMs = (CONFIG.DASHBOARD?.MEDICATION_DUE_WINDOW_BEFORE_MINUTES ?? 90) * 60 * 1000;
+    const afterMs = (CONFIG.DASHBOARD?.MEDICATION_DUE_WINDOW_AFTER_MINUTES ?? 15) * 60 * 1000;
+
+    return distributions.some((distribution) => {
+      if (!distribution?.scheduled_for) return false;
+      const status = (distribution.status || "scheduled").toLowerCase();
+      if (status !== "scheduled") return false;
+
+      const scheduledAt = new Date(distribution.scheduled_for);
+      if (Number.isNaN(scheduledAt.getTime())) return false;
+
+      const delta = scheduledAt.getTime() - now.getTime();
+      if (delta < -afterMs || delta > beforeMs) return false;
+
+      return this._distributionMatchesActivity(distribution, activeActivity);
+    });
+  }
+
+  _getActiveMedicationActivity(activities = [], now = new Date()) {
+    return activities.find((activity) => {
+      if (!this._isMedicationPriorityActivity(activity)) return false;
+
+      const startDate = activity.activity_start_date || activity.start_date || activity.activity_date || activity.date;
+      const endDate = activity.activity_end_date || activity.end_date || startDate;
+      const startTime = activity.activity_start_time || activity.meeting_time_going || "00:00";
+      const endTime = activity.activity_end_time || activity.departure_time_return || activity.departure_time_going || "23:59";
+      const start = this._parseLocalActivityDateTime(startDate, startTime);
+      const end = this._parseLocalActivityDateTime(endDate, endTime);
+
+      if (!start || !end) return false;
+      return start.getTime() <= now.getTime() && now.getTime() <= end.getTime();
+    }) || null;
+  }
+
+  _getActivePreparedCampActivity() {
+    try {
+      const today = getTodayISO();
+      if (!offlineManager?.campMode || !offlineManager.isDatePrepared(today)) {
+        return null;
+      }
+
+      const prepared = offlineManager.getPreparedActivityForDate(today);
+      return prepared ? { ...prepared, name: prepared.name || "" } : null;
+    } catch (error) {
+      debugLog("Prepared activity lookup skipped:", error);
+      return null;
+    }
+  }
+
+  _isMedicationPriorityActivity(activity = {}) {
+    const startDate = activity.activity_start_date || activity.start_date || activity.activity_date || activity.date;
+    const endDate = activity.activity_end_date || activity.end_date || startDate;
+    if (startDate && endDate && startDate !== endDate) return true;
+
+    const haystack = this._normalizeSearchText([
+      activity.name,
+      activity.title,
+      activity.description,
+      activity.activity_type,
+      activity.type,
+      activity.category,
+    ].filter(Boolean).join(" "));
+
+    return /\b(camp|camps|camping|field trip|fieldtrip|sortie|sorties|excursion|excursions)\b/.test(haystack);
+  }
+
+  _distributionMatchesActivity(distribution = {}, activity = {}) {
+    if (!distribution.activity_name) return true;
+
+    const distributionName = this._normalizeSearchText(distribution.activity_name);
+    const activityName = this._normalizeSearchText(activity.name || activity.title || "");
+    if (!activityName) return true;
+
+    return distributionName.includes(activityName) || activityName.includes(distributionName);
+  }
+
+  _parseLocalActivityDateTime(dateValue, timeValue) {
+    if (!dateValue) return null;
+    const date = String(dateValue).slice(0, 10);
+    const time = String(timeValue || "00:00").slice(0, 5);
+    const match = `${date}T${time}`.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+    if (!match) return null;
+
+    const [, year, month, day, hour, minute] = match.map(Number);
+    const parsed = new Date(year, month - 1, day, hour, minute, 0, 0);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  _normalizeSearchText(value = "") {
+    return String(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
   }
 
   _renderTopBar() {
@@ -710,18 +849,7 @@ export class Dashboard extends BaseModule {
       `;
     }
 
-    // Promote the upcoming-meeting tile to hero position when meeting data
-    // is loaded — its date is the most useful "right now" anchor.
-    const meetingTileIdx = this.nextMeeting
-      ? nowTiles.findIndex((t) => t.href === "/upcoming-meeting")
-      : -1;
-    let hero, rest;
-    if (meetingTileIdx > 0) {
-      hero = nowTiles[meetingTileIdx];
-      rest = nowTiles.filter((_, i) => i !== meetingTileIdx);
-    } else {
-      [hero, ...rest] = nowTiles;
-    }
+    const [hero, ...rest] = nowTiles;
 
     const isMeetingHero = hero.href === "/upcoming-meeting" && this.nextMeeting;
     const chips = rest.slice(0, 3);
