@@ -197,8 +197,11 @@ async function getUserEmailLanguage(pool, userEmail, organizationId) {
 
     if (orgResult.rows.length > 0) {
       try {
-        const orgLanguage = JSON.parse(orgResult.rows[0].setting_value);
-        return orgLanguage;
+        // setting_value is a jsonb column; the pg driver returns the scalar
+        // (e.g. 'fr') already parsed, so only JSON.parse legacy string storage.
+        const raw = orgResult.rows[0].setting_value;
+        const orgLanguage = typeof raw === 'string' ? raw : raw?.language;
+        return orgLanguage || 'fr';
       } catch {
         // If parsing fails, return default
         return 'fr';

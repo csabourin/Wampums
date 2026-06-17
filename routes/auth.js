@@ -226,7 +226,10 @@ module.exports = (pool, logger) => {
             [organizationId]
           );
           if (securitySettingResult.rows.length > 0) {
-            const security = JSON.parse(securitySettingResult.rows[0].setting_value);
+            // setting_value is a jsonb column, so the pg driver already returns a
+            // parsed object. Only JSON.parse when it is stored/returned as a string.
+            const rawSecurity = securitySettingResult.rows[0].setting_value;
+            const security = typeof rawSecurity === 'string' ? JSON.parse(rawSecurity) : rawSecurity;
             orgTwoFactorDisabled = security?.two_factor_disabled === true;
           }
         } catch (err) {

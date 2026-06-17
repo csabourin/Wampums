@@ -260,7 +260,9 @@ module.exports = (pool, logger) => {
             [organizationId]
           );
           if (orgInfoResult.rows[0]?.setting_value) {
-            const orgInfo = JSON.parse(orgInfoResult.rows[0].setting_value);
+            // setting_value is a jsonb column, already parsed by the pg driver.
+            const rawOrgInfo = orgInfoResult.rows[0].setting_value;
+            const orgInfo = typeof rawOrgInfo === 'string' ? JSON.parse(rawOrgInfo) : rawOrgInfo;
             if (orgInfo?.meeting_section && meetingSections.sections?.[orgInfo.meeting_section]) {
               sectionKey = orgInfo.meeting_section;
             }

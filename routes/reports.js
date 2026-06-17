@@ -351,7 +351,9 @@ module.exports = (pool, logger) => {
     let requiredForms = ['fiche_sante', 'acceptation_risque', 'formulaire_inscription'];
     if (settingsResult.rows.length > 0) {
       try {
-        requiredForms = JSON.parse(settingsResult.rows[0].setting_value);
+        // setting_value is a jsonb column, already parsed by the pg driver.
+        const raw = settingsResult.rows[0].setting_value;
+        requiredForms = typeof raw === 'string' ? JSON.parse(raw) : raw;
       } catch (e) {
         // Keep defaults
       }
