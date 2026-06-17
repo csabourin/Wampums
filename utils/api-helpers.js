@@ -239,7 +239,9 @@ async function getPointSystemRules(pool, organizationId) {
 
     if (result.rows.length > 0) {
       try {
-        return JSON.parse(result.rows[0].setting_value);
+        // setting_value is a jsonb column, already parsed by the pg driver.
+        const raw = result.rows[0].setting_value;
+        return typeof raw === 'string' ? JSON.parse(raw) : raw;
       } catch (e) {
         logger.warn('Error parsing point_system_rules:', e);
       }

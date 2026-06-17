@@ -774,7 +774,9 @@ module.exports = (pool, logger) => {
 
     if (settingsResult.rows.length > 0) {
       try {
-        const badgeSystem = JSON.parse(settingsResult.rows[0].setting_value);
+        // setting_value is a jsonb column, already parsed by the pg driver.
+        const raw = settingsResult.rows[0].setting_value;
+        const badgeSystem = typeof raw === 'string' ? JSON.parse(raw) : raw;
         dataPayload = { ...badgeSystem, templates };
       } catch (e) {
         dataPayload = { settings: settingsResult.rows[0].setting_value, templates };
