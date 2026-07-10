@@ -8,6 +8,7 @@ import { debugLog, debugError, debugWarn, isDebugMode } from "./utils/DebugUtils
 import { setContent } from "./utils/DOMUtils.js";
 import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { checkSession } from "./utils/SessionUtils.js";
+import { dismissActiveDialog } from "./utils/DialogUtils.js";
 import {
   canApproveBadges,
   // ... (imports continue)
@@ -225,6 +226,36 @@ export class Router {
       }
     }
     this.currentModuleInstance = null;
+    this.dismissTransientOverlays();
+  }
+
+  /**
+   * Remove any modal/dialog overlays left open by the previous screen.
+   * Modules that append modals to document.body (award modals, AI prompts,
+   * settings overlays, confirm dialogs) must not survive navigation.
+   * Persistent app chrome (command palette, sync panel, offline indicator,
+   * PWA prompts) uses distinct class names and is left untouched.
+   */
+  dismissTransientOverlays() {
+    dismissActiveDialog();
+
+    const appRoot = document.getElementById('app');
+    const transientSelectors = '.modal, .modal-container, .modal-screen, .modal-overlay, .dash-settings, .dialog-overlay';
+    document.querySelectorAll(transientSelectors).forEach((el) => {
+      // Overlays inside #app are replaced by the next render anyway.
+      if (appRoot && appRoot.contains(el)) {
+        return;
+      }
+      let top = el;
+      while (top.parentElement && top.parentElement !== document.body) {
+        top = top.parentElement;
+      }
+      if (top.parentElement === document.body) {
+        top.remove();
+      }
+    });
+
+    document.body.classList.remove('dash-settings-open');
   }
 
   navigate(path) {
@@ -310,6 +341,7 @@ export class Router {
         case 'PrintableGroupParticipantReport':
           const PrintableGroupParticipantReport = await this.loadModule('PrintableGroupParticipantReport');
           const report = new PrintableGroupParticipantReport(this.app);
+          this.currentModuleInstance = report;
           await report.init();
           break;
         case "admin":
@@ -330,6 +362,7 @@ export class Router {
           }
           const Finance = await this.loadModule('Finance');
           const finance = new Finance(this.app);
+          this.currentModuleInstance = finance;
           await finance.init();
           break;
         case "budgets":
@@ -347,6 +380,7 @@ export class Router {
           }
           const ExternalRevenue = await this.loadModule('ExternalRevenue');
           const externalRevenue = new ExternalRevenue(this.app);
+          this.currentModuleInstance = externalRevenue;
           await externalRevenue.init();
           break;
         case "expenses":
@@ -355,6 +389,7 @@ export class Router {
           }
           const Expenses = await this.loadModule('Expenses');
           const expenses = new Expenses(this.app);
+          this.currentModuleInstance = expenses;
           await expenses.init();
           break;
         case "revenueDashboard":
@@ -363,6 +398,7 @@ export class Router {
           }
           const RevenueDashboard = await this.loadModule('RevenueDashboard');
           const revenueDashboard = new RevenueDashboard(this.app);
+          this.currentModuleInstance = revenueDashboard;
           await revenueDashboard.init();
           break;
         case "resourceDashboard":
@@ -371,6 +407,7 @@ export class Router {
           }
           const ResourceDashboard = await this.loadModule('ResourceDashboard');
           const resourceDashboard = new ResourceDashboard(this.app);
+          this.currentModuleInstance = resourceDashboard;
           await resourceDashboard.init();
           break;
         case "inventory":
@@ -379,6 +416,7 @@ export class Router {
           }
           const Inventory = await this.loadModule('Inventory');
           const inventory = new Inventory(this.app);
+          this.currentModuleInstance = inventory;
           await inventory.init();
           break;
         case "medicationManagement":
@@ -392,6 +430,7 @@ export class Router {
             view: routeName === "medicationDispensing" ? "dispensing" : "planning",
             enableAlerts: routeName === "medicationDispensing"
           });
+          this.currentModuleInstance = medicationManagement;
           await medicationManagement.init();
           break;
         case "medicationPlanningParticipant":
@@ -405,6 +444,7 @@ export class Router {
             participantId: participantId,
             returnUrl: isParent() ? '/parent-dashboard' : '/medication-reception'
           });
+          this.currentModuleInstance = medicationManagementParticipant;
           await medicationManagementParticipant.init();
           break;
         case "medicationAuthorizationsParticipant":
@@ -418,6 +458,7 @@ export class Router {
             participantId: authParticipantId,
             returnUrl: isParent() ? '/parent-dashboard' : '/medication-planning'
           });
+          this.currentModuleInstance = medicationManagementAuth;
           await medicationManagementAuth.init();
           break;
         case "medicationReception":
@@ -426,6 +467,7 @@ export class Router {
           }
           const MedicationReception = await this.loadModule('MedicationReception');
           const medicationReception = new MedicationReception(this.app);
+          this.currentModuleInstance = medicationReception;
           await medicationReception.init();
           break;
         case "materialManagement":
@@ -434,6 +476,7 @@ export class Router {
           }
           const MaterialManagement = await this.loadModule('MaterialManagement');
           const materialManagement = new MaterialManagement(this.app);
+          this.currentModuleInstance = materialManagement;
           await materialManagement.init();
           break;
         case "permissionSlipDashboard":
@@ -442,6 +485,7 @@ export class Router {
           }
           const PermissionSlipDashboard = await this.loadModule('PermissionSlipDashboard');
           const permissionSlipDashboard = new PermissionSlipDashboard(this.app);
+          this.currentModuleInstance = permissionSlipDashboard;
           await permissionSlipDashboard.init();
           break;
         case "permissionSlipDashboardActivity":
@@ -451,6 +495,7 @@ export class Router {
           const PermissionSlipDashboardActivity = await this.loadModule('PermissionSlipDashboard');
           const activityId = parseInt(param);
           const permissionSlipDashboardActivity = new PermissionSlipDashboardActivity(this.app, { activityId });
+          this.currentModuleInstance = permissionSlipDashboardActivity;
           await permissionSlipDashboardActivity.init();
           break;
         case "permissionSlipSign":
@@ -458,6 +503,7 @@ export class Router {
           debugLog('[ROUTER DEBUG] Loading PermissionSlipSign with ID:', param);
           const PermissionSlipSign = await this.loadModule('PermissionSlipSign');
           const permissionSlipSign = new PermissionSlipSign(this.app, param);
+          this.currentModuleInstance = permissionSlipSign;
           await permissionSlipSign.init();
           break;
         case "calendars":
@@ -472,6 +518,7 @@ export class Router {
           }
           const CreateOrganization = await this.loadModule('CreateOrganization');
           const createOrganization = new CreateOrganization(this.app);
+          this.currentModuleInstance = createOrganization;
           await createOrganization.init();
           break;
         case "parentDashboard":
@@ -563,6 +610,7 @@ export class Router {
           }
           const RegisterOrganization = await this.loadModule('RegisterOrganization');
           const registerOrganization = new RegisterOrganization(this.app);
+          this.currentModuleInstance = registerOrganization;
           await registerOrganization.init();
           break;
         case "logout":
@@ -719,6 +767,7 @@ export class Router {
           }
           const FormBuilder = await this.loadModule('FormBuilder');
           const formBuilder = new FormBuilder(this.app);
+          this.currentModuleInstance = formBuilder;
           await formBuilder.init();
           break;
         case "activities":
@@ -727,6 +776,7 @@ export class Router {
           }
           const Activities = await this.loadModule('Activities');
           const activities = new Activities(this.app);
+          this.currentModuleInstance = activities;
           await activities.init();
           break;
         case "carpoolLanding":
@@ -735,6 +785,7 @@ export class Router {
           }
           const CarpoolLanding = await this.loadModule('CarpoolLanding');
           const carpoolLanding = new CarpoolLanding(this.app);
+          this.currentModuleInstance = carpoolLanding;
           await carpoolLanding.init();
           break;
         case "carpool":
@@ -743,6 +794,7 @@ export class Router {
           }
           const CarpoolDashboard = await this.loadModule('CarpoolDashboard');
           const carpoolDashboard = new CarpoolDashboard(this.app, param);
+          this.currentModuleInstance = carpoolDashboard;
           await carpoolDashboard.init();
           break;
         case "roleManagement":
@@ -753,6 +805,7 @@ export class Router {
           }
           const RoleManagement = await this.loadModule('RoleManagement');
           const roleManagement = new RoleManagement(this.app);
+          this.currentModuleInstance = roleManagement;
           await roleManagement.init();
           break;
         case "districtManagement":
@@ -761,6 +814,7 @@ export class Router {
           }
           const DistrictManagement = await this.loadModule('DistrictManagement');
           const districtManagement = new DistrictManagement(this.app);
+          this.currentModuleInstance = districtManagement;
           await districtManagement.init();
           break;
         case "formPermissions":
@@ -819,18 +873,21 @@ export class Router {
   async loadDynamicForm(formType, participantId) {
     const DynamicFormHandler = await this.loadModule('DynamicFormHandler');
     const dynamicFormHandler = new DynamicFormHandler(this.app);
+    this.currentModuleInstance = dynamicFormHandler;
     await dynamicFormHandler.init(formType, participantId);
   }
 
   async loadFundraisersPage() {
     const Fundraisers = await this.loadModule('Fundraisers');
     const fundraisers = new Fundraisers(this.app);
+    this.currentModuleInstance = fundraisers;
     await fundraisers.init();
   }
 
   async loadCalendarsPage(fundraiserId) {
     const Calendars = await this.loadModule('Calendars');
     const calendars = new Calendars(this.app);
+    this.currentModuleInstance = calendars;
     await calendars.init(fundraiserId);
   }
 
@@ -851,12 +908,14 @@ export class Router {
 
   async loadDashboard(options = {}) {
     const dashboard = new Dashboard(this.app, options);
+    this.currentModuleInstance = dashboard;
     await dashboard.init();
   }
 
   async loadAdminPage() {
     const Admin = await this.loadModule('Admin');
     const admin = new Admin(this.app);
+    this.currentModuleInstance = admin;
     await admin.init();
   }
 
@@ -890,36 +949,42 @@ export class Router {
   async loadParentDashboard() {
     const ParentDashboard = await this.loadModule('ParentDashboard');
     const parentDashboard = new ParentDashboard(this.app);
+    this.currentModuleInstance = parentDashboard;
     await parentDashboard.init();
   }
 
   async loadParentFinance() {
     const ParentFinance = await this.loadModule('ParentFinance');
     const parentFinance = new ParentFinance(this.app);
+    this.currentModuleInstance = parentFinance;
     await parentFinance.init();
   }
 
   async loadManagePoints() {
     const ManagePoints = await this.loadModule('ManagePoints');
     const managePoints = new ManagePoints(this.app);
+    this.currentModuleInstance = managePoints;
     await managePoints.init();
   }
 
   async loadTimeSinceRegistration() {
     const TimeSinceRegistration = await this.loadModule('TimeSinceRegistration');
     const timeSinceRegistration = new TimeSinceRegistration(this.app);
+    this.currentModuleInstance = timeSinceRegistration;
     await timeSinceRegistration.init();
   }
 
   async loadBadgeForm(participantId) {
     const BadgeForm = await this.loadModule('BadgeForm');
     const badgeForm = new BadgeForm(this.app);
+    this.currentModuleInstance = badgeForm;
     await badgeForm.init(participantId);
   }
 
   async loadAttendance() {
     const Attendance = await this.loadModule('Attendance');
     const attendance = new Attendance(this.app);
+    this.currentModuleInstance = attendance;
     await attendance.init();
   }
 
@@ -928,36 +993,42 @@ export class Router {
   async loadReports() {
     const Reports = await this.loadModule('Reports');
     const reports = new Reports(this.app);
+    this.currentModuleInstance = reports;
     await reports.init();
   }
 
   async loadUpcomingMeeting() {
     const UpcomingMeeting = await this.loadModule('UpcomingMeeting');
     const upcomingMeeting = new UpcomingMeeting(this.app);
-    upcomingMeeting.init();
+    this.currentModuleInstance = upcomingMeeting;
+    await upcomingMeeting.init();
   }
 
   async loadPreparationReunions() {
     const PreparationReunions = await this.loadModule('PreparationReunions');
     const preparationReunions = new PreparationReunions(this.app);
+    this.currentModuleInstance = preparationReunions;
     await preparationReunions.init();
   }
 
   async loadAccountInfo() {
     const AccountInfoModule = await this.loadModule('AccountInfoModule');
     const accountInfo = new AccountInfoModule(this.app);
+    this.currentModuleInstance = accountInfo;
     await accountInfo.init();
   }
 
   async loadManageHonors() {
     const ManageHonors = await this.loadModule('ManageHonors');
     const manageHonors = new ManageHonors(this.app);
+    this.currentModuleInstance = manageHonors;
     await manageHonors.init();
   }
 
   async loadManageGroups() {
     const ManageGroups = await this.loadModule('ManageGroups');
     const manageGroups = new ManageGroups(this.app);
+    this.currentModuleInstance = manageGroups;
     await manageGroups.init();
   }
 
@@ -967,12 +1038,14 @@ export class Router {
     const errorParam = urlParams.get('error');
     const ResetPassword = await this.loadModule('ResetPassword');
     const resetPassword = new ResetPassword(this.app);
+    this.currentModuleInstance = resetPassword;
     resetPassword.render(token, errorParam);
   }
 
   async loadManageParticipants() {
     const ManageParticipants = await this.loadModule('ManageParticipants');
     const manageParticipants = new ManageParticipants(this.app);
+    this.currentModuleInstance = manageParticipants;
     await manageParticipants.init();
   }
 
@@ -980,12 +1053,14 @@ export class Router {
     debugLog("Initializing FormulaireInscription with participantId:", participantId);
     const FormulaireInscription = await this.loadModule('FormulaireInscription');
     const formulaireInscription = new FormulaireInscription(this.app);
+    this.currentModuleInstance = formulaireInscription;
     await formulaireInscription.init(participantId);
   }
 
   async loadManageUsersParticipants() {
     const ManageUsersParticipants = await this.loadModule('ManageUsersParticipants');
     const manageUsersParticipants = new ManageUsersParticipants(this.app);
+    this.currentModuleInstance = manageUsersParticipants;
     await manageUsersParticipants.init();
   }
 
@@ -999,24 +1074,28 @@ export class Router {
   async loadParentContactList() {
     const ParentContactList = await this.loadModule('ParentContactList');
     const parentContactList = new ParentContactList(this.app);
+    this.currentModuleInstance = parentContactList;
     await parentContactList.init();
   }
 
   async loadMailingList() {
     const MailingList = await this.loadModule('MailingList');
     const mailingList = new MailingList(this.app);
+    this.currentModuleInstance = mailingList;
     await mailingList.init();
   }
 
   async loadApproveBadges() {
     const ApproveBadges = await this.loadModule('ApproveBadges');
     const approveBadges = new ApproveBadges(this.app);
+    this.currentModuleInstance = approveBadges;
     await approveBadges.init();
   }
 
   async loadBadgeDashboard() {
     const BadgeDashboard = await this.loadModule('BadgeDashboard');
     const badgeDashboard = new BadgeDashboard(this.app);
+    this.currentModuleInstance = badgeDashboard;
     await badgeDashboard.init();
   }
 
@@ -1030,24 +1109,28 @@ export class Router {
   async loadProgramProgressDashboard() {
     const ProgramProgressDashboard = await this.loadModule('ProgramProgressDashboard');
     const programProgressDashboard = new ProgramProgressDashboard(this.app);
+    this.currentModuleInstance = programProgressDashboard;
     await programProgressDashboard.init();
   }
 
   async loadParentProgramProgress() {
     const ParentProgramProgress = await this.loadModule('ParentProgramProgress');
     const parentProgramProgress = new ParentProgramProgress(this.app);
+    this.currentModuleInstance = parentProgramProgress;
     await parentProgramProgress.init();
   }
 
   async loadFicheSante(participantId) {
     const FicheSante = await this.loadModule('FicheSante');
     const ficheSante = new FicheSante(this.app);
+    this.currentModuleInstance = ficheSante;
     await ficheSante.init(participantId);
   }
 
   async loadAcceptationRisque(participantId) {
     const AcceptationRisque = await this.loadModule('AcceptationRisque');
     const acceptationRisque = new AcceptationRisque(this.app);
+    this.currentModuleInstance = acceptationRisque;
     await acceptationRisque.init(participantId);
   }
 
@@ -1064,6 +1147,7 @@ export class Router {
   async loadRegisterPage() {
     const Register = await this.loadModule('Register');
     const register = new Register(this.app);
+    this.currentModuleInstance = register;
     register.render();
   }
 
@@ -1086,6 +1170,7 @@ export class Router {
   async loadLoginPage() {
     const { Login } = await import('./login.js');
     const login = new Login(this.app);
+    this.currentModuleInstance = login;
     login.init();
   }
 }
@@ -1147,9 +1232,10 @@ export function initRouter(app) {
     router.route(routePath);
   });
 
-  // Handle back/forward browser buttons
+  // Handle back/forward browser buttons (keep the query string so
+  // tab-parameterized pages like /finance?tab=reports restore correctly)
   window.addEventListener("popstate", () => {
-    router.route(window.location.pathname);
+    router.route(`${window.location.pathname}${window.location.search}`);
   });
 
   return router;

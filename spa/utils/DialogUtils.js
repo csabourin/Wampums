@@ -413,6 +413,17 @@ export function prompt(options, defaultValue = "") {
  * @param {string|object} options
  * @returns {Promise<boolean>}
  */
+/**
+ * Cancel the currently open dialog, if any.
+ * Called by the router when navigating away so confirm/alert/prompt
+ * overlays never survive a screen change.
+ */
+export function dismissActiveDialog() {
+  if (activeDialog) {
+    activeDialog.cancel();
+  }
+}
+
 export function confirmDestructive(options) {
   const opts = typeof options === "string" ? { message: options } : options || {};
   return confirm({ ...opts, danger: true });

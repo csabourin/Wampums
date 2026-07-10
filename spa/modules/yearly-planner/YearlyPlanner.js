@@ -150,6 +150,7 @@ export class YearlyPlanner extends BaseModule {
   renderPlanList() {
     return `
       <section class="page yearly-planner">
+        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
         <header class="page__header">
           <h1>${translate('yearly_planner_title')}</h1>
           <div class="page__actions">

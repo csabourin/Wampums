@@ -291,6 +291,11 @@ export class Dashboard extends BaseModule {
   //          RENDER
   // -----------------------------
   render() {
+    // A background refresh (counters, news, preload) may resolve after the
+    // user navigated away; never paint over the next screen.
+    if (this.isDestroyed) {
+      return;
+    }
     const container = document.getElementById("app");
     if (this.isLoading) {
       setContent(container, skeletonDashboard());
@@ -683,7 +688,7 @@ export class Dashboard extends BaseModule {
       }
     }
 
-    if (changed && !this.isLoading) {
+    if (changed && !this.isLoading && !this.isDestroyed) {
       this.render();
       this.attachEventListeners();
     }
