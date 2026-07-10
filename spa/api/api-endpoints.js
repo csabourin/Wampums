@@ -1859,20 +1859,6 @@ export async function saveGuest(guestData) {
 }
 
 /**
- * Get meeting reminder
- */
-export async function getMeetingReminder() {
-    return API.get('v1/meetings/reminder');
-}
-
-/**
- * Save meeting reminder
- */
-export async function saveMeetingReminder(reminderData) {
-    return API.post('v1/meetings/reminder', reminderData);
-}
-
-/**
  * Get meeting activity types
  */
 export async function getMeetingActivities() {
@@ -1883,7 +1869,7 @@ export async function getMeetingActivities() {
  * Get meeting templates
  */
 export async function getMeetingTemplates() {
-    return API.get('v1/meetings/templates');
+    return API.get('v1/meetings/activities/templates');
 }
 
 /**
@@ -2737,10 +2723,6 @@ export async function saveOrganization(organizationData) {
  */
 export async function switchOrganization(organizationId) {
     return API.post('v1/organizations/switch', { organization_id: organizationId });
-}
-
-export async function fetchUnprocessedAchievements() {
-    return API.get('v1/meetings/unprocessed-achievements');
 }
 
 /**

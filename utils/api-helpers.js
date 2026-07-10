@@ -91,9 +91,10 @@ function handleOrganizationResolutionError(res, error, loggerInstance = logger) 
 /**
  * Get current organization ID from request
  * Tries multiple sources in priority order:
- * 1. x-organization-id header
- * 2. Domain mapping from database
- * 3. Throws when no organization mapping is available
+ * 1. Authenticated JWT claims (always wins for authenticated requests)
+ * 2. x-organization-id header (unauthenticated/public requests only)
+ * 3. Domain mapping from database
+ * 4. Throws when no organization mapping is available
  *
  * @param {Object} req - Express request object
  * @param {Object} pool - Database pool
@@ -104,24 +105,29 @@ function handleOrganizationResolutionError(res, error, loggerInstance = logger) 
  * const organizationId = await getCurrentOrganizationId(req, pool, logger);
  */
 async function getCurrentOrganizationId(req, pool, logger) {
-  // Try to get from header first
-  if (req.headers['x-organization-id']) {
-    return parseInt(req.headers['x-organization-id'], 10);
-  }
-
   // Prefer organization from authenticated JWT context when available.
-  // This keeps multi-tenant access aligned with authenticated claims.
+  // This keeps multi-tenant access aligned with authenticated claims and
+  // prevents clients from overriding their organization via headers.
   const bearerToken = req.headers.authorization?.split(' ')[1];
   if (bearerToken) {
     try {
       const decoded = verifyJWTToken(bearerToken);
       const tokenOrganizationId = parseInt(decoded?.organizationId ?? decoded?.organization_id, 10);
       if (!Number.isNaN(tokenOrganizationId)) {
+        const headerOrganizationId = parseInt(req.headers['x-organization-id'], 10);
+        if (!Number.isNaN(headerOrganizationId) && headerOrganizationId !== tokenOrganizationId && logger) {
+          logger.warn(`Ignoring x-organization-id header override for authenticated request. Header=${headerOrganizationId}, Token=${tokenOrganizationId}, Path=${req.method} ${req.path}`);
+        }
         return tokenOrganizationId;
       }
     } catch {
       // Ignore token parsing errors here; endpoint-specific auth will handle invalid JWTs.
     }
+  }
+
+  // Unauthenticated (public) requests may identify the organization via header
+  if (req.headers['x-organization-id']) {
+    return parseInt(req.headers['x-organization-id'], 10);
   }
 
   // Try to get from hostname/domain mapping

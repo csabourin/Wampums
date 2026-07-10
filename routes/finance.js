@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, hasAnyRole } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { ROLE_GROUPS } = require('../config/role-constants');
 
@@ -712,7 +712,9 @@ module.exports = (pool, logger) => {
     return success(res, payload, 'Financial summary ready');
   }));
 
-  router.get('/v1/finance/participants/:participantId/statement', authenticate, requirePermission('finance.view'), asyncHandler(async (req, res) => {
+  // No requirePermission here: guardians without finance.view may view their own
+  // children's statements. Staff/guardian access is enforced inside the handler.
+  router.get('/v1/finance/participants/:participantId/statement', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { participantId } = req.params;
@@ -729,8 +731,12 @@ module.exports = (pool, logger) => {
       return error(res, 'Participant not found in this organization', 404);
     }
 
-    // Use centralized role constants for finance access
-    const isStaff = hasAnyRole(req, ...ROLE_GROUPS.FINANCE_ACCESS);
+    // Staff access via JWT claims (requirePermission is not used on this route,
+    // so req.userRoles is not populated and hasAnyRole cannot be used here)
+    const roleNames = req.user.roleNames || [];
+    const permissions = req.user.permissions || [];
+    const isStaff = permissions.includes('finance.view')
+      || ROLE_GROUPS.FINANCE_ACCESS.some((role) => roleNames.includes(role));
 
     if (!isStaff) {
       const guardianLink = await pool.query(
