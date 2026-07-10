@@ -45,7 +45,7 @@
   /* Neutral Colors */
   --color-text: #1d2f2a;
   --color-text-light: #47665d;
-  --color-text-muted: #6f8a81;
+  --color-text-muted: #5d7369; /* 4.7:1 on --color-background, 5.1:1 on white (WCAG AA) */
   --color-background: #f3f7f4;
   --color-surface: #ffffff;
   --color-border: #d3e3dc;

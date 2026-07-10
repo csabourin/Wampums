@@ -898,7 +898,13 @@ export class PreparationReunions {
 
                 // Handle form submission
                 const form = document.getElementById('ai-focus-form');
+                const handleEscape = (e) => {
+                        if (e.key === 'Escape') {
+                                closeModal();
+                        }
+                };
                 const closeModal = () => {
+                        document.removeEventListener('keydown', handleEscape);
                         modalDiv.remove();
                 };
 
@@ -911,12 +917,6 @@ export class PreparationReunions {
                 });
 
                 // Close on Escape key
-                const handleEscape = (e) => {
-                        if (e.key === 'Escape') {
-                                closeModal();
-                                document.removeEventListener('keydown', handleEscape);
-                        }
-                };
                 document.addEventListener('keydown', handleEscape);
 
                 form.addEventListener('submit', async (e) => {

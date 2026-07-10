@@ -210,6 +210,9 @@
   font-weight: 700;
   margin: 0;
   line-height: 1.2;
+  /* Override the global heading color (green) which is unreadable on the
+     colored hero card; inherit the card's --tile-fg instead. */
+  color: inherit;
 }
 
 .dashboard-v2__hero-meta {
