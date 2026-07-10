@@ -505,11 +505,9 @@ export class UpcomingMeeting {
         day: "numeric",
       },
     );
-    const location =
-      this.meetingDetails?.endroit ||
-      translate(
-        "no_location_specified",
-      );
+    const location = this.meetingDetails?.endroit
+      ? escapeHTML(this.meetingDetails.endroit)
+      : translate("no_location_specified");
     const honorValues = Array.isArray(this.meetingDetails?.youth_of_honor)
       ? this.meetingDetails.youth_of_honor
       : this.meetingDetails?.youth_of_honor
@@ -537,7 +535,7 @@ export class UpcomingMeeting {
             (
               a,
             ) =>
-              `<li>${a.time} - ${a.activity}</li>`,
+              `<li>${escapeHTML(a.time || "")} - ${escapeHTML(a.activity || "")}</li>`,
           )
           .join(
             "",

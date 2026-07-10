@@ -13,7 +13,8 @@ const router = express.Router();
 const { check } = require('express-validator');
 
 // Import utilities
-const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { authenticate, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { validateDate, validateDateOptional, checkValidation } = require('../middleware/validation');
 const { getMeetingSectionConfig } = require('../utils/meeting-sections');
 
@@ -57,6 +58,7 @@ module.exports = (pool, logger) => {
    *         description: List of meetings with unprocessed achievements
    */
   router.get('/achievements/unprocessed',
+    authenticate,
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
@@ -103,7 +105,14 @@ module.exports = (pool, logger) => {
           meetings
         });
       } catch (error) {
-        handleOrganizationResolutionError(error, res, logger);
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
+        logger.error('Error fetching unprocessed achievements:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Error fetching unprocessed achievements'
+        });
       }
     }));
 
@@ -126,6 +135,7 @@ module.exports = (pool, logger) => {
    *         description: Reunion preparation retrieved successfully
    */
   router.get('/preparation',
+    authenticate,
     validateDateOptional('date'),
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -231,6 +241,9 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.post('/preparation',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('meetings.manage'),
     validateDate('date'),
     check('endroit').optional().trim().isLength({ max: 500 }).withMessage('endroit must not exceed 500 characters'),
     check('notes').optional().trim().isLength({ max: 5000 }).withMessage('notes must not exceed 5000 characters'),
@@ -242,13 +255,6 @@ module.exports = (pool, logger) => {
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const token = req.headers.authorization?.split(' ')[1];
-        const decoded = verifyJWT(token);
-
-        if (!decoded || !decoded.user_id) {
-          return res.status(401).json({ success: false, message: 'Unauthorized' });
-        }
-
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const { date, youth_of_honor, endroit, activities, notes, animateur_responsable, duration_override } = req.body;
         const meetingSections = await getMeetingSectionConfig(pool, organizationId, logger);
@@ -307,7 +313,7 @@ module.exports = (pool, logger) => {
            duration_override = EXCLUDED.duration_override,
            updated_at = CURRENT_TIMESTAMP
          RETURNING *`,
-          [organizationId, date, honorJson, endroit, activitiesJson, notes, animateur_responsable, duration_override || null]
+          [organizationId, date, honorJson, endroit, activitiesJson, notes, animateur_responsable || null, duration_override || null]
         );
         const savedPreparation = result.rows[0];
         try {
@@ -350,15 +356,9 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.get('/dates',
+    authenticate,
     asyncHandler(async (req, res) => {
       try {
-        const token = req.headers.authorization?.split(' ')[1];
-        const decoded = verifyJWT(token);
-
-        if (!decoded || !decoded.user_id) {
-          return res.status(401).json({ success: false, message: 'Unauthorized' });
-        }
-
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
         const result = await pool.query(
@@ -395,15 +395,9 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.get('/next',
+    authenticate,
     asyncHandler(async (req, res) => {
       try {
-        const token = req.headers.authorization?.split(' ')[1];
-        const decoded = verifyJWT(token);
-
-        if (!decoded || !decoded.user_id) {
-          return res.status(401).json({ success: false, message: 'Unauthorized' });
-        }
-
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const today = new Date().toISOString().split('T')[0];
 
@@ -462,25 +456,19 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.get('/guests',
+    authenticate,
     asyncHandler(async (req, res) => {
       try {
-        const token = req.headers.authorization?.split(' ')[1];
-        const decoded = verifyJWT(token);
-
-        if (!decoded || !decoded.user_id) {
-          return res.status(401).json({ success: false, message: 'Unauthorized' });
-        }
-
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const date = req.query.date || new Date().toISOString().split('T')[0];
 
         // Return empty array if guests table doesn't exist yet
         try {
-          // Note: guests table doesn't have organization_id column per schema
           const result = await pool.query(
             `SELECT id, name, email, attendance_date::text as attendance_date FROM guests
-           WHERE attendance_date = $1
+           WHERE attendance_date = $1 AND organization_id = $2
            ORDER BY name`,
-            [date]
+            [date, organizationId]
           );
           return res.json({ success: true, guests: result.rows, message: 'Guests retrieved successfully' });
         } catch (err) {
@@ -535,15 +523,11 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.post('/guests',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('meetings.manage'),
     asyncHandler(async (req, res) => {
       try {
-        const token = req.headers.authorization?.split(' ')[1];
-        const decoded = verifyJWT(token);
-
-        if (!decoded || !decoded.user_id) {
-          return res.status(401).json({ success: false, message: 'Unauthorized' });
-        }
-
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const { name, email, attendance_date } = req.body;
 
@@ -601,13 +585,6 @@ module.exports = (pool, logger) => {
   // Handler function for getting reminder
   const getReminderHandler = async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       const result = await pool.query(
@@ -632,7 +609,7 @@ module.exports = (pool, logger) => {
   };
 
   // Register reminder endpoint
-  router.get('/reminders', asyncHandler(getReminderHandler));
+  router.get('/reminders', authenticate, asyncHandler(getReminderHandler));
 
   /**
    * @swagger
@@ -664,27 +641,38 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.post('/reminders',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('meetings.manage'),
     asyncHandler(async (req, res) => {
       try {
-        const token = req.headers.authorization?.split(' ')[1];
-        const decoded = verifyJWT(token);
-
-        if (!decoded || !decoded.user_id) {
-          return res.status(401).json({ success: false, message: 'Unauthorized' });
-        }
-
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const { reminder_date, is_recurring, reminder_text } = req.body;
 
-        await pool.query(
-          `INSERT INTO rappel_reunion (organization_id, reminder_date, is_recurring, reminder_text)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (organization_id) DO UPDATE SET
-         reminder_date = EXCLUDED.reminder_date,
-         is_recurring = EXCLUDED.is_recurring,
-         reminder_text = EXCLUDED.reminder_text`,
+        // rappel_reunion has no unique constraint on organization_id, so ON CONFLICT
+        // cannot be used here. Update the latest reminder for the organization, or
+        // insert one when none exists yet.
+        const updateResult = await pool.query(
+          `UPDATE rappel_reunion
+           SET reminder_date = $2,
+               is_recurring = $3,
+               reminder_text = $4
+           WHERE id = (
+             SELECT id FROM rappel_reunion
+             WHERE organization_id = $1
+             ORDER BY creation_time DESC
+             LIMIT 1
+           )`,
           [organizationId, reminder_date, is_recurring, reminder_text]
         );
+
+        if (updateResult.rowCount === 0) {
+          await pool.query(
+            `INSERT INTO rappel_reunion (organization_id, reminder_date, is_recurring, reminder_text)
+             VALUES ($1, $2, $3, $4)`,
+            [organizationId, reminder_date, is_recurring, reminder_text]
+          );
+        }
 
         res.json({ success: true, message: 'Reminder saved successfully' });
       } catch (error) {
@@ -712,15 +700,9 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.get('/activities',
+    authenticate,
     asyncHandler(async (req, res) => {
       try {
-        const token = req.headers.authorization?.split(' ')[1];
-        const decoded = verifyJWT(token);
-
-        if (!decoded || !decoded.user_id) {
-          return res.status(401).json({ success: false, message: 'Unauthorized' });
-        }
-
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const meetingSections = await getMeetingSectionConfig(pool, organizationId, logger);
         const result = await pool.query(
@@ -760,15 +742,9 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.get('/activities/templates',
+    authenticate,
     asyncHandler(async (req, res) => {
       try {
-        const token = req.headers.authorization?.split(' ')[1];
-        const decoded = verifyJWT(token);
-
-        if (!decoded || !decoded.user_id) {
-          return res.status(401).json({ success: false, message: 'Unauthorized' });
-        }
-
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
         const result = await pool.query(

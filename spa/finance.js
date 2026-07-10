@@ -19,8 +19,6 @@ import {
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
-import { aiParseReceipt } from "./modules/AI.js";
-import { setButtonLoading } from "./utils/SkeletonUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import { clearFinanceRelatedCaches } from "./indexedDB.js";
 import { LoadingStateManager, CacheWithTTL, retryWithBackoff, withButtonLoading, debounce } from "./utils/PerformanceUtils.js";
@@ -944,51 +942,6 @@ export class Finance extends BaseModule {
 
     const paymentModal = document.getElementById('payment-modal');
     if (paymentModal) {
-      document.getElementById('ai-scan-receipt-btn')?.addEventListener('click', () => {
-        document.getElementById('receipt-upload-input')?.click();
-      });
-
-      document.getElementById('receipt-upload-input')?.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const btn = document.getElementById('ai-scan-receipt-btn');
-        const status = document.getElementById('scan-status');
-
-        // Ensure setButtonLoading and aiParseReceipt are defined or imported
-        // For this example, assuming they are globally available or part of `this.app`
-        // If not, you'd need to define them or adjust the call.
-        // For now, I'll assume `setButtonLoading` is available.
-        // `aiParseReceipt` is also assumed to be available.
-
-        if (btn) setButtonLoading(btn, true);
-        if (status) status.textContent = translate("scanning_receipt");
-
-        try {
-          const result = await aiParseReceipt(file);
-          const data = result.data;
-
-          if (data.total) document.getElementById('expense-amount').value = data.total;
-          if (data.date) document.getElementById('expense-date').value = data.date;
-          if (data.vendor) document.getElementById('expense-merchant').value = data.vendor;
-          // Use category or items for description if available, otherwise just "Receipt from [Vendor]"
-          if (data.vendor) document.getElementById('expense-description').value = `${translate("purchase_at")} ${data.vendor}`;
-
-          this.app.showMessage(translate("receipt_scanned_success"), "success");
-          if (status) status.textContent = "";
-
-        } catch (error) {
-          let msg = error.message;
-          if (error.error?.code === 'AI_BUDGET_EXCEEDED') msg = translate('ai_budget_exceeded');
-          this.app.showMessage(translate("error_scanning_receipt") + ": " + msg, "error");
-          if (status) status.textContent = translate("scan_failed");
-        } finally {
-          if (btn) setButtonLoading(btn, false);
-          // Reset input so same file can be selected again
-          e.target.value = '';
-        }
-      });
-
       paymentModal.querySelector('.modal-close')?.addEventListener('click', () => this.closeModal(paymentModal));
       paymentModal.addEventListener('click', (e) => {
         if (e.target === paymentModal) {
@@ -1190,6 +1143,7 @@ export class Finance extends BaseModule {
     const payload = {
       participant_id: parseInt(form.participant_id.value, 10),
       fee_definition_id: parseInt(form.fee_definition_id.value, 10),
+      total_registration_fee: parseFloat(form.total_registration_fee.value || 0),
       total_membership_fee: parseFloat(form.total_membership_fee.value || 0),
       notes: form.notes.value || ''
     };
@@ -1210,22 +1164,36 @@ export class Finance extends BaseModule {
       } else {
         const created = await createParticipantFee(payload);
         targetFeeId = created?.data?.id || created?.participant_fee?.id || created?.id;
-        if (planEnabled && targetFeeId) {
-          const paymentsCount = parseInt(form.plan_number_of_payments.value || 0, 10);
-          const amountPerPayment = parseFloat(form.plan_amount_per_payment.value || 0);
-          if (!paymentsCount || !amountPerPayment) {
-            this.app.showMessage(translate('plan_fields_required'), 'error');
-            return;
+      }
+
+      if (planEnabled && targetFeeId) {
+        const paymentsCount = parseInt(form.plan_number_of_payments.value || 0, 10);
+        const amountPerPayment = parseFloat(form.plan_amount_per_payment.value || 0);
+        if (!paymentsCount || !amountPerPayment) {
+          this.app.showMessage(translate('plan_fields_required'), 'error');
+          return;
+        }
+        const planPayload = {
+          number_of_payments: paymentsCount,
+          amount_per_payment: amountPerPayment,
+          start_date: form.plan_start_date.value,
+          frequency: form.plan_frequency.value,
+          notes: form.plan_notes.value
+        };
+
+        if (existingFeeId) {
+          // Update the existing plan when the fee already has one
+          const plansResponse = await getPaymentPlans(existingFeeId);
+          const existingPlan = (plansResponse?.data || plansResponse?.plans || [])[0];
+          if (existingPlan) {
+            await updatePaymentPlan(existingPlan.id, planPayload);
+          } else {
+            await createPaymentPlan(existingFeeId, planPayload);
           }
-          const planPayload = {
-            number_of_payments: paymentsCount,
-            amount_per_payment: amountPerPayment,
-            start_date: form.plan_start_date.value,
-            frequency: form.plan_frequency.value,
-            notes: form.plan_notes.value
-          };
+        } else {
           await createPaymentPlan(targetFeeId, planPayload);
         }
+        this.paymentPlanCache.delete(targetFeeId);
       }
 
       // Clear all finance caches
@@ -1328,7 +1296,7 @@ export class Finance extends BaseModule {
     if (!firstAmountInput || !fee) return;
 
     // Check if there's a cached last payment amount for this fee
-    const lastAmount = this.lastPaymentAmounts.get(fee.id);
+    const lastAmount = this.lastPaymentAmounts.get(String(fee.id));
     if (lastAmount !== undefined && lastAmount > 0) {
       firstAmountInput.value = lastAmount.toFixed(2);
       return;
@@ -1405,7 +1373,7 @@ export class Finance extends BaseModule {
 
     // Cache the first payment amount for this fee
     if (payments.length > 0) {
-      this.lastPaymentAmounts.set(feeId, payments[0].amount);
+      this.lastPaymentAmounts.set(String(feeId), payments[0].amount);
     }
 
     try {

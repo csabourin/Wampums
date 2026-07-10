@@ -666,7 +666,7 @@ export class PreparationReunions {
                                                                 ${honorLabel}:
                                                                 <small style="font-weight: normal; color: var(--color-text-muted); font-size: var(--font-size-xs);">(${translate("one_per_line")})</small>
                                                         </label>
-                                                        <textarea id="youth-of-honor" class="honor-textarea" rows="3" placeholder="${translate("enter_names_one_per_line")}">${honorListItems}</textarea>
+                                                        <textarea id="youth-of-honor" class="honor-textarea" rows="3" placeholder="${translate("enter_names_one_per_line")}">${escapeHTML(honorListItems)}</textarea>
                                                 </div>
                                                 <div class="form-group">
                                                         <label for="endroit">${translate("endroit")}:</label>

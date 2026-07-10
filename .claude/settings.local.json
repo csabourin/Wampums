@@ -12,7 +12,20 @@
       "Bash(node -e:*)",
       "Bash(node:*)",
       "Bash(dir:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(ls \"//wsl.localhost/Ubuntu/home/csabourin/wampums/routes/\" | grep -iE \"finance|meeting|budget\"; echo ---; ls \"//wsl.localhost/Ubuntu/home/csabourin/wampums/spa/\" | grep -iE \"finance|meeting|budget\"; echo ---; ls \"//wsl.localhost/Ubuntu/home/csabourin/wampums/spa/modules/\" 2>/dev/null)",
+      "Read(///wsl.localhost/Ubuntu/home/csabourin/wampums/**)",
+      "Read(///wsl.localhost/Ubuntu/home/csabourin/wampums/spa/**)",
+      "Bash(cd \"//wsl.localhost/Ubuntu/home/csabourin/wampums\" && wc -l routes/finance.js routes/meetings.js routes/budgets.js spa/finance.js spa/budgets.js spa/parent_finance.js spa/upcoming_meeting.js spa/utils/meetingSections.js 2>/dev/null; ls spa/api/ | grep -iE \"finance|meeting|budget\")",
+      "Read(///wsl.localhost/Ubuntu/home/csabourin/**)",
+      "Bash(cd \"//wsl.localhost/Ubuntu/home/csabourin/wampums\" && ls spa/api/ && echo --- && grep -n \"finance\\\\|meeting\\\\|budget\" routes/index.js | head -30)",
+      "Bash(head -c 2000 \"//wsl.localhost/Ubuntu/home/csabourin/wampums/attached_assets/permissions_list.sql\")",
+      "Read(///wsl.localhost/Ubuntu/home/csabourin/wampums/attached_assets/**)",
+      "Bash(ls \"//wsl.localhost/Ubuntu/home/csabourin/wampums/attached_assets/\" | head -40; grep -o \"finance.view[^,]*\" \"//wsl.localhost/Ubuntu/home/csabourin/wampums/attached_assets/Full_Database_schema.sql\" | head -5)",
+      "Bash(cd \"//wsl.localhost/Ubuntu/home/csabourin/wampums\" && grep -nE \"router\\\\.\\(get|post|put|patch|delete\\)\\\\\\('[^']+'\" routes/budgets.js | sed -E \"s/asyncHandler.*//\" | head -30)",
+      "Bash(cd \"//wsl.localhost/Ubuntu/home/csabourin/wampums\" && grep -n \"rappel_reunion\\\\|reunion_preparations\\\\|CREATE TABLE.*guests\\\\|participant_fees\\\\|fee_definitions\" attached_assets/Full_Database_schema.sql | head -30)",
+      "Bash(cd \"//wsl.localhost/Ubuntu/home/csabourin/wampums\" && sed -n '176,190p;299,315p;366,376p;422,450p' attached_assets/Full_Database_schema.sql && grep -rn \"ON CONFLICT \\(organization_id, date\\)\\\\|reunion_preparations_org_date\\\\|unique\" migrations/*.sql 2>/dev/null | grep -i \"reunion\\\\|rappel\" | head; ls migrations | head -30)",
+      "Bash(cd \"//wsl.localhost/Ubuntu/home/csabourin/wampums\" && grep -rn \"UNIQUE\" attached_assets/Full_Database_schema.sql | grep -iE \"reunion|rappel|participant_fees\" ; echo \"---migrations---\"; grep -rniE \"unique|on conflict\" migrations/ 2>/dev/null | grep -iE \"reunion|rappel|participant_fee\" | head; echo \"---js migrations---\"; ls migrations/*.js 2>/dev/null | head)"
     ]
   }
 }
