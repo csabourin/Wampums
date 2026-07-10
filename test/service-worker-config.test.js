@@ -14,14 +14,14 @@ describe('Service Worker Configuration', () => {
 
   beforeAll(() => {
     // Load vite config
-    const viteConfigPath = path.join(__dirname, '..', 'vite.config.js');
+    const viteConfigPath = path.join(__dirname, '..', 'vite.config.mjs');
     const viteConfigContent = fs.readFileSync(viteConfigPath, 'utf8');
     
     // Load service worker source
     const swPath = path.join(__dirname, '..', 'src-sw.js');
     serviceWorkerSource = fs.readFileSync(swPath, 'utf8');
     
-    // Extract PWA config from vite.config.js
+    // Extract PWA config from vite.config.mjs
     viteConfig = viteConfigContent;
   });
 
