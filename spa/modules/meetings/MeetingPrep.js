@@ -153,7 +153,7 @@ export class MeetingPrep extends BaseModule {
    * @returns {string} Meeting date (YYYY-MM-DD)
    */
   getInitialDate() {
-    const today = normalizeDateString(new Date().toISOString());
+    const today = new Date().toLocaleDateString('en-CA');
     const upcoming = this.meetingDates
       .filter(d => !d.is_cancelled && normalizeDateString(d.date) >= today)
       .map(d => normalizeDateString(d.date))
