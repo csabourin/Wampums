@@ -72,5 +72,12 @@ export function openModal({ id = 'app-modal', title = '', body = '', footer = ''
  * @param {string} id - Modal DOM id
  */
 export function closeModal(id = 'app-modal') {
+  const overlay = document.getElementById(id);
+  if (!overlay) return;
+
+  // Prefer the modal's own close handler so it can clean up document listeners.
+  overlay.querySelector('[data-modal-close]')?.dispatchEvent(new Event('click', { bubbles: true }));
+
+  // Fallback: if no handler was registered, still remove the DOM.
   document.getElementById(id)?.remove();
 }
