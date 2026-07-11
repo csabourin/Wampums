@@ -161,7 +161,7 @@ export class MeetingPrep extends BaseModule {
     if (upcoming.length > 0) {
       return upcoming[0];
     }
-    return getNextWeekdayDate(this.organizationSettings.organization_info?.meeting_day || 'Tuesday');
+    return getNextWeekdayDate(this.organizationSettings.organization_info?.meeting_day || 'Wednesday');
   }
 
   /**
