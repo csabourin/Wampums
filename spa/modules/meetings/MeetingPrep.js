@@ -39,7 +39,7 @@ import {
   saveReminder
 } from '../../api/api-endpoints.js';
 
-const DEFAULT_MEETING_LENGTH_MINUTES = 120;
+const DEFAULT_MEETING_LENGTH_MINUTES = 90;
 
 export class MeetingPrep extends BaseModule {
   constructor(app) {
