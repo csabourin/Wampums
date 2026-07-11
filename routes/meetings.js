@@ -425,7 +425,7 @@ module.exports = (pool, logger) => {
   router.post('/guests',
     authenticate,
     blockDemoRoles,
-    requirePermission('meetings.manage'),
+    requirePermission('attendance.manage'),
     check('name').trim().notEmpty().isLength({ max: 255 }),
     check('email').optional({ nullable: true, checkFalsy: true }).trim().isEmail().isLength({ max: 255 }),
     validateDate('attendance_date'),
