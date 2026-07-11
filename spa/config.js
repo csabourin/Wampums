@@ -141,7 +141,7 @@ export const CONFIG = {
         TRANSLATIONS: "/api/v1/public/translations",
         NEWS: "/api/v1/public/news",
         INITIAL_DATA: "/api/v1/dashboards/initial",
-        REUNION_PREPARATION: "/api/v1/meetings/reunion-preparation",
+        REUNION_PREPARATION: "/api/v1/meetings/preparation",
         MAILING_LIST: "/api/v1/reports/mailing-list",
         PARENT_CONTACT_LIST: "/api/v1/reports/parent-contact-list",
     },

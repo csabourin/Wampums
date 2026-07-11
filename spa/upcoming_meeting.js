@@ -5,11 +5,13 @@ import {
   debugWarn,
   debugInfo,
 } from "./utils/DebugUtils.js";
-import { getReunionDates, getReunionPreparation, saveBadgeProgress, getParticipants, saveReunionPreparation, getBadgeSummary, getAttendance } from "./ajax-functions.js";
-import { formatDate, isToday, parseDate, isoToDateString } from "./utils/DateUtils.js";
+import { getReunionDates, getReunionPreparation, saveBadgeProgress, getParticipants, getBadgeSummary, getAttendance } from "./ajax-functions.js";
+import { markMeetingActivitiesProcessed } from "./api/api-endpoints.js";
+import { formatDate, isToday, parseDate } from "./utils/DateUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { canApproveBadges } from "./utils/PermissionUtils.js";
+import { getUpcomingBirthdays } from "./utils/BirthdayUtils.js";
 
 export class UpcomingMeeting {
   constructor(app) {
@@ -52,16 +54,11 @@ export class UpcomingMeeting {
 
   async fetchMeetingDates() {
     try {
-      const response =
-        await getReunionDates();
-      // Handle both array response and object response with dates property
-      this.meetingDates =
-        Array.isArray(
-          response,
-        )
-          ? response
-          : response?.dates ||
-          [];
+      const response = await getReunionDates();
+      // Standard envelope: data = [{ date, is_cancelled, theme, is_prepared }]
+      this.meetingDates = (response?.data || [])
+        .filter((entry) => !entry.is_cancelled)
+        .map((entry) => entry.date);
     } catch (error) {
       debugError(
         "Error fetching meeting dates:",
@@ -111,65 +108,12 @@ export class UpcomingMeeting {
   getUpcomingBirthdays(meetingDate) {
     const startDate = this.normalizeDateString(meetingDate);
     const endDate = this.getNextMeetingDateAfter(startDate);
-
-    if (!startDate || !endDate) {
-      return { startDate, endDate, entries: [] };
-    }
-
-    const start = parseDate(startDate);
-    const end = parseDate(endDate);
-    if (!start || !end) {
-      return { startDate, endDate, entries: [] };
-    }
-
-    const startYear = start.getFullYear();
-    const endYear = end.getFullYear();
-    const candidateYears = startYear === endYear ? [startYear] : [startYear, endYear];
-    const participants = Array.isArray(this.participants) ? this.participants : [];
-
-    const entries = participants.reduce((acc, participant) => {
-      const birthDateRaw = participant.date_naissance || participant.date_of_birth;
-      if (!birthDateRaw) return acc;
-
-      const birthDate = parseDate(isoToDateString(birthDateRaw));
-      if (!birthDate) return acc;
-
-      const birthMonth = birthDate.getMonth();
-      const birthDay = birthDate.getDate();
-      let birthdayInRange = null;
-
-      candidateYears.forEach((year) => {
-        const daysInMonth = new Date(year, birthMonth + 1, 0).getDate();
-        const safeDay = Math.min(birthDay, daysInMonth);
-        const candidate = new Date(year, birthMonth, safeDay);
-
-        if (candidate >= start && candidate < end) {
-          if (!birthdayInRange || candidate < birthdayInRange) {
-            birthdayInRange = candidate;
-          }
-        }
-      });
-
-      if (!birthdayInRange) return acc;
-
-      const fullName = [participant.first_name, participant.last_name].filter(Boolean).join(' ').trim();
-      const displayName = fullName || participant.full_name || translate('unknown');
-
-      acc.push({
-        id: participant.id,
-        name: displayName,
-        date: isoToDateString(birthdayInRange),
-      });
-      return acc;
-    }, []);
-
-    entries.sort((a, b) => {
-      const dateCompare = a.date.localeCompare(b.date);
-      if (dateCompare !== 0) return dateCompare;
-      return a.name.localeCompare(b.name);
-    });
-
-    return { startDate, endDate, entries };
+    const result = getUpcomingBirthdays(this.participants, startDate, endDate);
+    result.entries = result.entries.map((entry) => ({
+      ...entry,
+      name: entry.name || translate('unknown'),
+    }));
+    return result;
   }
 
   async getAllFutureMeetings() {
@@ -242,25 +186,10 @@ export class UpcomingMeeting {
         await getReunionPreparation(
           dateStr,
         );
-      if (
-        !response.success ||
-        !response.preparation
-      )
-        return false;
+      const meeting = response?.data?.meeting;
+      if (!meeting) return false;
 
-      let activities =
-        response
-          .preparation
-          .activities;
-      if (
-        typeof activities ===
-        "string"
-      ) {
-        activities =
-          JSON.parse(
-            activities,
-          );
-      }
+      const activities = meeting.activities || [];
 
       const endTime =
         this.calculateMeetingEndTime(
@@ -302,34 +231,17 @@ export class UpcomingMeeting {
         await getReunionPreparation(
           date,
         );
-      if (
-        response.success &&
-        response.preparation
-      ) {
-        this.meetingDetails =
-          response.preparation;
-        // Parse the activities JSON string if it's a string
-        if (
-          typeof this
-            .meetingDetails
-            .activities ===
-          "string"
-        ) {
-          this.meetingDetails.activities =
-            JSON.parse(
-              this
-                .meetingDetails
-                .activities,
-            );
-        }
+      const payload = response?.data || {};
+      if (payload.meeting) {
+        this.meetingDetails = payload.meeting;
         // If activities are empty, use activity templates from meetingSections
         if (
           (!this.meetingDetails.activities ||
             this.meetingDetails.activities.length === 0) &&
-          response.meetingSections?.sections
+          payload.meetingSections?.sections
         ) {
-          const defaultSection = response.meetingSections.defaultSection;
-          const sectionData = response.meetingSections.sections[defaultSection];
+          const defaultSection = payload.meetingSections.defaultSection;
+          const sectionData = payload.meetingSections.sections[defaultSection];
           if (sectionData?.activityTemplates) {
             this.meetingDetails.activities = sectionData.activityTemplates.map(template => ({
               time: template.time,
@@ -756,16 +668,13 @@ export class UpcomingMeeting {
     try {
       await Promise.all(updates);
 
-      // Update Meeting Preparation to save 'processed: true'
-      // We need to update the activity objects in the meeting details
-      // The 'achievement' objects are references to objects in this.meetingDetails.activities?
-      // Yes, map/filter preserves references if shallow copy of array.
-
-      // Save updated meeting
-      await saveReunionPreparation({
-        ...this.meetingDetails,
-        activities: this.meetingDetails.activities // Now includes processed: true
-      });
+      // Persist 'processed' on the structured meeting activities
+      const processedIds = allAchievements
+        .filter((a) => a.processed && a.id)
+        .map((a) => a.id);
+      if (processedIds.length > 0) {
+        await markMeetingActivitiesProcessed(processedIds);
+      }
 
       modalContainer.remove();
       this.app.showMessage(translate("achievements_awarded_success"), "success");

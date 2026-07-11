@@ -180,7 +180,7 @@ module.exports = (pool) => {
     }
 
     const meetingResult = await pool.query(
-      "SELECT id, date::text AS date FROM reunion_preparations WHERE id = $1 AND organization_id = $2",
+      "SELECT id, meeting_date::text AS date FROM year_plan_meetings WHERE id = $1 AND organization_id = $2",
       [meetingId, organizationId],
     );
 

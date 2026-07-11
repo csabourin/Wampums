@@ -88,7 +88,7 @@ const lazyModules = {
   ResetPassword: () => import('./reset_password.js').then(m => m.ResetPassword),
   DynamicFormHandler: () => import('./dynamicFormHandler.js').then(m => m.DynamicFormHandler),
   Reports: () => import('./reports.js').then(m => m.Reports),
-  PreparationReunions: () => import('./preparation_reunions.js').then(m => m.PreparationReunions),
+  MeetingPrep: () => import('./modules/meetings/MeetingPrep.js').then(m => m.MeetingPrep),
   RegisterOrganization: () => import('./register_organization.js').then(m => m.RegisterOrganization),
   CreateOrganization: () => import('./create_organization.js').then(m => m.CreateOrganization),
   PrintableGroupParticipantReport: () => import('./group-participant-report.js').then(m => m.PrintableGroupParticipantReport),
@@ -107,7 +107,7 @@ const lazyModules = {
   PermissionSlipSign: () => import('./permission_slip_sign.js').then(m => m.PermissionSlipSign),
   AccountInfoModule: () => import('./modules/account-info.js').then(m => m.AccountInfoModule),
   FormBuilder: () => import('./formBuilder.js').then(m => m.FormBuilder),
-  Activities: () => import('./activities.js').then(m => m.Activities),
+  Activities: () => import('./modules/activities/Activities.js').then(m => m.Activities),
   CarpoolLanding: () => import('./carpool.js').then(m => m.CarpoolLanding),
   CarpoolDashboard: () => import('./carpool_dashboard.js').then(m => m.CarpoolDashboard),
   RoleManagement: () => import('./role_management.js').then(m => m.RoleManagement),
@@ -162,6 +162,7 @@ const routes = {
   "/reset-password": "resetPassword",
   "/reports": "reports",
   "/preparation-reunions": "preparation_reunions",
+  "/preparation-reunions/:date": "preparation_reunions",
   "/register-organization": "registerOrganization",
   "/manage-users-participants": "manageUsersParticipants",
   "/dynamic-form/fiche_sante/:id": "ficheSante",
@@ -756,7 +757,7 @@ export class Router {
           if (!guard(canViewActivities() || canManageActivities())) {
             break;
           }
-          await this.loadPreparationReunions();
+          await this.loadPreparationReunions(param);
           break;
         case "accountInfo":
           await this.loadAccountInfo();
@@ -1004,11 +1005,11 @@ export class Router {
     await upcomingMeeting.init();
   }
 
-  async loadPreparationReunions() {
-    const PreparationReunions = await this.loadModule('PreparationReunions');
-    const preparationReunions = new PreparationReunions(this.app);
-    this.currentModuleInstance = preparationReunions;
-    await preparationReunions.init();
+  async loadPreparationReunions(date = null) {
+    const MeetingPrep = await this.loadModule('MeetingPrep');
+    const meetingPrep = new MeetingPrep(this.app);
+    this.currentModuleInstance = meetingPrep;
+    await meetingPrep.init(date);
   }
 
   async loadAccountInfo() {

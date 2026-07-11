@@ -29,7 +29,8 @@ const NextMeetingScreen = () => {
       setError('');
       const response = await getNextMeetingInfo();
       if (response.success) {
-        setMeeting(response.meeting || null);
+        // Standard envelope: data is the meeting object (or null)
+        setMeeting(response.data || response.meeting || null);
       } else {
         setMeeting(null);
       }
