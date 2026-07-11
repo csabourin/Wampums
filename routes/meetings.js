@@ -400,7 +400,7 @@ module.exports = (pool, logger) => {
    */
   router.get('/guests',
     authenticate,
-    requirePermission('meetings.view'),
+    requirePermission('attendance.view'),
     validateDateOptional('date'),
     checkValidation,
     asyncHandler(async (req, res) => {
