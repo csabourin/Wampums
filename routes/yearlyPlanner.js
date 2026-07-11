@@ -758,11 +758,13 @@ module.exports = (pool, logger) => {
         return error(res, 'name is required (or set a theme on the meeting)', 400);
       }
 
-      const startTime = req.body.meeting_time || (meeting.start_time
+      const startTimeRaw = req.body.meeting_time || (meeting.start_time
         ? String(meeting.start_time).substring(0, 5)
         : defaults.meetingTime);
-      const departureTime = req.body.departure_time
+      const startTime = computeEndTime(startTimeRaw, 0);
+      const departureTimeRaw = req.body.departure_time
         || computeEndTime(startTime, meeting.duration_minutes || defaults.durationMinutes);
+      const departureTime = computeEndTime(departureTimeRaw, 0);
       const location = req.body.location || meeting.location || defaults.location;
 
       if (startTime >= departureTime) {
