@@ -41,6 +41,8 @@ import {
   canViewUsers,
   canViewIncidents,
   canManageIncidents,
+  canViewMeetings,
+  canManageMeetings,
   isParent
 } from "./utils/PermissionUtils.js";
 
@@ -754,7 +756,7 @@ export class Router {
           await this.loadBadgeForm(param);
           break;
         case 'preparation_reunions':
-          if (!guard(canViewActivities() || canManageActivities())) {
+          if (!guard(canViewMeetings() || canManageMeetings())) {
             break;
           }
           await this.loadPreparationReunions(param);

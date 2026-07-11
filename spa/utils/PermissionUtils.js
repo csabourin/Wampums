@@ -530,6 +530,24 @@ export function canManageIncidents() {
 }
 
 /**
+ * Determine if the current user can view meeting data
+ *
+ * @returns {boolean} True when meetings view permission is granted
+ */
+export function canViewMeetings() {
+  return hasPermission('meetings.view');
+}
+
+/**
+ * Determine if the current user can manage meetings
+ *
+ * @returns {boolean} True when meetings manage permission is granted
+ */
+export function canManageMeetings() {
+  return hasPermission('meetings.manage');
+}
+
+/**
  * Determine if the current user can access administrative tools
  *
  * Combines permission checks with leadership roles to keep compatibility
