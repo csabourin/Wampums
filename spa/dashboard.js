@@ -366,7 +366,7 @@ export class Dashboard extends BaseModule {
 
     // --- Planning & Activities (permission-gated like the other sections) ---
     const canSeeActivities = hasAnyPermission("activities.view", "activities.create");
-    const canSeeMeetings = hasAnyPermission("meetings.view", "meetings.manage") || canSeeActivities;
+    const canSeeMeetings = hasAnyPermission("meetings.view", "meetings.manage");
     const planningTiles = filterOffline(sortByLabel([
       canSeeActivities && { href: "/activities", icon: "fa-calendar-days", label: "activities_calendar" },
       { href: "/carpool", icon: "fa-car", label: "carpool_coordination", id: "carpool-quick-access" },
