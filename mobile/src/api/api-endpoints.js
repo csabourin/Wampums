@@ -933,14 +933,14 @@ export const getNextMeetingInfo = async () => {
  * Save reminder for meeting
  */
 export const saveReminder = async (reminderData) => {
-  return API.post('save-reminder', reminderData);
+  return API.post('v1/meetings/reminders', reminderData);
 };
 
 /**
  * Get reminder
  */
 export const getReminder = async () => {
-  return API.get('reminder');
+  return API.get('v1/meetings/reminders');
 };
 
 /**

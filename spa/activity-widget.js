@@ -68,25 +68,16 @@ export class ActivityWidget extends BaseModule {
 			);
 			debugLog("Fetched reunion preparation data:", data);
 
-			if (
-				data.success &&
-				data.preparation &&
-				data.preparation.activities &&
-				data.preparation.date
-			) {
-				this.currentActivities = data.preparation.activities;
-				debugLog("=== DATE PARSING DEBUG ===");
-				debugLog("Raw date value:", data.preparation.date);
-				debugLog("Date type:", typeof data.preparation.date);
-				debugLog("Date stringified:", JSON.stringify(data.preparation.date));
-				debugLog("Concatenated:", data.preparation.date + "T00:00:00");
-				this.preparationDate = new Date(data.preparation.date + "T00:00:00");
+			const meeting = data?.data?.meeting;
+			if (meeting && meeting.activities && meeting.date) {
+				this.currentActivities = meeting.activities;
+				this.preparationDate = new Date(meeting.date + "T00:00:00");
 				debugLog("Current activities set:", this.currentActivities);
 				debugLog("Preparation date:", this.preparationDate);
 
 				// Validate the parsed date
 				if (isNaN(this.preparationDate.getTime())) {
-					debugError("Invalid date format received:", data.preparation.date);
+					debugError("Invalid date format received:", meeting.date);
 					this.currentActivities = [];
 					this.preparationDate = null;
 				}

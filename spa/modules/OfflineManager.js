@@ -961,7 +961,7 @@ export class OfflineManager {
             () => import('../attendance.js'),
             () => import('../manage_points.js'),
             () => import('../manage_honors.js'),
-            () => import('../activities.js'),
+            () => import('./activities/Activities.js'),
             () => import('../medication_management.js'),
             () => import('../medication_reception.js'),
             () => import('../badge_dashboard.js'),

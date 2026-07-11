@@ -28,8 +28,7 @@ import {
   markBadgesDeliveredBulk,
   saveBadgeProgress,
   getUnprocessedAchievements,
-  getReunionPreparation,
-  saveReunionPreparation,
+  markMeetingActivitiesProcessed,
   getAttendance,
   getAttendanceDates,
 } from "./api/api-endpoints.js";
@@ -88,7 +87,7 @@ export class BadgeTracker {
         }),
       ]);
 
-      this.unprocessedMeetings = unprocessedResponse?.meetings || [];
+      this.unprocessedMeetings = unprocessedResponse?.data || [];
 
       if (response?.success && response.data) {
         this.badges = response.data.badges || [];
@@ -1320,8 +1319,9 @@ export class BadgeTracker {
                     <div><strong>${badgeName}</strong> <small>(${typeLabel})</small></div>
                     <div style="font-size:0.9em; color:#666;">${targetText}</div>
                     <label>
-                        <input type="checkbox" checked class="award-confirm-checkbox" 
-                               data-meeting-id="${a.meetingId}" 
+                        <input type="checkbox" checked class="award-confirm-checkbox"
+                               data-meeting-id="${a.meetingId}"
+                               data-activity-id="${a.id}"
                                data-participants='${targetsJson}'
                                data-template-id="${a.badge_template_id}"
                                data-star-type="${a.star_type}"
@@ -1380,11 +1380,13 @@ export class BadgeTracker {
     btn.textContent = (translate("processing") || "Processing") + "...";
 
     const updates = [];
-    const meetingsToUpdate = new Set();
+    const processedActivityIds = [];
 
     for (const cb of checkboxes) {
-      const meetingId = cb.dataset.meetingId;
-      meetingsToUpdate.add(meetingId);
+      const activityId = parseInt(cb.dataset.activityId, 10);
+      if (activityId) {
+        processedActivityIds.push(activityId);
+      }
 
       const targets = JSON.parse(cb.dataset.participants);
       const templateId = cb.dataset.templateId;
@@ -1408,236 +1410,10 @@ export class BadgeTracker {
     try {
       await Promise.all(updates);
 
-      const savePromises = Array.from(meetingsToUpdate).map(
-        async (meetingId) => {
-          const meeting = this.unprocessedMeetings.find(
-            (m) => m.id == meetingId,
-          );
-          if (meeting) {
-            const fullMeeting = await getReunionPreparation(meeting.date);
-            if (fullMeeting.success && fullMeeting.preparation) {
-              const prep = fullMeeting.preparation;
-              let acts =
-                typeof prep.activities === "string"
-                  ? JSON.parse(prep.activities)
-                  : prep.activities;
-              if (!Array.isArray(acts)) acts = [];
-
-              acts.forEach((a) => {
-                if (a.badge_template_id) {
-                  a.processed = true;
-                }
-              });
-
-              // Need to import saveReunionPreparation? No, handled by getReunionPreparation maybe?
-              // Wait, I need to Import saveReunionPreparation!
-              // I forgot to import it in badge_tracker.js. I only imported getReunionPreparation.
-              // I will use fetch for saving if I missed the import or rely on generic API call if possible.
-              // But better to import it properly. I will assume it is available or I will fix imports later.
-              // Actually, let's fix imports in next step if broken.
-              // But I can try to use imported function if present.
-              // I will assume saveReunionPreparation is NOT imported (I imported getReunionPreparation).
-              // Wait, I imported markBadgesDeliveredBulk etc.
-              // I need to import saveReunionPreparation.
-            }
-          }
-        },
-      );
-
-      // I can't run this code without saveReunionPreparation imported.
-      // I will fix imports in previous step or subsequent step.
-      // For now let's stub it or comment out the save part? No, that's key.
-
-      // Let's rely on fixing imports.
-
-      await Promise.all(savePromises);
-
-      modalContainer.remove();
-      this.showToast(
-        translate("achievements_awarded_success") || "Success",
-        "success",
-      );
-      this.loadData(true);
-    } catch (error) {
-      debugError("Error processing catch-up:", error);
-      this.showToast(translate("error_processing_awards") || "Error", "error");
-      btn.disabled = false;
-    }
-  }
-
-  async openUnprocessedModal() {
-    const achievements = this.unprocessedMeetings.flatMap((m) =>
-      m.activities.map((a) => ({ ...a, meetingDate: m.date, meetingId: m.id })),
-    );
-
-    // Group by Date
-    const grouped = achievements.reduce((acc, curr) => {
-      if (!acc[curr.meetingDate]) acc[curr.meetingDate] = [];
-      acc[curr.meetingDate].push(curr);
-      return acc;
-    }, {});
-
-    const dates = Object.keys(grouped).sort().reverse();
-
-    const rows = dates
-      .map((date) => {
-        const items = grouped[date];
-        const rowsHtml = items
-          .map((a, index) => {
-            const template = this.templates.find(
-              (t) => t.id == a.badge_template_id,
-            );
-            const badgeName = template ? template.name : "Unknown Badge";
-            const typeLabel =
-              a.star_type === "battue"
-                ? translate("badge_type_battue")
-                : translate("badge_type_proie");
-
-            let targets = [];
-            let targetText = "";
-            let targetsJson = "[]";
-
-            if (a.star_type === "battue") {
-              targetText = translate("all_active_participants") || "All Active";
-              targets = this.participants.map((p) => p.id); // All active
-            } else {
-              targets = a.participant_ids || [];
-              targetText = targets
-                .map((tid) => {
-                  const p = this.participants.find((part) => part.id == tid);
-                  return p ? `${p.first_name} ${p.last_name}` : "Unknown";
-                })
-                .join(", ");
-            }
-
-            targetsJson = JSON.stringify(targets);
-
-            return `
-                <div class="award-row" style="margin-left: 20px; border-left: 2px solid #ccc; padding-left: 10px; margin-bottom: 10px;">
-                    <div><strong>${badgeName}</strong> <small>(${typeLabel})</small></div>
-                    <div style="font-size:0.9em; color:#666;">${targetText}</div>
-                    <label>
-                        <input type="checkbox" checked class="award-confirm-checkbox" 
-                               data-meeting-id="${a.meetingId}" 
-                               data-participants='${targetsJson}'
-                               data-template-id="${a.badge_template_id}"
-                               data-star-type="${a.star_type}"
-                               data-date="${a.meetingDate}">
-                        ${translate("confirm_award") || "Confirm"}
-                    </label>
-                </div>
-            `;
-          })
-          .join("");
-
-        return `
-            <div class="meeting-group" style="margin-bottom: 20px;">
-                <h3 style="background:#eee; padding:5px;">${date}</h3>
-                ${rowsHtml}
-            </div>
-        `;
-      })
-      .join("");
-
-    const modalContent = `
-            <div id="award-modal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
-                    <div class="modal-content" style="background-color: #fefefe; margin: 10% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 700px; border-radius: 8px;">
-                            <h2>${translate("unprocessed_achievements_title") || "Unprocessed Achievements"}</h2>
-                            <div class="award-list" style="max-height: 60vh; overflow-y: auto;">
-                                    ${rows}
-                            </div>
-                            <div style="margin-top: 20px; text-align: right;">
-                                    <button class="button button--ghost" id="close-award-modal">${translate("cancel")}</button>
-                                    <button class="button button--primary" id="confirm-award-btn">${translate("confirm")}</button>
-                            </div>
-                    </div>
-            </div>
-    `;
-
-    const modalContainer = document.createElement("div");
-    setContent(modalContainer, modalContent);
-    document.body.appendChild(modalContainer);
-
-    document
-      .getElementById("close-award-modal")
-      .addEventListener("click", () => modalContainer.remove());
-    document
-      .getElementById("confirm-award-btn")
-      .addEventListener("click", () => {
-        this.processUnprocessedAwards(modalContainer);
-      });
-  }
-
-  async processUnprocessedAwards(modalContainer) {
-    const checkboxes = modalContainer.querySelectorAll(
-      ".award-confirm-checkbox:checked",
-    );
-    const btn = document.getElementById("confirm-award-btn");
-    btn.disabled = true;
-    btn.textContent = (translate("processing") || "Processing") + "...";
-
-    const updates = [];
-    const meetingsToUpdate = new Set();
-
-    for (const cb of checkboxes) {
-      const meetingId = cb.dataset.meetingId;
-      meetingsToUpdate.add(meetingId);
-
-      const targets = JSON.parse(cb.dataset.participants);
-      const templateId = cb.dataset.templateId;
-      const starType = cb.dataset.starType;
-      const date = cb.dataset.date;
-
-      const promises = targets.map((pid) => {
-        return saveBadgeProgress({
-          participant_id: pid,
-          badge_template_id: templateId,
-          level: 1,
-          star_type: starType,
-          status: "approved",
-          date_obtention: date,
-          comments: `Catch-up award for meeting ${date}`,
-        });
-      });
-      updates.push(...promises);
-    }
-
-    try {
-      await Promise.all(updates);
-
-      const savePromises = Array.from(meetingsToUpdate).map(
-        async (meetingId) => {
-          const meeting = this.unprocessedMeetings.find(
-            (m) => m.id == meetingId,
-          );
-          if (meeting) {
-            const fullMeeting = await getReunionPreparation(meeting.date);
-            if (fullMeeting.success && fullMeeting.preparation) {
-              const prep = fullMeeting.preparation;
-              let acts =
-                typeof prep.activities === "string"
-                  ? JSON.parse(prep.activities)
-                  : prep.activities;
-              if (!Array.isArray(acts)) acts = [];
-
-              // Mark unprocessed
-              acts.forEach((a) => {
-                // Simple heuristic: if it has badge_template_id, mark processed
-                if (a.badge_template_id) {
-                  a.processed = true;
-                }
-              });
-
-              return saveReunionPreparation({
-                ...prep,
-                activities: acts,
-              });
-            }
-          }
-        },
-      );
-
-      await Promise.all(savePromises);
+      // Persist 'processed' on the structured meeting activities
+      if (processedActivityIds.length > 0) {
+        await markMeetingActivitiesProcessed(processedActivityIds);
+      }
 
       modalContainer.remove();
       this.showToast(

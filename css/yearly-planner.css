@@ -540,3 +540,10 @@
     flex-wrap: wrap;
   }
 }
+
+/* Outings/events (activities calendar) interleaved on the timeline */
+.yp-event {
+  border-left: 4px solid #2e7d32;
+  background: #f2f8f2;
+  cursor: default;
+}

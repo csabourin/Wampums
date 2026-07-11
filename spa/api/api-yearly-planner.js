@@ -79,6 +79,16 @@ export async function updateYearPlanMeeting(meetingId, data) {
   return API.patch(`v1/yearly-planner/meetings/${meetingId}`, data);
 }
 
+/**
+ * Create an outing/event in the activities calendar from a planned meeting
+ * (enables carpools, permission slips and the iCal feed) and link it back.
+ * @param {number} meetingId - Year plan meeting ID
+ * @param {Object} data - Optional overrides { name, description, location, meeting_time, departure_time, end_date, end_time }
+ */
+export async function createActivityEventFromMeeting(meetingId, data = {}) {
+  return API.post(`v1/yearly-planner/meetings/${meetingId}/activity-event`, data);
+}
+
 // ============================================================================
 // MEETING ACTIVITIES
 // ============================================================================

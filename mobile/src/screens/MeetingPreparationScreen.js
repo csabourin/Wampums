@@ -139,8 +139,9 @@ const MeetingPreparationScreen = () => {
   const loadPreparation = async (date) => {
     try {
       const response = await getReunionPreparation(date);
-      if (response.success && response.preparation) {
-        const normalized = normalizePreparation(response.preparation);
+      const meetingPayload = response?.data?.meeting || response?.preparation || null;
+      if (response.success && meetingPayload) {
+        const normalized = normalizePreparation(meetingPayload);
         setFormData({
           date: normalized.date,
           animateur_responsable: normalized.animateur_responsable,
@@ -178,9 +179,13 @@ const MeetingPreparationScreen = () => {
         getMeetingActivities(),
       ]);
 
-      const dates = datesResponse.success
-        ? datesResponse.dates || datesResponse.data || []
+      // Standard envelope: data = [{ date, is_cancelled, ... }]
+      const dateEntries = datesResponse.success
+        ? datesResponse.data || datesResponse.dates || []
         : [];
+      const dates = dateEntries.map((entry) =>
+        typeof entry === 'string' ? entry : entry.date
+      );
       const today = DateUtils.formatDate(new Date());
       const uniqueDates = Array.from(new Set([today, ...dates]));
       setAvailableDates(uniqueDates);
@@ -207,11 +212,12 @@ const MeetingPreparationScreen = () => {
       // Load existing reminder
       try {
         const reminderResponse = await getReminder();
-        if (reminderResponse.success && reminderResponse.reminder) {
+        const reminder = reminderResponse?.data || reminderResponse?.reminder || null;
+        if (reminderResponse.success && reminder) {
           setReminderData({
-            text: reminderResponse.reminder.text || '',
-            date: reminderResponse.reminder.date || '',
-            recurring: reminderResponse.reminder.recurring || false,
+            text: reminder.reminder_text || reminder.text || '',
+            date: reminder.reminder_date || reminder.date || '',
+            recurring: reminder.is_recurring || reminder.recurring || false,
           });
         }
       } catch (err) {

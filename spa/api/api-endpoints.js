@@ -1770,41 +1770,60 @@ export async function getParticipantCalendar(participantId) {
 
 // ============================================================================
 // REUNIONS / MEETINGS
+// All meeting endpoints return the standard envelope: { success, data, ... }.
+// A meeting object merges the calendar row (theme, is_cancelled, period) with
+// its preparation (activities timeline, youth_of_honor, animateur, endroit).
 // ============================================================================
 
 /**
- * Get reunion preparation for a date
- */
-
-/**
- * Get unprocessed achievements from past meetings
+ * Get past meetings with unprocessed badge-linked activities
+ * @returns {Promise<Object>} { data: [{ id, date, activities: [...] }] }
  */
 export async function getUnprocessedAchievements() {
     return API.get('v1/meetings/achievements/unprocessed');
 }
 
 /**
- * Get reunion preparation for a date
+ * Mark badge-linked meeting activities as processed after awards are saved
+ * @param {number[]} activityIds - year_plan_meeting_activities ids
  */
-export async function getReunionPreparation(date) {
+export async function markMeetingActivitiesProcessed(activityIds) {
+    return API.post('v1/meetings/activities/mark-processed', { activity_ids: activityIds });
+}
+
+/**
+ * Get the meeting (calendar + preparation) for a date
+ * @param {string} date - Meeting date (YYYY-MM-DD)
+ * @param {Object} options - { forceRefresh } to bypass the cache
+ * @returns {Promise<Object>} { data: { meeting: Object|null, meetingSections } }
+ */
+export async function getReunionPreparation(date, options = {}) {
     return API.get('v1/meetings/preparation', { date }, {
         cacheKey: `reunion_preparation_${date}`,
-        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
+        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
+        forceRefresh: options.forceRefresh === true
     });
 }
 
 /**
- * Save meeting (SISC)
+ * Save the meeting preparation for a date (upserts the calendar row)
+ * @returns {Promise<Object>} { data: meeting }
  */
 export async function saveReunionPreparation(preparationData) {
     return API.post('v1/meetings/preparation', preparationData);
 }
 
 /**
- * Get available meeting dates
+ * Get all meeting dates (planned and prepared), newest first
+ * @param {boolean} forceRefresh - Bypass the cache
+ * @returns {Promise<Object>} { data: [{ date, is_cancelled, theme, is_prepared }] }
  */
-export async function getReunionDates() {
-    return API.get('v1/meetings/dates');
+export async function getReunionDates(forceRefresh = false) {
+    return API.get('v1/meetings/dates', {}, {
+        cacheKey: 'reunion_dates',
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+        forceRefresh: forceRefresh === true
+    });
 }
 
 /**

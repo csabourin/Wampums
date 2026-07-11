@@ -9,6 +9,7 @@ import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { skeletonTable } from '../../utils/SkeletonUtils.js';
+import { openModal } from '../../utils/ModalUtils.js';
 import {
   getYearPlans,
   getYearPlan,
@@ -28,7 +29,8 @@ import {
   createLibraryActivity,
   deleteLibraryActivity,
   createDistributionRule,
-  deleteDistributionRule
+  deleteDistributionRule,
+  createActivityEventFromMeeting
 } from '../../api/api-yearly-planner.js';
 
 const VIEW = {
@@ -48,6 +50,7 @@ export class YearlyPlanner extends BaseModule {
     this.view = VIEW.LIST;
     this.isLoading = true;
     this.canManage = hasPermission('meetings.manage');
+    this.canCreateActivities = hasPermission('activities.create');
     this.lang = localStorage.getItem('language') || 'en';
   }
 
@@ -258,7 +261,7 @@ export class YearlyPlanner extends BaseModule {
 
         <!-- Timeline Tab -->
         <div class="yp-tab-content yp-tab-content--active" id="yp-tab-timeline">
-          ${this.renderTimeline(meetings, periods, today)}
+          ${this.renderTimeline(meetings, periods, today, plan.activity_events || [])}
         </div>
 
         <!-- Periods Tab -->
@@ -274,8 +277,8 @@ export class YearlyPlanner extends BaseModule {
     `;
   }
 
-  renderTimeline(meetings, periods, today) {
-    if (meetings.length === 0) {
+  renderTimeline(meetings, periods, today, events = []) {
+    if (meetings.length === 0 && events.length === 0) {
       return `<div class="empty-state"><p>${translate('yearly_planner_no_meetings')}</p></div>`;
     }
 
@@ -283,21 +286,55 @@ export class YearlyPlanner extends BaseModule {
     const periodMap = {};
     periods.forEach(p => { periodMap[p.id] = p; });
 
+    // Interleave outings/events (activities calendar) with meetings by date
+    const items = [
+      ...meetings.map(m => ({ kind: 'meeting', date: m.meeting_date, meeting: m })),
+      ...events.map(e => ({ kind: 'event', date: e.start_date, event: e }))
+    ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
     let currentPeriodId = null;
+    let groupOpen = false;
     let html = '<div class="yp-timeline">';
 
-    for (const meeting of meetings) {
-      // Period header
-      if (meeting.period_id !== currentPeriodId) {
-        if (currentPeriodId !== null) html += '</div>'; // Close previous group
-        currentPeriodId = meeting.period_id;
-        const period = periodMap[meeting.period_id];
+    const openGroup = (periodId) => {
+      if (groupOpen) html += '</div>';
+      currentPeriodId = periodId;
+      groupOpen = true;
+      const period = periodMap[periodId];
+      html += `
+        <div class="yp-timeline-group">
+          <h3 class="yp-timeline-group__title">
+            ${period ? escapeHTML(period.title) : translate('yearly_planner_unassigned')}
+          </h3>
+      `;
+    };
+
+    for (const item of items) {
+      if (item.kind === 'event') {
+        if (!groupOpen) openGroup(null);
+        const event = item.event;
         html += `
-          <div class="yp-timeline-group">
-            <h3 class="yp-timeline-group__title">
-              ${period ? escapeHTML(period.title) : translate('yearly_planner_unassigned')}
-            </h3>
+          <div class="yp-meeting yp-event" data-event-id="${event.id}">
+            <div class="yp-meeting__date">
+              <span class="yp-meeting__day">${formatDate(event.start_date, this.lang)}</span>
+              ${event.end_date && event.end_date !== event.start_date ? `<span class="yp-meeting__time">→ ${formatDate(event.end_date, this.lang)}</span>` : ''}
+            </div>
+            <div class="yp-meeting__info">
+              <span class="yp-meeting__theme"><i class="fas fa-campground"></i> ${escapeHTML(event.name)}</span>
+              ${event.location ? `<span class="yp-meeting__location"><i class="fas fa-map-marker-alt"></i> ${escapeHTML(event.location)}</span>` : ''}
+            </div>
+            <div class="yp-meeting__status">
+              <span class="badge badge--info">${translate('yearly_planner_outing')}</span>
+            </div>
+          </div>
         `;
+        continue;
+      }
+
+      const meeting = item.meeting;
+      // Period header
+      if (meeting.period_id !== currentPeriodId || !groupOpen) {
+        openGroup(meeting.period_id);
       }
 
       const isLocked = meeting.meeting_date < today;
@@ -315,17 +352,19 @@ export class YearlyPlanner extends BaseModule {
             ${meeting.theme ? `<span class="yp-meeting__theme">${escapeHTML(meeting.theme)}</span>` : ''}
             ${meeting.location ? `<span class="yp-meeting__location"><i class="fas fa-map-marker-alt"></i> ${escapeHTML(meeting.location)}</span>` : ''}
             <span class="yp-meeting__activities">${activityCount} ${translate('activities')}</span>
+            ${meeting.is_prepared ? `<span class="badge badge--success" title="${translate('yearly_planner_prepared')}">✓ ${translate('yearly_planner_prepared')}</span>` : ''}
           </div>
           <div class="yp-meeting__status">
             ${isCancelled ? `<span class="badge badge--danger">${translate('yearly_planner_cancelled')}</span>` :
               isLocked ? `<span class="badge badge--muted"><i class="fas fa-lock"></i> ${translate('yearly_planner_locked')}</span>` :
-              `<button class="button button--small yp-edit-meeting-btn" data-id="${meeting.id}">${translate('edit')}</button>`}
+              `${this.canManage ? `<button class="button button--small button--secondary yp-prepare-btn" data-date="${meeting.meeting_date}">${translate('yearly_planner_prepare')}</button>` : ''}
+               <button class="button button--small yp-edit-meeting-btn" data-id="${meeting.id}">${translate('edit')}</button>`}
           </div>
         </div>
       `;
     }
 
-    if (currentPeriodId !== null) html += '</div>'; // Close last group
+    if (groupOpen) html += '</div>'; // Close last group
     html += '</div>';
     return html;
   }
@@ -428,6 +467,23 @@ export class YearlyPlanner extends BaseModule {
             ${m.location ? `<p><strong>${translate('meeting_location')}:</strong> ${escapeHTML(m.location)}</p>` : ''}
             ${m.start_time ? `<p><strong>${translate('meeting_time')}:</strong> ${m.start_time.substring(0, 5)} — ${m.end_time ? m.end_time.substring(0, 5) : ''}</p>` : ''}
             ${m.notes ? `<p><strong>${translate('notes')}:</strong> ${escapeHTML(m.notes)}</p>` : ''}
+          </div>
+
+          <div class="yp-meeting-detail__links">
+            ${!m.is_cancelled && this.canManage ? `
+              <button class="button button--secondary" id="yp-prepare-meeting-btn" data-date="${m.meeting_date}">
+                <i class="fas fa-clipboard-list"></i> ${translate('yearly_planner_prepare')}
+              </button>
+            ` : ''}
+            ${m.activity_id ? `
+              <a href="/activities" class="button button--secondary">
+                <i class="fas fa-campground"></i> ${translate('yearly_planner_view_activity_event')}
+              </a>
+            ` : !m.is_cancelled && !m.is_locked && this.canCreateActivities ? `
+              <button class="button button--secondary" id="yp-create-event-btn" data-id="${m.id}">
+                <i class="fas fa-campground"></i> ${translate('yearly_planner_create_activity_event')}
+              </button>
+            ` : ''}
           </div>
 
           <h3>${translate('activities')} (${activities.length})</h3>
@@ -828,6 +884,56 @@ export class YearlyPlanner extends BaseModule {
     });
   }
 
+  /**
+   * Modal to create an outing (activities calendar entry) from a planned
+   * meeting — unlocks carpools, permission slips and the iCal feed.
+   * @param {Object} meeting - Year plan meeting
+   */
+  showCreateEventModal(meeting) {
+    const { overlay, close } = openModal({
+      id: 'yp-event-modal',
+      title: translate('yearly_planner_create_activity_event'),
+      body: `
+        <p class="section-description">${translate('yearly_planner_create_activity_event_help')}</p>
+        <div class="form-group">
+          <label>${translate('activity_name')}</label>
+          <input type="text" id="yp-event-name" class="input" value="${escapeHTML(meeting.theme || '')}" required />
+        </div>
+        <div class="form-group">
+          <label>${translate('meeting_location')}</label>
+          <input type="text" id="yp-event-location" class="input" value="${escapeHTML(meeting.location || '')}" />
+        </div>
+      `,
+      footer: `
+        <button class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+        <button class="button button--primary" id="yp-event-save">${translate('save')}</button>
+      `
+    });
+
+    overlay.querySelector('#yp-event-save').addEventListener('click', async () => {
+      const name = overlay.querySelector('#yp-event-name').value.trim();
+      const location = overlay.querySelector('#yp-event-location').value.trim();
+      if (!name) {
+        this.app.showMessage(translate('plan_fields_required'), 'error');
+        return;
+      }
+      try {
+        await createActivityEventFromMeeting(meeting.id, { name, location });
+        close();
+        this.app.showMessage(translate('yearly_planner_activity_event_created'), 'success');
+        // Refresh the meeting detail so the link button appears
+        const { getYearPlanMeeting } = await import('../../api/api-yearly-planner.js');
+        const response = await getYearPlanMeeting(meeting.id);
+        this.currentMeeting = response?.data || this.currentMeeting;
+        this.render();
+        this.attachEventListeners();
+      } catch (err) {
+        debugError('Error creating activity event:', err);
+        this.app.showMessage(translate('yearly_planner_error_creating'), 'error');
+      }
+    });
+  }
+
   // =========================================================================
   // HANDLERS
   // =========================================================================
@@ -1139,9 +1245,27 @@ export class YearlyPlanner extends BaseModule {
       }, { signal: this.signal });
     });
 
+    // Deep-link into the meeting preparation page for a date
+    document.querySelectorAll('.yp-prepare-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.app.router.navigate(`/preparation-reunions/${btn.dataset.date}`);
+      }, { signal: this.signal });
+    });
+    document.getElementById('yp-prepare-meeting-btn')?.addEventListener('click', () => {
+      const date = document.getElementById('yp-prepare-meeting-btn').dataset.date;
+      this.app.router.navigate(`/preparation-reunions/${date}`);
+    }, { signal: this.signal });
+
+    // Convert a planned meeting into an outing in the activities calendar
+    document.getElementById('yp-create-event-btn')?.addEventListener('click', () => {
+      if (this.currentMeeting) this.showCreateEventModal(this.currentMeeting);
+    }, { signal: this.signal });
+
     document.querySelectorAll('.yp-meeting').forEach(el => {
       el.addEventListener('click', async (e) => {
-        if (e.target.closest('.yp-edit-meeting-btn')) return;
+        if (e.target.closest('.yp-edit-meeting-btn') || e.target.closest('.yp-prepare-btn')) return;
+        if (el.classList.contains('yp-event')) return;
         const meetingId = parseInt(el.dataset.meetingId);
         if (!meetingId) return;
         try {

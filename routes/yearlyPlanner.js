@@ -12,6 +12,7 @@ const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = r
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { check } = require('express-validator');
 const { checkValidation } = require('../middleware/validation');
+const { getMeetingDefaults, computeEndTime, formatLocalDate } = require('../utils/meeting-defaults');
 
 module.exports = (pool, logger) => {
   const router = express.Router();
@@ -81,9 +82,12 @@ module.exports = (pool, logger) => {
           [planId, organizationId]
         ),
         pool.query(
-          `SELECT m.*,
+          `SELECT m.*, m.meeting_date::text as meeting_date,
                   p.title as period_title,
-                  (SELECT COUNT(*) FROM year_plan_meeting_activities WHERE meeting_id = m.id) as activity_count
+                  (SELECT COUNT(*) FROM year_plan_meeting_activities WHERE meeting_id = m.id) as activity_count,
+                  (m.animateur_responsable IS NOT NULL OR EXISTS (
+                    SELECT 1 FROM year_plan_meeting_activities a WHERE a.meeting_id = m.id
+                  )) as is_prepared
            FROM year_plan_meetings m
            LEFT JOIN year_plan_periods p ON m.period_id = p.id
            WHERE m.year_plan_id = $1 AND m.organization_id = $2
@@ -100,6 +104,22 @@ module.exports = (pool, logger) => {
       plan.periods = periodsResult.rows;
       plan.objectives = objectivesResult.rows;
       plan.meetings = meetingsResult.rows;
+
+      // Outings/events (activities table) within the plan range, so the
+      // timeline can show camps and outings next to regular meetings.
+      const eventsResult = await pool.query(
+        `SELECT id, name,
+                COALESCE(activity_start_date, activity_date)::text as start_date,
+                COALESCE(activity_end_date, activity_start_date, activity_date)::text as end_date,
+                meeting_location_going as location
+         FROM activities
+         WHERE organization_id = $1 AND is_active = TRUE
+           AND COALESCE(activity_start_date, activity_date) >= $2
+           AND COALESCE(activity_start_date, activity_date) <= $3
+         ORDER BY COALESCE(activity_start_date, activity_date)`,
+        [organizationId, plan.start_date, plan.end_date]
+      );
+      plan.activity_events = eventsResult.rows;
 
       return success(res, plan);
     })
@@ -128,24 +148,11 @@ module.exports = (pool, logger) => {
         recurrence_pattern, blackout_dates, anchors, settings
       } = req.body;
 
-      // Load org settings for meeting day/time/duration
-      const orgSettings = await pool.query(
-        `SELECT setting_value FROM organization_settings
-         WHERE organization_id = $1 AND setting_key = 'organization_info'`,
-        [organizationId]
-      );
-
-      let meetingDay = 'Wednesday';
-      let meetingTime = '19:00';
-      let meetingDuration = 90;
-      if (orgSettings.rows[0]?.setting_value) {
-        const info = typeof orgSettings.rows[0].setting_value === 'string'
-          ? JSON.parse(orgSettings.rows[0].setting_value)
-          : orgSettings.rows[0].setting_value;
-        if (info.meeting_day) meetingDay = info.meeting_day;
-        if (info.meeting_time) meetingTime = info.meeting_time;
-        if (info.meeting_duration) meetingDuration = parseInt(info.meeting_duration) || 90;
-      }
+      // Shared org defaults (same source as the meeting preparation endpoints)
+      const defaults = await getMeetingDefaults(pool, organizationId);
+      const meetingDay = defaults.meetingDay;
+      const meetingTime = defaults.meetingTime;
+      const meetingDuration = defaults.durationMinutes;
 
       const client = await pool.connect();
       try {
@@ -178,19 +185,32 @@ module.exports = (pool, logger) => {
           anchors || []
         );
 
-        // Parse meeting time for start/end
-        const [hours, minutes] = meetingTime.split(':').map(Number);
-        const endMinutes = (hours * 60 + minutes + meetingDuration);
-        const endHours = Math.floor(endMinutes / 60);
-        const endMins = endMinutes % 60;
-        const endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+        const endTime = computeEndTime(meetingTime, meetingDuration);
 
+        // The calendar is unique per (organization, date): dates that already
+        // exist (standalone preparations or meetings from an older plan) are
+        // adopted into this plan without losing their preparation content.
         for (const meeting of meetings) {
+          // eslint-disable-next-line no-await-in-loop -- ordered inserts inside one transaction
           await client.query(
             `INSERT INTO year_plan_meetings
              (organization_id, year_plan_id, meeting_date, start_time, end_time,
               duration_minutes, location, is_cancelled, anchor_id, theme, metadata)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             ON CONFLICT (organization_id, meeting_date)
+             DO UPDATE SET
+               year_plan_id = EXCLUDED.year_plan_id,
+               period_id = NULL,
+               start_time = COALESCE(year_plan_meetings.start_time, EXCLUDED.start_time),
+               end_time = COALESCE(year_plan_meetings.end_time, EXCLUDED.end_time),
+               duration_minutes = COALESCE(year_plan_meetings.duration_minutes, EXCLUDED.duration_minutes),
+               location = CASE WHEN COALESCE(year_plan_meetings.location, '') = ''
+                               THEN EXCLUDED.location ELSE year_plan_meetings.location END,
+               theme = COALESCE(EXCLUDED.theme, year_plan_meetings.theme),
+               is_cancelled = EXCLUDED.is_cancelled,
+               anchor_id = COALESCE(EXCLUDED.anchor_id, year_plan_meetings.anchor_id),
+               metadata = year_plan_meetings.metadata || EXCLUDED.metadata,
+               updated_at = NOW()`,
             [
               organizationId, plan.id, meeting.date,
               meetingTime, endTime, meetingDuration,
@@ -276,15 +296,44 @@ module.exports = (pool, logger) => {
       const organizationId = await getOrganizationId(req, pool);
       const planId = parseInt(req.params.id);
 
-      const result = await pool.query(
-        `UPDATE year_plans SET is_active = FALSE, updated_at = NOW()
-         WHERE id = $1 AND organization_id = $2 AND is_active = TRUE
-         RETURNING id`,
-        [planId, organizationId]
-      );
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
 
-      if (result.rows.length === 0) {
-        return error(res, 'Year plan not found', 404);
+        const result = await client.query(
+          `UPDATE year_plans SET is_active = FALSE, updated_at = NOW()
+           WHERE id = $1 AND organization_id = $2 AND is_active = TRUE
+           RETURNING id`,
+          [planId, organizationId]
+        );
+
+        if (result.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return error(res, 'Year plan not found', 404);
+        }
+
+        // Keep meetings that carry preparation content or already happened
+        // (detached from the plan); remove the untouched generated ones.
+        await client.query(
+          `UPDATE year_plan_meetings m
+           SET year_plan_id = NULL, period_id = NULL, updated_at = NOW()
+           WHERE m.year_plan_id = $1 AND m.organization_id = $2
+             AND (m.meeting_date < CURRENT_DATE
+                  OR m.animateur_responsable IS NOT NULL
+                  OR EXISTS (SELECT 1 FROM year_plan_meeting_activities a WHERE a.meeting_id = m.id))`,
+          [planId, organizationId]
+        );
+        await client.query(
+          'DELETE FROM year_plan_meetings WHERE year_plan_id = $1 AND organization_id = $2',
+          [planId, organizationId]
+        );
+
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
       }
 
       return success(res, null, 'Year plan deleted');
@@ -590,7 +639,7 @@ module.exports = (pool, logger) => {
       today.setHours(0, 0, 0, 0);
 
       if (meetingDate < today) {
-        return error(res, 'Cannot edit past meetings (locked)', 403);
+        return error(res, 'Cannot edit past meetings (locked)', 409);
       }
 
       const {
@@ -640,7 +689,7 @@ module.exports = (pool, logger) => {
 
       const [meetingResult, activitiesResult] = await Promise.all([
         pool.query(
-          `SELECT m.*, p.title as period_title
+          `SELECT m.*, m.meeting_date::text as meeting_date, p.title as period_title
            FROM year_plan_meetings m
            LEFT JOIN year_plan_periods p ON m.period_id = p.id
            WHERE m.id = $1 AND m.organization_id = $2`,
@@ -664,12 +713,103 @@ module.exports = (pool, logger) => {
       meeting.activities = activitiesResult.rows;
 
       // Check locked status
-      const meetingDate = new Date(meeting.meeting_date);
+      const meetingDate = new Date(`${meeting.meeting_date}T00:00:00`);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       meeting.is_locked = meetingDate < today;
 
       return success(res, meeting);
+    })
+  );
+
+  /**
+   * POST /v1/yearly-planner/meetings/:id/activity-event
+   * Create an outing/event in the activities table from a planned meeting
+   * (unlocks carpools, permission slips, and the iCal feed) and link it back.
+   */
+  router.post('/meetings/:id/activity-event',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('activities.create'),
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const meetingId = parseInt(req.params.id);
+
+      const meetingResult = await pool.query(
+        `SELECT m.*, m.meeting_date::text as meeting_date
+         FROM year_plan_meetings m
+         WHERE m.id = $1 AND m.organization_id = $2`,
+        [meetingId, organizationId]
+      );
+
+      if (meetingResult.rows.length === 0) {
+        return error(res, 'Meeting not found', 404);
+      }
+
+      const meeting = meetingResult.rows[0];
+
+      if (meeting.activity_id) {
+        return error(res, 'Meeting is already linked to an activity', 409);
+      }
+
+      const defaults = await getMeetingDefaults(pool, organizationId);
+      const name = (req.body.name || meeting.theme || '').trim();
+      if (!name) {
+        return error(res, 'name is required (or set a theme on the meeting)', 400);
+      }
+
+      const startTimeRaw = req.body.meeting_time || (meeting.start_time
+        ? String(meeting.start_time).substring(0, 5)
+        : defaults.meetingTime);
+      const startTime = computeEndTime(startTimeRaw, 0);
+      const departureTimeRaw = req.body.departure_time
+        || computeEndTime(startTime, meeting.duration_minutes || defaults.durationMinutes);
+      const departureTime = computeEndTime(departureTimeRaw, 0);
+      const location = req.body.location || meeting.location || defaults.location;
+
+      if (startTime >= departureTime) {
+        return error(res, 'Departure time must be after meeting time', 400);
+      }
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+
+        const activityResult = await client.query(
+          `INSERT INTO activities (
+             name, description, activity_date, activity_start_date, activity_start_time,
+             activity_end_date, activity_end_time, meeting_location_going, meeting_time_going,
+             departure_time_going, meeting_location_return, meeting_time_return,
+             departure_time_return, created_by, organization_id
+           ) VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $4, $8, '', '', '', $9, $10)
+           RETURNING *`,
+          [
+            name,
+            req.body.description || meeting.notes || null,
+            meeting.meeting_date,
+            startTime,
+            req.body.end_date || meeting.meeting_date,
+            req.body.end_time || departureTime,
+            location,
+            departureTime,
+            req.user.id,
+            organizationId
+          ]
+        );
+
+        await client.query(
+          'UPDATE year_plan_meetings SET activity_id = $1, updated_at = NOW() WHERE id = $2 AND organization_id = $3',
+          [activityResult.rows[0].id, meetingId, organizationId]
+        );
+
+        await client.query('COMMIT');
+        return success(res, activityResult.rows[0], 'Activity created from meeting', 201);
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
     })
   );
 
@@ -706,7 +846,7 @@ module.exports = (pool, logger) => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       if (meetingDate < today) {
-        return error(res, 'Cannot edit past meetings (locked)', 403);
+        return error(res, 'Cannot edit past meetings (locked)', 409);
       }
 
       const {
@@ -1286,7 +1426,7 @@ module.exports = (pool, logger) => {
     }
 
     while (current <= end) {
-      const dateStr = current.toISOString().split('T')[0];
+      const dateStr = formatLocalDate(current);
 
       // Check blackout
       const inBlackout = blackoutRanges.some(

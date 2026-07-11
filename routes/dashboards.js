@@ -240,9 +240,9 @@ document.addEventListener("DOMContentLoaded", function() {
       if (childIds.length === 0) {
         // No children, return early
         const nextMeetingResult = await pool.query(
-          `SELECT date::text as date, endroit, notes FROM reunion_preparations
-           WHERE organization_id = $1 AND date >= CURRENT_DATE
-           ORDER BY date ASC LIMIT 1`,
+          `SELECT meeting_date::text as date, location as endroit, notes FROM year_plan_meetings
+           WHERE organization_id = $1 AND meeting_date >= CURRENT_DATE AND NOT is_cancelled
+           ORDER BY meeting_date ASC LIMIT 1`,
           [organizationId]
         );
 
@@ -367,9 +367,9 @@ document.addEventListener("DOMContentLoaded", function() {
 
       // Get next meeting info
       const nextMeetingResult = await pool.query(
-        `SELECT date::text as date, endroit, notes FROM reunion_preparations
-         WHERE organization_id = $1 AND date >= CURRENT_DATE
-         ORDER BY date ASC LIMIT 1`,
+        `SELECT meeting_date::text as date, location as endroit, notes FROM year_plan_meetings
+         WHERE organization_id = $1 AND meeting_date >= CURRENT_DATE AND NOT is_cancelled
+         ORDER BY meeting_date ASC LIMIT 1`,
         [organizationId]
       );
 

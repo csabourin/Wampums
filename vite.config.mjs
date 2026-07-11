@@ -96,7 +96,7 @@ export default defineConfig({
             "./spa/attendance.js",
             "./spa/manage_points.js",
             "./spa/manage_honors.js",
-            "./spa/preparation_reunions.js",
+            "./spa/modules/meetings/MeetingPrep.js",
           ],
 
           // Reports - lazy loaded
@@ -119,7 +119,7 @@ export default defineConfig({
           parent: ["./spa/parent_dashboard.js", "./spa/parent_contact_list.js"],
 
           // Carpooling module - lazy loaded
-          carpooling: ["./spa/activities.js", "./spa/carpool_dashboard.js"],
+          carpooling: ["./spa/modules/activities/Activities.js", "./spa/carpool_dashboard.js"],
 
           // Authentication
           auth: [

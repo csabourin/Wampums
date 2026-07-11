@@ -364,19 +364,21 @@ export class Dashboard extends BaseModule {
       { href: "/parent-dashboard", icon: "fa-users", label: "vue_parents" },
     ]));
 
-    // --- Planning & Activities ---
+    // --- Planning & Activities (permission-gated like the other sections) ---
+    const canSeeActivities = hasAnyPermission("activities.view", "activities.create");
+    const canSeeMeetings = hasAnyPermission("meetings.view", "meetings.manage");
     const planningTiles = filterOffline(sortByLabel([
-      { href: "/activities", icon: "fa-calendar-days", label: "activities_calendar" },
+      canSeeActivities && { href: "/activities", icon: "fa-calendar-days", label: "activities_calendar" },
       { href: "/carpool", icon: "fa-car", label: "carpool_coordination", id: "carpool-quick-access" },
-      { href: "/preparation-reunions", icon: "fa-clipboard-list", label: "preparation_reunions" },
+      canSeeMeetings && { href: "/preparation-reunions", icon: "fa-clipboard-list", label: "preparation_reunions" },
       { href: "/view-participant-documents", icon: "fa-file-lines", label: "view_participant_documents" },
       { href: "/inventory", icon: "fa-warehouse", label: "inventory_link" },
       { href: "/material-management", icon: "fa-calendar-check", label: "material_management_link" },
       { href: "/medication-planning", icon: "fa-pills", label: "medication_planning_link" },
       { href: "/medication-reception", icon: "fa-hospital", label: "med_reception_link" },
       { href: "/permission-slips", icon: "fa-file-signature", label: "manage_permission_slips" },
-      { href: "/yearly-planner", icon: "fa-calendar-alt", label: "yearly_planner_nav" },
-    ]));
+      canSeeMeetings && { href: "/yearly-planner", icon: "fa-calendar-alt", label: "yearly_planner_nav" },
+    ].filter(Boolean)));
 
     // --- Unit Management ---
     const unitTiles = filterOffline(sortByLabel([
@@ -635,7 +637,8 @@ export class Dashboard extends BaseModule {
       const value = res.value;
       try {
         if (key === "nextMeeting") {
-          const meeting = value?.meeting || value?.data?.meeting || null;
+          // Standard envelope: data is the meeting object (or null)
+          const meeting = value?.data || value?.meeting || null;
           if (meeting && meeting.date) {
             this.nextMeeting = meeting;
             changed = true;

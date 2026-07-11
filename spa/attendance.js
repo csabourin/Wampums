@@ -270,10 +270,10 @@ export class Attendance {
       }
       debugLog("Final attendanceData:", this.attendanceData);
 
-      // Handle both array response and object response with guests property
+      // Standard envelope: data is the guests array
       this.guests = Array.isArray(guestsResponse)
         ? guestsResponse
-        : guestsResponse?.guests || [];
+        : guestsResponse?.data || guestsResponse?.guests || [];
 
       // Group participants
       this.groups = this.participants.reduce((acc, participant) => {
@@ -1060,7 +1060,10 @@ export class Attendance {
   async loadAttendanceForDate(date) {
     try {
       this.attendanceData = await getAttendance(date);
-      this.guests = await this.getGuestsByDate(date);
+      const guestsResponse = await this.getGuestsByDate(date);
+      this.guests = Array.isArray(guestsResponse)
+        ? guestsResponse
+        : guestsResponse?.data || guestsResponse?.guests || [];
       this.updateAttendanceUIForDate();
     } catch (error) {
       debugError("Error:", error);
