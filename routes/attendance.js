@@ -7,6 +7,9 @@ const { validateIdBody, validateDate, validateAttendanceStatus, checkValidation,
 const { getPointSystemRules } = require('../utils');
 const { verifyJWT, calculateAttendancePoints, getCurrentOrganizationId, handleOrganizationResolutionError } = require('../utils/api-helpers');
 
+// Longest activity date range (in days) expanded into selectable attendance dates
+const MAX_ACTIVITY_SPAN_DAYS = 31;
+
 module.exports = (pool, logger) => {
   /**
    * @swagger
@@ -85,12 +88,29 @@ module.exports = (pool, logger) => {
   router.get('/dates', authenticate, requirePermission('attendance.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
+    // Attendance can be taken on any date that has recorded attendance, a
+    // prepared meeting, or falls within a planned activity's date range
+    // (e.g. every day of a multi-day camp). MAX_ACTIVITY_SPAN_DAYS guards
+    // generate_series against misconfigured activities with runaway ranges.
     const result = await pool.query(
-      `SELECT DISTINCT date::text as date
-       FROM attendance
-       WHERE organization_id = $1
+      `SELECT DISTINCT date::text as date FROM (
+         SELECT date FROM attendance WHERE organization_id = $1
+         UNION
+         SELECT date FROM reunion_preparations WHERE organization_id = $1
+         UNION
+         SELECT generate_series(
+                  activity_start_date,
+                  activity_end_date,
+                  '1 day'::interval
+                )::date AS date
+         FROM activities
+         WHERE organization_id = $1
+           AND is_active = TRUE
+           AND activity_end_date >= activity_start_date
+           AND activity_end_date - activity_start_date <= $2
+       ) all_dates
        ORDER BY date DESC`,
-      [organizationId]
+      [organizationId, MAX_ACTIVITY_SPAN_DAYS]
     );
 
     return success(res, result.rows.map(r => r.date));
@@ -136,16 +156,25 @@ module.exports = (pool, logger) => {
     validateAttendanceStatus,
     checkValidation,
     asyncHandler(async (req, res) => {
-      const { participant_id, date, status, previous_status } = req.body;
+      const { participant_id, date, status } = req.body;
       const organizationId = await getOrganizationId(req, pool);
 
-      logger.debug('[attendance POST] Request body:', JSON.stringify(req.body));
-      logger.debug('[attendance POST] participant_id:', participant_id, 'type:', typeof participant_id);
-      logger.debug('[attendance POST] date:', date, 'status:', status, 'organizationId:', organizationId);
+      logger.debug('[attendance POST] participant_id:', participant_id, 'date:', date, 'status:', status, 'organizationId:', organizationId);
 
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
+
+        // The recorded status is the authoritative baseline for point adjustments.
+        // Client-supplied previous_status is ignored: the individual and group UI
+        // paths used to send different guesses, producing phantom point deltas.
+        const existingResult = await client.query(
+          `SELECT status FROM attendance
+         WHERE participant_id = $1 AND date = $2 AND organization_id = $3
+         FOR UPDATE`,
+          [participant_id, date, organizationId]
+        );
+        const previousStatus = existingResult.rows[0]?.status || null;
 
         // Upsert attendance
         const result = await client.query(
@@ -157,17 +186,14 @@ module.exports = (pool, logger) => {
           [participant_id, date, status, organizationId]
         );
 
-        // Calculate point adjustment if status changed
-        if (previous_status && previous_status !== status) {
-          // Get point values from organization settings or use defaults
+        // Adjustment relative to the recorded baseline. First-time marking uses a
+        // baseline of 0, so "present = +1" applies on day one, matching the
+        // legacy batch endpoint (/api/update-attendance).
+        if (previousStatus !== status) {
           const pointSystemRules = await getPointSystemRules(client, organizationId);
-          const defaultPoints = { present: 1, late: 0, absent: -1, excused: 0 };
-          const pointValues = pointSystemRules.attendance || defaultPoints;
-
-          // Ensure we have valid numbers, falling back to defaults
-          const newPoints = typeof pointValues[status] === 'number' ? pointValues[status] : (defaultPoints[status] || 0);
-          const oldPoints = typeof pointValues[previous_status] === 'number' ? pointValues[previous_status] : (defaultPoints[previous_status] || 0);
-          const adjustment = Math.round(newPoints - oldPoints); // Round to ensure integer
+          const adjustment = Math.round(
+            calculateAttendancePoints(previousStatus, status, pointSystemRules)
+          );
 
           if (adjustment !== 0 && !isNaN(adjustment)) {
             await client.query(
@@ -180,7 +206,11 @@ module.exports = (pool, logger) => {
 
         await client.query('COMMIT');
 
-        return success(res, result.rows[0], 'Attendance marked successfully', 201);
+        const responseData = {
+          ...result.rows[0],
+          previous_status: previousStatus
+        };
+        return success(res, responseData, 'Attendance marked successfully', 201);
       } catch (err) {
         await client.query('ROLLBACK');
         throw err;

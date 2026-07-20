@@ -12,6 +12,11 @@ import {
 import { translate } from "./app.js";
 import { getCachedData, setCachedData, deleteCachedData } from "./indexedDB.js";
 import { offlineManager } from "./modules/OfflineManager.js";
+import { getActivities } from "./api/api-activities.js";
+import {
+  getActivityStartDate,
+  getActivityEndDate,
+} from "./utils/ActivityDateUtils.js";
 import {
   getTodayISO,
   formatDate,
@@ -43,6 +48,9 @@ export class Attendance {
     this.isInitialized = false;
     this.isLoading = true;
     this.searchTerm = '';
+    // Multi-day activity (camp) covering the current date, when one exists:
+    // { activity, dates: [...], dayIndex }
+    this.activeActivity = null;
     // Optimistic update manager for instant attendance updates
     this.optimisticManager = new OptimisticUpdateManager();
   }
@@ -64,8 +72,12 @@ export class Attendance {
         this.preloadAttendanceData(),
       ]);
 
-      // In camp mode, automatically carry forward attendance from previous day
-      await this.autoCarryForwardInCampMode();
+      // Detect whether the current date is part of a multi-day activity (camp)
+      await this.detectActivityContext();
+
+      // During a multi-day activity, automatically carry forward attendance
+      // from the previous day (works with or without offline camp mode)
+      await this.autoCarryForward();
 
       // Mark as initialized and not loading
       this.isInitialized = true;
@@ -84,73 +96,13 @@ export class Attendance {
 
   async preloadAttendanceData() {
     try {
-      // Check for camp-prepared data first (longer cache, prepared during offline prep)
+      // Check for cached data first (camp-prepared caches use a longer duration)
       const cachedData = await getCachedData(`attendance_${this.currentDate}`);
       if (cachedData) {
-        // If in camp mode and this date is prepared, trust the cache
-        const isDatePrepared = offlineManager.isDatePrepared(this.currentDate);
-        if (isDatePrepared || offlineManager.campMode) {
+        if (offlineManager.isDatePrepared(this.currentDate) || offlineManager.campMode) {
           debugLog("Using camp-prepared attendance data for", this.currentDate);
         }
-
-        // Handle both new format (with data wrapper) and direct format
-        const data = cachedData.data || cachedData;
-        this.participants = normalizeParticipantList(data.participants);
-        this.guests = data.guests || [];
-
-        // Convert attendanceData: camp prep stores array of {participant_id, attendance_status},
-        // but the page expects a map {participant_id: status}
-        if (Array.isArray(data.attendanceData)) {
-          this.attendanceData = {};
-          data.attendanceData.forEach((record) => {
-            if (record.participant_id && record.attendance_status) {
-              this.attendanceData[record.participant_id] = record.attendance_status;
-            }
-          });
-        } else {
-          this.attendanceData = data.attendanceData || {};
-        }
-
-        // Check if groups already have participants (fetchData cache) or are raw (camp prep cache)
-        if (Array.isArray(data.groups) && data.groups.length > 0 && !data.groups[0]?.participants) {
-          // Raw groups from camp prep - build grouped structure from participants
-          this.groups = this.participants.reduce((acc, participant) => {
-            if (!acc[participant.group_id]) {
-              acc[participant.group_id] = {
-                id: participant.group_id,
-                name: participant.group_name,
-                participants: [],
-              };
-            }
-            acc[participant.group_id].participants.push(participant);
-            return acc;
-          }, {});
-
-          Object.values(this.groups).forEach((group) => {
-            group.participants.sort((a, b) => {
-              if (a.first_leader && !b.first_leader) return -1;
-              if (!a.first_leader && b.first_leader) return 1;
-              if (a.second_leader && !b.second_leader) return 1;
-              if (!a.second_leader && b.second_leader) return -1;
-              return a.first_name.localeCompare(b.first_name);
-            });
-          });
-
-          this.groups = Object.entries(this.groups)
-            .map(([id, group]) => ({ id, ...group }))
-            .sort((a, b) => {
-              if (!a.name) return 1;
-              if (!b.name) return -1;
-              return a.name.localeCompare(b.name);
-            });
-        } else {
-          this.groups = data.groups || [];
-        }
-
-        // If in camp mode, also update available dates from cached data
-        if (offlineManager.campMode && data.availableDates) {
-          this.availableDates = data.availableDates;
-        }
+        this.applyCacheEntry(this.parseAttendanceCacheEntry(cachedData));
         return;
       }
       await this.fetchData();
@@ -158,6 +110,124 @@ export class Attendance {
       debugError("Error preloading attendance data:", error);
       throw error;
     }
+  }
+
+  /**
+   * Parse any historical attendance cache entry into the canonical shape:
+   * { participants, attendanceMap, guests, groups, availableDates }
+   *
+   * Handles all legacy formats:
+   * - optional `{ data: ... }` wrapper
+   * - attendance as array of {participant_id, attendance_status} (camp prep)
+   *   or map of {participant_id: status}
+   * - groups as raw rows (camp prep) or pre-grouped {id, name, participants}
+   *
+   * @param {Object} cacheEntry - Raw entry from IndexedDB
+   * @returns {{participants: Array, attendanceMap: Object, guests: Array, groups: Array, availableDates: Array|null}}
+   */
+  parseAttendanceCacheEntry(cacheEntry) {
+    const data = cacheEntry?.data || cacheEntry || {};
+
+    const participants = normalizeParticipantList(data.participants || []);
+
+    let attendanceMap = {};
+    const rawAttendance = data.attendanceData || data.attendanceMap || {};
+    if (Array.isArray(rawAttendance)) {
+      rawAttendance.forEach((record) => {
+        const status = record.attendance_status || record.status;
+        if (record.participant_id && status) {
+          attendanceMap[record.participant_id] = status;
+        }
+      });
+    } else {
+      attendanceMap = { ...rawAttendance };
+    }
+
+    let groups;
+    if (Array.isArray(data.groups) && data.groups.length > 0 && !data.groups[0]?.participants) {
+      // Raw groups (camp prep) - rebuild grouped structure from participants
+      groups = this.buildGroupsFromParticipants(participants);
+    } else {
+      groups = data.groups || [];
+    }
+
+    return {
+      participants,
+      attendanceMap,
+      guests: data.guests || [],
+      groups,
+      availableDates: Array.isArray(data.availableDates) ? data.availableDates : null,
+    };
+  }
+
+  /**
+   * Apply a canonical cache entry to instance state
+   */
+  applyCacheEntry(entry) {
+    this.participants = entry.participants;
+    this.attendanceData = entry.attendanceMap;
+    this.guests = entry.guests;
+    this.groups = entry.groups;
+    if (offlineManager.campMode && entry.availableDates) {
+      this.availableDates = entry.availableDates;
+    }
+  }
+
+  /**
+   * Persist current state to the per-date cache in the canonical shape.
+   * Single write path so every reader sees the same format.
+   */
+  async writeAttendanceCache(date = this.currentDate) {
+    const duration = offlineManager.campMode
+      ? (CONFIG.CACHE_DURATION.CAMP_MODE || CONFIG.CACHE_DURATION.SHORT)
+      : CONFIG.CACHE_DURATION.SHORT;
+    await setCachedData(
+      `attendance_${date}`,
+      {
+        participants: this.participants,
+        attendanceData: this.attendanceData,
+        guests: this.guests,
+        groups: this.groups,
+        availableDates: this.availableDates,
+      },
+      duration,
+    );
+  }
+
+  /**
+   * Group + sort participants into the render structure
+   * (leaders first, second leaders last, then alphabetical)
+   */
+  buildGroupsFromParticipants(participants) {
+    const grouped = participants.reduce((acc, participant) => {
+      if (!acc[participant.group_id]) {
+        acc[participant.group_id] = {
+          id: participant.group_id,
+          name: participant.group_name,
+          participants: [],
+        };
+      }
+      acc[participant.group_id].participants.push(participant);
+      return acc;
+    }, {});
+
+    Object.values(grouped).forEach((group) => {
+      group.participants.sort((a, b) => {
+        if (a.first_leader && !b.first_leader) return -1;
+        if (!a.first_leader && b.first_leader) return 1;
+        if (a.second_leader && !b.second_leader) return 1;
+        if (!a.second_leader && b.second_leader) return -1;
+        return a.first_name.localeCompare(b.first_name);
+      });
+    });
+
+    return Object.entries(grouped)
+      .map(([id, group]) => ({ id, ...group }))
+      .sort((a, b) => {
+        if (!a.name) return 1;
+        if (!b.name) return -1;
+        return a.name.localeCompare(b.name);
+      });
   }
 
   async fetchAttendanceDates() {
@@ -168,12 +238,7 @@ export class Attendance {
         if (preparedActivity && preparedActivity.dates) {
           debugLog("Using camp-prepared dates:", preparedActivity.dates);
           this.availableDates = [...preparedActivity.dates];
-          this.availableDates.sort((a, b) => new Date(b) - new Date(a));
-          const today = getTodayISO();
-          if (!this.availableDates.includes(today)) {
-            this.availableDates.unshift(today);
-          }
-          this.currentDate = this.availableDates[0];
+          this.finalizeAvailableDates();
           return;
         }
       }
@@ -197,17 +262,26 @@ export class Attendance {
         );
       }
 
-      this.availableDates.sort((a, b) => new Date(b) - new Date(a));
-      const today = getTodayISO();
-      if (!this.availableDates.includes(today)) {
-        this.availableDates.unshift(today);
-      }
+      this.finalizeAvailableDates();
       debugLog("Final available dates:", this.availableDates);
-      this.currentDate = this.availableDates[0];
     } catch (error) {
       debugError("Error fetching attendance dates:", error);
       throw error;
     }
+  }
+
+  /**
+   * Sort available dates (newest first), ensure today is present, and default
+   * the current date to today. The list may now contain future dates (planned
+   * activities), so "first entry" is no longer a safe default.
+   */
+  finalizeAvailableDates() {
+    const today = getTodayISO();
+    if (!this.availableDates.includes(today)) {
+      this.availableDates.push(today);
+    }
+    this.availableDates.sort((a, b) => new Date(b) - new Date(a));
+    this.currentDate = today;
   }
 
   async fetchData() {
@@ -215,10 +289,7 @@ export class Attendance {
       // Check if cached data is available
       const cachedData = await getCachedData(`attendance_${this.currentDate}`);
       if (cachedData) {
-        this.participants = cachedData.participants;
-        this.attendanceData = cachedData.attendanceData;
-        this.guests = cachedData.guests;
-        this.groups = cachedData.groups;
+        this.applyCacheEntry(this.parseAttendanceCacheEntry(cachedData));
         debugLog("Loaded data from cache");
         return; // No need to proceed if cached data is found
       }
@@ -275,55 +346,10 @@ export class Attendance {
         ? guestsResponse
         : guestsResponse?.data || guestsResponse?.guests || [];
 
-      // Group participants
-      this.groups = this.participants.reduce((acc, participant) => {
-        if (!acc[participant.group_id]) {
-          acc[participant.group_id] = {
-            id: participant.group_id,
-            name: participant.group_name,
-            participants: [],
-          };
-        }
-        acc[participant.group_id].participants.push(participant);
-        return acc;
-      }, {});
+      // Group and sort participants for rendering
+      this.groups = this.buildGroupsFromParticipants(this.participants);
 
-      // Sort participants in each group by leader, second leader, and then alphabetically
-      Object.values(this.groups).forEach((group) => {
-        group.participants.sort((a, b) => {
-          // Sort leaders first
-          if (a.first_leader && !b.first_leader) return -1;
-          if (!a.first_leader && b.first_leader) return 1;
-
-          // Sort second leaders last
-          if (a.second_leader && !b.second_leader) return 1;
-          if (!a.second_leader && b.second_leader) return -1;
-
-          // Alphabetical sort by first name for non-leaders and non-second-leaders
-          return a.first_name.localeCompare(b.first_name);
-        });
-      });
-
-      // Sort groups alphabetically by group name, put participants without a group last
-      this.groups = Object.entries(this.groups)
-        .map(([id, group]) => ({ id, ...group }))
-        .sort((a, b) => {
-          if (!a.name) return 1; // Move groups without a name to the end
-          if (!b.name) return -1;
-          return a.name.localeCompare(b.name);
-        });
-
-      // Cache the fetched data for 5 minues
-      await setCachedData(
-        `attendance_${this.currentDate}`,
-        {
-          participants: this.participants,
-          attendanceData: this.attendanceData,
-          guests: this.guests,
-          groups: this.groups,
-        },
-        CONFIG.CACHE_DURATION.SHORT,
-      ); // Cache for 5 minute
+      await this.writeAttendanceCache();
     } catch (error) {
       debugError("Error fetching attendance data:", error);
       throw error;
@@ -331,131 +357,143 @@ export class Attendance {
   }
 
   /**
-   * Extract attendance as a map from cache data, handling both formats:
-   * - Camp prep format: array of {participant_id, attendance_status}
-   * - Normal format: map of {participant_id: status}
+   * Detect whether the current date falls inside a multi-day activity (camp).
+   * Sets this.activeActivity to { activity, dates, dayIndex } or null.
+   * Works from the cached activities list, so it also functions offline as
+   * long as activities were loaded at least once.
    */
-  extractAttendanceMap(cacheEntry) {
-    const data = cacheEntry.data || cacheEntry;
-    let attendance = data.attendanceData || {};
+  async detectActivityContext() {
+    this.activeActivity = null;
+    try {
+      const activities = await getActivities();
+      const current = this.currentDate;
 
-    // Camp prep stores attendance as array - convert to map
-    if (Array.isArray(attendance)) {
-      const converted = {};
-      attendance.forEach(record => {
-        if (record.participant_id && record.attendance_status) {
-          converted[record.participant_id] = record.attendance_status;
+      for (const activity of activities) {
+        const startDate = getActivityStartDate(activity);
+        const endDate = getActivityEndDate(activity);
+        if (!startDate || !endDate || startDate === endDate) {
+          continue;
         }
-      });
-      return converted;
+        if (current >= startDate && current <= endDate) {
+          const dates = this.enumerateDateRange(startDate, endDate);
+          this.activeActivity = {
+            activity,
+            dates,
+            dayIndex: dates.indexOf(current),
+          };
+          debugLog("Multi-day activity context:", activity.name, `day ${this.activeActivity.dayIndex + 1}/${dates.length}`);
+          return;
+        }
+      }
+    } catch (error) {
+      // Non-critical: attendance works without activity context
+      debugError("Could not detect activity context:", error);
     }
-
-    return attendance;
   }
 
   /**
-   * Auto carry forward attendance in camp mode.
-   * When viewing day 2+ of a camp and no attendance exists for current date,
-   * walks backwards through prepared dates to find the most recent day with
-   * attendance data and carries forward present/late statuses.
+   * List every date (YYYY-MM-DD) from start to end inclusive.
+   * Formats from local date components — toISOString() would shift the date
+   * across midnight in UTC+ timezones.
    */
-  async autoCarryForwardInCampMode() {
-    // Only apply in camp mode
-    if (!offlineManager.campMode) {
+  enumerateDateRange(startDate, endDate) {
+    const dates = [];
+    const current = new Date(`${startDate}T00:00:00`);
+    const end = new Date(`${endDate}T00:00:00`);
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const MAX_DAYS = 31;
+    if (isNaN(current) || isNaN(end) || (end - current) / MS_PER_DAY > MAX_DAYS) {
+      return [startDate];
+    }
+    const PAD_LENGTH = 2;
+    while (current <= end) {
+      const month = String(current.getMonth() + 1).padStart(PAD_LENGTH, "0");
+      const day = String(current.getDate()).padStart(PAD_LENGTH, "0");
+      dates.push(`${current.getFullYear()}-${month}-${day}`);
+      current.setDate(current.getDate() + 1);
+    }
+    return dates;
+  }
+
+  /**
+   * The dates of the multi-day context the page is currently in:
+   * offline-prepared camp dates when camp mode is on, otherwise the
+   * detected activity's date range. Null when not in a multi-day context.
+   */
+  getCampDates() {
+    if (offlineManager.campMode) {
+      const prepared = offlineManager.getPreparedActivityForDate(this.currentDate);
+      if (prepared?.dates?.length) {
+        return prepared.dates;
+      }
+    }
+    return this.activeActivity?.dates || null;
+  }
+
+  /**
+   * Carry forward attendance from the previous day of a multi-day activity.
+   * Runs whenever the current date is day 2+ of a camp and has no attendance
+   * yet — with or without offline camp mode. Online, the server performs the
+   * copy (so it persists); offline, cached data is used and the copy syncs
+   * next time the server endpoint is reachable via normal attendance updates.
+   */
+  async autoCarryForward() {
+    const campDates = this.getCampDates();
+    if (!campDates) {
       return;
     }
 
-    // Check if we have any attendance data for current date
     const hasAttendanceData = Object.keys(this.attendanceData).some(
       id => this.attendanceData[id] && this.attendanceData[id] !== ''
     );
-
     if (hasAttendanceData) {
       debugLog("Attendance data exists for", this.currentDate, "- no carry-forward needed");
       return;
     }
 
-    // Get the prepared activity info
-    const preparedActivity = offlineManager.getPreparedActivityForDate(this.currentDate);
-    if (!preparedActivity || !preparedActivity.dates) {
-      return;
-    }
-
-    // Find current day's index in the prepared dates
-    const dateIndex = preparedActivity.dates.indexOf(this.currentDate);
+    const dateIndex = campDates.indexOf(this.currentDate);
     if (dateIndex <= 0) {
-      debugLog("No previous day to carry forward from (this is day 1 of camp)");
+      debugLog("No previous day to carry forward from (day 1 of camp or date not in range)");
       return;
     }
 
-    // Walk backwards through prepared dates to find one with actual attendance
-    let sourceDate = null;
-    let sourceAttendance = null;
+    const previousDates = campDates.slice(0, dateIndex);
+    const source = navigator.onLine
+      ? await this.findCarryForwardSourceOnline(previousDates)
+      : await this.findCarryForwardSourceOffline(previousDates);
 
-    for (let i = dateIndex - 1; i >= 0; i--) {
-      const candidateDate = preparedActivity.dates[i];
-      const cache = await getCachedData(`attendance_${candidateDate}`);
-      if (!cache) continue;
-
-      const attendance = this.extractAttendanceMap(cache);
-
-      // Check if this date has any real attendance data
-      const hasData = Object.values(attendance).some(
-        status => status === 'present' || status === 'late' || status === 'absent' || status === 'excused'
-      );
-
-      if (hasData) {
-        sourceDate = candidateDate;
-        sourceAttendance = attendance;
-        break;
-      }
-    }
-
-    if (!sourceDate || !sourceAttendance) {
+    if (!source) {
       debugLog("No previous day with attendance data found in camp dates");
       return;
     }
 
-    debugLog("Camp mode: Carrying forward from", sourceDate, "to", this.currentDate);
-
-    // Carry forward all attendance statuses (present, late, absent, excused)
+    // Only present/late carry forward: absences should be re-confirmed daily,
+    // and this matches what the server-side carry-forward endpoint copies.
     const toCarryForward = {};
-    for (const [participantId, status] of Object.entries(sourceAttendance)) {
-      if (status === 'present' || status === 'late' || status === 'absent' || status === 'excused') {
+    for (const [participantId, status] of Object.entries(source.attendance)) {
+      if (status === 'present' || status === 'late') {
         toCarryForward[participantId] = status;
       }
     }
 
     const carryCount = Object.keys(toCarryForward).length;
     if (carryCount === 0) {
-      debugLog("No attendance statuses to carry forward from", sourceDate);
+      debugLog("No attendance statuses to carry forward from", source.date);
       return;
     }
 
-    // Apply carried forward statuses locally
     this.attendanceData = { ...toCarryForward };
 
-    // Show info message
     this.app.showMessage(
-      translate("attendance_carried_forward").replace("{{count}}", carryCount).replace("{{date}}", formatDate(sourceDate, this.app.lang)),
+      translate("attendance_carried_forward").replace("{{count}}", carryCount).replace("{{date}}", formatDate(source.date, this.app.lang)),
       "info"
     );
 
-    debugLog(`Camp mode: Carried forward ${carryCount} attendance records from ${sourceDate}`);
+    debugLog(`Carried forward ${carryCount} attendance records from ${source.date}`);
 
-    // Update cache with carried forward data (in map format so future reads work)
-    await setCachedData(
-      `attendance_${this.currentDate}`,
-      {
-        participants: this.participants,
-        attendanceData: this.attendanceData,
-        guests: this.guests,
-        groups: this.groups,
-      },
-      CONFIG.CACHE_DURATION.CAMP_MODE || CONFIG.CACHE_DURATION.SHORT,
-    );
+    await this.writeAttendanceCache();
 
-    // If online, also call the carry-forward API to persist
+    // Persist server-side so every device sees the carried-forward statuses
     if (navigator.onLine) {
       try {
         const response = await fetch(getApiUrl("v1/attendance/carry-forward"), {
@@ -466,7 +504,7 @@ export class Attendance {
             "x-organization-id": getCurrentOrganizationId(),
           },
           body: JSON.stringify({
-            fromDate: sourceDate,
+            fromDate: source.date,
             toDate: this.currentDate
           }),
         });
@@ -474,12 +512,81 @@ export class Attendance {
         if (response.ok) {
           const result = await response.json();
           debugLog("Server carry-forward result:", result);
+          await deleteCachedData(`attendance_api_${this.currentDate}`);
         }
       } catch (error) {
         // Non-critical error - local carry-forward still works
         debugError("Failed to sync carry-forward to server:", error);
       }
     }
+  }
+
+  /**
+   * Find the most recent previous camp date with attendance, from the server.
+   * Fetches all candidate dates in parallel and picks the latest with records.
+   * @param {string[]} previousDates - Camp dates before the current one (ascending)
+   * @returns {Promise<{date: string, attendance: Object}|null>}
+   */
+  async findCarryForwardSourceOnline(previousDates) {
+    try {
+      const responses = await Promise.all(
+        previousDates.map(async (date) => {
+          try {
+            const response = await getAttendance(date);
+            return { date, response };
+          } catch (err) {
+            debugError("Could not fetch attendance for", date, err);
+            return { date, response: null };
+          }
+        })
+      );
+
+      for (let i = responses.length - 1; i >= 0; i--) {
+        const { date, response } = responses[i];
+        const records = Array.isArray(response?.data) ? response.data : [];
+        if (records.length > 0) {
+          const attendance = {};
+          records.forEach((record) => {
+            const status = record.status || record.attendance_status;
+            if (record.participant_id && status) {
+              attendance[record.participant_id] = status;
+            }
+          });
+          return { date, attendance };
+        }
+      }
+      return null;
+    } catch (error) {
+      debugError("Error searching carry-forward source online:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Find the most recent previous camp date with attendance, from local caches.
+   * @param {string[]} previousDates - Camp dates before the current one (ascending)
+   * @returns {Promise<{date: string, attendance: Object}|null>}
+   */
+  async findCarryForwardSourceOffline(previousDates) {
+    const caches = await Promise.all(
+      previousDates.map(async (date) => ({
+        date,
+        cache: await getCachedData(`attendance_${date}`),
+      }))
+    );
+
+    for (let i = caches.length - 1; i >= 0; i--) {
+      const { date, cache } = caches[i];
+      if (!cache) continue;
+      const { attendanceMap } = this.parseAttendanceCacheEntry(cache);
+      const hasData = Object.values(attendanceMap).some(
+        status => status === 'present' || status === 'late' || status === 'absent' || status === 'excused'
+      );
+      if (hasData) {
+        return { date, attendance: attendanceMap };
+      }
+    }
+    return null;
   }
 
   renderSkeleton() {
@@ -551,6 +658,7 @@ export class Attendance {
     this.freshContent = `
       <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <div class="attendance-container">
+        ${this.renderCampBanner()}
         <div class="date-navigation">
           <select id="dateSelect" class="date-select">
             ${this.renderDateOptions()}
@@ -559,6 +667,7 @@ export class Attendance {
         <div class="search-container" style="margin-bottom: 1rem;">
           <input type="search" id="attendance-search" class="search-input" style="width: 100%; padding: 0.5rem;" placeholder="${translate("search")}..." value="${escapeHTML(this.searchTerm)}">
         </div>
+        ${this.renderMarkRemainingButton()}
         <div id="attendance-list" class="attendance-list">
           <!-- This will be filled by renderGroupsAndNames() -->
         </div>
@@ -589,6 +698,47 @@ export class Attendance {
         attendanceList.appendChild(this.renderGroupsAndNames());
       }
     }
+  }
+
+  /**
+   * Banner shown while the selected date is part of a multi-day activity
+   */
+  renderCampBanner() {
+    if (!this.activeActivity) {
+      return "";
+    }
+    const { activity, dates, dayIndex } = this.activeActivity;
+    const dayLabel = translate("camp_day_of")
+      .replace("{{day}}", dayIndex + 1)
+      .replace("{{total}}", dates.length);
+    return `
+      <div class="camp-banner">
+        <span class="camp-banner__icon">🏕️</span>
+        <span class="camp-banner__name">${escapeHTML(activity.name)}</span>
+        <span class="camp-banner__day">${dayLabel}</span>
+      </div>
+    `;
+  }
+
+  /**
+   * Bulk action to mark everyone without a recorded status as present
+   */
+  renderMarkRemainingButton() {
+    const unmarkedCount = this.getUnmarkedParticipantIds().length;
+    if (unmarkedCount === 0) {
+      return "";
+    }
+    return `
+      <button id="mark-remaining-present" class="button button--secondary mark-remaining-btn">
+        ${translate("mark_remaining_present").replace("{{count}}", unmarkedCount)}
+      </button>
+    `;
+  }
+
+  getUnmarkedParticipantIds() {
+    return this.participants
+      .filter((p) => !this.attendanceData[p.id])
+      .map((p) => p.id);
   }
 
   renderDateOptions() {
@@ -635,11 +785,11 @@ export class Attendance {
 
 
       filteredParticipants.forEach((participant) => {
-        const status = this.attendanceData[participant.id] || "present";
-        const statusClass =
-          status === "present" && !this.attendanceData[participant.id]
-            ? ""
-            : status;
+        // No fake default: a participant with no recorded status shows as
+        // "unmarked" so what the leader sees matches what is persisted
+        const recordedStatus = this.attendanceData[participant.id] || null;
+        const status = recordedStatus || "unmarked";
+        const statusClass = recordedStatus || "unmarked";
         const participantRow = document.createElement("div");
         participantRow.classList.add("participant-row");
         participantRow.dataset.participantId = participant.id;
@@ -715,6 +865,13 @@ export class Attendance {
       });
     }
 
+    const markRemainingButton = document.getElementById("mark-remaining-present");
+    if (markRemainingButton) {
+      markRemainingButton.addEventListener("click", (e) => {
+        withButtonLoading(e.target, () => this.markAllRemainingPresent());
+      });
+    }
+
     // Search listener
     const searchInput = document.getElementById('attendance-search');
     if (searchInput) {
@@ -730,59 +887,6 @@ export class Attendance {
           newInput.setSelectionRange(newInput.value.length, newInput.value.length);
         }
       }, 300));
-    }
-  }
-
-  async handleStatusChange(newStatus) {
-    if (!this.selectedParticipant) {
-      this.app.showMessage(translate("select_participant"), "error");
-      return;
-    }
-
-    const participantId = this.selectedParticipant.dataset.id;
-    const statusSpan = this.selectedParticipant.querySelector(
-      ".participant-status",
-    );
-    const previousStatus = statusSpan.classList[1];
-
-    try {
-      const result = await updateAttendance(
-        participantId,
-        newStatus,
-        this.currentDate,
-        previousStatus,
-      );
-      if (result.success) {
-        // Proceed with updating the UI
-        statusSpan.classList.remove(previousStatus);
-        statusSpan.classList.add(newStatus);
-        statusSpan.textContent = translate(newStatus);
-
-        this.attendanceData[participantId] = newStatus;
-        this.app.showMessage(
-          translate("attendance_updated_successfully"),
-          "success",
-        );
-        // Cache the fetched data for 5 minues
-        await setCachedData(
-          `attendance_${this.currentDate}`,
-          {
-            participants: this.participants,
-            attendanceData: this.attendanceData,
-            guests: this.guests,
-            groups: this.groups,
-          },
-          CONFIG.CACHE_DURATION.SHORT,
-        ); // Cache for 5 minute
-      } else {
-        throw new Error(result.message || "Unknown error occurred");
-      }
-    } catch (error) {
-      debugError("Error:", error);
-      this.app.showMessage(
-        `${translate("error_updating_attendance")}: ${error.message}`,
-        "error",
-      );
     }
   }
 
@@ -867,7 +971,9 @@ export class Attendance {
   }
 
   async updateIndividualStatus(participantId, newStatus) {
-    const previousStatus = this.attendanceData[participantId] || ""; // Default to nothing if no status
+    // Recorded status or null — never a guessed default. The server derives
+    // the point-adjustment baseline from its own records anyway.
+    const previousStatus = this.attendanceData[participantId] || null;
 
     await this.optimisticManager.execute(
       `attendance-${participantId}-${this.currentDate}`,
@@ -905,16 +1011,7 @@ export class Attendance {
           // Clear API-level cache to ensure fresh data on next fetch
           await deleteCachedData(`attendance_api_${this.currentDate}`);
           // Update UI-level cache with current data
-          await setCachedData(
-            `attendance_${this.currentDate}`,
-            {
-              participants: this.participants,
-              attendanceData: this.attendanceData,
-              guests: this.guests,
-              groups: this.groups,
-            },
-            CONFIG.CACHE_DURATION.SHORT,
-          );
+          await this.writeAttendanceCache();
         },
 
         rollbackFn: ({ previousStatus }, error) => {
@@ -942,9 +1039,11 @@ export class Attendance {
 
     const participantIds = participantsToUpdate.map((p) => p.id);
 
-    // Save previous statuses for rollback if necessary
+    // Save recorded previous statuses (null when unmarked) for rollback.
+    // Never assume "present": a wrong baseline used to generate phantom
+    // point adjustments server-side.
     const previousStatuses = participantIds.reduce((acc, id) => {
-      acc[id] = this.attendanceData[id] || "present";
+      acc[id] = this.attendanceData[id] || null;
       return acc;
     }, {});
 
@@ -975,16 +1074,7 @@ export class Attendance {
         // Clear API-level cache to ensure fresh data on next fetch
         await deleteCachedData(`attendance_api_${this.currentDate}`);
         // Update UI-level cache with current data
-        await setCachedData(
-          `attendance_${this.currentDate}`,
-          {
-            participants: this.participants,
-            attendanceData: this.attendanceData,
-            guests: this.guests,
-            groups: this.groups,
-          },
-          CONFIG.CACHE_DURATION.SHORT,
-        ); // Cache for 5 minute
+        await this.writeAttendanceCache();
       } else {
         // Rollback failed updates
         results.forEach((result, index) => {
@@ -1013,19 +1103,77 @@ export class Attendance {
     }
   }
 
+  /**
+   * Mark every participant without a recorded status as present.
+   * One-tap replacement for the old implicit "everyone defaults to present"
+   * display, but actually persisted.
+   */
+  async markAllRemainingPresent() {
+    const unmarkedIds = this.getUnmarkedParticipantIds();
+    if (unmarkedIds.length === 0) {
+      return;
+    }
+
+    // Optimistically mark all as present
+    unmarkedIds.forEach((id) => {
+      this.attendanceData[id] = "present";
+      this.updateAttendanceDisplay(id, "present", null);
+    });
+
+    try {
+      const results = await Promise.all(
+        unmarkedIds.map((id) =>
+          updateAttendance(id, "present", this.currentDate, null),
+        ),
+      );
+
+      const failedIds = unmarkedIds.filter((_, index) => !results[index].success && !results[index].queued);
+      if (failedIds.length === 0) {
+        this.app.showMessage(translate("attendance_updated"), "success");
+      } else {
+        failedIds.forEach((id) => {
+          delete this.attendanceData[id];
+          this.updateAttendanceDisplay(id, null, "present");
+        });
+        this.app.showMessage(translate("error_updating_attendance"), "error");
+      }
+      await deleteCachedData(`attendance_api_${this.currentDate}`);
+      await this.writeAttendanceCache();
+    } catch (error) {
+      debugError("Error marking remaining present:", error);
+      unmarkedIds.forEach((id) => {
+        delete this.attendanceData[id];
+        this.updateAttendanceDisplay(id, null, "present");
+      });
+      this.app.showMessage(translate("error_updating_attendance"), "error");
+    }
+  }
+
   updateAttendanceDisplay(participantId, newStatus, previousStatus) {
     const row = document.querySelector(
       `.participant-row[data-participant-id="${participantId}"]`,
     );
     if (row) {
       const statusSpan = row.querySelector(".participant-status");
-      if (previousStatus) {
-        statusSpan.classList.remove(previousStatus);
+      statusSpan.classList.remove(previousStatus || "unmarked");
+      statusSpan.classList.add(newStatus || "unmarked");
+      statusSpan.textContent = translate(newStatus || "unmarked");
+    }
+    this.refreshMarkRemainingButton();
+  }
+
+  /**
+   * Keep the "mark remaining present" button count in sync without a full render
+   */
+  refreshMarkRemainingButton() {
+    const button = document.getElementById("mark-remaining-present");
+    const unmarkedCount = this.getUnmarkedParticipantIds().length;
+    if (button) {
+      if (unmarkedCount === 0) {
+        button.remove();
+      } else {
+        button.textContent = translate("mark_remaining_present").replace("{{count}}", unmarkedCount);
       }
-      if (newStatus) {
-        statusSpan.classList.add(newStatus);
-      }
-      statusSpan.textContent = translate(newStatus);
     }
   }
 
@@ -1037,8 +1185,6 @@ export class Attendance {
     if (offlineManager.campMode && offlineManager.isDatePrepared(newDate)) {
       debugLog(`Camp mode: Loading prepared data for ${newDate}`);
       await this.preloadAttendanceData();
-      // Try carry-forward if no attendance exists for this date
-      await this.autoCarryForwardInCampMode();
     } else {
       // Normal mode: clear caches and fetch fresh
       try {
@@ -1051,41 +1197,15 @@ export class Attendance {
       await this.fetchData();
     }
 
+    // The activity context (camp banner, carry-forward source dates)
+    // depends on the selected date
+    await this.detectActivityContext();
+    await this.autoCarryForward();
+
     // Re-render the entire view with new data
     this.render();
     // Re-attach event listeners
     this.attachEventListeners();
-  }
-
-  async loadAttendanceForDate(date) {
-    try {
-      this.attendanceData = await getAttendance(date);
-      const guestsResponse = await this.getGuestsByDate(date);
-      this.guests = Array.isArray(guestsResponse)
-        ? guestsResponse
-        : guestsResponse?.data || guestsResponse?.guests || [];
-      this.updateAttendanceUIForDate();
-    } catch (error) {
-      debugError("Error:", error);
-      this.app.showMessage(translate("error_loading_attendance"), "error");
-    }
-  }
-
-  updateAttendanceUIForDate() {
-    document.querySelectorAll(".participant-row").forEach((row) => {
-      const participantId = row.dataset.participantId;
-      const statusSpan = row.querySelector(".participant-status");
-      const status = this.attendanceData[participantId] || "present";
-      const statusClass =
-        status === "present" && !this.attendanceData[participantId]
-          ? ""
-          : status;
-
-      statusSpan.className = `participant-status ${statusClass}`;
-      statusSpan.textContent = translate(status);
-    });
-
-    setContent(document.getElementById("guestList"), this.renderGuests());
   }
 
   renderError() {

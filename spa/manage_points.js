@@ -1,6 +1,7 @@
 import {
   getParticipants,
   getGroups,
+  getAttendance,
   updatePoints,
   getAuthHeader,
   getCurrentOrganizationId,
@@ -12,28 +13,44 @@ import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn } from "./utils/DebugUtils.js";
 import {
   saveOfflineData,
-  getOfflineData,
-  clearOfflineData,
-  openDB,
   setCachedData,
   getCachedData,
   getCachedDataIgnoreExpiration,
-  clearPointsRelatedCaches,
 } from "./indexedDB.js";
 import { canViewPoints } from "./utils/PermissionUtils.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
-import { OptimisticUpdateManager, generateOptimisticId } from "./utils/OptimisticUpdateManager.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { getTodayISO } from "./utils/DateUtils.js";
+import { PointsStore } from "./modules/points/PointsStore.js";
+
+const POINTS_CACHE_KEY = "manage_points_data";
 
 export class ManagePoints {
   constructor(app) {
     this.app = app;
-    this.selectedItem = null;
-    this.pendingUpdates = [];
-    this.updateTimeout = null;
+    // Current selection as data, never as a DOM element reference
+    // (re-renders would otherwise leave a detached node selected)
+    this.selected = null; // { type: 'group'|'individual', id }
     this.currentSort = { key: "group", order: "asc" };
     this.currentFilter = "";
-    this.optimisticManager = new OptimisticUpdateManager();
+
+    // Single source of truth for totals; DOM only displays store values
+    this.store = new PointsStore();
+    this.unsubscribeStore = null;
+
+    // One batch in flight at a time so absolute server totals can never
+    // arrive out of order; clicks made meanwhile accumulate in the queue
+    this.updateQueue = []; // [{ payload, txn }]
+    this.batchInFlight = false;
+
+    this.participants = [];
+    this.groups = [];
+    this.groupedParticipants = {};
+    this.unassignedParticipants = [];
+
+    // Today's attendance map (participant_id -> status), used to mirror the
+    // server rule "group points only go to present/late participants"
+    this.todayAttendance = {};
   }
 
   async init() {
@@ -47,9 +64,13 @@ export class ManagePoints {
       await this.preloadManagePointsData();
       this.render();
       this.attachEventListeners();
-      debugLog("init called");
+      this.unsubscribeStore = this.store.subscribe((changedIds) => this.onStoreChange(changedIds));
+      debugLog("ManagePoints initialized");
       if (navigator.onLine) {
-        await this.refreshPointsData();
+        await Promise.all([
+          this.refreshPointsData(),
+          this.loadTodayAttendance(),
+        ]);
       }
     } catch (error) {
       debugError("Error initializing manage points:", error);
@@ -59,31 +80,20 @@ export class ManagePoints {
 
   async preloadManagePointsData() {
     try {
-      const cachedData = await getCachedData("manage_points_data");
+      const cachedData = await getCachedData(POINTS_CACHE_KEY);
       if (cachedData) {
-        // Initialize arrays
-        this.participants = normalizeParticipantList(
-          cachedData.participants || []
-        );
-        this.groups = cachedData.groups || [];
-        this.groupedParticipants = cachedData.groupedParticipants || {};
-        this.unassignedParticipants = cachedData.unassignedParticipants || [];
+        this.applyPointsData(this.normalizePointsData(cachedData));
 
         // Try to get fresh points data, but if offline, gracefully
         // use the cached data that was already loaded above.
         try {
           const freshData = await getParticipants();
           if (freshData.success) {
-            // Support both new format (data) and old format (participants)
             this.participants = normalizeParticipantList(
               freshData.data || freshData.participants || []
             );
-            debugLog(
-              "Fresh participants loaded:",
-              this.participants.length,
-              "records",
-            );
-            // Reorganize with fresh data
+            debugLog("Fresh participants loaded:", this.participants.length, "records");
+            this.store.load(this.participants, this.groups);
             this.organizeParticipants();
           }
         } catch (fetchError) {
@@ -91,15 +101,12 @@ export class ManagePoints {
             "Could not fetch fresh participants (possibly offline), using cached data:",
             fetchError.message,
           );
-          // Cached data was already assigned above, so just organize it
-          this.organizeParticipants();
         }
       } else {
         await this.fetchData();
       }
     } catch (error) {
       debugError("Error preloading manage points data:", error);
-      // Initialize with empty arrays/objects if there's an error
       this.participants = [];
       this.groups = [];
       this.groupedParticipants = {};
@@ -108,9 +115,33 @@ export class ManagePoints {
     }
   }
 
+  /**
+   * Accept any historical shape stored under the points cache key (or the raw
+   * GET /v1/points response) and return the canonical {participants, groups}.
+   * Older builds cached the raw API response here, which broke readers that
+   * expected the page's own structure.
+   */
+  normalizePointsData(data) {
+    const source = data?.data && !data.participants ? data.data : (data || {});
+    const participants = normalizeParticipantList(
+      source.participants || source.names || []
+    );
+    const groups = (source.groups || []).map((group) => ({
+      ...group,
+      total_points: Number(group.total_points) || 0,
+    }));
+    return { participants, groups };
+  }
+
+  applyPointsData({ participants, groups }) {
+    this.participants = participants;
+    this.groups = groups;
+    this.store.load(this.participants, this.groups);
+    this.organizeParticipants();
+  }
+
   async fetchData() {
     try {
-      // Initialize arrays to prevent undefined errors
       this.participants = [];
       this.groups = [];
       this.groupedParticipants = {};
@@ -121,72 +152,54 @@ export class ManagePoints {
         getGroups(),
       ]);
 
-      // Handle groups first
       if (groupsResponse.success && Array.isArray(groupsResponse.data)) {
         this.groups = groupsResponse.data;
-      } else if (
-        groupsResponse.success &&
-        Array.isArray(groupsResponse.groups)
-      ) {
+      } else if (groupsResponse.success && Array.isArray(groupsResponse.groups)) {
         // Backward compatibility
         this.groups = groupsResponse.groups;
       } else {
         debugError("Unexpected groups data structure:", groupsResponse);
-        this.groups = []; // Ensure groups is at least an empty array
+        this.groups = [];
       }
 
-      // Then handle participants
-      if (
-        participantsResponse.success &&
-        Array.isArray(participantsResponse.data)
-      ) {
-        this.participants = normalizeParticipantList(participantsResponse.data);
-      } else if (
-        participantsResponse.success &&
-        Array.isArray(participantsResponse.participants)
-      ) {
-        // Backward compatibility
-        this.participants = normalizeParticipantList(
-          participantsResponse.participants
-        );
+      const participantsList =
+        participantsResponse.data || participantsResponse.participants;
+      if (participantsResponse.success && Array.isArray(participantsList)) {
+        this.participants = normalizeParticipantList(participantsList);
       } else {
-        debugError(
-          "Unexpected participants data structure:",
-          participantsResponse,
-        );
-        this.participants = []; // Ensure participants is at least an empty array
+        debugError("Unexpected participants data structure:", participantsResponse);
+        this.participants = [];
       }
 
-      // Only organize participants after both are loaded
+      this.store.load(this.participants, this.groups);
       this.organizeParticipants();
-
-      // Cache all participant data including points
-      const participantsToCache = this.participants.map((participant) => ({
-        id: participant.id,
-        first_name: participant.first_name,
-        last_name: participant.last_name,
-        group_id: participant.group_id,
-        group_name: participant.group_name,
-        first_leader: participant.first_leader,
-        second_leader: participant.second_leader,
-        is_leader: participant.first_leader,
-        is_second_leader: participant.second_leader,
-        total_points: participant.total_points || 0,
-      }));
-
-      await setCachedData(
-        "manage_points_data",
-        {
-          participants: participantsToCache,
-          groups: this.groups,
-          groupedParticipants: this.groupedParticipants,
-          unassignedParticipants: this.unassignedParticipants,
-        },
-        CONFIG.CACHE_DURATION.SHORT,
-      ); // Cache for 5 minutes (was 24 hours - too long for points data)
+      await this.updateCache();
     } catch (error) {
       debugError("Error fetching manage points data:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Load today's attendance so group awards can skip absent/excused members
+   * locally, matching what the server will do. Non-fatal: without it the
+   * server response still corrects the totals.
+   */
+  async loadTodayAttendance() {
+    try {
+      const response = await getAttendance(getTodayISO());
+      const records = Array.isArray(response?.data) ? response.data : [];
+      this.todayAttendance = {};
+      records.forEach((record) => {
+        const status = record.status || record.attendance_status;
+        if (record.participant_id && status) {
+          this.todayAttendance[record.participant_id] = status;
+        }
+      });
+      debugLog("Loaded today's attendance:", Object.keys(this.todayAttendance).length, "records");
+    } catch (error) {
+      debugWarn("Could not load today's attendance:", error.message);
+      this.todayAttendance = {};
     }
   }
 
@@ -197,7 +210,7 @@ export class ManagePoints {
       <div class="controls-container">
         <div class="sort-options">
           <button class="sort-btn" data-sort="name" title="${translate("sort_by_name")}">👤</button>
-          <button class="sort-btn" data-sort="group" title="${translate("sort_by_group")}">👥</button>
+          <button class="sort-btn active" data-sort="group" title="${translate("sort_by_group")}">👥</button>
           <button class="sort-btn" data-sort="points" title="${translate("sort_by_points")}">🏆</button>
           <button class="filter-toggle-btn" id="filter-toggle" title="${translate("filter_by_group")}">🔍</button>
         </div>
@@ -224,43 +237,65 @@ export class ManagePoints {
       </div>
     `;
     setContent(document.getElementById("app"), content);
-    // Render points list sorted by group initially
-    this.sortByGroup(); // Call the sort by group function here
-
-    // Mark the group button as active initially
-    setTimeout(() => {
-      const groupBtn = document.querySelector('.sort-btn[data-sort="group"]');
-      if (groupBtn) {
-        groupBtn.classList.add('active');
-      }
-    }, 0);
+    this.renderList();
   }
 
-  renderPointsList() {
+  /**
+   * Render the list according to the current sort, entirely from state.
+   * Never reshuffles existing DOM (the old outerHTML approach dropped group
+   * headers and selections).
+   */
+  renderList() {
+    const pointsList = document.getElementById("points-list");
+    if (!pointsList) {
+      return;
+    }
+
+    if (this.currentSort.key === "group") {
+      setContent(pointsList, this.renderGroupedList() + this.renderUnassignedParticipants());
+    } else {
+      setContent(pointsList, this.renderFlatList());
+    }
+
+    this.applyFilter();
+    this.applySelection();
+  }
+
+  renderGroupedList() {
     return this.groups
-      .filter((group) => {
-        // Check if group has participants or non-zero points
-        const groupParticipants = this.participants.filter(
-          (p) => p.group_id == group.id,
-        );
-        return groupParticipants.length > 0 || group.total_points > 0;
-      })
       .map(
         (group) => `
-            <div class="group-header" data-group-id="${group.id
-          }" data-type="group" data-points="${group.total_points}">
-              <span>${group.name}</span>
-              <span>${translate("group_points")}: ${group.total_points}</span>
-            </div>
-            <div class="group-content">
-              ${this.renderParticipantsForGroup(group.id)}
-              <div class="group-points" id="group-points-${group.id}">
-                ${translate("total_points")}: ${this.getGroupIndividualTotal(group.id)}
-              </div>
-            </div>
-          `,
+        <div class="group-header" data-group-id="${group.id}" data-type="group">
+          <span class="group-header__name">${group.name}</span>
+          <span class="group-header__points">${translate("group_points")}: ${this.store.getGroupTotal(group.id)}</span>
+        </div>
+        <div class="group-content">
+          ${this.renderParticipantsForGroup(group.id)}
+          <div class="group-points" id="group-points-${group.id}">
+            ${translate("total_points")}: ${this.getGroupIndividualTotal(group.id)}
+          </div>
+        </div>
+      `,
       )
       .join("");
+  }
+
+  renderFlatList() {
+    const sorted = [...this.participants].sort((a, b) => {
+      let comparison = 0;
+      if (this.currentSort.key === "name") {
+        comparison = a.first_name.localeCompare(b.first_name);
+      } else {
+        comparison = this.store.getParticipantTotal(a.id) - this.store.getParticipantTotal(b.id);
+      }
+      return this.currentSort.order === "asc" ? comparison : -comparison;
+    });
+
+    return `
+      <div class="group-content">
+        ${sorted.map((participant) => this.renderParticipantItem(participant)).join("")}
+      </div>
+    `;
   }
 
   renderUnassignedParticipants() {
@@ -274,17 +309,7 @@ export class ManagePoints {
       <h2>${translate("unassigned_participants")}</h2>
       <div class="group-content">
         ${this.unassignedParticipants
-        .map(
-          (participant) => `
-              <div class="list-item" data-participant-id="${participant.id}"
-                data-type="individual"
-                data-group-id="null" data-points="${participant.total_points}"
-                data-name="${participant.first_name}">
-                <span class="participant-name">${participant.first_name} ${participant.last_name}</span>
-                <span class="participant-points" id="name-points-${participant.id}">${participant.total_points}</span>
-              </div>
-          `,
-        )
+        .map((participant) => this.renderParticipantItem(participant))
         .join("")}
       </div>
     `;
@@ -299,28 +324,25 @@ export class ManagePoints {
     }
 
     return groupParticipants
-      .map(
-        (participant) => `
-          <div class="list-item" data-participant-id="${participant.id
-          }" data-type="individual"
-            data-group-id="${participant.group_id}" data-points="${participant.total_points
-          }"
-            data-name="${participant.first_name}">
-            <span class="participant-name">${participant.first_name} ${participant.last_name}</span>
-            <span class="participant-points" id="name-points-${participant.id}">${participant.total_points}</span>
-          </div>
-        `,
-      )
+      .map((participant) => this.renderParticipantItem(participant))
       .join("");
   }
 
+  renderParticipantItem(participant) {
+    return `
+      <div class="list-item" data-participant-id="${participant.id}" data-type="individual"
+        data-group-id="${participant.group_id ?? "null"}">
+        <span class="participant-name">${participant.first_name} ${participant.last_name}</span>
+        <span class="participant-points" id="name-points-${participant.id}">${this.store.getParticipantTotal(participant.id)}</span>
+      </div>
+    `;
+  }
+
   getGroupIndividualTotal(groupId) {
-    return this.participants
+    const memberIds = this.participants
       .filter((participant) => participant.group_id == groupId)
-      .reduce(
-        (sum, participant) => sum + (parseInt(participant.total_points, 10) || 0),
-        0,
-      );
+      .map((participant) => participant.id);
+    return this.store.getMembersTotal(memberIds);
   }
 
   // Event delegation for attaching listeners to dynamically added elements
@@ -329,11 +351,9 @@ export class ManagePoints {
     const pointsList = document.getElementById("points-list");
     const filterDropdown = document.getElementById("group-filter");
     const filterToggle = document.getElementById("filter-toggle");
-    const fixedBottom = document.querySelector(".fixed-bottom"); // Ensure we target .fixed-bottom
+    const fixedBottom = document.querySelector(".fixed-bottom");
 
-    // Check if these elements exist before adding listeners
     if (sortContainer) {
-      // Add listener for sorting buttons
       sortContainer.addEventListener("click", (event) => {
         const target = event.target;
         if (target.tagName === "BUTTON" && target.dataset.sort) {
@@ -343,62 +363,98 @@ export class ManagePoints {
     }
 
     if (pointsList) {
-      // Add listener for point buttons and list items
       pointsList.addEventListener("click", (event) => {
-        const target = event.target;
-
-        // Handle point button click
-        if (target.classList.contains("point-btn")) {
-          this.handlePointButtonClick(target);
-        }
-
-        // Handle list item or group header click
-        else if (target.closest(".list-item, .group-header")) {
-          this.handleItemClick(target.closest(".list-item, .group-header"));
+        const item = event.target.closest(".list-item, .group-header");
+        if (item) {
+          this.handleItemClick(item);
         }
       });
     }
 
     if (filterDropdown) {
-      // Add change listener for group filter dropdown
       filterDropdown.addEventListener("change", (event) => {
-        this.filterByGroup(event.target.value);
+        this.currentFilter = event.target.value;
+        this.applyFilter();
       });
     }
 
     if (filterToggle) {
-      // Add listener for filter toggle button
       filterToggle.addEventListener("click", () => {
         this.toggleFilter();
       });
     }
 
-    // Add listener for point buttons in the fixed-bottom section
     if (fixedBottom) {
       fixedBottom.addEventListener("click", (event) => {
         const target = event.target;
         if (target.classList.contains("point-btn")) {
-          this.handlePointButtonClick(target); // Call point button handler
+          this.applyPointAction(parseInt(target.dataset.points));
         }
       });
     }
   }
 
   handleItemClick(item) {
-    if (this.selectedItem) {
-      this.selectedItem.classList.remove("selected");
+    const type = item.dataset.type;
+    const id = type === "group" ? item.dataset.groupId : item.dataset.participantId;
+
+    if (this.selected && this.selected.type === type && this.selected.id === id) {
+      this.selected = null; // toggle off
+    } else {
+      this.selected = { type, id };
     }
-    item.classList.add("selected");
-    this.selectedItem = item;
+    this.applySelection();
   }
 
-  async handlePointButtonClick(btn) {
-    const points = parseInt(btn.dataset.points);
-    await this.updatePoints(points);
+  /**
+   * Reflect this.selected in the DOM. Safe to call after any re-render.
+   */
+  applySelection() {
+    document.querySelectorAll(".list-item.selected, .group-header.selected").forEach((el) => {
+      el.classList.remove("selected");
+    });
+    if (!this.selected) {
+      return;
+    }
+    const selector = this.selected.type === "group"
+      ? `.group-header[data-group-id="${this.selected.id}"]`
+      : `.list-item[data-participant-id="${this.selected.id}"]`;
+    document.querySelector(selector)?.classList.add("selected");
   }
 
-  async updatePoints(points) {
-    if (!this.selectedItem) {
+  /**
+   * Member ids eligible for a group award, mirroring the server rule:
+   * if attendance was taken today, only present/late members get points;
+   * if no attendance exists at all, everyone does.
+   */
+  getEligibleGroupMemberIds(groupId) {
+    const memberIds = this.participants
+      .filter((p) => p.group_id == groupId)
+      .map((p) => p.id);
+
+    const attendanceTaken = Object.keys(this.todayAttendance).length > 0;
+    if (!attendanceTaken) {
+      return { eligible: memberIds, skipped: [] };
+    }
+
+    const eligible = [];
+    const skipped = [];
+    memberIds.forEach((id) => {
+      const status = this.todayAttendance[id];
+      if (status === "present" || status === "late") {
+        eligible.push(id);
+      } else {
+        skipped.push(id);
+      }
+    });
+    return { eligible, skipped };
+  }
+
+  /**
+   * Handle a +N / -N button press for the current selection
+   */
+  async applyPointAction(points) {
+    if (!this.selected) {
       this.app.showMessage(
         translate("please_select_group_or_individual"),
         "error",
@@ -406,11 +462,7 @@ export class ManagePoints {
       return;
     }
 
-    const type = this.selectedItem.dataset.type;
-    const id =
-      type === "group"
-        ? this.selectedItem.dataset.groupId
-        : this.selectedItem.dataset.participantId;
+    const { type, id } = this.selected;
 
     if (type === "no-group") {
       this.app.showMessage(
@@ -420,142 +472,103 @@ export class ManagePoints {
       return;
     }
 
-    const updateKey = `points-${type}-${id}-${Date.now()}`;
-    // Include current date for group points - backend uses this to filter by attendance
-    const today = new Date().toISOString().split('T')[0];
-    const updateData = {
-      type,
-      id,
-      points,
-      timestamp: new Date().toISOString(),
-      date: type === 'group' ? today : undefined, // Only include date for group points
-    };
+    const today = getTodayISO();
+    let txn;
 
-    // Use OptimisticUpdateManager for instant feedback with rollback capability
-    await this.optimisticManager.execute(updateKey, {
-      optimisticFn: () => {
-        // Save current state for rollback
-        const rollbackState = {
-          participants: JSON.parse(JSON.stringify(this.participants)),
-          groups: JSON.parse(JSON.stringify(this.groups)),
-        };
-
-        // Provide immediate visual feedback
-        this.updatePointsUI(type, id, points);
-
-        // Add to pending updates
-        this.pendingUpdates.push(updateData);
-
-        return rollbackState;
-      },
-
-      apiFn: async () => {
-        // Send batch update to server
-        return await this.sendBatchUpdate();
-      },
-
-      successFn: (result) => {
-        // Server response already applied by sendBatchUpdate
-        // which calls updateGroupPoints/updateIndividualPoints
-        debugLog("Points update successful:", result);
-      },
-
-      rollbackFn: (rollbackState, error) => {
-        // Revert to previous state
-        this.participants = rollbackState.participants;
-        this.groups = rollbackState.groups;
-
-        // Remove the failed update from pending updates
-        const index = this.pendingUpdates.findIndex(
-          (u) => u.type === type && u.id === id && u.points === points
-        );
-        if (index !== -1) {
-          this.pendingUpdates.splice(index, 1);
-        }
-
-        // Re-render to show original values
-        this.sortByGroup();
-
-        // Show error message
+    if (type === "group") {
+      const { eligible, skipped } = this.getEligibleGroupMemberIds(id);
+      if (skipped.length > 0) {
         this.app.showMessage(
-          `${translate("error_updating_points")}: ${error.message}`,
-          "error"
+          translate("points_skipped_absent_participants").replace("{{count}}", skipped.length),
+          "info"
         );
-      },
-
-      onError: (error) => {
-        debugError("Error updating points:", error);
       }
+      txn = {
+        participantDeltas: Object.fromEntries(eligible.map((memberId) => [memberId, points])),
+        groupDeltas: { [id]: points },
+      };
+    } else {
+      txn = {
+        participantDeltas: { [id]: points },
+        groupDeltas: {},
+      };
+    }
+
+    this.store.applyOptimistic(txn);
+    this.showPointChangeAnimation(this.selectedElement(), points);
+
+    this.updateQueue.push({
+      payload: {
+        type,
+        id,
+        points,
+        timestamp: new Date().toISOString(),
+        // Backend filters group awards by attendance for this date
+        date: type === "group" ? today : undefined,
+      },
+      txn,
     });
+
+    await this.flushQueue();
   }
 
-  async sendBatchUpdate() {
-    if (this.pendingUpdates.length === 0) return;
+  selectedElement() {
+    if (!this.selected) {
+      return null;
+    }
+    const selector = this.selected.type === "group"
+      ? `.group-header[data-group-id="${this.selected.id}"]`
+      : `.list-item[data-participant-id="${this.selected.id}"]`;
+    return document.querySelector(selector);
+  }
 
-    const updates = [...this.pendingUpdates];
-    this.pendingUpdates = [];
+  /**
+   * Send queued updates as one batch, one batch in flight at a time.
+   * Responses carry absolute totals, so serializing batches guarantees the
+   * store's base totals only ever move forward.
+   */
+  async flushQueue() {
+    if (this.batchInFlight || this.updateQueue.length === 0) {
+      return;
+    }
+
+    const batch = this.updateQueue.splice(0);
+    const payloads = batch.map((entry) => entry.payload);
+    const txns = batch.map((entry) => entry.txn);
+    this.batchInFlight = true;
 
     try {
-      // Use the API layer which routes through makeApiRequest → OfflineManager
-      // When offline, this queues the mutation and returns {success:true, queued:true}
-      const data = await updatePoints(updates);
+      // Routes through makeApiRequest → OfflineManager; when offline this
+      // queues the mutation and returns {success: true, queued: true}
+      const data = await updatePoints(payloads);
 
-      // Mutation was queued for offline sync — persist the optimistic state in cache
-      // so navigating away and back shows the correct points
       if (data.queued) {
-        debugLog("Batch update queued for offline sync:", updates.length, "updates");
+        debugLog("Batch update queued for offline sync:", payloads.length, "updates");
+        this.store.foldBatch(txns);
         await this.updateCache();
         return;
       }
 
-      debugLog("Batch update successful:", data);
+      const serverUpdates = data.data?.updates || data.updates || [];
+      this.store.confirmBatch(txns, serverUpdates);
 
-      // Apply server updates
-      // Support both new format (data.data.updates) and old format (data.updates)
-      const serverUpdates = data.data?.updates || data.updates;
-      if (serverUpdates && Array.isArray(serverUpdates)) {
-        let totalSkipped = 0;
-        serverUpdates.forEach((update) => {
-          if (update.type === "group") {
-            this.updateGroupPoints(
-              update.id,
-              update.totalPoints,
-              update.memberIds,
-              update.memberTotals,
-            );
-            // Track skipped participants for group points
-            if (update.skippedCount > 0) {
-              totalSkipped += update.skippedCount;
-              debugLog(`Group ${update.id}: ${update.skippedCount} participants skipped (absent/excused)`);
-            }
-          } else {
-            this.updateIndividualPoints(update.id, update.totalPoints);
-          }
-        });
-
-        // Show info message if participants were skipped
-        if (totalSkipped > 0) {
-          this.app.showMessage(
-            translate("points_skipped_absent_participants").replace("{{count}}", totalSkipped),
-            "info"
-          );
-        }
-      } else {
-        debugLog("Unexpected response format:", data);
+      const totalSkipped = serverUpdates.reduce(
+        (sum, update) => sum + (update.skippedCount || 0), 0
+      );
+      if (totalSkipped > 0) {
+        debugLog(`Server skipped ${totalSkipped} participants (absent/excused)`);
       }
 
-      // Update the local cache with the latest data
       await this.updateCache();
     } catch (error) {
       debugError("Error in batch update:", error);
 
       // Network error (went offline mid-request): queue for offline sync
-      // Return without throwing so the optimistic UI state is kept
       if (error instanceof TypeError || !navigator.onLine) {
         try {
           const { offlineManager } = await import("./modules/OfflineManager.js");
           await offlineManager.queueMutation(
-            getApiUrl("update-points"),
+            getApiUrl("v1/points"),
             {
               method: "POST",
               headers: {
@@ -563,218 +576,139 @@ export class ManagePoints {
                 ...getAuthHeader(),
                 "x-organization-id": getCurrentOrganizationId(),
               },
-              body: JSON.stringify(updates),
+              body: JSON.stringify(payloads),
             }
           );
-          debugLog("Batch update queued for offline sync (network error fallback):", updates.length, "updates");
+          debugLog("Batch update queued for offline sync (network error fallback):", payloads.length, "updates");
         } catch (queueError) {
           debugError("Failed to queue offline mutation:", queueError);
           // Last resort: use legacy offline storage
-          for (const update of updates) {
-            await saveOfflineData("updatePoints", update);
-          }
+          await Promise.all(payloads.map((payload) => saveOfflineData("updatePoints", payload)));
         }
+        this.store.foldBatch(txns);
         await this.updateCache();
-        return;
-      }
-
-      // Server error: add back to pending and show error
-      this.pendingUpdates.push(...updates);
-      this.app.showMessage(
-        `${translate("error_updating_points")}: ${error.message}`,
-        "error"
-      );
-    }
-  }
-
-  updateGroupPoints(groupId, totalPoints, memberIds, memberTotals) {
-    debugLog(
-      `[updateGroupPoints] Updating group ${groupId} to ${totalPoints} points, members:`,
-      memberIds,
-      "memberTotals:",
-      memberTotals,
-    );
-    const groupElement = document.querySelector(
-      `.group-header[data-group-id="${groupId}"]`,
-    );
-    if (groupElement) {
-      // Get the group name from the internal data
-      const group = this.groups.find((g) => g.id == groupId);
-      const groupName = group
-        ? group.name
-        : groupElement.textContent.split(" - ")[0];
-
-      // Update the main group header display
-      const pointsDisplay = `${groupName} - ${translate("group_points")}: ${totalPoints}`;
-      setContent(groupElement, pointsDisplay);
-      groupElement.dataset.points = totalPoints;
-      this.addHighlightEffect(groupElement);
-
-      // Update the group's total_points in our data
-      if (group) {
-        group.total_points = totalPoints;
-      }
-    } else {
-      debugLog(
-        `[updateGroupPoints] Could not find element for group ${groupId}`,
-      );
-    }
-
-    // Update each member's individual points from the memberTotals array
-    if (memberTotals && Array.isArray(memberTotals)) {
-      memberTotals.forEach((member) => {
-        this.updateIndividualPoints(member.id, member.totalPoints);
-      });
-    }
-
-    const groupPointsElement = document.querySelector(
-      `#group-points-${groupId}`,
-    );
-    if (groupPointsElement) {
-      groupPointsElement.textContent = `${translate("total_points")}: ${this.getGroupIndividualTotal(groupId)}`;
-    }
-  }
-
-  updateIndividualPoints(participantId, totalPoints) {
-    debugLog(
-      `[updateIndividualPoints] Updating participant ${participantId} to ${totalPoints} points`,
-    );
-    const nameElement = document.querySelector(
-      `.list-item[data-participant-id="${participantId}"]`,
-    );
-    if (nameElement) {
-      const pointsElement = nameElement.querySelector(
-        `#name-points-${participantId}`,
-      );
-      if (pointsElement) {
-        pointsElement.textContent = `${totalPoints} `;
-      }
-      nameElement.dataset.points = totalPoints;
-      this.addHighlightEffect(nameElement);
-    } else {
-      debugLog(
-        `[updateIndividualPoints] Could not find element for participant ${participantId}`,
-      );
-    }
-
-    // Update the participant's total_points in our internal data
-    const participant = this.participants.find((p) => p.id == participantId);
-    if (participant) {
-      participant.total_points = totalPoints;
-    }
-  }
-
-  updatePointsUI(type, id, points) {
-    const selector =
-      type === "group"
-        ? `.group-header[data-group-id="${id}"]`
-        : `.list-item[data-participant-id="${id}"]`;
-    const element = document.querySelector(selector);
-    if (!element) return;
-
-    const currentPoints = parseInt(element.dataset.points) || 0;
-    const newPoints = currentPoints + points;
-
-    if (type === "group") {
-      // Update group points
-      const groupParticipants = this.participants.filter(
-        (p) => p.group_id == id,
-      );
-      groupParticipants.forEach((participant) => {
-        const memberElement = document.querySelector(
-          `.list-item[data-participant-id="${participant.id}"]`,
+      } else {
+        // Server error: undo the optimistic deltas
+        this.store.rollbackBatch(txns);
+        this.app.showMessage(
+          `${translate("error_updating_points")}: ${error.message}`,
+          "error"
         );
-        if (memberElement) {
-          const memberPointsElement = memberElement.querySelector(
-            `#name-points-${participant.id}`,
-          );
-          if (memberPointsElement) {
-            const currentMemberPoints = parseInt(participant.total_points) || 0;
-            const newMemberPoints = currentMemberPoints + points;
-            memberPointsElement.textContent = `${newMemberPoints}`;
-            memberElement.dataset.points = newMemberPoints;
-            participant.total_points = newMemberPoints;
-          }
+      }
+    } finally {
+      this.batchInFlight = false;
+      if (this.updateQueue.length > 0) {
+        await this.flushQueue();
+      }
+    }
+  }
+
+  /**
+   * Store change listener: update only the affected DOM nodes, always from
+   * store values. The DOM is never read back to compute totals.
+   */
+  onStoreChange(changedIds) {
+    const touchedGroups = new Set();
+
+    changedIds.forEach((entityId) => {
+      const [kind, id] = entityId.split(":");
+      if (kind === "participant") {
+        const pointsElement = document.getElementById(`name-points-${id}`);
+        if (pointsElement) {
+          pointsElement.textContent = `${this.store.getParticipantTotal(id)}`;
+          this.addHighlightEffect(pointsElement.closest(".list-item"));
         }
-      });
-
-      // Update group total display
-      const group = this.groups.find((candidate) => candidate.id == id);
-      const groupName = group ? group.name : element.textContent.split(" - ")[0];
-      setContent(element, `${groupName} - ${translate("group_points")}: ${newPoints}`);
-      const groupPointsElement = document.querySelector(`#group-points-${id}`);
-      if (groupPointsElement) {
-        groupPointsElement.textContent = `${translate("total_points")}: ${this.getGroupIndividualTotal(id)}`;
-      }
-      element.dataset.points = newPoints;
-      if (group) {
-        group.total_points = newPoints;
-      }
-    } else {
-      // Update individual points
-      const pointsElement = element.querySelector(`#name-points-${id}`);
-      if (pointsElement) {
-        pointsElement.textContent = `${newPoints} `;
-        element.dataset.points = newPoints;
-
-        // Update the participant's points in the data
         const participant = this.participants.find((p) => p.id == id);
         if (participant) {
-          participant.total_points = newPoints;
+          participant.total_points = this.store.getParticipantTotal(id);
+          if (participant.group_id) {
+            touchedGroups.add(String(participant.group_id));
+          }
+        }
+      } else if (kind === "group") {
+        touchedGroups.add(id);
+        const header = document.querySelector(`.group-header[data-group-id="${id}"] .group-header__points`);
+        if (header) {
+          header.textContent = `${translate("group_points")}: ${this.store.getGroupTotal(id)}`;
+          this.addHighlightEffect(header.closest(".group-header"));
+        }
+        const group = this.groups.find((g) => g.id == id);
+        if (group) {
+          group.total_points = this.store.getGroupTotal(id);
         }
       }
-    }
+    });
 
-    // Show point change animation
-    this.showPointChangeAnimation(element, points);
+    // Refresh member-sum footers of affected groups
+    touchedGroups.forEach((groupId) => {
+      const footer = document.getElementById(`group-points-${groupId}`);
+      if (footer) {
+        footer.textContent = `${translate("total_points")}: ${this.getGroupIndividualTotal(groupId)}`;
+      }
+    });
   }
 
+  /**
+   * Persist canonical state (with current store totals) to the shared cache
+   */
   async updateCache() {
     try {
+      const participants = this.participants.map((participant) => ({
+        ...participant,
+        total_points: this.store.getParticipantTotal(participant.id),
+      }));
+      const groups = this.groups.map((group) => ({
+        ...group,
+        total_points: this.store.getGroupTotal(group.id),
+      }));
       await setCachedData(
-        "manage_points_data",
+        POINTS_CACHE_KEY,
         {
-          participants: this.participants,
-          groups: this.groups,
+          participants,
+          groups,
           groupedParticipants: this.groupedParticipants,
           unassignedParticipants: this.unassignedParticipants,
         },
         CONFIG.CACHE_DURATION.SHORT,
-      ); // Cache for 5 minutes
+      );
       debugLog("Cache updated with new points data.");
     } catch (error) {
       debugError("Error updating cache:", error);
     }
   }
 
-  // Add this new method for point change animation
   showPointChangeAnimation(element, points) {
+    if (!element) {
+      return;
+    }
     const changeElement = document.createElement("span");
     changeElement.textContent = points > 0 ? `+${points}` : points;
     changeElement.className = "point-change";
     changeElement.style.color = points > 0 ? "green" : "red";
     element.appendChild(changeElement);
 
-    // Remove the change element after animation
+    const ANIMATION_DURATION_MS = 2000;
     setTimeout(() => {
       changeElement.remove();
-    }, 2000);
+    }, ANIMATION_DURATION_MS);
 
-    // Add highlight effect
     this.addHighlightEffect(element);
   }
 
   addHighlightEffect(element) {
+    if (!element) {
+      return;
+    }
+    const HIGHLIGHT_DURATION_MS = 500;
     element.classList.add("highlight");
     setTimeout(() => {
       element.classList.remove("highlight");
-    }, 500);
+    }, HIGHLIGHT_DURATION_MS);
   }
 
   sortItems(key) {
     debugLog(`Sorting by ${key}`);
 
-    // Toggle sort order if clicking same key, otherwise start with asc
     if (this.currentSort.key === key) {
       this.currentSort.order =
         this.currentSort.order === "asc" ? "desc" : "asc";
@@ -783,42 +717,12 @@ export class ManagePoints {
       this.currentSort.order = "asc";
     }
 
-    // Update visual indicator for active sort button
     document.querySelectorAll('.sort-btn').forEach(btn => {
       btn.classList.remove('active');
     });
-    const activeBtn = document.querySelector(`.sort-btn[data-sort="${key}"]`);
-    if (activeBtn) {
-      activeBtn.classList.add('active');
-    }
+    document.querySelector(`.sort-btn[data-sort="${key}"]`)?.classList.add('active');
 
-    if (key === "group") {
-      this.sortByGroup(); // Reuse the method to sort by group
-    } else {
-      // Handle other sorts (name, points)
-      const list = document.getElementById("points-list");
-      const items = Array.from(document.querySelectorAll(".list-item"));
-
-      // Sort participants by name or points
-      items.sort((a, b) => {
-        let valueA, valueB;
-        if (key === "name") {
-          valueA = a.dataset.name;
-          valueB = b.dataset.name;
-        } else if (key === "points") {
-          valueA = parseInt(a.dataset.points);
-          valueB = parseInt(b.dataset.points);
-        }
-        return (
-          (valueA < valueB ? -1 : valueA > valueB ? 1 : 0) *
-          (this.currentSort.order === "asc" ? 1 : -1)
-        );
-      });
-
-      // Clear the list and render only participants
-      setContent(list, items.map((item) => item.outerHTML).join(""));
-      debugLog(`Sorted by ${key}, order: ${this.currentSort.order}`);
-    }
+    this.renderList();
   }
 
   toggleFilter() {
@@ -828,79 +732,61 @@ export class ManagePoints {
     }
   }
 
-  sortByGroup() {
-    const pointsList = document.getElementById("points-list");
-
-    // First, render the groups with participants
-    const groupContent = this.groups
-      .map(
-        (group) => `
-        <div class="group-header" data-group-id="${group.id
-          }" data-type="group" data-points="${group.total_points}">
-          ${group.name} - ${translate("group_points")}: ${group.total_points}
-        </div>
-        <div class="group-content">
-          ${this.renderParticipantsForGroup(group.id)}
-          <div class="group-points" id="group-points-${group.id}">
-            ${translate("total_points")}: ${this.getGroupIndividualTotal(group.id)}
-          </div>
-        </div>
-      `,
-      )
-      .join("");
-
-    // Then, render unassigned participants
-    const unassignedHTML = this.renderUnassignedParticipants();
-
-    // Combine group content and unassigned participants into one HTML
-    setContent(pointsList, groupContent + unassignedHTML);
-  }
-
-  filterByGroup(groupId) {
-    this.currentFilter = groupId;
-    const headers = document.querySelectorAll(".group-header");
-    const items = document.querySelectorAll(".list-item");
-
-    headers.forEach((header) => {
+  applyFilter() {
+    const groupId = this.currentFilter;
+    document.querySelectorAll(".group-header").forEach((header) => {
       header.style.display =
         groupId === "" || header.dataset.groupId === groupId ? "" : "none";
     });
-
-    items.forEach((item) => {
+    document.querySelectorAll(".list-item").forEach((item) => {
       item.style.display =
         groupId === "" || item.dataset.groupId === groupId ? "" : "none";
     });
   }
 
   async refreshPointsData() {
-    const cacheKey = "manage_points_data";
     try {
-      // Try to get cached data first
-      const cachedData = await getCachedData(cacheKey);
+      const cachedData = await getCachedData(POINTS_CACHE_KEY);
       if (cachedData) {
         debugLog("Using cached points data");
-        this.updatePointsDisplay(cachedData);
-        return cachedData;
+        this.applyPointsData(this.normalizePointsData(cachedData));
+        this.renderList();
+        return;
       }
 
-      // If no cached data, fetch from server
       debugLog("Fetching fresh points data");
       const data = await API.getNoCache('v1/points');
+      const normalized = this.normalizePointsData(data);
 
-      // Cache the new data
-      await setCachedData(cacheKey, data);
+      // The points endpoint returns totals but not role/leader flags, so merge
+      // totals into the richer participant records when we have them
+      if (this.participants.length > 0) {
+        const totalsById = new Map(
+          normalized.participants.map((p) => [String(p.id), Number(p.total_points) || 0])
+        );
+        this.participants.forEach((participant) => {
+          if (totalsById.has(String(participant.id))) {
+            participant.total_points = totalsById.get(String(participant.id));
+          }
+        });
+        this.groups = normalized.groups.length > 0 ? normalized.groups : this.groups;
+        this.store.load(this.participants, this.groups);
+        this.organizeParticipants();
+      } else {
+        this.applyPointsData(normalized);
+      }
 
-      this.updatePointsDisplay(data);
-      return data;
+      await this.updateCache();
+      this.renderList();
     } catch (error) {
       debugError("Error fetching points data:", error);
-      // If offline, try to use any available cached data, even if expired
       if (!navigator.onLine) {
-        const cachedData = await getCachedDataIgnoreExpiration(cacheKey);
+        const cachedData = await getCachedDataIgnoreExpiration(POINTS_CACHE_KEY);
         if (cachedData) {
           debugLog("Using stale cached data due to offline status");
-          this.updatePointsDisplay(cachedData);
-          return cachedData;
+          this.applyPointsData(this.normalizePointsData(cachedData));
+          this.renderList();
+          return;
         }
       }
       throw error;
@@ -908,26 +794,20 @@ export class ManagePoints {
   }
 
   organizeParticipants() {
-    // Safety check for undefined groups
     if (!Array.isArray(this.groups)) {
       this.groups = [];
     }
-
-    // Safety check for undefined participants
     if (!Array.isArray(this.participants)) {
       this.participants = [];
     }
 
-    // Initialize groupedParticipants with empty arrays for each group
     this.groupedParticipants = {};
     this.groups.forEach((group) => {
       this.groupedParticipants[group.id] = [];
     });
 
-    // Initialize unassignedParticipants
     this.unassignedParticipants = [];
 
-    // Organize participants into groups
     this.participants.forEach((participant) => {
       if (
         participant.group_id &&
@@ -939,104 +819,20 @@ export class ManagePoints {
       }
     });
 
-    // Sort participants within each group
     Object.values(this.groupedParticipants).forEach((groupParticipants) => {
       groupParticipants.sort((a, b) => {
-        // Sort by leader status first
         if (a.first_leader !== b.first_leader)
           return b.first_leader ? 1 : -1;
-        // Then by second leader status
         if (a.second_leader !== b.second_leader)
           return b.second_leader ? 1 : -1;
-        // Finally by name
         return a.first_name.localeCompare(b.first_name);
       });
     });
 
-    // Sort unassigned participants by name
     this.unassignedParticipants.sort((a, b) =>
       a.first_name.localeCompare(b.first_name),
     );
   }
-
-  async updatePointsDisplay(data) {
-    debugLog("Updating points display with data:", data);
-
-    // Normalize and update internal data structures when fresh data is provided
-    if (data) {
-      const participantsFromData = data.participants || data.names;
-      if (Array.isArray(participantsFromData)) {
-        this.participants = participantsFromData.map((participant) => ({
-          total_points: 0,
-          ...participant,
-          total_points: participant.total_points ?? 0,
-        }));
-      }
-
-      if (Array.isArray(data.groups)) {
-        this.groups = data.groups.map((group) => ({
-          total_points: 0,
-          ...group,
-          total_points: group.total_points ?? 0,
-        }));
-      }
-
-      // Rebuild grouping to ensure render helpers can use fresh data
-      this.organizeParticipants();
-
-      // If the DOM has not yet been rendered, bail out after re-rendering the lists
-      const pointsList = document.getElementById("points-list");
-      if (pointsList) {
-        this.sortByGroup();
-      }
-    }
-
-    // Update points for all participants
-    this.participants.forEach((participant) => {
-      const participantElement = document.querySelector(
-        `.list-item[data-participant-id="${participant.id}"]`,
-      );
-      if (participantElement) {
-        const pointsElement = participantElement.querySelector(
-          `#name-points-${participant.id}`,
-        );
-        if (pointsElement) {
-          pointsElement.textContent = `${participant.total_points} `;
-          participantElement.dataset.points = participant.total_points;
-        }
-      }
-    });
-
-    // Update group points - use the group's total_points from API (not recalculated from individuals)
-    this.groups.forEach((group) => {
-      const groupElement = document.querySelector(
-        `.group-header[data-group-id="${group.id}"]`,
-      );
-      if (groupElement) {
-        // Use group.total_points directly from API
-        const totalPoints = parseInt(group.total_points) || 0;
-
-        // Update group points display
-        const pointsDisplay = `${group.name} - ${translate("group_points")}: ${totalPoints}`;
-        setContent(groupElement, pointsDisplay);
-        groupElement.dataset.points = totalPoints;
-
-        // Update the group points total if it exists
-        const groupPointsElement = document.querySelector(
-          `#group-points-${group.id}`,
-        );
-        if (groupPointsElement) {
-          groupPointsElement.textContent = `${translate("total_points")}: ${this.getGroupIndividualTotal(group.id)}`;
-        }
-      }
-    });
-
-    // Refresh the sort if needed
-    if (this.currentSort.key === "points") {
-      this.sortItems("points");
-    }
-  }
-
 
   renderError() {
     const errorMessage = `
