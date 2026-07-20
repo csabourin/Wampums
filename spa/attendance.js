@@ -284,14 +284,16 @@ export class Attendance {
     this.currentDate = today;
   }
 
-  async fetchData() {
+  async fetchData(forceRefresh = false) {
     try {
-      // Check if cached data is available
-      const cachedData = await getCachedData(`attendance_${this.currentDate}`);
-      if (cachedData) {
-        this.applyCacheEntry(this.parseAttendanceCacheEntry(cachedData));
-        debugLog("Loaded data from cache");
-        return; // No need to proceed if cached data is found
+      // Check if cached data is available (skipped when forceRefresh is true)
+      if (!forceRefresh) {
+        const cachedData = await getCachedData(`attendance_${this.currentDate}`);
+        if (cachedData) {
+          this.applyCacheEntry(this.parseAttendanceCacheEntry(cachedData));
+          debugLog("Loaded data from cache");
+          return; // No need to proceed if cached data is found
+        }
       }
 
       // Fetch the data if not cached
@@ -981,7 +983,8 @@ export class Attendance {
     // the point-adjustment baseline from its own records anyway.
     const previousStatus = this.attendanceData[participantId] || null;
 
-    await this.optimisticManager.execute(
+    try {
+      await this.optimisticManager.execute(
       `attendance-${participantId}-${this.currentDate}`,
       {
         optimisticFn: () => {
@@ -1035,7 +1038,10 @@ export class Attendance {
           );
         },
       },
-    );
+      );
+    } catch (_err) {
+      // Error is already handled in rollbackFn (UI restored, message shown)
+    }
   }
 
   async updateGroupStatus(groupId, newStatus) {
@@ -1192,15 +1198,8 @@ export class Attendance {
       debugLog(`Camp mode: Loading prepared data for ${newDate}`);
       await this.preloadAttendanceData();
     } else {
-      // Normal mode: clear caches and fetch fresh
-      try {
-        await deleteCachedData(`attendance_${this.currentDate}`);
-        await deleteCachedData(`attendance_api_${this.currentDate}`);
-        debugLog(`Cleared caches for attendance_${this.currentDate}`);
-      } catch (e) {
-        debugLog(`No cache to clear for attendance_${this.currentDate}`);
-      }
-      await this.fetchData();
+      // Normal mode: force-refresh from API, bypassing stale cache
+      await this.fetchData(true);
     }
 
     // The activity context (camp banner, carry-forward source dates)

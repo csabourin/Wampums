@@ -350,7 +350,7 @@ module.exports = (pool, logger) => {
     requirePermission('attendance.manage'),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const date = req.query.date || req.body.date;
+      const date = req.query.date || req.body?.date;
 
       if (!date) {
         return error(res, 'Date is required', 400);

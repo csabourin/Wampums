@@ -112,7 +112,6 @@ export class OfflineManager {
     handleOffline() {
         debugLog('OfflineManager: Device is offline');
         this.isOffline = true;
-        this.updateOnlineStatus();
 
         // Show toast notification
         this.showToast(this.getTranslation('connection.lost'), 'info');

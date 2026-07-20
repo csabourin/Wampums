@@ -4,6 +4,10 @@ const DB_NAME = "WampumsAppDB";
 const DB_VERSION = 12;
 const STORE_NAME = "offlineData";
 
+// Monotonically increasing counter used as tie-breaker when multiple
+// saveOfflineData calls happen within the same millisecond.
+let _offlineSequence = 0;
+
 /**
  * Delete the IndexedDB database for the application.
  * Used on logout to ensure no cached data remains available across accounts.
@@ -36,8 +40,9 @@ export function openDB() {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onerror = (event) => {
-      debugError("Error opening IndexedDB:", event.target.errorCode);
-      reject(event.target.errorCode);
+      const err = event.target.error || new Error(`IndexedDB open failed (errorCode ${event.target.errorCode})`);
+      debugError("Error opening IndexedDB:", err);
+      reject(err);
     };
 
     request.onsuccess = (event) => {
@@ -194,6 +199,7 @@ export async function saveOfflineData(action, data, keyOverride = null) {
       action,
       data,
       timestamp: Date.now(),
+      sequence: ++_offlineSequence,
       retryCount: 0,
     };
 
@@ -215,7 +221,11 @@ export async function getOfflineData() {
 
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
-      const offlineData = request.result || [];
+      const offlineData = (request.result || []).slice().sort((a, b) => {
+        const timeDiff = a.timestamp - b.timestamp;
+        if (timeDiff !== 0) { return timeDiff; }
+        return (a.sequence || 0) - (b.sequence || 0);
+      });
       debugLog("Retrieved offline data:", offlineData);
       resolve(offlineData);
     };

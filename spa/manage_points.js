@@ -536,6 +536,10 @@ export class ManagePoints {
     const payloads = batch.map((entry) => entry.payload);
     const txns = batch.map((entry) => entry.txn);
     this.batchInFlight = true;
+    // Controls whether the finally block should start the next batch.
+    // Set to false in the success path so the next batch can start before
+    // the cache update (which uses IndexedDB macrotask callbacks).
+    let flushInFinally = true;
 
     try {
       // Routes through makeApiRequest → OfflineManager; when offline this
@@ -559,6 +563,16 @@ export class ManagePoints {
         debugLog(`Server skipped ${totalSkipped} participants (absent/excused)`);
       }
 
+      // Release the batch lock and start the next queued batch BEFORE awaiting
+      // updateCache(). IndexedDB uses macrotask (setImmediate) callbacks, so
+      // awaiting it here would delay the next batch past the microtask drain
+      // window. Flushing the next batch inline (before updateCache) keeps
+      // batch serialisation within the microtask queue.
+      this.batchInFlight = false;
+      flushInFinally = false;
+      if (this.updateQueue.length > 0) {
+        await this.flushQueue();
+      }
       await this.updateCache();
     } catch (error) {
       debugError("Error in batch update:", error);
@@ -597,7 +611,7 @@ export class ManagePoints {
       }
     } finally {
       this.batchInFlight = false;
-      if (this.updateQueue.length > 0) {
+      if (flushInFinally && this.updateQueue.length > 0) {
         await this.flushQueue();
       }
     }
