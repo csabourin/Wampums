@@ -107,7 +107,7 @@ module.exports = (pool, logger) => {
          WHERE organization_id = $1
            AND is_active = TRUE
            AND activity_end_date >= activity_start_date
-           AND activity_end_date - activity_start_date <= $2
+           AND activity_end_date - activity_start_date < $2
        ) all_dates
        ORDER BY date DESC`,
       [organizationId, MAX_ACTIVITY_SPAN_DAYS]

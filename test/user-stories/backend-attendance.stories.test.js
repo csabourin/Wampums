@@ -264,6 +264,7 @@ describe('US-ATT-013 — Every camp day is selectable as soon as the activity ex
     expect(datesQuery).toContain('generate_series');
     expect(datesQuery).toContain('is_active');
     expect(datesQuery).toContain('reunion_preparations');
+    expect(datesQuery).toContain('activity_end_date - activity_start_date < $2');
     expect(datesParams).toEqual([ORG_ID, 31]);
   });
 });

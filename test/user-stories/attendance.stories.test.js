@@ -469,6 +469,21 @@ describe('US-ATT-017 — Camp date math never explodes', () => {
   it('collapses invalid input to the start date', () => {
     expect(page().enumerateDateRange('garbage', '2026-07-16')).toEqual(['garbage']);
   });
+
+  it('does not set a camp context when the selected date is outside its safe fallback', async () => {
+    const attendance = page();
+    attendance.currentDate = '2026-08-15';
+    getActivities.mockResolvedValue([{
+      id: 9,
+      name: 'Long Camp',
+      activity_start_date: '2026-07-01',
+      activity_end_date: '2026-08-15'
+    }]);
+
+    await attendance.detectActivityContext();
+
+    expect(attendance.activeActivity).toBeNull();
+  });
 });
 
 describe('US-ATT-018 / US-I18N-001 — attendance strings exist in both languages', () => {

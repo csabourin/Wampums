@@ -376,10 +376,16 @@ export class Attendance {
         }
         if (current >= startDate && current <= endDate) {
           const dates = this.enumerateDateRange(startDate, endDate);
+          const dayIndex = dates.indexOf(current);
+          if (dayIndex === -1) {
+            // The range was reduced to a safe fallback, so it cannot provide
+            // a valid multi-day context for this selected date.
+            continue;
+          }
           this.activeActivity = {
             activity,
             dates,
-            dayIndex: dates.indexOf(current),
+            dayIndex,
           };
           debugLog("Multi-day activity context:", activity.name, `day ${this.activeActivity.dayIndex + 1}/${dates.length}`);
           return;
