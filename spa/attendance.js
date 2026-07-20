@@ -654,6 +654,11 @@ export class Attendance {
   }
 
   render() {
+    // Guard against running after jsdom teardown (e.g. dangling setImmediate
+    // callbacks from fake-indexeddb in tests) or in non-browser contexts.
+    if (typeof document === 'undefined') {
+      return;
+    }
     // Safety check to prevent rendering if we've navigated away
     if (!document.querySelector(".attendance-container")) {
       return;
@@ -836,6 +841,10 @@ export class Attendance {
   }
 
   attachEventListeners() {
+    // Guard against running after jsdom teardown or in non-browser contexts.
+    if (typeof document === 'undefined') {
+      return;
+    }
     const dateSelect = document.getElementById("dateSelect");
     if (dateSelect) {
       const newDateSelect = dateSelect.cloneNode(true);

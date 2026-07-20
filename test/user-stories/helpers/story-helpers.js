@@ -75,7 +75,10 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-/** Drain the microtask queue (safe with fake timers). */
+/**
+ * Drain the microtask queue (safe with fake timers).
+ * @param {number} [times=5] - Number of microtask drain cycles to run
+ */
 async function flushPromises(times = 5) {
   for (let i = 0; i < times; i += 1) {
     // eslint-disable-next-line no-await-in-loop -- sequential drains are the point
