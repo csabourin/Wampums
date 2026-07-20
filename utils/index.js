@@ -7,6 +7,7 @@ const jwt = require("jsonwebtoken");
 const Brevo = require("sib-api-v3-sdk");
 const nodemailer = require("nodemailer");
 const winston = require("winston");
+const { getDefaultPointSystemRules } = require('./api-helpers');
 const { verifyJWTToken } = require("./jwt-config");
 
 // Configure logger for utilities
@@ -612,15 +613,7 @@ async function getPointSystemRules(pool, organizationId) {
     logger.error("Error getting point system rules:", error);
   }
 
-  // Default rules if not found or error occurred
-  return {
-    attendance: {
-      present: 1,
-      late: 0,
-      absent: -1,
-      excused: 0,
-    },
-  };
+  return getDefaultPointSystemRules();
 }
 
 module.exports = {
