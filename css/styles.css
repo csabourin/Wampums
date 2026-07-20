@@ -1214,6 +1214,45 @@ tr:hover {
   color: white;
 }
 
+.participant-status.unmarked {
+  background-color: transparent;
+  color: var(--color-text-secondary, #6b6b6b);
+  border: 1px dashed var(--color-border, #c4c4c4);
+}
+
+/* Banner shown while the selected attendance date is part of a multi-day camp */
+.camp-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  margin-block-end: var(--space-md);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-info-light, #e3f2fd);
+  color: var(--color-text, #1a1a1a);
+}
+
+.camp-banner__name {
+  font-weight: var(--font-weight-bold);
+}
+
+.camp-banner__day {
+  margin-inline-start: auto;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary, #4a4a4a);
+}
+
+.mark-remaining-btn {
+  display: block;
+  inline-size: 100%;
+  margin-block-end: var(--space-md);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* ----------------------------------------------------------------------------
    5.10 FIXED BOTTOM ACTION BAR
    ---------------------------------------------------------------------------- */

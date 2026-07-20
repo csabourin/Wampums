@@ -271,11 +271,47 @@ export async function clearPointsRelatedCaches() {
   const keysToDelete = [
     "participants",
     "manage_points_data",
+    "points_report",
     "dashboard_groups",
     "dashboard_participant_info",
   ];
 
   debugLog("Clearing points-related caches:", keysToDelete);
+
+  for (const key of keysToDelete) {
+    try {
+      await deleteCachedData(key);
+    } catch (error) {
+      debugWarn(`Failed to delete cache for ${key}:`, error);
+    }
+  }
+}
+
+/**
+ * Clear attendance-related caches (dates list and per-date API caches).
+ * Call after any attendance mutation so other pages/devices pick up new
+ * dates and statuses. Page-level `attendance_${date}` caches are preserved:
+ * the attendance page rewrites those itself after each update.
+ */
+export async function clearAttendanceRelatedCaches() {
+  const keysToDelete = ["attendance_dates"];
+
+  const db = await openDB();
+  const transaction = db.transaction(STORE_NAME, "readonly");
+  const store = transaction.objectStore(STORE_NAME);
+  const allKeys = await new Promise((resolve, reject) => {
+    const request = store.getAllKeys();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+  for (const key of allKeys) {
+    if (typeof key === "string" && key.startsWith("attendance_api_")) {
+      keysToDelete.push(key);
+    }
+  }
+
+  debugLog("Clearing attendance-related caches:", keysToDelete);
 
   for (const key of keysToDelete) {
     try {
@@ -552,6 +588,7 @@ export async function clearActivityRelatedCaches() {
     "activities",
     "upcoming_activities",
     "v1/activities", // API v1 endpoint cache
+    "attendance_dates", // selectable attendance dates include activity ranges
   ];
 
   // Also clear any activity-specific caches

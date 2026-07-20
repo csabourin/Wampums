@@ -284,14 +284,18 @@ async function getPointSystemRules(pool, organizationId) {
 function calculateAttendancePoints(previousStatus, newStatus, rules) {
   const attendanceRules = rules.attendance || {};
 
-  const getPreviousPoints = (status) => {
+  // Rules may store either a plain number ({present: 1}) or an object
+  // ({present: {label, points: 1}}) depending on where they were saved from.
+  const getStatusPoints = (status) => {
     if (!status) return 0;
     const rule = attendanceRules[status];
-    return rule ? (rule.points || 0) : 0;
+    if (typeof rule === 'number') return rule;
+    if (rule && typeof rule.points === 'number') return rule.points;
+    return 0;
   };
 
-  const previousPoints = getPreviousPoints(previousStatus);
-  const newPoints = getPreviousPoints(newStatus);
+  const previousPoints = getStatusPoints(previousStatus);
+  const newPoints = getStatusPoints(newStatus);
 
   return newPoints - previousPoints;
 }

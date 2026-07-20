@@ -12,7 +12,8 @@ import {
     clearExternalRevenueCaches,
     clearFundraiserRelatedCaches,
     clearBadgeRelatedCaches,
-    clearPointsRelatedCaches
+    clearPointsRelatedCaches,
+    clearAttendanceRelatedCaches
 } from "../indexedDB.js";
 import { buildApiCacheKey } from "../utils/OfflineCacheKeys.js";
 
@@ -1563,7 +1564,10 @@ export async function getRecentHonors() {
  * Award honor to participant (v1 - permission-based)
  */
 export async function awardHonor(honorData) {
-    return API.post('v1/honors', honorData);
+    const result = await API.post('v1/honors', honorData);
+    // Honors award points server-side; keep points caches in sync
+    await clearPointsRelatedCaches();
+    return result;
 }
 
 /**
@@ -1601,7 +1605,9 @@ export async function getAvailableDates() {
  * @returns {Promise}
  */
 export async function updateHonor(honorId, updates) {
-    return API.patch(`v1/honors/${honorId}`, updates);
+    const result = await API.patch(`v1/honors/${honorId}`, updates);
+    await clearPointsRelatedCaches();
+    return result;
 }
 
 /**
@@ -1610,7 +1616,9 @@ export async function updateHonor(honorId, updates) {
  * @returns {Promise}
  */
 export async function deleteHonor(honorId) {
-    return API.delete(`v1/honors/${honorId}`);
+    const result = await API.delete(`v1/honors/${honorId}`);
+    await clearPointsRelatedCaches();
+    return result;
 }
 
 // ============================================================================
@@ -1635,12 +1643,17 @@ export async function getAttendance(date = null) {
  * Uses RESTful v1 endpoint
  */
 export async function updateAttendance(participantId, status, date, previousStatus = null) {
-    return API.post('v1/attendance', {
+    const result = await API.post('v1/attendance', {
         participant_id: participantId,
         status,
         date,
         previous_status: previousStatus
     });
+    // Attendance changes generate point adjustments server-side, so stale
+    // points caches would show old totals that "jump" on the next refresh.
+    await clearPointsRelatedCaches();
+    await clearAttendanceRelatedCaches();
+    return result;
 }
 
 /**
@@ -1648,9 +1661,11 @@ export async function updateAttendance(participantId, status, date, previousStat
  * Uses RESTful v1 endpoint
  */
 export async function getAttendanceDates() {
+    // SHORT duration: new dates appear as soon as attendance is taken or an
+    // activity/meeting is planned (the mutation paths also invalidate this key)
     return API.get('v1/attendance/dates', {}, {
         cacheKey: 'attendance_dates',
-        cacheDuration: CONFIG.CACHE_DURATION.LONG
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });
 }
 
