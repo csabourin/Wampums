@@ -61,11 +61,11 @@ describe('US-PTS-004 — Numbers never jump backwards while I\'m clicking fast',
 
     expect(store.getParticipantTotal(1)).toBe(14);
     // No observed value ever rolled back below the running maximum
-    let runningMax = 0;
-    observed.forEach((value) => {
-      expect(value).toBeGreaterThanOrEqual(runningMax > value ? value : 0);
-      runningMax = Math.max(runningMax, value);
-    });
+let runningMax = Number.NEGATIVE_INFINITY;
+observed.forEach((value) => {
+  expect(value).toBeGreaterThanOrEqual(runningMax);
+  runningMax = Math.max(runningMax, value);
+});
     expect(observed[observed.length - 1]).toBe(14);
     expect(Math.min(...observed)).toBeGreaterThanOrEqual(13);
   });
