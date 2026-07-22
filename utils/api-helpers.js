@@ -233,6 +233,19 @@ function verifyJWT(token) {
  * const rules = await getPointSystemRules(pool, organizationId);
  * console.log('Present points:', rules.attendance.present.points);
  */
+function getDefaultPointSystemRules() {
+  return {
+    attendance: {
+      present: { label: 'present', points: 1 },
+      absent: { label: 'absent', points: 0 },
+      late: { label: 'late', points: 0 },
+      excused: { label: 'excused', points: 0 }
+    },
+    honors: { award: 5 },
+    badges: { earn: 5, level_up: 10 }
+  };
+}
+
 async function getPointSystemRules(pool, organizationId) {
   const queryExecutor = pool;
 
@@ -256,17 +269,7 @@ async function getPointSystemRules(pool, organizationId) {
     logger.error('Error getting point system rules:', error);
   }
 
-  // Default rules if not found
-  return {
-    attendance: {
-      present: { label: 'present', points: 1 },
-      absent: { label: 'absent', points: 0 },
-      late: { label: 'late', points: 0 },
-      excused: { label: 'excused', points: 0 }
-    },
-    honors: { award: 5 },
-    badges: { earn: 5, level_up: 10 }
-  };
+  return getDefaultPointSystemRules();
 }
 
 /**
@@ -574,6 +577,7 @@ module.exports = {
   handleOrganizationResolutionError,
   getUserIdFromToken,
   verifyJWT,
+  getDefaultPointSystemRules,
   getPointSystemRules,
   calculateAttendancePoints,
   jsonResponse,

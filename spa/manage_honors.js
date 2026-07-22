@@ -135,10 +135,10 @@ export class ManageHonors {
 
     this.allParticipants.forEach(participant => {
       const honorsForDate = this.allHonors.filter(
-        honor => honor.participant_id === participant.participant_id && honor.date === this.currentDate
+        honor => Number(honor.participant_id) === Number(participant.participant_id) && honor.date === this.currentDate
       );
       const totalHonors = this.allHonors.filter(
-        honor => honor.participant_id === participant.participant_id && new Date(honor.date) <= new Date(this.currentDate)
+        honor => Number(honor.participant_id) === Number(participant.participant_id) && new Date(honor.date) <= new Date(this.currentDate)
       ).length;
 
       // Get the honor details for the current date
@@ -163,7 +163,7 @@ export class ManageHonors {
 
       // Get the most recent honor date (excluding current date)
       const previousHonors = this.allHonors.filter(
-        honor => honor.participant_id === participant.participant_id &&
+        honor => Number(honor.participant_id) === Number(participant.participant_id) &&
         new Date(honor.date) < new Date(this.currentDate)
       );
       const lastHonorDate = previousHonors.length > 0
@@ -467,7 +467,7 @@ export class ManageHonors {
 
     // Prepare the list of participants needing reasons
     this.pendingHonors = Array.from(selectedItems).map(item => ({
-      participantId: item.closest(".honors-table__row").dataset.participantId,
+      participantId: item.closest('.honors-table__row').dataset.participantId,
       participantName: item.closest(".honors-table__row").querySelector(".participant-name").textContent.trim(),
       reason: ""
     }));
@@ -637,14 +637,14 @@ export class ManageHonors {
       const results = Array.isArray(data.results) ? data.results : [];
 
       results.forEach(r => {
-        const participantId = r.participantId;
+        const participantId = Number(r.participantId);
         const action = r.action;
         const honorId = r.honorId;
 
         if (action === 'awarded' && honorId) {
           // Find the optimistic honor (no id yet) for this participant/date
           const optimistic = this.allHonors.find(h =>
-            h.participant_id === participantId &&
+            Number(h.participant_id) === participantId &&
             h.date === this.currentDate &&
             (h.id === undefined || h.id === null)
           );
@@ -654,7 +654,7 @@ export class ManageHonors {
         } else if (action === 'already_awarded') {
           // Remove any optimistic duplicate (without id) added for this participant/date
           this.allHonors = this.allHonors.filter(h => {
-            const isOptimisticDuplicate = h.participant_id === participantId &&
+            const isOptimisticDuplicate = Number(h.participant_id) === participantId &&
               h.date === this.currentDate &&
               (h.id === undefined || h.id === null);
             return !isOptimisticDuplicate;
@@ -671,6 +671,8 @@ export class ManageHonors {
    */
   optimisticallyAddHonors(honors) {
     honors.forEach(honor => {
+      const participantId = Number(honor.participantId);
+
       // Add to allHonors array
       this.allHonors.push({
         participant_id: honor.participantId,
@@ -680,7 +682,7 @@ export class ManageHonors {
       });
 
       // Update the participant's honored status
-      const participant = this.allParticipants.find(p => p.participant_id === honor.participantId);
+      const participant = this.allParticipants.find(p => p.participant_id === participantId);
       if (participant) {
         debugLog(`Optimistically marking participant ${participant.participant_id} as honored`);
       }

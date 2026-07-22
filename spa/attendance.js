@@ -284,14 +284,16 @@ export class Attendance {
     this.currentDate = today;
   }
 
-  async fetchData() {
+  async fetchData(forceRefresh = false) {
     try {
-      // Check if cached data is available
-      const cachedData = await getCachedData(`attendance_${this.currentDate}`);
-      if (cachedData) {
-        this.applyCacheEntry(this.parseAttendanceCacheEntry(cachedData));
-        debugLog("Loaded data from cache");
-        return; // No need to proceed if cached data is found
+      // Check if cached data is available (skipped when forceRefresh is true)
+      if (!forceRefresh) {
+        const cachedData = await getCachedData(`attendance_${this.currentDate}`);
+        if (cachedData) {
+          this.applyCacheEntry(this.parseAttendanceCacheEntry(cachedData));
+          debugLog("Loaded data from cache");
+          return; // No need to proceed if cached data is found
+        }
       }
 
       // Fetch the data if not cached
@@ -376,10 +378,16 @@ export class Attendance {
         }
         if (current >= startDate && current <= endDate) {
           const dates = this.enumerateDateRange(startDate, endDate);
+          const dayIndex = dates.indexOf(current);
+          if (dayIndex === -1) {
+            // The range was reduced to a safe fallback, so it cannot provide
+            // a valid multi-day context for this selected date.
+            continue;
+          }
           this.activeActivity = {
             activity,
             dates,
-            dayIndex: dates.indexOf(current),
+            dayIndex,
           };
           debugLog("Multi-day activity context:", activity.name, `day ${this.activeActivity.dayIndex + 1}/${dates.length}`);
           return;
@@ -646,6 +654,11 @@ export class Attendance {
   }
 
   render() {
+    // Guard against running after jsdom teardown (e.g. dangling setImmediate
+    // callbacks from fake-indexeddb in tests) or in non-browser contexts.
+    if (typeof document === 'undefined') {
+      return;
+    }
     // Safety check to prevent rendering if we've navigated away
     if (!document.querySelector(".attendance-container")) {
       return;
@@ -828,6 +841,10 @@ export class Attendance {
   }
 
   attachEventListeners() {
+    // Guard against running after jsdom teardown or in non-browser contexts.
+    if (typeof document === 'undefined') {
+      return;
+    }
     const dateSelect = document.getElementById("dateSelect");
     if (dateSelect) {
       const newDateSelect = dateSelect.cloneNode(true);
@@ -975,7 +992,8 @@ export class Attendance {
     // the point-adjustment baseline from its own records anyway.
     const previousStatus = this.attendanceData[participantId] || null;
 
-    await this.optimisticManager.execute(
+    try {
+      await this.optimisticManager.execute(
       `attendance-${participantId}-${this.currentDate}`,
       {
         optimisticFn: () => {
@@ -1029,7 +1047,10 @@ export class Attendance {
           );
         },
       },
-    );
+      );
+    } catch (_err) {
+      // Error is already handled in rollbackFn (UI restored, message shown)
+    }
   }
 
   async updateGroupStatus(groupId, newStatus) {
@@ -1186,15 +1207,8 @@ export class Attendance {
       debugLog(`Camp mode: Loading prepared data for ${newDate}`);
       await this.preloadAttendanceData();
     } else {
-      // Normal mode: clear caches and fetch fresh
-      try {
-        await deleteCachedData(`attendance_${this.currentDate}`);
-        await deleteCachedData(`attendance_api_${this.currentDate}`);
-        debugLog(`Cleared caches for attendance_${this.currentDate}`);
-      } catch (e) {
-        debugLog(`No cache to clear for attendance_${this.currentDate}`);
-      }
-      await this.fetchData();
+      // Normal mode: force-refresh from API, bypassing stale cache
+      await this.fetchData(true);
     }
 
     // The activity context (camp banner, carry-forward source dates)

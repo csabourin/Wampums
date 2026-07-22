@@ -77,7 +77,7 @@ export class OptimisticUpdateManager {
 
         // 3. Finalize with real data on success
         if (successFn) {
-          successFn(result);
+          await successFn(result);
         }
 
         const duration = Date.now() - startTime;

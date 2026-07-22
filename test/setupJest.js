@@ -9,6 +9,8 @@
  * @see jest.config.js setupFiles and setupFilesAfterEnv
  */
 
+const { structuredClone: nodeStructuredClone } = require('node:util');
+
 jest.mock('@whiskeysockets/baileys', () => ({
   __esModule: true,
   default: jest.fn(),
@@ -58,3 +60,7 @@ jest.mock('expo-constants', () => ({
 }), { virtual: true });
 
 global.__DEV__ = true;
+
+if (typeof global.structuredClone !== 'function') {
+  global.structuredClone = nodeStructuredClone || ((value) => JSON.parse(JSON.stringify(value)));
+}
