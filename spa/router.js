@@ -604,7 +604,7 @@ export class Router {
             // (replaceState so the URL matches what is rendered)
             const loginTarget = isParent() ? "/parent-dashboard" : "/dashboard";
             history.replaceState(null, "", loginTarget);
-            this.route(loginTarget);
+            return this.route(loginTarget);
           } else {
             await this.loadLoginPage();
           }
