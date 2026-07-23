@@ -53,6 +53,10 @@ export class Attendance {
     this.activeActivity = null;
     // Optimistic update manager for instant attendance updates
     this.optimisticManager = new OptimisticUpdateManager();
+    // Date-change serialization (see changeDate): the newest requested date,
+    // and whether a load loop is currently running.
+    this.pendingDateChange = null;
+    this.dateChangeInProgress = false;
   }
 
   async init() {
@@ -1195,27 +1199,57 @@ export class Attendance {
     }
   }
 
+  /**
+   * Switch the page to another date.
+   *
+   * Loads are serialized: fetchData/preloadAttendanceData mutate instance
+   * state (participants, attendanceData, guests, groups) and persist it via
+   * writeAttendanceCache() under this.currentDate, so two loads must never
+   * run concurrently — a stale response finishing late would overwrite the
+   * newer date's state and poison its cache. Rapid switches are coalesced:
+   * only the in-flight load finishes, then the latest requested date loads.
+   */
   async changeDate(newDate) {
-    const previousDate = this.currentDate;
-    this.currentDate = newDate;
-    debugLog(`Changing date to ${this.currentDate}`);
+    this.pendingDateChange = newDate;
+    if (this.dateChangeInProgress) {
+      // The running loop below will pick up the newest requested date.
+      return;
+    }
 
-    // Sequence token: if the user switches dates again before this load
-    // finishes, the stale load must not render over the newer one.
-    const requestId = (this._dateChangeSeq = (this._dateChangeSeq || 0) + 1);
+    this.dateChangeInProgress = true;
+    try {
+      while (this.pendingDateChange !== null) {
+        const targetDate = this.pendingDateChange;
+        this.pendingDateChange = null;
+        await this.loadDate(targetDate);
+      }
+    } finally {
+      this.dateChangeInProgress = false;
+    }
+  }
+
+  /**
+   * Load and render one date. Only ever called by the changeDate loop, so
+   * this.currentDate always matches the load that is mutating state.
+   */
+  async loadDate(targetDate) {
+    const previousDate = this.currentDate;
+    this.currentDate = targetDate;
+    debugLog(`Changing date to ${targetDate}`);
 
     try {
       // In camp mode, preserve camp-prepared cache and use it
-      if (offlineManager.campMode && offlineManager.isDatePrepared(newDate)) {
-        debugLog(`Camp mode: Loading prepared data for ${newDate}`);
+      if (offlineManager.campMode && offlineManager.isDatePrepared(targetDate)) {
+        debugLog(`Camp mode: Loading prepared data for ${targetDate}`);
         await this.preloadAttendanceData();
       } else {
         // Normal mode: force-refresh from API, bypassing stale cache
         await this.fetchData(true);
       }
 
-      if (requestId !== this._dateChangeSeq) {
-        debugLog("Stale date change resolved, skipping render for", newDate);
+      if (this.pendingDateChange !== null) {
+        // A newer date was requested while loading; skip the context fetch
+        // and render — the loop loads the newer date next.
         return;
       }
 
@@ -1224,7 +1258,7 @@ export class Attendance {
       await this.detectActivityContext();
       await this.autoCarryForward();
 
-      if (requestId !== this._dateChangeSeq) {
+      if (this.pendingDateChange !== null) {
         return;
       }
 
@@ -1233,8 +1267,8 @@ export class Attendance {
       // Re-attach event listeners
       this.attachEventListeners();
     } catch (error) {
-      debugError(`Error loading attendance for ${newDate}:`, error);
-      if (requestId !== this._dateChangeSeq) {
+      debugError(`Error loading attendance for ${targetDate}:`, error);
+      if (this.pendingDateChange !== null) {
         return;
       }
       // Revert so the selector matches the data still on screen instead of
