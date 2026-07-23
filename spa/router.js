@@ -58,6 +58,13 @@ class OfflineModuleError extends Error {
   }
 }
 
+class NavigationCancelledError extends Error {
+  constructor() {
+    super('Navigation was superseded by a newer route');
+    this.name = 'NavigationCancelledError';
+  }
+}
+
 // Lazy-loaded modules - loaded on demand for better performance
 // These will be dynamically imported when the route is accessed
 const lazyModules = {
@@ -213,6 +220,7 @@ export class Router {
     this.app = app;
     // MEMORY LEAK FIX: Track current module instance for cleanup
     this.currentModuleInstance = null;
+    this.navigationId = 0;
   }
 
   /**
@@ -268,6 +276,7 @@ export class Router {
   }
 
   async route(path) {
+    const navigationId = ++this.navigationId;
     debugLog("Routing to:", path);
 
     // MEMORY LEAK FIX: Clean up previous module before loading new one
@@ -346,6 +355,9 @@ export class Router {
           await this.loadDashboard({ mode: isParent() ? "finance-focused" : "default" });
           break;
         case 'PrintableGroupParticipantReport':
+          if (!guard(canViewReports())) {
+            break;
+          }
           const PrintableGroupParticipantReport = await this.loadModule('PrintableGroupParticipantReport');
           const report = new PrintableGroupParticipantReport(this.app);
           this.currentModuleInstance = report;
@@ -428,7 +440,7 @@ export class Router {
           break;
         case "medicationPlanning":
         case "medicationDispensing":
-          if (!guard(canViewMedication() || canViewAttendance() || canViewParticipants())) {
+          if (!guard(canViewMedication())) {
             break;
           }
           const MedicationManagement = await this.loadModule('MedicationManagement');
@@ -440,7 +452,7 @@ export class Router {
           await medicationManagement.init();
           break;
         case "medicationPlanningParticipant":
-          if (!guard(isParent() || canViewMedication() || canViewAttendance() || canViewParticipants())) {
+          if (!guard(isParent() || canViewMedication())) {
             break;
           }
           const MedicationManagementParticipant = await this.loadModule('MedicationManagement');
@@ -454,7 +466,7 @@ export class Router {
           await medicationManagementParticipant.init();
           break;
         case "medicationAuthorizationsParticipant":
-          if (!guard(isParent() || canViewMedication() || canViewAttendance() || canViewParticipants())) {
+          if (!guard(isParent() || canViewMedication())) {
             break;
           }
           const MedicationManagementAuth = await this.loadModule('MedicationManagement');
@@ -468,7 +480,7 @@ export class Router {
           await medicationManagementAuth.init();
           break;
         case "medicationReception":
-          if (!guard(canViewMedication() || canViewAttendance() || canViewParticipants())) {
+          if (!guard(canViewMedication())) {
             break;
           }
           const MedicationReception = await this.loadModule('MedicationReception');
@@ -586,13 +598,14 @@ export class Router {
           await incidentEdit.init();
           break;
         case "yearlyPlanner":
+          if (!guard(canViewMeetings())) break;
           const YearlyPlanner = await this.loadModule('YearlyPlanner');
           const yearlyPlanner = new YearlyPlanner(this.app);
           this.currentModuleInstance = yearlyPlanner;
           await yearlyPlanner.init();
           break;
         case "offlinePreparation":
-          // Available to all logged-in users
+          if (!guard(canViewActivities())) break;
           const OfflinePreparation = await this.loadModule('OfflinePreparation');
           const offlinePreparation = new OfflinePreparation(this.app);
           this.currentModuleInstance = offlinePreparation;
@@ -655,7 +668,7 @@ export class Router {
           await this.loadManagePoints();
           break;
         case "timeSinceRegistration":
-          if (!guard(canViewParticipants())) {
+          if (!guard(canViewReports())) {
             break;
           }
           await this.loadTimeSinceRegistration();
@@ -861,7 +874,9 @@ export class Router {
         this.activityWidgetInitialized = true;  // Mark the widget as initialized
       }
     } catch (error) {
-      if (error instanceof OfflineModuleError) {
+      if (error instanceof NavigationCancelledError || navigationId !== this.navigationId) {
+        debugLog('[Router] Ignoring superseded navigation');
+      } else if (error instanceof OfflineModuleError) {
         debugWarn("Offline module error:", error.message);
         this.app.renderError(translate('offline_page_unavailable'), {
           titleKey: 'offline_indicator',
@@ -952,6 +967,7 @@ export class Router {
 
   // Helper method to lazy-load and cache modules
   async loadModule(moduleName, ...args) {
+    const navigationId = this.navigationId;
     // Check cache first
     if (moduleCache[moduleName]) {
       return moduleCache[moduleName];
@@ -961,9 +977,15 @@ export class Router {
     if (lazyModules[moduleName]) {
       try {
         const ModuleClass = await lazyModules[moduleName]();
+        if (navigationId !== this.navigationId) {
+          throw new NavigationCancelledError();
+        }
         moduleCache[moduleName] = ModuleClass;
         return ModuleClass;
       } catch (error) {
+        if (error instanceof NavigationCancelledError) {
+          throw error;
+        }
         // If the dynamic import failed and we're offline, throw a specific error
         // so the route method can display an appropriate offline message
         if (!navigator.onLine) {

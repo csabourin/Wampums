@@ -8,6 +8,7 @@ import { translate } from "./app.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { alert as showAlertDialog } from "./utils/DialogUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { openPrintWindow, setPrintContent } from "./utils/PrintUtils.js";
 import {
   getBadgeProgress,
   saveBadgeProgress,
@@ -212,8 +213,12 @@ export class BadgeForm {
   }
 
   renderPrintView() {
-    const printWindow = window.open("", "_blank");
-    printWindow.document.write(`
+    const printWindow = openPrintWindow();
+    if (!printWindow) {
+      this.app.showMessage(translate("popup_blocked"), "error");
+      return;
+    }
+    setPrintContent(printWindow, `
       <html>
         <head>
           <title>${translate("badge_application_form")}</title>
@@ -305,7 +310,7 @@ export class BadgeForm {
           </div>
         </body>
       </html>
-    `);
+    `, translate("badge_application_form"));
     printWindow.document.close();
     printWindow.print();
   }

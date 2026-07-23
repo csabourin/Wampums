@@ -204,7 +204,7 @@ export class BaseModule {
    * @param {number} timeoutId - Timeout ID to clear
    */
   clearTimeout(timeoutId) {
-    if (timeoutId != null) {
+    if (timeoutId !== null && timeoutId !== undefined) {
       window.clearTimeout(timeoutId);
       this._timeoutIds.delete(timeoutId);
     }
@@ -251,7 +251,7 @@ export class BaseModule {
    * @param {number} intervalId - Interval ID to clear
    */
   clearInterval(intervalId) {
-    if (intervalId != null) {
+    if (intervalId !== null && intervalId !== undefined) {
       window.clearInterval(intervalId);
       this._intervalIds.delete(intervalId);
     }
@@ -298,7 +298,7 @@ export class BaseModule {
    * @param {number} frameId - Animation frame ID to cancel
    */
   cancelAnimationFrame(frameId) {
-    if (frameId != null) {
+    if (frameId !== null && frameId !== undefined) {
       window.cancelAnimationFrame(frameId);
       this._animationFrameIds.delete(frameId);
     }

@@ -82,7 +82,7 @@ describe('OfflineManager guardrails', () => {
     expect(cacheSpy).not.toHaveBeenCalled();
   });
 
-  test('syncPendingData defers direct replay when service worker sync is available', async () => {
+  test('syncPendingData always replays in the authenticated SPA', async () => {
     const manager = new OfflineManager();
 
     const replaySpy = jest.spyOn(manager, 'replayPendingMutations').mockResolvedValue(undefined);
@@ -90,7 +90,7 @@ describe('OfflineManager guardrails', () => {
 
     await manager.syncPendingData();
 
-    expect(replaySpy).not.toHaveBeenCalled();
+    expect(replaySpy).toHaveBeenCalledTimes(1);
   });
 
   test('syncPendingData replays IndexedDB mutations when service worker sync registration fails', async () => {

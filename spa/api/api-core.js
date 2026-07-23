@@ -9,7 +9,7 @@ import { CONFIG } from "../config.js";
 import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
 import { getCurrentOrganizationId, getAuthHeader } from "./api-helpers.js";
 import { PerformanceMonitor } from "../utils/PerformanceUtils.js";
-import { buildApiCacheKey } from "../utils/OfflineCacheKeys.js";
+import { buildApiCacheKey, buildScopedCacheKey } from "../utils/OfflineCacheKeys.js";
 
 /**
  * Add cache buster parameter to URL
@@ -68,16 +68,25 @@ export function buildApiUrl(endpoint, params = {}) {
  * Handle API response with error handling
  */
 export async function handleResponse(response) {
-    const contentType = response.headers.get("content-type");
+    const getHeader = (name) => response.headers?.get?.(name) || null;
+    const contentType = getHeader("content-type");
 
     if (!response.ok) {
         // Handle 401 Unauthorized specifically
         if (response.status === 401) {
-            // Clear invalid auth data
-            localStorage.removeItem("jwtToken");
-            localStorage.removeItem("userRole");
-            localStorage.removeItem("userFullName");
-            localStorage.removeItem("userId");
+            const hadAuthenticatedSession = Boolean(localStorage.getItem("jwtToken"));
+            if (hadAuthenticatedSession) {
+                try {
+                    const { clearAllClientData } = await import("../utils/ClientCleanupUtils.js");
+                    await clearAllClientData();
+                } catch (cleanupError) {
+                    debugError('Failed to clear client data after 401:', cleanupError);
+                    localStorage.removeItem("jwtToken");
+                    localStorage.removeItem("userRole");
+                    localStorage.removeItem("userFullName");
+                    localStorage.removeItem("userId");
+                }
+            }
 
             // Only redirect when actually online to avoid redirect on offline cached responses
             if (navigator.onLine) {
@@ -119,10 +128,18 @@ export async function handleResponse(response) {
 
         const httpError = new Error(errorMessage);
         httpError.status = response.status;
+        httpError.isNetworkError = getHeader('X-Network-Error') === 'true';
         throw httpError;
     }
 
-    if (contentType && contentType.includes("application/json")) {
+    if (response.status === 204) {
+        return { success: true, data: null };
+    }
+
+    if (
+        (contentType && contentType.includes("application/json"))
+        || (!contentType && typeof response.json === "function")
+    ) {
         return response.json();
     } else {
         throw new Error(`Unexpected response type: ${contentType}`);
@@ -133,10 +150,6 @@ export async function handleResponse(response) {
  * Core API request function
  */
 import { offlineManager } from "../modules/OfflineManager.js";
-
-// ... (imports remain)
-
-// ...
 
 export async function makeApiRequest(endpoint, options = {}) {
     const {
@@ -176,7 +189,7 @@ export async function makeApiRequest(endpoint, options = {}) {
     }
 
     // Offline Handling for Write Operations
-    if (offlineManager.isOffline && method !== 'GET') {
+    if ((offlineManager.isOffline || navigator.onLine === false) && method !== 'GET') {
         debugLog(`[Offline] Queueing ${method} ${url}`);
         try {
             await offlineManager.queueMutation(url, {
@@ -204,11 +217,8 @@ export async function makeApiRequest(endpoint, options = {}) {
             debugLog(`API Request (attempt ${attempt + 1}):`, method, url);
             debugLog('Request config:', {
                 method: requestConfig.method,
-                headers: requestConfig.headers,
-                bodyType: typeof requestConfig.body,
-                bodyPreview: requestConfig.body ? 
-                    (typeof requestConfig.body === 'string' ? requestConfig.body.substring(0, 500) : requestConfig.body) 
-                    : null
+                hasAuthorization: Boolean(requestConfig.headers.Authorization),
+                hasBody: Boolean(requestConfig.body)
             });
 
             const response = await fetch(url, requestConfig);
@@ -218,7 +228,10 @@ export async function makeApiRequest(endpoint, options = {}) {
             const duration = performance.now() - startTime;
             PerformanceMonitor.logAPICall(endpoint, duration, false);
 
-            debugLog('API Response:', result);
+            debugLog('API response received:', {
+                success: result?.success,
+                queued: result?.queued,
+            });
             return result;
 
         } catch (error) {
@@ -243,8 +256,29 @@ export async function makeApiRequest(endpoint, options = {}) {
         }
     }
 
-    const finalError = new Error(`API request failed: ${lastError.message}`);
+    const isNetworkError = Boolean(
+        lastError?.isNetworkError ||
+        (!lastError?.status && lastError?.name !== 'AbortError')
+    );
+
+    if (method !== 'GET' && isNetworkError) {
+        await offlineManager.queueMutation(url, {
+            method,
+            headers: requestConfig.headers,
+            body: requestConfig.body
+        });
+        return {
+            success: true,
+            queued: true,
+            message: offlineManager.getTranslation('offline.savedLocally')
+        };
+    }
+
+    const finalError = new Error(`API request failed: ${lastError.message}`, {
+        cause: lastError
+    });
     finalError.status = lastError.status;
+    finalError.isNetworkError = isNetworkError;
     throw finalError;
 }
 
@@ -256,10 +290,11 @@ const pendingRequests = new Map();
  */
 export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptions = {}) {
     const {
-        cacheKey = buildApiCacheKey(endpoint, options.params || {}),
+        cacheKey: requestedCacheKey = buildApiCacheKey(endpoint, options.params || {}),
         cacheDuration = CONFIG.CACHE_DURATION.MEDIUM,
         forceRefresh = false
     } = cacheOptions;
+    const cacheKey = buildScopedCacheKey(requestedCacheKey);
 
     // Create a unique request key for deduplication
     const requestKey = `${endpoint}-${JSON.stringify(options)}`;
@@ -305,16 +340,19 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
 
             return result;
         } catch (requestError) {
-            // If the request fails (typically while offline), return any existing cache
-            // even if expired. Stale data is preferable to no data when offline.
-            try {
-                const fallbackCachedData = await getCachedDataIgnoreExpiration(cacheKey);
-                if (fallbackCachedData) {
-                    debugWarn('Network request failed, serving stale cached fallback for:', cacheKey);
-                    return fallbackCachedData;
+            // Only connectivity failures may use expired data. HTTP 4xx/5xx
+            // responses must reach callers so authorization and validation
+            // failures cannot be hidden by stale cache entries.
+            if (navigator.onLine === false || requestError.isNetworkError === true) {
+                try {
+                    const fallbackCachedData = await getCachedDataIgnoreExpiration(cacheKey);
+                    if (fallbackCachedData) {
+                        debugWarn('Offline request failed, serving stale cached fallback for:', cacheKey);
+                        return fallbackCachedData;
+                    }
+                } catch (cacheFallbackError) {
+                    debugError('Cache fallback retrieval failed:', cacheFallbackError);
                 }
-            } catch (cacheFallbackError) {
-                debugError('Cache fallback retrieval failed:', cacheFallbackError);
             }
 
             throw requestError;

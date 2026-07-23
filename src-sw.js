@@ -2,8 +2,9 @@
 // Wampums Service Worker (Workbox InjectManifest)
 // ==================================================================
 // This SW uses Workbox for precaching and routing while preserving
-// custom logic for push notifications, offline mutation queueing,
-// background sync, IndexedDB API caching, and version messaging.
+// custom logic for push notifications, authenticated API caching, mutation
+// network-error signalling, and version messaging. The open SPA exclusively
+// owns and replays its token-free offline mutation outbox.
 // ==================================================================
 
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
@@ -391,7 +392,7 @@ function buildScopedCacheKey(request) {
     const payload = decodeJwtPayload(auth.slice(7));
     if (payload) {
       const uid = payload.user_id ?? payload.sub ?? '?';
-      const oid = payload.organizationId ?? payload.organization_id ?? orgHeader ?? '?';
+      const oid = orgHeader || payload.organizationId || payload.organization_id || '?';
       scope = `u${uid}:o${oid}`;
     }
   } else if (orgHeader) {
@@ -417,15 +418,9 @@ async function fetchAndCacheInIndexedDB(request) {
       });
     }
 
+    // Authorization, validation, and server errors must reach the SPA. Cache
+    // fallback is reserved for an actual fetch/connectivity exception below.
     debugWarn('API responded with', networkResponse.status, 'for', cacheKey);
-    const cachedData = await getCachedData(cacheKey);
-    if (cachedData) {
-      debugLog('Serving cached data after network error:', cacheKey);
-      return new Response(JSON.stringify(cachedData), {
-        headers: { 'Content-Type': 'application/json', 'X-From-Cache': 'true' },
-      });
-    }
-
     return networkResponse;
   } catch (error) {
     debugError('Network request failed, attempting to serve from cache:', error);
@@ -467,47 +462,25 @@ async function handleMutation(request) {
 
     return response;
   } catch (error) {
-    debugError('Mutation failed, saving for background sync:', error);
-
-    try {
-      const requestData = {
-        url: request.url,
-        method: request.method,
-        headers: Object.fromEntries([...request.headers.entries()]),
-        body: request.method !== 'GET' ? await request.clone().text() : null,
-        timestamp: Date.now(),
-      };
-
-      await saveOfflineMutation(requestData);
-
-      if ('sync' in self.registration) {
-        await self.registration.sync.register('sync-mutations');
+    // Authenticated writes are queued by the open SPA, which can verify the
+    // active user and attach a fresh token during replay. Persisting the
+    // request here would persist its bearer token and could replay it after
+    // logout under a different account.
+    debugError('Mutation network request failed:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Network unavailable',
+        offline: true,
+      }),
+      {
+        status: 503,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Network-Error': 'true',
+        },
       }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          queued: true,
-          message: 'Request queued for sync when online',
-        }),
-        {
-          status: 202,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-    } catch (saveError) {
-      debugError('Failed to save mutation for sync:', saveError);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Failed to queue request for sync',
-        }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-    }
+    );
   }
 }
 
@@ -563,35 +536,6 @@ async function invalidateRelatedCaches(request) {
   }
 }
 
-async function saveOfflineMutation(mutationData) {
-  if (indexedDBBlocked) {
-    return null;
-  }
-  let db;
-  try {
-    db = await openIndexedDB();
-  } catch (error) {
-    if (isStorageAccessError(error)) {
-      indexedDBBlocked = true;
-    }
-    return null;
-  }
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([MUTATION_STORE_NAME], 'readwrite');
-    const store = transaction.objectStore(MUTATION_STORE_NAME);
-    const request = store.add(mutationData);
-
-    request.onerror = () => {
-      debugError('Error saving offline mutation:', request.error);
-      reject(request.error);
-    };
-    request.onsuccess = () => {
-      debugLog('Offline mutation saved:', mutationData);
-      resolve(request.result);
-    };
-  });
-}
-
 async function getPendingMutations() {
   if (indexedDBBlocked) {
     return [];
@@ -615,29 +559,25 @@ async function getPendingMutations() {
   });
 }
 
-async function deletePendingMutation(id) {
-  if (indexedDBBlocked) {
-    return;
-  }
+/**
+ * Delete the legacy service-worker mutation queue. Older records may contain
+ * bearer tokens, so they must not survive logout or worker activation.
+ * @returns {Promise<void>}
+ */
+async function clearPendingMutations() {
+  if (indexedDBBlocked) return;
   let db;
   try {
     db = await openIndexedDB();
   } catch (error) {
-    if (isStorageAccessError(error)) {
-      indexedDBBlocked = true;
-    }
+    if (isStorageAccessError(error)) indexedDBBlocked = true;
     return;
   }
-  return new Promise((resolve, reject) => {
+  await new Promise((resolve, reject) => {
     const transaction = db.transaction([MUTATION_STORE_NAME], 'readwrite');
-    const store = transaction.objectStore(MUTATION_STORE_NAME);
-    const request = store.delete(id);
-
+    const request = transaction.objectStore(MUTATION_STORE_NAME).clear();
+    request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      debugLog('Deleted pending mutation:', id);
-      resolve();
-    };
   });
 }
 
@@ -724,175 +664,11 @@ self.addEventListener('notificationclick', function (event) {
 
 self.addEventListener('sync', (event) => {
   if (event.tag === 'sync-data' || event.tag === 'sync-mutations') {
-    event.waitUntil(syncData());
+    // Authenticated mutations are replayed by OfflineManager while the SPA is
+    // open. Background replay cannot securely obtain a current bearer token.
+    event.waitUntil(Promise.resolve());
   }
 });
-
-async function syncData() {
-  if (!navigator.onLine) {
-    debugLog('Device is offline, cannot sync');
-    return;
-  }
-
-  try {
-    const pendingMutations = await getPendingMutations();
-    debugLog(`Found ${pendingMutations.length} pending mutations to sync`);
-
-    for (const mutation of pendingMutations) {
-      try {
-        const mutationUrl = new URL(mutation.url);
-        if (isAuthEndpoint(mutationUrl)) {
-          debugLog('Dropping auth mutation from sync queue:', mutation.id);
-          await deletePendingMutation(mutation.id);
-          continue;
-        }
-        debugLog('Syncing mutation:', mutation);
-
-        const response = await fetch(mutation.url, {
-          method: mutation.method,
-          headers: mutation.headers,
-          body: mutation.body,
-        });
-
-        if (response.ok) {
-          debugLog('Mutation synced successfully:', mutation.id);
-          await deletePendingMutation(mutation.id);
-
-          const request = new Request(mutation.url, {
-            method: mutation.method,
-            headers: mutation.headers,
-          });
-          await invalidateRelatedCaches(request);
-        } else {
-          debugError('Failed to sync mutation:', mutation.id, response.statusText);
-
-          if (response.status >= 400 && response.status < 500) {
-            debugLog('Client error, removing mutation:', mutation.id);
-            await deletePendingMutation(mutation.id);
-          }
-        }
-      } catch (error) {
-        debugError('Error syncing mutation:', mutation.id, error);
-      }
-    }
-
-    // Backward compatibility: sync old format offline data from WampumsAppDB
-    try {
-      const offlineData = await getOfflineData();
-      if (offlineData && offlineData.length > 0) {
-        debugLog(`Found ${offlineData.length} old format offline items to sync`);
-        for (let item of offlineData) {
-          try {
-            debugLog('Syncing old format item:', item);
-
-            // New format: stored by OfflineManager.storePendingMutation fallback
-            // item.data has { url, headers, body, timestamp }
-            if (item.data?.url) {
-              const response = await fetch(item.data.url, {
-                method: item.action || item.data.method || 'POST',
-                headers: item.data.headers || { 'Content-Type': 'application/json' },
-                body: item.data.body,
-              });
-
-              if (response.ok) {
-                await clearOfflineData(item.key);
-                const request = new Request(item.data.url, {
-                  method: item.action || item.data.method || 'POST',
-                  headers: item.data.headers || {},
-                });
-                await invalidateRelatedCaches(request);
-              } else if (response.status === 400 || response.status === 404 || response.status === 409) {
-                // Non-retryable client errors — discard
-                debugWarn('Server rejected mutation, discarding:', response.status);
-                await clearOfflineData(item.key);
-              } else {
-                // 401/403/429/5xx — leave for retry (OfflineManager can retry with fresh JWT)
-                debugError('Failed to sync new format item (will retry):', response.status);
-              }
-              continue;
-            }
-
-            // Legacy format: action="updatePoints", data={type, id, points, ...}
-            const endpoint = item.action
-              ? `/api/${item.action.replace('_', '-')}`
-              : item.url;
-
-            const response = await fetch(endpoint, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(item.data),
-            });
-
-            if (response.ok) {
-              await clearOfflineData(item.key);
-            } else {
-              debugError('Failed to sync old format item:', item, response.statusText);
-            }
-          } catch (error) {
-            debugError('Error syncing old format item:', item, error);
-          }
-        }
-      }
-    } catch (error) {
-      debugLog('No old format offline data found');
-    }
-
-    debugLog('Sync completed');
-  } catch (error) {
-    debugError('Error during data sync:', error);
-  }
-}
-
-// Get offline data (backward compatibility with old WampumsAppDB format)
-async function getOfflineData() {
-  try {
-    return new Promise((resolve) => {
-      const request = indexedDB.open('WampumsAppDB', 12);
-      request.onsuccess = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains('offlineData')) {
-          resolve([]);
-          return;
-        }
-        const transaction = db.transaction(['offlineData'], 'readonly');
-        const store = transaction.objectStore('offlineData');
-        const index = store.index('type_idx');
-        const getRequest = index.getAll('offline');
-
-        getRequest.onsuccess = () => resolve(getRequest.result || []);
-        getRequest.onerror = () => resolve([]);
-      };
-      request.onerror = () => resolve([]);
-    });
-  } catch (error) {
-    debugError('Error getting offline data:', error);
-    return [];
-  }
-}
-
-async function clearOfflineData(key) {
-  try {
-    return new Promise((resolve) => {
-      const request = indexedDB.open('WampumsAppDB', 12);
-      request.onsuccess = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains('offlineData')) {
-          resolve();
-          return;
-        }
-        const transaction = db.transaction(['offlineData'], 'readwrite');
-        const store = transaction.objectStore('offlineData');
-        const deleteRequest = store.delete(key);
-
-        deleteRequest.onsuccess = () => resolve();
-        deleteRequest.onerror = () => resolve();
-      };
-      request.onerror = () => resolve();
-    });
-  } catch (error) {
-    debugError('Error clearing offline data:', error);
-  }
-}
 
 // ==================================================================
 // Section 9: Message Handling
@@ -922,14 +698,7 @@ self.addEventListener('message', (event) => {
     });
   }
   if (event.data && event.data.type === 'QUEUE_MUTATION') {
-    const mutation = event.data.mutation;
-    event.waitUntil(
-      saveOfflineMutation(mutation).then(() => {
-        debugLog('Mutation queued via message:', mutation.url);
-      }).catch((err) => {
-        debugError('Failed to queue mutation via message:', err);
-      })
-    );
+    debugWarn('Ignoring legacy service-worker mutation request; use the authenticated SPA outbox.');
   }
   if (event.data && event.data.type === 'SET_CAMP_MODE') {
     campModeEnabled = event.data.enabled;
@@ -944,6 +713,24 @@ self.addEventListener('message', (event) => {
       clearApiCache(event.data.scope).catch((err) => {
         debugError('CLEAR_API_CACHE failed:', err);
       }),
+    );
+  }
+  if (event.data && event.data.type === 'CLEAR_MUTATIONS') {
+    event.waitUntil(
+      clearPendingMutations().catch((err) => {
+        debugError('CLEAR_MUTATIONS failed:', err);
+      }),
+    );
+  }
+  if (event.data && event.data.type === 'CLEAR_CLIENT_DATA') {
+    const replyPort = event.ports?.[0];
+    event.waitUntil(
+      Promise.all([clearApiCache(), clearPendingMutations()])
+        .then(() => replyPort?.postMessage({ type: 'CLIENT_DATA_CLEARED' }))
+        .catch((err) => {
+          debugError('CLEAR_CLIENT_DATA failed:', err);
+          replyPort?.postMessage({ type: 'CLIENT_DATA_CLEAR_FAILED' });
+        }),
     );
   }
   if (event.data && event.data.type === 'GET_PENDING_COUNT') {
@@ -1047,6 +834,7 @@ self.addEventListener('activate', (event) => {
           .filter((name) => oldCachePrefixes.some((prefix) => name.startsWith(prefix)))
           .map((name) => caches.delete(name))
       );
+      await clearPendingMutations();
       // Claim all clients
       await self.clients.claim();
     })()

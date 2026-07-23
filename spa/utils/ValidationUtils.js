@@ -108,6 +108,22 @@ export function validatePassword(password) {
         };
     }
 
+    if (password.length > 255) {
+        return {
+            valid: false,
+            error: 'Password must not exceed 255 characters',
+            strength: 'weak'
+        };
+    }
+
+    if (!hasUpperCase || !hasLowerCase || !hasNumbers || !hasSpecialChar) {
+        return {
+            valid: false,
+            error: 'Password must include uppercase, lowercase, number, and special characters',
+            strength: 'weak'
+        };
+    }
+
     const criteriaCount = [hasUpperCase, hasLowerCase, hasNumbers, hasSpecialChar].filter(Boolean).length;
 
     let strength = 'weak';

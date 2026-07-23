@@ -1,6 +1,7 @@
 import { debugLog, debugWarn, debugError } from './DebugUtils.js';
 import { clearUserData } from './StorageUtils.js';
 import { deleteIndexedDB } from '../indexedDB.js';
+import { deleteOfflineDatabase } from '../data/OfflineDatabase.js';
 
 /**
  * Remove user-specific Cache Storage entries while preserving static assets.
@@ -17,12 +18,20 @@ async function clearAllCaches() {
   try {
     const cacheNames = await caches.keys();
 
-    // Filter out static asset caches to preserve app functionality
-    // Only clear API and dynamic data caches
+    const staticCacheNames = new Set([
+      'html-cache',
+      'font-awesome-cache',
+      'google-fonts-cache',
+      'translations-cache',
+      'image-cache',
+    ]);
+
+    // Current authenticated API responses live in IndexedDB, not Cache
+    // Storage. Preserve known static/precache entries and remove only unknown
+    // legacy runtime caches that may contain user data.
     const cachesToClear = cacheNames.filter(cacheName => {
-      // Keep static caches (contains JS, CSS, HTML)
-      // Keep image caches (contains app icons and images)
-      return !cacheName.includes('-static-') && !cacheName.includes('-images-');
+      const isWorkboxPrecache = cacheName.startsWith('workbox-precache-');
+      return !isWorkboxPrecache && !staticCacheNames.has(cacheName);
     });
 
     await Promise.all(cachesToClear.map((cacheName) => caches.delete(cacheName)));
@@ -45,7 +54,15 @@ async function clearServiceWorkerApiCache() {
     const registration = await navigator.serviceWorker.getRegistration();
     const sw = registration?.active;
     if (!sw) return;
-    sw.postMessage({ type: 'CLEAR_API_CACHE' });
+    await new Promise((resolve) => {
+      const channel = new MessageChannel();
+      const timeout = setTimeout(resolve, 1500);
+      channel.port1.onmessage = () => {
+        clearTimeout(timeout);
+        resolve();
+      };
+      sw.postMessage({ type: 'CLEAR_CLIENT_DATA' }, [channel.port2]);
+    });
   } catch (error) {
     debugWarn('Could not message service worker to clear API cache:', error);
   }
@@ -69,6 +86,7 @@ export async function clearAllClientData() {
   await Promise.all([
     clearAllCaches(),
     deleteIndexedDB().catch((error) => debugError('IndexedDB cleanup failed:', error)),
+    deleteOfflineDatabase().catch((error) => debugError('Offline database cleanup failed:', error)),
     clearServiceWorkerApiCache(),
   ]);
 }

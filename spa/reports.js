@@ -26,6 +26,7 @@ import {
 	getFinanceReport,
 } from "./ajax-functions.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { openPrintWindow, setPrintContent } from "./utils/PrintUtils.js";
 import { formatDateShort, isoToDateString } from "./utils/DateUtils.js";
 import { canViewReports, isParent } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
@@ -940,7 +941,7 @@ export class Reports {
 
 	renderParticipantAgeReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return "<p>No data available for participants age report.</p>";
+			return `<p>${translate("no_data_available")}</p>`;
 		}
 
 		return `
@@ -959,7 +960,7 @@ export class Reports {
 					(item) => `
 						<tr>
 							<td>${item.first_name} ${item.last_name}</td>
-							<td>${item.date_naissance ? new Date(item.date_naissance).toLocaleDateString() : translate("unknown")}</td>
+								<td>${item.date_naissance ? formatDateShort(item.date_naissance, this.app.lang) : translate("unknown")}</td>
 							<td>${item.age !== null ? item.age : translate("unknown")}</td>
 						</tr>
 					`,
@@ -972,7 +973,7 @@ export class Reports {
 
 	renderLeaveAloneReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return "<p>No data available for leave alone report.</p>";
+			return `<p>${translate("no_data_available")}</p>`;
 		}
 
 		return `
@@ -1004,7 +1005,7 @@ export class Reports {
 
 	renderMediaAuthorizationReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return "<p>No data available for media authorization report.</p>";
+			return `<p>${translate("no_data_available")}</p>`;
 		}
 
 		return `
@@ -1036,7 +1037,7 @@ export class Reports {
 
 	renderMissingDocumentsReport(reportData) {
 		if (!Array.isArray(reportData) || reportData.length === 0) {
-			return "<p>No data available for missing documents report.</p>";
+			return `<p>${translate("no_data_available")}</p>`;
 		}
 
 		return `
@@ -1076,49 +1077,9 @@ export class Reports {
 		}
 	}
 
-	// renderAttendanceReport(data) {
-	// 	debugLog("Rendering attendance report with data:", data); // Add this line for debugging
-
-	// 	if (!data || typeof data !== 'object') {
-	// 		debugError("Invalid data received in renderAttendanceReport:", data);
-	// 		return '<p>Error: Invalid data received for attendance report.</p>';
-	// 	}
-
-	// 	if (!data.success || !Array.isArray(data.attendance_data) || data.attendance_data.length === 0) {
-	// 		return '<p>No data available for attendance report.</p>';
-	// 	}
-
-	// 	return `
-	// 		<h2>${translate("attendance_report")}</h2>
-	// 		<p>${translate("report_period")}: ${data.start_date} to ${data.end_date}</p>
-	// 		<p>${translate("total_days")}: ${data.total_days}</p>
-	// 		<table>
-	// 			<thead>
-	// 				<tr>
-	// 					<th>${translate("name")}</th>
-	// 					<th>${translate("group")}</th>
-	// 					<th>${translate("total_days")}</th>
-	// 					<th>${translate("days_absent")}</th>
-	// 					<th>${translate("days_late")}</th>
-	// 				</tr>
-	// 			</thead>
-	// 			<tbody>
-	// 				${data.attendance_data.map(item => `
-	// 					<tr>
-	// 						<td>${item.first_name} ${item.last_name}</td>
-	// 						<td>${item.group_name || translate("no_group")}</td>
-	// 						<td>${item.total_days}</td>
-	// 						<td>${item.days_absent}</td>
-	// 						<td>${item.days_late}</td>
-	// 					</tr>
-	// 				`).join('')}
-	// 			</tbody>
-	// 		</table>
-	// 	`;
-	// }
-	renderAttendanceReport(data) {
-		if (!data || typeof data !== "object") {
-			return "<p>Error: Invalid data received for attendance report.</p>";
+		renderAttendanceReport(data) {
+			if (!data || typeof data !== "object") {
+				return `<p>${translate("error_loading_report")}</p>`;
 		}
 
 		// Fix: Access data.data instead of data.attendance_data
@@ -1129,7 +1090,7 @@ export class Reports {
 			!Array.isArray(attendanceData) ||
 			attendanceData.length === 0
 		) {
-			return "<p>No data available for attendance report.</p>";
+			return `<p>${translate("no_data_available")}</p>`;
 		}
 
 		// Define color codes for the attendance statuses
@@ -1239,7 +1200,7 @@ export class Reports {
 
 	renderHonorsReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return "<p>No data available for honors report.</p>";
+			return `<p>${translate("no_data_available")}</p>`;
 		}
 
 		return `
@@ -1466,7 +1427,7 @@ export class Reports {
                                 <article class="timeline-item timeline-item--${event.type}">
                                         <div class="timeline-dot" aria-hidden="true"></div>
                                         <div class="timeline-content">
-                                                <p class="timeline-date">${new Date(event.date).toLocaleDateString()}</p>
+                                                <p class="timeline-date">${formatDateShort(event.date, this.app.lang)}</p>
                                                 <p class="timeline-title">${title}</p>
                                                 <p class="timeline-meta">${meta}</p>
                                         </div>
@@ -1717,11 +1678,15 @@ export class Reports {
 	}
 
 	printReport() {
-		const printWindow = window.open("", "_blank");
+		const printWindow = openPrintWindow();
+		if (!printWindow) {
+			this.app.showMessage(translate("popup_blocked"), "error");
+			return;
+		}
 		const reportContent = document.getElementById("report-content");
 		const reportMarkup = reportContent ? reportContent.outerHTML : '';
 		const safeReportContent = reportMarkup ? sanitizeHTML(reportMarkup) : '';
-		printWindow.document.write(`
+		setPrintContent(printWindow, `
 			<html>
 				<head>
 					<title>${translate("report")}</title>
@@ -1736,7 +1701,7 @@ export class Reports {
 					${safeReportContent}
 				</body>
 			</html>
-		`);
+		`, translate("report"));
 		printWindow.document.close();
 		printWindow.print();
 	}

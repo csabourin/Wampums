@@ -76,7 +76,11 @@ export class MeetingPrep extends BaseModule {
         this.app, this.animateurs, this.activitiesCatalog,
         this.sectionConfig, this.badgeTemplates, this.participants
       );
-      this.printManager = new PrintManager(this.activityManager, this.sectionConfig);
+      this.printManager = new PrintManager(
+        this.activityManager,
+        this.sectionConfig,
+        this.organizationSettings.organization_info?.name || '',
+      );
 
       await this.loadMeeting(normalizeDateString(date) || this.getInitialDate());
     } catch (err) {

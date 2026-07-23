@@ -26,7 +26,7 @@ import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.js";
 import { validateMoney, validateRequired } from "./utils/ValidationUtils.js";
 import { canViewBudget } from "./utils/PermissionUtils.js";
-import { setContent } from "./utils/DOMUtils.js";
+import { setContent, insertHTML, withFormBusy } from "./utils/DOMUtils.js";
 import { confirmDestructive } from "./utils/DialogUtils.js";
 import { getCurrentFiscalYear, getFiscalYearOptions } from "./utils/FiscalYearUtils.js";
 
@@ -1031,7 +1031,7 @@ export class Budgets {
             ${this.categories
               .map(
                 (cat) => `
-              <option value="${cat.id}" ${this.revenueFilters.category == cat.id ? "selected" : ""}>
+              <option value="${cat.id}" ${String(this.revenueFilters.category) === String(cat.id) ? "selected" : ""}>
                 ${escapeHTML(cat.name)}
               </option>
             `,
@@ -1328,7 +1328,7 @@ export class Budgets {
       </div>
     `;
 
-    document.body.insertAdjacentHTML("beforeend", modalHTML);
+    insertHTML(document.body, "beforeend", modalHTML);
 
     document
       .getElementById("close-category-modal")
@@ -1346,7 +1346,7 @@ export class Budgets {
       .getElementById("category-form")
       .addEventListener("submit", async (e) => {
         e.preventDefault();
-        await this.saveCategory(category?.id);
+        await withFormBusy(e.currentTarget, () => this.saveCategory(category?.id));
       });
   }
 
@@ -1443,7 +1443,7 @@ export class Budgets {
       </div>
     `;
 
-    document.body.insertAdjacentHTML("beforeend", modalHTML);
+    insertHTML(document.body, "beforeend", modalHTML);
 
     document
       .getElementById("close-budget-item-modal")
@@ -1461,7 +1461,7 @@ export class Budgets {
       .getElementById("budget-item-form")
       .addEventListener("submit", async (e) => {
         e.preventDefault();
-        await this.saveBudgetItem(item?.id);
+        await withFormBusy(e.currentTarget, () => this.saveBudgetItem(item?.id));
       });
   }
 
@@ -1572,7 +1572,7 @@ export class Budgets {
       </div>
     `;
 
-    document.body.insertAdjacentHTML("beforeend", modalHTML);
+    insertHTML(document.body, "beforeend", modalHTML);
 
     document
       .getElementById("close-expense-modal")
@@ -1590,7 +1590,7 @@ export class Budgets {
       .getElementById("expense-form")
       .addEventListener("submit", async (e) => {
         e.preventDefault();
-        await this.saveExpense(expense?.id);
+        await withFormBusy(e.currentTarget, () => this.saveExpense(expense?.id));
       });
   }
 
@@ -1718,7 +1718,7 @@ export class Budgets {
       </div>
     `;
 
-    document.body.insertAdjacentHTML("beforeend", modalHTML);
+    insertHTML(document.body, "beforeend", modalHTML);
 
     document
       .getElementById("close-plan-modal")
@@ -1734,7 +1734,7 @@ export class Budgets {
       .getElementById("plan-form")
       .addEventListener("submit", async (e) => {
         e.preventDefault();
-        await this.savePlan(plan?.id);
+        await withFormBusy(e.currentTarget, () => this.savePlan(plan?.id));
       });
   }
 

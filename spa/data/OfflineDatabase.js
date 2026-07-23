@@ -112,8 +112,6 @@ export async function deleteOfflineDatabase() {
   try {
     await db.delete();
     debugLog('OfflineDatabase: Deleted successfully');
-    // Re-open for future use (Dexie requires this after delete)
-    await db.open();
   } catch (error) {
     debugError('OfflineDatabase: Failed to delete', error);
     throw error;

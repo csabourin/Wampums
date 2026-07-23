@@ -2487,6 +2487,7 @@
   "offline.modulePreloadWarning": "page(s) may not work offline",
   "points_skipped_absent_participants": "{{count}} participant(s) skipped (absent/excused on this date)",
   "attendance_carried_forward": "{{count}} attendance records carried forward from {{date}}",
+  "attendance_carry_forward_sync_failed": "Attendance was copied locally, but could not be synchronized. It will remain available on this device.",
   "unmarked": "Unmarked",
   "camp_day_of": "Day {{day}} of {{total}}",
   "mark_remaining_present": "Mark {{count}} unmarked as present",
@@ -2768,5 +2769,14 @@
   "users": "Users",
   "users_tab_description": "Assign roles to the users of your organization.",
   "view_permissions": "View permissions",
-  "work_phone": "Work phone"
+  "work_phone": "Work phone",
+  "duration": "Duration",
+  "next_week": "Next week",
+  "password_max_length": "Password must not exceed 255 characters",
+  "password_needs_special": "Password must contain at least one special character",
+  "popup_blocked": "Allow pop-ups to open the print view",
+  "responsible": "Responsible",
+  "responsible_leader": "Responsible leader",
+  "weekly_meeting": "Weekly meeting",
+  "offline.writeUnavailable": "This action requires an internet connection"
 }

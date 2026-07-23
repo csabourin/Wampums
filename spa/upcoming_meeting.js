@@ -558,12 +558,12 @@ export class UpcomingMeeting {
 
     // Helper to get names
     const getNames = (ids) => ids.map(id => {
-      const p = participants.find(part => part.id == id);
+      const p = participants.find(part => String(part.id) === String(id));
       return p ? `${p.first_name} ${p.last_name}` : 'Unknown';
     }).join(', ');
 
     const rows = achievements.map((a, index) => {
-      const template = templates.find(t => t.id == a.badge_template_id);
+      const template = templates.find(t => String(t.id) === String(a.badge_template_id));
       const badgeName = template ? template.name : 'Unknown Badge';
       const typeLabel = a.star_type === 'battue' ? translate("badge_type_battue") : translate("badge_type_proie");
 

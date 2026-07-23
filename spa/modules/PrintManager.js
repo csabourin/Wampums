@@ -1,13 +1,15 @@
 import { translate } from "../app.js";
 import { getHonorLabel } from "../utils/meetingSections.js";
+import { openPrintWindow, setPrintContent } from "../utils/PrintUtils.js";
 /**
  * PrintManager - Handles printing functionality
  * for the Preparation Reunions page
  */
 export class PrintManager {
-        constructor(activityManager, sectionConfig) {
+        constructor(activityManager, sectionConfig, organizationName = '') {
                 this.activityManager = activityManager;
                 this.sectionConfig = sectionConfig;
+                this.organizationName = organizationName;
         }
 
         /**
@@ -31,27 +33,27 @@ export class PrintManager {
 
                 const printContent = `
                         <div class="print-preparation">
-                                <h1>6e MEUTE A - ST-PAUL D'AYLMER</h1>
-                                <h2>RÉUNION HEBDOMADAIRE</h2>
+                                <h1>${this.organizationName}</h1>
+                                <h2>${translate("weekly_meeting")}</h2>
                                 <div class="print-header">
-                                        <p><strong>Animateur responsable:</strong> ${document.getElementById("animateur-responsable").options[document.getElementById("animateur-responsable").selectedIndex].text}</p>
-                                        <p><strong>Date:</strong> ${document.getElementById("date").value}</p>
+                                        <p><strong>${translate("responsible_leader")}:</strong> ${document.getElementById("animateur-responsable").options[document.getElementById("animateur-responsable").selectedIndex].text}</p>
+                                        <p><strong>${translate("date")}:</strong> ${document.getElementById("date").value}</p>
                                 </div>
                                 <div class="print-header">
                                         <p><strong>${honorLabel}:</strong></p>
                                         <ul>
                                                 ${honorItems.map(item => `<li>${item}</li>`).join('')}
                                         </ul>
-                                        <p><strong>Endroit:</strong> ${document.getElementById("endroit").value}</p>
+                                        <p><strong>${translate("location")}:</strong> ${document.getElementById("endroit").value}</p>
                                 </div>
                                 <table>
                                         <thead>
                                                 <tr>
-                                                        <th>HEURE</th>
-                                                        <th>Durée</th>
-                                                        <th>DESCRIPTION</th>
-                                                        <th>RESPONSABLE</th>
-                                                        <th>MATÉRIEL</th>
+                                                        <th>${translate("time")}</th>
+                                                        <th>${translate("duration")}</th>
+                                                        <th>${translate("description")}</th>
+                                                        <th>${translate("responsible")}</th>
+                                                        <th>${translate("equipment")}</th>
                                                 </tr>
                                         </thead>
                                         <tbody>
@@ -67,7 +69,7 @@ export class PrintManager {
                                         </tbody>
                                 </table>
                                 <div class="print-notes">
-                                        <h3>Notes:</h3>
+                                        <h3>${translate("notes")}:</h3>
                                         <p>${document.getElementById("notes").value}</p>
                                         <div class="handwritten-notes">
                                                 <div class="note-line"></div>
@@ -75,7 +77,7 @@ export class PrintManager {
                                         </div>
                                 </div>
                                 <div class="print-next-week">
-                                        <h3>Semaine Prochaine:</h3>
+                                        <h3>${translate("next_week")}:</h3>
                                         <div class="handwritten-notes">
                                                 <div class="note-line"></div>
                                                 <div class="note-line"></div>
@@ -84,11 +86,12 @@ export class PrintManager {
                         </div>
                 `;
 
-                const printWindow = window.open('', '_blank');
-                printWindow.document.write(`
+                const printWindow = openPrintWindow();
+                if (!printWindow) return;
+                setPrintContent(printWindow, `
                         <html>
                                 <head>
-                                        <title>Réunion Hebdomadaire</title>
+                                        <title>${translate("weekly_meeting")}</title>
                                         <style>
                                                 body {
                                                         font-family: Arial, sans-serif;
@@ -141,7 +144,7 @@ export class PrintManager {
                                         ${printContent}
                                 </body>
                         </html>
-                `);
+                `, translate("weekly_meeting"));
                 printWindow.document.close();
                 printWindow.print();
         }

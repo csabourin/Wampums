@@ -2,22 +2,17 @@
 // Helper utilities for API operations
 import { CONFIG } from "../config.js";
 import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
-import { getOrganizationIdFromJWT } from "../jwt-helper.js";
+import { getOrganizationIdFromJWT, getUserInfoFromJWT } from "../jwt-helper.js";
 
 /**
  * Get current organization ID from localStorage
  * Handles various storage formats
  */
 export function getCurrentOrganizationId() {
-    // Prefer organization ID from JWT when available (server-issued source of truth)
-    const tokenOrgId = getOrganizationIdFromJWT();
-    if (tokenOrgId) {
-        return tokenOrgId;
-    }
-
-    // Try both storage keys
-    let orgId = localStorage.getItem('organizationId') ||
-                localStorage.getItem('currentOrganizationId');
+    // An explicit organization selection is authoritative for the SPA. The
+    // server still validates that the authenticated user belongs to it.
+    let orgId = localStorage.getItem('currentOrganizationId') ||
+                localStorage.getItem('organizationId');
 
     if (typeof orgId === 'object' && orgId !== null) {
         orgId = orgId.organization_id || orgId.organizationId || orgId.id || null;
@@ -48,7 +43,17 @@ export function getCurrentOrganizationId() {
         }
     }
 
-    return null;
+    return getOrganizationIdFromJWT();
+}
+
+/**
+ * Return the current authenticated user's stable cache/offline scope.
+ * @returns {string|null} User identifier or null for an anonymous session
+ */
+export function getCurrentUserId() {
+    const jwtUserId = getUserInfoFromJWT()?.userId;
+    const storedUserId = localStorage.getItem('userId');
+    return jwtUserId || storedUserId || null;
 }
 
 /**
@@ -58,10 +63,8 @@ export function getAuthHeader() {
     const token = localStorage.getItem("jwtToken");
     const organizationId = getCurrentOrganizationId();
 
-    debugLog("=== GET AUTH HEADER DEBUG ===");
     debugLog("Token exists:", !!token);
     debugLog("Organization ID:", organizationId);
-    debugLog("Token preview:", token ? token.substring(0, 50) + "..." : "NO TOKEN");
 
     const headers = {};
 
@@ -72,9 +75,6 @@ export function getAuthHeader() {
     if (organizationId) {
         headers['x-organization-id'] = organizationId;
     }
-
-    debugLog("Generated headers:", headers);
-    debugLog("=== END AUTH HEADER DEBUG ===");
 
     return headers;
 }

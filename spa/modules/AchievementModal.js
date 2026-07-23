@@ -1,7 +1,7 @@
 import { translate } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
 import { debugLog } from "../utils/DebugUtils.js";
-import { setContent } from "../utils/DOMUtils.js";
+import { setContent, insertHTML } from "../utils/DOMUtils.js";
 
 /**
  * AchievementModal - Modal for selecting badge achievements with participant assignment
@@ -87,7 +87,7 @@ export class AchievementModal {
                         </div>
                 `;
 
-        document.body.insertAdjacentHTML("beforeend", modalHtml);
+        insertHTML(document.body, "beforeend", modalHtml);
     }
 
     renderBadgeGrid() {

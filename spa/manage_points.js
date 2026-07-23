@@ -12,7 +12,6 @@ import {
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn } from "./utils/DebugUtils.js";
 import {
-  saveOfflineData,
   setCachedData,
   getCachedData,
   getCachedDataIgnoreExpiration,
@@ -317,7 +316,7 @@ export class ManagePoints {
 
   renderParticipantsForGroup(groupId) {
     const groupParticipants = this.participants.filter(
-      (p) => p.group_id == groupId,
+      (p) => String(p.group_id) === String(groupId),
     );
     if (groupParticipants.length === 0) {
       return `<p>${translate("no_participants_in_group")}</p>`;
@@ -340,7 +339,7 @@ export class ManagePoints {
 
   getGroupIndividualTotal(groupId) {
     const memberIds = this.participants
-      .filter((participant) => participant.group_id == groupId)
+      .filter((participant) => String(participant.group_id) === String(groupId))
       .map((participant) => participant.id);
     return this.store.getMembersTotal(memberIds);
   }
@@ -429,7 +428,7 @@ export class ManagePoints {
    */
   getEligibleGroupMemberIds(groupId) {
     const memberIds = this.participants
-      .filter((p) => p.group_id == groupId)
+      .filter((p) => String(p.group_id) === String(groupId))
       .map((p) => p.id);
 
     const attendanceTaken = Object.keys(this.todayAttendance).length > 0;
@@ -582,7 +581,7 @@ export class ManagePoints {
         try {
           const { offlineManager } = await import("./modules/OfflineManager.js");
           await offlineManager.queueMutation(
-            getApiUrl("v1/points"),
+            getApiUrl("api/v1/points"),
             {
               method: "POST",
               headers: {
@@ -596,8 +595,16 @@ export class ManagePoints {
           debugLog("Batch update queued for offline sync (network error fallback):", payloads.length, "updates");
         } catch (queueError) {
           debugError("Failed to queue offline mutation:", queueError);
-          // Last resort: use legacy offline storage
-          await Promise.all(payloads.map((payload) => saveOfflineData("updatePoints", payload)));
+          // Point awards are additive and cannot be replayed safely until the
+          // endpoint implements transactional idempotency. Restore the exact
+          // pre-click state instead of showing totals that were never saved.
+          this.store.rollbackBatch(txns);
+          await this.updateCache();
+          this.app.showMessage(
+            queueError.message || translate("offline.writeUnavailable"),
+            "error",
+          );
+          return;
         }
         this.store.foldBatch(txns);
         await this.updateCache();
@@ -632,7 +639,7 @@ export class ManagePoints {
           pointsElement.textContent = `${this.store.getParticipantTotal(id)}`;
           this.addHighlightEffect(pointsElement.closest(".list-item"));
         }
-        const participant = this.participants.find((p) => p.id == id);
+        const participant = this.participants.find((p) => String(p.id) === String(id));
         if (participant) {
           participant.total_points = this.store.getParticipantTotal(id);
           if (participant.group_id) {
@@ -646,7 +653,7 @@ export class ManagePoints {
           header.textContent = `${translate("group_points")}: ${this.store.getGroupTotal(id)}`;
           this.addHighlightEffect(header.closest(".group-header"));
         }
-        const group = this.groups.find((g) => g.id == id);
+        const group = this.groups.find((g) => String(g.id) === String(id));
         if (group) {
           group.total_points = this.store.getGroupTotal(id);
         }

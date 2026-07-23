@@ -13,13 +13,13 @@ import {
     clearFundraiserRelatedCaches,
     clearBadgeRelatedCaches,
     clearPointsRelatedCaches,
-    clearAttendanceRelatedCaches
+    clearAttendanceRelatedCaches,
+    deleteCachedData
 } from "../indexedDB.js";
 import { buildApiCacheKey } from "../utils/OfflineCacheKeys.js";
 
 async function invalidateMedicationCaches(extraKeys = []) {
     try {
-        const { deleteCachedData } = await import('../indexedDB.js');
         const keys = [
             'medication_requirements',
             'participant_medications',
@@ -43,7 +43,6 @@ async function invalidateMedicationCaches(extraKeys = []) {
 
 async function invalidateUserAssociationCaches() {
     try {
-        const { deleteCachedData } = await import('../indexedDB.js');
         const cacheKeys = ['participants-with-users', 'parent-users'];
 
         await Promise.all(cacheKeys.map(async (cacheKey) => {
@@ -669,7 +668,6 @@ export async function subscribeToPush(subscription) {
  * @param {string|number|null} organizationId - Organization identifier for scoped caches
  */
 export async function clearUserCaches(organizationId) {
-    const { deleteCachedData } = await import('../indexedDB.js');
     const orgId = organizationId || getCurrentOrganizationId();
     const cacheKeys = new Set(['users', 'role_catalog', 'v1/users', 'v1/roles', 'v1/roles/bundles']);
 
@@ -1196,9 +1194,6 @@ export async function getFormSubmissions(participantId = null, formType) {
  * Save form submission
  */
 export async function saveFormSubmission(formTypeOrData, participantId, submissionData) {
-    // Import deleteCachedData dynamically to avoid circular dependencies
-    const { deleteCachedData } = await import('../indexedDB.js');
-
     let formType, pId;
 
     // Support both signatures:
@@ -1295,7 +1290,6 @@ export async function fetchFicheSante(participantId) {
  * Save health form
  */
 export async function saveFicheSante(ficheSanteData) {
-    const { deleteCachedData } = await import('../indexedDB.js');
     const result = await API.post('v1/forms/submissions', {
         ...ficheSanteData,
         form_type: 'fiche_sante'
@@ -1323,7 +1317,6 @@ export async function fetchAcceptationRisque(participantId) {
  * Save risk acceptance form
  */
 export async function saveAcceptationRisque(data) {
-    const { deleteCachedData } = await import('../indexedDB.js');
     const result = await API.post('v1/forms/risk-acceptance', data);
 
     // Clear cache for this participant's risk acceptance form
@@ -2961,4 +2954,3 @@ export async function getProgramProgressStream(params = {}, cacheOptions = {}) {
         cacheOptions,
     });
 }
-

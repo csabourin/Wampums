@@ -28,6 +28,7 @@ import {
         formatActivityDateRange,
         getActivityEndDateObj,
 } from "./utils/ActivityDateUtils.js";
+import { prompt as promptDialog } from "./utils/DialogUtils.js";
 
 export class ParentDashboard {
         constructor(app) {
@@ -1004,9 +1005,10 @@ export class ParentDashboard {
                                 return;
                         }
 
-                        const signerName = window
-                                .prompt(translate("permission_slip_signer"))
-                                ?.trim();
+                        const signerName = (await promptDialog({
+                                title: translate("permission_slip_signer"),
+                                message: translate("permission_slip_signer"),
+                        }))?.trim();
                         if (!signerName) {
                                 return;
                         }

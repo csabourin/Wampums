@@ -1,5 +1,6 @@
 /**
  * @jest-environment jsdom
+ * @jest-environment-options {"url":"http://localhost:3000/"}
  *
  * User stories: offline manager (spa/modules/OfflineManager.js) with the real
  * IndexedDB queue (fake-indexeddb).
@@ -77,6 +78,9 @@ function captureWindowEvents(eventName) {
 beforeEach(() => {
   global.indexedDB = new IDBFactory();
   localStorage.clear();
+  localStorage.setItem('userId', 'leader-1');
+  localStorage.setItem('currentOrganizationId', '1');
+  localStorage.setItem('jwtToken', 'queued-session-token');
   jest.clearAllMocks();
   global.fetch = jest.fn();
 });
@@ -87,11 +91,11 @@ describe('US-OFF-001 — Saving offline says "saved locally", not "error"', () =
     manager.isOffline = true;
 
     const response = await manager.fetchWithOfflineSupport(
-      'http://localhost:3000/api/v1/points',
+      'http://localhost:3000/api/v1/attendance',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([{ type: 'individual', id: 1, points: 5 }])
+        body: JSON.stringify({ participant_id: 1, date: '2026-07-15', status: 'present' })
       }
     );
 
@@ -103,8 +107,20 @@ describe('US-OFF-001 — Saving offline says "saved locally", not "error"', () =
 
     const queued = await getOfflineData();
     expect(queued).toHaveLength(1);
-    expect(queued[0].data.url).toBe('http://localhost:3000/api/v1/points');
-    expect(JSON.parse(queued[0].data.body)[0]).toMatchObject({ id: 1, points: 5 });
+    expect(queued[0].data.url).toBe('http://localhost:3000/api/v1/attendance');
+    expect(JSON.parse(queued[0].data.body)).toMatchObject({ participant_id: 1, status: 'present' });
+    expect(queued[0].data.headers.Authorization).toBeUndefined();
+  });
+
+  it('keeps additive point awards online-only', async () => {
+    const manager = new OfflineManager();
+    manager.isOffline = true;
+
+    await expect(manager.fetchWithOfflineSupport(
+      'http://localhost:3000/api/v1/points',
+      { method: 'POST', body: JSON.stringify([{ id: 1, points: 5 }]) },
+    )).rejects.toThrow('internet connection');
+    expect(await getOfflineData()).toHaveLength(0);
   });
 
   it('performs the write normally while online', async () => {
@@ -169,6 +185,7 @@ describe('US-OFF-002 — Reconnecting syncs my queue safely', () => {
   it('does not replay at all without an auth token', async () => {
     const manager = new OfflineManager();
     await queueOne(manager);
+    localStorage.removeItem('jwtToken');
 
     await manager.replayPendingMutations();
 
@@ -177,8 +194,8 @@ describe('US-OFF-002 — Reconnecting syncs my queue safely', () => {
   });
 });
 
-describe('US-OFF-003 — Old-format queued point updates still sync', () => {
-  it('batches every legacy updatePoints record into one POST v1/points', async () => {
+describe('US-OFF-003 — Unscoped legacy writes cannot cross accounts', () => {
+  it('discards legacy point records without replaying them', async () => {
     const manager = new OfflineManager();
     await saveOfflineData('updatePoints', { type: 'individual', id: 1, points: 5 });
     await saveOfflineData('updatePoints', { type: 'group', id: 5, points: 3 });
@@ -187,13 +204,7 @@ describe('US-OFF-003 — Old-format queued point updates still sync', () => {
 
     await manager.replayPendingMutations();
 
-    expect(global.fetch).toHaveBeenCalledTimes(1);
-    const [url, options] = global.fetch.mock.calls[0];
-    expect(url).toBe('http://localhost:3000/api/v1/points');
-    const payload = JSON.parse(options.body);
-    expect(payload).toHaveLength(2);
-    expect(payload[0]).toMatchObject({ type: 'individual', id: 1, points: 5 });
-    expect(payload[1]).toMatchObject({ type: 'group', id: 5, points: 3 });
+    expect(global.fetch).not.toHaveBeenCalled();
     expect(await getOfflineData()).toHaveLength(0);
   });
 });

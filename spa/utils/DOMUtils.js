@@ -7,8 +7,9 @@
  * @module utils/DOMUtils
  */
 
-import { sanitizeHTML } from './SecurityUtils.js';
+import { sanitizeHTML, sanitizeURL } from './SecurityUtils.js';
 import { debugError } from './DebugUtils.js';
+import { enhanceModalAccessibility } from './ModalAccessibility.js';
 
 /**
  * Safely set HTML content (auto-sanitizes)
@@ -34,6 +35,7 @@ export function setContent(element, content, options = {}) {
   }
 
   element.innerHTML = sanitizeHTML(content, options);
+  enhanceModalAccessibility(element);
   return element;
 }
 
@@ -100,7 +102,9 @@ export function setText(element, text) {
  * });
  */
 export function createElement(tag, options = {}) {
-  const element = document.createElement(tag);
+  const normalizedTag = String(tag || 'div').toLowerCase();
+  const blockedTags = new Set(['script', 'iframe', 'object', 'embed', 'link', 'meta', 'base']);
+  const element = document.createElement(blockedTags.has(normalizedTag) ? 'div' : normalizedTag);
 
   // Set ID if provided
   if (options.id) {
@@ -115,13 +119,30 @@ export function createElement(tag, options = {}) {
   // Set attributes if provided
   if (options.attributes) {
     Object.entries(options.attributes).forEach(([key, value]) => {
+      if (/^on/i.test(key)) {
+        debugError(`createElement: blocked event-handler attribute '${key}'`);
+        return;
+      }
+      if (['href', 'src', 'action', 'formaction', 'xlink:href'].includes(key.toLowerCase())) {
+        const safeUrl = sanitizeURL(String(value), { allowMailto: true });
+        if (!safeUrl) return;
+        element.setAttribute(key, safeUrl);
+        return;
+      }
       element.setAttribute(key, value);
     });
+    if (element.getAttribute('target') === '_blank') {
+      element.setAttribute('rel', 'noopener noreferrer');
+    }
   }
 
   // Set inline styles if provided
   if (options.style) {
     Object.entries(options.style).forEach(([key, value]) => {
+      if (/(?:url\s*\(|expression\s*\(|@import|-moz-binding|behavior\s*:)/i.test(String(value))) {
+        debugError(`createElement: blocked unsafe style value for '${key}'`);
+        return;
+      }
       element.style[key] = value;
     });
   }
@@ -245,7 +266,7 @@ export function createFragment(html) {
  * import { insertHTML } from './utils/DOMUtils.js';
  * insertHTML(element, 'beforeend', '<p>New paragraph</p>');
  */
-export function insertHTML(element, position, html) {
+export function insertHTML(element, position, html, options = {}) {
   if (!element) {
     debugError('insertHTML: element is null or undefined');
     return;
@@ -257,8 +278,30 @@ export function insertHTML(element, position, html) {
     return;
   }
 
-  const sanitized = sanitizeHTML(html);
+  const sanitized = sanitizeHTML(html, options);
   element.insertAdjacentHTML(position, sanitized);
+  enhanceModalAccessibility(document.body);
+}
+
+/**
+ * Run an asynchronous form submission once while exposing an accessible busy
+ * state and disabling all submit controls.
+ *
+ * @param {HTMLFormElement} form - Form being submitted
+ * @param {Function} callback - Async submission callback
+ * @returns {Promise<*>} Callback result
+ */
+export async function withFormBusy(form, callback) {
+  if (!form || form.getAttribute('aria-busy') === 'true') return undefined;
+  const submitControls = Array.from(form.querySelectorAll('[type="submit"]'));
+  form.setAttribute('aria-busy', 'true');
+  submitControls.forEach((control) => { control.disabled = true; });
+  try {
+    return await callback();
+  } finally {
+    form.removeAttribute('aria-busy');
+    submitControls.forEach((control) => { control.disabled = false; });
+  }
 }
 
 /**

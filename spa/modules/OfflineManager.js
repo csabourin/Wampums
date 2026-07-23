@@ -7,9 +7,20 @@
  */
 
 import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
-import { getCachedData, setCachedData, getOfflineData, clearOfflineData, deleteCachedData } from '../indexedDB.js';
+import {
+    getCachedData,
+    setCachedData,
+    getOfflineData,
+    saveOfflineData,
+    deleteOfflineData
+} from '../indexedDB.js';
 import { CONFIG } from '../config.js';
 import { buildApiCacheKey } from '../utils/OfflineCacheKeys.js';
+import {
+    getAuthHeader,
+    getCurrentOrganizationId,
+    getCurrentUserId
+} from '../api/api-helpers.js';
 
 /**
  * Cache duration constants (in milliseconds)
@@ -26,6 +37,15 @@ const CACHE_DURATION = {
  */
 const CAMP_MODE_STORAGE_KEY = 'wampums_camp_mode';
 const PREPARED_ACTIVITIES_KEY = 'wampums_prepared_activities';
+
+// Only operations with server-side set/upsert semantics may be replayed.
+// Additive creates (points, honors, payments, roles, etc.) remain online-only
+// until their endpoints implement transactional idempotency.
+const SAFE_OFFLINE_MUTATIONS = [
+    { method: 'POST', path: /^\/api\/v1\/attendance(?:\/carry-forward)?$/ },
+    { method: 'PATCH', path: /^\/api\/v1\/medication\/(?:distributions|receptions)\/\d+$/ },
+    { method: 'DELETE', path: /^\/api\/v1\/medication\/receptions\/\d+$/ },
+];
 
 /**
  * Critical endpoints to pre-cache
@@ -51,7 +71,6 @@ export class OfflineManager {
         this.isOffline = !navigator.onLine;
         this.isSyncing = false;
         this.pendingMutations = [];
-        this._pendingCountFromSW = 0;
         this.syncInProgress = false;
         this.listeners = [];
 
@@ -178,8 +197,9 @@ export class OfflineManager {
                 return response;
             }
 
-            // If response is not OK, try cache
-            return this.getCachedResponse(url);
+            // HTTP errors are authoritative server responses. Only transport
+            // failures may use stale cached data.
+            return response;
 
         } catch (error) {
             debugWarn('OfflineManager: Network request failed, trying cache', error);
@@ -224,22 +244,56 @@ export class OfflineManager {
      */
     async queueMutation(url, options) {
         try {
+            const mutationUrl = new URL(url, window.location.origin);
+            const method = String(options.method || 'POST').toUpperCase();
+            const isSafeMutation = mutationUrl.origin === window.location.origin &&
+                SAFE_OFFLINE_MUTATIONS.some((rule) =>
+                    rule.method === method && rule.path.test(mutationUrl.pathname)
+                );
+            if (!isSafeMutation) {
+                throw new Error(this.getTranslation('offline.writeUnavailable'));
+            }
+
+            const currentUserId = getCurrentUserId();
+            const organizationId = getCurrentOrganizationId();
+            if (!currentUserId) {
+                throw new Error('An authenticated user is required to save offline changes.');
+            }
+
+            const sourceHeaders = new Headers(options.headers || {});
+            const safeHeaders = {};
+            for (const headerName of ['Accept', 'Content-Type']) {
+                const value = sourceHeaders.get(headerName);
+                if (value) safeHeaders[headerName] = value;
+            }
+            const idempotencyKey = typeof globalThis.crypto?.randomUUID === 'function'
+                ? globalThis.crypto.randomUUID()
+                : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            safeHeaders['Idempotency-Key'] = idempotencyKey;
+
             const mutation = {
                 url,
-                method: options.method || 'POST',
-                headers: options.headers || {},
+                method,
+                headers: safeHeaders,
                 body: options.body || null,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                userId: String(currentUserId),
+                organizationId: organizationId ? String(organizationId) : null,
+                idempotencyKey
             };
 
-            // Store in IndexedDB via service worker
-            // This will trigger the service worker to queue it
+            // Store token-free data in the SPA-owned IndexedDB outbox.
             await this.storePendingMutation(mutation);
 
             // Update pending count
             await this.updatePendingCount();
 
-            debugLog('OfflineManager: Mutation queued', mutation);
+            debugLog('OfflineManager: Mutation queued', {
+                url: mutation.url,
+                method: mutation.method,
+                userId: mutation.userId,
+                organizationId: mutation.organizationId
+            });
         } catch (error) {
             debugError('OfflineManager: Failed to queue mutation', error);
             throw error;
@@ -247,36 +301,20 @@ export class OfflineManager {
     }
 
     /**
-     * Store pending mutation
-     * Falls back to local storage if service worker is not available
+     * Store a token-free, user- and organization-scoped pending mutation.
      */
     async storePendingMutation(mutation) {
-        // Try to use service worker first
-        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-            try {
-                navigator.serviceWorker.controller.postMessage({
-                    type: 'QUEUE_MUTATION',
-                    mutation
-                });
-                debugLog('OfflineManager: Mutation sent to service worker');
-                return;
-            } catch (error) {
-                debugWarn('OfflineManager: Failed to send to service worker', error);
-            }
-        }
-
-        // Fallback: Store directly in IndexedDB using existing functions
-        debugLog('OfflineManager: Service worker not available, using IndexedDB directly');
         try {
-            // Use the existing offline data storage from indexedDB.js
-            const { saveOfflineData } = await import('../indexedDB.js');
             await saveOfflineData(mutation.method, {
                 url: mutation.url,
                 headers: mutation.headers,
                 body: mutation.body,
-                timestamp: mutation.timestamp
+                timestamp: mutation.timestamp,
+                userId: mutation.userId,
+                organizationId: mutation.organizationId,
+                idempotencyKey: mutation.idempotencyKey
             });
-            debugLog('OfflineManager: Mutation stored in IndexedDB');
+            debugLog('OfflineManager: Mutation stored in authenticated SPA outbox');
         } catch (error) {
             debugError('OfflineManager: Failed to store mutation', error);
             throw error;
@@ -300,34 +338,10 @@ export class OfflineManager {
         debugLog('OfflineManager: Starting sync');
 
         try {
-            let shouldReplayIndexedDbMutations = true;
-
-            // Try service worker background sync for mutations in the SW's own store
-            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                try {
-                    const registration = await navigator.serviceWorker.ready;
-                    if (registration && 'sync' in registration) {
-                        await registration.sync.register('sync-mutations');
-                        debugLog('OfflineManager: Background sync registered');
-                        shouldReplayIndexedDbMutations = false;
-
-                        // Give service worker time to process its own pending-mutations store
-                        const syncTimeout = CONFIG.UI?.SYNC_TIMEOUT || 2000;
-                        await new Promise(resolve => setTimeout(resolve, syncTimeout));
-                    }
-                } catch (swError) {
-                    debugWarn('OfflineManager: Service worker sync failed', swError);
-                }
-            }
-
-            // Replay IndexedDB fallback mutations when service worker sync is unavailable
-            // or when sync registration fails.
-            if (!shouldReplayIndexedDbMutations) {
-                debugLog('OfflineManager: Deferring replay to service worker background sync');
-            } else {
-                debugLog('OfflineManager: Replaying mutations from IndexedDB');
-                await this.replayPendingMutations();
-            }
+            // Replay only in the open, authenticated SPA. A service worker
+            // cannot safely obtain a fresh bearer token or verify the active
+            // account, so it must never replay authenticated writes.
+            await this.replayPendingMutations();
 
             // Check pending count
             await this.updatePendingCount();
@@ -348,8 +362,8 @@ export class OfflineManager {
     }
 
     /**
-     * Replay pending mutations directly via fetch (fallback when no service worker)
-     * Handles both new format (url/headers/body) and legacy format (action/data)
+     * Replay pending mutations with a freshly obtained authorization header.
+     * Unscoped legacy records are discarded instead of crossing accounts.
      */
     async replayPendingMutations() {
         const pendingData = await getOfflineData();
@@ -361,54 +375,64 @@ export class OfflineManager {
         debugLog('OfflineManager: Replaying', pendingData.length, 'pending mutations');
 
         // Refresh auth token for replay
-        const token = localStorage.getItem('jwtToken');
-        if (!token) {
+        const currentUserId = getCurrentUserId();
+        const currentOrganizationId = getCurrentOrganizationId();
+        if (!currentUserId || !localStorage.getItem('jwtToken')) {
             debugWarn('OfflineManager: No auth token, cannot replay mutations');
             return;
         }
 
         const authHeaders = {
-            'Authorization': `Bearer ${token}`,
+            ...getAuthHeader(),
             'Content-Type': 'application/json'
         };
         const nonRetriableStatuses = new Set([400, 403, 404, 409, 410, 422]);
-
-        // Batch legacy updatePoints entries into a single request
-        const legacyPointUpdates = [];
-        const legacyPointKeys = [];
 
         for (const record of pendingData) {
             try {
                 // New format: stored by OfflineManager.queueMutation fallback
                 // record.data has { url, headers, body, timestamp }
                 if (record.data?.url) {
+                    const sameUser = String(record.data.userId || '') === String(currentUserId);
+                    const sameOrganization = String(record.data.organizationId || '') === String(currentOrganizationId || '');
+                    if (!sameUser || !sameOrganization) {
+                        debugWarn('OfflineManager: Discarding mutation from a different or legacy account scope', record.key);
+                        await deleteOfflineData(record.key);
+                        continue;
+                    }
+
                     debugLog('OfflineManager: Replaying mutation', record.data.url);
                     const response = await fetch(record.data.url, {
                         method: record.action || record.data.method || 'POST',
-                        headers: { ...record.data.headers, ...authHeaders },
+                        headers: {
+                            ...record.data.headers,
+                            ...authHeaders,
+                            'Idempotency-Key': record.data.idempotencyKey
+                        },
                         body: record.data.body
                     });
 
                     if (response.ok) {
-                        await deleteCachedData(record.key);
+                        await deleteOfflineData(record.key);
                         debugLog('OfflineManager: Mutation replayed successfully', record.key);
-                    } else if (response.status === 400 || response.status === 404 || response.status === 409) {
+                    } else if (nonRetriableStatuses.has(response.status)) {
                         // Non-retryable client errors — discard
-                        await deleteCachedData(record.key);
+                        await deleteOfflineData(record.key);
                         debugWarn('OfflineManager: Server rejected mutation, discarding', response.status);
                     } else {
-                        // 401/403/429/5xx — leave for retry on next sync
+                        // 401/429/5xx — leave for retry on next sync
                         debugWarn('OfflineManager: Mutation replay failed (will retry)', response.status);
                     }
                 }
-                // Legacy format: action="updatePoints", data={type, id, points, ...}
+                // Legacy records have no user/organization scope and cannot be
+                // replayed safely after an account change.
                 else if (record.action === 'updatePoints' && record.data) {
-                    legacyPointUpdates.push(record.data);
-                    legacyPointKeys.push(record.key);
+                    debugWarn('OfflineManager: Discarding unscoped legacy point mutation', record.key);
+                    await deleteOfflineData(record.key);
                 }
                 else {
                     debugWarn('OfflineManager: Unknown offline record format, discarding', record.key, record.action);
-                    await deleteCachedData(record.key);
+                    await deleteOfflineData(record.key);
                 }
             } catch (error) {
                 debugError('OfflineManager: Failed to replay mutation', record.key, error);
@@ -416,35 +440,6 @@ export class OfflineManager {
             }
         }
 
-        if (legacyPointUpdates.length > 0) {
-            try {
-                const url = `${CONFIG.API_BASE_URL}/api/v1/points`;
-                debugLog('OfflineManager: Replaying', legacyPointUpdates.length, 'legacy point updates');
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: authHeaders,
-                    body: JSON.stringify(legacyPointUpdates)
-                });
-
-                if (response.ok) {
-                    for (const key of legacyPointKeys) {
-                        await deleteCachedData(key);
-                    }
-                    debugLog('OfflineManager: Legacy point updates replayed successfully');
-                } else if (nonRetriableStatuses.has(response.status)) {
-                    for (const key of legacyPointKeys) {
-                        await deleteCachedData(key);
-                    }
-                    debugWarn('OfflineManager: Server rejected legacy point updates (non-retriable), discarding', response.status);
-                } else if (response.status === 401) {
-                    debugWarn('OfflineManager: Authentication required for legacy point replay, keeping queued updates', response.status);
-                } else {
-                    debugWarn('OfflineManager: Legacy point updates replay failed (will retry)', response.status);
-                }
-            } catch (error) {
-                debugError('OfflineManager: Failed to replay legacy point updates', error);
-            }
-        }
     }
 
     /**
@@ -461,7 +456,7 @@ export class OfflineManager {
         }
 
         const headers = {
-            'Authorization': `Bearer ${token}`,
+            ...getAuthHeader(),
             'Content-Type': 'application/json'
         };
 
@@ -549,21 +544,6 @@ export class OfflineManager {
      */
     async updatePendingCount() {
         try {
-            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                const swCount = await this.getServiceWorkerPendingCount();
-                if (swCount !== null) {
-                    // Store the numeric count separately for consumers that only need
-                    // the count (e.g., badge indicators). The pendingMutations array
-                    // is populated with placeholder objects -- they do NOT contain real
-                    // mutation payloads and must NOT be iterated for replay/sync.
-                    this._pendingCountFromSW = swCount;
-                    this.pendingMutations = Array(swCount).fill({ type: 'pending' });
-                    debugLog('OfflineManager: Pending mutations count (service worker)', swCount);
-                    this.dispatchEvent('pendingCountChanged', { count: swCount });
-                    return;
-                }
-            }
-
             // Get offline data from IndexedDB
             const offlineData = await getOfflineData();
 
@@ -584,37 +564,6 @@ export class OfflineManager {
             this.pendingMutations = [];
             this.dispatchEvent('pendingCountChanged', { count: 0 });
         }
-    }
-
-    /**
-     * Get pending mutation count from service worker queue.
-     * @returns {Promise<number|null>} Count, or null when unavailable
-     */
-    async getServiceWorkerPendingCount() {
-        return new Promise((resolve) => {
-            try {
-                const channel = new MessageChannel();
-                const timeoutMs = CONFIG.UI?.SW_PENDING_TIMEOUT || 3000;
-                const timeout = setTimeout(() => resolve(null), timeoutMs);
-
-                channel.port1.onmessage = (event) => {
-                    clearTimeout(timeout);
-                    if (event.data?.type === 'PENDING_COUNT') {
-                        resolve(Number(event.data.count) || 0);
-                    } else {
-                        resolve(null);
-                    }
-                };
-
-                navigator.serviceWorker.controller.postMessage(
-                    { type: 'GET_PENDING_COUNT' },
-                    [channel.port2]
-                );
-            } catch (error) {
-                debugWarn('OfflineManager: Unable to get pending count from service worker', error);
-                resolve(null);
-            }
-        });
     }
 
     /**
@@ -655,6 +604,7 @@ export class OfflineManager {
             'sync.failed': 'Some changes failed to sync',
             'offline.dataUnavailable': 'This data is not available offline',
             'offline.savedLocally': 'Saved locally - will sync when online',
+            'offline.writeUnavailable': 'This action requires an internet connection',
             'offline.fetchingData': 'Fetching activity data...',
             'offline.cachingParticipants': 'Caching participants...',
             'offline.cachingAttendance': 'Caching attendance data...',

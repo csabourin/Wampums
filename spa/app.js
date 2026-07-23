@@ -1,3 +1,5 @@
+import "@fortawesome/fontawesome-free/css/fontawesome.min.css";
+import "@fortawesome/fontawesome-free/css/solid.min.css";
 import { initRouter, Router } from "./router.js";
 import { checkSession } from "./utils/SessionUtils.js";
 import { getOrganizationSettings, getPublicOrganizationSettings, fetchOrganizationId, fetchOrganizationJwt } from "./ajax-functions.js";

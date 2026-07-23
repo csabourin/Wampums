@@ -2,7 +2,7 @@ import { getParticipants, getGroups } from "./ajax-functions.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
-import { setContent } from "./utils/DOMUtils.js";
+import { setContent, insertHTML } from "./utils/DOMUtils.js";
 
 export class PrintableGroupParticipantReport {
 		constructor(app) {
@@ -85,7 +85,7 @@ export class PrintableGroupParticipantReport {
 								h2 { font-size: 16px; margin: 10px 0 5px; }
 						</style>
 				`;
-				document.head.insertAdjacentHTML('beforeend', style);
+				insertHTML(document.head, 'beforeend', style, { allowStyleTags: true });
 		}
 
 		renderTable() {

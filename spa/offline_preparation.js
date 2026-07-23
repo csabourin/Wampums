@@ -17,6 +17,8 @@ export class OfflinePreparation {
         this.activities = [];
         this.isLoading = true;
         this.preparingActivityId = null;
+        this.boundPreparationProgress = (event) => this.updateProgressUI(event.detail);
+        this.boundCampModeChanged = () => this.render();
     }
 
     async init() {
@@ -249,8 +251,10 @@ export class OfflinePreparation {
         }
 
         // Listen for preparation progress events
-        window.addEventListener('preparationProgress', (e) => this.updateProgressUI(e.detail));
-        window.addEventListener('campModeChanged', () => this.render());
+        window.removeEventListener('preparationProgress', this.boundPreparationProgress);
+        window.removeEventListener('campModeChanged', this.boundCampModeChanged);
+        window.addEventListener('preparationProgress', this.boundPreparationProgress);
+        window.addEventListener('campModeChanged', this.boundCampModeChanged);
     }
 
     async handlePrepare(event) {
@@ -399,7 +403,7 @@ export class OfflinePreparation {
 
     destroy() {
         // Clean up event listeners
-        window.removeEventListener('preparationProgress', this.updateProgressUI);
-        window.removeEventListener('campModeChanged', this.render);
+        window.removeEventListener('preparationProgress', this.boundPreparationProgress);
+        window.removeEventListener('campModeChanged', this.boundCampModeChanged);
     }
 }

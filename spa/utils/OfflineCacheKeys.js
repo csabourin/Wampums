@@ -1,4 +1,4 @@
-import { getCurrentOrganizationId } from '../api/api-helpers.js';
+import { getCurrentOrganizationId, getCurrentUserId } from '../api/api-helpers.js';
 
 /**
  * Normalize query params by removing null/undefined and sorting keys for stable cache keys.
@@ -65,4 +65,27 @@ export function buildApiCacheKey(endpointOrUrl, params = {}, organizationId = nu
     const query = new URLSearchParams(sortedParams).toString();
 
     return query ? `${path}?${query}` : path;
+}
+
+/**
+ * Namespace any cache key by authenticated user and selected organization.
+ * This also scopes legacy/custom keys which do not use buildApiCacheKey().
+ *
+ * @param {string} cacheKey - Logical or URL-shaped cache key
+ * @param {string|number|null} organizationId - Optional organization override
+ * @param {string|null} userId - Optional user override
+ * @returns {string} User- and organization-scoped cache key
+ */
+export function buildScopedCacheKey(
+    cacheKey,
+    organizationId = null,
+    userId = null,
+) {
+    const rawKey = String(cacheKey);
+    if (/\|scope:user:[^|]+\|org:[^|]+$/.test(rawKey)) {
+        return rawKey;
+    }
+    const orgScope = organizationId ?? getCurrentOrganizationId() ?? 'none';
+    const userScope = userId ?? getCurrentUserId() ?? 'anonymous';
+    return `${rawKey}|scope:user:${encodeURIComponent(String(userScope))}|org:${encodeURIComponent(String(orgScope))}`;
 }

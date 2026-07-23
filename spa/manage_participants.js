@@ -250,7 +250,7 @@ export class ManageParticipants {
           : safeGroupName;
 
         return `
-        <option value="${group.id}" ${group.id == selectedGroupId ? "selected" : ""}>
+        <option value="${group.id}" ${String(group.id) === String(selectedGroupId) ? "selected" : ""}>
           ${displayLabel}
         </option>
       `;

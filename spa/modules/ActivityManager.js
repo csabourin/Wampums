@@ -360,7 +360,7 @@ export class ActivityManager {
                         selectElement.options[selectElement.selectedIndex];
                 const activityId = selectedOption?.getAttribute("data-id");
                 const activity = this.activities.find(
-                        (a) => a.id == activityId,
+                        (a) => String(a.id) === String(activityId),
                 );
 
                 const row = selectElement.closest(".activity-row");

@@ -85,7 +85,6 @@ const { getActivities } = require('../../spa/api/api-activities.js');
 const {
   setCachedData,
   getCachedData,
-  saveOfflineData,
   clearPointsRelatedCaches
 } = require('../../spa/indexedDB.js');
 const { getTodayISO } = require('../../spa/utils/DateUtils.js');
@@ -359,56 +358,29 @@ describe('US-INT-005 — Rapid-fire clicks with slow, out-of-order responses', (
   });
 });
 
-describe('US-INT-006 — Going offline mid-action loses nothing', () => {
-  it('queues the mutation, survives an offline reload from cache, and replays on reconnect', async () => {
-    // 1. Award +5 while the network is dying: TypeError → queue + fold
+describe('US-INT-006 — Additive awards remain honest when connectivity dies', () => {
+  it('rolls back the optimistic award when safe offline replay is unavailable', async () => {
     seedPointsMocks({ alexTotal: 10 });
     ajax.updatePoints.mockRejectedValue(new TypeError('Failed to fetch'));
-    const { page } = await initPointsPage();
+    offlineManager.queueMutation.mockRejectedValue(
+      new Error(tr('offline.writeUnavailable')),
+    );
+    const { page, appStub } = await initPointsPage();
 
     selectParticipant(1);
     clickPointButton(5);
     await flushPromises();
 
     expect(offlineManager.queueMutation).toHaveBeenCalledTimes(1);
-    const [queuedUrl, queuedOptions] = offlineManager.queueMutation.mock.calls[0];
-    expect(participantTotalText(1)).toBe('15');
+    expect(participantTotalText(1)).toBe('10');
     expect(page.store.hasPendingDeltas()).toBe(false);
 
     const cached = await getCachedData('manage_points_data');
-    expect(cached.participants.find((p) => String(p.id) === '1').total_points).toBe(15);
-
-    // 2. "Reload" while offline: a fresh page instance boots from the cache
-    setOnline(false);
-    ajax.getParticipants.mockRejectedValue(new TypeError('Failed to fetch'));
-    document.body.innerHTML = '<div id="app"></div>';
-    const reloaded = new ManagePoints(makeAppStub());
-    await reloaded.init();
-    await flushPromises();
-
-    expect(participantTotalText(1)).toBe('15');
-
-    // 3. Reconnect: the queued mutation replays through the real OfflineManager
-    setOnline(true);
-    const { OfflineManager: RealOfflineManager } = jest.requireActual('../../spa/modules/OfflineManager.js');
-    await saveOfflineData('POST', {
-      url: queuedUrl,
-      headers: queuedOptions.headers,
-      body: queuedOptions.body
-    });
-    localStorage.setItem('jwtToken', 'fresh-token');
-    global.fetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      headers: { get: () => 'application/json' },
-      json: async () => ({ success: true })
-    });
-
-    await new RealOfflineManager().replayPendingMutations();
-
-    const replayCall = global.fetch.mock.calls.find(([url]) => url.includes('v1/points'));
-    expect(replayCall).toBeDefined();
-    expect(JSON.parse(replayCall[1].body)[0]).toMatchObject({ type: 'individual', id: '1', points: 5 });
+    expect(cached.participants.find((p) => String(p.id) === '1').total_points).toBe(10);
+    expect(appStub.showMessage).toHaveBeenCalledWith(
+      tr('offline.writeUnavailable'),
+      'error',
+    );
   });
 });
 

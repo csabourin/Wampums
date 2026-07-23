@@ -3,6 +3,9 @@
   "version": "3.1.0",
   "description": "Wampums project",
   "main": "api.js",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "dev": "vite",
     "dev:all": "npm run start & npm run dev",

@@ -37,6 +37,23 @@ const ADDITIONAL_ALLOWED_ATTRS = [
   'style'
 ];
 
+// DOMPurify deliberately does not parse CSS. Inline styles are needed by
+// existing components, so strip the CSS constructs that can load external
+// resources or execute in legacy engines before an attribute is retained.
+DOMPurify.addHook?.('uponSanitizeAttribute', (_node, data) => {
+  if (
+    data.attrName === 'style'
+    && /(?:url\s*\(|expression\s*\(|@import|-moz-binding|behavior\s*:)/i.test(data.attrValue)
+  ) {
+    data.keepAttr = false;
+  }
+});
+DOMPurify.addHook?.('afterSanitizeAttributes', (node) => {
+  if (node.getAttribute?.('target') === '_blank') {
+    node.setAttribute('rel', 'noopener noreferrer');
+  }
+});
+
 /**
  * Sanitize HTML string to prevent XSS attacks using DOMPurify
  *
@@ -164,7 +181,11 @@ export function sanitizeURL(url, options = { allowMailto: true }) {
 
   // If no protocol, assume https
   if (!trimmed.includes(':')) {
-    return `https://${url.trim()}`;
+    const value = url.trim();
+    const firstSegment = value.split('/')[0];
+    return value.includes('/') && !firstSegment.includes('.')
+      ? `/${value.replace(/^\/+/, '')}`
+      : `https://${value}`;
   }
 
   return null;
@@ -183,7 +204,14 @@ export function sanitizeEmail(email) {
 
   const trimmed = email.trim().toLowerCase();
 
-  // Basic email regex (not perfect but catches most issues)
+  if (
+    trimmed.length > 254
+    || /[\u0000-\u001f\u007f<>"\\]/.test(trimmed)
+  ) {
+    return null;
+  }
+
+  // Syntax check after explicitly excluding HTML/control characters.
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   if (!emailRegex.test(trimmed)) {
@@ -256,7 +284,9 @@ export function validateSafeContent(content) {
  * @returns {HTMLElement} Created element
  */
 export function createSafeElement(tagName, content = '', attributes = {}) {
-  const element = document.createElement(tagName);
+  const normalizedTag = String(tagName || 'div').toLowerCase();
+  const blockedTags = new Set(['script', 'iframe', 'object', 'embed', 'link', 'meta', 'base']);
+  const element = document.createElement(blockedTags.has(normalizedTag) ? 'div' : normalizedTag);
 
   // Set text content (automatically escaped)
   if (content) {
@@ -266,21 +296,29 @@ export function createSafeElement(tagName, content = '', attributes = {}) {
   // Set safe attributes
   Object.entries(attributes).forEach(([key, value]) => {
     // Skip event handlers
-    if (key.startsWith('on')) {
+    if (/^on/i.test(key)) {
       debugError('createSafeElement: Event handlers not allowed', key);
       return;
     }
 
     // Sanitize URLs
-    if (key === 'href' || key === 'src') {
+    if (['href', 'src', 'action', 'formaction', 'xlink:href'].includes(key.toLowerCase())) {
       const sanitized = sanitizeURL(value);
       if (sanitized) {
         element.setAttribute(key, sanitized);
       }
+    } else if (
+      key.toLowerCase() === 'style'
+      && /(?:url\s*\(|expression\s*\(|@import|-moz-binding|behavior\s*:)/i.test(String(value))
+    ) {
+      debugError('createSafeElement: Unsafe style attribute blocked');
     } else {
       element.setAttribute(key, value);
     }
   });
+  if (element.getAttribute('target') === '_blank') {
+    element.setAttribute('rel', 'noopener noreferrer');
+  }
 
   return element;
 }
@@ -323,6 +361,21 @@ export function safeAppendHTML(element, html, options = {}) {
   }
 }
 
+/**
+ * Create a sanitized DOM fragment, optionally adopted into another document
+ * such as a same-origin print window.
+ *
+ * @param {string} html - HTML to sanitize
+ * @param {Document} ownerDocument - Destination document
+ * @param {Object} options - Sanitization options
+ * @returns {DocumentFragment} Sanitized fragment
+ */
+export function sanitizeToFragment(html, ownerDocument = document, options = {}) {
+  const temp = document.createElement('template');
+  temp.innerHTML = sanitizeHTML(html, options);
+  return ownerDocument.importNode(temp.content, true);
+}
+
 // Export all functions as default object
 export default {
   sanitizeHTML,
@@ -334,5 +387,6 @@ export default {
   validateSafeContent,
   createSafeElement,
   safeSetHTML,
-  safeAppendHTML
+  safeAppendHTML,
+  sanitizeToFragment
 };

@@ -10,7 +10,7 @@
  */
 import { translate } from '../../app.js';
 import { debugLog, debugError } from '../../utils/DebugUtils.js';
-import { setContent } from '../../utils/DOMUtils.js';
+import { setContent, insertHTML } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
 import { confirm as confirmDialog, confirmDestructive } from '../../utils/DialogUtils.js';
@@ -759,7 +759,7 @@ export class IncidentReport {
         </div>
       </div>`;
 
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    insertHTML(document.body, 'beforeend', modalHtml);
 
     // Event listeners
     document.getElementById('escalation-modal-close')?.addEventListener('click', () => {

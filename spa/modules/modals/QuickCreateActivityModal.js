@@ -98,7 +98,7 @@ export class QuickCreateActivityModal {
               placeholder="${translate("meeting_location_placeholder")}">
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+          <div class="responsive-grid-2" style="margin-bottom: 1rem;">
             <div>
               <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
                 ${translate("meeting_time")} <span style="color: #dc3545;">*</span>
@@ -115,7 +115,7 @@ export class QuickCreateActivityModal {
             </div>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+          <div class="responsive-grid-2" style="margin-bottom: 1rem;">
             <div>
               <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
                 ${translate("activity_start_time")} <span style="color: #dc3545;">*</span>
@@ -152,7 +152,7 @@ export class QuickCreateActivityModal {
                 placeholder="${translate("meeting_location_placeholder")}">
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="responsive-grid-2">
               <div>
                 <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
                   ${translate("meeting_time")}

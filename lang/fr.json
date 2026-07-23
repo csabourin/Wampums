@@ -2482,6 +2482,7 @@
   "offline.modulePreloadWarning": "page(s) pourraient ne pas fonctionner hors ligne",
   "points_skipped_absent_participants": "{{count}} participant(s) ignoré(s) (absent/excusé à cette date)",
   "attendance_carried_forward": "{{count}} enregistrements de présence reportés du {{date}}",
+  "attendance_carry_forward_sync_failed": "Les présences ont été copiées localement, mais n’ont pas pu être synchronisées. Elles resteront accessibles sur cet appareil.",
   "unmarked": "Non marqué",
   "camp_day_of": "Jour {{day}} de {{total}}",
   "mark_remaining_present": "Marquer {{count}} non marqués présents",
@@ -2768,5 +2769,14 @@
   "users": "Utilisateurs",
   "users_tab_description": "Attribuez des rôles aux utilisateurs de votre organisation.",
   "view_permissions": "Voir les permissions",
-  "work_phone": "Téléphone (travail)"
+  "work_phone": "Téléphone (travail)",
+  "duration": "Durée",
+  "next_week": "Semaine prochaine",
+  "password_max_length": "Le mot de passe ne doit pas dépasser 255 caractères",
+  "password_needs_special": "Le mot de passe doit contenir au moins un caractère spécial",
+  "popup_blocked": "Autorisez les fenêtres contextuelles pour ouvrir l’aperçu avant impression",
+  "responsible": "Responsable",
+  "responsible_leader": "Animateur responsable",
+  "weekly_meeting": "Réunion hebdomadaire",
+  "offline.writeUnavailable": "Cette action nécessite une connexion Internet"
 }
