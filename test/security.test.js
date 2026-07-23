@@ -307,12 +307,7 @@ describe('Multi-Tenant Isolation', () => {
     // Clear any mockResolvedValueOnce queue left by earlier security cases.
     __mClient.query.mockReset();
     __mPool.query.mockReset();
-    mockQueryImplementation(__mClient, __mPool, (query) => {
-      if (query.includes('SELECT 1 FROM user_organizations')) {
-        return { rows: [] };
-      }
-      return undefined;
-    });
+    mockQueryImplementation(__mClient, __mPool, () => undefined);
 
     const res = await request(app)
       .get('/api/v1/participants')
@@ -323,26 +318,12 @@ describe('Multi-Tenant Isolation', () => {
     // Depending on mock state, permission checks may return 200 or 403.
     expect([200, 403]).toContain(res.status);
 
-    // The candidate ID appears only in the membership validation query.
-    expect(__mPool.query.mock.calls).toEqual(
-      expect.arrayContaining([
-        expect.arrayContaining([
-          expect.stringContaining('SELECT 1 FROM user_organizations'),
-          [1, headerOrgId],
-        ]),
-      ]),
-    );
-
-    // The candidate ID may occur only in explicit membership-validation
-    // queries; it must never scope authorization or participant data.
+    // The unsigned candidate must never reach authorization or data queries.
     const queryCalls = __mPool.query.mock.calls;
     const callsUsingCandidate = queryCalls.filter(([, params]) =>
       Array.isArray(params) && params.includes(headerOrgId)
     );
-    expect(callsUsingCandidate.length).toBeGreaterThan(0);
-    callsUsingCandidate.forEach(([query]) => {
-      expect(query).toContain('SELECT 1 FROM user_organizations');
-    });
+    expect(callsUsingCandidate).toHaveLength(0);
     expect(queryCalls.some(([, params]) =>
       Array.isArray(params) && params.includes(tokenOrgId)
     )).toBe(true);

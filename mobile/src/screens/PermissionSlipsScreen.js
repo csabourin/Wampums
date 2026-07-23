@@ -286,13 +286,21 @@ const PermissionSlipsScreen = ({ navigation }) => {
       const result = await archivePermissionSlip(slipId);
 
       if (result.success) {
-        toast.show(t('permission_slip_archived_successfully'), 'success');
+        if (result.queued) {
+          setPermissionSlips(
+            permissionSlips.filter((slip) => String(slip.id) !== String(slipId))
+          );
+          toast.show(result.message, 'info');
+          return;
+        }
+
+        toast.show(t('permission_slip_archived'), 'success');
         await loadData(true);
       } else {
-        toast.show(result.message || t('error_archiving_permission_slip'), 'error');
+        toast.show(result.message || t('permission_slip_error_loading'), 'error');
       }
     } catch (err) {
-      toast.show(err.message || t('error_archiving_permission_slip'), 'error');
+      toast.show(err.message || t('permission_slip_error_loading'), 'error');
     } finally {
       setLoading(false);
     }
@@ -379,10 +387,14 @@ const PermissionSlipsScreen = ({ navigation }) => {
               <Text
                 style={[
                   styles.statusBadge,
-                  slip.status === 'signed' ? styles.statusSigned : styles.statusPending,
+                  slip.status === 'signed'
+                    ? styles.statusSigned
+                    : slip.status === 'declined'
+                      ? styles.statusDeclined
+                      : styles.statusPending,
                 ]}
               >
-                {slip.status}
+                {t(`permission_slip_status_${slip.status}`)}
               </Text>
               {slip.status !== 'archived' && (
                 <TouchableOpacity
@@ -703,6 +715,10 @@ const styles = StyleSheet.create({
   statusSigned: {
     backgroundColor: theme.colors.success,
     color: theme.colors.selectedText,
+  },
+  statusDeclined: {
+    backgroundColor: theme.colors.errorLight || '#ffebee',
+    color: theme.colors.error,
   },
   statusPending: {
     backgroundColor: theme.colors.warning,

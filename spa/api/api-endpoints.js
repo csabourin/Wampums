@@ -446,6 +446,16 @@ export async function signPermissionSlip(id, payload) {
 }
 
 /**
+ * Decline a permission slip as a parent or guardian.
+ */
+export async function declinePermissionSlip(id, payload) {
+    return API.patch(`v1/resources/permission-slips/${id}`, {
+        ...payload,
+        status: "declined"
+    });
+}
+
+/**
  * Send emails to parents for permission slips
  */
 export async function sendPermissionSlipEmails(payload) {
@@ -471,6 +481,16 @@ export async function getPublicPermissionSlip(token) {
  */
 export async function signPublicPermissionSlip(token, payload) {
     return API.patch(`v1/resources/permission-slips/s/${token}`, payload);
+}
+
+/**
+ * Decline a public permission slip using its unguessable access token.
+ */
+export async function declinePublicPermissionSlip(token, payload) {
+    return API.patch(`v1/resources/permission-slips/public/${token}`, {
+        ...payload,
+        status: "declined"
+    });
 }
 
 /**

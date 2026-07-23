@@ -1146,6 +1146,18 @@ export const signPermissionSlip = async (id, payload) => {
 };
 
 /**
+ * Decline a permission slip
+ * @param {number} id - Permission slip ID
+ * @param {Object} payload - Guardian response data
+ */
+export const declinePermissionSlip = async (id, payload) => {
+  return API.patch(`${CONFIG.ENDPOINTS.RESOURCES}/permission-slips/${id}`, {
+    ...payload,
+    status: 'declined',
+  });
+};
+
+/**
  * Send emails to parents for permission slips
  * @param {Object} payload - Email payload (activity_title, meeting_date)
  */
@@ -1162,10 +1174,10 @@ export const sendPermissionSlipReminders = async (payload) => {
 };
 
 /**
- * Get permission slip for viewing (public)
+ * Get a permission slip for authenticated viewing
  */
 export const viewPermissionSlip = async (id) => {
-  return API.public(`${CONFIG.ENDPOINTS.RESOURCES}/permission-slips/${id}/view`);
+  return API.get(`${CONFIG.ENDPOINTS.RESOURCES}/permission-slips/${id}/view`);
 };
 
 /**
@@ -1183,6 +1195,19 @@ export const viewPermissionSlipByToken = async (token) => {
  */
 export const signPermissionSlipByToken = async (token, payload) => {
   return API.public(`${CONFIG.ENDPOINTS.RESOURCES}/permission-slips/s/${token}`, payload, 'PATCH');
+};
+
+/**
+ * Decline a permission slip by public token
+ * @param {string} token - Access token from email link
+ * @param {Object} payload - Guardian response data
+ */
+export const declinePermissionSlipByToken = async (token, payload) => {
+  return API.public(
+    `${CONFIG.ENDPOINTS.RESOURCES}/permission-slips/public/${token}`,
+    { ...payload, status: 'declined' },
+    'PATCH'
+  );
 };
 
 /**

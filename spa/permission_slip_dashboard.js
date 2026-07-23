@@ -146,7 +146,7 @@ export class PermissionSlipDashboard {
                 ${permissionSummary.length === 0
         ? `<li>${escapeHTML(translate("no_data_available"))}</li>`
         : permissionSummary
-          .map((row) => `<li>${escapeHTML(row.status)}: <strong>${row.count}</strong></li>`)
+          .map((row) => `<li>${escapeHTML(translate(`permission_slip_status_${row.status}`))}: <strong>${row.count}</strong></li>`)
           .join('')}
               </ul>
             </div>
@@ -253,7 +253,8 @@ export class PermissionSlipDashboard {
   renderActivityCard(activity, isPending) {
     const signedCount = parseInt(activity.signed_slip_count, 10) || 0;
     const pendingCount = parseInt(activity.pending_slip_count, 10) || 0;
-    const totalSlips = signedCount + pendingCount;
+    const declinedCount = parseInt(activity.declined_slip_count, 10) || 0;
+    const totalSlips = signedCount + pendingCount + declinedCount;
 
     return `
       <a href="/permission-slips/${activity.id}" class="activity-card ${isPending ? 'has-pending' : ''}" style="
@@ -290,9 +291,18 @@ export class PermissionSlipDashboard {
                   ${translate("signed")}
                 </div>
               </div>
+              ${declinedCount > 0 ? `
+                <div style="font-size: 0.85rem; color: var(--color-error); margin-bottom: 0.5rem;">
+                  ${declinedCount} ${translate("permission_slip_status_declined")}
+                </div>
+              ` : ''}
               ${pendingCount > 0 ? `
                 <span style="background: #ffc107; color: #000; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem;">
                   ${pendingCount} ${translate("pending")}
+                </span>
+              ` : declinedCount > 0 ? `
+                <span style="background: var(--color-error); color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem;">
+                  ${translate("permission_slip_status_declined")}
                 </span>
               ` : `
                 <span style="background: #28a745; color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem;">
@@ -395,8 +405,7 @@ export class PermissionSlipDashboard {
 
     activitiesMap.forEach((activity, key) => {
       const signedCount = activity.slips.filter(s => s.status === 'signed').length;
-      const pendingCount = activity.slips.filter(s => s.status === 'pending').length;
-      const emailSentCount = activity.slips.filter(s => s.email_sent).length;
+      const declinedCount = activity.slips.filter(s => s.status === 'declined').length;
 
       html += `
         <div class="activity-group" style="margin-bottom: 24px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden;">
@@ -412,6 +421,7 @@ export class PermissionSlipDashboard {
               <div style="text-align: right;">
                 <div style="margin-bottom: 8px;">
                   <strong>${escapeHTML(translate("signed_count"))}:</strong> ${signedCount} / ${activity.slips.length}
+                  ${declinedCount > 0 ? `<br><strong>${escapeHTML(translate("permission_slip_status_declined"))}:</strong> ${declinedCount}` : ''}
                 </div>
                 <div>
                   <button class="btn secondary btn-send-emails" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}">
@@ -443,7 +453,11 @@ export class PermissionSlipDashboard {
                       <span class="status-badge status-${slip.status}">${escapeHTML(translate(`permission_slip_status_${slip.status}`))}</span>
                     </td>
                     <td>${slip.email_sent ? '✓ ' + translate("email_sent") : translate("email_not_sent")}</td>
-                    <td>${slip.signed_at ? escapeHTML(formatDate(slip.signed_at, this.app.lang || 'fr')) : '-'}</td>
+                    <td>${slip.signed_at
+                      ? escapeHTML(formatDate(slip.signed_at, this.app.lang || 'fr'))
+                      : slip.declined_at
+                        ? escapeHTML(formatDate(slip.declined_at, this.app.lang || 'fr'))
+                        : '-'}</td>
                     <td>
                       ${[
           slip.status === 'pending'
@@ -609,13 +623,30 @@ export class PermissionSlipDashboard {
 
         withButtonLoading(event.currentTarget, async () => {
           try {
-            await archivePermissionSlip(slipId);
+            const result = await archivePermissionSlip(slipId);
+            if (result?.queued) {
+              this.permissionSlips = this.permissionSlips.filter(
+                (slip) => String(slip.id) !== String(slipId),
+              );
+              this.render();
+              this.attachEventHandlers();
+              this.app.showMessage(result.message, "info");
+              return;
+            }
+
             this.app.showMessage(translate("permission_slip_archived"), "success");
             await this.clearPermissionSlipCaches();
             await this.refreshData(true);
           } catch (error) {
             debugError("Error archiving permission slip", error);
-            this.app.showMessage(translate("permission_slip_error_loading"), "error");
+            this.app.showMessage(
+              translate(
+                error?.status === 403
+                  ? "insufficient_permissions"
+                  : "permission_slip_error_loading",
+              ),
+              "error",
+            );
           }
         });
       });

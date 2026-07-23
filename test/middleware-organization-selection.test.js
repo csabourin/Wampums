@@ -15,32 +15,39 @@ function requestFor(headerOrganizationId) {
     user: {
       id: 'user-1',
       organizationId: 10,
+      roleIds: [1],
+      roleNames: ['finance'],
+      permissions: ['finance.view'],
+      role: 'finance',
     },
   };
 }
 
 describe('authenticated organization selection', () => {
-  test('uses a selected organization after membership validation', async () => {
+  test('keeps the signed organization and claims even if another membership is requested', async () => {
+    const req = requestFor(20);
     const pool = {
-      query: jest.fn().mockResolvedValue({ rows: [{ exists: 1 }] }),
+      query: jest.fn().mockResolvedValue({
+        rows: [{
+          role_ids: [7],
+          role_names: ['parent'],
+          permissions: [],
+        }],
+      }),
     };
 
-    await expect(getOrganizationId(requestFor(20), pool)).resolves.toBe(20);
-    expect(pool.query).toHaveBeenCalledWith(
-      expect.stringContaining('user_organizations'),
-      ['user-1', 20],
-    );
+    await expect(getOrganizationId(req, pool)).resolves.toBe(10);
+    expect(pool.query).not.toHaveBeenCalled();
+    expect(req.user).toMatchObject({
+      organizationId: 10,
+      roleIds: [1],
+      roleNames: ['finance'],
+      permissions: ['finance.view'],
+      role: 'finance',
+    });
   });
 
-  test('falls back to the signed organization for an unauthorized selection', async () => {
-    const pool = {
-      query: jest.fn().mockResolvedValue({ rows: [] }),
-    };
-
-    await expect(getOrganizationId(requestFor(999), pool)).resolves.toBe(10);
-  });
-
-  test('does not query membership when selection matches the signed organization', async () => {
+  test('uses the signed organization when the header matches', async () => {
     const pool = {
       query: jest.fn(),
     };

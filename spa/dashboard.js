@@ -832,10 +832,6 @@ export class Dashboard extends BaseModule {
           </span>
         </div>
         <div class="dashboard-v2__top-actions">
-          <button type="button" class="dashboard-v2__icon-btn" id="dashboard-search-btn"
-                  aria-label="${escapeHTML(translate("dashboard_search_label"))}" title="${escapeHTML(translate("dashboard_search_label"))} (Ctrl+K)">
-            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-          </button>
           <button type="button" class="dashboard-v2__icon-btn" id="dashboard-settings-btn"
                   aria-label="${escapeHTML(translate("dashboard_settings"))}">
             <i class="fa-solid fa-sliders" aria-hidden="true"></i>
@@ -1001,7 +997,7 @@ export class Dashboard extends BaseModule {
 
   _renderTile(tile, { small = false } = {}) {
     const domain = tile.domain || "neutral";
-    const style = `--tile-bg: var(--tile-bg-${domain}); --tile-fg: var(--tile-fg-${domain}); --tile-accent: var(--tile-accent-${domain});`;
+    const style = `--tile-bg: var(--tile-bg-${domain}); --tile-fg: var(--tile-fg-${domain}); --tile-accent: var(--tile-accent-${domain}); --tile-hover-bg: var(--tile-hover-bg-${domain}); --tile-hover-fg: var(--tile-hover-fg-${domain});`;
     const stat = tile.stat
       ? `<span class="dashboard-v2__tile-stat${tile.stat.urgent ? " is-urgent" : ""}" aria-label="${escapeHTML(tile.stat.label || "")}">${escapeHTML(String(tile.stat.value))}${tile.stat.label ? ` <span>${escapeHTML(tile.stat.label)}</span>` : ""}</span>`
       : "";
@@ -1185,10 +1181,6 @@ export class Dashboard extends BaseModule {
 
     // --- v2 dashboard controls ---
     this._setupCommandPalette();
-
-    this.addEventListener(document.getElementById("dashboard-search-btn"), "click", () => {
-      this.commandPalette?.open();
-    });
 
     this.addEventListener(document.getElementById("dashboard-fab"), "click", () => {
       this.commandPalette?.open();

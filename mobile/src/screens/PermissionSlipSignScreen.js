@@ -15,6 +15,7 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
@@ -29,6 +30,9 @@ import {
 } from '../components';
 import DateUtils from '../utils/DateUtils';
 import {
+  declinePermissionSlip,
+  declinePermissionSlipByToken,
+  viewPermissionSlip,
   viewPermissionSlipByToken,
   signPermissionSlipByToken,
   signPermissionSlip,
@@ -43,6 +47,7 @@ const PermissionSlipSignScreen = ({ route, navigation }) => {
   const [guardianName, setGuardianName] = useSafeState('');
   const [consentChecked, setConsentChecked] = useSafeState(false);
   const [isSigning, setIsSigning] = useSafeState(false);
+  const [isDeclining, setIsDeclining] = useSafeState(false);
   const toast = useToast();
 
   // Determine if this is public (token-based) or authenticated (slipId-based) access
@@ -62,8 +67,7 @@ const PermissionSlipSignScreen = ({ route, navigation }) => {
         // Public token-based endpoint
         response = await viewPermissionSlipByToken(token);
       } else {
-        // Authenticated endpoint (fallback for existing flow)
-        response = await signPermissionSlip(slipId, { view_only: true });
+        response = await viewPermissionSlip(slipId);
       }
 
       if (!response.success) {
@@ -78,6 +82,50 @@ const PermissionSlipSignScreen = ({ route, navigation }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDecline = () => {
+    if (!guardianName.trim()) {
+      toast.show(t('please_enter_name'), 'warning');
+      return;
+    }
+
+    Alert.alert(
+      t('permission_slip_decline'),
+      t('permission_slip_decline_confirm'),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('permission_slip_decline'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsDeclining(true);
+              const payload = {
+                declined_by: guardianName.trim(),
+                declined_at: new Date().toISOString(),
+              };
+              const response = isPublicAccess
+                ? await declinePermissionSlipByToken(token, payload)
+                : await declinePermissionSlip(slipId, payload);
+
+              if (!response.success) {
+                throw new Error(response.message || t('permission_slip_error_declining'));
+              }
+              toast.show(t('permission_slip_declined'), 'success');
+              await loadPermissionSlip();
+              setGuardianName('');
+              setConsentChecked(false);
+            } catch (err) {
+              debugError('[PermissionSlipSign] Error declining slip:', err);
+              toast.show(err.message || t('permission_slip_error_declining'), 'error');
+            } finally {
+              setIsDeclining(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const validateForm = () => {
@@ -164,8 +212,10 @@ const PermissionSlipSignScreen = ({ route, navigation }) => {
   }
 
   const isSigned = slip.status === 'signed';
+  const isDeclined = slip.status === 'declined';
   const isPastDeadline =
-    slip.deadline_date && new Date(slip.deadline_date) < new Date();
+    slip.deadline_date &&
+    String(slip.deadline_date).slice(0, 10) < DateUtils.formatDate(new Date(), 'en', 'YYYY-MM-DD');
   const canSign = slip.status === 'pending' && !isPastDeadline;
 
   return (
@@ -235,12 +285,34 @@ const PermissionSlipSignScreen = ({ route, navigation }) => {
           </Card>
         )}
 
+        {isDeclined && (
+          <Card style={[styles.card, styles.errorCard]}>
+            <View style={styles.statusRow}>
+              <Text style={styles.errorIcon}>❌</Text>
+              <View style={styles.statusTextContainer}>
+                <Text style={styles.statusTitle}>{t('permission_slip_declined')}</Text>
+                {slip.declined_at && (
+                  <Text style={styles.statusDetail}>
+                    {t('permission_slip_declined_at')}:{' '}
+                    {DateUtils.formatDate(new Date(slip.declined_at), undefined, 'YYYY-MM-DD HH:mm')}
+                  </Text>
+                )}
+                {slip.declined_by && (
+                  <Text style={styles.statusDetail}>
+                    {t('permission_slip_declined_by')}: {slip.declined_by}
+                  </Text>
+                )}
+              </View>
+            </View>
+          </Card>
+        )}
+
         {/* Signature Form */}
         {canSign && (
           <Card style={styles.card}>
             <View style={[styles.statusRow, styles.warningCard]}>
               <Text style={styles.warningIcon}>⚠️</Text>
-              <Text style={styles.warningText}>{t('signature_required')}</Text>
+              <Text style={styles.warningText}>{t('permission_slip_response_required')}</Text>
             </View>
 
             <FormField
@@ -271,6 +343,22 @@ const PermissionSlipSignScreen = ({ route, navigation }) => {
             >
               <Text style={commonStyles.buttonText}>
                 {isSigning ? t('signing') : `✍️ ${t('sign_permission_slip')}`}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                commonStyles.button,
+                styles.declineButton,
+                (!guardianName.trim() || isSigning || isDeclining) &&
+                  commonStyles.buttonDisabled,
+              ]}
+              onPress={handleDecline}
+              disabled={!guardianName.trim() || isSigning || isDeclining}
+              activeOpacity={0.7}
+            >
+              <Text style={commonStyles.buttonText}>
+                {`✖ ${t('permission_slip_decline')}`}
               </Text>
             </TouchableOpacity>
           </Card>
@@ -391,6 +479,10 @@ const styles = StyleSheet.create({
   },
   signButton: {
     marginTop: theme.spacing.sm,
+  },
+  declineButton: {
+    marginTop: theme.spacing.sm,
+    backgroundColor: theme.colors.error,
   },
   errorCard: {
     backgroundColor: theme.colors.errorLight || '#ffebee',

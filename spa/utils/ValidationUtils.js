@@ -11,6 +11,12 @@
 import { isValidDate } from './DateUtils.js';
 import { sanitizeHTML as sanitizeHTMLFromSecurity } from './SecurityUtils.js';
 
+const PASSWORD_LENGTHS = Object.freeze({
+    MINIMUM: 8,
+    STRONG: 12,
+    MAXIMUM: 255
+});
+
 /**
  * Validate email address
  * @param {string} email - Email address to validate
@@ -94,24 +100,23 @@ export function validatePassword(password) {
         };
     }
 
-    const minLength = 8;
     const hasUpperCase = /[A-Z]/.test(password);
     const hasLowerCase = /[a-z]/.test(password);
     const hasNumbers = /\d/.test(password);
     const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
 
-    if (password.length < minLength) {
+    if (password.length < PASSWORD_LENGTHS.MINIMUM) {
         return {
             valid: false,
-            error: `Password must be at least ${minLength} characters`,
+            error: `Password must be at least ${PASSWORD_LENGTHS.MINIMUM} characters`,
             strength: 'weak'
         };
     }
 
-    if (password.length > 255) {
+    if (password.length > PASSWORD_LENGTHS.MAXIMUM) {
         return {
             valid: false,
-            error: 'Password must not exceed 255 characters',
+            error: `Password must not exceed ${PASSWORD_LENGTHS.MAXIMUM} characters`,
             strength: 'weak'
         };
     }
@@ -124,16 +129,10 @@ export function validatePassword(password) {
         };
     }
 
-    const criteriaCount = [hasUpperCase, hasLowerCase, hasNumbers, hasSpecialChar].filter(Boolean).length;
-
-    let strength = 'weak';
-    if (criteriaCount >= 4) strength = 'strong';
-    else if (criteriaCount >= 3) strength = 'medium';
-
     return {
         valid: true,
         error: null,
-        strength: strength
+        strength: password.length >= PASSWORD_LENGTHS.STRONG ? 'strong' : 'medium'
     };
 }
 

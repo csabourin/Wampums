@@ -3,11 +3,17 @@
 
 import { translate } from './app.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
-import { getPublicPermissionSlip, signPublicPermissionSlip } from './api/api-endpoints.js';
+import {
+  declinePublicPermissionSlip,
+  getPublicPermissionSlip,
+  signPublicPermissionSlip,
+} from './api/api-endpoints.js';
 import { CONFIG } from './config.js';
 import { setContent } from "./utils/DOMUtils.js";
 import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
+import { confirm as confirmDialog } from "./utils/DialogUtils.js";
 
 export class PermissionSlipSign {
   constructor(app, token) {
@@ -68,8 +74,12 @@ export class PermissionSlipSign {
       : null;
 
     const isSigned = this.slip.status === 'signed';
+    const isDeclined = this.slip.status === 'declined';
     const canSign = this.slip.status === 'pending' &&
       (!this.slip.deadline_date || this.slip.deadline_date.substring(0, 10) >= getTodayISO());
+    const activityTitle = escapeHTML(this.slip.activity_title || translate('activity'));
+    const activityDescription = escapeHTML(this.slip.activity_description || '');
+    const participantName = escapeHTML(this.slip.participant_name || '');
 
     setContent(appDiv, `
       <div class="container mt-5">
@@ -78,7 +88,7 @@ export class PermissionSlipSign {
             <h3>${translate('permission_slip_title')}</h3>
           </div>
           <div class="card-body">
-            <h4>${this.slip.activity_title || translate('activity')}</h4>
+            <h4>${activityTitle}</h4>
 
             <div class="mb-3">
               <strong>${translate('activity_date_label')}:</strong> ${activityDate}
@@ -87,7 +97,7 @@ export class PermissionSlipSign {
             ${this.slip.activity_description ? `
               <div class="mb-3">
                 <strong>${translate('activity_description_label')}:</strong>
-                <div class="mt-2">${this.slip.activity_description}</div>
+                <div class="mt-2">${activityDescription}</div>
               </div>
             ` : ''}
 
@@ -98,7 +108,7 @@ export class PermissionSlipSign {
             ` : ''}
 
             <div class="mb-3">
-              <strong>${translate('participant')}:</strong> ${this.slip.participant_name}
+              <strong>${translate('participant')}:</strong> ${participantName}
             </div>
 
             ${isSigned ? `
@@ -106,11 +116,17 @@ export class PermissionSlipSign {
                 <i class="fas fa-check-circle"></i> ${translate('already_signed')}
                 <br>
                 <small>${translate('signed_on')}: ${new Date(this.slip.signed_at).toLocaleString(locale)}</small>
-                ${this.slip.signed_by ? `<br><small>${translate('signed_by')}: ${this.slip.signed_by}</small>` : ''}
+                ${this.slip.signed_by ? `<br><small>${translate('signed_by')}: ${escapeHTML(this.slip.signed_by)}</small>` : ''}
+              </div>
+            ` : isDeclined ? `
+              <div class="alert alert-danger">
+                <i class="fas fa-times-circle"></i> ${translate('permission_slip_declined')}
+                ${this.slip.declined_at ? `<br><small>${translate('permission_slip_declined_at')}: ${new Date(this.slip.declined_at).toLocaleString(locale)}</small>` : ''}
+                ${this.slip.declined_by ? `<br><small>${translate('permission_slip_declined_by')}: ${escapeHTML(this.slip.declined_by)}</small>` : ''}
               </div>
             ` : canSign ? `
               <div class="alert alert-warning">
-                <i class="fas fa-exclamation-triangle"></i> ${translate('signature_required')}
+                <i class="fas fa-exclamation-triangle"></i> ${translate('permission_slip_response_required')}
               </div>
 
               <div class="form-group mb-3">
@@ -125,9 +141,14 @@ export class PermissionSlipSign {
                 </label>
               </div>
 
-              <button class="btn btn-success btn-lg" id="sign-btn" disabled>
-                <i class="fas fa-signature"></i> ${translate('sign_permission_slip')}
-              </button>
+              <div class="permission-slip-response-actions">
+                <button class="btn btn-success btn-lg" id="sign-btn" disabled>
+                  <i class="fas fa-signature"></i> ${translate('sign_permission_slip')}
+                </button>
+                <button class="btn btn-danger btn-lg" id="decline-btn" disabled>
+                  <i class="fas fa-times-circle"></i> ${translate('permission_slip_decline')}
+                </button>
+              </div>
             ` : `
               <div class="alert alert-danger">
                 <i class="fas fa-times-circle"></i> ${translate('deadline_passed')}
@@ -143,13 +164,15 @@ export class PermissionSlipSign {
     const signBtn = document.getElementById('sign-btn');
     const guardianNameInput = document.getElementById('guardian-name');
     const consentCheckbox = document.getElementById('consent-checkbox');
+    const declineBtn = document.getElementById('decline-btn');
 
     if (!signBtn) return;
 
-    // Enable sign button only when both name and checkbox are filled
+    // Signing requires consent; declining requires only the guardian's name.
     const checkForm = () => {
-      const isValid = guardianNameInput.value.trim() && consentCheckbox.checked;
-      signBtn.disabled = !isValid;
+      const hasName = Boolean(guardianNameInput.value.trim());
+      signBtn.disabled = !(hasName && consentCheckbox.checked);
+      if (declineBtn) declineBtn.disabled = !hasName;
     };
 
     guardianNameInput?.addEventListener('input', checkForm);
@@ -157,6 +180,9 @@ export class PermissionSlipSign {
 
     signBtn.addEventListener('click', async () => {
       await this.signPermissionSlip();
+    });
+    declineBtn?.addEventListener('click', async () => {
+      await this.declinePermissionSlip();
     });
   }
 
@@ -191,6 +217,52 @@ export class PermissionSlipSign {
     }
   }
 
+  async declinePermissionSlip() {
+    const guardianName = document.getElementById('guardian-name')?.value.trim();
+    const declineBtn = document.getElementById('decline-btn');
+
+    if (!guardianName || !declineBtn) {
+      this.app.showMessage(translate('please_enter_name'), 'error');
+      return;
+    }
+    if (!(await confirmDialog(translate('permission_slip_decline_confirm')))) {
+      return;
+    }
+
+    declineBtn.disabled = true;
+    setContent(
+      declineBtn,
+      `<span class="spinner-border spinner-border-sm"></span> ${escapeHTML(translate('permission_slip_decline'))}`,
+    );
+    try {
+      const response = await declinePublicPermissionSlip(this.token, {
+        declined_by: guardianName,
+        declined_at: new Date().toISOString(),
+      });
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to decline');
+      }
+
+      this.slip = response.data?.permission_slip || {
+        ...this.slip,
+        status: 'declined',
+        declined_by: guardianName,
+        declined_at: new Date().toISOString(),
+      };
+      this.app.showMessage(translate('permission_slip_declined'), 'success');
+      this.render();
+      this.attachEventListeners();
+    } catch (error) {
+      debugError('Error declining permission slip:', error);
+      this.app.showMessage(translate('permission_slip_error_declining'), 'error');
+      declineBtn.disabled = false;
+      setContent(
+        declineBtn,
+        `<i class="fas fa-times-circle"></i> ${escapeHTML(translate('permission_slip_decline'))}`,
+      );
+    }
+  }
+
   showSuccessMessage(guardianName) {
     const appDiv = document.getElementById('app');
     const locale = this.getLocale();
@@ -216,15 +288,15 @@ export class PermissionSlipSign {
             </div>
 
             <div class="mt-4">
-              <h5>${this.slip.activity_title || translate('activity')}</h5>
+              <h5>${escapeHTML(this.slip.activity_title || translate('activity'))}</h5>
               <div class="mb-2">
                 <strong>${translate('activity_date_label')}:</strong> ${activityDate}
               </div>
               <div class="mb-2">
-                <strong>${translate('participant')}:</strong> ${this.slip.participant_name}
+                <strong>${translate('participant')}:</strong> ${escapeHTML(this.slip.participant_name || '')}
               </div>
               <div class="mb-2">
-                <strong>${translate('signed_by')}:</strong> ${guardianName}
+                <strong>${translate('signed_by')}:</strong> ${escapeHTML(guardianName)}
               </div>
               <div class="mb-2">
                 <strong>${translate('signed_on')}:</strong> ${new Date().toLocaleString(locale)}

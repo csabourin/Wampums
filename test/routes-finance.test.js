@@ -675,6 +675,45 @@ describe('Financial Reports', () => {
 });
 
 // ============================================
+// PARTICIPANT STATEMENT ACCESS
+// ============================================
+
+describe('Participant statement access', () => {
+  test('does not reuse finance claims from another organization', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const selectedOrgId = 2;
+    const participantId = 50;
+    const token = generateToken({
+      organizationId: ORG_ID,
+      roleIds: [1],
+      roleNames: ['finance'],
+      permissions: ['finance.view']
+    });
+    let statementQueried = false;
+
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('FROM participants p')) {
+        expect(params).toEqual([participantId.toString(), ORG_ID]);
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('WITH payments AS')) {
+        statementQueried = true;
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .get(`/api/v1/finance/participants/${participantId}/statement`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('x-organization-id', selectedOrgId.toString());
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/not found/i);
+    expect(statementQueried).toBe(false);
+  });
+});
+
+// ============================================
 // DEMO USER WRITE PROTECTION
 // ============================================
 
