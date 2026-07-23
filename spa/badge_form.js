@@ -6,6 +6,7 @@ import {
 } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { alert as showAlertDialog } from "./utils/DialogUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import {
   getBadgeProgress,
@@ -493,7 +494,7 @@ export class BadgeForm {
         }
       } catch (error) {
         debugError("Error saving badge progress:", error);
-        alert(translate("error_saving_badge_progress") + ": " + error.message);
+        this.app.showMessage(`${translate("error_saving_badge_progress")}: ${error.message}`, "error");
       }
     }
   }
@@ -515,7 +516,7 @@ export class BadgeForm {
     });
 
     if (!isValid) {
-      alert(errorMessages.join("\n"));
+      showAlertDialog(errorMessages.join("\n"));
     }
 
     return isValid;

@@ -573,14 +573,14 @@ export class MailingList {
                 }
 
                 if (!emailString) {
-                        alert(translate("no_data_available"));
+                        this.app.showMessage(translate("no_data_available"), "error");
                         return;
                 }
 
                 navigator.clipboard
                         .writeText(emailString)
                         .then(() => {
-                                alert(`${translate("emails_copied_to_clipboard_for")} ${translate(role)}`);
+                                this.app.showMessage(`${translate("emails_copied_to_clipboard_for")} ${translate(role)}`, "success");
                         })
                         .catch((error) => {
                                 debugError("Failed to copy emails:", error);

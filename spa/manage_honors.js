@@ -423,6 +423,16 @@ export class ManageHonors {
     document.addEventListener('click', this.documentClickHandler);
   }
 
+  /**
+   * Called by the router before navigating away.
+   */
+  destroy() {
+    if (this.documentClickHandler) {
+      document.removeEventListener('click', this.documentClickHandler);
+      this.documentClickHandler = null;
+    }
+  }
+
   handleItemClick(event) {
     // Don't handle click if it came from the actions menu or trigger
     if (event.target.closest('.honor-actions')) {

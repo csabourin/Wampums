@@ -4,7 +4,7 @@ import { translate } from '../../app.js';
 import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { formatDate, parseDate } from '../../utils/DateUtils.js';
+import { formatDate, parseDate, getTodayISO } from '../../utils/DateUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
@@ -235,7 +235,7 @@ export class YearlyPlanner extends BaseModule {
       subObjectiveMap[o.parent_id].push(o);
     });
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayISO();
 
     return `
       <section class="page yearly-planner">

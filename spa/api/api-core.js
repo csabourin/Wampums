@@ -1,12 +1,9 @@
 // api-core.js
 // Core API request infrastructure for the Wampums application
 import {
-    saveOfflineData,
-    getOfflineData,
     setCachedData,
     getCachedData,
-    getCachedDataIgnoreExpiration,
-    clearOfflineData
+    getCachedDataIgnoreExpiration
 } from "../indexedDB.js";
 import { CONFIG } from "../config.js";
 import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
@@ -41,10 +38,13 @@ export function buildApiUrl(endpoint, params = {}) {
 
     const url = new URL(requestPath, CONFIG.API_BASE_URL);
 
-    // Guard: ensure params is a plain object
+    // Guard: ensure params is a plain object, and copy it so the caller's
+    // object is never mutated (organization_id is injected below)
     if (typeof params !== 'object' || params === null || Array.isArray(params)) {
         debugWarn('buildApiUrl received non-object params, ignoring:', params);
         params = {};
+    } else {
+        params = { ...params };
     }
 
     // Add organization ID if not already present
@@ -81,7 +81,9 @@ export async function handleResponse(response) {
 
             // Only redirect when actually online to avoid redirect on offline cached responses
             if (navigator.onLine) {
-                const publicPages = ['/login', '/reset-password', '/register', '/permission-slip', '/public/'];
+                // '/permission-slip/' keeps its trailing slash so the staff
+                // dashboard at /permission-slips still redirects on 401.
+                const publicPages = ['/login', '/reset-password', '/register', '/permission-slip/', '/public/'];
                 const isPublicPage = publicPages.some(page => window.location.pathname.startsWith(page));
 
                 if (!isPublicPage) {
@@ -115,7 +117,9 @@ export async function handleResponse(response) {
             debugError('Error parsing error response:', parseError);
         }
 
-        throw new Error(errorMessage);
+        const httpError = new Error(errorMessage);
+        httpError.status = response.status;
+        throw httpError;
     }
 
     if (contentType && contentType.includes("application/json")) {
@@ -221,6 +225,17 @@ export async function makeApiRequest(endpoint, options = {}) {
             lastError = error;
             debugError(`API request failed (attempt ${attempt + 1}):`, error);
 
+            // Only retry idempotent GETs, and only for transient failures
+            // (network errors or 5xx). Retrying writes can duplicate them
+            // (e.g. timeout after the server processed the request), and
+            // retrying 4xx responses just delays user-facing feedback.
+            const isTransient = !error.status || error.status >= 500;
+            const isRetryable = method === 'GET' && isTransient;
+
+            if (!isRetryable) {
+                break;
+            }
+
             if (attempt < retries) {
                 // Wait before retry with exponential backoff
                 await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
@@ -228,7 +243,9 @@ export async function makeApiRequest(endpoint, options = {}) {
         }
     }
 
-    throw new Error(`Failed to complete API request after ${retries + 1} attempts: ${lastError.message}`);
+    const finalError = new Error(`API request failed: ${lastError.message}`);
+    finalError.status = lastError.status;
+    throw finalError;
 }
 
 // Request deduplication: Track in-flight requests to prevent duplicate API calls
@@ -247,8 +264,9 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
     // Create a unique request key for deduplication
     const requestKey = `${endpoint}-${JSON.stringify(options)}`;
 
-    // Check for in-flight request (deduplication)
-    if (pendingRequests.has(requestKey)) {
+    // Check for in-flight request (deduplication). A forced refresh must not
+    // reuse an in-flight request it was explicitly asked to bypass.
+    if (!forceRefresh && pendingRequests.has(requestKey)) {
         debugLog('Reusing in-flight request:', requestKey);
         return pendingRequests.get(requestKey);
     }
@@ -418,30 +436,6 @@ export function withErrorHandling(fn) {
     };
 }
 
-/**
- * Offline sync functionality
- */
-export async function syncOfflineData() {
-    if (!navigator.onLine) {
-        return;
-    }
-
-    const offlineData = await getOfflineData();
-    const results = [];
-
-    for (const item of offlineData) {
-        try {
-            const { endpoint, options } = item;
-            const result = await makeApiRequest(endpoint, options);
-            results.push({ success: true, result });
-        } catch (error) {
-            results.push({ success: false, error: error.message });
-        }
-    }
-
-    if (results.every(r => r.success)) {
-        await clearOfflineData();
-    }
-
-    return results;
-}
+// Offline sync is handled by OfflineManager.syncPendingData(), which clears
+// each queued mutation individually after it succeeds. The old all-or-nothing
+// syncOfflineData() here was unused and could replay successful writes.

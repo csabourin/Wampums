@@ -163,7 +163,7 @@ export class PermissionSlipSign {
     const signBtn = document.getElementById('sign-btn');
 
     if (!guardianName) {
-      alert(translate('please_enter_name'));
+      this.app.showMessage(translate('please_enter_name'), 'error');
       return;
     }
 
@@ -183,7 +183,7 @@ export class PermissionSlipSign {
       }
     } catch (error) {
       debugError('Error signing permission slip:', error);
-      alert(translate('error_signing_slip'));
+      this.app.showMessage(translate('error_signing_slip'), 'error');
       signBtn.disabled = false;
       setContent(signBtn, '<i class="fas fa-signature"></i> ' + translate('sign_permission_slip'));
     }

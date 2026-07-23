@@ -105,7 +105,10 @@ export async function validateCurrentToken() {
             return { isValid: false, reason: "invalid_format" };
         }
 
-        const payload = JSON.parse(atob(parts[1]));
+        // JWT payloads are base64url-encoded; convert before atob() or
+        // tokens containing '-'/'_' are misjudged as invalid
+        const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const payload = JSON.parse(atob(base64));
         debugLog("Token payload:", payload);
 
         // Check if expired

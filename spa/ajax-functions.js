@@ -18,8 +18,7 @@ export {
     buildApiUrl,
     makeApiRequestWithCache,
     batchApiRequests,
-    withErrorHandling,
-    syncOfflineData
+    withErrorHandling
 } from "./api/api-core.js";
 
 // Re-export helper utilities

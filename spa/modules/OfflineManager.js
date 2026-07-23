@@ -1091,7 +1091,9 @@ export class OfflineManager {
      * Auto-detect if we should enable/disable camp mode based on current date
      */
     autoDetectCampMode() {
-        const today = new Date().toISOString().split('T')[0];
+        // Local date, not toISOString(): UTC "today" is already tomorrow in
+        // the evening, which would disable camp mode on the last camp night.
+        const today = new Date().toLocaleDateString('en-CA');
 
         // Check if we're within any prepared activity's date range
         for (const [activityId, prep] of this.preparedActivities) {
@@ -1164,11 +1166,17 @@ export class OfflineManager {
      */
     generateDateRange(startDate, endDate) {
         const dates = [];
-        const current = new Date(startDate);
-        const end = new Date(endDate);
+        // Parse and format in local time so the range matches the literal
+        // YYYY-MM-DD inputs regardless of timezone.
+        const current = new Date(`${startDate}T00:00:00`);
+        const end = new Date(`${endDate}T00:00:00`);
+
+        if (isNaN(current) || isNaN(end)) {
+            return dates;
+        }
 
         while (current <= end) {
-            dates.push(current.toISOString().split('T')[0]);
+            dates.push(current.toLocaleDateString('en-CA'));
             current.setDate(current.getDate() + 1);
         }
         return dates;

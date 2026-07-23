@@ -1732,6 +1732,17 @@ export class Inventory {
     }
   }
 
+  /**
+   * Called by the router before navigating away. Covers the case where the
+   * user navigates while the image preview is open (listener + scroll lock
+   * would otherwise persist).
+   */
+  destroy() {
+    document.removeEventListener("keydown", this.handleImagePreviewKeydown);
+    document.body.style.overflow = "";
+    this.lastFocusedElement = null;
+  }
+
   getSafeImageSrc(imageUrl) {
     if (typeof imageUrl !== "string") {
       return null;

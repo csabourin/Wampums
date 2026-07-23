@@ -308,7 +308,7 @@ export const app = {
                                         ? await getOrganizationSettings()
                                         : await getPublicOrganizationSettings();
                         }
-                        if (response && response.organization_info || response.data) {
+                        if (response && (response.organization_info || response.data)) {
                                 debugLog("Got organization settings: ", JSON.stringify(response));
                                 // The fix is here - use response.data directly as the settings
                                 this.organizationSettings = response.data || response;  // This is correct
@@ -406,10 +406,20 @@ export const app = {
                         if (Notification.permission === 'granted') {
                                 registerPushSubscription();
                         } else if (Notification.permission === 'default') {
-                                const permission = await Notification.requestPermission();
-                                if (permission === 'granted') {
-                                        registerPushSubscription();
-                                }
+                                // Browsers suppress (or auto-deny) permission prompts that are
+                                // not triggered by a user gesture, so wait for the first
+                                // interaction before asking.
+                                const requestOnGesture = async () => {
+                                        try {
+                                                const permission = await Notification.requestPermission();
+                                                if (permission === 'granted') {
+                                                        registerPushSubscription();
+                                                }
+                                        } catch (error) {
+                                                debugError('Notification permission request failed:', error);
+                                        }
+                                };
+                                window.addEventListener('click', requestOnGesture, { once: true });
                         }
                 } else {
                         debugError('This browser does not support notifications.');
@@ -486,7 +496,9 @@ export const app = {
                 const container = document.getElementById('toast-container');
                 const toast = container.querySelector('.toast');
 
-                if (!toast) return;
+                // Ignore repeat calls (double-click, or timer firing after a manual
+                // dismiss) so the queue is only advanced once per toast.
+                if (!toast || !toast.classList.contains('toast-show')) return;
 
                 // Clear timeout
                 if (this.toastTimeout) {
@@ -700,13 +712,15 @@ export const app = {
         },
 };
 
-navigator.serviceWorker.addEventListener('message', function (event) {
-        if (event.data && event.data.type === 'PUSH_ALERT') {
-                const title = event.data.title || translate('new_notification');
-                const body = event.data.body || '';
-                alert(`${title}\n\n${body}`);
-        }
-});
+if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', function (event) {
+                if (event.data && event.data.type === 'PUSH_ALERT') {
+                        const title = event.data.title || translate('new_notification');
+                        const body = event.data.body || '';
+                        app.showMessage(body ? `${title} — ${body}` : title, 'info');
+                }
+        });
+}
 
 window.addEventListener("online", () => {
         debugLog("App is online");
@@ -741,8 +755,10 @@ if (storedOrgId && storedOrgId !== '[object Object]' && !storedOrgId.startsWith(
         const jwtToken = getStorage('jwtToken');
         const isLoggedIn = !!jwtToken;
 
-        // Determine if we are on a public page (where we shouldn't force auth)
-        const publicPages = ['/login', '/reset-password', '/register', '/permission-slip'];
+        // Determine if we are on a public page (where we shouldn't force auth).
+        // '/permission-slip/' keeps the trailing slash so the staff dashboard
+        // at /permission-slips is NOT treated as public.
+        const publicPages = ['/login', '/reset-password', '/register', '/permission-slip/'];
         const isPublicPage = publicPages.some(path => window.location.pathname.startsWith(path));
 
         // Use public endpoint for unauthenticated users OR if on a public page

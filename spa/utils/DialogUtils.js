@@ -276,7 +276,12 @@ function openDialog({
         event.preventDefault();
         settle(cancelValue);
       } else if (event.key === "Enter" && (event.target?.tagName !== "TEXTAREA")) {
-        // For prompt, only submit on Enter if the input is focused.
+        // If a dialog button has focus, let the native Enter->click fire so
+        // Enter on "Cancel" cancels instead of triggering the default
+        // (possibly destructive) action.
+        if (event.target instanceof Element && event.target.closest(".dialog__actions")) {
+          return;
+        }
         const primary = buttons[defaultButtonIndex];
         if (primary) {
           event.preventDefault();

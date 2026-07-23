@@ -825,11 +825,24 @@ export class ParentDashboard {
                         document.getElementById("installPwaButton");
                 let deferredPrompt;
 
-                window.addEventListener("beforeinstallprompt", (e) => {
+                // Keep references so destroy() can remove them; otherwise each
+                // visit stacks window listeners referencing detached buttons.
+                if (this.beforeInstallPromptHandler) {
+                        window.removeEventListener("beforeinstallprompt", this.beforeInstallPromptHandler);
+                }
+                if (this.appInstalledHandler) {
+                        window.removeEventListener("appinstalled", this.appInstalledHandler);
+                }
+
+                this.beforeInstallPromptHandler = (e) => {
                         debugLog("beforeinstallprompt event fired");
                         // Prevent the default prompt
                         e.preventDefault();
                         deferredPrompt = e;
+
+                        if (!installButton) {
+                                return;
+                        }
 
                         // Show the install button
                         installButton.style.display = "block";
@@ -863,11 +876,27 @@ export class ParentDashboard {
                                         installButton.style.display = "none";
                                 }
                         });
-                });
+                };
+                window.addEventListener("beforeinstallprompt", this.beforeInstallPromptHandler);
 
-                window.addEventListener("appinstalled", () => {
+                this.appInstalledHandler = () => {
                         debugLog("App has been installed");
-                });
+                };
+                window.addEventListener("appinstalled", this.appInstalledHandler);
+        }
+
+        /**
+         * Called by the router before navigating away.
+         */
+        destroy() {
+                if (this.beforeInstallPromptHandler) {
+                        window.removeEventListener("beforeinstallprompt", this.beforeInstallPromptHandler);
+                        this.beforeInstallPromptHandler = null;
+                }
+                if (this.appInstalledHandler) {
+                        window.removeEventListener("appinstalled", this.appInstalledHandler);
+                        this.appInstalledHandler = null;
+                }
         }
 
         async handleCalendarDownload() {

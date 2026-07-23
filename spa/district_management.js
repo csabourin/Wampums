@@ -163,20 +163,42 @@ export class DistrictManagement {
   }
 
   setupOfflineListeners() {
-    window.addEventListener("offlineStatusChanged", (event) => {
+    // Keep references so destroy() can remove them; otherwise each visit
+    // stacks another set of window listeners bound to a dead instance.
+    this.offlineStatusChangedHandler = (event) => {
       this.isOffline = event.detail?.isOffline ?? !navigator.onLine;
       this.renderAndBind();
-    });
-
-    window.addEventListener("online", () => {
+    };
+    this.onlineHandler = () => {
       this.isOffline = false;
       this.renderAndBind();
-    });
-
-    window.addEventListener("offline", () => {
+    };
+    this.offlineHandler = () => {
       this.isOffline = true;
       this.renderAndBind();
-    });
+    };
+
+    window.addEventListener("offlineStatusChanged", this.offlineStatusChangedHandler);
+    window.addEventListener("online", this.onlineHandler);
+    window.addEventListener("offline", this.offlineHandler);
+  }
+
+  /**
+   * Called by the router before navigating away.
+   */
+  destroy() {
+    if (this.offlineStatusChangedHandler) {
+      window.removeEventListener("offlineStatusChanged", this.offlineStatusChangedHandler);
+      this.offlineStatusChangedHandler = null;
+    }
+    if (this.onlineHandler) {
+      window.removeEventListener("online", this.onlineHandler);
+      this.onlineHandler = null;
+    }
+    if (this.offlineHandler) {
+      window.removeEventListener("offline", this.offlineHandler);
+      this.offlineHandler = null;
+    }
   }
 
   /**

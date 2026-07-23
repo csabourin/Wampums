@@ -198,7 +198,7 @@ export class OfflinePreparation {
                         <div class="prepared-item">
                             <div class="prepared-item__info">
                                 <strong>${formatDate(prep.startDate, this.app.currentLanguage)} - ${formatDate(prep.endDate, this.app.currentLanguage)}</strong>
-                                <small>${prep.dates?.length || 0} ${translate('days')} | ${translate('prepared_on')} ${formatDate(new Date(prep.preparedAt).toISOString().split('T')[0], this.app.currentLanguage)}</small>
+                                <small>${prep.dates?.length || 0} ${translate('days')} | ${translate('prepared_on')} ${formatDate(new Date(prep.preparedAt), this.app.currentLanguage)}</small>
                             </div>
                             <button class="button button--ghost button--small clear-prep-btn" data-activity-id="${id}">
                                 ${translate('clear')}

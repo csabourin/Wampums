@@ -157,6 +157,11 @@ export function sanitizeURL(url, options = { allowMailto: true }) {
     return url.trim();
   }
 
+  // In-app relative paths pass through unchanged ('//' was handled above)
+  if (trimmed.startsWith('/') || trimmed.startsWith('./') || trimmed.startsWith('../') || trimmed.startsWith('#') || trimmed.startsWith('?')) {
+    return url.trim();
+  }
+
   // If no protocol, assume https
   if (!trimmed.includes(':')) {
     return `https://${url.trim()}`;
