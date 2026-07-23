@@ -44,8 +44,9 @@ export class JSONFormRenderer {
 					if (value.includes('T') || value.includes(':')) {
 						const date = new Date(value);
 						if (!isNaN(date.getTime())) {
-							// Format as YYYY-MM-DD
-							value = date.toISOString().split('T')[0];
+							// Format as YYYY-MM-DD in local time (UTC would
+							// shift the date across midnight)
+							value = date.toLocaleDateString('en-CA');
 						}
 					}
 				} catch (e) {

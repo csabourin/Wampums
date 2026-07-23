@@ -202,6 +202,22 @@ export class MedicationManagement {
     window.addEventListener("offlineStatusChanged", this.offlineStatusHandler);
   }
 
+  /**
+   * Called by the router before navigating away. Stops the alert refresh
+   * interval and detaches the offline listener so stale instances stop
+   * running against a page that no longer exists.
+   */
+  destroy() {
+    if (this.alertInterval) {
+      clearInterval(this.alertInterval);
+      this.alertInterval = null;
+    }
+    if (this.offlineStatusHandler) {
+      window.removeEventListener("offlineStatusChanged", this.offlineStatusHandler);
+      this.offlineStatusHandler = null;
+    }
+  }
+
   async handleOfflineStatusChange(event) {
     const isOffline = event?.detail?.isOffline;
 

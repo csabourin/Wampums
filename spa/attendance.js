@@ -810,10 +810,10 @@ export class Attendance {
         setContent(
           participantRow,
           `
-          <span class="participant-name">${participant.first_name} ${participant.last_name}    
+          <span class="participant-name">${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}
             ${participant.first_leader ? `<span class="badge leader">${translate("first_leader")}</span>` : ""}
             ${participant.second_leader ? `<span class="badge second-leader">${translate("second_leader")}</span>` : ""}
-          </span>      
+          </span>
           <span class="participant-status ${statusClass}">${translate(status)}</span>
         `,
         );
@@ -889,19 +889,16 @@ export class Attendance {
       });
     }
 
-    // Search listener
+    // Search listener: only re-render the participant list so the search
+    // input (and its cursor position) is left untouched.
     const searchInput = document.getElementById('attendance-search');
     if (searchInput) {
       searchInput.addEventListener('input', debounce((e) => {
         this.searchTerm = e.target.value;
-        // Re-render only list
-        this.render(); // This re-renders whole content including search input
-        this.attachEventListeners();
-        // Restore focus
-        const newInput = document.getElementById('attendance-search');
-        if (newInput) {
-          newInput.focus();
-          newInput.setSelectionRange(newInput.value.length, newInput.value.length);
+        const attendanceList = document.getElementById('attendance-list');
+        if (attendanceList) {
+          setContent(attendanceList, '');
+          attendanceList.appendChild(this.renderGroupsAndNames());
         }
       }, 300));
     }
@@ -1199,27 +1196,56 @@ export class Attendance {
   }
 
   async changeDate(newDate) {
+    const previousDate = this.currentDate;
     this.currentDate = newDate;
     debugLog(`Changing date to ${this.currentDate}`);
 
-    // In camp mode, preserve camp-prepared cache and use it
-    if (offlineManager.campMode && offlineManager.isDatePrepared(newDate)) {
-      debugLog(`Camp mode: Loading prepared data for ${newDate}`);
-      await this.preloadAttendanceData();
-    } else {
-      // Normal mode: force-refresh from API, bypassing stale cache
-      await this.fetchData(true);
+    // Sequence token: if the user switches dates again before this load
+    // finishes, the stale load must not render over the newer one.
+    const requestId = (this._dateChangeSeq = (this._dateChangeSeq || 0) + 1);
+
+    try {
+      // In camp mode, preserve camp-prepared cache and use it
+      if (offlineManager.campMode && offlineManager.isDatePrepared(newDate)) {
+        debugLog(`Camp mode: Loading prepared data for ${newDate}`);
+        await this.preloadAttendanceData();
+      } else {
+        // Normal mode: force-refresh from API, bypassing stale cache
+        await this.fetchData(true);
+      }
+
+      if (requestId !== this._dateChangeSeq) {
+        debugLog("Stale date change resolved, skipping render for", newDate);
+        return;
+      }
+
+      // The activity context (camp banner, carry-forward source dates)
+      // depends on the selected date
+      await this.detectActivityContext();
+      await this.autoCarryForward();
+
+      if (requestId !== this._dateChangeSeq) {
+        return;
+      }
+
+      // Re-render the entire view with new data
+      this.render();
+      // Re-attach event listeners
+      this.attachEventListeners();
+    } catch (error) {
+      debugError(`Error loading attendance for ${newDate}:`, error);
+      if (requestId !== this._dateChangeSeq) {
+        return;
+      }
+      // Revert so the selector matches the data still on screen instead of
+      // silently showing the old list under the new date.
+      this.currentDate = previousDate;
+      const dateSelect = document.getElementById("dateSelect");
+      if (dateSelect) {
+        dateSelect.value = previousDate;
+      }
+      this.app.showMessage(translate("error_loading_attendance"), "error");
     }
-
-    // The activity context (camp banner, carry-forward source dates)
-    // depends on the selected date
-    await this.detectActivityContext();
-    await this.autoCarryForward();
-
-    // Re-render the entire view with new data
-    this.render();
-    // Re-attach event listeners
-    this.attachEventListeners();
   }
 
   renderError() {

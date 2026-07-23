@@ -273,6 +273,10 @@ export class Router {
     // MEMORY LEAK FIX: Clean up previous module before loading new one
     this.cleanupCurrentModule();
 
+    // Each screen starts at the top; without this, navigating from the
+    // bottom of a long list opens the next page mid-scroll.
+    window.scrollTo(0, 0);
+
     // Guard against null, undefined, or empty paths
     if (!path || typeof path !== 'string') {
       debugLog("Invalid path received, ignoring route:", path);
@@ -422,7 +426,6 @@ export class Router {
           this.currentModuleInstance = inventory;
           await inventory.init();
           break;
-        case "medicationManagement":
         case "medicationPlanning":
         case "medicationDispensing":
           if (!guard(canViewMedication() || canViewAttendance() || canViewParticipants())) {
@@ -598,11 +601,10 @@ export class Router {
         case "login":
           if (this.app.isLoggedIn) {
             // Redirect to appropriate dashboard if already logged in
-            this.route(
-              isParent()
-                ? "/parent-dashboard"
-                : "/dashboard"
-            );
+            // (replaceState so the URL matches what is rendered)
+            const loginTarget = isParent() ? "/parent-dashboard" : "/dashboard";
+            history.replaceState(null, "", loginTarget);
+            return this.route(loginTarget);
           } else {
             await this.loadLoginPage();
           }
@@ -831,11 +833,10 @@ export class Router {
         case "register":
           if (this.app.isLoggedIn) {
             // Redirect to appropriate dashboard if already logged in
-            this.route(
-              isParent()
-                ? "/parent-dashboard"
-                : "/dashboard"
-            );
+            // (replaceState so the URL matches what is rendered)
+            const registerTarget = isParent() ? "/parent-dashboard" : "/dashboard";
+            history.replaceState(null, "", registerTarget);
+            this.route(registerTarget);
           } else {
             await this.loadRegisterPage();
           }
@@ -896,16 +897,43 @@ export class Router {
 
   getRouteNameAndParam(path) {
     const cleanPath = path.split("?")[0];
-    const parts = cleanPath.split("/");
-    debugLog('[ROUTER DEBUG] Path:', cleanPath, 'Parts:', parts);
-    debugLog('[ROUTER DEBUG] Checking:', `/${parts[1]}/:id`, 'Exists:', !!routes[`/${parts[1]}/:id`]);
-    if (parts.length > 2 && routes[`/${parts[1]}/:id`]) {
-      debugLog('[ROUTER DEBUG] Matched parameterized route:', routes[`/${parts[1]}/:id`], 'Param:', parts[2]);
-      return [routes[`/${parts[1]}/:id`], parts[2]];
+
+    // Exact matches win over parameterized routes so static paths like
+    // /incident-reports/new are not shadowed by /incident-reports/:id
+    if (routes[cleanPath]) {
+      debugLog('[ROUTER DEBUG] Exact route match:', cleanPath, '->', routes[cleanPath]);
+      return [routes[cleanPath], null];
     }
-    debugLog(`Path: ${cleanPath}, RouteName: ${routes[cleanPath]}`);
-    debugLog('[ROUTER DEBUG] Route name:', routes[cleanPath] || "notFound");
-    return [routes[cleanPath] || "notFound", null];
+
+    // Parameterized routes: match segment by segment. Supports any param
+    // name (:id, :token, :date) at any position (/x/:id, /x/:id/edit).
+    const pathParts = cleanPath.split("/");
+    for (const [pattern, routeName] of Object.entries(routes)) {
+      if (!pattern.includes("/:")) {
+        continue;
+      }
+      const patternParts = pattern.split("/");
+      if (patternParts.length !== pathParts.length) {
+        continue;
+      }
+      let param = null;
+      let matched = true;
+      for (let i = 0; i < patternParts.length; i++) {
+        if (patternParts[i].startsWith(":")) {
+          param = pathParts[i];
+        } else if (patternParts[i] !== pathParts[i]) {
+          matched = false;
+          break;
+        }
+      }
+      if (matched) {
+        debugLog('[ROUTER DEBUG] Matched parameterized route:', pattern, '->', routeName, 'Param:', param);
+        return [routeName, param];
+      }
+    }
+
+    debugLog('[ROUTER DEBUG] No route match for:', cleanPath);
+    return ["notFound", null];
   }
 
 
@@ -1144,7 +1172,12 @@ export class Router {
   }
 
   loadNotAuthorizedPage() {
-    setContent(document.getElementById("app"), `<h1>${translate("error_403_not_authorized")}</h1>`);
+    setContent(document.getElementById("app"), buildNotFoundMarkup({
+      titleKey: 'error_403_not_authorized',
+      messageKey: 'error_403_not_authorized_message',
+      backHref: '/',
+      backLabelKey: 'back_to_home'
+    }));
   }
 
   async loadRegisterPage() {

@@ -46,7 +46,8 @@ export class QuickCreateActivityModal {
   show() {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split("T")[0];
+    // Local date, not toISOString(): UTC would skip a day in the evening
+    const tomorrowStr = tomorrow.toLocaleDateString("en-CA");
 
     this.modal = document.createElement("div");
     this.modal.className = "modal-screen";

@@ -12,7 +12,7 @@ import { translate } from '../../app.js';
 import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { formatDate } from '../../utils/DateUtils.js';
+import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
 import { confirm as confirmDialog, confirmDestructive } from '../../utils/DialogUtils.js';
 
 import { hasPermission } from '../../utils/PermissionUtils.js';
@@ -117,8 +117,8 @@ export class IncidentReport {
           <td><span class="badge ${statusClass}">${statusLabel}</span></td>
           <td>
             ${inc.status === 'draft' && this.canManage
-              ? `<button class="btn btn--small btn--secondary incident-edit-btn" data-id="${inc.id}">${translate('Edit')}</button>`
-              : `<button class="btn btn--small btn--secondary incident-view-btn" data-id="${inc.id}">${translate('View')}</button>`
+              ? `<button class="btn btn--small btn--secondary incident-edit-btn" data-id="${inc.id}">${translate('edit')}</button>`
+              : `<button class="btn btn--small btn--secondary incident-view-btn" data-id="${inc.id}">${translate('view')}</button>`
             }
             ${inc.status === 'draft' && this.canManage
               ? `<button class="btn btn--small btn--danger incident-delete-btn" data-id="${inc.id}">${translate('Delete')}</button>`
@@ -245,7 +245,7 @@ export class IncidentReport {
       existingFormData.author_first_name = parts[0] || '';
       existingFormData.author_last_name = parts.slice(1).join(' ') || '';
       existingFormData.author_email = localStorage.getItem('userEmail') || '';
-      existingFormData.report_date = new Date().toISOString().split('T')[0];
+      existingFormData.report_date = getTodayISO();
     }
 
     this.formRenderer = new JSONFormRenderer(this.formStructure, existingFormData, 'incident_report');
@@ -273,7 +273,7 @@ export class IncidentReport {
     const html = `
       <section class="page incident-form-page">
         <header class="page__header">
-          <button class="btn btn--secondary" id="incident-back-btn">&larr; ${translate('Back')}</button>
+          <button class="btn btn--secondary" id="incident-back-btn">&larr; ${translate('back')}</button>
           <h1>${title}</h1>
         </header>
 
@@ -659,7 +659,7 @@ export class IncidentReport {
     const html = `
       <section class="page incident-view-page">
         <header class="page__header">
-          <button class="btn btn--secondary" id="incident-back-btn">&larr; ${translate('Back')}</button>
+          <button class="btn btn--secondary" id="incident-back-btn">&larr; ${translate('back')}</button>
           <h1>${translate('incident_view')}</h1>
           <span class="badge ${statusClass}">${statusLabel}</span>
         </header>
@@ -681,7 +681,7 @@ export class IncidentReport {
 
         ${inc.status === 'draft' && this.canManage ? `
           <div class="form-actions">
-            <button class="btn btn--primary" id="incident-edit-from-view-btn">${translate('Edit')}</button>
+            <button class="btn btn--primary" id="incident-edit-from-view-btn">${translate('edit')}</button>
           </div>
         ` : ''}
       </section>`;

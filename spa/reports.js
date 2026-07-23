@@ -43,6 +43,16 @@ export class Reports {
 		this.isStaff = true; // Default to true, will be updated from API
 	}
 
+	/**
+	 * Called by the router before navigating away.
+	 */
+	destroy() {
+		if (this.escKeyHandler) {
+			document.removeEventListener("keydown", this.escKeyHandler);
+			this.escKeyHandler = null;
+		}
+	}
+
 	async init() {
 		if (!canViewReports()) {
 			this.app.router.navigate("/");
@@ -270,15 +280,19 @@ export class Reports {
 		closeModalBtn?.addEventListener("click", () => this.closeReportModal());
 		modalOverlay?.addEventListener("click", () => this.closeReportModal());
 
-		// ESC key to close modal
-		document.addEventListener("keydown", (e) => {
+		// ESC key to close modal (keep a reference so destroy() can remove it)
+		if (this.escKeyHandler) {
+			document.removeEventListener("keydown", this.escKeyHandler);
+		}
+		this.escKeyHandler = (e) => {
 			if (e.key === "Escape") {
 				const modal = document.getElementById("report-modal");
 				if (modal && !modal.classList.contains("hidden")) {
 					this.closeReportModal();
 				}
 			}
-		});
+		};
+		document.addEventListener("keydown", this.escKeyHandler);
 
 		document
 			.getElementById("print-report")

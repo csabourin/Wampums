@@ -64,7 +64,7 @@ export class ActivityWidget extends BaseModule {
 	async fetchCurrentActivities() {
 		try {
 			const data = await getReunionPreparation(
-				new Date().toISOString().split("T")[0],
+				new Date().toLocaleDateString("en-CA"),
 			);
 			debugLog("Fetched reunion preparation data:", data);
 
