@@ -26,7 +26,7 @@ export function openModal({ id = 'app-modal', title = '', body = '', footer = ''
     <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="${id}-title">
       <div class="modal-header">
         <h2 id="${id}-title">${title}</h2>
-        <button type="button" class="modal-close" data-modal-close aria-label="✕">&times;</button>
+        <button type="button" class="modal-close" data-modal-close aria-label="${document.documentElement.lang === 'fr' ? 'Fermer' : 'Close'}">&times;</button>
       </div>
       <div class="modal-body">${body}</div>
       ${footer ? `<div class="modal-footer modal-actions">${footer}</div>` : ''}

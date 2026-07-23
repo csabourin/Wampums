@@ -13,14 +13,19 @@ import { setButtonLoading } from './SkeletonUtils.js';
  */
 export function debounce(func, wait = 300) {
   let timeout;
-  return function executedFunction(...args) {
+  function executedFunction(...args) {
     const later = () => {
-      clearTimeout(timeout);
+      timeout = undefined;
       func.apply(this, args);
     };
     clearTimeout(timeout);
     timeout = setTimeout(later, wait);
+  }
+  executedFunction.cancel = () => {
+    clearTimeout(timeout);
+    timeout = undefined;
   };
+  return executedFunction;
 }
 
 /**

@@ -3,7 +3,7 @@ import { updateHonor, deleteHonor } from "./api/api-endpoints.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { getTodayISO, formatDate, isValidDate, isPastDate as isDateInPast } from "./utils/DateUtils.js";
-import { setContent } from "./utils/DOMUtils.js";
+import { setContent, insertHTML } from "./utils/DOMUtils.js";
 import { deleteCachedData, getCachedData } from "./indexedDB.js";
 import { sanitizeHTML } from "./utils/SecurityUtils.js";
 import { confirmDestructive } from "./utils/DialogUtils.js";
@@ -818,7 +818,7 @@ export class ManageHonors {
       </div>
     `;
 
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    insertHTML(document.body, 'beforeend', modalHtml);
 
     const form = document.getElementById('edit-reason-form');
     const closeBtn = document.getElementById('close-edit-modal');
@@ -901,7 +901,7 @@ export class ManageHonors {
       </div>
     `;
 
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    insertHTML(document.body, 'beforeend', modalHtml);
 
     const form = document.getElementById('edit-date-form');
     const closeBtn = document.getElementById('close-date-modal');

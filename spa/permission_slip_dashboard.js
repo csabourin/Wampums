@@ -20,7 +20,11 @@ import {
   archivePermissionSlip
 } from "./api/api-endpoints.js";
 import { getGroups } from "./api/api-endpoints.js";
-import { confirm as confirmDialog, confirmDestructive } from "./utils/DialogUtils.js";
+import {
+  confirm as confirmDialog,
+  confirmDestructive,
+  prompt as promptDialog,
+} from "./utils/DialogUtils.js";
 import { getParticipants } from "./api/api-endpoints.js";
 import { deleteCachedData } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
@@ -575,7 +579,10 @@ export class PermissionSlipDashboard {
       button.addEventListener("click", async (event) => {
         event.preventDefault();
         const slipId = event.currentTarget.getAttribute("data-id");
-        const signerName = prompt(translate("permission_slip_signer"));
+        const signerName = (await promptDialog({
+          title: translate("permission_slip_signer"),
+          message: translate("permission_slip_signer"),
+        }))?.trim();
         if (!signerName) return;
 
         withButtonLoading(event.currentTarget, async () => {

@@ -18,7 +18,7 @@ import { LoadingStateManager, debounce, retryWithBackoff } from "./utils/Perform
 import { validateMoney, validateDateField, validateRequired } from "./utils/ValidationUtils.js";
 import { canApproveFinance, canManageFinance } from "./utils/PermissionUtils.js";
 import { deleteCachedData } from "./indexedDB.js";
-import { setContent } from "./utils/DOMUtils.js";
+import { setContent, insertHTML, withFormBusy } from "./utils/DOMUtils.js";
 import { setButtonLoading } from './utils/SkeletonUtils.js';
 import { aiParseReceipt } from "./modules/AI.js";
 
@@ -405,7 +405,7 @@ export class Expenses {
             <select id="filter-category">
               <option value="all" ${this.filters.category_id === 'all' ? 'selected' : ''}>${translate("all_categories")}</option>
               ${this.categories.map(cat => `
-                <option value="${cat.id}" ${this.filters.category_id == cat.id ? 'selected' : ''}>
+                <option value="${cat.id}" ${String(this.filters.category_id) === String(cat.id) ? 'selected' : ''}>
                   ${escapeHTML(cat.name)}
                 </option>
               `).join("")}
@@ -739,7 +739,7 @@ export class Expenses {
                   <select id="expense-category">
                     <option value="">${translate("uncategorized")}</option>
                     ${this.categories.map(cat => `
-                      <option value="${cat.id}" ${expense?.budget_category_id == cat.id ? "selected" : ""}>
+                      <option value="${cat.id}" ${String(expense?.budget_category_id) === String(cat.id) ? "selected" : ""}>
                         ${escapeHTML(cat.name)}
                       </option>
                     `).join("")}
@@ -751,7 +751,7 @@ export class Expenses {
                   <select id="expense-item">
                     <option value="">${translate("select_item")}</option>
                     ${this.items.map(item => `
-                      <option value="${item.id}" ${expense?.budget_item_id == item.id ? "selected" : ""}>
+                      <option value="${item.id}" ${String(expense?.budget_item_id) === String(item.id) ? "selected" : ""}>
                         ${escapeHTML(item.name)}
                       </option>
                     `).join("")}
@@ -837,7 +837,7 @@ export class Expenses {
       </div>
     `;
 
-    document.body.insertAdjacentHTML("beforeend", modalHTML);
+    insertHTML(document.body, "beforeend", modalHTML);
 
     // Receipt Upload Handler
     const uploadBtn = document.getElementById("upload-receipt-btn");
@@ -899,7 +899,7 @@ export class Expenses {
 
     document.getElementById("expense-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      await this.saveExpense(expense?.id);
+      await withFormBusy(e.currentTarget, () => this.saveExpense(expense?.id));
     });
   }
 
@@ -934,13 +934,13 @@ export class Expenses {
       </div>
     `;
 
-    document.body.insertAdjacentHTML("beforeend", modalHTML);
+    insertHTML(document.body, "beforeend", modalHTML);
 
     let rowCount = 1;
 
     document.getElementById("add-bulk-row-btn").addEventListener("click", () => {
       const container = document.getElementById("bulk-expense-rows");
-      container.insertAdjacentHTML("beforeend", this.renderBulkExpenseRow(rowCount));
+      insertHTML(container, "beforeend", this.renderBulkExpenseRow(rowCount));
       rowCount++;
     });
 
@@ -954,7 +954,7 @@ export class Expenses {
 
     document.getElementById("bulk-expense-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      await this.saveBulkExpenses();
+      await withFormBusy(e.currentTarget, () => this.saveBulkExpenses());
     });
   }
 

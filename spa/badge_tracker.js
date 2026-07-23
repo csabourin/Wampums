@@ -1287,7 +1287,7 @@ export class BadgeTracker {
         const rowsHtml = items
           .map((a, index) => {
             const template = this.templates.find(
-              (t) => t.id == a.badge_template_id,
+              (t) => String(t.id) === String(a.badge_template_id),
             );
             const badgeName = template ? template.name : "Unknown Badge";
             const typeLabel =
@@ -1306,7 +1306,7 @@ export class BadgeTracker {
               targets = a.participant_ids || [];
               targetText = targets
                 .map((tid) => {
-                  const p = this.participants.find((part) => part.id == tid);
+                  const p = this.participants.find((part) => String(part.id) === String(tid));
                   return p ? `${p.first_name} ${p.last_name}` : "Unknown";
                 })
                 .join(", ");

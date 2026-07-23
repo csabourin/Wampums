@@ -6,6 +6,8 @@ import { canManageFundraisers, canViewFundraisers } from "./utils/PermissionUtil
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { confirmDestructive } from "./utils/DialogUtils.js";
+import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
+import { formatCurrency } from "./utils/NumberUtils.js";
 
 export class Fundraisers {
         constructor(app) {
@@ -89,9 +91,13 @@ export class Fundraisers {
 	}
 
 	renderFundraiserCard(fundraiser) {
-		const startDate = new Date(fundraiser.start_date).toLocaleDateString();
-		const endDate = new Date(fundraiser.end_date).toLocaleDateString();
-		const isActive = new Date() >= new Date(fundraiser.start_date) && new Date() <= new Date(fundraiser.end_date);
+		const lang = this.app.lang || "fr";
+		const startDate = formatDateShort(fundraiser.start_date, lang);
+		const endDate = formatDateShort(fundraiser.end_date, lang);
+		const today = getTodayISO();
+		const startDateISO = fundraiser.start_date?.substring(0, 10);
+		const endDateISO = fundraiser.end_date?.substring(0, 10);
+		const isActive = today >= startDateISO && today <= endDateISO;
 		const statusBadge = isActive ?
 			`<span class="status-badge active" aria-label="${translate("active")}">${translate("active")}</span>` :
 			`<span class="status-badge inactive" aria-label="${translate("inactive")}">${translate("inactive")}</span>`;
@@ -110,8 +116,8 @@ export class Fundraisers {
 						<p><strong>${translate("end_date")}:</strong> ${endDate}</p>
 						<p><strong>${translate("participants")}:</strong> ${fundraiser.participant_count}</p>
 						<p><strong>${translate("total_sold")}:</strong> ${fundraiser.total_amount || 0}</p>
-						<p><strong>${translate("total_collected")}:</strong> $${parseFloat(fundraiser.total_paid || 0).toFixed(2)}</p>
-						${fundraiser.objective ? `<p><strong>${translate("objective")}:</strong> $${parseFloat(fundraiser.objective).toFixed(2)}</p>` : ''}
+						<p><strong>${translate("total_collected")}:</strong> ${formatCurrency(fundraiser.total_paid, lang)}</p>
+						${fundraiser.objective ? `<p><strong>${translate("objective")}:</strong> ${formatCurrency(fundraiser.objective, lang)}</p>` : ''}
 					</div>
 				</div>
 				<div class="fundraiser-card-footer">
@@ -149,8 +155,9 @@ export class Fundraisers {
 	}
 
 	renderArchivedFundraiserCard(fundraiser) {
-		const startDate = new Date(fundraiser.start_date).toLocaleDateString();
-		const endDate = new Date(fundraiser.end_date).toLocaleDateString();
+		const lang = this.app.lang || "fr";
+		const startDate = formatDateShort(fundraiser.start_date, lang);
+		const endDate = formatDateShort(fundraiser.end_date, lang);
 		const canEdit = canManageFundraisers();
 
 		return `
@@ -165,7 +172,7 @@ export class Fundraisers {
 						<p><strong>${translate("end_date")}:</strong> ${endDate}</p>
 						<p><strong>${translate("participants")}:</strong> ${fundraiser.participant_count}</p>
 						<p><strong>${translate("total_sold")}:</strong> ${fundraiser.total_amount || 0}</p>
-						<p><strong>${translate("total_collected")}:</strong> $${parseFloat(fundraiser.total_paid || 0).toFixed(2)}</p>
+						<p><strong>${translate("total_collected")}:</strong> ${formatCurrency(fundraiser.total_paid, lang)}</p>
 					</div>
 				</div>
 				<div class="fundraiser-card-footer">

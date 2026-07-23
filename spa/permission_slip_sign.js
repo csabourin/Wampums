@@ -7,6 +7,7 @@ import { getPublicPermissionSlip, signPublicPermissionSlip } from './api/api-end
 import { CONFIG } from './config.js';
 import { setContent } from "./utils/DOMUtils.js";
 import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
+import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 
 export class PermissionSlipSign {
   constructor(app, token) {
@@ -61,13 +62,14 @@ export class PermissionSlipSign {
     }
 
     const locale = this.getLocale();
-    const activityDate = new Date(this.slip.meeting_date).toLocaleDateString(locale);
+    const activityDate = formatDateShort(this.slip.meeting_date, locale);
     const deadlineDate = this.slip.deadline_date
-      ? new Date(this.slip.deadline_date).toLocaleDateString(locale)
+      ? formatDateShort(this.slip.deadline_date, locale)
       : null;
 
     const isSigned = this.slip.status === 'signed';
-    const canSign = this.slip.status === 'pending' && (!this.slip.deadline_date || new Date(this.slip.deadline_date) > new Date());
+    const canSign = this.slip.status === 'pending' &&
+      (!this.slip.deadline_date || this.slip.deadline_date.substring(0, 10) >= getTodayISO());
 
     setContent(appDiv, `
       <div class="container mt-5">
@@ -192,7 +194,7 @@ export class PermissionSlipSign {
   showSuccessMessage(guardianName) {
     const appDiv = document.getElementById('app');
     const locale = this.getLocale();
-    const activityDate = new Date(this.slip.meeting_date).toLocaleDateString(locale);
+    const activityDate = formatDateShort(this.slip.meeting_date, locale);
 
     setContent(appDiv, `
       <div class="container mt-5">

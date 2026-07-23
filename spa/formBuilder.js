@@ -13,7 +13,7 @@ import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { CONFIG } from "./config.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
-import { setContent } from "./utils/DOMUtils.js";
+import { setContent, insertHTML } from "./utils/DOMUtils.js";
 import { BaseModule } from "./utils/BaseModule.js";
 import { confirmDestructive } from "./utils/DialogUtils.js";
 
@@ -708,7 +708,7 @@ export class FormBuilder extends BaseModule {
             </div>
         `;
 
-        container.insertAdjacentHTML('beforeend', optionHtml);
+        insertHTML(container, 'beforeend', optionHtml);
 
         // Attach remove listener
         const newOption = container.lastElementChild;

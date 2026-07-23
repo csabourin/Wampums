@@ -6,6 +6,7 @@ import {
 import { translate } from "./app.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { formatDateShort } from "./utils/DateUtils.js";
 
 export class TimeSinceRegistration {
   constructor(app) {
@@ -27,7 +28,7 @@ export class TimeSinceRegistration {
 
   async fetchData() {
     try {
-      const response = await fetch(getApiUrl("time-since-registration-report"), {
+      const response = await fetch(getApiUrl("api/v1/reports/time-since-registration"), {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -37,7 +38,7 @@ export class TimeSinceRegistration {
 
       const result = await response.json();
 
-      if (!result.success) {
+      if (!response.ok || !result.success) {
         throw new Error(result.message || "Failed to fetch time since registration data");
       }
 
@@ -79,7 +80,7 @@ export class TimeSinceRegistration {
     const tableRows = sortedParticipants.map((participant) => {
       const fullName = `${participant.first_name} ${participant.last_name}`;
       const inscriptionDate = participant.inscription_date
-        ? new Date(participant.inscription_date).toLocaleDateString()
+        ? formatDateShort(participant.inscription_date, this.app.lang)
         : `<span class="unavailable">${translate("date_unavailable")}</span>`;
 
       let timeWithGroup = "";

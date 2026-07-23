@@ -92,7 +92,7 @@ export class NewsFeed {
     const date = new Date(raw);
     if (isNaN(date)) return "";
 
-    const locale = this.app.currentLanguage || CONFIG.DEFAULT_LANG;
+    const locale = this.app.lang || this.app.language || CONFIG.DEFAULT_LANG;
     return new Intl.DateTimeFormat(locale, {
       year: "numeric",
       month: "short",
@@ -122,17 +122,18 @@ export class NewsFeed {
    */
   renderItem(item) {
     const date = this.formatDate(item.date);
-    const more = item.link
-      ? `<a class="text-link" href="${item.link}" target="_blank" rel="noopener noreferrer">${translate("news_read_more")}</a>`
+    const safeLink = sanitizeURL(item.link);
+    const more = safeLink
+      ? `<a class="text-link" href="${escapeHTML(safeLink)}" target="_blank" rel="noopener noreferrer">${translate("news_read_more")}</a>`
       : "";
 
     return `
-      <li class="news-item" data-news-id="${item.id}">
+      <li class="news-item" data-news-id="${escapeHTML(String(item.id || ""))}">
         <div class="news-item-header">
-          <p class="news-title">${item.title}</p>
+          <p class="news-title">${escapeHTML(item.title || "")}</p>
           ${date ? `<span class="news-date">${translate("news_published")}: ${date}</span>` : ""}
         </div>
-        <p class="news-summary">${item.summary || translate("news_no_summary")}</p>
+        <p class="news-summary">${escapeHTML(item.summary || translate("news_no_summary"))}</p>
         ${more}
       </li>
     `;

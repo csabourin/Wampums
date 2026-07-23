@@ -91,8 +91,8 @@ function handleOrganizationResolutionError(res, error, loggerInstance = logger) 
 /**
  * Get current organization ID from request
  * Tries multiple sources in priority order:
- * 1. Authenticated JWT claims (always wins for authenticated requests)
- * 2. x-organization-id header (unauthenticated/public requests only)
+ * 1. Validated x-organization-id selection for authenticated users
+ * 2. Authenticated JWT claim
  * 3. Domain mapping from database
  * 4. Throws when no organization mapping is available
  *
@@ -105,9 +105,8 @@ function handleOrganizationResolutionError(res, error, loggerInstance = logger) 
  * const organizationId = await getCurrentOrganizationId(req, pool, logger);
  */
 async function getCurrentOrganizationId(req, pool, logger) {
-  // Prefer organization from authenticated JWT context when available.
-  // This keeps multi-tenant access aligned with authenticated claims and
-  // prevents clients from overriding their organization via headers.
+  // Authenticated users may select another organization only when their
+  // membership is confirmed by the database.
   const bearerToken = req.headers.authorization?.split(' ')[1];
   if (bearerToken) {
     try {
@@ -115,8 +114,15 @@ async function getCurrentOrganizationId(req, pool, logger) {
       const tokenOrganizationId = parseInt(decoded?.organizationId ?? decoded?.organization_id, 10);
       if (!Number.isNaN(tokenOrganizationId)) {
         const headerOrganizationId = parseInt(req.headers['x-organization-id'], 10);
-        if (!Number.isNaN(headerOrganizationId) && headerOrganizationId !== tokenOrganizationId && logger) {
-          logger.warn(`Ignoring x-organization-id header override for authenticated request. Header=${headerOrganizationId}, Token=${tokenOrganizationId}, Path=${req.method} ${req.path}`);
+        if (!Number.isNaN(headerOrganizationId) && headerOrganizationId !== tokenOrganizationId) {
+          const membership = await pool.query(
+            'SELECT 1 FROM user_organizations WHERE user_id = $1 AND organization_id = $2 LIMIT 1',
+            [decoded.user_id, headerOrganizationId],
+          );
+          if (membership.rows.length > 0) {
+            return headerOrganizationId;
+          }
+          logger?.warn(`Rejected unauthorized organization selection. Header=${headerOrganizationId}, User=${decoded.user_id}`);
         }
         return tokenOrganizationId;
       }

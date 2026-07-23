@@ -1098,7 +1098,7 @@ export class MedicationManagement {
     }
 
     const guardianOptions = (this.authGuardians || []).map(g =>
-      `<option value="${g.id}" ${this.treatmentAuth?.guardian_id == g.id ? 'selected' : ''}>
+      `<option value="${g.id}" ${String(this.treatmentAuth?.guardian_id) === String(g.id) ? 'selected' : ''}>
         ${escapeHTML(`${g.first_name || ''} ${g.last_name || ''}`.trim())} — ${escapeHTML(g.phone_mobile || g.phone_home || '')}
       </option>`
     ).join('');
@@ -1169,7 +1169,7 @@ export class MedicationManagement {
             </div>
           </fieldset>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+          <div class="responsive-grid-2">
             <label class="field-group">
               <span>${escapeHTML(translate("medication_auth_sign_printed_name"))}</span>
               <input type="text" name="nom_en_caractere_d_imprimerie" value="${escapeHTML(ta?.nom_en_caractere_d_imprimerie || '')}"
@@ -1177,7 +1177,7 @@ export class MedicationManagement {
             </label>
             <label class="field-group">
               <span>${escapeHTML(translate("medication_auth_sign_date"))}</span>
-              <input type="date" name="date_signature" value="${ta?.date_signature ? ta.date_signature.substring(0, 10) : new Date().toISOString().substring(0, 10)}"
+              <input type="date" name="date_signature" value="${ta?.date_signature ? ta.date_signature.substring(0, 10) : getTodayISO()}"
                 style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;" required />
             </label>
           </div>
@@ -1206,19 +1206,19 @@ export class MedicationManagement {
 
           <fieldset style="border:1px solid #e5e7eb;border-radius:8px;padding:1rem;">
             <legend style="font-weight:600;padding:0 0.5rem;">${escapeHTML(translate("medication_auth_admin_adults"))}</legend>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:0.5rem;">
+            <div class="responsive-grid-2" style="margin-top:0.5rem;">
               <label class="field-group">
                 <span>1.</span>
                 <select name="admin_user_id_1" style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;">
                   <option value="">—</option>
-                  ${(this.authLeaders || []).map(l => `<option value="${l.id}" ${aa?.admin_user_id_1 == l.id ? 'selected' : ''}>${escapeHTML(l.full_name || l.email)}</option>`).join('')}
+                  ${(this.authLeaders || []).map(l => `<option value="${l.id}" ${String(aa?.admin_user_id_1) === String(l.id) ? 'selected' : ''}>${escapeHTML(l.full_name || l.email)}</option>`).join('')}
                 </select>
               </label>
               <label class="field-group">
                 <span>2.</span>
                 <select name="admin_user_id_2" style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;">
                   <option value="">—</option>
-                  ${(this.authLeaders || []).map(l => `<option value="${l.id}" ${aa?.admin_user_id_2 == l.id ? 'selected' : ''}>${escapeHTML(l.full_name || l.email)}</option>`).join('')}
+                  ${(this.authLeaders || []).map(l => `<option value="${l.id}" ${String(aa?.admin_user_id_2) === String(l.id) ? 'selected' : ''}>${escapeHTML(l.full_name || l.email)}</option>`).join('')}
                 </select>
               </label>
             </div>
@@ -1247,7 +1247,7 @@ export class MedicationManagement {
             </div>
           </fieldset>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+          <div class="responsive-grid-2">
             <label class="field-group">
               <span>${escapeHTML(translate("medication_auth_name_parent_legal"))}</span>
               <input type="text" name="nom_parent_ou_tuteur_legal" value="${escapeHTML(aa?.nom_parent_ou_tuteur_legal || '')}"
@@ -1255,7 +1255,7 @@ export class MedicationManagement {
             </label>
             <label class="field-group">
               <span>${escapeHTML(translate("medication_auth_sign_date"))}</span>
-              <input type="date" name="date_signature" value="${aa?.date_signature ? aa.date_signature.substring(0, 10) : new Date().toISOString().substring(0, 10)}"
+              <input type="date" name="date_signature" value="${aa?.date_signature ? aa.date_signature.substring(0, 10) : getTodayISO()}"
                 style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;" required />
             </label>
           </div>
@@ -1461,6 +1461,9 @@ export class MedicationManagement {
    * @returns {string} e.g. "2026-02-12"
    */
   toLocalDateString(dateValue) {
+    if (typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+      return dateValue;
+    }
     return new Date(dateValue).toLocaleDateString("en-CA");
   }
 
@@ -2686,4 +2689,3 @@ export class MedicationManagement {
     }
   }
 }
-

@@ -132,8 +132,6 @@ export function clearUserData(isSession = false) {
         // Keys to PRESERVE across logout (device-level preferences, not user-specific)
         const keysToPreserve = [
             'device_token',              // 2FA device trust - must preserve!
-            'organizationId',            // Organization context
-            'currentOrganizationId',     // Current organization context
             'language',                  // Language preference
             'lang',                      // Alternative language key
             'wampums-lang',             // Namespaced language key

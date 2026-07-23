@@ -1,4 +1,5 @@
 import { debugLog, debugError, debugWarn } from "./utils/DebugUtils.js";
+import { buildScopedCacheKey } from "./utils/OfflineCacheKeys.js";
 
 const DB_NAME = "WampumsAppDB";
 const DB_VERSION = 12;
@@ -16,15 +17,26 @@ let _offlineSequence = 0;
 export function deleteIndexedDB() {
   return new Promise((resolve, reject) => {
     const deleteRequest = indexedDB.deleteDatabase(DB_NAME);
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(blockedTimeout);
+      callback(value);
+    };
+    const blockedTimeout = setTimeout(() => {
+      debugWarn("IndexedDB deletion is still blocked; continuing logout.");
+      finish(resolve);
+    }, 2000);
 
     deleteRequest.onsuccess = () => {
       debugLog("IndexedDB deleted successfully");
-      resolve();
+      finish(resolve);
     };
 
     deleteRequest.onerror = () => {
       debugError("Error deleting IndexedDB:", deleteRequest.error);
-      reject(deleteRequest.error);
+      finish(reject, deleteRequest.error);
     };
 
     deleteRequest.onblocked = () => {
@@ -65,13 +77,14 @@ export function openDB() {
 
 export async function setCachedData(key, data, expirationTime = 2 * 60 * 60 * 1000) {
   const db = await openDB();
+  const scopedKey = buildScopedCacheKey(key);
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
 
     const record = {
-      key: key,
+      key: scopedKey,
       data: data,
       type: "cache",
       timestamp: Date.now(),
@@ -98,12 +111,13 @@ export async function setCachedData(key, data, expirationTime = 2 * 60 * 60 * 10
 
 export async function getCachedData(key) {
   const db = await openDB();
+  const scopedKey = buildScopedCacheKey(key);
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly");
     const store = tx.objectStore(STORE_NAME);
 
-    const request = store.get(key);
+    const request = store.get(scopedKey);
 
     request.onerror = () => {
       debugError("Error retrieving data:", request.error);
@@ -119,18 +133,18 @@ export async function getCachedData(key) {
         resolve(record.data);
       } else {
         if (!record) {
-          debugLog("No data found for key:", key);
+          debugLog("No data found for key:", scopedKey);
         } else {
           debugLog(
             "Data expired for key:",
-            key,
+            scopedKey,
             Date.now(),
             ` exp:`,
             record.expiration,
           );
           const cleanupTx = db.transaction(STORE_NAME, "readwrite");
           const cleanupStore = cleanupTx.objectStore(STORE_NAME);
-          cleanupStore.delete(key);
+          cleanupStore.delete(scopedKey);
         }
         resolve(null);
       }
@@ -151,12 +165,13 @@ export async function getCachedData(key) {
  */
 export async function getCachedDataIgnoreExpiration(key) {
   const db = await openDB();
+  const scopedKey = buildScopedCacheKey(key);
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly");
     const store = tx.objectStore(STORE_NAME);
 
-    const request = store.get(key);
+    const request = store.get(scopedKey);
 
     request.onerror = () => {
       debugError("Error retrieving data (ignore expiration):", request.error);
@@ -166,10 +181,10 @@ export async function getCachedDataIgnoreExpiration(key) {
     request.onsuccess = () => {
       const record = request.result;
       if (record) {
-        debugLog("Returning cached data (ignoring expiration) for key:", key);
+        debugLog("Returning cached data (ignoring expiration) for key:", scopedKey);
         resolve(record.data);
       } else {
-        debugLog("No data found for key:", key);
+        debugLog("No data found for key:", scopedKey);
         resolve(null);
       }
     };
@@ -207,6 +222,9 @@ export async function saveOfflineData(action, data, keyOverride = null) {
 
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
+    transaction.oncomplete = () => db.close();
+    transaction.onabort = () => db.close();
+    transaction.onerror = () => db.close();
   });
 }
 
@@ -229,6 +247,9 @@ export async function getOfflineData() {
       debugLog("Retrieved offline data:", offlineData);
       resolve(offlineData);
     };
+    transaction.oncomplete = () => db.close();
+    transaction.onabort = () => db.close();
+    transaction.onerror = () => db.close();
   });
 }
 
@@ -250,16 +271,20 @@ export async function clearOfflineData() {
     };
 
     request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => db.close();
+    transaction.onabort = () => db.close();
+    transaction.onerror = () => db.close();
   });
 }
 
 export async function deleteCachedData(key) {
   const db = await openDB();
+  const scopedKey = buildScopedCacheKey(key);
 
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, "readwrite");
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.delete(key);
+    const request = store.delete(scopedKey);
 
     request.onerror = () => {
       debugError("Error deleting cached data:", request.error);
@@ -267,13 +292,32 @@ export async function deleteCachedData(key) {
     };
 
     request.onsuccess = () => {
-      debugLog("Cache deleted for key:", key);
+      debugLog("Cache deleted for key:", scopedKey);
       resolve();
     };
 
     transaction.oncomplete = () => {
       db.close();
     };
+  });
+}
+
+/**
+ * Delete a queued offline record by its raw record key.
+ * Offline record IDs are already unique and must not be cache-scoped.
+ * @param {string} key - Offline record key
+ * @returns {Promise<void>}
+ */
+export async function deleteOfflineData(key) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const request = transaction.objectStore(STORE_NAME).delete(key);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve();
+    transaction.oncomplete = () => db.close();
+    transaction.onabort = () => db.close();
+    transaction.onerror = () => db.close();
   });
 }
 

@@ -858,18 +858,20 @@ Status: catalog-only — see "Intentionally uncovered" (AI dependency).
 
 ## Offline / Camp mode (spa/modules/OfflineManager.js)
 
-### US-OFF-001 — Saving offline says "saved locally", not "error"
+### US-OFF-001 — Safe offline writes say "saved locally"; additive writes stay online-only
 As a leader offline,
-when any write goes through the offline-aware fetch,
-I want a 202 {queued: true} response and the mutation stored,
-so that the page treats it as success-with-sync-later.
+when an idempotent attendance or medication write goes through the offline-aware fetch,
+I want a 202 {queued: true} response and a token-free scoped mutation stored,
+while additive writes are rejected,
+so that replay cannot duplicate awards or payments.
 
 Covers: OfflineManager.fetchWithOfflineSupport, OfflineManager.handleWriteOperation,
         OfflineManager.queueMutation, OfflineManager.storePendingMutation
 Priority: P1   Personas: leader   Modes: offline
 Acceptance:
-  isOffline + POST → Response 202 with {success: true, queued: true} and translated message
-  The mutation (url/method/headers/body) lands in IndexedDB via the fallback store
+  Safe isOffline + write → Response 202 with {success: true, queued: true} and translated message
+  The mutation lands in IndexedDB without Authorization and with user/org scope
+  Additive point POST → translated online-required error and no queued record
 
 ### US-OFF-002 — Reconnecting syncs my queue safely
 As a leader back in coverage,
@@ -885,16 +887,16 @@ Acceptance:
   200 → record deleted; 400/404/409 → discarded; 500 → kept for retry
   Replay uses Authorization from the current jwtToken
 
-### US-OFF-003 — Old-format queued point updates still sync
-As a leader whose device queued points in the legacy format,
+### US-OFF-003 — Unscoped legacy writes cannot cross accounts
+As a user sharing a device,
 when sync runs,
-I want all legacy updatePoints records batched into one POST v1/points,
-so that upgrades never strand queued scores.
+I want old unscoped point records discarded without replay,
+so that a previous user’s write can never run under my login.
 
 Covers: OfflineManager.replayPendingMutations (legacy branch)
 Priority: P2   Personas: leader   Modes: offline→online
 Acceptance:
-  Two legacy records → exactly one POST with both payloads; success deletes both records
+  Two legacy records → zero network calls and both records deleted
 
 ### US-OFF-004 — Reads fall back to cache when the network dies
 As any user offline,
@@ -1007,20 +1009,19 @@ Acceptance:
   Click +3 while a batch is in flight, then +1: both queue; a single second batch flushes
   Displayed total is monotonically consistent (never below confirmed base) throughout
 
-### US-INT-006 — Going offline mid-action loses nothing
+### US-INT-006 — Additive awards remain honest when connectivity dies
 As a leader whose wifi dies mid-award,
-when the mutation is queued,
-I want the optimistic totals folded and persisted so a reload shows them,
-and the queue replayed on reconnect,
-so that the evening's scores survive anything.
+when safe idempotent replay is unavailable,
+I want the optimistic total rolled back with a clear online-required error,
+so that the scoreboard never shows an award the server did not save.
 
 Covers: ManagePoints.flushQueue (queued) + PointsStore.foldBatch + ManagePoints.updateCache
         + OfflineManager.replayPendingMutations
 Priority: P1   Personas: leader   Modes: offline→online
 Acceptance:
-  Queued award → cache contains the folded totals (what a reload would show)
-  A fresh page instance preloading from that cache displays the folded totals
-  Reconnect replay POSTs the queued mutation
+  Failed award → UI and cache return to their pre-click totals
+  No point mutation is persisted for replay
+  A translated online-required error is shown
 
 ### US-INT-007 — Every failure path restores the exact pre-action state
 As a leader,

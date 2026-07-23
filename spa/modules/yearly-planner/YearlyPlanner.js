@@ -30,7 +30,8 @@ import {
   deleteLibraryActivity,
   createDistributionRule,
   deleteDistributionRule,
-  createActivityEventFromMeeting
+  createActivityEventFromMeeting,
+  getYearPlanMeeting
 } from '../../api/api-yearly-planner.js';
 
 const VIEW = {
@@ -922,7 +923,6 @@ export class YearlyPlanner extends BaseModule {
         close();
         this.app.showMessage(translate('yearly_planner_activity_event_created'), 'success');
         // Refresh the meeting detail so the link button appears
-        const { getYearPlanMeeting } = await import('../../api/api-yearly-planner.js');
         const response = await getYearPlanMeeting(meeting.id);
         this.currentMeeting = response?.data || this.currentMeeting;
         this.render();
@@ -1054,7 +1054,6 @@ export class YearlyPlanner extends BaseModule {
       this.app.showMessage(translate('yearly_planner_activity_added'), 'success');
 
       // Reload meeting detail
-      const { getYearPlanMeeting } = await import('../../api/api-yearly-planner.js');
       const response = await getYearPlanMeeting(meetingId);
       this.currentMeeting = response?.data || this.currentMeeting;
       this.render();
@@ -1159,7 +1158,6 @@ export class YearlyPlanner extends BaseModule {
 
       // Reload meeting
       if (this.currentMeeting) {
-        const { getYearPlanMeeting } = await import('../../api/api-yearly-planner.js');
         const response = await getYearPlanMeeting(this.currentMeeting.id);
         this.currentMeeting = response?.data || this.currentMeeting;
         this.render();
@@ -1269,7 +1267,6 @@ export class YearlyPlanner extends BaseModule {
         const meetingId = parseInt(el.dataset.meetingId);
         if (!meetingId) return;
         try {
-          const { getYearPlanMeeting } = await import('../../api/api-yearly-planner.js');
           const response = await getYearPlanMeeting(meetingId);
           this.currentMeeting = response?.data || null;
           this.view = VIEW.MEETING_DETAIL;

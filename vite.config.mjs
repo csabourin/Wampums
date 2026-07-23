@@ -118,9 +118,6 @@ export default defineConfig({
           // Parent portal - lazy loaded
           parent: ["./spa/parent_dashboard.js", "./spa/parent_contact_list.js"],
 
-          // Carpooling module - lazy loaded
-          carpooling: ["./spa/modules/activities/Activities.js", "./spa/carpool_dashboard.js"],
-
           // Authentication
           auth: [
             "./spa/login.js",

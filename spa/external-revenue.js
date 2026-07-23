@@ -24,7 +24,7 @@ import {
   validateRequired,
 } from "./utils/ValidationUtils.js";
 import { canApproveFinance, canManageFinance } from "./utils/PermissionUtils.js";
-import { setContent } from "./utils/DOMUtils.js";
+import { setContent, insertHTML } from "./utils/DOMUtils.js";
 
 const DEFAULT_CURRENCY = CONFIG.DEFAULT_CURRENCY;
 
@@ -333,7 +333,7 @@ export class ExternalRevenue {
               ${this.categories
                 .map(
                   (cat) => `
-                <option value="${cat.id}" ${this.filters.category_id == cat.id ? "selected" : ""}>
+                <option value="${cat.id}" ${String(this.filters.category_id) === String(cat.id) ? "selected" : ""}>
                   ${escapeHTML(cat.name)}
                 </option>
               `,
@@ -602,7 +602,7 @@ export class ExternalRevenue {
       </div>
     `;
 
-    document.body.insertAdjacentHTML("beforeend", modalHTML);
+    insertHTML(document.body, "beforeend", modalHTML);
 
     document
       .getElementById("close-revenue-modal")

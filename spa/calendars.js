@@ -4,6 +4,9 @@ import { translate } from "./app.js";
 import { clearFundraiserRelatedCaches } from './indexedDB.js';
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { openPrintWindow, setPrintContent } from "./utils/PrintUtils.js";
+import { formatDateShort } from "./utils/DateUtils.js";
+import { formatCurrency } from "./utils/NumberUtils.js";
 
 export class Calendars {
 	constructor(app) {
@@ -12,6 +15,8 @@ export class Calendars {
 		this.fundraiser = null;
 		this.fundraiserId = null;
 		this.sortBy = 'name'; // 'name' or 'paid'
+		this.updateTimeout = null;
+		this.boundInputHandler = (event) => this.handleInput(event);
 	}
 
 	async init(fundraiserId) {
@@ -70,8 +75,8 @@ export class Calendars {
 			return;
 		}
 
-		const startDate = new Date(this.fundraiser.start_date).toLocaleDateString();
-		const endDate = new Date(this.fundraiser.end_date).toLocaleDateString();
+		const startDate = formatDateShort(this.fundraiser.start_date, this.app.lang);
+		const endDate = formatDateShort(this.fundraiser.end_date, this.app.lang);
 
 		const content = `
 			<div class="calendars-header">
@@ -111,7 +116,7 @@ export class Calendars {
 			<div class="calendars-summary">
 				<p><strong>${translate("total_participants")}:</strong> ${this.calendars.length}</p>
 				<p><strong>${translate("total_sold")}:</strong> ${this.getTotalAmount()}</p>
-				<p><strong>${translate("total_collected")}:</strong> $${this.getTotalPaid().toFixed(2)}</p>
+				<p><strong>${translate("total_collected")}:</strong> ${formatCurrency(this.getTotalPaid(), this.app.lang)}</p>
 				<p><strong>${translate("participants_paid")}:</strong> ${this.getPaidCount()} / ${this.calendars.length}</p>
 			</div>
 
@@ -194,24 +199,31 @@ export class Calendars {
 	initEventListeners() {
 		// Sort button clicks
 		document.querySelectorAll('.sort-btn').forEach(btn => {
-			btn.addEventListener('click', () => {
+			btn.onclick = () => {
 				this.sortBy = btn.dataset.sort;
 				this.applySorting();
 				this.updateTableOnly();
-			});
+			};
 		});
 
-		// Input changes with debouncing
-		let updateTimeout;
+		document.removeEventListener('input', this.boundInputHandler);
+		document.addEventListener('input', this.boundInputHandler);
 
-		document.addEventListener('input', async (event) => {
-			clearTimeout(updateTimeout);
+		// Print button
+		const printBtn = document.getElementById('print-view-btn');
+		if (printBtn) {
+			printBtn.onclick = () => this.showPrintView();
+		}
+	}
+
+	async handleInput(event) {
+			clearTimeout(this.updateTimeout);
 
 			if (event.target.classList.contains('amount-input')) {
 				const calendarId = event.target.dataset.calendarId;
 				const amount = event.target.value;
 
-				updateTimeout = setTimeout(async () => {
+				this.updateTimeout = setTimeout(async () => {
 					await this.updateCalendarAmount(calendarId, amount);
 				}, 500); // Debounce 500ms
 
@@ -219,7 +231,7 @@ export class Calendars {
 				const calendarId = event.target.dataset.calendarId;
 				const amountPaid = event.target.value;
 
-				updateTimeout = setTimeout(async () => {
+				this.updateTimeout = setTimeout(async () => {
 					await this.updateCalendarAmountPaid(calendarId, amountPaid);
 				}, 500); // Debounce 500ms
 
@@ -228,15 +240,6 @@ export class Calendars {
 				const paid = event.target.checked;
 				await this.updateCalendarPaid(calendarId, paid);
 			}
-		});
-
-		// Print button
-		const printBtn = document.getElementById('print-view-btn');
-		if (printBtn) {
-			printBtn.addEventListener('click', () => {
-				this.showPrintView();
-			});
-		}
 	}
 
 	updateTableOnly() {
@@ -256,8 +259,8 @@ export class Calendars {
 			}
 		});
 
-		// Re-attach input listeners
-		this.initEventListeners();
+			// Bind controls created by the table re-render.
+			this.initEventListeners();
 	}
 
 	async updateCalendarAmount(calendarId, amount) {
@@ -268,7 +271,7 @@ export class Calendars {
 
 			if (response.success) {
 				// Update local data
-				const calendar = this.calendars.find(c => c.id == calendarId);
+				const calendar = this.calendars.find(c => String(c.id) === String(calendarId));
 				if (calendar) {
 					calendar.calendar_amount = parseInt(amount) || 0;
 				}
@@ -288,7 +291,7 @@ export class Calendars {
 
 			if (response.success) {
 				// Update local data
-				const calendar = this.calendars.find(c => c.id == calendarId);
+				const calendar = this.calendars.find(c => String(c.id) === String(calendarId));
 				if (calendar) {
 					calendar.amount_paid = parseFloat(amountPaid) || 0;
 					// Update paid status based on server response
@@ -313,7 +316,7 @@ export class Calendars {
 
 			if (response.success) {
 				// Update local data
-				const calendar = this.calendars.find(c => c.id == calendarId);
+				const calendar = this.calendars.find(c => String(c.id) === String(calendarId));
 				if (calendar) {
 					calendar.paid = paid;
 				}
@@ -330,11 +333,15 @@ export class Calendars {
 	showPrintView() {
 		const totalAmount = this.getTotalAmount();
 		const totalAmountPaid = this.getTotalPaid();
-		const startDate = new Date(this.fundraiser.start_date).toLocaleDateString();
-		const endDate = new Date(this.fundraiser.end_date).toLocaleDateString();
+			const startDate = formatDateShort(this.fundraiser.start_date, this.app.lang);
+			const endDate = formatDateShort(this.fundraiser.end_date, this.app.lang);
 
-		const printWindow = window.open('', '_blank');
-		printWindow.document.write(`
+			const printWindow = openPrintWindow();
+			if (!printWindow) {
+				this.app.showMessage(translate("popup_blocked"), "error");
+				return;
+			}
+			setPrintContent(printWindow, `
 			<html>
 				<head>
 					<title>${this.fundraiser.name} - ${translate("fundraiser_sales_title")}</title>
@@ -418,15 +425,20 @@ export class Calendars {
 							<tr class="total-row">
 								<td colspan="2">${translate("total")}</td>
 								<td>${totalAmount}</td>
-								<td>$${totalAmountPaid.toFixed(2)}</td>
+									<td>${formatCurrency(totalAmountPaid, this.app.lang)}</td>
 								<td></td>
 							</tr>
 						</tbody>
 					</table>
 				</body>
 			</html>
-		`);
+			`, `${this.fundraiser.name} - ${translate("fundraiser_sales_title")}`);
 		printWindow.document.close();
-		printWindow.print();
+			printWindow.print();
+		}
+
+	destroy() {
+		clearTimeout(this.updateTimeout);
+		document.removeEventListener('input', this.boundInputHandler);
 	}
 }

@@ -22,12 +22,13 @@ export class Register {
                 <input type="email" id="email" name="email" autocomplete="email" required>
 
                 <label for="password">${translate("password")}:</label>
-                <input type="password" id="password" name="password" autocomplete="new-password" required>
+                <input type="password" id="password" name="password" autocomplete="new-password" required minlength="8" maxlength="255">
+                <small class="password-hint">${translate("password_requirements")}</small>
 
                 <label for="confirm_password">${translate(
       "confirm_password"
     )}:</label>
-                <input type="password" id="confirm_password" name="confirm_password" autocomplete="new-password" required>
+                <input type="password" id="confirm_password" name="confirm_password" autocomplete="new-password" required minlength="8" maxlength="255">
 
                 <label for="account_creation_password">${translate(
       "account_creation_password"
@@ -43,7 +44,7 @@ export class Register {
                     <option value="administration">${translate("administration")}</option>
                 </select>
 
-                <input type="submit" value="${translate("register")}">
+                <input id="register-submit" type="submit" value="${translate("register")}">
             </form>
             <p><a href="/login">${translate("already_have_account")}</a></p>
         `;
@@ -59,6 +60,9 @@ export class Register {
 
   async handleSubmit(e) {
     e.preventDefault();
+    const submitButton = document.getElementById("register-submit");
+    if (submitButton?.disabled) return;
+    if (submitButton) submitButton.disabled = true;
     const formData = new FormData(e.target);
     const registerData = Object.fromEntries(formData.entries());
 
@@ -67,12 +71,21 @@ export class Register {
 
     if (registerData.password !== registerData.confirm_password) {
       this.showError(translate("passwords_do_not_match"));
+      if (submitButton) submitButton.disabled = false;
+      return;
+    }
+
+    const passwordError = this.validatePassword(registerData.password);
+    if (passwordError) {
+      this.showError(passwordError);
+      if (submitButton) submitButton.disabled = false;
       return;
     }
 
     try {
       const result = await ajaxFunctions.register(registerData);
       if (result.success) {
+        if (submitButton) submitButton.dataset.completed = "true";
         this.showSuccess(result.message);
         setTimeout(() => this.app.router.route("/login"), 3000);
       } else {
@@ -98,7 +111,21 @@ export class Register {
       }
 
       this.showError(errorMessage);
+    } finally {
+      if (submitButton && submitButton.dataset.completed !== "true") {
+        submitButton.disabled = false;
+      }
     }
+  }
+
+  validatePassword(password) {
+    if (password.length < 8) return translate("password_min_length");
+    if (password.length > 255) return translate("password_max_length");
+    if (!/[A-Z]/.test(password)) return translate("password_needs_uppercase");
+    if (!/[a-z]/.test(password)) return translate("password_needs_lowercase");
+    if (!/[0-9]/.test(password)) return translate("password_needs_number");
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) return translate("password_needs_special");
+    return null;
   }
 
   showError(message) {

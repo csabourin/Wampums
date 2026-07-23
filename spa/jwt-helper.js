@@ -44,9 +44,17 @@ export function decodeJWT(jwt) {
 		const parts = jwt.split('.');
 		if (parts.length !== 3) return null;
 
-		// Decode the payload (middle part)
-		const payload = atob(parts[1]);
-		return JSON.parse(payload);
+		// JWT uses base64url rather than standard base64.
+		let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+		payload += '='.repeat((4 - (payload.length % 4)) % 4);
+		const binaryPayload = atob(payload);
+		const payloadBytes = Uint8Array.from(binaryPayload, char => char.charCodeAt(0));
+		const jsonPayload = typeof globalThis.TextDecoder === 'function'
+			? new globalThis.TextDecoder().decode(payloadBytes)
+			: decodeURIComponent(
+				Array.from(payloadBytes, byte => `%${byte.toString(16).padStart(2, '0')}`).join(''),
+			);
+		return JSON.parse(jsonPayload);
 	} catch (error) {
 		debugError('Error decoding JWT:', error);
 		return null;

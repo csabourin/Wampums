@@ -5,10 +5,8 @@ import {
   getAttendanceDates,
   saveGuest,
   getGuestsByDate,
-  getApiUrl,
-  getAuthHeader,
-  getCurrentOrganizationId,
 } from "./ajax-functions.js";
+import { API } from "./api/api-core.js";
 import { translate } from "./app.js";
 import { getCachedData, setCachedData, deleteCachedData } from "./indexedDB.js";
 import { offlineManager } from "./modules/OfflineManager.js";
@@ -57,6 +55,7 @@ export class Attendance {
     // and whether a load loop is currently running.
     this.pendingDateChange = null;
     this.dateChangeInProgress = false;
+    this.searchHandler = null;
   }
 
   async init() {
@@ -496,40 +495,33 @@ export class Attendance {
 
     this.attendanceData = { ...toCarryForward };
 
-    this.app.showMessage(
-      translate("attendance_carried_forward").replace("{{count}}", carryCount).replace("{{date}}", formatDate(source.date, this.app.lang)),
-      "info"
-    );
-
     debugLog(`Carried forward ${carryCount} attendance records from ${source.date}`);
 
     await this.writeAttendanceCache();
 
-    // Persist server-side so every device sees the carried-forward statuses
-    if (navigator.onLine) {
-      try {
-        const response = await fetch(getApiUrl("v1/attendance/carry-forward"), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeader(),
-            "x-organization-id": getCurrentOrganizationId(),
-          },
-          body: JSON.stringify({
-            fromDate: source.date,
-            toDate: this.currentDate
-          }),
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          debugLog("Server carry-forward result:", result);
-          await deleteCachedData(`attendance_api_${this.currentDate}`);
-        }
-      } catch (error) {
-        // Non-critical error - local carry-forward still works
-        debugError("Failed to sync carry-forward to server:", error);
-      }
+    try {
+      const result = await API.post("attendance/carry-forward", {
+        fromDate: source.date,
+        toDate: this.currentDate
+      });
+      debugLog("Server carry-forward result:", {
+        success: result?.success,
+        queued: result?.queued,
+      });
+      await deleteCachedData(`attendance_api_${this.currentDate}`);
+      const message = translate("attendance_carried_forward")
+        .replace("{{count}}", carryCount)
+        .replace("{{date}}", formatDate(source.date, this.app.lang));
+      this.app.showMessage(
+        result?.queued ? `${message}. ${translate("offline.savedLocally")}` : message,
+        "info",
+      );
+    } catch (error) {
+      debugError("Failed to carry attendance forward:", error);
+      this.app.showMessage(
+        translate("attendance_carry_forward_sync_failed"),
+        "warning",
+      );
     }
   }
 
@@ -897,15 +889,27 @@ export class Attendance {
     // input (and its cursor position) is left untouched.
     const searchInput = document.getElementById('attendance-search');
     if (searchInput) {
-      searchInput.addEventListener('input', debounce((e) => {
+      this.searchHandler?.cancel?.();
+      this.searchHandler = debounce((e) => {
+        if (typeof document === 'undefined') return;
         this.searchTerm = e.target.value;
         const attendanceList = document.getElementById('attendance-list');
         if (attendanceList) {
           setContent(attendanceList, '');
           attendanceList.appendChild(this.renderGroupsAndNames());
         }
-      }, 300));
+      }, 300);
+      searchInput.addEventListener('input', this.searchHandler);
     }
+  }
+
+  /**
+   * Cancel delayed UI work when navigation replaces the attendance module.
+   */
+  destroy() {
+    this.searchHandler?.cancel?.();
+    this.searchHandler = null;
+    this.pendingDateChange = null;
   }
 
   // Fix the selection toggle methods
@@ -1056,7 +1060,7 @@ export class Attendance {
 
   async updateGroupStatus(groupId, newStatus) {
     const participantsToUpdate = this.participants.filter(
-      (p) => p.group_id == groupId,
+      (p) => String(p.group_id) === String(groupId),
     );
 
     const participantIds = participantsToUpdate.map((p) => p.id);
@@ -1172,6 +1176,7 @@ export class Attendance {
   }
 
   updateAttendanceDisplay(participantId, newStatus, previousStatus) {
+    if (typeof document === 'undefined') return;
     const row = document.querySelector(
       `.participant-row[data-participant-id="${participantId}"]`,
     );
@@ -1188,6 +1193,7 @@ export class Attendance {
    * Keep the "mark remaining present" button count in sync without a full render
    */
   refreshMarkRemainingButton() {
+    if (typeof document === 'undefined') return;
     const button = document.getElementById("mark-remaining-present");
     const unmarkedCount = this.getUnmarkedParticipantIds().length;
     if (button) {
@@ -1274,7 +1280,9 @@ export class Attendance {
       // Revert so the selector matches the data still on screen instead of
       // silently showing the old list under the new date.
       this.currentDate = previousDate;
-      const dateSelect = document.getElementById("dateSelect");
+      const dateSelect = typeof document !== 'undefined'
+        ? document.getElementById("dateSelect")
+        : null;
       if (dateSelect) {
         dateSelect.value = previousDate;
       }

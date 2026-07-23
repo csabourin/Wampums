@@ -25,6 +25,7 @@ import {
   generateOptimisticId,
 } from "./utils/OptimisticUpdateManager.js";
 import { BaseModule } from "./utils/BaseModule.js";
+import { formatDate } from "./utils/DateUtils.js";
 
 export class BadgeDashboard extends BaseModule {
   constructor(app) {
@@ -1246,11 +1247,9 @@ export class BadgeDashboard extends BaseModule {
 
   formatReadableDate(value) {
     if (!value) return translate("badge_date_missing");
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return translate("badge_date_missing");
-    return new Intl.DateTimeFormat(undefined, { dateStyle: "long" }).format(
-      date,
-    );
+    return formatDate(value, this.app.lang || CONFIG.DEFAULT_LANG, {
+      dateStyle: "long",
+    }) || translate("badge_date_missing");
   }
 
   replaceBadgeEntry(updatedEntry) {

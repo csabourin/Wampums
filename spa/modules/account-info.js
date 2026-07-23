@@ -416,14 +416,6 @@ export class AccountInfoModule {
               <span class="language-label">Français</span>
               ${currentLang === 'fr' ? '<span class="checkmark">✓</span>' : ''}
             </button>
-            <button class="language-option ${currentLang === 'uk' ? 'active' : ''}" data-lang="uk">
-              <span class="language-label">Українська</span>
-              ${currentLang === 'uk' ? '<span class="checkmark">✓</span>' : ''}
-            </button>
-            <button class="language-option ${currentLang === 'it' ? 'active' : ''}" data-lang="it">
-              <span class="language-label">Italiano</span>
-              ${currentLang === 'it' ? '<span class="checkmark">✓</span>' : ''}
-            </button>
           </div>
         </section>
 

@@ -182,14 +182,11 @@ describe('SecurityUtils - XSS Prevention', () => {
       expect(result).toBe(email);
     });
 
-    test('rejects emails with script tags', () => {
+    test('rejects emails with HTML markup', () => {
       const email = '<script>alert("xss")</script>user@example.com';
       const result = sanitizeEmail(email);
-      
-      // sanitizeEmail validates email format (basic regex), not content safety
-      // This email technically matches the pattern (has @, ., no whitespace)
-      // In production, should use a stricter regex or separate sanitization
-      expect(result).not.toBeNull(); // Regex allows it (limitation of current implementation)
+
+      expect(result).toBeNull();
     });
 
     test('trims whitespace', () => {
@@ -262,6 +259,15 @@ describe('SecurityUtils - XSS Prevention', () => {
       
       expect(element.onclick).toBeNull();
       expect(element.onerror).toBeNull();
+    });
+
+    test('rejects case-insensitive event attributes and executable tags', () => {
+      const element = createSafeElement('script', 'alert("xss")', {
+        ONCLICK: 'alert("xss")',
+      });
+
+      expect(element.tagName.toLowerCase()).toBe('div');
+      expect(element.hasAttribute('ONCLICK')).toBe(false);
     });
 
     test('creates different HTML elements', () => {

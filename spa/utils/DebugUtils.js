@@ -30,13 +30,47 @@ export function isDebugMode() {
     );
 }
 
+function redactString(value) {
+    return String(value)
+        .replace(/Bearer\s+[A-Za-z0-9._~-]+/gi, 'Bearer [REDACTED]')
+        .replace(/("(?:password|token|authorization|body)"\s*:\s*)"[^"]*"/gi, '$1"[REDACTED]"')
+        .slice(0, 1000);
+}
+
+function summarizeDebugValue(value) {
+    if (value instanceof Error) {
+        return {
+            name: value.name,
+            message: redactString(value.message),
+            status: value.status,
+        };
+    }
+    if (Array.isArray(value)) {
+        return `[Array(${value.length})]`;
+    }
+    if (value && typeof value === 'object') {
+        const summary = { keys: Object.keys(value).slice(0, 30) };
+        for (const key of ['success', 'status', 'queued', 'count', 'method', 'url']) {
+            if (['string', 'number', 'boolean'].includes(typeof value[key])) {
+                summary[key] = key === 'url' ? redactString(value[key]) : value[key];
+            }
+        }
+        return summary;
+    }
+    return typeof value === 'string' ? redactString(value) : value;
+}
+
+function prepareDebugArgs(args) {
+    return args.map(summarizeDebugValue);
+}
+
 /**
  * Log a debug message (only if debug mode is enabled)
  * @param {...any} args - Arguments to log
  */
 export function debugLog(...args) {
     if (isDebugMode()) {
-        console.log('[DEBUG]', ...args);
+        console.log('[DEBUG]', ...prepareDebugArgs(args));
     }
 }
 
@@ -46,7 +80,7 @@ export function debugLog(...args) {
  * @param {...any} args - Arguments to log
  */
 export function debugError(...args) {
-    console.error('[ERROR]', ...args);
+    console.error('[ERROR]', ...prepareDebugArgs(args));
 }
 
 /**
@@ -55,7 +89,7 @@ export function debugError(...args) {
  */
 export function debugWarn(...args) {
     if (isDebugMode()) {
-        console.warn('[WARN]', ...args);
+        console.warn('[WARN]', ...prepareDebugArgs(args));
     }
 }
 
@@ -65,7 +99,7 @@ export function debugWarn(...args) {
  */
 export function debugInfo(...args) {
     if (isDebugMode()) {
-        console.info('[INFO]', ...args);
+        console.info('[INFO]', ...prepareDebugArgs(args));
     }
 }
 
@@ -77,12 +111,7 @@ export function debugInfo(...args) {
  */
 export function debugTable(data, columns) {
     if (isDebugMode()) {
-        console.log('[DEBUG TABLE]');
-        if (columns) {
-            console.table(data, columns);
-        } else {
-            console.table(data);
-        }
+        console.log('[DEBUG TABLE]', summarizeDebugValue(data), columns || []);
     }
 }
 

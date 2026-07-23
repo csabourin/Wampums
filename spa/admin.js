@@ -17,7 +17,7 @@ import {
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
-import { setContent, clearElement } from "./utils/DOMUtils.js";
+import { setContent, clearElement, insertHTML } from "./utils/DOMUtils.js";
 import { canAccessAdminPanel, canCreateOrganization, canManageUsers, canSendCommunications, canViewUsers } from "./utils/PermissionUtils.js";
 
 export class Admin {
@@ -250,7 +250,7 @@ ${showNotifications ? `
                 if (Array.isArray(user.roles)) {
                         return user.roles
                                 .map((r) => (typeof r === "object" ? r.id : r))
-                                .filter((id) => id != null);
+                                .filter((id) => id !== null && id !== undefined);
                 }
                 if (Array.isArray(user.role_ids)) {
                         return user.role_ids;
@@ -269,7 +269,7 @@ ${showNotifications ? `
                 for (const user of this.users) {
                         if (!Array.isArray(user.roles)) continue;
                         for (const r of user.roles) {
-                                if (typeof r === "object" && r.id != null && !seen.has(r.id)) {
+                                if (typeof r === "object" && r.id !== null && r.id !== undefined && !seen.has(r.id)) {
                                         seen.add(r.id);
                                         roles.push(r);
                                 }
@@ -475,7 +475,7 @@ ${showNotifications ? `
                                 </div>
                         </div>`;
 
-                document.body.insertAdjacentHTML("beforeend", modalHTML);
+                insertHTML(document.body, "beforeend", modalHTML);
 
                 const modal = document.getElementById("role-modal");
                 const closeModal = () => modal?.remove();

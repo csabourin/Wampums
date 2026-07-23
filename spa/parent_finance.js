@@ -12,7 +12,7 @@ import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDateShort } from "./utils/DateUtils.js";
 import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.js";
 import { isParent } from "./utils/PermissionUtils.js";
-import { setContent } from "./utils/DOMUtils.js";
+import { setContent, insertHTML } from "./utils/DOMUtils.js";
 
 export class ParentFinance {
   constructor(app) {
@@ -446,7 +446,7 @@ export class ParentFinance {
 
     // Render payment modal
     const modalHTML = this.renderPaymentModal(feeId, amount, participantName);
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    insertHTML(document.body, 'beforeend', modalHTML);
 
     // Attach modal event listeners
     this.attachModalEventListeners(feeId, amount);

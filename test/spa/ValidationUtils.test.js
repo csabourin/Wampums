@@ -183,12 +183,12 @@ describe('ValidationUtils - Form Validation', () => {
       expect(result.strength).toBe('strong');
     });
 
-    test('returns medium strength for medium passwords', () => {
+    test('rejects passwords missing a special character', () => {
       const passwords = TestDataGenerators.passwordVariations();
       const result = validatePassword(passwords.medium);
       
-      expect(result.valid).toBe(true);
-      expect(result.strength).toBe('medium');
+      expect(result.valid).toBe(false);
+      expect(result.strength).toBe('weak');
     });
 
     test('rejects passwords shorter than 8 characters', () => {

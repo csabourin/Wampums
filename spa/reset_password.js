@@ -35,7 +35,7 @@ export class ResetPassword {
 												<div id="reset-step">
 																<input type="hidden" id="token" name="token" value="${token}" required>
 																<label for="new-password">${translate("new_password")}:</label>
-																<input type="password" id="new-password" name="new-password" autocomplete="new-password" required minlength="8">
+																<input type="password" id="new-password" name="new-password" autocomplete="new-password" required minlength="8" maxlength="255">
 																<small class="password-hint">${translate("password_requirements")}</small>
 																<label for="confirm-password">${translate("confirm_password")}:</label>
 																<input type="password" id="confirm-password" name="confirm-password" autocomplete="new-password" required>
@@ -51,9 +51,13 @@ export class ResetPassword {
 
 	async handleSubmit(e) {
 		e.preventDefault();
+		const submitButton = e.currentTarget.querySelector('button[type="submit"]');
+		if (submitButton?.disabled) return;
+		if (submitButton) submitButton.disabled = true;
 		const messageDiv = document.getElementById("message");
 		const token = document.getElementById("token")?.value;
 
+		try {
 		if (token) {
 			// Handle password reset
 			const newPassword = document.getElementById("new-password").value;
@@ -89,6 +93,7 @@ export class ResetPassword {
 				debugLog("Server response:", result);
 
 				if (result.success) {
+					if (submitButton) submitButton.dataset.completed = "true";
 					messageDiv.className = "success-message";
 					messageDiv.textContent = translate("password_reset_successful");
 					setTimeout(() => this.app.router.navigate("/login"), 2000);
@@ -131,11 +136,19 @@ export class ResetPassword {
 				messageDiv.textContent = translate("error_sending_reset_link");
 			}
 		}
+		} finally {
+			if (submitButton && submitButton.dataset.completed !== "true") {
+				submitButton.disabled = false;
+			}
+		}
 	}
 
 	validatePassword(password) {
 		if (password.length < 8) {
 			return translate("password_min_length");
+		}
+		if (password.length > 255) {
+			return translate("password_max_length");
 		}
 		if (!/[A-Z]/.test(password)) {
 			return translate("password_needs_uppercase");
@@ -146,6 +159,9 @@ export class ResetPassword {
 		if (!/[0-9]/.test(password)) {
 			return translate("password_needs_number");
 		}
+		if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+			return translate("password_needs_special");
+		}
 		return null;
 	}
 
@@ -153,8 +169,9 @@ export class ResetPassword {
 		const errorMap = {
 			'Password must be between 8 and 255 characters': translate("password_min_length"),
 			'Password must contain at least one uppercase letter': translate("password_needs_uppercase"),
-			'Password must contain at least one lowercase letter': translate("password_needs_lowercase"),
-			'Password must contain at least one number': translate("password_needs_number")
+				'Password must contain at least one lowercase letter': translate("password_needs_lowercase"),
+				'Password must contain at least one number': translate("password_needs_number"),
+				'Password must contain at least one special character': translate("password_needs_special")
 		};
 		return errorMap[errorMsg] || errorMsg;
 	}

@@ -26,7 +26,7 @@ import { exportToCSV } from "./utils/ExportUtils.js";
 import { confirmDestructive } from "./utils/DialogUtils.js";
 import { validateMoney, validateDateField, validatePositiveInteger } from "./utils/ValidationUtils.js";
 import { canManageFinance, canViewFinance } from "./utils/PermissionUtils.js";
-import { setContent } from "./utils/DOMUtils.js";
+import { setContent, insertHTML } from "./utils/DOMUtils.js";
 import { BaseModule } from "./utils/BaseModule.js";
 import { CONFIG } from "./config.js";
 
@@ -728,7 +728,7 @@ export class Finance extends BaseModule {
     const container = document.getElementById('payment-rows');
     if (!container) return;
     const newIndex = container.querySelectorAll('.payment-row').length;
-    container.insertAdjacentHTML('beforeend', this.renderPaymentRow(newIndex));
+    insertHTML(container, 'beforeend', this.renderPaymentRow(newIndex));
   }
 
   resetPaymentRows() {

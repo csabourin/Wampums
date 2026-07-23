@@ -140,12 +140,18 @@ exports.getOrganizationId = async (req, pool) => {
   const bodyOrgId = parseOrgId(req.body?.organization_id);
   const tokenOrgId = parseOrgId(req.user?.organizationId);
 
-  // If authenticated, prefer the organization in the JWT (server-issued)
+  // Authenticated district users may explicitly select another organization.
+  // Accept that selection only after verifying membership server-side.
   if (tokenOrgId) {
     if (headerOrgId && headerOrgId !== tokenOrgId) {
-      logger.warn(
-        `Ignoring x-organization-id header override for authenticated request. Header=${headerOrgId}, Token=${tokenOrgId}, Path=${req.method} ${req.path}, User=${req.user?.id}`,
+      const membership = await pool.query(
+        'SELECT 1 FROM user_organizations WHERE user_id = $1 AND organization_id = $2 LIMIT 1',
+        [req.user.id, headerOrgId],
       );
+      if (membership.rows.length > 0) {
+        return headerOrgId;
+      }
+      logger.warn(`Rejected unauthorized organization selection. Header=${headerOrgId}, User=${req.user?.id}`);
     }
     if (queryOrgId && queryOrgId !== tokenOrgId) {
       logger.warn(

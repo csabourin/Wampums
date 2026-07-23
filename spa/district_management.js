@@ -790,7 +790,7 @@ export class DistrictManagement {
 
     document.querySelectorAll(".dm-user-card").forEach((card) => {
       card.addEventListener("click", () => {
-        const userId = parseInt(card.getAttribute("data-user-id"), 10);
+        const userId = card.getAttribute("data-user-id");
         this.openModal(userId);
       });
     });
