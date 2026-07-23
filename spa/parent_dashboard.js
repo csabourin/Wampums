@@ -8,7 +8,11 @@ import {
         linkUserParticipants,
         getCurrentUser,
 } from "./ajax-functions.js";
-import { getPermissionSlips, signPermissionSlip } from "./api/api-endpoints.js";
+import {
+        declinePermissionSlip,
+        getPermissionSlips,
+        signPermissionSlip,
+} from "./api/api-endpoints.js";
 import { getActivities } from "./api/api-activities.js";
 import { buildApiUrl } from "./api/api-core.js";
 import {
@@ -28,7 +32,10 @@ import {
         formatActivityDateRange,
         getActivityEndDateObj,
 } from "./utils/ActivityDateUtils.js";
-import { prompt as promptDialog } from "./utils/DialogUtils.js";
+import {
+        confirm as confirmDialog,
+        prompt as promptDialog,
+} from "./utils/DialogUtils.js";
 
 export class ParentDashboard {
         constructor(app) {
@@ -286,11 +293,12 @@ export class ParentDashboard {
                 );
         }
 
-        async loadPermissionSlips(participantId) {
+        async loadPermissionSlips(participantId, forceRefresh = false) {
                 try {
-                        const response = await getPermissionSlips({
-                                participant_id: participantId,
-                        });
+                        const response = await getPermissionSlips(
+                                { participant_id: participantId },
+                                { forceRefresh },
+                        );
                         const slips =
                                 response?.data?.permission_slips ||
                                 response?.permission_slips ||
@@ -709,6 +717,20 @@ export class ParentDashboard {
                                                                   slip.signed_by,
                                                           )
                                                         : "";
+                                                const declinedDate =
+                                                        slip.declined_at
+                                                                ? escapeHTML(
+                                                                          this.formatDateSafe(
+                                                                                  slip.declined_at,
+                                                                          ),
+                                                                  )
+                                                                : "";
+                                                const declinedBy =
+                                                        slip.declined_by
+                                                                ? escapeHTML(
+                                                                          slip.declined_by,
+                                                                  )
+                                                                : "";
                                                 const canSign =
                                                         slip.status ===
                                                         "pending";
@@ -716,11 +738,14 @@ export class ParentDashboard {
                                                 const signedMeta =
                                                         signedDate || signer
                                                                 ? `<p class="muted-text">${[signedDate ? `${translate("permission_slip_signed_at")}: ${signedDate}` : "", signer ? `${translate("permission_slip_signer")}: ${signer}` : ""].filter(Boolean).join(" · ")}</p>`
-                                                                : "";
+                                                                : declinedDate || declinedBy
+                                                                  ? `<p class="muted-text">${[declinedDate ? `${translate("permission_slip_declined_at")}: ${declinedDate}` : "", declinedBy ? `${translate("permission_slip_declined_by")}: ${declinedBy}` : ""].filter(Boolean).join(" · ")}</p>`
+                                                                  : "";
 
                                                 const actionArea = canSign
-                                                        ? `<button type="button" class="dashboard-button dashboard-button--secondary permission-slip-sign-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate("permission_slip_sign")}</button>`
-                                                        : `<span class="badge badge-success">${statusLabel}</span>`;
+                                                        ? `<button type="button" class="dashboard-button dashboard-button--secondary permission-slip-sign-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate("permission_slip_sign")}</button>
+                                                           <button type="button" class="dashboard-button dashboard-button--danger permission-slip-decline-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate("permission_slip_decline")}</button>`
+                                                        : `<span class="status-badge status-${escapeHTML(slip.status)}">${statusLabel}</span>`;
 
                                                 return `
                                                 <li class="permission-slip-item">
@@ -986,7 +1011,7 @@ export class ParentDashboard {
 
                 appContainer.addEventListener("click", async (event) => {
                         const button = event.target.closest(
-                                ".permission-slip-sign-btn",
+                                ".permission-slip-sign-btn, .permission-slip-decline-btn",
                         );
                         if (!button) {
                                 return;
@@ -1013,22 +1038,51 @@ export class ParentDashboard {
                                 return;
                         }
 
+                        const isDecline = button.classList.contains(
+                                "permission-slip-decline-btn",
+                        );
+                        if (
+                                isDecline &&
+                                !(await confirmDialog(
+                                        translate(
+                                                "permission_slip_decline_confirm",
+                                        ),
+                                ))
+                        ) {
+                                return;
+                        }
+
                         try {
-                                await signPermissionSlip(slipId, {
-                                        signed_by: signerName,
-                                        signature_hash: `signed-${Date.now()}`,
-                                });
+                                if (isDecline) {
+                                        await declinePermissionSlip(slipId, {
+                                                declined_by: signerName,
+                                                declined_at:
+                                                        new Date().toISOString(),
+                                        });
+                                } else {
+                                        await signPermissionSlip(slipId, {
+                                                signed_by: signerName,
+                                                signature_hash: `signed-${Date.now()}`,
+                                        });
+                                }
                                 this.app.showMessage(
-                                        translate("permission_slip_signed"),
+                                        translate(
+                                                isDecline
+                                                        ? "permission_slip_declined"
+                                                        : "permission_slip_signed",
+                                        ),
                                         "success",
                                 );
-                                await this.loadPermissionSlips(participantId);
+                                await this.loadPermissionSlips(
+                                        participantId,
+                                        true,
+                                );
                                 this.refreshPermissionSlipSection(
                                         participantId,
                                 );
                         } catch (error) {
                                 debugError(
-                                        "Error signing permission slip",
+                                        "Error responding to permission slip",
                                         error,
                                 );
 
@@ -1040,21 +1094,30 @@ export class ParentDashboard {
                                         );
 
                                 // Check for specific error cases and provide user-friendly messages
-                                if (errorMessage.includes("already signed")) {
+                                if (
+                                        errorMessage.includes(
+                                                "already been answered",
+                                        ) ||
+                                        errorMessage.includes("already signed")
+                                ) {
                                         this.app.showMessage(
                                                 translate(
-                                                        "permission_slip_already_signed",
+                                                        "permission_slip_already_answered",
                                                 ),
                                                 "warning",
                                         );
                                         // Refresh the section to show current state
                                         await this.loadPermissionSlips(
                                                 participantId,
+                                                true,
                                         );
                                         this.refreshPermissionSlipSection(
                                                 participantId,
                                         );
                                 } else if (
+                                        errorMessage.includes(
+                                                "only respond to permission slips for your own children",
+                                        ) ||
                                         errorMessage.includes(
                                                 "only sign permission slips for your own children",
                                         )

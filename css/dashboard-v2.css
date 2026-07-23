@@ -315,7 +315,11 @@
   background: var(--tile-bg, var(--tile-bg-neutral));
   color: var(--tile-fg, var(--tile-fg-neutral));
   border: 1px solid var(--tile-accent, var(--tile-accent-neutral));
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
   box-shadow: var(--shadow-sm);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -324,6 +328,8 @@
 
 .dashboard-v2__tile:hover,
 .dashboard-v2__tile:focus-visible {
+  background: var(--tile-hover-bg, var(--tile-accent, var(--tile-bg-neutral)));
+  color: var(--tile-hover-fg, var(--tile-fg, var(--tile-fg-neutral)));
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
   text-decoration: none;
@@ -331,8 +337,18 @@
 }
 
 .dashboard-v2__tile:focus-visible {
-  outline: 3px solid var(--tile-accent, currentColor);
+  outline: 2px solid #ffffff;
   outline-offset: 2px;
+  box-shadow:
+    0 0 0 5px #000000,
+    var(--shadow-md);
+}
+
+.dashboard-v2__tile:active {
+  background: var(--tile-hover-bg, var(--tile-accent, var(--tile-bg-neutral)));
+  color: var(--tile-hover-fg, var(--tile-fg, var(--tile-fg-neutral)));
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
 }
 
 .dashboard-v2__tile-icon {

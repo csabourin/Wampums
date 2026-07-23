@@ -108,7 +108,7 @@ describe('getOrganizationId middleware', () => {
     expect(res.status).not.toBe(500);
   });
 
-  test('ignores x-organization-id header override when authenticated', async () => {
+  test('ignores an organization header that differs from the signed organization', async () => {
     const { __mPool } = require('pg');
     const token = generateToken({ organizationId: ORG_ID });
     const evilOrgId = 999;
@@ -116,9 +116,12 @@ describe('getOrganizationId middleware', () => {
     let capturedOrgId = null;
 
     __mPool.query.mockImplementation((query, params) => {
-      if (query.includes('FROM user_organizations uo')) {
-        capturedOrgId = params[1]; // Second param should be org ID from token, not header
+      if (query.includes('SELECT DISTINCT p.permission_key')) {
+        capturedOrgId = params[1];
         return Promise.resolve({ rows: [{ permission_key: 'users.view' }] });
+      }
+      if (query.includes('SELECT DISTINCT r.role_name')) {
+        return Promise.resolve({ rows: [{ role_name: 'admin', display_name: 'Admin' }] });
       }
       return Promise.resolve({ rows: [] });
     });

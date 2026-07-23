@@ -10,7 +10,7 @@
  * - Carpool assignments
  */
 
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
@@ -22,7 +22,7 @@ import {
   Modal,
   Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   getParticipants,
   getParentDashboard,
@@ -131,10 +131,6 @@ const ParentDashboardScreen = () => {
     });
   }, [navigation]);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
   const loadDashboardData = async () => {
     try {
       setError('');
@@ -195,7 +191,10 @@ const ParentDashboardScreen = () => {
         myChildren.length > 0
           ? Promise.all(
               myChildren.map((child) =>
-                getPermissionSlips({ participant_id: child.id }).catch((err) => {
+                getPermissionSlips(
+                  { participant_id: child.id },
+                  { forceRefresh: true }
+                ).catch((err) => {
                   debugError(`Error loading permission slips for child ${child.id}:`, err);
                   return { success: false, data: [] };
                 })
@@ -230,7 +229,7 @@ const ParentDashboardScreen = () => {
       permissionSlipsResults.forEach((response) => {
         if (response.success) {
           const slips = normalizePermissionSlips(response);
-          const unsigned = slips.filter((slip) => !slip.signed);
+          const unsigned = slips.filter((slip) => slip.status === 'pending');
           allUnsigned.push(...unsigned);
         }
       });
@@ -259,6 +258,12 @@ const ParentDashboardScreen = () => {
       setLoading(false);
     }
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboardData();
+    }, [])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -477,7 +482,7 @@ const ParentDashboardScreen = () => {
           {unsignedPermissionSlips.slice(0, 3).map((slip) => (
             <Card
               key={slip.id}
-              onPress={() => navigation.navigate('PermissionSlipSign', { id: slip.id })}
+              onPress={() => navigation.navigate('PermissionSlipSign', { slipId: slip.id })}
               style={styles.permissionSlipCard}
             >
               <View style={styles.permissionSlipHeader}>

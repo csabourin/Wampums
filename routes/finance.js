@@ -731,8 +731,9 @@ module.exports = (pool, logger) => {
       return error(res, 'Participant not found in this organization', 404);
     }
 
-    // Staff access via JWT claims (requirePermission is not used on this route,
-    // so req.userRoles is not populated and hasAnyRole cannot be used here)
+    // Staff claims and organization scope come from the same signed JWT.
+    // getOrganizationId ignores client-side organization overrides for
+    // authenticated requests.
     const roleNames = req.user.roleNames || [];
     const permissions = req.user.permissions || [];
     const isStaff = permissions.includes('finance.view')

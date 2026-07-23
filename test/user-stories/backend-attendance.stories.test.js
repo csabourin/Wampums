@@ -274,9 +274,6 @@ describe('US-ATT-014 — The attendance API keeps orgs sealed off (server)', () 
     let listQuery = null;
     let listParams = null;
     installHandler((query, params) => {
-      if (query.includes('SELECT 1 FROM user_organizations')) {
-        return { rows: [] };
-      }
       if (query.includes('FROM attendance a')) {
         listQuery = query;
         listParams = params;

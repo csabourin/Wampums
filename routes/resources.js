@@ -71,6 +71,9 @@ module.exports = (pool) => {
     "district",
     "unitadmin",
     "leader",
+    "admin",
+    "animation",
+    "animator",
     "finance",
     "administration",
     "demoadmin",
@@ -212,6 +215,44 @@ module.exports = (pool) => {
     );
 
     return result.rows.map((row) => row.participant_id);
+  }
+
+  /**
+   * Ensure parent-only accounts can view or respond only for participants
+   * linked to their account. Staff retain organization-wide access.
+   *
+   * @param {object} req - Express request containing the authenticated user.
+   * @param {number} organizationId - Active organization.
+   * @param {number} participantId - Permission slip participant.
+   * @returns {Promise<boolean>} Whether the user may access the slip.
+   */
+  async function canAccessPermissionSlip(req, organizationId, participantId) {
+    let userRoles = req.userRoles;
+    if (!Array.isArray(userRoles)) {
+      const rolesResult = await pool.query(
+        `SELECT DISTINCT r.role_name
+           FROM user_organizations uo
+           CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+           JOIN roles r ON r.id = role_id_text::integer
+          WHERE uo.user_id = $1 AND uo.organization_id = $2`,
+        [req.user.id, organizationId],
+      );
+      userRoles = rolesResult.rows.map((row) => row.role_name);
+    }
+    const isStaff = userRoles.some((role) => staffRoles.includes(role));
+
+    if (isStaff) return true;
+
+    const linkCheck = await pool.query(
+      `SELECT 1
+         FROM user_participants up
+         JOIN participant_organizations po
+           ON po.participant_id = up.participant_id
+          AND po.organization_id = $3
+        WHERE up.user_id = $1 AND up.participant_id = $2`,
+      [req.user.id, participantId, organizationId],
+    );
+    return linkCheck.rows.length > 0;
   }
 
   async function verifyEquipmentAccess(equipmentId, organizationId) {
@@ -2097,7 +2138,7 @@ module.exports = (pool) => {
       check("consent_payload").optional({ nullable: true }).isObject(),
       check("status")
         .optional({ nullable: true })
-        .isIn(["pending", "signed", "revoked", "expired", "archived"]),
+        .isIn(["pending", "signed", "declined", "revoked", "expired", "archived"]),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -2256,6 +2297,15 @@ module.exports = (pool) => {
         if (slipResult.rows.length === 0) {
           return error(res, "Permission slip not found", 404);
         }
+        if (
+          !(await canAccessPermissionSlip(
+            req,
+            organizationId,
+            slipResult.rows[0].participant_id,
+          ))
+        ) {
+          return error(res, "You can only view permission slips for your own children", 403);
+        }
 
         return success(res, slipResult.rows[0]);
       } catch (err) {
@@ -2290,38 +2340,13 @@ module.exports = (pool) => {
           return error(res, "Permission slip not found", 404);
         }
 
-        if (slipResult.rows[0].status === "signed") {
-          return error(res, "Permission slip already signed", 400);
+        if (slipResult.rows[0].status !== "pending") {
+          return error(res, "Permission slip has already been answered", 409);
         }
 
         const participantId = slipResult.rows[0].participant_id;
-
-        // Check if user has parent-only access (no staff roles)
-        // If so, verify they're linked to this participant
-        const rolesQuery = `
-          SELECT DISTINCT r.role_name
-          FROM user_organizations uo
-          CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
-          JOIN roles r ON r.id = role_id_text::integer
-          WHERE uo.user_id = $1 AND uo.organization_id = $2
-        `;
-        const rolesResult = await pool.query(rolesQuery, [req.user.id, organizationId]);
-        const userRoles = rolesResult.rows.map(row => row.role_name);
-
-        // Define staff roles that have organization-wide access
-        const staffRoles = ['district', 'unitadmin', 'leader', 'admin', 'animation', 'demoadmin'];
-        const isStaff = userRoles.some(role => staffRoles.includes(role));
-
-        // If user is parent-only, verify they're linked to this participant
-        if (!isStaff) {
-          const linkCheck = await pool.query(
-            "SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2",
-            [req.user.id, participantId],
-          );
-
-          if (linkCheck.rows.length === 0) {
-            return error(res, "You can only sign permission slips for your own children", 403);
-          }
+        if (!(await canAccessPermissionSlip(req, organizationId, participantId))) {
+          return error(res, "You can only respond to permission slips for your own children", 403);
         }
 
         const updateResult = await pool.query(
@@ -2330,10 +2355,14 @@ module.exports = (pool) => {
                signed_at = COALESCE($3, CURRENT_TIMESTAMP),
                status = 'signed',
                updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1 AND organization_id = $4
+           WHERE id = $1 AND organization_id = $4 AND status = 'pending'
            RETURNING *`,
           [slipId, signed_by, signed_at || null, organizationId],
         );
+
+        if (updateResult.rows.length === 0) {
+          return error(res, "Permission slip has already been answered", 409);
+        }
 
         return success(
           res,
@@ -2342,6 +2371,73 @@ module.exports = (pool) => {
         );
       } catch (err) {
         return error(res, err.message || "Error signing permission slip", err.statusCode || 500);
+      }
+    }),
+  );
+
+  // Secure route to decline a permission slip (authentication required)
+  router.patch(
+    "/permission-slips/:id",
+    authenticate,
+    requirePermission("permission_slips.sign"),
+    [
+      param("id").isInt({ min: 1 }),
+      check("status").equals("declined"),
+      check("declined_by").isString().trim().isLength({ min: 2, max: 200 }),
+      check("declined_at").optional().isISO8601(),
+    ],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const slipId = parseInt(req.params.id, 10);
+        const organizationId = await getOrganizationId(req, pool);
+        const { declined_by, declined_at } = req.body;
+
+        const slipResult = await pool.query(
+          `SELECT participant_id, status
+             FROM permission_slips
+            WHERE id = $1 AND organization_id = $2`,
+          [slipId, organizationId],
+        );
+
+        if (slipResult.rows.length === 0) {
+          return error(res, "Permission slip not found", 404);
+        }
+        if (slipResult.rows[0].status !== "pending") {
+          return error(res, "Permission slip has already been answered", 409);
+        }
+        if (
+          !(await canAccessPermissionSlip(
+            req,
+            organizationId,
+            slipResult.rows[0].participant_id,
+          ))
+        ) {
+          return error(res, "You can only respond to permission slips for your own children", 403);
+        }
+
+        const updateResult = await pool.query(
+          `UPDATE permission_slips
+              SET declined_by = $2,
+                  declined_at = COALESCE($3, CURRENT_TIMESTAMP),
+                  status = 'declined',
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1 AND organization_id = $4 AND status = 'pending'
+            RETURNING *`,
+          [slipId, declined_by, declined_at || null, organizationId],
+        );
+
+        if (updateResult.rows.length === 0) {
+          return error(res, "Permission slip has already been answered", 409);
+        }
+        return success(
+          res,
+          { permission_slip: updateResult.rows[0] },
+          "Permission slip declined",
+        );
+      } catch (err) {
+        if (handleOrganizationResolutionError(res, err)) return;
+        return error(res, err.message || "Error declining permission slip", err.statusCode || 500);
       }
     }),
   );
@@ -2398,8 +2494,8 @@ module.exports = (pool) => {
           return error(res, "Permission slip not found", 404);
         }
 
-        if (slipResult.rows[0].status === "signed") {
-          return error(res, "Permission slip already signed", 400);
+        if (slipResult.rows[0].status !== "pending") {
+          return error(res, "Permission slip has already been answered", 409);
         }
 
         const updateResult = await pool.query(
@@ -2408,10 +2504,14 @@ module.exports = (pool) => {
                signed_at = COALESCE($3, CURRENT_TIMESTAMP),
                status = 'signed',
                updated_at = CURRENT_TIMESTAMP
-           WHERE access_token = $1
+           WHERE access_token = $1 AND status = 'pending'
            RETURNING *`,
           [token, signed_by, signed_at || null],
         );
+
+        if (updateResult.rows.length === 0) {
+          return error(res, "Permission slip has already been answered", 409);
+        }
 
         return success(
           res,
@@ -2420,6 +2520,53 @@ module.exports = (pool) => {
         );
       } catch (err) {
         return error(res, err.message || "Error signing permission slip", err.statusCode || 500);
+      }
+    }),
+  );
+
+  // Public route to decline a permission slip by access token
+  router.patch(
+    "/permission-slips/public/:token",
+    [
+      param("token").isUUID(),
+      check("status").equals("declined"),
+      check("declined_by").isString().trim().isLength({ min: 2, max: 200 }),
+      check("declined_at").optional().isISO8601(),
+    ],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const { token } = req.params;
+        const { declined_by, declined_at } = req.body;
+        const updateResult = await pool.query(
+          `UPDATE permission_slips
+              SET declined_by = $2,
+                  declined_at = COALESCE($3, CURRENT_TIMESTAMP),
+                  status = 'declined',
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE access_token = $1 AND status = 'pending'
+            RETURNING *`,
+          [token, declined_by, declined_at || null],
+        );
+
+        if (updateResult.rows.length === 0) {
+          const slipResult = await pool.query(
+            "SELECT status FROM permission_slips WHERE access_token = $1",
+            [token],
+          );
+          if (slipResult.rows.length === 0) {
+            return error(res, "Permission slip not found", 404);
+          }
+          return error(res, "Permission slip has already been answered", 409);
+        }
+
+        return success(
+          res,
+          { permission_slip: updateResult.rows[0] },
+          "Permission slip declined",
+        );
+      } catch (err) {
+        return error(res, err.message || "Error declining permission slip", err.statusCode || 500);
       }
     }),
   );
@@ -2436,27 +2583,18 @@ module.exports = (pool) => {
         const slipId = parseInt(req.params.id, 10);
         const organizationId = await getOrganizationId(req, pool);
 
-        const slipResult = await pool.query(
-          "SELECT organization_id FROM permission_slips WHERE id = $1",
-          [slipId],
-        );
-
-        if (slipResult.rows.length === 0) {
-          return error(res, "Permission slip not found", 404);
-        }
-
-        if (slipResult.rows[0].organization_id !== organizationId) {
-          return error(res, "Permission denied", 403);
-        }
-
         const updateResult = await pool.query(
           `UPDATE permission_slips
            SET status = 'archived',
                updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1
+           WHERE id = $1 AND organization_id = $2
            RETURNING *`,
-          [slipId],
+          [slipId, organizationId],
         );
+
+        if (updateResult.rows.length === 0) {
+          return error(res, "Permission slip not found", 404);
+        }
 
         return success(
           res,
