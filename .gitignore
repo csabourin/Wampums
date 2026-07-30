@@ -41,6 +41,10 @@ logs/
 .env.local
 .env.development
 .env.production
+# Any *.env file (cloudflare.env, etc.) — these hold live API tokens
+*.env
+# Railway bucket S3 credentials
+.railway-bucket*.json
 
 # Vite build output
 /dist/
