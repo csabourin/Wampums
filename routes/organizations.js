@@ -138,8 +138,15 @@ module.exports = (pool, logger) => {
   router.get('/status', asyncHandler(async (req, res) => {
     try {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      // `domain` lives on organization_domains, not organizations — selecting it
+      // directly threw "column domain does not exist" and returned 500 on every call.
       const result = await pool.query(
-        'SELECT id, name, domain, created_at FROM organizations WHERE id = $1',
+        `SELECT id, name,
+                (SELECT od.domain FROM organization_domains od
+                  WHERE od.organization_id = organizations.id
+                  ORDER BY od.id LIMIT 1) AS domain,
+                created_at
+           FROM organizations WHERE id = $1`,
         [organizationId]
       );
 
