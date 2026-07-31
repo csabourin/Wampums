@@ -26,15 +26,20 @@ import {
   hasAnyPermission,
   canAccessAdminPanel,
   canCreateOrganization,
-  canManageRoles,
-  canViewRoles,
   canManageForms,
   isParent,
 } from "./utils/PermissionUtils.js";
 import { DashboardCacheManager } from "./utils/DashboardCacheManager.js";
 import { NewsFeed } from "./modules/NewsFeed.js";
 import { CarpoolQuickAccessModal } from "./modules/modals/CarpoolQuickAccessModal.js";
-import { getTileContext, ROLE_WEIGHTS } from "./config/dashboard-customization.js";
+import { ROLE_WEIGHTS } from "./config/dashboard-customization.js";
+import {
+  DASHBOARD_TILES,
+  TOOL_GROUP_ORDER,
+  OFFLINE_AVAILABLE_ROUTES,
+  FINANCE_WORKSPACE_EXTRA_TILES,
+  getTileContext,
+} from "./config/dashboard-tiles.js";
 import {
   applyPalette,
   getDashboardPrefs,
@@ -305,144 +310,20 @@ export class Dashboard extends BaseModule {
     // Apply user's chosen palette as CSS variables (idempotent).
     applyPalette();
 
-    // Permission checks
-    const showFinanceSection = hasAnyPermission("finance.view", "budget.view");
-    const showRoleManagement = canViewRoles();
-    const showOrgCreation = canCreateOrganization();
-    const showReports = hasAnyPermission("reports.view", "reports.export");
-    const showAdminPanel = canAccessAdminPanel();
-    const showFormPermissions = canManageForms();
-
-    // Routes whose JS modules are pre-loaded during camp mode preparation.
-    // When offline, only tiles targeting these routes should be shown.
-    const offlineAvailableRoutes = new Set([
-      "/managePoints",
-      "/manageHonors",
-      "/attendance",
-      "/upcoming-meeting",
-      "/badge-tracker",
-      "/badge-dashboard",
-      "/program-progress",
-      "/activities",
-      "/medication-dispensing",
-      "/medication-planning",
-      "/medication-reception",
-      "/carpool",
-      "/manage-participants",
-      "/manage-groups",
-      "/prepare-offline",
-    ]);
+    // Tiles come from one place only: spa/config/dashboard-tiles.js.
+    // Here we just resolve visibility (permissions, offline) and lay them out.
     const isOffline = !navigator.onLine;
-    const filterOffline = (tiles) =>
-      isOffline ? tiles.filter(t => offlineAvailableRoutes.has(t.href)) : tiles;
-
-    // --- Helper for dynamic sorting by translated label ---
-    const sortByLabel = (items) => {
-      return items.slice().sort((a, b) => {
-        const labelA = translate(a.label).toLocaleLowerCase();
-        const labelB = translate(b.label).toLocaleLowerCase();
-        return labelA.localeCompare(labelB);
-      });
-    };
+    const isVisible = (tile) =>
+      this._passesGate(tile.gate) &&
+      (!isOffline || OFFLINE_AVAILABLE_ROUTES.has(tile.href));
 
     const financeWorkspaceMode = this.mode === "finance-focused";
 
-    // --- Top Row (fixed order) ---
-    const topTiles = filterOffline([
-      { href: "/managePoints", icon: "fa-coins", label: "manage_points" },
-      { href: "/manageHonors", icon: "fa-award", label: "manage_honors" },
-      { href: "/attendance", icon: "fa-clipboard-check", label: "attendance" },
-      { href: "/upcoming-meeting", icon: "fa-calendar-day", label: "upcoming_meeting" },
-    ]);
-
-    // --- Day-to-Day ---
-    const dayToDayTiles = filterOffline(sortByLabel([
-      { href: "/badge-tracker", icon: "fa-chart-bar", label: "badge_tracker_title" },
-      { href: "/program-progress", icon: "fa-timeline", label: "program_progress_nav" },
-      { href: "/parent-contact-list", icon: "fa-address-book", label: "parent_contact_list" },
-      { href: "/medication-dispensing", icon: "fa-pills", label: "medication_dispensing_link" },
-      { href: "/parent-dashboard", icon: "fa-users", label: "vue_parents" },
-    ]));
-
-    // --- Planning & Activities (permission-gated like the other sections) ---
-    const canSeeActivities = hasAnyPermission("activities.view", "activities.create");
-    const canSeeMeetings = hasAnyPermission("meetings.view", "meetings.manage");
-    const planningTiles = filterOffline(sortByLabel([
-      canSeeActivities && { href: "/activities", icon: "fa-calendar-days", label: "activities_calendar" },
-      { href: "/carpool", icon: "fa-car", label: "carpool_coordination", id: "carpool-quick-access" },
-      canSeeMeetings && { href: "/preparation-reunions", icon: "fa-clipboard-list", label: "preparation_reunions" },
-      { href: "/view-participant-documents", icon: "fa-file-lines", label: "view_participant_documents" },
-      { href: "/inventory", icon: "fa-warehouse", label: "inventory_link" },
-      { href: "/material-management", icon: "fa-calendar-check", label: "material_management_link" },
-      { href: "/medication-planning", icon: "fa-pills", label: "medication_planning_link" },
-      { href: "/medication-reception", icon: "fa-hospital", label: "med_reception_link" },
-      { href: "/permission-slips", icon: "fa-file-signature", label: "manage_permission_slips" },
-      canSeeMeetings && { href: "/yearly-planner", icon: "fa-calendar-alt", label: "yearly_planner_nav" },
-    ].filter(Boolean)));
-
-    // --- Unit Management ---
-    const unitTiles = filterOffline(sortByLabel([
-      hasPermission("participants.view") && { href: "/manage-participants", icon: "fa-id-card", label: "manage_names" },
-      hasPermission("groups.view") && { href: "/manage-groups", icon: "fa-people-group", label: "manage_groups" },
-      hasPermission("users.view") && { href: "/manage-users-participants", icon: "fa-user-gear", label: "manage_users_participants" },
-      showReports && { href: "/reports", icon: "fa-chart-line", label: "reports" },
-      showReports && { href: "/group-participant-report", icon: "fa-table-list", label: "feuille_participants" },
-    ].filter(Boolean)));
-
-    // --- District & System Management ---
-    const districtTiles = filterOffline(sortByLabel([
-      showRoleManagement && { href: "/role-management", icon: "fa-user-tag", label: "role_management" },
-      showRoleManagement && { href: "/district-management", icon: "fa-sitemap", label: "district_management_title" },
-      showFormPermissions && { href: "/form-permissions", icon: "fa-clipboard-check", label: "form_permissions" },
-      showOrgCreation && { href: "/create-organization", icon: "fa-building", label: "create_unit" },
-      showAdminPanel && { href: "/admin", icon: "fa-user-shield", label: "administration", id: "admin-link" },
-      showAdminPanel && { href: "/unit-settings", icon: "fa-sliders", label: "unit_settings_title" },
-    ].filter(Boolean)));
-
-    // --- Finance & Fundraising ---
-    const financeTiles = filterOffline(showFinanceSection
-      ? sortByLabel([
-          hasPermission("finance.view") && { href: "/finance", icon: "fa-coins", label: "finance_memberships_tab" },
-          hasPermission("finance.view") && { href: "/finance?tab=definitions", icon: "fa-file-invoice-dollar", label: "finance_definitions_tab" },
-          hasPermission("finance.view") && { href: "/finance?tab=reports", icon: "fa-chart-pie", label: "financial_report" },
-          hasAnyPermission("finance.manage", "finance.view") && { href: "/expenses", icon: "fa-wallet", label: "expense_tracking" },
-          hasAnyPermission("finance.manage", "finance.view") && { href: "/external-revenue", icon: "fa-hand-holding-dollar", label: "external_revenue" },
-          hasAnyPermission("finance.view", "fundraisers.view") && { href: "/revenue-dashboard", icon: "fa-chart-column", label: "revenue_dashboard" },
-          hasPermission("fundraisers.view") && { href: "/fundraisers", icon: "fa-hand-holding-heart", label: "fundraisers" },
-          hasPermission("budget.view") && { href: "/budgets", icon: "fa-sack-dollar", label: "budget_management" },
-        ].filter(Boolean))
-      : []);
-
-    const financeWorkspaceTiles = filterOffline(
-      sortByLabel([
-        hasPermission("finance.view") && { href: "/finance", icon: "fa-coins", label: "finance_memberships_tab" },
-        hasPermission("finance.view") && { href: "/finance?tab=definitions", icon: "fa-file-invoice-dollar", label: "finance_definitions_tab" },
-        hasPermission("finance.view") && { href: "/finance?tab=reports", icon: "fa-chart-pie", label: "financial_report" },
-        hasAnyPermission("finance.manage", "finance.view") && { href: "/expenses", icon: "fa-wallet", label: "expense_tracking" },
-        hasAnyPermission("finance.manage", "finance.view") && { href: "/external-revenue", icon: "fa-hand-holding-dollar", label: "external_revenue" },
-        hasAnyPermission("finance.view", "fundraisers.view") && { href: "/revenue-dashboard", icon: "fa-chart-column", label: "revenue_dashboard" },
-        hasPermission("fundraisers.view") && { href: "/fundraisers", icon: "fa-hand-holding-heart", label: "fundraisers" },
-        hasPermission("budget.view") && { href: "/budgets", icon: "fa-sack-dollar", label: "budget_management" },
-      ].filter(Boolean))
-    );
-
-    const crossRoleTiles = filterOffline(
-      sortByLabel([
-        isParent() && { href: "/parent-dashboard", icon: "fa-users", label: "parent_dashboard" },
-        { href: "/account-info", icon: "fa-user-gear", label: "account_settings" },
-      ].filter(Boolean))
-    );
-
-    // --- News & Communications ---
-    const newsCommsTiles = filterOffline(sortByLabel([
-      hasPermission("communications.send") && { href: "/communications", icon: "fa-comments", label: "communications_title" },
-      hasPermission("communications.send") && { href: "/mailing-list", icon: "fa-envelope-open-text", label: "mailing_list" },
-    ].filter(Boolean)));
-
-    // --- Helper to render a tile group ---
-    const renderTileGroup = (titleKey, tiles) => {
-      if (!tiles.length) return "";
-      return `
+    // --- Render content ---
+    if (financeWorkspaceMode) {
+      const renderTileGroup = (titleKey, tiles) => {
+        if (!tiles.length) return "";
+        return `
         <section class="dashboard-section">
           <h3>${translate(titleKey)}</h3>
           <div class="manage-items">
@@ -455,10 +336,15 @@ export class Dashboard extends BaseModule {
           </div>
         </section>
       `;
-    };
+      };
 
-    // --- Render content ---
-    if (financeWorkspaceMode) {
+      const financeWorkspaceTiles = DASHBOARD_TILES.filter(
+        (tile) => tile.domain === "money" && isVisible(tile),
+      );
+      const crossRoleTiles = FINANCE_WORKSPACE_EXTRA_TILES.filter(
+        (tile) => (!tile.parentOnly || isParent()) && (!isOffline || OFFLINE_AVAILABLE_ROUTES.has(tile.href)),
+      );
+
       const content = `
         <h1>${translate("dashboard_finance_section")}</h1>
         <h2>${this.organizationName}</h2>
@@ -472,16 +358,7 @@ export class Dashboard extends BaseModule {
     }
 
     // --- Moment-based layout ---
-    // Pool all permission-granted tiles, then route them by tile context.
-    const allTiles = [
-      ...topTiles,
-      ...dayToDayTiles,
-      ...planningTiles,
-      ...unitTiles,
-      ...districtTiles,
-      ...financeTiles,
-      ...newsCommsTiles,
-    ];
+    const allTiles = DASHBOARD_TILES.filter(isVisible);
 
     // Snapshot user prefs once per render — avoids re-reading localStorage
     // for every tile (hiddenTiles lookup) and every Tools group (collapsed
@@ -548,6 +425,32 @@ export class Dashboard extends BaseModule {
     if (roles.includes("parent") || roles.includes("guardian")) return "parent";
     if (roles.includes("animator") || roles.includes("animateur") || roles.includes("leader")) return "animator";
     return "default";
+  }
+
+  /**
+   * Resolve a tile's declarative visibility gate.
+   *
+   * Named checks map to PermissionUtils helpers that are more than a single
+   * permission lookup (they also accept legacy role payloads).
+   *
+   * @param {{permission?: string, any?: string[], check?: string}} [gate]
+   * @returns {boolean} True when the tile should be shown.
+   */
+  _passesGate(gate) {
+    if (!gate) return true;
+    if (gate.permission) return hasPermission(gate.permission);
+    if (gate.any) return hasAnyPermission(...gate.any);
+    switch (gate.check) {
+      case "adminPanel":
+        return canAccessAdminPanel();
+      case "manageForms":
+        return canManageForms();
+      case "createOrganization":
+        return canCreateOrganization();
+      default:
+        debugError("Unknown dashboard tile gate:", gate);
+        return false;
+    }
   }
 
   _getTileContext(tile) {
@@ -967,9 +870,28 @@ export class Dashboard extends BaseModule {
       groups.get(key).push(tile);
     });
 
+    // Explicit group order, so it never depends on which tile happened to sort
+    // first. Domains missing from the list are appended rather than dropped —
+    // an unlisted domain must never make a tile disappear.
+    const orderedDomains = [
+      ...TOOL_GROUP_ORDER.filter((domain) => groups.has(domain)),
+      ...Array.from(groups.keys()).filter((domain) => !TOOL_GROUP_ORDER.includes(domain)),
+    ];
+
     const collapsedSet = new Set(this._prefs?.collapsedToolGroups || []);
-    const groupHtml = Array.from(groups.entries())
-      .map(([domain, tiles]) => {
+    // Until the user collapses or expands anything themselves, keep the group
+    // their role lives in open — otherwise a treasurer opens "Argent" on every
+    // visit. ROLE_WEIGHTS gives weight 0 to that domain.
+    if (!this._prefs?.toolGroupsTouched) {
+      const weights = ROLE_WEIGHTS[this._dominantRoleKey()] || {};
+      Object.entries(weights)
+        .filter(([, weight]) => weight === 0)
+        .forEach(([domain]) => collapsedSet.delete(domain));
+    }
+
+    const groupHtml = orderedDomains
+      .map((domain) => {
+        const tiles = groups.get(domain);
         const title = translate(`domain_${domain}`) || domain;
         const grid = tiles.map((t) => this._renderTile(t, { small: true })).join("");
         const isCollapsed = collapsedSet.has(domain);
@@ -1021,14 +943,6 @@ export class Dashboard extends BaseModule {
       </button>
     `;
   }
-
-  // --- Translation key suggestions for new section headings ---
-  // "dashboard_day_to_day_section": "Day-to-Day",
-  // "dashboard_planning_section": "Planning & Activities",
-  // "dashboard_unit_management_section": "Unit Management",
-  // "dashboard_district_system_section": "District & System Management",
-  // "dashboard_finance_section": "Finance & Fundraising",
-  // "dashboard_news_communications_section": "News & Communications",
 
   // -----------------------------
   // POINTS LIST

@@ -7,17 +7,23 @@
  */
 
 import { PALETTES, DEFAULT_PALETTE_ID, DOMAINS } from "../config/dashboard-customization.js";
+import { DEFAULT_COLLAPSED_TOOL_GROUPS } from "../config/dashboard-tiles.js";
 import { debugLog } from "./DebugUtils.js";
 
 const STORAGE_KEY = "wampums.dashboard.prefs.v1";
 const LIGHT_TEXT = "#ffffff";
 const DARK_TEXT = "#000000";
 
+// `collapsedToolGroups` starts non-empty so a first-time dashboard shows the
+// groups people actually open. `toolGroupsTouched` flips on the first manual
+// toggle; until then the dashboard is free to soften the default for the
+// user's role (a treasurer shouldn't have to open "Argent" every time).
 const DEFAULT_PREFS = Object.freeze({
   paletteId: DEFAULT_PALETTE_ID,
   hiddenTiles: [],
   pinnedActions: [],
-  collapsedToolGroups: [],
+  collapsedToolGroups: DEFAULT_COLLAPSED_TOOL_GROUPS,
+  toolGroupsTouched: false,
 });
 
 function readPrefs() {
@@ -60,6 +66,7 @@ export function setHiddenTiles(hrefs) {
 export function setCollapsedToolGroups(groups) {
   const prefs = readPrefs();
   prefs.collapsedToolGroups = Array.from(new Set(groups || []));
+  prefs.toolGroupsTouched = true;
   writePrefs(prefs);
 }
 

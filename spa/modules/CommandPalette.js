@@ -158,14 +158,45 @@ export class CommandPalette {
     });
   }
 
+  /**
+   * Search synonyms for a tile, e.g. "téléphone, appeler, urgence" for
+   * "Contacter les parents". Lets people find a tile by the word they have in
+   * mind rather than the word we chose.
+   *
+   * `translate()` echoes back unknown keys, so an absent alias key would
+   * otherwise match searches for "tile" — only tiles that declare `aliases`
+   * are consulted, and a passthrough result is discarded.
+   *
+   * @param {Object} tile
+   * @returns {string} Lowercased alias text, empty when the tile has none.
+   */
+  _aliasText(tile) {
+    if (!tile.aliases) return "";
+    const text = translate(tile.aliases);
+    if (!text || text === tile.aliases) return "";
+    return text.toLocaleLowerCase();
+  }
+
+  /**
+   * Strip diacritics so "presence" finds "présences".
+   *
+   * @param {string} value
+   * @returns {string}
+   */
+  _fold(value) {
+    return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+
   _filter(query) {
-    const q = (query || "").trim().toLocaleLowerCase();
+    const q = this._fold((query || "").trim().toLocaleLowerCase());
     const scored = this.tiles
       .map((tile) => {
-        const label = translate(tile.label).toLocaleLowerCase();
         if (!q) return { tile, score: 0 };
-        if (label.startsWith(q)) return { tile, score: 3 };
-        if (label.includes(q)) return { tile, score: 2 };
+        const label = this._fold(translate(tile.label).toLocaleLowerCase());
+        if (label.startsWith(q)) return { tile, score: 4 };
+        if (label.includes(q)) return { tile, score: 3 };
+        // An alias hit ranks below every label hit but above fuzzy matching.
+        if (this._fold(this._aliasText(tile)).includes(q)) return { tile, score: 2 };
         // Fallback fuzzy: every char present in order
         let i = 0;
         for (const c of label) {

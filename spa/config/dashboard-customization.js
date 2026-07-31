@@ -3,20 +3,23 @@
  *
  * - DOMAINS: semantic groupings used for color-coding
  * - PALETTES: visual presets the user can switch between (all WCAG-AA on white)
- * - TILE_CONTEXT: per-tile moment / domain / role priority
  *
- * Tiles not listed here fall back to defaults (moment=tools, domain=neutral).
+ * Tiles themselves — including their moment/domain — live in
+ * `dashboard-tiles.js`, the single source of truth.
  */
 
 export const DOMAINS = [
-  "people",       // participants, parents, contacts, groups
+  "people",       // participants, parents, contacts, groups, messages to families
   "attendance",   // points, honors, meeting, attendance
   "progression",  // badges, programme
   "logistics",    // carpool, inventory, material
   "safety",       // medication, incidents, permission slips
-  "communications", // mail, comms
   "money",        // finance, fundraisers, budgets, expenses
-  "admin",        // org admin, roles, users
+  "admin",        // unit settings, roles, district
+  // Kept so their CSS variables stay defined: no tile uses them, but
+  // `applyPalette` writes a var per domain and `_renderTile` falls back to
+  // `neutral` for anything unrecognised.
+  "communications",
   "neutral",
 ];
 
@@ -124,64 +127,6 @@ export const PALETTES = {
 export const DEFAULT_PALETTE_ID = "domains";
 
 /**
- * Per-tile context. Keys are tile href values.
- * Properties:
- *   moment: "now" | "week" | "tools"  (which slot on the dashboard)
- *   domain: one of DOMAINS
- *   priority: optional ordering inside a moment bucket (lower wins)
- *   rolePriority: optional map of role name -> integer priority (lower wins).
- *                 If absent, defaults are used.
- */
-export const TILE_CONTEXT = {
-  // --- "Now" tiles: actions tied to a meeting in progress / today ---
-  "/managePoints": { moment: "now", domain: "attendance", priority: 0 },
-  "/attendance": { moment: "now", domain: "attendance", priority: 1 },
-  "/manageHonors": { moment: "now", domain: "attendance", priority: 2 },
-  "/upcoming-meeting": { moment: "now", domain: "attendance", priority: 3 },
-
-  // --- "This week" tiles: planning horizon ---
-  "/activities": { moment: "week", domain: "logistics" },
-  "/carpool": { moment: "week", domain: "logistics" },
-  "/preparation-reunions": { moment: "week", domain: "attendance" },
-  "/permission-slips": { moment: "week", domain: "safety" },
-  "/medication-planning": { moment: "week", domain: "safety" },
-  "/material-management": { moment: "week", domain: "logistics" },
-  "/yearly-planner": { moment: "week", domain: "logistics" },
-
-  // --- Tools / anytime ---
-  "/badge-tracker": { moment: "tools", domain: "progression" },
-  "/program-progress": { moment: "tools", domain: "progression" },
-  "/parent-contact-list": { moment: "tools", domain: "people" },
-  "/parent-dashboard": { moment: "tools", domain: "people" },
-  "/view-participant-documents": { moment: "tools", domain: "people" },
-  "/inventory": { moment: "tools", domain: "logistics" },
-  "/medication-dispensing": { moment: "tools", domain: "safety" },
-  "/medication-reception": { moment: "tools", domain: "safety" },
-  "/manage-participants": { moment: "tools", domain: "people" },
-  "/manage-groups": { moment: "tools", domain: "people" },
-  "/manage-users-participants": { moment: "tools", domain: "admin" },
-  "/reports": { moment: "tools", domain: "admin" },
-  "/group-participant-report": { moment: "tools", domain: "admin" },
-  "/role-management": { moment: "tools", domain: "admin" },
-  "/district-management": { moment: "tools", domain: "admin" },
-  "/form-permissions": { moment: "tools", domain: "admin" },
-  "/create-organization": { moment: "tools", domain: "admin" },
-  "/admin": { moment: "tools", domain: "admin" },
-  "/finance": { moment: "tools", domain: "money" },
-  "/finance?tab=definitions": { moment: "tools", domain: "money" },
-  "/finance?tab=reports": { moment: "tools", domain: "money" },
-  "/expenses": { moment: "tools", domain: "money" },
-  "/external-revenue": { moment: "tools", domain: "money" },
-  "/revenue-dashboard": { moment: "tools", domain: "money" },
-  "/fundraisers": { moment: "tools", domain: "money" },
-  "/budgets": { moment: "tools", domain: "money" },
-  "/communications": { moment: "tools", domain: "communications" },
-  "/mailing-list": { moment: "tools", domain: "communications" },
-  "/unit-settings": { moment: "tools", domain: "admin" },
-  "/account-info": { moment: "tools", domain: "admin" },
-};
-
-/**
  * Role-based default ordering hint. When two tiles share a moment, lower
  * `roleWeight` floats to the top of that slot.
  *
@@ -195,10 +140,6 @@ export const ROLE_WEIGHTS = {
   admin: { admin: 0, money: 1, attendance: 2 },
   default: {},
 };
-
-export function getTileContext(href) {
-  return TILE_CONTEXT[href] || { moment: "tools", domain: "neutral" };
-}
 
 export function getPalette(id) {
   return PALETTES[id] || PALETTES[DEFAULT_PALETTE_ID];
