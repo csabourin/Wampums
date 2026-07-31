@@ -32,7 +32,11 @@ import {
 import { DashboardCacheManager } from "./utils/DashboardCacheManager.js";
 import { NewsFeed } from "./modules/NewsFeed.js";
 import { CarpoolQuickAccessModal } from "./modules/modals/CarpoolQuickAccessModal.js";
-import { ROLE_WEIGHTS } from "./config/dashboard-customization.js";
+import {
+  ROLE_WEIGHTS,
+  ROLE_WEIGHT_PROFILES,
+  ROLE_WEIGHT_PROFILE_PRECEDENCE,
+} from "./config/dashboard-customization.js";
 import {
   DASHBOARD_TILES,
   TOOL_GROUP_ORDER,
@@ -418,13 +422,36 @@ export class Dashboard extends BaseModule {
   //   Moment-layout helpers
   // -----------------------------
 
+  /**
+   * Pick the ROLE_WEIGHTS profile that matches the user's roles.
+   *
+   * Canonical role names come from `CONFIG.ROLES`; the free-form names below are
+   * only kept for legacy token payloads that predate that list.
+   *
+   * @returns {string} Key into ROLE_WEIGHTS, or "default" when no role matches.
+   */
   _dominantRoleKey() {
     const roles = (this.app?.userRoles || []).map((r) => (r || "").toString().toLowerCase());
-    if (roles.includes("admin") || roles.includes("super_admin")) return "admin";
-    if (roles.some((r) => r.includes("treasur") || r.includes("tresor"))) return "treasurer";
-    if (roles.includes("parent") || roles.includes("guardian")) return "parent";
-    if (roles.includes("animator") || roles.includes("animateur") || roles.includes("leader")) return "animator";
-    return "default";
+    const profiles = new Set();
+
+    roles.forEach((role) => {
+      const canonical = ROLE_WEIGHT_PROFILES[role];
+      if (canonical) {
+        profiles.add(canonical);
+        return;
+      }
+      if (role === "admin" || role === "super_admin") {
+        profiles.add("admin");
+      } else if (role.includes("treasur") || role.includes("tresor")) {
+        profiles.add("treasurer");
+      } else if (role === "guardian") {
+        profiles.add("parent");
+      } else if (role === "animator" || role === "animateur") {
+        profiles.add("animator");
+      }
+    });
+
+    return ROLE_WEIGHT_PROFILE_PRECEDENCE.find((key) => profiles.has(key)) || "default";
   }
 
   /**

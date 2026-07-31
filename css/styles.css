@@ -11158,9 +11158,15 @@ body.modal-open {
   min-height: 6rem;
 }
 
+/* Each mount owns one container inside the panel, so a tab switch made while a
+   module is still initializing cannot let that module repaint the live tab. */
+.tabbed-page__mount[hidden] {
+  display: none;
+}
+
 /* Hosted pages draw their own container; strip the outer padding they would
    otherwise stack on top of the shell's. */
-.tabbed-page__panel > .container {
+.tabbed-page__mount > .container {
   padding-left: 0;
   padding-right: 0;
 }
