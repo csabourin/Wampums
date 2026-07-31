@@ -846,9 +846,12 @@ export class Finance extends BaseModule {
 
     document.querySelectorAll('[data-action="delete-definition"]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
-        const id = e.currentTarget.dataset.id;
+        // `currentTarget` is nulled once dispatch ends, so capture it before
+        // awaiting the confirmation dialog.
+        const trigger = e.currentTarget;
+        const id = trigger.dataset.id;
         if (await confirmDestructive(translate('confirm_delete'))) {
-          await withButtonLoading(e.currentTarget, async () => {
+          await withButtonLoading(trigger, async () => {
             await deleteFeeDefinition(id);
             await this.loadCoreData();
             this.render();
