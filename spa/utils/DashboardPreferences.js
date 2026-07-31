@@ -13,6 +13,20 @@ const STORAGE_KEY = "wampums.dashboard.prefs.v1";
 const LIGHT_TEXT = "#ffffff";
 const DARK_TEXT = "#000000";
 
+/** WCAG 2.1 AA minimum contrast for normal-size text. */
+const MIN_CONTRAST_AA = 4.5;
+/** How far the hover tone moves away from the resting tile colour. */
+const HOVER_SHIFT = 0.16;
+/** Extra nudge applied per iteration when the first shift is not AA yet. */
+const HOVER_SHIFT_STEP = 0.1;
+/** Guard against an unbounded loop on pathological colours. */
+const MAX_HOVER_SHIFT_STEPS = 12;
+/**
+ * Below this relative luminance a tile is already near-black, so the hover
+ * tone has to get lighter rather than darker to stay visible.
+ */
+const NEAR_BLACK_LUMINANCE = 0.06;
+
 const DEFAULT_PREFS = Object.freeze({
   paletteId: DEFAULT_PALETTE_ID,
   hiddenTiles: [],
@@ -64,6 +78,65 @@ export function setCollapsedToolGroups(groups) {
 }
 
 /**
+ * Parse a six-digit hexadecimal colour into 0-255 channels.
+ *
+ * @param {string} color - A six-digit hexadecimal colour.
+ * @returns {number[]|null} `[r, g, b]`, or null when the input is not parseable.
+ */
+function parseHexColor(color) {
+  const match = /^#([0-9a-f]{6})$/i.exec(color);
+  if (!match) return null;
+
+  return match[1].match(/.{2}/g).map((channel) => Number.parseInt(channel, 16));
+}
+
+/**
+ * Serialise 0-255 channels back to a six-digit hexadecimal colour.
+ *
+ * @param {number[]} channels - `[r, g, b]` in the 0-255 range.
+ * @returns {string} A six-digit hexadecimal colour.
+ */
+function toHexColor(channels) {
+  return `#${channels
+    .map((channel) => {
+      const clamped = Math.max(0, Math.min(255, Math.round(channel)));
+      return clamped.toString(16).padStart(2, "0");
+    })
+    .join("")}`;
+}
+
+/**
+ * WCAG relative luminance of 0-255 channels.
+ *
+ * @param {number[]} channels - `[r, g, b]` in the 0-255 range.
+ * @returns {number} Relative luminance between 0 and 1.
+ */
+function relativeLuminance(channels) {
+  const linear = channels
+    .map((channel) => channel / 255)
+    .map((channel) =>
+      channel <= 0.04045
+        ? channel / 12.92
+        : ((channel + 0.055) / 1.055) ** 2.4,
+    );
+
+  return (0.2126 * linear[0]) + (0.7152 * linear[1]) + (0.0722 * linear[2]);
+}
+
+/**
+ * WCAG contrast ratio between two luminance values.
+ *
+ * @param {number} a - First relative luminance.
+ * @param {number} b - Second relative luminance.
+ * @returns {number} Contrast ratio between 1 and 21.
+ */
+function contrastRatio(a, b) {
+  const lighter = Math.max(a, b);
+  const darker = Math.min(a, b);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/**
  * Pick black or white text for a background color using WCAG relative
  * luminance. Choosing the higher-contrast option guarantees at least 4.5:1
  * for valid six-digit hex palette colors.
@@ -72,25 +145,63 @@ export function setCollapsedToolGroups(groups) {
  * @returns {string} Accessible foreground color.
  */
 function getAccessibleForeground(backgroundColor) {
-  const match = /^#([0-9a-f]{6})$/i.exec(backgroundColor);
-  if (!match) return LIGHT_TEXT;
+  const channels = parseHexColor(backgroundColor);
+  if (!channels) return LIGHT_TEXT;
 
-  const channels = match[1]
-    .match(/.{2}/g)
-    .map((channel) => Number.parseInt(channel, 16) / 255)
-    .map((channel) =>
-      channel <= 0.04045
-        ? channel / 12.92
-        : ((channel + 0.055) / 1.055) ** 2.4,
-    );
-  const luminance =
-    (0.2126 * channels[0]) +
-    (0.7152 * channels[1]) +
-    (0.0722 * channels[2]);
+  const luminance = relativeLuminance(channels);
   const lightContrast = 1.05 / (luminance + 0.05);
   const darkContrast = (luminance + 0.05) / 0.05;
 
   return lightContrast >= darkContrast ? LIGHT_TEXT : DARK_TEXT;
+}
+
+/**
+ * Derive the hover/active tone for a tile.
+ *
+ * The previous behaviour reused the palette's `accent` — the same colour as the
+ * tile border — which read as "this tile is selected" rather than "hovered",
+ * and left tiles looking permanently stuck in the darkest shade of their
+ * domain colour. Instead we shift the resting colour a controlled step away
+ * from itself (darker normally, lighter for near-black tiles so the change
+ * stays visible) and keep stepping until the paired text colour clears WCAG
+ * 2.1 AA at 4.5:1.
+ *
+ * @param {string} backgroundColor - The resting tile colour.
+ * @returns {{bg: string, fg: string}} An AA-compliant hover pair.
+ */
+function deriveHoverTone(backgroundColor) {
+  const channels = parseHexColor(backgroundColor);
+  if (!channels) {
+    return { bg: backgroundColor, fg: getAccessibleForeground(backgroundColor) };
+  }
+
+  const lighten = relativeLuminance(channels) < NEAR_BLACK_LUMINANCE;
+  let shift = HOVER_SHIFT;
+  let candidate = channels;
+
+  for (let step = 0; step <= MAX_HOVER_SHIFT_STEPS; step += 1) {
+    candidate = channels.map((channel) =>
+      lighten
+        ? channel + ((255 - channel) * shift)
+        : channel * (1 - shift),
+    );
+
+    const hex = toHexColor(candidate);
+    const fg = getAccessibleForeground(hex);
+    const pairContrast = contrastRatio(
+      relativeLuminance(parseHexColor(hex)),
+      relativeLuminance(parseHexColor(fg)),
+    );
+
+    if (pairContrast >= MIN_CONTRAST_AA) {
+      return { bg: hex, fg };
+    }
+
+    shift += HOVER_SHIFT_STEP;
+  }
+
+  const fallback = toHexColor(candidate);
+  return { bg: fallback, fg: getAccessibleForeground(fallback) };
 }
 
 /**
@@ -107,11 +218,10 @@ export function applyPalette(paletteId = null) {
     root.style.setProperty(`--tile-bg-${domain}`, tones.bg);
     root.style.setProperty(`--tile-fg-${domain}`, tones.fg);
     root.style.setProperty(`--tile-accent-${domain}`, tones.accent);
-    root.style.setProperty(`--tile-hover-bg-${domain}`, tones.accent);
-    root.style.setProperty(
-      `--tile-hover-fg-${domain}`,
-      getAccessibleForeground(tones.accent),
-    );
+
+    const hover = deriveHoverTone(tones.bg);
+    root.style.setProperty(`--tile-hover-bg-${domain}`, hover.bg);
+    root.style.setProperty(`--tile-hover-fg-${domain}`, hover.fg);
   });
 
   root.dataset.dashboardPalette = palette.id;
