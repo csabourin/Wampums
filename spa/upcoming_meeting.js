@@ -12,14 +12,27 @@ import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { canApproveBadges } from "./utils/PermissionUtils.js";
 import { getUpcomingBirthdays } from "./utils/BirthdayUtils.js";
+import { getMountPoint, resolveMountOptions } from "./utils/PageMount.js";
 
 export class UpcomingMeeting {
-  constructor(app) {
+  constructor(app, options = {}) {
     this.app = app;
+    Object.assign(this, resolveMountOptions(options));
     this.meetingDates = [];
     this.closestMeeting = null;
     this.meetingDetails = null;
     this.participants = [];
+  }
+
+  /**
+   * Back link + title, omitted when a TabbedPage host already renders them.
+   *
+   * @returns {string} HTML, empty when embedded.
+   */
+  renderHeader() {
+    if (this.embedded) return "";
+    return `<a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+            <h1>${translate("tile_upcoming_meeting")}</h1>`;
   }
 
   async init() {
@@ -376,13 +389,10 @@ export class UpcomingMeeting {
   async render() {
     if (!this.closestMeeting) {
       setContent(
-        document.getElementById(
-          "app",
-        ),
+        getMountPoint(this),
         `
                                                                 <div class="upcoming-meeting">
-                                                                                <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-                                                                                <h1>${translate("upcoming_meeting")}</h1>
+                                                                                ${this.renderHeader()}
                                                                                 <p>${translate("no_upcoming_meeting")}</p>
                                                                 </div>
                                                 `,
@@ -474,8 +484,7 @@ export class UpcomingMeeting {
 
     const content = `
                                                 <div class="upcoming-meeting">
-                                                                <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-                                                                <h1>${translate("upcoming_meeting")}</h1>
+                                                                ${this.renderHeader()}
                                                                 ${futureMeetings.length > 1 ? `
                                                                 <div class="meeting-selector">
                                                                                 <label for="meeting-select">${translate("select_meeting")}:</label>
@@ -514,10 +523,7 @@ export class UpcomingMeeting {
                                                 </div>
                                 `;
 
-    setContent(
-      document.getElementById("app"),
-      content,
-    );
+    setContent(getMountPoint(this), content);
 
     // Add event listener for meeting selector
     const selector = document.getElementById('meeting-select');
@@ -689,17 +695,13 @@ export class UpcomingMeeting {
   renderError() {
     const content = `
                                                 <div class="upcoming-meeting">
-                                                                <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-                                                                <h1>${translate("upcoming_meeting")}</h1>
+                                                                ${this.renderHeader()}
                                                                 <div class="error-message">
                                                                                 <p>${translate("error_loading_upcoming_meeting")}</p>
                                                                                 <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
                                                                 </div>
                                                 </div>
                                 `;
-    setContent(
-      document.getElementById("app"),
-      content,
-    );
+    setContent(getMountPoint(this), content);
   }
 }

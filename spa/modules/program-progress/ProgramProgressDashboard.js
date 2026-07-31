@@ -5,6 +5,7 @@ import { setContent } from "../../utils/DOMUtils.js";
 import { escapeHTML } from "../../utils/SecurityUtils.js";
 import { formatDateShort, parseDate } from "../../utils/DateUtils.js";
 import { BaseModule } from "../../utils/BaseModule.js";
+import { getMountPoint, resolveMountOptions } from "../../utils/PageMount.js";
 
 const SOURCE_LABEL_KEYS = {
   badge_presentation: "program_progress_source_badge_presentation",
@@ -29,6 +30,7 @@ export class ProgramProgressDashboard extends BaseModule {
     this.viewOnly = !!options.viewOnly;
     this.returnUrl = options.returnUrl || "/dashboard";
     this.returnLabelKey = options.returnLabelKey || "back_to_dashboard";
+    Object.assign(this, resolveMountOptions(options));
   }
 
   async init() {
@@ -116,11 +118,20 @@ export class ProgramProgressDashboard extends BaseModule {
       </div>
     `;
 
+    // When embedded in a TabbedPage the host already draws the back link and
+    // the page title; repeating them would stack two headings.
+    const heading = this.embedded
+      ? ""
+      : `<h1>${translate("program_progress_dashboard_title")}</h1>`;
+    const backLink = this.embedded
+      ? ""
+      : `<a href="${this.returnUrl}" class="back-link">${translate(this.returnLabelKey)}</a>`;
+
     const content = `
       <div class="container">
-        <a href="${this.returnUrl}" class="back-link">${translate(this.returnLabelKey)}</a>
+        ${backLink}
         <section class="card" style="margin-top: 1rem;">
-          <h1>${translate("program_progress_dashboard_title")}</h1>
+          ${heading}
           <p class="muted-text">${translate("program_progress_dashboard_subtitle")}</p>
           ${participantFilter}
           <div class="program-progress__summary" style="margin: 1rem 0; display:flex; gap:.5rem; flex-wrap:wrap;">
@@ -147,7 +158,7 @@ export class ProgramProgressDashboard extends BaseModule {
       </div>
     `;
 
-    setContent(document.getElementById("app"), content);
+    setContent(getMountPoint(this), content);
   }
 
   attachEventListeners() {

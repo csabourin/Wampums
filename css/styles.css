@@ -8470,22 +8470,20 @@ details p {
   color: #4b5563;
 }
 
+/* Mobile-first: these tabs are the only way to reach the fee definitions and
+   the financial report now that the dashboard no longer links to `?tab=`
+   directly. Hiding them below 768px made those tabs unreachable on a phone. */
 .finance-tabs {
-  display: none;
-}
-
-@media (min-width: 768px) {
-  .finance-tabs {
-    display: flex;
-    gap: 0.5rem;
-    overflow-x: auto;
-    padding-bottom: 0.25rem;
-  }
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.25rem;
 }
 
 .finance-tab {
-  flex: 1;
-  min-width: 160px;
+  flex: 1 0 auto;
+  min-width: 140px;
   border: 1px solid #e5e7eb;
   background: #fff;
   padding: 0.75rem;
@@ -11057,4 +11055,80 @@ body.modal-open {
 [data-modal-close] {
   min-width: 44px;
   min-height: 44px;
+}
+
+/* ==========================================================================
+   Tabbed pages (spa/modules/TabbedPage.js)
+   Shell for destinations that merge several former pages under one heading.
+   Mobile-first: the tab strip scrolls horizontally rather than disappearing.
+   ========================================================================== */
+
+.tabbed-page__header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.tabbed-page__header h1 {
+  margin: 0;
+}
+
+.tabbed-page__tabs {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.25rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tabbed-page__tab {
+  flex: 1 0 auto;
+  min-width: 120px;
+  min-height: 44px;
+  border: 1px solid #e5e7eb;
+  border-bottom: none;
+  background: #fff;
+  padding: 0.6rem 1rem;
+  border-radius: 10px 10px 0 0;
+  font-weight: 700;
+  color: #111827;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tabbed-page__tab:focus-visible {
+  outline: 3px solid #1f6feb;
+  outline-offset: 2px;
+}
+
+.tabbed-page__tab.is-active {
+  background: #0f7a5a;
+  border-color: #0f7a5a;
+  color: #fff;
+}
+
+.tabbed-page__panel {
+  min-height: 6rem;
+}
+
+/* Hosted pages draw their own container; strip the outer padding they would
+   otherwise stack on top of the shell's. */
+.tabbed-page__panel > .container {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+@media (min-width: 768px) {
+  .tabbed-page__header {
+    flex-direction: row;
+    align-items: center;
+    gap: 1rem;
+  }
 }

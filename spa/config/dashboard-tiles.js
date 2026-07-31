@@ -62,10 +62,11 @@ export const DASHBOARD_TILES = [
     priority: 2,
   },
   {
-    href: "/upcoming-meeting",
+    // Merged destination: "Prochaine réunion" + "Préparer la réunion".
+    href: "/reunions",
     icon: "fa-calendar-day",
-    label: "tile_upcoming_meeting",
-    aliases: "tile_upcoming_meeting_aliases",
+    label: "tile_meetings",
+    aliases: "tile_meetings_aliases",
     moment: "now",
     domain: "attendance",
     priority: 3,
@@ -74,15 +75,6 @@ export const DASHBOARD_TILES = [
   // ---------------------------------------------------------------
   // CETTE SEMAINE — what has to be ready before the next outing.
   // ---------------------------------------------------------------
-  {
-    href: "/preparation-reunions",
-    icon: "fa-clipboard-list",
-    label: "tile_preparation_reunions",
-    aliases: "tile_preparation_reunions_aliases",
-    moment: "week",
-    domain: "attendance",
-    gate: { any: ["meetings.view", "meetings.manage"] },
-  },
   {
     href: "/permission-slips",
     icon: "fa-file-signature",
@@ -184,6 +176,17 @@ export const DASHBOARD_TILES = [
     gate: { any: ["reports.view", "reports.export"] },
   },
   {
+    // Merged destination: "Suivre les badges" + "Étapes du programme".
+    // Was its own "Progression" group until that merge left it with a single
+    // tile — an accordion around one item is worse than no accordion.
+    href: "/progression",
+    icon: "fa-chart-bar",
+    label: "tile_progression",
+    aliases: "tile_progression_aliases",
+    moment: "tools",
+    domain: "people",
+  },
+  {
     href: "/parent-dashboard",
     icon: "fa-users",
     label: "tile_parent_preview",
@@ -208,26 +211,6 @@ export const DASHBOARD_TILES = [
     moment: "tools",
     domain: "people",
     gate: { permission: "communications.send" },
-  },
-
-  // ---------------------------------------------------------------
-  // PROGRESSION
-  // ---------------------------------------------------------------
-  {
-    href: "/badge-tracker",
-    icon: "fa-chart-bar",
-    label: "tile_badge_tracker",
-    aliases: "tile_badge_tracker_aliases",
-    moment: "tools",
-    domain: "progression",
-  },
-  {
-    href: "/program-progress",
-    icon: "fa-timeline",
-    label: "tile_program_progress",
-    aliases: "tile_program_progress_aliases",
-    moment: "tools",
-    domain: "progression",
   },
 
   // ---------------------------------------------------------------
@@ -384,25 +367,16 @@ export const DASHBOARD_TILES = [
     gate: { check: "manageForms" },
   },
   {
-    href: "/admin",
-    icon: "fa-user-shield",
-    label: "tile_admin_panel",
-    aliases: "tile_admin_panel_aliases",
+    // Merged destination: "Espace district" + "Unités du district".
+    href: "/district",
+    icon: "fa-sitemap",
+    label: "tile_district",
+    aliases: "tile_district_aliases",
     moment: "tools",
     domain: "admin",
     priority: 30,
     gate: { check: "adminPanel" },
     id: "admin-link",
-  },
-  {
-    href: "/district-management",
-    icon: "fa-sitemap",
-    label: "tile_district_management",
-    aliases: "tile_district_management_aliases",
-    moment: "tools",
-    domain: "admin",
-    priority: 31,
-    gate: { permission: "roles.view" },
   },
   {
     href: "/create-organization",
@@ -423,7 +397,6 @@ export const DASHBOARD_TILES = [
  */
 export const TOOL_GROUP_ORDER = [
   "people",
-  "progression",
   "safety",
   "logistics",
   "money",
@@ -445,9 +418,11 @@ export const OFFLINE_AVAILABLE_ROUTES = new Set([
   "/manageHonors",
   "/attendance",
   "/upcoming-meeting",
+  "/reunions",
   "/badge-tracker",
   "/badge-dashboard",
   "/program-progress",
+  "/progression",
   "/activities",
   "/medication-dispensing",
   "/medication-planning",

@@ -9,6 +9,7 @@ import { setContent } from "./utils/DOMUtils.js";
 import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { checkSession } from "./utils/SessionUtils.js";
 import { dismissActiveDialog } from "./utils/DialogUtils.js";
+import { TABBED_PAGES, MERGED_ROUTE_REDIRECTS } from "./config/tabbed-pages.js";
 import {
   canApproveBadges,
   // ... (imports continue)
@@ -138,6 +139,11 @@ const routes = {
 
   "/": "dashboard",
   "/admin": "admin",
+  // Merged destinations (see spa/config/tabbed-pages.js); the pages they
+  // replace stay reachable through MERGED_ROUTE_REDIRECTS.
+  "/progression": "progression",
+  "/reunions": "reunions",
+  "/district": "district",
   "/dashboard": "dashboard",
   "/main-dashboard": "mainDashboard",
   "/login": "login",
@@ -295,6 +301,16 @@ export class Router {
     // Check if the path ends with .html
     if (path.endsWith('.html')) {
       // Do nothing, let the server handle this request
+      return;
+    }
+
+    // Pages merged into a tabbed destination: keep old links, bookmarks and
+    // service-worker-cached URLs working by sending them to the right tab.
+    const mergedTarget = MERGED_ROUTE_REDIRECTS[path.split("?")[0]];
+    if (mergedTarget) {
+      debugLog("Redirecting merged route:", path, "->", mergedTarget);
+      history.replaceState(null, "", mergedTarget);
+      await this.route(mergedTarget);
       return;
     }
     const [routeName, param] = this.getRouteNameAndParam(path);
@@ -734,6 +750,24 @@ export class Router {
           }
           await this.loadBadgeDashboard();
           break;
+        case "progression":
+          if (!guard(canViewBadges() || canApproveBadges() || canViewParticipants())) {
+            break;
+          }
+          await this.loadTabbedPage("progression");
+          break;
+        case "reunions":
+          if (!guard(canViewActivities() || canViewParticipants())) {
+            break;
+          }
+          await this.loadTabbedPage("reunions");
+          break;
+        case "district":
+          if (!guard(canViewRoles() || canAccessAdminPanel())) {
+            break;
+          }
+          await this.loadTabbedPage("district");
+          break;
         case "badgeTracker":
           if (!guard(canViewBadges() || canApproveBadges())) {
             break;
@@ -1048,6 +1082,23 @@ export class Router {
     const reports = new Reports(this.app);
     this.currentModuleInstance = reports;
     await reports.init();
+  }
+
+  /**
+   * Mount one of the merged, tabbed destinations.
+   *
+   * @param {string} key - Key into TABBED_PAGES.
+   */
+  async loadTabbedPage(key) {
+    const config = TABBED_PAGES[key];
+    if (!config) {
+      debugError("Unknown tabbed page:", key);
+      return;
+    }
+    const { TabbedPage } = await import("./modules/TabbedPage.js");
+    const page = new TabbedPage(this.app, config);
+    this.currentModuleInstance = page;
+    await page.init();
   }
 
   async loadUpcomingMeeting() {

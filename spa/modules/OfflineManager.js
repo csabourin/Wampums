@@ -920,6 +920,10 @@ export class OfflineManager {
             () => import('../manage_participants.js'),
             () => import('../manage_groups.js'),
             () => import('../upcoming_meeting.js'),
+            // Shell + tabs for the merged destinations reachable offline
+            () => import('./TabbedPage.js'),
+            () => import('./meetings/MeetingPrep.js'),
+            () => import('./program-progress/ProgramProgressDashboard.js'),
             () => import('../offline_preparation.js'),
             () => import('../init-activity-widget.js'),
         ];

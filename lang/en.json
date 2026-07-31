@@ -2865,5 +2865,21 @@
   "tile_form_permissions_aliases": "form, access, visibility, permission",
   "tile_admin_panel_aliases": "district, administration, panel",
   "tile_district_management_aliases": "district, units, organisations",
-  "tile_create_organization_aliases": "create, new unit, organisation"
+  "tile_create_organization_aliases": "create, new unit, organisation",
+  "page_progression_title": "Progression",
+  "page_meetings_title": "Meetings",
+  "page_district_title": "District",
+  "tab_progression_badges": "Badges",
+  "tab_progression_program": "Program stages",
+  "tab_meetings_next": "Next meeting",
+  "tab_meetings_prepare": "Prepare",
+  "tab_district_units": "Units",
+  "tab_district_tools": "District tools",
+  "tile_progression": "Track progression",
+  "tile_progression_aliases": "badge, patch, award, program, stage, progress",
+  "tile_meetings": "Meetings",
+  "tile_meetings_aliases": "meeting, next session, preparation, agenda, schedule, location",
+  "tile_district": "District panel",
+  "tile_district_aliases": "district, units, organisations, administration, panel",
+  "no_access": "You do not have access to this section."
 }

@@ -32,10 +32,12 @@ import {
   getAttendance,
   getAttendanceDates,
 } from "./api/api-endpoints.js";
+import { getMountPoint, resolveMountOptions } from "./utils/PageMount.js";
 
 export class BadgeTracker {
-  constructor(app) {
+  constructor(app, options = {}) {
     this.app = app;
+    Object.assign(this, resolveMountOptions(options));
     this.participants = [];
     this.badges = [];
     this.templates = [];
@@ -51,6 +53,7 @@ export class BadgeTracker {
     this.listenersAttached = false;
     this.boundClickHandler = null;
     this.boundSearchHandler = null;
+    this.delegationRoot = null;
     this.unprocessedMeetings = [];
     this.attendanceDates = [];
   }
@@ -228,7 +231,7 @@ export class BadgeTracker {
   }
 
   renderSkeleton() {
-    const app = document.getElementById("app");
+    const app = getMountPoint(this);
     setContent(
       app,
       `
@@ -249,13 +252,17 @@ export class BadgeTracker {
     const deliveryCount = this.getDeliveryItems().length;
     const filteredParticipants = this.getFilteredParticipants();
 
-    const app = document.getElementById("app");
+    const app = getMountPoint(this);
+    // The TabbedPage host already draws the back link and the heading.
+    const header = this.embedded
+      ? ""
+      : `<a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+         <h1>${translate("tile_badge_tracker")}</h1>`;
     setContent(
       app,
       `
       <div class="badge-tracker">
-        <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-        <h1>${translate("badge_tracker_title") || "Badges de la Meute"}</h1>
+        ${header}
 
         ${
           this.unprocessedMeetings.length > 0
@@ -848,13 +855,16 @@ export class BadgeTracker {
   }
 
   attachEventListeners() {
-    const app = document.getElementById("app");
-    if (!app) return;
+    const root = getMountPoint(this);
+    if (!root) return;
 
-    // Only attach main click listener once using event delegation
+    // Only attach main click listener once using event delegation. The root is
+    // remembered so destroy() detaches from the same element even when this
+    // page is embedded and the host has since re-rendered.
     if (!this.listenersAttached) {
       this.boundClickHandler = this.handleClick.bind(this);
-      app.addEventListener("click", this.boundClickHandler);
+      this.delegationRoot = root;
+      root.addEventListener("click", this.boundClickHandler);
       this.listenersAttached = true;
     }
 
@@ -866,10 +876,10 @@ export class BadgeTracker {
    * Remove listeners and clean up state. Called by the router on navigation.
    */
   destroy() {
-    const app = document.getElementById("app");
-    if (app && this.boundClickHandler) {
-      app.removeEventListener("click", this.boundClickHandler);
+    if (this.delegationRoot && this.boundClickHandler) {
+      this.delegationRoot.removeEventListener("click", this.boundClickHandler);
     }
+    this.delegationRoot = null;
     if (this.modalKeydownHandler) {
       document.removeEventListener("keydown", this.modalKeydownHandler);
     }
@@ -1684,7 +1694,7 @@ export class BadgeTracker {
 
   renderNotAuthorized() {
     setContent(
-      document.getElementById("app"),
+      getMountPoint(this),
       `
       <section class="badge-tracker badge-tracker--error">
         <h1>${translate("not_authorized")}</h1>

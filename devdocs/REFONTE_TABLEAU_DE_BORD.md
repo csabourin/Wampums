@@ -4,10 +4,9 @@
 **Portée :** `spa/dashboard.js`, `spa/config/dashboard-customization.js`, `spa/config/dashboard-tiles.js`, `spa/modules/CommandPalette.js`, `spa/utils/DashboardPreferences.js`, `lang/fr.json`, `lang/en.json`
 **Objectif :** rendre les tuiles trouvables du premier coup, en nommant **la tâche** plutôt que **l'écran**. Priorité au français.
 
-> **État : lots 1 à 3 livrés** (voir §7 pour ce qui a été fait, ce qui a été
-> ajusté en cours de route, et ce qui reste). Le lot 4 — fusion de *pages* —
-> n'est pas fait. Le tableau de bord **mobile** (`mobile/src/screens/LeaderDashboardScreen.js`)
-> n'est pas touché : voir §9.
+> **État : lots 1 à 4 livrés** (voir §7). Le tableau de bord **mobile**
+> (`mobile/src/screens/LeaderDashboardScreen.js`) n'est pas touché : voir §9.
+> Branche : `refonte/tableau-de-bord`.
 
 ---
 
@@ -327,22 +326,68 @@ palettes : aucune tuile ne les utilise, mais `applyPalette()` écrit une variabl
 CSS par domaine et `_renderTile` retombe sur `neutral` pour tout domaine inconnu.
 Les retirer aurait cassé ce filet de sécurité.
 
-### Lot 4 — Fusion de pages ❌ non fait
+### Lot 4 — Fusion de pages ✅ fait (trois fusions sur quatre)
 
-Reste à décider et à implémenter :
+Plutôt que de réécrire des pages de 700 à 1800 lignes, le lot introduit **un
+modèle réutilisable** — c'est lui, et non les fusions elles-mêmes, qui est le
+livrable important, puisqu'il devra être transposé au mobile.
 
-- `/admin` (« Espace district ») et `/district-management` (« Unités du
-  district ») — les libellés ne se marchent plus dessus, mais ce sont toujours
-  deux pages pour un même sujet.
-- « Suivre les badges » et « Étapes du programme » — candidats à une page
-  « Progression » à deux onglets.
-- « Prochaine réunion » et « Préparer la réunion ».
-- `/budgets` et `/revenue-dashboard` — un « Bilan financier » à deux onglets.
+**Le contrat de montage** — `spa/utils/PageMount.js`. Chaque page rendait en dur
+dans `#app`, ce qui interdisait d'en afficher deux au même endroit. Une page qui
+adopte le contrat accepte `options.containerId` et `options.embedded`, rend dans
+`getMountPoint(this)`, et supprime son propre lien retour et son `<h1>` quand
+elle est hébergée. Coût réel : deux lignes dans le constructeur et deux à quatre
+points de montage par page.
 
-**Bilan mesuré :** 39 tuiles déclarées, **39 libellés distincts** (aucun doublon),
-aucune clé de traduction manquante. Un animateur aux permissions de base voit
-24 tuiles dont 20 sans rien déplier ; un responsable d'unité en voit 38.
-Avant : 42 tuiles, 2 libellés identiques, ~31 tuiles noyées dans « Outils ».
+**La coquille** — `spa/modules/TabbedPage.js`. Elle possède `#app`, dessine
+l'en-tête et la barre d'onglets, synchronise `?tab=` avec l'URL, importe le
+module de l'onglet actif en différé et détruit le précédent. Un onglet qui
+échoue à charger n'emporte pas la page : l'erreur reste dans le panneau et les
+autres onglets restent utilisables. Navigation clavier ←/→ conforme au motif
+ARIA tabs.
+
+**La déclaration** — `spa/config/tabbed-pages.js`, sur le même principe que
+`dashboard-tiles.js` : les onglets sont déclarés, jamais écrits à la main.
+
+Fusions réalisées :
+
+| Nouvelle destination | Remplace | Onglets |
+|---|---|---|
+| `/progression` — « Suivre la progression » | `/badge-tracker` + `/program-progress` | Badges · Étapes du programme |
+| `/reunions` — « Réunions » | `/upcoming-meeting` + `/preparation-reunions` | Prochaine réunion · Préparer |
+| `/district` — « Espace district » | `/admin` + `/district-management` | Unités · Outils du district |
+
+Les anciennes routes ne sont pas supprimées : `MERGED_ROUTE_REDIRECTS` les
+renvoie vers le bon onglet, donc signets, liens internes et URL mises en cache
+par le service worker continuent de fonctionner.
+`/preparation-reunions/:date` reste une page autonome — c'est un lien profond
+vers une réunion précise, pas une destination du tableau de bord.
+
+**Quatrième fusion abandonnée, sur constat.** `/budgets` a déjà six onglets
+internes et `/revenue-dashboard` les siens : les imbriquer aurait produit deux
+niveaux d'onglets. Le renommage du lot 2 (« Préparer le budget » vs « Bilan
+financier ») suffit à les distinguer. À revoir seulement si l'on veut refondre
+ces deux pages pour de bon.
+
+**Effet de bord assumé :** la fusion badges + programme laissait le groupe
+« Progression » avec une seule tuile. Elle rejoint « Jeunes et familles » —
+un accordéon autour d'un seul élément est pire que pas d'accordéon. Il reste
+donc **5 groupes**, pas 6.
+
+### Un bogue mobile corrigé au passage
+
+`.finance-tabs` était en `display: none` sous 768 px. Tant que le tableau de
+bord pointait directement sur `/finance?tab=definitions`, personne ne s'en
+apercevait ; en retirant ces tuiles au lot 2, j'aurais rendu la définition des
+frais et le rapport financier **inaccessibles sur téléphone**. La barre est
+maintenant visible partout, avec défilement horizontal — comme celle de
+`TabbedPage`, qui est mobile-first par construction.
+
+**Bilan mesuré :** 36 tuiles déclarées, **36 libellés distincts** (aucun
+doublon), aucune clé de traduction manquante, 5 groupes au lieu de 8. Un
+animateur aux permissions de base voit 22 tuiles dont 18 sans rien déplier ; un
+responsable d'unité en voit 35. Avant : 42 tuiles, 2 libellés identiques,
+~31 noyées dans « Outils ».
 
 ---
 
@@ -364,7 +409,7 @@ machine ; vérifiés manuellement sur les fichiers modifiés (aucun `console.` n
 
 ---
 
-## 9. Le tableau de bord mobile n'est pas aligné
+## 9. Le tableau de bord mobile n'est pas aligné (parité à venir)
 
 `mobile/src/screens/LeaderDashboardScreen.js` est un second tableau de bord, avec
 ses propres sections (`dayToDay`, `preparation`, `operations`) et **ses propres
@@ -382,6 +427,21 @@ Conséquence : le mobile garde les anciens libellés (« Contacts d'urgence »,
   partager un fichier de langue plutôt que d'en maintenir deux copies.
 
 À trancher avant d'attaquer le mobile.
+
+**Ce que le web fournit déjà pour cette parité**, et qu'il ne faudra donc pas
+réinventer côté React Native :
+
+- `spa/config/dashboard-tiles.js` — la liste de tuiles, leurs libellés, leurs
+  groupes et leurs règles de visibilité, sous une forme purement déclarative :
+  aucune dépendance au DOM, transposable telle quelle.
+- `spa/config/tabbed-pages.js` — la composition des destinations fusionnées.
+- Les clés `tile_*` et `tile_*_aliases` — à copier dans les fichiers de langue
+  mobiles, ou mieux, à partager.
+
+Le seul travail réellement spécifique au mobile est le rendu : la coquille à
+onglets (`TabbedPage`) et le contrat de montage (`PageMount`) sont des
+mécanismes DOM, à réécrire avec les navigateurs à onglets de React Navigation.
+La structure, elle, se transpose.
 
 ---
 

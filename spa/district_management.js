@@ -28,6 +28,7 @@ import {
 } from "./utils/RoleValidationUtils.js";
 import { setStorageMultiple } from "./utils/StorageUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { getMountPoint, resolveMountOptions } from "./utils/PageMount.js";
 
 const CACHE_KEY = "district_management_state";
 const CACHE_DURATION = CONFIG.CACHE_DURATION.SHORT;
@@ -52,8 +53,9 @@ const INCIDENT_REPORT_URL = "mailto:security@wampums.app?subject=Role%20change%2
  * offline awareness, and optimistic role assignment.
  */
 export class DistrictManagement {
-  constructor(app) {
+  constructor(app, options = {}) {
     this.app = app;
+    Object.assign(this, resolveMountOptions(options));
     this.users = [];
     this.roles = [];
     this.filteredUsers = [];
@@ -352,7 +354,7 @@ export class DistrictManagement {
         <a class="btn btn--primary" href="/dashboard">${translate("back_to_dashboard")}</a>
       </section>
     `;
-    setContent(document.getElementById("app"), content);
+    setContent(getMountPoint(this), content);
   }
 
   renderAndBind() {
@@ -419,11 +421,11 @@ export class DistrictManagement {
     `;
 
     const content = `
-      <section class="district-management" aria-labelledby="district-management-title">
+      <section class="district-management"${this.embedded ? "" : ' aria-labelledby="district-management-title"'}>
         <header class="dm-header">
           <div>
-            <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-            <h1 id="district-management-title">${translate("district_management_title")}</h1>
+            ${this.embedded ? "" : `<a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+            <h1 id="district-management-title">${translate("tile_district_management")}</h1>`}
             <p class="dm-subtitle">${translate("district_management_subtitle")}</p>
           </div>
           ${offlineBanner}
@@ -458,7 +460,7 @@ export class DistrictManagement {
       ${this.renderAssignmentModal()}
     `;
 
-    setContent(document.getElementById("app"), content);
+    setContent(getMountPoint(this), content);
   }
 
   getActiveOrganizationName() {

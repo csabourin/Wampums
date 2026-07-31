@@ -759,7 +759,7 @@ export class Dashboard extends BaseModule {
 
     const [hero, ...rest] = nowTiles;
 
-    const isMeetingHero = hero.href === "/upcoming-meeting" && this.nextMeeting;
+    const isMeetingHero = hero.href === "/reunions" && this.nextMeeting;
     const chips = rest.slice(0, 3);
     const heroDomain = hero.domain || "attendance";
     const heroStyles = `--tile-bg-attendance: var(--tile-bg-${heroDomain}); --tile-fg-attendance: var(--tile-fg-${heroDomain});`;

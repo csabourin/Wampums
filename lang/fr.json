@@ -2865,5 +2865,21 @@
   "tile_form_permissions_aliases": "formulaire, accès, visibilité, permission",
   "tile_admin_panel_aliases": "district, administration, panneau",
   "tile_district_management_aliases": "district, unités, organisations",
-  "tile_create_organization_aliases": "créer, nouvelle unité, organisation"
+  "tile_create_organization_aliases": "créer, nouvelle unité, organisation",
+  "page_progression_title": "Progression",
+  "page_meetings_title": "Réunions",
+  "page_district_title": "District",
+  "tab_progression_badges": "Badges",
+  "tab_progression_program": "Étapes du programme",
+  "tab_meetings_next": "Prochaine réunion",
+  "tab_meetings_prepare": "Préparer",
+  "tab_district_units": "Unités",
+  "tab_district_tools": "Outils du district",
+  "tile_progression": "Suivre la progression",
+  "tile_progression_aliases": "badge, insigne, brevet, programme, étape, progression",
+  "tile_meetings": "Réunions",
+  "tile_meetings_aliases": "réunion, prochaine rencontre, préparation, ordre du jour, horaire, endroit",
+  "tile_district": "Espace district",
+  "tile_district_aliases": "district, unités, organisations, administration, panneau",
+  "no_access": "Vous n’avez pas accès à cette section."
 }
