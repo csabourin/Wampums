@@ -1,6 +1,6 @@
 # CLAUDE.md - Development Guidelines for Wampums Scout Management System
 
-**Last Updated:** 2026-06-16
+**Last Updated:** 2026-07-31
 **Project:** Wampums Scout Management System
 **Tech Stack:** Node.js + Express, PostgreSQL, Vite (SPA), Vanilla JavaScript (ES modules), Expo/React Native (mobile)
 
@@ -139,6 +139,10 @@ const result = await pool.query(
 ```
 
 ### 4) Database Conventions
+
+The current schema is dumped in `attached_assets/Full_Database_schema.sql`, and the permission
+inventory in `attached_assets/permissions_list.sql`. Migration SQL in `migrations/` remains
+authoritative for repository-managed changes.
 
 #### ID Column Types
 - ✅ **Users:** `id UUID` (generated via `gen_random_uuid()`)
@@ -367,9 +371,9 @@ Run these before every PR. All must pass.
   - `middleware/auth.js` - Authentication, authorization, organization context
   - `middleware/response.js` - Standardized API responses
   - `middleware/validation.js` - Input validation helpers
-- **Utilities:** `utils/api-helpers.js`, `utils/logger.js`
+- **Utilities:** `utils/api-helpers.js`; logging is configured in `config/logger.js`
 - **Services:** `services/` - Business logic layer
-- **Database migrations:** `migrations/*.sql` or `migrations/*.js`
+- **Database migrations:** `migrations/*.sql`
 
 ### Web SPA (Vite + ES Modules)
 - **Entry:** `index.html`, `spa/app.js`, `spa/router.js`
@@ -399,10 +403,10 @@ Run these before every PR. All must pass.
 ### Directory Structure
 
 ```
-/workspace/Wampums/
+wampums/
 ├── api.js                      # Express server entry point
 ├── package.json
-├── vite.config.js
+├── vite.config.mjs
 ├── middleware/
 │   ├── auth.js                 # authenticate, requirePermission, blockDemoRoles
 │   ├── response.js             # success, error, paginated helpers
@@ -442,9 +446,9 @@ Run these before every PR. All must pass.
 │   ├── fr.json
 │   └── ...
 ├── mobile/                     # React Native mobile app
-├── attached_assets/            # Documentation
+├── attached_assets/            # Reference SQL dumps
 │   ├── Full_Database_schema.sql
-│   └── README-MIGRATIONS.md
+│   └── permissions_list.sql
 └── test/                       # Test files
 ```
 
@@ -457,7 +461,7 @@ Run these before every PR. All must pass.
 ```bash
 npm install
 npm run dev      # Vite dev server (port 5173)
-npm start        # API server (port 3000)
+npm start        # API server (port 5000 by default)
 ```
 
 ### Mobile (Expo)
@@ -470,11 +474,8 @@ npm run start    # Expo dev server
 
 ### Migrations
 
-```bash
-npm run migrate:up      # Apply migrations
-npm run migrate:down    # Rollback migrations
-npm run migrate:create  # Create new migration
-```
+Schema changes are plain SQL files in `migrations/`. There is no npm migration runner in this
+repository; review and apply the required files through the deployment environment or PostgreSQL tooling.
 
 ---
 
@@ -482,7 +483,7 @@ npm run migrate:create  # Create new migration
 
 **Required:**
 ```bash
-PORT=3000
+PORT=5000
 DATABASE_URL=postgresql://user:pass@host:5432/wampums
 JWT_SECRET_KEY=<secure-random-key>
 ```

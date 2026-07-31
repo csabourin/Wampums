@@ -3,7 +3,6 @@
  *
  * Implements: US-ATT-003, US-ATT-013, US-ATT-014, US-ATT-015, US-ATT-016,
  *             US-PERM-001, US-PERM-002, US-PERM-003
- * Catalog: test/user-stories/CATALOG.md
  */
 
 'use strict';
