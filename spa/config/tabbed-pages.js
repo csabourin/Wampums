@@ -36,6 +36,10 @@ export const TABBED_PAGES = {
       {
         key: "badges",
         labelKey: "tab_progression_badges",
+        // The route itself admits anyone who can see participants, so this tab
+        // needs its own gate: without it a participants-only user lands on the
+        // tracker's "not authorized" panel instead of the Programme tab.
+        gate: () => hasAnyPermission("badges.view", "badges.approve", "badges.manage"),
         load: () => import("../badge_tracker.js").then((m) => m.BadgeTracker),
       },
       {

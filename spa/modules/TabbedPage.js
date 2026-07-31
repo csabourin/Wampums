@@ -24,6 +24,12 @@ import { BaseModule } from "../utils/BaseModule.js";
 
 const PANEL_ID = "tabbed-page-panel";
 
+/**
+ * @param {number} token - Mount activation token.
+ * @returns {string} DOM id of that mount's container.
+ */
+const mountId = (token) => `${PANEL_ID}-mount-${token}`;
+
 export class TabbedPage extends BaseModule {
   /**
    * @param {Object} app - Application instance.
@@ -35,6 +41,9 @@ export class TabbedPage extends BaseModule {
     this.tabs = (config.tabs || []).filter((tab) => !tab.gate || tab.gate());
     this.activeKey = null;
     this.activeModule = null;
+    // Every mount gets a token; only the newest one may own the panel.
+    this.mountToken = 0;
+    this.pendingMounts = new Set();
   }
 
   async init() {
@@ -159,9 +168,23 @@ export class TabbedPage extends BaseModule {
 
     this.activeKey = key;
     this.syncUrl(key);
-    this.render();
-    this.attachEventListeners();
+    // Update the tab bar in place rather than re-rendering the shell: the panel
+    // element must survive a switch, otherwise a module still initializing in it
+    // would lose its mount point and fall back to rendering over #app.
+    this.updateTabStates();
     await this.mountActiveTab();
+  }
+
+  /**
+   * Reflect `activeKey` on the existing tab buttons.
+   */
+  updateTabStates() {
+    document.querySelectorAll(".tabbed-page__tab").forEach((button) => {
+      const isActive = button.dataset.tab === this.activeKey;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-selected", String(isActive));
+      button.tabIndex = isActive ? 0 : -1;
+    });
   }
 
   /**
@@ -182,41 +205,102 @@ export class TabbedPage extends BaseModule {
   /**
    * Tear down the previous tab's module and mount the active one.
    *
+   * A module's `init()` renders while it awaits its data, so a tab switch made
+   * mid-init cannot simply be ignored afterwards — the obsolete module would go
+   * on painting. Each mount therefore gets its own token and its own container
+   * inside the panel: an obsolete module keeps writing into its own container,
+   * which is hidden the moment it stops being current and removed once its
+   * `init()` settles. It can never repaint the live tab.
+   *
    * A tab that fails to load must not take the whole page down: the shell and
    * the other tabs stay usable and the failure is shown inside the panel.
    */
   async mountActiveTab() {
-    this.destroyActiveModule();
-
     const tab = this.tabs.find((t) => t.key === this.activeKey);
     if (!tab) return;
 
     const panel = document.getElementById(PANEL_ID);
     if (!panel) return;
 
-    setContent(panel, `<p class="loading-state">${escapeHTML(translate("loading"))}</p>`);
+    const token = ++this.mountToken;
+    const containerId = mountId(token);
+
+    this.destroyActiveModule();
+    this.retireMounts(panel);
+    this.pendingMounts.add(token);
+    panel.appendChild(this.createMount(token, containerId));
 
     try {
       const PageClass = await tab.load();
       // The tab may have changed while the import was in flight.
-      if (this.isDestroyed || this.activeKey !== tab.key) return;
+      if (!this.isCurrentMount(token)) return;
 
       const instance = new PageClass(this.app, {
         ...(tab.options || {}),
-        containerId: PANEL_ID,
+        containerId,
         embedded: true,
       });
       this.activeModule = instance;
       await instance.init();
+      if (!this.isCurrentMount(token)) return;
       debugLog(`TabbedPage mounted tab "${tab.key}"`);
     } catch (error) {
       debugError(`Failed to mount tab "${tab.key}":`, error);
-      if (this.activeKey !== tab.key) return;
-      const target = document.getElementById(PANEL_ID);
+      if (!this.isCurrentMount(token)) return;
+      const target = document.getElementById(containerId);
       if (target) {
         setContent(target, `<p class="error-message">${escapeHTML(translate("error_loading_data"))}</p>`);
       }
+    } finally {
+      this.pendingMounts.delete(token);
+      if (!this.isCurrentMount(token)) {
+        document.getElementById(containerId)?.remove();
+      }
     }
+  }
+
+  /**
+   * @param {number} token
+   * @returns {boolean} True while this mount still owns the panel.
+   */
+  isCurrentMount(token) {
+    return !this.isDestroyed && this.mountToken === token;
+  }
+
+  /**
+   * Build the container a single mount renders into.
+   *
+   * @param {number} token
+   * @param {string} containerId
+   * @returns {HTMLElement}
+   */
+  createMount(token, containerId) {
+    const mount = document.createElement("div");
+    mount.id = containerId;
+    mount.className = "tabbed-page__mount";
+    mount.dataset.mountToken = String(token);
+    setContent(mount, `<p class="loading-state">${escapeHTML(translate("loading"))}</p>`);
+    return mount;
+  }
+
+  /**
+   * Clear the panel for a new mount.
+   *
+   * A container whose module has finished initializing is removed outright. One
+   * that is still being initialized is only hidden: removing it would leave that
+   * module without a mount point, and `getMountPoint()` would then fall back to
+   * `#app` and wipe the whole shell.
+   *
+   * @param {HTMLElement} panel
+   */
+  retireMounts(panel) {
+    Array.from(panel.children).forEach((child) => {
+      if (this.pendingMounts.has(Number(child.dataset.mountToken))) {
+        child.hidden = true;
+      } else {
+        child.remove();
+      }
+    });
   }
 
   destroyActiveModule() {

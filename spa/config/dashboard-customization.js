@@ -8,6 +8,8 @@
  * `dashboard-tiles.js`, the single source of truth.
  */
 
+import { CONFIG } from "../config.js";
+
 export const DOMAINS = [
   "people",       // participants, parents, contacts, groups, messages to families
   "attendance",   // points, honors, meeting, attendance
@@ -140,6 +142,30 @@ export const ROLE_WEIGHTS = {
   admin: { admin: 0, money: 1, attendance: 2 },
   default: {},
 };
+
+/**
+ * Canonical role name (`CONFIG.ROLES`) → weight profile above.
+ *
+ * The profile names are historical and describe the *layout*, not the role:
+ * "treasurer" is the money-first layout, so the canonical `finance` role maps
+ * to it. Roles with no entry here fall back to the `default` profile.
+ */
+export const ROLE_WEIGHT_PROFILES = {
+  [CONFIG.ROLES.DISTRICT]: "admin",
+  [CONFIG.ROLES.UNIT_ADMIN]: "admin",
+  [CONFIG.ROLES.ADMINISTRATION]: "admin",
+  [CONFIG.ROLES.DEMO_ADMIN]: "admin",
+  [CONFIG.ROLES.FINANCE]: "treasurer",
+  [CONFIG.ROLES.LEADER]: "animator",
+  [CONFIG.ROLES.PARENT]: "parent",
+  [CONFIG.ROLES.DEMO_PARENT]: "parent",
+};
+
+/**
+ * Order in which profiles win when a user holds several roles — an animator who
+ * also keeps the books gets the money-first layout.
+ */
+export const ROLE_WEIGHT_PROFILE_PRECEDENCE = ["admin", "treasurer", "parent", "animator"];
 
 export function getPalette(id) {
   return PALETTES[id] || PALETTES[DEFAULT_PALETTE_ID];
