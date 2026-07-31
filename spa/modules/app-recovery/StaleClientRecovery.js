@@ -201,6 +201,44 @@ async function fetchServerBuild() {
 }
 
 /**
+ * Re-check the server build before purging caches for a chunk-load failure.
+ *
+ * Generic dynamic-import failures also happen when the user is offline or the
+ * network is flaky. In those cases the app should preserve its cached shell and
+ * offline data instead of deleting them and making recovery harder.
+ *
+ * @param {string} reason - Why the chunk-load recovery probe is running.
+ * @returns {Promise<boolean>} True when a recovery reload was initiated.
+ */
+async function recoverFromConfirmedStaleClient(reason) {
+  const serverBuild = await fetchServerBuild();
+
+  if (!serverBuild) {
+    debugWarn(`Skipping stale client recovery for ${reason}: server build is unreachable`);
+    return false;
+  }
+
+  const storedBuildId = readStoredBuildId();
+
+  if (!storedBuildId) {
+    writeStoredBuildId(serverBuild.buildId);
+    debugLog('Recorded build id after chunk-load probe:', serverBuild.buildId);
+    return false;
+  }
+
+  if (storedBuildId === serverBuild.buildId) {
+    debugWarn(`Skipping stale client recovery for ${reason}: build id still matches`);
+    return false;
+  }
+
+  writeStoredBuildId(serverBuild.buildId);
+
+  return purgeAndReload(
+    `build changed ${storedBuildId} -> ${serverBuild.buildId} after ${reason}`,
+  );
+}
+
+/**
  * Compare this client's build against the server's and recover if they differ.
  *
  * On a first run the server build is simply recorded, so an existing user is
@@ -253,18 +291,18 @@ function isChunkLoadError(error) {
 export function installChunkErrorRecovery() {
   window.addEventListener('vite:preloadError', (event) => {
     event.preventDefault();
-    purgeAndReload('vite preload error');
+    void recoverFromConfirmedStaleClient('vite preload error');
   });
 
   window.addEventListener('unhandledrejection', (event) => {
     if (isChunkLoadError(event.reason)) {
-      purgeAndReload('dynamic import failure');
+      void recoverFromConfirmedStaleClient('dynamic import failure');
     }
   });
 
   window.addEventListener('error', (event) => {
     if (isChunkLoadError(event.error || event.message)) {
-      purgeAndReload('dynamic import failure');
+      void recoverFromConfirmedStaleClient('dynamic import failure');
     }
   });
 }

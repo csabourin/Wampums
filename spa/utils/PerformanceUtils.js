@@ -42,7 +42,7 @@ export function debounce(func, wait = 300) {
  */
 export async function withButtonLoading(button, asyncFn) {
   if (!button) {
-    return await asyncFn();
+    return asyncFn();
   }
 
   if (button.disabled) return;

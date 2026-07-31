@@ -52,15 +52,15 @@ function hashBuiltShell() {
  *   1. `FORCE_CLIENT_REFRESH` — operator escape hatch. Setting (or changing)
  *      this env var pushes every client through a cache purge and reload on
  *      their next load, with no code change or redeploy of the SPA needed.
- *   2. The commit SHA, when the platform exposes one.
- *   3. A digest of the built app shell.
+ *   2. A digest of the built app shell.
+ *   3. The commit SHA, when the platform exposes one.
  *   4. The package version, so the endpoint always answers with something.
  */
 const BUILD_ID =
   process.env.FORCE_CLIENT_REFRESH ||
+  hashBuiltShell() ||
   process.env.RAILWAY_GIT_COMMIT_SHA ||
   process.env.BUILD_ID ||
-  hashBuiltShell() ||
   `dev-${packageVersion}`;
 
 module.exports = () => {

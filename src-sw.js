@@ -163,7 +163,7 @@ registerRoute(
 // API route below so it can never be answered from a cache. A stale answer here
 // would hide exactly the mismatch the probe exists to detect.
 registerRoute(
-  ({ url }) => url.pathname === '/api/v1/app-version',
+  ({ url }) => url.pathname === '/api/v1/app-version' || url.pathname === '/api/v1/app-version/',
   new NetworkOnly()
 );
 
