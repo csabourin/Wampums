@@ -3,7 +3,6 @@
  *
  * Implements: US-PTS-013, US-PTS-014, US-PTS-015, US-PTS-016, US-PTS-017,
  *             US-PERM-004
- * Catalog: test/user-stories/CATALOG.md
  */
 
 'use strict';

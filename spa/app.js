@@ -13,8 +13,13 @@ import { initOfflineSupport } from "./offline-init.js";
 import { offlineManager } from "./modules/OfflineManager.js";
 import { setContent, clearElement, createElement } from "./utils/DOMUtils.js";
 import { applyPalette as applyDashboardPalette } from "./utils/DashboardPreferences.js";
+import { checkForStaleClient, installChunkErrorRecovery } from "./modules/app-recovery/StaleClientRecovery.js";
 
 const debugMode = isDebugMode();
+
+// Recover from a stale cached app shell (e.g. after the app moves hosts) before
+// anything tries to lazy-load a chunk that no longer exists.
+installChunkErrorRecovery();
 
 // Service worker registration: vite-plugin-pwa injects registration at build time,
 // with a fallback in registerServiceWorker() if the injection is missing.
@@ -263,6 +268,12 @@ export const app = {
                         if (this.isLoggedIn) {
                                 this.handlePostLoginActions();
                         }
+
+                        // Detect a client running against a different server build than
+                        // its cached assets came from, and force a clean reload.
+                        checkForStaleClient().catch(error => {
+                                debugError("Stale client check failed:", error);
+                        });
 
                         // Ensure service worker is registered (fallback if vite-plugin-pwa injection missed)
                         this.registerServiceWorker();

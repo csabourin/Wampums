@@ -5,13 +5,11 @@
  *
  * Implements: US-HON-001, US-HON-002, US-HON-003, US-HON-008, US-HON-009,
  *             US-HON-010, US-HON-011, US-HON-012, US-HON-013, US-HON-014
- * Catalog: test/user-stories/CATALOG.md
  *
  * NOTE: one acceptance of US-HON-002 (optimistic marking is visible before the
  * server responds) is EXPECTED TO FAIL against current code: the pending honor
  * stores participant_id as a DOM string while participants carry numeric ids,
  * and processHonors compares with === (spa/manage_honors.js:138 vs :469).
- * See RUN-REPORT.md.
  */
 
 'use strict';

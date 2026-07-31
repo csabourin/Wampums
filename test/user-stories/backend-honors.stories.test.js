@@ -2,11 +2,10 @@
  * User stories: honors API (routes/honors.js).
  *
  * Implements: US-HON-004, US-HON-005, US-HON-006, US-HON-007, US-HON-015
- * Catalog: test/user-stories/CATALOG.md
  *
  * NOTE: US-HON-005 is EXPECTED TO FAIL against current code — the batch honor
  * INSERT hardcodes $5 as the created_by placeholder while parameters are laid
- * out per-honor (routes/honors.js:213-221). See RUN-REPORT.md.
+ * out per-honor (routes/honors.js:213-221).
  */
 
 'use strict';

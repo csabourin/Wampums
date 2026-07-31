@@ -88,6 +88,7 @@ module.exports = (app, pool) => {
     const programProgressRoutes = require("./programProgress")(pool, logger);
     const incidentsRoutes = require("./incidents")(pool, logger);
     const yearlyPlannerRoutes = require("./yearlyPlanner")(pool, logger);
+    const appVersionRoutes = require("./appVersion")();
 
     // ============================================
     // MOUNT MODULAR ROUTES
@@ -169,6 +170,9 @@ module.exports = (app, pool) => {
 
     // WhatsApp routes already include /v1/* internally.
     app.use("/api", whatsappBaileysRoutes);
+
+    // Build identity, used by the SPA to detect stale cached clients.
+    app.use("/api/v1/app-version", appVersionRoutes);
 
     // Participants (Mount LAST due to catch-all /:id)
     app.use("/api/v1/participants", participantsRoutes);

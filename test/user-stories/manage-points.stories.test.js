@@ -6,7 +6,6 @@
  *
  * Implements: US-PTS-001, US-PTS-002, US-PTS-003, US-PTS-005, US-PTS-006,
  *             US-PTS-010, US-PTS-011, US-PTS-012, US-PTS-019, US-NAV-001
- * Catalog: test/user-stories/CATALOG.md
  */
 
 'use strict';

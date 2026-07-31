@@ -326,17 +326,25 @@
   overflow: hidden;
 }
 
-.dashboard-v2__tile:hover,
+/* Hover is only applied on devices that can actually hover. On touch screens
+   the :hover state is latched onto the last element tapped and never cleared,
+   which left tiles sitting permanently in their hover colour. */
+@media (hover: hover) and (pointer: fine) {
+  .dashboard-v2__tile:hover {
+    background: var(--tile-hover-bg, var(--tile-accent, var(--tile-bg-neutral)));
+    color: var(--tile-hover-fg, var(--tile-fg, var(--tile-fg-neutral)));
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    text-decoration: none;
+    outline: none;
+  }
+}
+
 .dashboard-v2__tile:focus-visible {
   background: var(--tile-hover-bg, var(--tile-accent, var(--tile-bg-neutral)));
   color: var(--tile-hover-fg, var(--tile-fg, var(--tile-fg-neutral)));
   transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
   text-decoration: none;
-  outline: none;
-}
-
-.dashboard-v2__tile:focus-visible {
   outline: 2px solid #ffffff;
   outline-offset: 2px;
   box-shadow:
@@ -344,6 +352,7 @@
     var(--shadow-md);
 }
 
+/* :active is safe on touch — it only lasts while the finger is down. */
 .dashboard-v2__tile:active {
   background: var(--tile-hover-bg, var(--tile-accent, var(--tile-bg-neutral)));
   color: var(--tile-hover-fg, var(--tile-fg, var(--tile-fg-neutral)));
