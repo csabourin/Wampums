@@ -1,102 +1,465 @@
 /**
- * Dashboard Tiles Configuration
- * Centralized definition of all dashboard tiles, organized by section.
- * Each tile includes: href, icon, label (translation key), optional permission check, optional id
+ * Dashboard Tiles — single source of truth.
+ *
+ * Every dashboard tile is declared exactly once, here. `spa/dashboard.js`
+ * consumes this list; nothing else may redeclare tiles.
+ *
+ * Naming rules for `label` (see devdocs/REFONTE_TABLEAU_DE_BORD.md):
+ *   - the tile names the TASK ("Faire les présences"), not the screen
+ *     ("Présence") — hence the dedicated `tile_*` translation namespace,
+ *     which leaves the generic keys free for page titles and table headers;
+ *   - no two tiles in a group start with the same word;
+ *   - the tile label matches the <h1> of the page it opens.
+ *
+ * Tile shape:
+ *   href      route to open
+ *   icon      Font Awesome class
+ *   label     translation key (always `tile_*`)
+ *   aliases   optional translation key holding comma-separated search
+ *             synonyms for the command palette. Only set it when the key
+ *             really exists in both lang files — `translate()` echoes back
+ *             unknown keys, which would pollute search results.
+ *   moment    "now" | "week" | "tools" — which slot on the dashboard
+ *   domain    grouping + color; must be one of DOMAINS
+ *   priority  optional ordering inside a moment bucket (lower wins)
+ *   gate      optional visibility rule, resolved by dashboard.js:
+ *               { permission: "x.view" }      hasPermission
+ *               { any: ["a.view", "b.view"] } hasAnyPermission
+ *               { check: "adminPanel" }       named PermissionUtils helper
+ *   id        optional DOM id, for tiles with extra click behaviour
  */
 
-export const DASHBOARD_TILES = {
-  // Top row (fixed order, not sorted)
-  top: [
-    { href: "/managePoints", icon: "fa-coins", label: "manage_points" },
-    { href: "/manageHonors", icon: "fa-award", label: "manage_honors" },
-    { href: "/attendance", icon: "fa-clipboard-check", label: "attendance" },
-    { href: "/upcoming-meeting", icon: "fa-calendar-day", label: "upcoming_meeting" },
-  ],
+export const DASHBOARD_TILES = [
+  // ---------------------------------------------------------------
+  // EN CE MOMENT — actions tied to a meeting happening right now.
+  // Attendance leads: you mark who is here before awarding anything.
+  // ---------------------------------------------------------------
+  {
+    href: "/attendance",
+    icon: "fa-clipboard-check",
+    label: "tile_attendance",
+    aliases: "tile_attendance_aliases",
+    moment: "now",
+    domain: "attendance",
+    priority: 0,
+  },
+  {
+    href: "/managePoints",
+    icon: "fa-coins",
+    label: "tile_manage_points",
+    aliases: "tile_manage_points_aliases",
+    moment: "now",
+    domain: "attendance",
+    priority: 1,
+  },
+  {
+    href: "/manageHonors",
+    icon: "fa-award",
+    label: "tile_manage_honors",
+    aliases: "tile_manage_honors_aliases",
+    moment: "now",
+    domain: "attendance",
+    priority: 2,
+  },
+  {
+    // Merged destination: "Prochaine réunion" + "Préparer la réunion".
+    href: "/reunions",
+    icon: "fa-calendar-day",
+    label: "tile_meetings",
+    aliases: "tile_meetings_aliases",
+    moment: "now",
+    domain: "attendance",
+    priority: 3,
+  },
 
-  // Day-to-Day (sorted alphabetically)
-  dayToDay: [
-    { href: "/badge-tracker", icon: "fa-chart-bar", label: "badge_tracker_title" },
-    { href: "/program-progress", icon: "fa-timeline", label: "program_progress_nav" },
-    { href: "/parent-contact-list", icon: "fa-address-book", label: "parent_contact_list" },
-    { href: "/medication-dispensing", icon: "fa-pills", label: "medication_dispensing_link" },
-    { href: "/parent-dashboard", icon: "fa-users", label: "vue_parents" },
-  ],
+  // ---------------------------------------------------------------
+  // CETTE SEMAINE — what has to be ready before the next outing.
+  // ---------------------------------------------------------------
+  {
+    href: "/permission-slips",
+    icon: "fa-file-signature",
+    label: "tile_permission_slips",
+    aliases: "tile_permission_slips_aliases",
+    moment: "week",
+    domain: "safety",
+  },
+  {
+    href: "/carpool",
+    icon: "fa-car",
+    label: "tile_carpool",
+    aliases: "tile_carpool_aliases",
+    moment: "week",
+    domain: "logistics",
+    id: "carpool-quick-access",
+  },
+  {
+    href: "/activities",
+    icon: "fa-calendar-days",
+    label: "tile_activities",
+    aliases: "tile_activities_aliases",
+    moment: "week",
+    domain: "logistics",
+    gate: { any: ["activities.view", "activities.create"] },
+  },
+  {
+    href: "/medication-planning",
+    icon: "fa-pills",
+    label: "tile_medication_planning",
+    aliases: "tile_medication_planning_aliases",
+    moment: "week",
+    domain: "safety",
+  },
+  {
+    href: "/yearly-planner",
+    icon: "fa-calendar-alt",
+    label: "tile_yearly_planner",
+    aliases: "tile_yearly_planner_aliases",
+    moment: "week",
+    domain: "logistics",
+    gate: { any: ["meetings.view", "meetings.manage"] },
+  },
 
-  // Planning & Activities (sorted alphabetically)
-  planning: [
-    { href: "/activities", icon: "fa-calendar-days", label: "activities_calendar" },
-    {
-      href: "/carpool",
-      icon: "fa-car",
-      label: "carpool_coordination",
-      id: "carpool-quick-access",
-    },
-    { href: "/preparation-reunions", icon: "fa-clipboard-list", label: "preparation_reunions" },
-    { href: "/yearly-planner", icon: "fa-calendar-alt", label: "yearly_planner_nav" },
-    { href: "/view-participant-documents", icon: "fa-file-lines", label: "view_participant_documents" },
-    { href: "/inventory", icon: "fa-warehouse", label: "inventory_link" },
-    { href: "/material-management", icon: "fa-calendar-check", label: "material_management_link" },
-    { href: "/medication-planning", icon: "fa-pills", label: "medication_planning_link" },
-    { href: "/permission-slips", icon: "fa-file-signature", label: "manage_permission_slips" },
-  ],
+  // ---------------------------------------------------------------
+  // JEUNES ET FAMILLES — includes reaching out to them, which is why
+  // the former standalone "Communications" group folds in here.
+  // ---------------------------------------------------------------
+  {
+    href: "/parent-contact-list",
+    icon: "fa-address-book",
+    label: "tile_parent_contact_list",
+    aliases: "tile_parent_contact_list_aliases",
+    moment: "tools",
+    domain: "people",
+  },
+  {
+    href: "/manage-participants",
+    icon: "fa-id-card",
+    label: "tile_manage_participants",
+    aliases: "tile_manage_participants_aliases",
+    moment: "tools",
+    domain: "people",
+    gate: { permission: "participants.view" },
+  },
+  {
+    href: "/manage-groups",
+    icon: "fa-people-group",
+    label: "tile_manage_groups",
+    aliases: "tile_manage_groups_aliases",
+    moment: "tools",
+    domain: "people",
+    gate: { permission: "groups.view" },
+  },
+  {
+    href: "/manage-users-participants",
+    icon: "fa-user-gear",
+    label: "tile_link_youth_parents",
+    aliases: "tile_link_youth_parents_aliases",
+    moment: "tools",
+    domain: "people",
+    gate: { permission: "users.view" },
+  },
+  {
+    href: "/view-participant-documents",
+    icon: "fa-file-lines",
+    label: "tile_participant_documents",
+    aliases: "tile_participant_documents_aliases",
+    moment: "tools",
+    domain: "people",
+  },
+  {
+    href: "/group-participant-report",
+    icon: "fa-table-list",
+    label: "tile_den_list_report",
+    aliases: "tile_den_list_report_aliases",
+    moment: "tools",
+    domain: "people",
+    gate: { any: ["reports.view", "reports.export"] },
+  },
+  {
+    // Merged destination: "Suivre les badges" + "Étapes du programme".
+    // Was its own "Progression" group until that merge left it with a single
+    // tile — an accordion around one item is worse than no accordion.
+    href: "/progression",
+    icon: "fa-chart-bar",
+    label: "tile_progression",
+    aliases: "tile_progression_aliases",
+    moment: "tools",
+    domain: "people",
+  },
+  {
+    href: "/parent-dashboard",
+    icon: "fa-users",
+    label: "tile_parent_preview",
+    aliases: "tile_parent_preview_aliases",
+    moment: "tools",
+    domain: "people",
+  },
+  {
+    href: "/communications",
+    icon: "fa-comments",
+    label: "tile_communications",
+    aliases: "tile_communications_aliases",
+    moment: "tools",
+    domain: "people",
+    gate: { permission: "communications.send" },
+  },
+  {
+    href: "/mailing-list",
+    icon: "fa-envelope-open-text",
+    label: "tile_mailing_list",
+    aliases: "tile_mailing_list_aliases",
+    moment: "tools",
+    domain: "people",
+    gate: { permission: "communications.send" },
+  },
 
-  // Unit Management (sorted alphabetically, permission-gated)
-  unitManagement: [
-    { href: "/manage-participants", icon: "fa-id-card", label: "manage_names", permission: "participants.view" },
-    { href: "/manage-groups", icon: "fa-people-group", label: "manage_groups", permission: "groups.view" },
-    { href: "/manage-users-participants", icon: "fa-user-gear", label: "manage_users_participants", permission: "users.view" },
-    { href: "/reports", icon: "fa-chart-line", label: "reports", permission: "reports.view" },
-    { href: "/group-participant-report", icon: "fa-table-list", label: "feuille_participants", permission: "reports.view" },
-  ],
+  // ---------------------------------------------------------------
+  // SANTÉ ET SÉCURITÉ
+  // ---------------------------------------------------------------
+  {
+    href: "/medication-dispensing",
+    icon: "fa-pills",
+    label: "tile_medication_dispensing",
+    aliases: "tile_medication_dispensing_aliases",
+    moment: "tools",
+    domain: "safety",
+  },
+  {
+    href: "/medication-reception",
+    icon: "fa-hospital",
+    label: "tile_medication_reception",
+    aliases: "tile_medication_reception_aliases",
+    moment: "tools",
+    domain: "safety",
+  },
 
-  // District & System Management (sorted alphabetically, permission-gated)
-  districtSystem: [
-    { href: "/role-management", icon: "fa-user-tag", label: "role_management", permission: "roles.view" },
-    { href: "/district-management", icon: "fa-sitemap", label: "district_management_title", permission: "roles.view" },
-    { href: "/form-permissions", icon: "fa-clipboard-check", label: "form_permissions", permission: "forms.manage" },
-    { href: "/create-organization", icon: "fa-building", label: "create_unit", permission: "organizations.create" },
-    { href: "/admin", icon: "fa-user-shield", label: "administration", permission: "admin.access", id: "admin-link" },
-  ],
+  // ---------------------------------------------------------------
+  // MATÉRIEL ET LOGISTIQUE — the catalogue and the bookings sit
+  // together; splitting them was what made "Inventaire" vs "Gestion
+  // du matériel" impossible to tell apart.
+  // ---------------------------------------------------------------
+  {
+    href: "/inventory",
+    icon: "fa-warehouse",
+    label: "tile_inventory",
+    aliases: "tile_inventory_aliases",
+    moment: "tools",
+    domain: "logistics",
+  },
+  {
+    href: "/material-management",
+    icon: "fa-calendar-check",
+    label: "tile_material_management",
+    aliases: "tile_material_management_aliases",
+    moment: "tools",
+    domain: "logistics",
+  },
 
-  // Finance & Fundraising (sorted alphabetically, permission-gated)
-  finance: [
-    { href: "/finance", icon: "fa-coins", label: "finance_memberships_tab", permission: "finance.view" },
-    { href: "/finance?tab=definitions", icon: "fa-file-invoice-dollar", label: "finance_definitions_tab", permission: "finance.view" },
-    { href: "/finance?tab=reports", icon: "fa-chart-pie", label: "financial_report", permission: "finance.view" },
-    { href: "/expenses", icon: "fa-wallet", label: "expense_tracking", permission: "finance.manage" },
-    { href: "/external-revenue", icon: "fa-hand-holding-dollar", label: "external_revenue", permission: "finance.manage" },
-    { href: "/revenue-dashboard", icon: "fa-chart-column", label: "revenue_dashboard", permission: "finance.view" },
-    { href: "/fundraisers", icon: "fa-hand-holding-heart", label: "fundraisers", permission: "fundraisers.view" },
-    { href: "/budgets", icon: "fa-sack-dollar", label: "budget_management", permission: "budget.view" },
-  ],
+  // ---------------------------------------------------------------
+  // ARGENT — the three `?tab=` duplicates of /finance are gone; the
+  // page renders those tabs itself (spa/finance.js:293).
+  // ---------------------------------------------------------------
+  {
+    href: "/finance",
+    icon: "fa-coins",
+    label: "tile_finance_payments",
+    aliases: "tile_finance_payments_aliases",
+    moment: "tools",
+    domain: "money",
+    gate: { permission: "finance.view" },
+  },
+  {
+    href: "/expenses",
+    icon: "fa-wallet",
+    label: "tile_expenses",
+    aliases: "tile_expenses_aliases",
+    moment: "tools",
+    domain: "money",
+    gate: { any: ["finance.manage", "finance.view"] },
+  },
+  {
+    href: "/external-revenue",
+    icon: "fa-hand-holding-dollar",
+    label: "tile_external_revenue",
+    aliases: "tile_external_revenue_aliases",
+    moment: "tools",
+    domain: "money",
+    gate: { any: ["finance.manage", "finance.view"] },
+  },
+  {
+    href: "/fundraisers",
+    icon: "fa-hand-holding-heart",
+    label: "tile_fundraisers",
+    aliases: "tile_fundraisers_aliases",
+    moment: "tools",
+    domain: "money",
+    gate: { permission: "fundraisers.view" },
+  },
+  {
+    href: "/revenue-dashboard",
+    icon: "fa-chart-column",
+    label: "tile_revenue_dashboard",
+    aliases: "tile_revenue_dashboard_aliases",
+    moment: "tools",
+    domain: "money",
+    gate: { any: ["finance.view", "fundraisers.view"] },
+  },
+  {
+    href: "/budgets",
+    icon: "fa-sack-dollar",
+    label: "tile_budgets",
+    aliases: "tile_budgets_aliases",
+    moment: "tools",
+    domain: "money",
+    gate: { permission: "budget.view" },
+  },
 
-  // News & Communications (sorted alphabetically, permission-gated)
-  newsComms: [
-    { href: "/communications", icon: "fa-comments", label: "communications_title", permission: "communications.send" },
-    { href: "/mailing-list", icon: "fa-envelope-open-text", label: "mailing_list", permission: "communications.send" },
-  ],
-};
-
-/**
- * Map section keys to translation keys for headings
- */
-export const SECTION_HEADINGS = {
-  dayToDay: "dashboard_day_to_day_section",
-  planning: "dashboard_planning_section",
-  unitManagement: "dashboard_unit_management_section",
-  districtSystem: "dashboard_district_system_section",
-  finance: "dashboard_finance_section",
-  newsComms: "dashboard_news_communications_section",
-};
-
-/**
- * Order of sections as they appear on the dashboard
- */
-export const SECTION_ORDER = [
-  "dayToDay",
-  "planning",
-  "unitManagement",
-  "districtSystem",
-  "finance",
-  "newsComms",
+  // ---------------------------------------------------------------
+  // ADMINISTRATION — unit settings first, district/system last.
+  // ---------------------------------------------------------------
+  {
+    href: "/reports",
+    icon: "fa-chart-line",
+    label: "tile_reports",
+    aliases: "tile_reports_aliases",
+    moment: "tools",
+    domain: "admin",
+    priority: 10,
+    gate: { any: ["reports.view", "reports.export"] },
+  },
+  {
+    href: "/unit-settings",
+    icon: "fa-sliders",
+    label: "tile_unit_settings",
+    aliases: "tile_unit_settings_aliases",
+    moment: "tools",
+    domain: "admin",
+    priority: 11,
+    gate: { check: "adminPanel" },
+  },
+  {
+    href: "/account-info",
+    icon: "fa-circle-user",
+    label: "tile_account_info",
+    aliases: "tile_account_info_aliases",
+    moment: "tools",
+    domain: "admin",
+    priority: 12,
+  },
+  {
+    href: "/role-management",
+    icon: "fa-user-tag",
+    label: "tile_role_management",
+    aliases: "tile_role_management_aliases",
+    moment: "tools",
+    domain: "admin",
+    priority: 20,
+    gate: { permission: "roles.view" },
+  },
+  {
+    href: "/form-permissions",
+    icon: "fa-clipboard-check",
+    label: "tile_form_permissions",
+    aliases: "tile_form_permissions_aliases",
+    moment: "tools",
+    domain: "admin",
+    priority: 21,
+    gate: { check: "manageForms" },
+  },
+  {
+    // Merged destination: "Espace district" + "Unités du district".
+    href: "/district",
+    icon: "fa-sitemap",
+    label: "tile_district",
+    aliases: "tile_district_aliases",
+    moment: "tools",
+    domain: "admin",
+    priority: 30,
+    gate: { check: "adminPanel" },
+    id: "admin-link",
+  },
+  {
+    href: "/create-organization",
+    icon: "fa-building",
+    label: "tile_create_organization",
+    aliases: "tile_create_organization_aliases",
+    moment: "tools",
+    domain: "admin",
+    priority: 32,
+    gate: { check: "createOrganization" },
+  },
 ];
+
+/**
+ * Order of the collapsible groups inside the "Tout le reste" section.
+ * Domains absent from this list still render, appended at the end, so an
+ * unlisted domain can never make a tile disappear.
+ */
+export const TOOL_GROUP_ORDER = [
+  "people",
+  "safety",
+  "logistics",
+  "money",
+  "admin",
+];
+
+/**
+ * Groups collapsed the first time a user opens the dashboard. Once they
+ * expand or collapse anything the stored preference wins for good.
+ */
+export const DEFAULT_COLLAPSED_TOOL_GROUPS = ["logistics", "money", "admin"];
+
+/**
+ * Routes usable while offline, i.e. whose modules are pre-loaded during camp
+ * mode preparation. Tiles pointing anywhere else are hidden when offline.
+ */
+export const OFFLINE_AVAILABLE_ROUTES = new Set([
+  "/managePoints",
+  "/manageHonors",
+  "/attendance",
+  "/upcoming-meeting",
+  "/reunions",
+  "/badge-tracker",
+  "/badge-dashboard",
+  "/program-progress",
+  "/progression",
+  "/activities",
+  "/medication-dispensing",
+  "/medication-planning",
+  "/medication-reception",
+  "/carpool",
+  "/manage-participants",
+  "/manage-groups",
+  "/prepare-offline",
+]);
+
+/**
+ * Tiles shown in the finance-focused workspace, alongside the money tiles.
+ */
+export const FINANCE_WORKSPACE_EXTRA_TILES = [
+  {
+    href: "/parent-dashboard",
+    icon: "fa-users",
+    label: "tile_parent_preview",
+    domain: "people",
+    parentOnly: true,
+  },
+  {
+    href: "/account-info",
+    icon: "fa-circle-user",
+    label: "tile_account_info",
+    domain: "admin",
+  },
+];
+
+/**
+ * Look up a tile's layout context by route.
+ *
+ * @param {string} href - Tile route.
+ * @returns {{moment: string, domain: string, priority?: number}} Layout context.
+ */
+export function getTileContext(href) {
+  const tile = DASHBOARD_TILES.find((t) => t.href === href);
+  if (!tile) return { moment: "tools", domain: "neutral" };
+  return { moment: tile.moment, domain: tile.domain, priority: tile.priority };
+}

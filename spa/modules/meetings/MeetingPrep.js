@@ -23,6 +23,7 @@ import { getUpcomingBirthdays } from '../../utils/BirthdayUtils.js';
 import { getActiveSectionConfig, getHonorLabel } from '../../utils/meetingSections.js';
 import { mergeTimelineWithTemplates } from '../../utils/MeetingPlanUtils.js';
 import { deleteCachedData } from '../../indexedDB.js';
+import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { ActivityManager } from '../ActivityManager.js';
 import { PrintManager } from '../PrintManager.js';
 import { aiGenerateText } from '../AI.js';
@@ -42,8 +43,9 @@ import {
 const DEFAULT_MEETING_LENGTH_MINUTES = 90;
 
 export class MeetingPrep extends BaseModule {
-  constructor(app) {
+  constructor(app, options = {}) {
     super(app);
+    Object.assign(this, resolveMountOptions(options));
     this.canManage = hasPermission('meetings.manage');
     this.lang = this.app.lang || localStorage.getItem('language') || 'fr';
 
@@ -289,8 +291,19 @@ export class MeetingPrep extends BaseModule {
   // RENDERING
   // ==========================================================================
 
+  /**
+   * Back link + title, omitted when a TabbedPage host already renders them.
+   *
+   * @returns {string} HTML, empty when embedded.
+   */
+  renderHeader() {
+    if (this.embedded) return '';
+    return `<a href="/dashboard" class="button button--ghost button--sm">← ${translate('back')}</a>
+            <h1>${translate('tile_preparation_reunions')}</h1>`;
+  }
+
   render() {
-    const container = document.getElementById('app');
+    const container = getMountPoint(this);
     if (!container) {
       return;
     }
@@ -321,8 +334,7 @@ export class MeetingPrep extends BaseModule {
 
     const content = `
       <div class="preparation-reunions">
-        <a href="/dashboard" class="button button--ghost button--sm">← ${translate('back')}</a>
-        <h1>${translate('preparation_reunions')}</h1>
+        ${this.renderHeader()}
 
         ${this.renderPlanBanner(meeting)}
 
@@ -521,15 +533,14 @@ export class MeetingPrep extends BaseModule {
   renderError() {
     const content = `
       <div class="preparation-reunions">
-        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
-        <h1>${translate('preparation_reunions')}</h1>
+        ${this.renderHeader()}
         <div class="error-message">
           <p>${translate('error_loading_preparation_reunions')}</p>
           <p><a href="/dashboard">${translate('back_to_dashboard')}</a></p>
         </div>
       </div>
     `;
-    setContent(document.getElementById('app'), content);
+    setContent(getMountPoint(this), content);
   }
 
   // ==========================================================================

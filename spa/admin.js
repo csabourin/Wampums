@@ -19,10 +19,12 @@ import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { setContent, clearElement, insertHTML } from "./utils/DOMUtils.js";
 import { canAccessAdminPanel, canCreateOrganization, canManageUsers, canSendCommunications, canViewUsers } from "./utils/PermissionUtils.js";
+import { getMountPoint, resolveMountOptions } from "./utils/PageMount.js";
 
 export class Admin {
-        constructor(app) {
+        constructor(app, options = {}) {
                 this.app = app;
+                Object.assign(this, resolveMountOptions(options));
                 this.users = [];
                 this.subscribers = [];
                 this.roleCatalog = [];
@@ -161,8 +163,8 @@ export class Admin {
                 const showNotifications = this.permissions.canSendCommunications;
                 const showUserManagement = this.permissions.canManageUsers || this.permissions.canViewUsers;
                 const content = `
-                        <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-                        <h1>${this.app.translate("admin_panel")}</h1>
+                        ${this.embedded ? "" : `<a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+                        <h1>${translate("tile_admin_panel")}</h1>`}
                         <div id="message"></div>
 
                         <div class="admin-quick-actions" style="margin: 1rem 0; display: flex; gap: 0.5rem; flex-wrap: wrap;">
@@ -224,9 +226,9 @@ ${showNotifications ? `
                         </table>
                         ` : ""}
 
-                        <a href="/dashboard">${this.app.translate("back_to_dashboard")}</a>
+                        ${this.embedded ? "" : `<a href="/dashboard">${translate("back_to_dashboard")}</a>`}
                 `;
-                setContent(document.getElementById("app"), content);
+                setContent(getMountPoint(this), content);
         }
 
         /**

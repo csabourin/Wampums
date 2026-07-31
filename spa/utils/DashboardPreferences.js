@@ -7,6 +7,7 @@
  */
 
 import { PALETTES, DEFAULT_PALETTE_ID, DOMAINS } from "../config/dashboard-customization.js";
+import { DEFAULT_COLLAPSED_TOOL_GROUPS } from "../config/dashboard-tiles.js";
 import { debugLog } from "./DebugUtils.js";
 
 const STORAGE_KEY = "wampums.dashboard.prefs.v1";
@@ -31,7 +32,8 @@ const DEFAULT_PREFS = Object.freeze({
   paletteId: DEFAULT_PALETTE_ID,
   hiddenTiles: [],
   pinnedActions: [],
-  collapsedToolGroups: [],
+  collapsedToolGroups: DEFAULT_COLLAPSED_TOOL_GROUPS,
+  toolGroupsTouched: false,
 });
 
 function readPrefs() {
@@ -74,6 +76,7 @@ export function setHiddenTiles(hrefs) {
 export function setCollapsedToolGroups(groups) {
   const prefs = readPrefs();
   prefs.collapsedToolGroups = Array.from(new Set(groups || []));
+  prefs.toolGroupsTouched = true;
   writePrefs(prefs);
 }
 

@@ -33,7 +33,7 @@ export class CreateOrganization {
 						<h1>${translate("create_new_unit")}</h1>
 						<div id="organization-form-container"></div>
 						<button id="submit-organization">${translate("create_unit")}</button>
-						<p><a href="/admin">${translate("back_to_admin")}</a></p>
+						<p><a href="/district?tab=outils">${translate("back_to_admin")}</a></p>
 				`;
 				setContent(document.getElementById("app"), content);
 		}
@@ -82,7 +82,7 @@ export class CreateOrganization {
 						const response = await createOrganization(formData);
 						if (response.success) {
 								this.app.showMessage(translate("unit_created_successfully"), "success");
-								setTimeout(() => this.app.router.navigate("/admin"), 2000);
+								setTimeout(() => this.app.router.navigate("/district?tab=outils"), 2000);
 						} else {
 								throw new Error(response.message || translate("error_creating_unit"));
 						}
