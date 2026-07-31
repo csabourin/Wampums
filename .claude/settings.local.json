@@ -25,7 +25,10 @@
       "Bash(cd \"//wsl.localhost/Ubuntu/home/csabourin/wampums\" && grep -nE \"router\\\\.\\(get|post|put|patch|delete\\)\\\\\\('[^']+'\" routes/budgets.js | sed -E \"s/asyncHandler.*//\" | head -30)",
       "Bash(cd \"//wsl.localhost/Ubuntu/home/csabourin/wampums\" && grep -n \"rappel_reunion\\\\|reunion_preparations\\\\|CREATE TABLE.*guests\\\\|participant_fees\\\\|fee_definitions\" attached_assets/Full_Database_schema.sql | head -30)",
       "Bash(cd \"//wsl.localhost/Ubuntu/home/csabourin/wampums\" && sed -n '176,190p;299,315p;366,376p;422,450p' attached_assets/Full_Database_schema.sql && grep -rn \"ON CONFLICT \\(organization_id, date\\)\\\\|reunion_preparations_org_date\\\\|unique\" migrations/*.sql 2>/dev/null | grep -i \"reunion\\\\|rappel\" | head; ls migrations | head -30)",
-      "Bash(cd \"//wsl.localhost/Ubuntu/home/csabourin/wampums\" && grep -rn \"UNIQUE\" attached_assets/Full_Database_schema.sql | grep -iE \"reunion|rappel|participant_fees\" ; echo \"---migrations---\"; grep -rniE \"unique|on conflict\" migrations/ 2>/dev/null | grep -iE \"reunion|rappel|participant_fee\" | head; echo \"---js migrations---\"; ls migrations/*.js 2>/dev/null | head)"
+      "Bash(cd \"//wsl.localhost/Ubuntu/home/csabourin/wampums\" && grep -rn \"UNIQUE\" attached_assets/Full_Database_schema.sql | grep -iE \"reunion|rappel|participant_fees\" ; echo \"---migrations---\"; grep -rniE \"unique|on conflict\" migrations/ 2>/dev/null | grep -iE \"reunion|rappel|participant_fee\" | head; echo \"---js migrations---\"; ls migrations/*.js 2>/dev/null | head)",
+      "Bash(railway --version)",
+      "Bash(railway whoami *)",
+      "Bash(railway status *)"
     ]
   }
 }
