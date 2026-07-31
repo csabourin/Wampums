@@ -112,5 +112,11 @@ describe('Service Worker Configuration', () => {
       // config.js must never be cached to avoid stale configuration
       expect(serviceWorkerSource).toMatch(/config\.js.*NetworkOnly/s);
     });
+
+    test('should bypass cache for app-version probes with or without a trailing slash', () => {
+      expect(serviceWorkerSource).toContain("url.pathname === '/api/v1/app-version'");
+      expect(serviceWorkerSource).toContain("url.pathname === '/api/v1/app-version/'");
+      expect(serviceWorkerSource).toMatch(/app-version\/'.*NetworkOnly/s);
+    });
   });
 });

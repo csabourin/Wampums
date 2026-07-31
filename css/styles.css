@@ -39,6 +39,14 @@
   --color-warning-light: #ffd773;
   --color-info: #178fce;
 
+  /* Links
+     --color-info is a UI accent at 3.6:1 on white, below the 4.5:1 WCAG 2.1 AA
+     floor for body text, so links use their own tokens instead.
+     --color-link:       5.6:1 on white, 5.2:1 on --color-background
+     --color-link-hover: 8.4:1 on white, 7.8:1 on --color-background */
+  --color-link: #0f6da3;
+  --color-link-hover: #0b5279;
+
   /* Selection & States */
   --color-selected: #0f7a5a;
   --color-selected-text: #ffffff;
@@ -238,28 +246,52 @@ p {
 }
 
 a {
-  color: var(--color-primary);
+  color: var(--color-link);
   text-decoration: none;
   transition: color var(--transition-fast);
 }
 
-a:hover,
+/* Hover is gated on hover-capable pointers: touch screens latch :hover onto
+   the last element tapped and never clear it, leaving links stuck in their
+   hover colour long after the tap. Focus styling stays unconditional. */
+@media (hover: hover) and (pointer: fine) {
+  a:hover {
+    color: var(--color-link-hover);
+    text-decoration: underline;
+  }
+}
+
 a:focus-visible {
-  color: var(--color-primary-dark);
+  color: var(--color-link-hover);
   text-decoration: underline;
 }
 
-/* Phone Link Styles */
-.phone-link {
-  color: var(--color-info);
+/* Phone & email link styles */
+.phone-link,
+.email-link {
+  color: var(--color-link);
   text-decoration: underline;
   transition: color var(--transition-fast);
   cursor: pointer;
 }
 
-.phone-link:hover,
-.phone-link:focus-visible {
-  color: var(--color-primary-dark);
+.email-link {
+  /* Comfortable tap target without breaking the inline flow. */
+  display: inline-block;
+  padding-block: var(--space-xs);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .phone-link:hover,
+  .email-link:hover {
+    color: var(--color-link-hover);
+    text-decoration: underline;
+  }
+}
+
+.phone-link:focus-visible,
+.email-link:focus-visible {
+  color: var(--color-link-hover);
   text-decoration: underline;
 }
 
@@ -6147,6 +6179,14 @@ body.online .pending-update {
   margin-inline-start: var(--space-md);
   font-family: monospace;
   color: var(--color-text);
+}
+
+.contact-email {
+  display: block;
+  margin-inline-start: var(--space-md);
+  color: var(--color-text);
+  /* Addresses can be long; keep them inside the card on narrow screens. */
+  overflow-wrap: anywhere;
 }
 
 /* ----------------------------------------------------------------------------

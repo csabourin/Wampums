@@ -3,7 +3,6 @@
  * activities → attendance-dates interaction seam.
  *
  * Implements: US-ACT-005, US-ACT-006
- * Catalog: test/user-stories/CATALOG.md
  */
 
 'use strict';

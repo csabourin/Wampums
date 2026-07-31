@@ -5,6 +5,8 @@ import { canSendCommunications, canViewParticipants } from "./utils/PermissionUt
 import { debounce } from "./utils/PerformanceUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { createPhoneLink } from "./utils/PhoneUtils.js";
+import { createEmailLink } from "./utils/EmailUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class ParentContactList {
   constructor(app) {
@@ -196,7 +198,7 @@ export class ParentContactList {
     return `
             <div class="child-card" data-child-id="${childId}">
                 <details>
-                    <summary class="child-name">${child.name}</summary>
+                    <summary class="child-name">${escapeHTML(child.name)}</summary>
                 <div class="contacts">
                     ${this.renderContacts(child.contacts)}
                 </div>
@@ -210,11 +212,18 @@ export class ParentContactList {
       .map(
         (contact) => `
             <div class="contact-info">
-                <strong>${contact.name}</strong>
+                <strong>${escapeHTML(contact.name)}</strong>
                 ${
                   contact.is_emergency
                     ? `<span class="emergency-contact">${translate(
                         "is_emergency_contact",
+                      )}</span>`
+                    : ""
+                }
+                ${
+                  contact.email
+                    ? `<span class="contact-email">${translate("email")}: ${createEmailLink(
+                        contact.email
                       )}</span>`
                     : ""
                 }

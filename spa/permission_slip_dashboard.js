@@ -592,14 +592,17 @@ export class PermissionSlipDashboard {
     document.querySelectorAll(".sign-slip").forEach((button) => {
       button.addEventListener("click", async (event) => {
         event.preventDefault();
-        const slipId = event.currentTarget.getAttribute("data-id");
+        // `event.currentTarget` is nulled once dispatch ends, so capture the
+        // button before awaiting the dialog below.
+        const trigger = event.currentTarget;
+        const slipId = trigger.getAttribute("data-id");
         const signerName = (await promptDialog({
           title: translate("permission_slip_signer"),
           message: translate("permission_slip_signer"),
         }))?.trim();
         if (!signerName) return;
 
-        withButtonLoading(event.currentTarget, async () => {
+        withButtonLoading(trigger, async () => {
           try {
             await signPermissionSlip(slipId, { signed_by: signerName, signature_hash: `signed-${Date.now()}` });
             this.app.showMessage(translate("permission_slip_signed"), "success");
@@ -616,12 +619,15 @@ export class PermissionSlipDashboard {
     document.querySelectorAll('.archive-slip').forEach((button) => {
       button.addEventListener('click', async (event) => {
         event.preventDefault();
-        const slipId = event.currentTarget.getAttribute('data-id');
+        // `event.currentTarget` is nulled once dispatch ends, so capture the
+        // button before awaiting the confirmation dialog below.
+        const trigger = event.currentTarget;
+        const slipId = trigger.getAttribute('data-id');
         if (!(await confirmDestructive(translate("permission_slip_archive_confirm")))) {
           return;
         }
 
-        withButtonLoading(event.currentTarget, async () => {
+        withButtonLoading(trigger, async () => {
           try {
             const result = await archivePermissionSlip(slipId);
             if (result?.queued) {
@@ -656,12 +662,15 @@ export class PermissionSlipDashboard {
     document.querySelectorAll('.delete-slip').forEach((button) => {
       button.addEventListener('click', async (event) => {
         event.preventDefault();
-        const slipId = event.currentTarget.getAttribute('data-id');
+        // `event.currentTarget` is nulled once dispatch ends, so capture the
+        // button before awaiting the confirmation dialog below.
+        const trigger = event.currentTarget;
+        const slipId = trigger.getAttribute('data-id');
         if (!(await confirmDestructive(translate("permission_slip_delete_confirm")))) {
           return;
         }
 
-        withButtonLoading(event.currentTarget, async () => {
+        withButtonLoading(trigger, async () => {
           try {
             const { deletePermissionSlip } = await import('./api/api-endpoints.js');
             await deletePermissionSlip(slipId);

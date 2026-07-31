@@ -1,51 +1,27 @@
 # Wampums Development Documentation
 
-This directory contains technical documentation for the Wampums Scout Management System.
+This directory contains durable material that is not better expressed by code, tests, or the primary engineering guide.
 
-## Core Documentation
+## Maintained documents
 
-### Essential Reading
-- **[CLAUDE.md](../CLAUDE.md)** - Primary development guidelines covering:
-  - Architecture patterns (RESTful API, authentication, database conventions)
-  - Code quality standards (security, testing, error handling)
-  - Frontend best practices (SPA patterns, mobile-first design)
-  - Code review checklist
+- [`../CLAUDE.md`](../CLAUDE.md) — engineering conventions, architecture rules, security requirements, and review checklist
+- [`../AGENTS.md`](../AGENTS.md) — concise coding-agent instructions
+- [`../readme.md`](../readme.md) — setup, commands, project map, and source-of-truth order
+- [`oas-catalog-pipeline.md`](./oas-catalog-pipeline.md) — versioned bilingual program catalog workflow
+- [`go-to-market/pilot-playbook.md`](./go-to-market/pilot-playbook.md) — pilot operating guide
+- [`go-to-market/positioning-en.md`](./go-to-market/positioning-en.md) — English positioning
+- [`go-to-market/positioning-fr.md`](./go-to-market/positioning-fr.md) — French positioning
 
-- **[AGENTS.md](../AGENTS.md)** - Quick reference guide for AI development agents
+Mobile setup is maintained in [`../mobile/docs/README.md`](../mobile/docs/README.md). Published Markdown under `content/blog/` is application content, not engineering documentation.
 
-- **[readme.md](../readme.md)** - Project overview and feature list
+## Documentation lifecycle
 
-### Architecture & Planning
-- **[oas-catalog-pipeline.md](./oas-catalog-pipeline.md)** - Versioned OAS catalog data pipeline, bilingual checks, and evolution process
-- **[CODEBASE_ARCHITECTURE_REVIEW.md](./CODEBASE_ARCHITECTURE_REVIEW.md)** - Comprehensive architecture analysis
-- **[CODEBASE_ARCHITECTURE_TODO.md](./CODEBASE_ARCHITECTURE_TODO.md)** - Migration roadmap and modernization tasks
-- **[API_ENDPOINT_USAGE_AUDIT.md](./API_ENDPOINT_USAGE_AUDIT.md)** - API endpoint inventory and usage tracking
+Keep a document only when it provides durable context that cannot be read reliably from executable artifacts. In particular:
 
-### Security & Risk
-- **[scoping-risk-assessment.md](./scoping-risk-assessment.md)** - Security risk assessment and mitigation strategies
+- Tests are authoritative for verified behavior.
+- Route modules and `routes/index.js` are authoritative for endpoints.
+- Package manifests and configuration modules are authoritative for commands, dependencies, ports, and environment variables.
+- Migration SQL is authoritative for repository-managed schema changes.
+- Git history, issues, and pull requests are the record for completed fixes and point-in-time reviews.
 
-### Offline-First & Performance
-- **[offline-sync-architecture.md](./offline-sync-architecture.md)** - Offline-first architecture design
-- **[offline-first-audit.md](./offline-first-audit.md)** - Offline functionality audit and issues
-
-## Archived Documentation
-
-Historical documents and completed code reviews are in the [archive/](./archive/) directory.
-
-## Document Lifecycle
-
-- **Active**: Documents that reflect current architecture and inform ongoing development
-- **Archived**: Historical documents, completed code reviews, or superseded documentation
-- Documents should be moved to archive/ when:
-  - They describe features that have been removed or completely refactored
-  - They are point-in-time reviews that have been addressed
-  - Their content has been fully integrated into CLAUDE.md or other active docs
-
-## Contributing to Documentation
-
-When updating documentation:
-1. Keep CLAUDE.md as the single source of truth for coding standards
-2. Use devdocs/ for architecture decisions, audits, and planning
-3. Archive outdated content rather than deleting it (for historical reference)
-4. Cross-reference related documents to maintain traceability
-5. Update this README when adding or archiving significant documents
+Do not add test-run reports, session summaries, completed implementation plans, duplicated API inventories, or migration guides that can drift away from their SQL. Update a maintained entry-point document when a durable workflow changes.

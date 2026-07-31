@@ -8,7 +8,6 @@
  *             US-ATT-007, US-ATT-008, US-ATT-009, US-ATT-010, US-ATT-011,
  *             US-ATT-012, US-ATT-017, US-ATT-018, US-ATT-019, US-ATT-020,
  *             US-NAV-002
- * Catalog: test/user-stories/CATALOG.md
  */
 
 'use strict';

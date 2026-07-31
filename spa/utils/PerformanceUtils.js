@@ -29,12 +29,22 @@ export function debounce(func, wait = 300) {
 }
 
 /**
- * Wraps an async operation with button loading state management
- * @param {HTMLButtonElement} button - Button to disable/show loading state
+ * Wraps an async operation with button loading state management.
+ *
+ * The button is optional: when it is missing (for example a caller that read
+ * `event.currentTarget` after an `await`, which nulls it) the operation still
+ * runs, only without the loading affordance. Silently dropping the action would
+ * make the feature look broken.
+ *
+ * @param {HTMLButtonElement|null} button - Button to disable/show loading state
  * @param {Function} asyncFn - Async function to execute
  * @returns {Promise} Result of the async function
  */
 export async function withButtonLoading(button, asyncFn) {
+  if (!button) {
+    return asyncFn();
+  }
+
   if (button.disabled) return;
 
   setButtonLoading(button, true);
