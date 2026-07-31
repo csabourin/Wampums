@@ -7,7 +7,6 @@
  *
  * Implements: US-INT-001, US-INT-002, US-INT-003, US-INT-004, US-INT-005,
  *             US-INT-006, US-INT-007, US-INT-008
- * Catalog: test/user-stories/CATALOG.md
  *
  * Server-side halves of these stories are asserted in the backend-*.stories
  * suites (US-ATT-003, US-PTS-013, US-HON-004/007, US-ACT-006).

@@ -2,7 +2,6 @@
  * User stories: PointsStore invariants (pure logic).
  *
  * Implements: US-PTS-004, US-PTS-007, US-PTS-008, US-PTS-009
- * Catalog: test/user-stories/CATALOG.md
  *
  * The store's contract: displayed total = confirmed base + pending optimistic
  * deltas, at every instant, regardless of how server responses interleave.

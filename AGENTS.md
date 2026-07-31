@@ -10,8 +10,8 @@ These instructions apply to all work in this repository. Follow them alongside t
 - **Documentation**: add JSDoc for non-trivial functions and explain intent. Update docs when behavior changes.
 
 ## Architecture & API
-- Keep routes modular per `routes/*.js`, registered in `api.js`.
-- Use `middleware/auth.js` for JWT auth (`authenticate`, `authorize`).
+- Keep routes modular per `routes/*.js`, registered in `routes/index.js`.
+- Use `middleware/auth.js` for JWT authentication and permission-based authorization (`authenticate`, `requirePermission`, and `blockDemoRoles` for protected writes). `authorize` is deprecated.
 - Use `middleware/response.js` for standardized responses (`success`, `error`, `paginated`).
 - Preserve multi-tenant isolation by filtering queries with `organization_id` from authenticated context.
 

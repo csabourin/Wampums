@@ -7,7 +7,6 @@
  *
  * Implements: US-OFF-001, US-OFF-002, US-OFF-003, US-OFF-004, US-OFF-005,
  *             US-OFF-007
- * Catalog: test/user-stories/CATALOG.md
  */
 
 'use strict';
