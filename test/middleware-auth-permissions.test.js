@@ -56,6 +56,20 @@ function generateToken(overrides = {}, secret = TEST_SECRET) {
   }, secret);
 }
 
+function installAuthedPoolMock(handler) {
+  const { __mClient, __mPool } = require('pg');
+  mockQueryImplementation(__mClient, __mPool, async (query, params) => {
+    if (typeof query === 'string' && query.includes('SELECT organization_id FROM user_organizations')) {
+      return { rows: [{ organization_id: params?.[1] ?? ORG_ID }] };
+    }
+    const customResult = await handler(query, params);
+    if (customResult !== undefined) {
+      return customResult;
+    }
+    return undefined;
+  });
+}
+
 beforeAll(() => {
   process.env.JWT_SECRET_KEY = TEST_SECRET;
   process.env.ORGANIZATION_ID = ORG_ID.toString();
@@ -90,7 +104,7 @@ describe('getOrganizationId middleware', () => {
     const { __mPool } = require('pg');
     const token = generateToken({ organizationId: ORG_ID });
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('permission')) {
         return Promise.resolve({ rows: [{ permission_key: 'users.view' }] });
       }
@@ -115,7 +129,7 @@ describe('getOrganizationId middleware', () => {
 
     let capturedOrgId = null;
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('SELECT DISTINCT p.permission_key')) {
         capturedOrgId = params[1];
         return Promise.resolve({ rows: [{ permission_key: 'users.view' }] });
@@ -141,7 +155,7 @@ describe('getOrganizationId middleware', () => {
 
     let capturedParams = [];
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('FROM user_organizations uo')) {
         capturedParams = params;
         return Promise.resolve({ rows: [{ permission_key: 'budget.manage' }] });
@@ -164,7 +178,7 @@ describe('getOrganizationId middleware', () => {
     let capturedQuery = '';
     let capturedParams = [];
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       capturedQuery = query;
       capturedParams = params;
       if (query.includes('organization_domains')) {
@@ -184,7 +198,7 @@ describe('getOrganizationId middleware', () => {
   test('throws OrganizationNotFoundError when organization cannot be resolved', async () => {
     const { __mPool } = require('pg');
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('organization_domains')) {
         return Promise.resolve({ rows: [] }); // No domain mapping found
       }
@@ -211,7 +225,7 @@ describe('requirePermission middleware', () => {
       permissions: ['users.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'users.view' }]
@@ -239,7 +253,7 @@ describe('requirePermission middleware', () => {
       permissions: ['participants.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'participants.view' }]
@@ -268,7 +282,7 @@ describe('requirePermission middleware', () => {
     const token = generateToken();
 
     // Has budget.manage but not budget.delete
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'budget.manage' }]
@@ -297,7 +311,7 @@ describe('requirePermission middleware', () => {
     const permissions = ['budget.manage', 'budget.view'];
     const roles = ['admin', 'finance'];
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: permissions.map(p => ({ permission_key: p }))
@@ -316,10 +330,13 @@ describe('requirePermission middleware', () => {
       .set('Authorization', `Bearer ${token}`);
 
     // Verify permissions were fetched and attached
-    expect(__mPool.query).toHaveBeenCalledWith(
-      expect.stringContaining('permission_key'),
-      expect.any(Array)
-    );
+    expect(
+      __mPool.query.mock.calls.some(([query, params]) =>
+        typeof query === 'string'
+          && query.includes('permission_key')
+          && Array.isArray(params)
+      )
+    ).toBe(true);
   });
 });
 
@@ -337,7 +354,7 @@ describe('blockDemoRoles middleware', () => {
 
     let demoCheckCalled = false;
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('demoadmin') || query.includes('demoparent')) {
         demoCheckCalled = true;
         return Promise.resolve({
@@ -365,7 +382,7 @@ describe('blockDemoRoles middleware', () => {
       roleIds: [1]
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('demoadmin') || query.includes('demoparent')) {
         return Promise.resolve({ rows: [] }); // No demo roles
       }
@@ -404,7 +421,7 @@ describe('getUserDataScope middleware', () => {
       roleIds: [1]
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('data_scope')) {
         return Promise.resolve({
           rows: [{ data_scope: 'organization' }]
@@ -438,7 +455,7 @@ describe('getUserDataScope middleware', () => {
       roleIds: [5]
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('data_scope')) {
         return Promise.resolve({
           rows: [{ data_scope: 'linked' }]
@@ -473,7 +490,7 @@ describe('getUserDataScope middleware', () => {
       roleIds: [5, 2]
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('data_scope')) {
         // If user has ANY organization role, return that
         return Promise.resolve({
@@ -519,7 +536,7 @@ describe('Multi-tenant isolation', () => {
 
     let participantQueryParams = null;
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('FROM participants p')) {
         participantQueryParams = params;
       }

@@ -113,7 +113,7 @@ describe('US-PTS-013 — Group award, server side: attendance decides who gets p
       if (query.includes('demoadmin')) {
         return { rows: [] };
       }
-      if (query.includes('FROM participants p') && query.includes('participant_groups pg')) {
+      if (query.includes('FROM participants p') && query.includes('JOIN participant_group_assignments pg')) {
         return { rows: [{ id: 1 }, { id: 2 }, { id: 3 }] };
       }
       if (query.includes('COUNT(*) as count FROM attendance')) {
@@ -166,12 +166,15 @@ describe('US-PTS-013 — Group award, server side: attendance decides who gets p
     // Group-level record is participant_id NULL; member insert excludes kid 2
     const groupInsert = queriesMatching(recorded, 'VALUES (NULL');
     expect(groupInsert).toHaveLength(1);
-    expect(groupInsert[0].params).toEqual([GROUP_ID, ORG_ID, 3]);
+    expect(groupInsert[0].params).toEqual([GROUP_ID, ORG_ID, ACTIVE_SCOUT_YEAR.id, 3]);
 
     const memberInserts = queriesMatching(recorded, 'INSERT INTO points')
       .filter((entry) => !entry.query.includes('VALUES (NULL'));
     expect(memberInserts).toHaveLength(1);
-    expect(memberInserts[0].params).toEqual([1, GROUP_ID, ORG_ID, 3, 3, GROUP_ID, ORG_ID, 3]);
+    expect(memberInserts[0].params).toEqual([
+      1, GROUP_ID, ORG_ID, ACTIVE_SCOUT_YEAR.id, 3,
+      3, GROUP_ID, ORG_ID, ACTIVE_SCOUT_YEAR.id, 3
+    ]);
   });
 
   it('credits every member when no attendance was taken for the date', async () => {
@@ -234,7 +237,7 @@ describe('US-PTS-015 — You can\'t score another org\'s kid (server)', () => {
       if (query.includes('demoadmin')) {
         return { rows: [] };
       }
-      if (query.includes('participant_organizations po')) {
+      if (query.includes('JOIN participant_enrollments po') && query.includes('WHERE p.id = $1')) {
         return { rows: [] };
       }
       return undefined;
@@ -291,7 +294,7 @@ describe('US-PTS-016 — Leaderboards for groups and individuals (server)', () =
 
     expect(res.body.type).toBe('individuals');
     expect(res.body.data[0].total_points).toBe(12);
-    expect(individualParams).toEqual([ORG_ID, 5]);
+    expect(individualParams).toEqual([ORG_ID, ACTIVE_SCOUT_YEAR.id, ['active'], 5]);
   });
 });
 
@@ -322,7 +325,13 @@ describe('US-PTS-017 — Full points report (server)', () => {
 
     expect(res.body.success).toBe(true);
     expect(res.body.data[0]).toMatchObject({ total_points: 12, honors_count: 2 });
-    expect(reportParams).toEqual([ORG_ID]);
+    expect(reportParams).toEqual([
+      ORG_ID,
+      ACTIVE_SCOUT_YEAR.id,
+      ['active'],
+      ACTIVE_SCOUT_YEAR.start_date,
+      ACTIVE_SCOUT_YEAR.end_date
+    ]);
   });
 });
 
