@@ -75,15 +75,46 @@ function calculateAge(dateOfBirth) {
 }
 
 /**
- * Sanitize input by removing HTML tags and trimming
+ * Sanitize input by removing HTML tags and trimming.
+ * Inputs longer than 10,000 characters are silently truncated to that limit
+ * before sanitization; callers that need to enforce a different maximum length
+ * should validate length independently before calling this function.
  * @param {string} input - Input to sanitize
- * @returns {string} Sanitized input
+ * @returns {string} Sanitized and trimmed input, capped at 10,000 characters
  */
 function sanitizeInput(input) {
-  if (!input) return "";
-  return String(input)
-    .replace(/<[^>]*>/g, "") // Remove HTML tags
-    .trim();
+  if (input === null || input === undefined) return "";
+
+  let str;
+  if (typeof input === "string") {
+    str = input;
+  } else {
+    try {
+      str = JSON.stringify(input);
+    } catch (e) {
+      str = String(input);
+    }
+  }
+
+  if (typeof str !== "string") {
+    str = String(str);
+  }
+
+  const MAX_SANITIZE_INPUT_LENGTH = 10000;
+  const safeStr = str.slice(0, MAX_SANITIZE_INPUT_LENGTH);
+  const result = [];
+  let i = 0;
+  while (i < safeStr.length) {
+    if (safeStr[i] === '<') {
+      // Skip everything up to and including the next '>', or to end of string
+      const closeIdx = safeStr.indexOf('>', i + 1);
+      i = closeIdx !== -1 ? closeIdx + 1 : safeStr.length;
+    } else {
+      result.push(safeStr[i]);
+      i++;
+    }
+  }
+  return result.join('').trim();
 }
 
 /**
