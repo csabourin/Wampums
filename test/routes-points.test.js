@@ -130,6 +130,8 @@ describe('GET /api/v1/points', () => {
       total_points: 4,
       individual_total_points: 12
     });
+    expect(groupQuery).toContain('participant_group_assignments');
+    expect(groupQuery).toContain('pe.status = ANY');
     expect(groupQuery).toContain('participant_id IS NULL');
     expect(groupQuery).toContain('participant_id IS NOT NULL');
     // Totals belong to a scout year, so opening a new year resets the score.
@@ -175,5 +177,7 @@ describe('GET /api/v1/points/leaderboard', () => {
       member_count: 3
     });
     expect(leaderboardQuery).toContain('participant_id IS NULL');
+    expect(leaderboardQuery).toContain('scout_year_id');
+    expect(leaderboardQuery).not.toContain('active_year_points');
   });
 });

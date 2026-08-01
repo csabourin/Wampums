@@ -1254,6 +1254,19 @@ module.exports = (pool) => {
           participant,
           performedBy: req.user.id
         });
+
+        // Keep this organization's approval. The last owning organization to
+        // approve will perform the global erasure in the same transaction.
+        if (summary.blocked) {
+          await client.query('COMMIT');
+          return error(
+            res,
+            'erasure_awaiting_organization_approvals',
+            409,
+            summary.organizations.map(org => ({ organization_id: org.id, organization_name: org.name }))
+          );
+        }
+
         await client.query('COMMIT');
 
         return success(res, summary, 'Participant and family data erased');

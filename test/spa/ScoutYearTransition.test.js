@@ -57,6 +57,11 @@ jest.mock('../../spa/api/api-scout-years.js', () => ({
   rollbackTransition: (...args) => mockRollbackTransition(...args)
 }));
 
+const mockSendAlumniInvitations = jest.fn(() => Promise.resolve({ invited: 0 }));
+jest.mock('../../spa/api/api-alumni.js', () => ({
+  sendAlumniInvitations: (...args) => mockSendAlumniInvitations(...args)
+}));
+
 import { ScoutYearTransition } from '../../spa/modules/scout-year/ScoutYearTransition.js';
 
 const YEARS = [

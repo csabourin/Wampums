@@ -527,10 +527,14 @@ module.exports = (pool, logger) => {
 
       await ensureProgramSectionsSeeded(client, newOrganizationId);
 
-      // Link current user to the new organization with district-level permissions
+      // Link current user to the new organization with district-level permissions.
+      //
+      // The role id is cast explicitly: `jsonb_build_array` takes "any", so
+      // PostgreSQL has nothing to infer a parameter type from and rejects the
+      // statement outright with "could not determine data type of parameter $3".
       await client.query(
         `INSERT INTO user_organizations (user_id, organization_id, role_ids, created_at)
-         VALUES ($1, $2, jsonb_build_array($3), NOW())`,
+         VALUES ($1, $2, jsonb_build_array($3::int), NOW())`,
         [userId, newOrganizationId, districtRoleId]
       );
 
@@ -772,6 +776,10 @@ module.exports = (pool, logger) => {
       if (!newOrg) {
         throw new Error('Failed to create organization');
       }
+
+      // organizations.program_section is a deferred FK into this table: the
+      // sections have to exist by COMMIT or the whole transaction is rejected.
+      await ensureProgramSectionsSeeded(client, newOrg.id);
 
       const userResult = await client.query(
         `INSERT INTO users (email, password, full_name, is_verified)

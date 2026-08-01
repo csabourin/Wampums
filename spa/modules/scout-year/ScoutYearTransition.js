@@ -29,6 +29,7 @@ import {
   getTransitions,
   rollbackTransition
 } from '../../api/api-scout-years.js';
+import { sendAlumniInvitations } from '../../api/api-alumni.js';
 
 const STEP_ROSTER = 1;
 const STEP_CONSEQUENCES = 2;
@@ -49,6 +50,7 @@ export class ScoutYearTransition extends BaseModule {
     this.isSubmitting = false;
     this.canManage = false;
     this.isRollingBack = false;
+    this.isInvitingAlumni = false;
     this.preview = null;
     this.years = [];
     this.transitions = [];
@@ -420,8 +422,73 @@ export class ScoutYearTransition extends BaseModule {
           <div><dt>${translate('scout_year_recap_deactivated')}</dt><dd>${summary.memberships_deactivated ?? 0}</dd></div>
         </dl>
         <p class="scout-year-reassurance">${translate('scout_year_report_archive_hint')}</p>
+        ${this.renderAlumniInvitation(summary)}
         <a href="/dashboard" class="button button--primary">${translate('scout_year_back_to_dashboard')}</a>
       </section>`;
+  }
+
+  /**
+   * Offer to ask the families that just lost their access whether they want to
+   * stay in touch.
+   *
+   * Placed here, in the report, because this is the moment the question makes
+   * sense — the accounts were deactivated seconds ago. It is deliberately a
+   * button and not something the transition does on its own: the transition runs
+   * inside a database transaction, and nothing that sends email belongs there.
+   *
+   * @param {Object} summary - Transition summary
+   * @returns {string} Markup, empty when nobody was deactivated
+   */
+  renderAlumniInvitation(summary) {
+    const deactivated = summary.memberships_deactivated ?? 0;
+    if (deactivated === 0 || !this.canManage) {
+      return '';
+    }
+
+    return `
+      <div class="scout-year-alumni">
+        <p class="section-description">${translate('alumni_audience_help')}</p>
+        <button type="button" class="button button--secondary" id="alumni-invite-btn"
+                ${this.isInvitingAlumni ? 'disabled' : ''}>
+          ${translate('alumni_invitations_send')}
+        </button>
+        <p class="scout-year-alumni__feedback" role="status" id="alumni-invite-feedback"></p>
+      </div>`;
+  }
+
+  /**
+   * Send the opt-in emails and report how many went out.
+   *
+   * @returns {Promise<void>}
+   */
+  async handleAlumniInvitation() {
+    if (this.isInvitingAlumni) {
+      return;
+    }
+    this.isInvitingAlumni = true;
+
+    const feedback = document.getElementById('alumni-invite-feedback');
+    const button = document.getElementById('alumni-invite-btn');
+    if (button) {
+      button.disabled = true;
+    }
+
+    try {
+      const outcome = await sendAlumniInvitations();
+      if (feedback) {
+        feedback.textContent = translate('alumni_invitations_sent')
+          .replace('{count}', String(outcome?.invited ?? 0));
+      }
+      debugError('Failed to send alumni invitations:', error);
+      if (feedback) {
+        feedback.textContent = translate('error_generic');
+      }
+      if (button) {
+        button.disabled = false;
+      }
+    } finally {
+      this.isInvitingAlumni = false;
+    }
   }
 
   /**
@@ -600,6 +667,8 @@ export class ScoutYearTransition extends BaseModule {
         this.rerender();
       } else if (event.target.closest('#accept-all-btn')) {
         this.handleAcceptAll();
+      } else if (event.target.closest('#alumni-invite-btn')) {
+        this.handleAlumniInvitation();
       } else {
         const rollbackButton = event.target.closest('#rollback-btn');
         if (rollbackButton) {

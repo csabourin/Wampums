@@ -33,6 +33,7 @@ const {
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { sendEmail, sendAdminVerificationEmail, getTranslationsByCode, getUserEmailLanguage } = require('../utils/index');
 const {
   generate2FACode,
@@ -823,7 +824,13 @@ module.exports = (pool, logger) => {
 
         // Check if user exists
         const user = await pool.query(
-          'SELECT id FROM users WHERE email = $1',
+          `SELECT u.id, uo.organization_id
+             FROM users u
+             JOIN user_organizations uo ON uo.user_id = u.id
+            WHERE LOWER(u.email) = $1
+              AND uo.status = 'active'
+            ORDER BY uo.organization_id
+            LIMIT 1`,
           [normalizedEmail]
         );
 
@@ -838,7 +845,7 @@ module.exports = (pool, logger) => {
           });
         }
 
-        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+        const organizationId = user.rows[0].organization_id;
 
         // Generate a strong reset token and hash it before storage
         const rawResetToken = crypto.randomBytes(32).toString('hex');
@@ -855,8 +862,8 @@ module.exports = (pool, logger) => {
         const tokenUpdate = await pool.query(
           `UPDATE users
            SET reset_token = $1, reset_token_expiry = NOW() + INTERVAL '1 hour'
-           WHERE LOWER(email) = $2`,
-          [hashedToken, normalizedEmail]
+           WHERE id = $2`,
+          [hashedToken, user.rows[0].id]
         );
 
         if (tokenUpdate.rowCount === 0) {

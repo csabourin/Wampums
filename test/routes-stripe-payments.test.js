@@ -77,6 +77,20 @@ function generateToken(overrides = {}, secret = TEST_SECRET) {
   }, secret);
 }
 
+function installAuthedPoolMock(handler) {
+  const { __mClient, __mPool } = require('pg');
+  mockQueryImplementation(__mClient, __mPool, async (query, params) => {
+    if (typeof query === 'string' && query.includes('SELECT organization_id FROM user_organizations')) {
+      return { rows: [{ organization_id: params?.[1] ?? ORG_ID }] };
+    }
+    const customResult = await handler(query, params);
+    if (customResult !== undefined) {
+      return customResult;
+    }
+    return undefined;
+  });
+}
+
 beforeAll(() => {
   process.env.JWT_SECRET_KEY = TEST_SECRET;
   process.env.ORGANIZATION_ID = ORG_ID.toString();
@@ -116,7 +130,7 @@ describe('POST /api/v1/stripe/create-payment-intent', () => {
       user_id: 1
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('FROM participant_fees pf')) {
         return Promise.resolve({
           rows: [{
@@ -168,7 +182,7 @@ describe('POST /api/v1/stripe/create-payment-intent', () => {
       user_id: 1
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('FROM participant_fees pf')) {
         return Promise.resolve({
           rows: [{
@@ -218,7 +232,7 @@ describe('POST /api/v1/stripe/create-payment-intent', () => {
       user_id: 1
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('FROM participant_fees pf')) {
         return Promise.resolve({
           rows: [{
@@ -268,9 +282,7 @@ describe('POST /api/v1/stripe/create-payment-intent', () => {
       user_id: 1
     });
 
-    __mPool.query.mockImplementation((query, params) => {
-      return Promise.resolve({ rows: [] });
-    });
+    installAuthedPoolMock(() => ({ rows: [] }));
 
     const res = await request(app)
       .post('/api/v1/stripe/create-payment-intent')
@@ -292,9 +304,7 @@ describe('POST /api/v1/stripe/create-payment-intent', () => {
       user_id: 1
     });
 
-    __mPool.query.mockImplementation((query, params) => {
-      return Promise.resolve({ rows: [] });
-    });
+    installAuthedPoolMock(() => ({ rows: [] }));
 
     const res = await request(app)
       .post('/api/v1/stripe/create-payment-intent')
@@ -316,7 +326,7 @@ describe('POST /api/v1/stripe/create-payment-intent', () => {
       user_id: 1
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('FROM participant_fees pf')) {
         return Promise.resolve({ rows: [] }); // Fee not found
       }
@@ -366,7 +376,7 @@ describe('Parent vs Staff payment authorization', () => {
 
     let capturedQuery = '';
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('FROM participant_fees pf')) {
         capturedQuery = query;
       }
@@ -424,7 +434,7 @@ describe('Parent vs Staff payment authorization', () => {
 
     let capturedQuery = '';
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('FROM participant_fees pf')) {
         capturedQuery = query;
       }
@@ -475,9 +485,7 @@ describe('POST /api/v1/stripe/webhook', () => {
   test('validates webhook signature before processing', async () => {
     const { __mPool } = require('pg');
 
-    __mPool.query.mockImplementation((query, params) => {
-      return Promise.resolve({ rows: [] });
-    });
+    installAuthedPoolMock(() => ({ rows: [] }));
 
     const res = await request(app)
       .post('/api/v1/stripe/webhook')
@@ -503,7 +511,7 @@ describe('POST /api/v1/stripe/webhook', () => {
 
     let paymentInserted = false;
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('INSERT INTO payments')) {
         paymentInserted = true;
         return Promise.resolve({
@@ -554,7 +562,7 @@ describe('Payment amount precision and rounding', () => {
       }));
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('FROM participant_fees pf')) {
         return Promise.resolve({
           rows: [{
@@ -605,7 +613,7 @@ describe('Payment amount precision and rounding', () => {
       user_id: 1
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    installAuthedPoolMock((query, params) => {
       if (query.includes('FROM participant_fees pf')) {
         return Promise.resolve({
           rows: [{

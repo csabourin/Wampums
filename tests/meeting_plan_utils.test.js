@@ -1,4 +1,4 @@
-import { mergeTimelineWithTemplates } from '../spa/utils/MeetingPlanUtils.js';
+const { mergeTimelineWithTemplates } = require('../spa/utils/MeetingPlanUtils.js');
 
 describe('mergeTimelineWithTemplates', () => {
   const translate = (key) => key === 'activity.welcome' ? 'Accueil' : key;

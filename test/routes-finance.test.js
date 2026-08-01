@@ -694,12 +694,12 @@ describe('Participant statement access', () => {
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM participants p')) {
         expect(params).toEqual([participantId.toString(), ORG_ID]);
-        return Promise.resolve({ rows: [] });
+        return { rows: [] };
       }
       if (query.includes('WITH payments AS')) {
         statementQueried = true;
       }
-      return Promise.resolve({ rows: [] });
+      return undefined;
     });
 
     const res = await request(app)

@@ -53,10 +53,11 @@ export class OptimisticUpdateManager {
    * @param {Function} handlers.successFn - Optional function to finalize on success (receives API result)
    * @param {Function} handlers.rollbackFn - Function to rollback on error (receives rollback data and error)
    * @param {Function} [handlers.onError] - Optional custom error handler
+   * @param {Function} [handlers.onCommitError] - Optional local reconciliation error handler
    * @returns {Promise<any>} Result from API call
    * @throws {Error} Re-throws error after rollback if API call fails
    */
-  async execute(key, { optimisticFn, apiFn, successFn, rollbackFn, onError }) {
+  async execute(key, { optimisticFn, apiFn, successFn, rollbackFn, onError, onCommitError }) {
     // Prevent duplicate optimistic updates
     if (this.pendingUpdates.has(key)) {
       debugWarn(`Optimistic update already pending for key: ${key}`);
@@ -65,6 +66,8 @@ export class OptimisticUpdateManager {
 
     const startTime = Date.now();
     let rollbackData = null;
+    let apiSucceeded = false;
+    let apiResult;
 
     const updatePromise = (async () => {
       try {
@@ -73,11 +76,12 @@ export class OptimisticUpdateManager {
         rollbackData = optimisticFn();
 
         // 2. Make API call in background
-        const result = await apiFn();
+        apiResult = await apiFn();
+        apiSucceeded = true;
 
         // 3. Finalize with real data on success
         if (successFn) {
-          await successFn(result);
+          await successFn(apiResult);
         }
 
         const duration = Date.now() - startTime;
@@ -91,9 +95,30 @@ export class OptimisticUpdateManager {
           timestamp: Date.now()
         });
 
-        return result;
+        return apiResult;
 
       } catch (error) {
+        if (apiSucceeded) {
+          debugError(`[Optimistic] Local success handling failed: ${key}`, error);
+          this._addToHistory({
+            key,
+            success: true,
+            localSyncError: error.message,
+            duration: Date.now() - startTime,
+            timestamp: Date.now()
+          });
+          if (onCommitError) {
+            try {
+              await onCommitError(error, apiResult);
+            } catch (handlerError) {
+              debugError(`[Optimistic] Commit error handler failed: ${key}`, handlerError);
+            }
+          }
+          // The server mutation succeeded. Never roll it back or reject merely
+          // because IndexedDB, cache, or UI reconciliation failed locally.
+          return apiResult;
+        }
+
         debugError(`[Optimistic] Failed: ${key}`, error);
 
         // 4. Rollback on error

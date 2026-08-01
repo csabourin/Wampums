@@ -44,6 +44,7 @@ export class TabbedPage extends BaseModule {
     // Every mount gets a token; only the newest one may own the panel.
     this.mountToken = 0;
     this.pendingMounts = new Set();
+    this.pendingByKey = new Map();
   }
 
   async init() {
@@ -221,6 +222,20 @@ export class TabbedPage extends BaseModule {
 
     const panel = document.getElementById(PANEL_ID);
     if (!panel) return;
+    // A rapid A -> B -> A switch must not create a second live DOM tree for A.
+    // Let its obsolete initialization settle first, then mount a fresh instance.
+    const existingPending = this.pendingByKey.get(tab.key);
+    if (existingPending) {
+      const waitToken = ++this.mountToken;
+      this.destroyActiveModule();
+      this.retireMounts(panel);
+      existingPending.element.hidden = false;
+      await existingPending.completion;
+      if (this.isCurrentMount(waitToken) && this.activeKey === tab.key) {
+        return this.mountActiveTab();
+      }
+      return;
+    }
 
     const token = ++this.mountToken;
     const containerId = mountId(token);
@@ -228,7 +243,12 @@ export class TabbedPage extends BaseModule {
     this.destroyActiveModule();
     this.retireMounts(panel);
     this.pendingMounts.add(token);
-    panel.appendChild(this.createMount(token, containerId));
+    const mountElement = this.createMount(token, containerId);
+    panel.appendChild(mountElement);
+    let finishPending;
+    const completion = new Promise(resolve => { finishPending = resolve; });
+    const pendingEntry = { token, element: mountElement, completion };
+    this.pendingByKey.set(tab.key, pendingEntry);
 
     try {
       const PageClass = await tab.load();
@@ -253,6 +273,10 @@ export class TabbedPage extends BaseModule {
       }
     } finally {
       this.pendingMounts.delete(token);
+      if (this.pendingByKey.get(tab.key) === pendingEntry) {
+        this.pendingByKey.delete(tab.key);
+      }
+      finishPending();
       if (!this.isCurrentMount(token)) {
         document.getElementById(containerId)?.remove();
       }

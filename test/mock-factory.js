@@ -265,6 +265,39 @@ class MockFactory {
     
     // User organization membership
     if (queryLower.includes('from user_organizations')) {
+      // Demo roles check (blockDemoRoles middleware) - return no demo roles so writes are not blocked
+      if (queryLower.includes('demoadmin') || queryLower.includes("'demoparent'")) {
+        return { rows: [] };
+      }
+
+      // Permissions query (requirePermission middleware) - return a broad set of common permissions
+      if (queryLower.includes('permission_key')) {
+        return {
+          rows: [
+            { permission_key: 'activities.view' },
+            { permission_key: 'activities.create' },
+            { permission_key: 'activities.edit' },
+            { permission_key: 'activities.delete' },
+            { permission_key: 'participants.view' },
+            { permission_key: 'participants.manage' },
+            { permission_key: 'budget.view' },
+            { permission_key: 'reports.view' },
+            { permission_key: 'users.view' },
+            { permission_key: 'users.manage' },
+            { permission_key: 'carpools.view' },
+            { permission_key: 'finance.manage' },
+            { permission_key: 'forms.manage' },
+            { permission_key: 'notifications.send' },
+          ]
+        };
+      }
+
+      // Roles query with display_name (requirePermission roles fetch)
+      if (queryLower.includes('display_name')) {
+        return { rows: [{ role_name: 'admin', display_name: 'Admin' }] };
+      }
+
+      // Membership check (authenticate middleware) or generic user_organizations query
       return { 
         rows: [{ 
           user_id: '550e8400-e29b-41d4-a716-446655440000',

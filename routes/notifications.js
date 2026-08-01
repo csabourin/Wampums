@@ -32,11 +32,11 @@ module.exports = (pool, logger) => {
    * GET /api/v1/notifications/subscription
    */
   router.post('/subscription',
-    authenticate,
     check('endpoint').notEmpty().withMessage('endpoint is required').isURL().withMessage('endpoint must be a valid URL'),
     check('keys.p256dh').notEmpty().withMessage('keys.p256dh is required'),
     check('keys.auth').notEmpty().withMessage('keys.auth is required'),
     checkValidation,
+    authenticate,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);

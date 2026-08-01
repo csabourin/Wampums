@@ -119,7 +119,19 @@ export class MailingList {
                                                 <button type="button" class="button button--small button--secondary" id="ai-translate-btn">🌐 ${translate("translate_en_fr")}</button>
                                         </div>
                                 </label>
-                                <div class="input-group roles">
+                                <div class="input-group">
+                                        <span>${translate("alumni_audience")}</span>
+                                        <label>
+                                                <input type="radio" name="announcement-audience" value="members" checked />
+                                                ${translate("alumni_audience_members")}
+                                        </label>
+                                        <label>
+                                                <input type="radio" name="announcement-audience" value="alumni" />
+                                                ${translate("alumni_audience_alumni")}
+                                        </label>
+                                        <p class="text-muted">${translate("alumni_audience_help")}</p>
+                                </div>
+                                <div class="input-group roles" id="announcement-member-filters">
                                         <span>${translate("recipient_roles")}</span>
                                         <div class="role-options">
                                                 ${roles
@@ -134,7 +146,7 @@ export class MailingList {
                                 .join("")}
                                         </div>
                                 </div>
-                                ${this.renderGroupFilters()}
+                                <div id="announcement-group-filters">${this.renderGroupFilters()}</div>
                                 <label class="input-group">
                                         <span>${translate("schedule_send_time")}</span>
                                         <input type="datetime-local" id="announcement-scheduled-at" name="announcement-scheduled-at" />
@@ -371,6 +383,13 @@ export class MailingList {
                         });
                 }
 
+                // Role and den filters describe the unit's own roster, so they are
+                // meaningless — and misleading — once the alumni audience is picked.
+                document.querySelectorAll('input[name="announcement-audience"]').forEach((input) => {
+                        input.addEventListener("change", () => this.toggleMemberFilters());
+                });
+                this.toggleMemberFilters();
+
                 const draftButton = document.getElementById("save-announcement-draft");
                 if (draftButton) {
                         draftButton.addEventListener("click", (event) => {
@@ -435,17 +454,37 @@ export class MailingList {
                 }
         }
 
+        /**
+         * Show or hide the unit-only recipient filters to match the chosen audience.
+         *
+         * @returns {void}
+         */
+        toggleMemberFilters() {
+                const isAlumni = document.querySelector('input[name="announcement-audience"]:checked')?.value === "alumni";
+                ["announcement-member-filters", "announcement-group-filters"].forEach((id) => {
+                        const element = document.getElementById(id);
+                        if (element) {
+                                element.hidden = isAlumni;
+                        }
+                });
+        }
+
         async handleAnnouncementSubmit(saveAsDraft = false) {
                 if (this.isSubmitting) return;
 
                 const subject = document.getElementById("announcement-subject")?.value?.trim();
                 const message = document.getElementById("announcement-message")?.value?.trim();
                 const scheduledAt = document.getElementById("announcement-scheduled-at")?.value;
+                const audience = document.querySelector('input[name="announcement-audience"]:checked')?.value || "members";
                 const roleCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-role"]:checked'));
                 const groupCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-group"]:checked'));
 
-                const recipientRoles = roleCheckboxes.map((input) => input.value);
-                const recipientGroupIds = groupCheckboxes.map((input) => Number(input.value));
+                // Roles and dens describe the unit. An alumni send has neither,
+                // and sending them anyway would only invite the server to
+                // reinterpret them.
+                const isAlumni = audience === "alumni";
+                const recipientRoles = isAlumni ? [] : roleCheckboxes.map((input) => input.value);
+                const recipientGroupIds = isAlumni ? [] : groupCheckboxes.map((input) => Number(input.value));
 
                 if (!subject || !message) {
                         this.showFeedback(translate("error_loading_mailing_list"), "error");
@@ -460,6 +499,7 @@ export class MailingList {
                         const response = await createAnnouncement({
                                 subject,
                                 message: sanitizeHTML(message, { stripAll: true }),
+                                audience,
                                 recipient_roles: recipientRoles,
                                 recipient_group_ids: recipientGroupIds,
                                 scheduled_at: scheduledAt || null,
