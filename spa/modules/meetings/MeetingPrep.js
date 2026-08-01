@@ -22,7 +22,7 @@ import {
 import { getUpcomingBirthdays } from '../../utils/BirthdayUtils.js';
 import { getActiveSectionConfig, getHonorLabel } from '../../utils/meetingSections.js';
 import { mergeTimelineWithTemplates } from '../../utils/MeetingPlanUtils.js';
-import { deleteCachedData } from '../../indexedDB.js';
+import { deleteCachedData, clearYearlyPlannerCaches } from '../../indexedDB.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { ActivityManager } from '../ActivityManager.js';
 import { PrintManager } from '../PrintManager.js';
@@ -692,6 +692,9 @@ export class MeetingPrep extends BaseModule {
 
       await deleteCachedData('reunion_dates');
       await deleteCachedData(`reunion_preparation_${formData.date}`);
+      // Preparation writes the same year_plan_meetings row the yearly planner
+      // reads, so its cached plan and meeting views are now stale too.
+      await clearYearlyPlannerCaches();
       const datesResponse = await getReunionDates(true);
       this.meetingDates = datesResponse?.data || this.meetingDates;
 

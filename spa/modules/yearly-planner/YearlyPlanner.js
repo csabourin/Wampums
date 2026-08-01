@@ -50,6 +50,8 @@ export class YearlyPlanner extends BaseModule {
     this.activityLibrary = [];
     this.view = VIEW.LIST;
     this.isLoading = true;
+    this.loadError = null;
+    this.libraryError = null;
     this.canManage = hasPermission('meetings.manage');
     this.canCreateActivities = hasPermission('activities.create');
     this.lang = localStorage.getItem('language') || 'en';
@@ -71,14 +73,19 @@ export class YearlyPlanner extends BaseModule {
     this.attachEventListeners();
   }
 
-  async loadPlans() {
+  async loadPlans({ forceRefresh = false } = {}) {
     try {
-      const response = await getYearPlans();
+      const response = await getYearPlans({ forceRefresh });
       this.plans = response?.data || [];
+      this.loadError = null;
       debugLog('Loaded year plans:', this.plans.length);
     } catch (err) {
+      // A failed load must not look like "you have no plans yet" — that is the
+      // ambiguity that hid the cache bug for so long.
       debugError('Error loading year plans:', err);
       this.plans = [];
+      this.loadError = err;
+      this.app?.showMessage?.(translate('yearly_planner_error_loading'), 'error');
     }
   }
 
@@ -102,13 +109,16 @@ export class YearlyPlanner extends BaseModule {
     }
   }
 
-  async loadLibrary() {
+  async loadLibrary({ forceRefresh = false } = {}) {
     try {
-      const response = await getActivityLibrary();
+      const response = await getActivityLibrary({}, { forceRefresh });
       this.activityLibrary = response?.data || [];
+      this.libraryError = null;
     } catch (err) {
       debugError('Error loading activity library:', err);
       this.activityLibrary = [];
+      this.libraryError = err;
+      this.app?.showMessage?.(translate('yearly_planner_error_loading'), 'error');
     }
   }
 
@@ -171,9 +181,13 @@ export class YearlyPlanner extends BaseModule {
 
         ${this.plans.length === 0 ? `
           <div class="empty-state">
-            <i class="fas fa-calendar-alt empty-state__icon"></i>
-            <p>${translate('yearly_planner_empty')}</p>
-            ${this.canManage ? `
+            <i class="fas fa-${this.loadError ? 'triangle-exclamation' : 'calendar-alt'} empty-state__icon"></i>
+            <p>${translate(this.loadError ? 'yearly_planner_error_loading' : 'yearly_planner_empty')}</p>
+            ${this.loadError ? `
+              <button class="button button--primary" id="yp-retry-btn">
+                ${translate('retry')}
+              </button>
+            ` : this.canManage ? `
               <button class="button button--primary" id="yp-create-empty-btn">
                 ${translate('yearly_planner_create_first')}
               </button>
@@ -1177,6 +1191,12 @@ export class YearlyPlanner extends BaseModule {
     // Plan list view
     document.getElementById('yp-create-btn')?.addEventListener('click', () => this.showCreatePlanModal(), { signal: this.signal });
     document.getElementById('yp-create-empty-btn')?.addEventListener('click', () => this.showCreatePlanModal(), { signal: this.signal });
+
+    document.getElementById('yp-retry-btn')?.addEventListener('click', async () => {
+      await this.loadPlans({ forceRefresh: true });
+      this.render();
+      this.attachEventListeners();
+    }, { signal: this.signal });
 
     document.getElementById('yp-library-btn')?.addEventListener('click', async () => {
       this.view = VIEW.LIBRARY;

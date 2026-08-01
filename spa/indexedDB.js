@@ -680,6 +680,74 @@ export async function clearActivityRelatedCaches() {
 }
 
 /**
+ * Clear yearly-planner caches.
+ *
+ * Every planner read goes through the API cache, and the activity-library keys
+ * carry arbitrary filter params, so the key set is unbounded. Scan by prefix
+ * instead of listing keys: buildScopedCacheKey appends its `|scope:user:…|org:…`
+ * suffix at the end, and short-circuits on already-scoped keys, so scanned keys
+ * can be fed straight back into deleteCachedData.
+ *
+ * @param {Object} [options] - Invalidation scope
+ * @param {boolean} [options.includeMeetingPrep=false] - Also clear the meeting
+ *   preparation caches, which read the same year_plan_meetings rows
+ * @param {boolean} [options.includeActivities=false] - Also clear the outings
+ *   caches, for mutations that create or unlink an `activities` row
+ * @returns {Promise<void>}
+ */
+export async function clearYearlyPlannerCaches({
+  includeMeetingPrep = false,
+  includeActivities = false,
+} = {}) {
+  const keysToDelete = new Set();
+
+  const db = await openDB();
+  const transaction = db.transaction(STORE_NAME, "readonly");
+  const store = transaction.objectStore(STORE_NAME);
+  const allKeys = await new Promise((resolve, reject) => {
+    const request = store.getAllKeys();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+  allKeys.forEach((key) => {
+    if (typeof key !== "string") {
+      return;
+    }
+    if (key.startsWith("/api/v1/yearly-planner") || key.startsWith("v1/yearly-planner")) {
+      keysToDelete.add(key);
+      return;
+    }
+    if (
+      includeMeetingPrep &&
+      (key.startsWith("reunion_preparation_") ||
+        key.startsWith("/api/v1/meetings") ||
+        key.startsWith("v1/meetings"))
+    ) {
+      keysToDelete.add(key);
+    }
+  });
+
+  if (includeMeetingPrep) {
+    keysToDelete.add("reunion_dates");
+  }
+
+  debugLog("Clearing yearly-planner caches:", Array.from(keysToDelete));
+
+  for (const key of keysToDelete) {
+    try {
+      await deleteCachedData(key);
+    } catch (error) {
+      debugWarn(`Failed to delete cache for ${key}:`, error);
+    }
+  }
+
+  if (includeActivities) {
+    await clearActivityRelatedCaches();
+  }
+}
+
+/**
  * Clear carpool-related caches
  * Call this after creating, updating, or deleting carpool offers or assignments
  * @param {number} activityId - Optional activity ID to clear specific activity caches
