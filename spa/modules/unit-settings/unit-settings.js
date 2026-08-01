@@ -341,23 +341,39 @@ export class UnitSettings extends BaseModule {
     }
   }
 
+  /**
+   * Convert API failures into page-language messages. Server details are kept
+   * in debug logs and never shown directly because they are not localized.
+   *
+   * @param {Error & {status?: number}} error - API request failure
+   * @returns {string} Localized user-facing message
+   */
+  getLocalizedSaveError(error) {
+    if (error?.status === 400) {
+      return translate("unit_settings_invalid_settings");
+    }
+    if (error?.status === 401 || error?.status === 403) {
+      return translate("insufficient_permissions");
+    }
+    return translate("error_saving");
+  }
+
   async handleSaveUnitDetails(event) {
     event.preventDefault();
-    const form = event.currentTarget;
+    const form = document.getElementById("unit-details-form");
     const btn = document.getElementById("save-unit-details-btn");
-    if (!form.reportValidity() || !btn) return;
+    if (!form || !btn || !form.reportValidity()) return;
 
-    const formData = new FormData(form);
     const payload = {
-      name: String(formData.get("name") || "").trim(),
-      unit: String(formData.get("unit") || "").trim(),
-      district: String(formData.get("district") || "").trim(),
-      animateur_responsable: String(formData.get("animateur_responsable") || "").trim(),
-      endroit: String(formData.get("endroit") || "").trim(),
-      meeting_day: String(formData.get("meeting_day") || ""),
-      meeting_time: String(formData.get("meeting_time") || ""),
-      meeting_duration: Number(formData.get("meeting_duration")),
-      logo: String(formData.get("logo") || "").trim(),
+      name: String(document.getElementById("unit-organization-name")?.value || "").trim(),
+      unit: String(document.getElementById("unit-name")?.value || "").trim(),
+      district: String(document.getElementById("unit-district")?.value || "").trim(),
+      animateur_responsable: String(document.getElementById("unit-group-leader")?.value || "").trim(),
+      endroit: String(document.getElementById("unit-meeting-location")?.value || "").trim(),
+      meeting_day: String(document.getElementById("unit-meeting-day")?.value || ""),
+      meeting_time: String(document.getElementById("unit-meeting-time")?.value || ""),
+      meeting_duration: Number(document.getElementById("unit-meeting-duration")?.value),
+      logo: String(document.getElementById("unit-logo-url")?.value || "").trim(),
     };
 
     btn.disabled = true;
@@ -385,7 +401,7 @@ export class UnitSettings extends BaseModule {
       this.attachEventListeners();
     } catch (error) {
       debugError("Failed to save unit details:", error);
-      this.app?.showMessage?.(error.message || translate("error_saving"), "error");
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), "error");
     } finally {
       const saveButton = document.getElementById("save-unit-details-btn");
       if (saveButton) {
@@ -413,7 +429,7 @@ export class UnitSettings extends BaseModule {
       this.app?.showMessage?.(translate("unit_settings_language_saved") || "Language saved.", "success");
     } catch (error) {
       debugError("Failed to save email language:", error);
-      this.app?.showMessage?.(error.message || translate("error_saving") || "Failed to save.", "error");
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), "error");
     } finally {
       btn.disabled = false;
       btn.textContent = translate("save") || "Save";
@@ -435,7 +451,7 @@ export class UnitSettings extends BaseModule {
       this.attachEventListeners();
     } catch (error) {
       debugError("Failed to save 2FA setting:", error);
-      this.app?.showMessage?.(error.message || translate("error_saving") || "Failed to save setting.", "error");
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), "error");
       if (toggle) toggle.checked = !disabled;
     } finally {
       const t = document.getElementById("disable-2fa-toggle");
