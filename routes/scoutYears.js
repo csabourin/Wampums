@@ -162,12 +162,23 @@ module.exports = (pool, logger) => {
       needs_review: row.age_at_reference === null
     }));
 
-    const graduatingIds = participants
+    const proposedGraduatingIds = participants
       .filter(p => p.disposition === 'graduating')
       .map(p => p.id);
 
-    // Which parents would be left without an enrolled child, assuming the
-    // proposed dispositions are applied.
+    // The wizard re-asks for a preview once the leader has overridden some
+    // dispositions, so the list of affected parents stays in sync with the
+    // choices actually made.
+    const overrideIds = typeof req.query.graduating_ids === 'string'
+      ? req.query.graduating_ids
+        .split(',')
+        .map(value => parseInt(value.trim(), 10))
+        .filter(value => !Number.isNaN(value))
+      : null;
+    const graduatingIds = overrideIds === null ? proposedGraduatingIds : overrideIds;
+
+    // Which parents would be left without an enrolled child, assuming those
+    // dispositions are applied.
     const membershipCandidates = await listMembershipsWithoutEnrolledChild(
       pool,
       organizationId,
@@ -218,7 +229,7 @@ module.exports = (pool, logger) => {
       participants,
       memberships_to_deactivate: membershipsAfterTransition,
       counts: {
-        returning: participants.filter(p => p.disposition === 'returning').length,
+        returning: participants.length - graduatingIds.length,
         graduating: graduatingIds.length,
         needs_review: participants.filter(p => p.needs_review).length,
         memberships_to_deactivate: membershipsAfterTransition.length
