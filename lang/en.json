@@ -171,6 +171,7 @@
   "unit_settings_meeting_duration": "Usual meeting duration (minutes)",
   "unit_settings_logo_url": "Logo URL or site path",
   "unit_settings_details_saved": "Unit settings saved.",
+  "unit_settings_invalid_settings": "Some unit settings are invalid. Review the fields and try again.",
   "unit_settings_language_title": "Language",
   "default_email_language": "Default email language",
   "unit_settings_language_description": "Default language used for emails and notifications sent by the organization.",

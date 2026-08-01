@@ -171,6 +171,7 @@
   "unit_settings_meeting_duration": "Durée habituelle des réunions (minutes)",
   "unit_settings_logo_url": "URL ou chemin du logo",
   "unit_settings_details_saved": "Paramètres de l’unité enregistrés.",
+  "unit_settings_invalid_settings": "Certains paramètres de l’unité sont invalides. Vérifiez les champs et réessayez.",
   "unit_settings_language_title": "Langue",
   "default_email_language": "Langue par défaut des courriels",
   "unit_settings_language_description": "Langue par défaut utilisée pour les courriels et les notifications envoyés par l’organisation.",
