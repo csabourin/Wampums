@@ -25,7 +25,9 @@ import {
   getScoutYears,
   getTransitionPreview,
   executeTransition,
-  setMembershipStatus
+  setMembershipStatus,
+  getTransitions,
+  rollbackTransition
 } from '../../api/api-scout-years.js';
 
 const STEP_ROSTER = 1;
@@ -46,8 +48,10 @@ export class ScoutYearTransition extends BaseModule {
     this.isLoading = true;
     this.isSubmitting = false;
     this.canManage = false;
+    this.isRollingBack = false;
     this.preview = null;
     this.years = [];
+    this.transitions = [];
     this.result = null;
     this.loadError = null;
 
@@ -86,6 +90,7 @@ export class ScoutYearTransition extends BaseModule {
 
   async loadData() {
     this.years = await getScoutYears({ forceRefresh: true });
+    this.transitions = await getTransitions();
 
     if (!this.canManage) {
       return;
@@ -144,6 +149,7 @@ export class ScoutYearTransition extends BaseModule {
         ${this.loadError ? this.renderError() : ''}
         ${this.canManage && !this.loadError ? this.renderWizard() : ''}
         ${!this.canManage ? `<p class="muted-text">${translate('scout_year_view_only')}</p>` : ''}
+        ${this.renderLastTransition()}
         ${this.renderHistory()}
       </div>`
     );
@@ -343,6 +349,14 @@ export class ScoutYearTransition extends BaseModule {
       </div>
 
       <div class="scout-year-consequence">
+        <h3>${translate('scout_year_dens_title')}</h3>
+        <p class="section-description">
+          ${translate('scout_year_dens_description')
+    .replace('{year}', escapeHTML(this.preview.current_year.label))}
+        </p>
+      </div>
+
+      <div class="scout-year-consequence">
         <h3>${translate('scout_year_kept_title')}</h3>
         <p class="section-description">${translate('scout_year_kept_description')
     .replace('{leaving}', String(graduatingCount))}</p>
@@ -410,6 +424,71 @@ export class ScoutYearTransition extends BaseModule {
       </section>`;
   }
 
+  /**
+   * The safety net: the most recent transition, and whether it can still be
+   * undone.
+   *
+   * Rendered as its own section rather than inside the report, so it is still
+   * there when the leader comes back the next morning having realised they
+   * graduated the wrong child.
+   *
+   * @returns {string} Markup, empty when the unit has never run a transition
+   */
+  renderLastTransition() {
+    const transition = this.transitions[0];
+    if (!transition) {
+      return '';
+    }
+
+    const from = escapeHTML(transition.from_label || '');
+    const to = escapeHTML(transition.to_label || '');
+    const when = escapeHTML(formatDate(transition.executed_at, this.app?.lang || 'fr', DATE_FORMAT));
+    const who = transition.executed_by_name ? escapeHTML(transition.executed_by_name) : '';
+
+    let action = '';
+    if (transition.rolled_back_at) {
+      const undoneOn = escapeHTML(
+        formatDate(transition.rolled_back_at, this.app?.lang || 'fr', DATE_FORMAT)
+      );
+      action = `<p class="scout-year-rollback__done">
+          ${translate('scout_year_rollback_done').replace('{date}', undoneOn)}
+        </p>`;
+    } else if (!this.canManage) {
+      action = '';
+    } else if (transition.can_rollback) {
+      action = `
+        <p class="section-description">${translate('scout_year_rollback_description')}</p>
+        <button type="button"
+                class="button button--danger"
+                id="rollback-btn"
+                data-transition-id="${transition.id}"
+                ${this.isRollingBack ? 'disabled' : ''}>
+          ${this.isRollingBack
+    ? translate('scout_year_rollback_running')
+    : translate('scout_year_rollback_button')}
+        </button>`;
+    } else {
+      const reasons = (transition.rollback_blockers || [])
+        .map(blocker => `<li>${escapeHTML(
+          translate(`scout_year_rollback_blocker_${blocker.reason}`).replace('{count}', String(blocker.count))
+        )}</li>`)
+        .join('');
+      action = `
+        <p class="section-description">${translate('scout_year_rollback_blocked')}</p>
+        ${reasons ? `<ul class="scout-year-rollback__blockers">${reasons}</ul>` : ''}`;
+    }
+
+    return `
+      <section class="account-section scout-year-rollback">
+        <h2>${translate('scout_year_rollback_title')}</h2>
+        <p class="scout-year-headline"><strong>${from}</strong> → <strong>${to}</strong></p>
+        <p class="muted-text">
+          ${translate('scout_year_last_transition_meta').replace('{date}', when).replace('{who}', who)}
+        </p>
+        ${action}
+      </section>`;
+  }
+
   renderNavigation() {
     const isLast = this.step === LAST_WIZARD_STEP;
     const acceptAll = this.step === STEP_ROSTER
@@ -442,14 +521,25 @@ export class ScoutYearTransition extends BaseModule {
       return '';
     }
 
+    const statusLabels = {
+      active: 'scout_year_status_active',
+      planning: 'scout_year_status_planning',
+      closed: 'scout_year_status_closed'
+    };
+
     const rows = this.years.map(year => {
       const isActive = year.status === 'active';
+      // A closed year is counted by everyone who belonged to it, graduates
+      // included — that is the number you came to the history for.
+      const count = isActive
+        ? (year.active_participants ?? 0)
+        : (year.total_enrollments ?? year.active_participants ?? 0);
       return `
         <li class="scout-year-history__item ${isActive ? 'is-active' : ''}">
           <span class="scout-year-history__label">${escapeHTML(year.label)}</span>
           <span class="scout-year-history__meta">
-            ${translate('scout_year_history_participants').replace('{count}', String(year.active_participants ?? 0))}
-            · ${isActive ? translate('scout_year_status_active') : translate('scout_year_status_closed')}
+            ${translate('scout_year_history_participants').replace('{count}', String(count))}
+            · ${translate(statusLabels[year.status] || 'scout_year_status_closed')}
           </span>
         </li>`;
     }).join('');
@@ -510,6 +600,11 @@ export class ScoutYearTransition extends BaseModule {
         this.rerender();
       } else if (event.target.closest('#accept-all-btn')) {
         this.handleAcceptAll();
+      } else {
+        const rollbackButton = event.target.closest('#rollback-btn');
+        if (rollbackButton) {
+          this.handleRollback(parseInt(rollbackButton.dataset.transitionId, 10));
+        }
       }
     });
   }
@@ -641,15 +736,80 @@ export class ScoutYearTransition extends BaseModule {
     this.step = STEP_REPORT;
     this.app?.showMessage?.(translate('scout_year_execute_success'), 'success');
 
-    // The year history is decoration on the report screen; failing to refresh
-    // it must not cast doubt on a transition that already went through.
+    // The year history and the undo button are read from the server after the
+    // fact; failing to refresh them must not cast doubt on a transition that
+    // already went through.
     try {
       this.years = await getScoutYears({ forceRefresh: true });
+      this.transitions = await getTransitions();
     } catch (error) {
       debugError('Failed to refresh the scout year history:', error);
     }
 
     this.isSubmitting = false;
+    this.rerender();
+  }
+
+  /**
+   * Undo the last transition.
+   *
+   * The server is the authority on whether this is still possible, so a refusal
+   * is not an error to hide: reloading gives the leader the up-to-date reason.
+   *
+   * @param {number} transitionId - Transition to undo
+   * @returns {Promise<void>}
+   */
+  async handleRollback(transitionId) {
+    const transition = this.transitions.find(t => t.id === transitionId);
+    if (!transition || this.isRollingBack) {
+      return;
+    }
+
+    const confirmed = await confirmDialog({
+      title: translate('scout_year_rollback_confirm_title'),
+      message: translate('scout_year_rollback_confirm_message')
+        .replace('{from}', transition.to_label || '')
+        .replace('{to}', transition.from_label || ''),
+      confirmLabel: translate('scout_year_rollback_button'),
+      cancelLabel: translate('cancel')
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    this.isRollingBack = true;
+    this.rerender();
+
+    let succeeded = false;
+    try {
+      const restored = await rollbackTransition(transitionId);
+      debugLog('Transition rolled back', restored.summary);
+      succeeded = true;
+    } catch (error) {
+      debugError('Rollback failed:', error);
+      this.app?.showMessage?.(error?.message || translate('scout_year_rollback_failed'), 'error');
+    }
+
+    // Either way the page is now showing a state that no longer exists: on
+    // success the roster went back a year, on failure something was entered
+    // that the blocker list should name.
+    this.isRollingBack = false;
+    this.step = STEP_ROSTER;
+    this.result = null;
+
+    try {
+      await this.loadData();
+      this.loadError = null;
+    } catch (error) {
+      debugError('Failed to reload after rollback:', error);
+      this.loadError = error?.message || translate('scout_year_load_failed');
+    }
+
+    if (succeeded) {
+      this.app?.showMessage?.(translate('scout_year_rollback_success'), 'success');
+    }
+
     this.rerender();
   }
 

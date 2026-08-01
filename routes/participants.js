@@ -1,10 +1,27 @@
 // RESTful routes for participants
 const express = require('express');
 const router = express.Router();
-const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, getUserDataScope } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, getUserDataScope, withScoutYear } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
+const { eraseParticipant } = require('../services/erasure');
+
+/**
+ * The scout year a den assignment written now belongs to.
+ *
+ * Always the year in progress. A den assignment is never written into an
+ * archive: consulting a past year is read-only, and the whole point of scoping
+ * assignments is that last September's den is not this September's.
+ *
+ * @param {Object} db - Database pool or client
+ * @param {number} organizationId - Organization identifier
+ * @returns {Promise<number>} Active scout year ID
+ */
+async function activeScoutYearId(db, organizationId) {
+  const scoutYear = await ensureActiveScoutYear(db, organizationId);
+  return scoutYear.id;
+}
 
 /**
  * Fetch a group's context for a specific organization.
@@ -64,7 +81,7 @@ module.exports = (pool) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
+  router.get('/', authenticate, requirePermission('participants.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
@@ -92,20 +109,21 @@ module.exports = (pool) => {
                COALESCE(point_totals.total_points, 0) as total_points,
                po.inscription_date
         FROM participants p
-        JOIN participant_organizations po ON p.id = po.participant_id
-        LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+        JOIN participant_enrollments po ON p.id = po.participant_id
+          AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
+        LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
         LEFT JOIN groups g ON pg.group_id = g.id
         LEFT JOIN form_submissions fs ON fs.participant_id = p.id AND fs.organization_id = $1
         LEFT JOIN (
           SELECT participant_id, SUM(value) AS total_points
-          FROM active_year_points
-          WHERE organization_id = $1 AND participant_id IS NOT NULL
+          FROM points
+          WHERE organization_id = $1 AND participant_id IS NOT NULL AND scout_year_id = $2
           GROUP BY participant_id
         ) point_totals ON point_totals.participant_id = p.id
         WHERE po.organization_id = $1
       `;
 
-      params = [organizationId];
+      params = [organizationId, req.scoutYear.id, req.rosterStatuses];
 
       if (groupId) {
         query += ` AND pg.group_id = $${params.length + 1}`;
@@ -121,11 +139,14 @@ module.exports = (pool) => {
       countQuery = `
         SELECT COUNT(DISTINCT p.id) as total
         FROM participants p
-        JOIN participant_organizations po ON p.id = po.participant_id
-        ${groupId ? 'LEFT JOIN participant_groups pg ON p.id = pg.participant_id' : ''}
-        WHERE po.organization_id = $1 ${groupId ? 'AND pg.group_id = $2' : ''}
+        JOIN participant_enrollments po ON p.id = po.participant_id
+          AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
+        ${groupId ? 'LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.scout_year_id = $2' : ''}
+        WHERE po.organization_id = $1 ${groupId ? 'AND pg.group_id = $4' : ''}
       `;
-      countParams = groupId ? [organizationId, groupId] : [organizationId];
+      countParams = groupId
+        ? [organizationId, req.scoutYear.id, req.rosterStatuses, groupId]
+        : [organizationId, req.scoutYear.id, req.rosterStatuses];
     } else {
       // Linked-scoped users (parents): only show participants linked to them
       // PERFORMANCE FIX: Use LEFT JOINs with aggregation to avoid correlated subqueries
@@ -141,20 +162,21 @@ module.exports = (pool) => {
                po.inscription_date
         FROM participants p
         JOIN user_participants up ON p.id = up.participant_id
-        JOIN participant_organizations po ON p.id = po.participant_id
-        LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+        JOIN participant_enrollments po ON p.id = po.participant_id
+          AND po.scout_year_id = $3 AND po.status = ANY($4::text[])
+        LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $3
         LEFT JOIN groups g ON pg.group_id = g.id
         LEFT JOIN form_submissions fs ON fs.participant_id = p.id AND fs.organization_id = $1
         LEFT JOIN (
           SELECT participant_id, SUM(value) AS total_points
-          FROM active_year_points
-          WHERE organization_id = $1 AND participant_id IS NOT NULL
+          FROM points
+          WHERE organization_id = $1 AND participant_id IS NOT NULL AND scout_year_id = $3
           GROUP BY participant_id
         ) point_totals ON point_totals.participant_id = p.id
         WHERE up.user_id = $2 AND po.organization_id = $1
       `;
 
-      params = [organizationId, userId];
+      params = [organizationId, userId, req.scoutYear.id, req.rosterStatuses];
 
       if (groupId) {
         query += ` AND pg.group_id = $${params.length + 1}`;
@@ -171,11 +193,14 @@ module.exports = (pool) => {
         SELECT COUNT(DISTINCT p.id) as total
         FROM participants p
         JOIN user_participants up ON p.id = up.participant_id
-        JOIN participant_organizations po ON p.id = po.participant_id
-        ${groupId ? 'LEFT JOIN participant_groups pg ON p.id = pg.participant_id' : ''}
-        WHERE up.user_id = $1 AND po.organization_id = $2 ${groupId ? 'AND pg.group_id = $3' : ''}
+        JOIN participant_enrollments po ON p.id = po.participant_id
+          AND po.scout_year_id = $3 AND po.status = ANY($4::text[])
+        ${groupId ? 'LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.scout_year_id = $3' : ''}
+        WHERE up.user_id = $1 AND po.organization_id = $2 ${groupId ? 'AND pg.group_id = $5' : ''}
       `;
-      countParams = groupId ? [userId, organizationId, groupId] : [userId, organizationId];
+      countParams = groupId
+        ? [userId, organizationId, req.scoutYear.id, req.rosterStatuses, groupId]
+        : [userId, organizationId, req.scoutYear.id, req.rosterStatuses];
     }
 
     const result = await pool.query(query, params);
@@ -294,9 +319,13 @@ module.exports = (pool) => {
       // Link to group if provided
       if (groupContext) {
         await client.query(
-          `INSERT INTO participant_groups (participant_id, group_id, organization_id)
-           VALUES ($1, $2, $3)`,
-          [participantId, groupContext.id, organizationId]
+          `INSERT INTO participant_group_assignments
+                  (participant_id, group_id, organization_id, scout_year_id)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (participant_id, organization_id, scout_year_id)
+           DO UPDATE SET group_id = EXCLUDED.group_id`,
+          [participantId, groupContext.id, organizationId,
+            await activeScoutYearId(client, organizationId)]
         );
       }
 
@@ -394,18 +423,24 @@ module.exports = (pool) => {
     try {
       await client.query('BEGIN');
 
-      // Remove existing group assignment for this participant and organization
+      const scoutYearId = await activeScoutYearId(client, organizationId);
+
+      // Remove this year's assignment; earlier years keep theirs.
       await client.query(
-        `DELETE FROM participant_groups WHERE participant_id = $1 AND organization_id = $2`,
-        [id, organizationId]
+        `DELETE FROM participant_group_assignments
+          WHERE participant_id = $1 AND organization_id = $2 AND scout_year_id = $3`,
+        [id, organizationId, scoutYearId]
       );
 
       // Add new group assignment if group_id is provided
       if (groupContext) {
         await client.query(
-          `INSERT INTO participant_groups (participant_id, group_id, organization_id, first_leader, second_leader, roles)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [id, groupContext.id, organizationId, first_leader || false, second_leader || false, roles || null]
+          `INSERT INTO participant_group_assignments
+                  (participant_id, group_id, organization_id, scout_year_id,
+                   first_leader, second_leader, roles)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [id, groupContext.id, organizationId, scoutYearId,
+            first_leader || false, second_leader || false, roles || null]
         );
       }
 
@@ -630,18 +665,21 @@ module.exports = (pool) => {
 
       // Update group assignment if provided
       if (group_id !== undefined) {
-        // Remove existing group assignment for this org
+        // Remove this year's assignment; earlier years keep theirs.
+        const scoutYearId = await activeScoutYearId(client, organizationId);
         await client.query(
-          `DELETE FROM participant_groups WHERE participant_id = $1 AND organization_id = $2`,
-          [participantId, organizationId]
+          `DELETE FROM participant_group_assignments
+            WHERE participant_id = $1 AND organization_id = $2 AND scout_year_id = $3`,
+          [participantId, organizationId, scoutYearId]
         );
 
         // Add new group assignment if group_id is not null
         if (groupContext) {
           await client.query(
-            `INSERT INTO participant_groups (participant_id, group_id, organization_id)
-             VALUES ($1, $2, $3)`,
-            [participantId, groupContext.id, organizationId]
+            `INSERT INTO participant_group_assignments
+                    (participant_id, group_id, organization_id, scout_year_id)
+             VALUES ($1, $2, $3, $4)`,
+            [participantId, groupContext.id, organizationId, scoutYearId]
           );
         }
       }
@@ -759,18 +797,24 @@ module.exports = (pool) => {
     try {
       await client.query('BEGIN');
 
-      // Remove existing group assignment for this participant and organization
+      const scoutYearId = await activeScoutYearId(client, organizationId);
+
+      // Remove this year's assignment; earlier years keep theirs.
       await client.query(
-        `DELETE FROM participant_groups WHERE participant_id = $1 AND organization_id = $2`,
-        [participant_id, organizationId]
+        `DELETE FROM participant_group_assignments
+          WHERE participant_id = $1 AND organization_id = $2 AND scout_year_id = $3`,
+        [participant_id, organizationId, scoutYearId]
       );
 
       // Add new group assignment if group_id is not null/empty
       if (groupContext) {
         await client.query(
-          `INSERT INTO participant_groups (participant_id, group_id, organization_id, first_leader, second_leader, roles)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [participant_id, groupContext.id, organizationId, first_leader || false, second_leader || false, roles || null]
+          `INSERT INTO participant_group_assignments
+                  (participant_id, group_id, organization_id, scout_year_id,
+                   first_leader, second_leader, roles)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [participant_id, groupContext.id, organizationId, scoutYearId,
+            first_leader || false, second_leader || false, roles || null]
         );
       }
 
@@ -1117,10 +1161,10 @@ module.exports = (pool) => {
     const { participantId } = req.params;
 
     const result = await pool.query(
-      `DELETE FROM participant_groups
-       WHERE participant_id = $1 AND organization_id = $2
+      `DELETE FROM participant_group_assignments
+       WHERE participant_id = $1 AND organization_id = $2 AND scout_year_id = $3
        RETURNING *`,
-      [participantId, organizationId]
+      [participantId, organizationId, await activeScoutYearId(pool, organizationId)]
     );
 
     if (result.rows.length === 0) {
@@ -1129,6 +1173,97 @@ module.exports = (pool) => {
 
     return success(res, null, 'Participant removed from group successfully');
   }));
+
+  /**
+   * @swagger
+   * /api/v1/participants/{id}/erasure:
+   *   delete:
+   *     summary: Permanently erase a participant and their family
+   *     description: >
+   *       Honours a right-to-erasure request. Irreversible, and the only
+   *       endpoint in the application that truly destroys data. Removes the
+   *       participant and everything attached to them, plus the guardians and
+   *       parent accounts left with no other child. A parent who still has a
+   *       child enrolled, or who holds a role beyond parent, is kept and
+   *       reported. Requires the participant's full name as confirmation.
+   *     tags: [Participants]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Erasure carried out
+   *       400:
+   *         description: Confirmation missing or does not match
+   *       403:
+   *         description: Reserved to unit administrators and district
+   *       404:
+   *         description: Participant not found in this organization
+   */
+  router.delete('/:id/erasure',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('participants.erase'),
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const participantId = parseInt(req.params.id, 10);
+
+      if (Number.isNaN(participantId)) {
+        return error(res, 'Invalid participant identifier', 400);
+      }
+
+      // Checked again against the database rather than trusting the token, and
+      // with the permission spelled out: this is the one action nobody should
+      // reach by accident.
+      const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+        requiredPermissions: ['participants.erase'],
+      });
+      if (!authCheck.authorized) {
+        return error(res, authCheck.message, 403);
+      }
+
+      // Any year, not just the current one — a family who left three years ago
+      // is exactly who asks to be forgotten.
+      const participantResult = await pool.query(
+        `SELECT DISTINCT p.id, p.first_name, p.last_name
+           FROM participants p
+           JOIN participant_enrollments pe ON pe.participant_id = p.id
+          WHERE p.id = $1 AND pe.organization_id = $2`,
+        [participantId, organizationId]
+      );
+
+      if (participantResult.rows.length === 0) {
+        return error(res, 'Participant not found in this organization', 404);
+      }
+
+      const participant = participantResult.rows[0];
+      const expectedName = `${participant.first_name} ${participant.last_name}`;
+      const confirmation = String(req.body?.confirm_full_name || '').trim();
+
+      // Typing the name is the only thing standing between a mis-click and an
+      // irreversible deletion, so it is checked on the server, not just in the
+      // dialog.
+      if (confirmation.toLowerCase() !== expectedName.toLowerCase()) {
+        return error(res, 'Confirmation does not match the participant name', 400);
+      }
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const summary = await eraseParticipant(client, {
+          organizationId,
+          participant,
+          performedBy: req.user.id
+        });
+        await client.query('COMMIT');
+
+        return success(res, summary, 'Participant and family data erased');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    }));
 
   // ============================================
   // CATCH-ALL ROUTES (Must be LAST to avoid intercepting specific routes)
@@ -1286,16 +1421,19 @@ module.exports = (pool) => {
 
       // Update group if provided
       if (group_id !== undefined) {
+        const scoutYearId = await activeScoutYearId(client, organizationId);
         await client.query(
-          `DELETE FROM participant_groups WHERE participant_id = $1 AND organization_id = $2`,
-          [id, organizationId]
+          `DELETE FROM participant_group_assignments
+            WHERE participant_id = $1 AND organization_id = $2 AND scout_year_id = $3`,
+          [id, organizationId, scoutYearId]
         );
 
         if (groupContext) {
           await client.query(
-            `INSERT INTO participant_groups (participant_id, group_id, organization_id)
-             VALUES ($1, $2, $3)`,
-            [id, groupContext.id, organizationId]
+            `INSERT INTO participant_group_assignments
+                    (participant_id, group_id, organization_id, scout_year_id)
+             VALUES ($1, $2, $3, $4)`,
+            [id, groupContext.id, organizationId, scoutYearId]
           );
         }
       }

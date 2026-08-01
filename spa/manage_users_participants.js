@@ -5,17 +5,21 @@ import {
   removeParticipantFromOrganization,
   associateUser
 } from "./ajax-functions.js";
+import { eraseParticipant } from "./api/api-endpoints.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
-import { canViewUsers } from "./utils/PermissionUtils.js";
+import { canViewUsers, hasPermission } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
-import { confirmDestructive } from "./utils/DialogUtils.js";
+import { confirmDestructive, prompt, alert as alertDialog } from "./utils/DialogUtils.js";
 
 export class ManageUsersParticipants {
   constructor(app) {
     this.app = app;
     this.participants = [];
     this.parentUsers = [];
+    // Erasure is irreversible and crosses families, so it sits with whoever is
+    // accountable for the unit rather than with anyone who can edit a record.
+    this.canErase = hasPermission("participants.erase");
   }
 
   async init() {
@@ -198,6 +202,12 @@ export class ManageUsersParticipants {
               <button class="associate-user" data-participant-id="${participant.id}">
                 ${translate("associate_user")}
               </button>
+              ${this.canErase ? `
+                <button class="erase-participant"
+                        data-participant-id="${participant.id}"
+                        data-participant-name="${escapeHTML(`${participant.first_name || ""} ${participant.last_name || ""}`.trim())}">
+                  ${translate("erase_participant")}
+                </button>` : ""}
             </td>
           </tr>
         `
@@ -231,6 +241,74 @@ export class ManageUsersParticipants {
         this.handleAssociateUser(event)
       );
     });
+
+    document.querySelectorAll(".erase-participant").forEach((button) => {
+      button.addEventListener("click", (event) => this.handleErase(event));
+    });
+  }
+
+  /**
+   * Honour a family's request to be forgotten.
+   *
+   * Two gates, on purpose. The first states plainly what will disappear, because
+   * this is the only action in the app that cannot be undone by consulting an
+   * earlier year — the record will not be there to consult. The second asks for
+   * the name to be typed: a destructive confirm is too easy to click through,
+   * and the server checks the same thing anyway.
+   *
+   * @param {Event} event - Click on the erase button
+   * @returns {Promise<void>}
+   */
+  async handleErase(event) {
+    const button = event.target.closest(".erase-participant");
+    const participantId = button.getAttribute("data-participant-id");
+    const participantName = button.getAttribute("data-participant-name");
+
+    const understood = await confirmDestructive({
+      title: translate("erase_participant_title"),
+      message: translate("erase_participant_warning").replace("{name}", participantName),
+      confirmLabel: translate("erase_participant_continue"),
+    });
+    if (!understood) {
+      return;
+    }
+
+    const typed = await prompt({
+      title: translate("erase_participant_title"),
+      message: translate("erase_participant_confirm_prompt").replace("{name}", participantName),
+      confirmLabel: translate("erase_participant"),
+    });
+    if (typed === null) {
+      return;
+    }
+
+    try {
+      const result = await eraseParticipant(participantId, typed);
+      const summary = result?.data || result;
+      this.showMessage(
+        translate("erase_participant_done")
+          .replace("{users}", String(summary?.users_erased ?? 0))
+          .replace("{guardians}", String(summary?.guardians_erased ?? 0))
+      );
+
+      // Anything left naming them is not something the app can clean up on its
+      // own — a safety record is not the family's to delete — so the admin is
+      // told rather than left assuming it is finished.
+      if (summary?.incident_reports_still_mentioning > 0) {
+        await alertDialog({
+          title: translate("erase_participant_title"),
+          message: translate("erase_participant_remaining_mentions")
+            .replace("{count}", String(summary.incident_reports_still_mentioning)),
+        });
+      }
+
+      await this.fetchData(true);
+      this.render();
+      this.attachEventListeners();
+    } catch (error) {
+      debugError("Erasure failed:", error);
+      this.showError(error?.message || translate("erase_participant_failed"));
+    }
   }
 
   async handleRemoveFromOrganization(event) {

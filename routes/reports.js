@@ -11,7 +11,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import auth middleware
-const { authenticate, requirePermission, getOrganizationId } = require('../middleware/auth');
+const { authenticate, requirePermission, getOrganizationId, withScoutYear } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/response');
 
 // Import utilities
@@ -30,7 +30,7 @@ module.exports = (pool, logger) => {
    * GET /api/v1/reports/mailing-list
    * Get mailing list
    */
-  router.get('/mailing-list', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+  router.get('/mailing-list', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Build email list by user role (admin/animation/etc.)
@@ -63,7 +63,8 @@ module.exports = (pool, logger) => {
                   p.first_name || ' ' || p.last_name AS participant_name
            FROM parents_guardians pg
            JOIN participant_guardians pg_rel ON pg_rel.guardian_id = pg.id
-           JOIN participant_organizations po ON po.participant_id = pg_rel.participant_id
+           JOIN participant_enrollments po ON po.participant_id = pg_rel.participant_id
+             AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
            JOIN participants p ON p.id = pg_rel.participant_id
            WHERE po.organization_id = $1
              AND pg.courriel IS NOT NULL
@@ -73,7 +74,7 @@ module.exports = (pool, logger) => {
                 string_agg(participant_name, ', ' ORDER BY participant_name) AS participants
          FROM guardian_children
          GROUP BY email`,
-      [organizationId]
+      [organizationId, req.scoutYear.id, req.rosterStatuses]
     );
 
     emailsByRole.parent = guardianEmailsResult.rows.map((parent) => ({
@@ -134,7 +135,7 @@ module.exports = (pool, logger) => {
    * GET /api/v1/reports/health
    * Get health report
    */
-  router.get('/health', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+  router.get('/health', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const groupId = req.query.group_id;
@@ -145,8 +146,9 @@ module.exports = (pool, logger) => {
                g.name as group_name,
                fs.submission_data as health_data
         FROM participants p
-        JOIN participant_organizations po ON p.id = po.participant_id
-        LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+        JOIN participant_enrollments po ON p.id = po.participant_id
+          AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
+        LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
         LEFT JOIN groups g ON pg.group_id = g.id
         LEFT JOIN form_submissions fs ON p.id = fs.participant_id
           AND fs.organization_id = $1
@@ -154,10 +156,10 @@ module.exports = (pool, logger) => {
         WHERE po.organization_id = $1
       `;
 
-    const params = [organizationId];
+    const params = [organizationId, req.scoutYear.id, req.rosterStatuses];
 
     if (groupId) {
-      query += ` AND pg.group_id = $2`;
+      query += ` AND pg.group_id = $4`;
       params.push(groupId);
     }
 
@@ -235,7 +237,7 @@ module.exports = (pool, logger) => {
    * GET /api/v1/reports/attendance
    * Get attendance report
    */
-  router.get('/attendance', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+  router.get('/attendance', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { start_date, end_date, group_id, format } = req.query;
@@ -245,15 +247,20 @@ module.exports = (pool, logger) => {
                g.name as group_name,
                a.date, a.status
         FROM participants p
-        JOIN participant_organizations po ON p.id = po.participant_id
-        LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+        JOIN participant_enrollments po ON p.id = po.participant_id
+          AND po.scout_year_id = $2 AND po.status = ANY($5::text[])
+        LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
         LEFT JOIN groups g ON pg.group_id = g.id
         LEFT JOIN attendance a ON p.id = a.participant_id AND a.organization_id = $1
+          AND a.date BETWEEN $3::date AND $4::date
         WHERE po.organization_id = $1
       `;
 
-    const params = [organizationId];
-    let paramIndex = 2;
+    const params = [
+      organizationId, req.scoutYear.id,
+      req.scoutYear.start_date, req.scoutYear.end_date, req.rosterStatuses
+    ];
+    let paramIndex = 6;
 
     if (start_date) {
       query += ` AND a.date >= $${paramIndex}`;
@@ -337,7 +344,7 @@ module.exports = (pool, logger) => {
    * GET /api/v1/reports/missing-documents
    * Get missing documents report
    */
-  router.get('/missing-documents', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+  router.get('/missing-documents', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Get required form types from organization settings
@@ -365,14 +372,15 @@ module.exports = (pool, logger) => {
                 g.name as group_name,
                 ARRAY_AGG(DISTINCT fs.form_type) FILTER (WHERE fs.form_type IS NOT NULL) as submitted_forms
          FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         JOIN participant_enrollments po ON p.id = po.participant_id
+           AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
+         LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
          LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.organization_id = $1
          WHERE po.organization_id = $1
          GROUP BY p.id, p.first_name, p.last_name, g.name
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId]
+      [organizationId, req.scoutYear.id, req.rosterStatuses]
     );
 
     // Calculate missing forms for each participant
@@ -419,7 +427,7 @@ module.exports = (pool, logger) => {
    * GET /api/v1/reports/health-contacts
    * Get health contact report
    */
-  router.get('/health-contacts', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+  router.get('/health-contacts', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -429,11 +437,12 @@ module.exports = (pool, logger) => {
                 fs.submission_data->>'doctor_name' as doctor_name,
                 fs.submission_data->>'doctor_phone' as doctor_phone
          FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
+         JOIN participant_enrollments po ON p.id = po.participant_id
+           AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
          LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante'
          WHERE po.organization_id = $1
          ORDER BY p.first_name, p.last_name`,
-      [organizationId]
+      [organizationId, req.scoutYear.id, req.rosterStatuses]
     );
 
     res.json({ success: true, data: result.rows });
@@ -456,7 +465,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/allergies', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+  router.get('/allergies', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -465,14 +474,15 @@ module.exports = (pool, logger) => {
                 fs.submission_data->>'allergie' as allergies,
                 fs.submission_data->>'epipen' as epipen
          FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         JOIN participant_enrollments po ON p.id = po.participant_id
+           AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
+         LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
          LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante' AND fs.organization_id = $1
          WHERE po.organization_id = $1
            AND fs.submission_data->>'has_allergies' = 'yes'
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId]
+      [organizationId, req.scoutYear.id, req.rosterStatuses]
     );
 
     res.json({ success: true, data: result.rows });
@@ -495,7 +505,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/medication', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+  router.get('/medication', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -503,14 +513,15 @@ module.exports = (pool, logger) => {
                 fs.submission_data->>'has_medication' as has_medication,
                 fs.submission_data->>'medicament' as medication
          FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         JOIN participant_enrollments po ON p.id = po.participant_id
+           AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
+         LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
          LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante' AND fs.organization_id = $1
          WHERE po.organization_id = $1
            AND fs.submission_data->>'has_medication' = 'yes'
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId]
+      [organizationId, req.scoutYear.id, req.rosterStatuses]
     );
 
     res.json({ success: true, data: result.rows });
@@ -533,20 +544,21 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/vaccines', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+  router.get('/vaccines', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
                 fs.submission_data->>'vaccins_a_jour' as vaccines_up_to_date
          FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         JOIN participant_enrollments po ON p.id = po.participant_id
+           AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
+         LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
          LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante' AND fs.organization_id = $1
          WHERE po.organization_id = $1
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId]
+      [organizationId, req.scoutYear.id, req.rosterStatuses]
     );
 
     res.json({ success: true, data: result.rows });
@@ -569,20 +581,21 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/leave-alone', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+  router.get('/leave-alone', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
                 fs.submission_data->>'peut_partir_seul' as can_leave_alone
          FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         JOIN participant_enrollments po ON p.id = po.participant_id
+           AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
+         LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
          LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'participant_registration' AND fs.organization_id = $1
          WHERE po.organization_id = $1
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId]
+      [organizationId, req.scoutYear.id, req.rosterStatuses]
     );
 
     res.json({ success: true, data: result.rows });
@@ -605,20 +618,21 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/media-authorization', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+  router.get('/media-authorization', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
                 fs.submission_data->>'consentement_photos_videos' as media_authorized
          FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         JOIN participant_enrollments po ON p.id = po.participant_id
+           AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
+         LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
          LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'participant_registration' AND fs.organization_id = $1
          WHERE po.organization_id = $1
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId]
+      [organizationId, req.scoutYear.id, req.rosterStatuses]
     );
 
     res.json({ success: true, data: result.rows });
@@ -641,7 +655,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/honors', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+  router.get('/honors', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -649,11 +663,13 @@ module.exports = (pool, logger) => {
                 array_agg(p.first_name || ' ' || p.last_name) as recipients
          FROM honors h
          JOIN participants p ON h.participant_id = p.id
-         JOIN participant_organizations po ON p.id = po.participant_id
+         JOIN participant_enrollments po ON p.id = po.participant_id
+           AND po.scout_year_id = $2 AND po.status = ANY($5::text[])
          WHERE po.organization_id = $1
+           AND h.date BETWEEN $3::date AND $4::date
          GROUP BY h.honor_name, h.category
          ORDER BY h.category, h.honor_name`,
-      [organizationId]
+      [organizationId, req.scoutYear.id, req.scoutYear.start_date, req.scoutYear.end_date, req.rosterStatuses]
     );
 
     res.json({ success: true, data: result.rows });
@@ -676,7 +692,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/points', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+  router.get('/points', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -684,25 +700,26 @@ module.exports = (pool, logger) => {
                 COALESCE(point_totals.total_points, 0) as total_points,
                 COALESCE(honor_counts.honors_count, 0) as honors_count
          FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         JOIN participant_enrollments po ON p.id = po.participant_id
+           AND po.scout_year_id = $2 AND po.status = ANY($5::text[])
+         LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
          LEFT JOIN (
            SELECT participant_id, SUM(value) AS total_points
-           FROM active_year_points
-           WHERE organization_id = $1 AND participant_id IS NOT NULL
+           FROM points
+           WHERE organization_id = $1 AND participant_id IS NOT NULL AND scout_year_id = $2
            GROUP BY participant_id
          ) point_totals ON point_totals.participant_id = p.id
          LEFT JOIN (
            SELECT participant_id, COUNT(DISTINCT id) AS honors_count
            FROM honors
-           WHERE organization_id = $1
+           WHERE organization_id = $1 AND date BETWEEN $3::date AND $4::date
            GROUP BY participant_id
          ) honor_counts ON honor_counts.participant_id = p.id
          WHERE po.organization_id = $1
          GROUP BY p.id, p.first_name, p.last_name, g.name, point_totals.total_points, honor_counts.honors_count
          ORDER BY total_points DESC, p.first_name, p.last_name`,
-      [organizationId]
+      [organizationId, req.scoutYear.id, req.scoutYear.start_date, req.scoutYear.end_date, req.rosterStatuses]
     );
 
     res.json({ success: true, data: result.rows });
@@ -712,7 +729,7 @@ module.exports = (pool, logger) => {
    * GET /api/time-since-registration-report
    * Get time since registration report for all participants
    */
-  router.get('/time-since-registration', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+  router.get('/time-since-registration', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -730,15 +747,16 @@ module.exports = (pool, logger) => {
                   ELSE NULL
                 END as months_with_group
          FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         JOIN participant_enrollments po ON p.id = po.participant_id
+           AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
+         LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
          WHERE po.organization_id = $1
          ORDER BY
            CASE WHEN po.inscription_date IS NOT NULL THEN 0 ELSE 1 END,
            po.inscription_date ASC NULLS LAST,
            p.first_name, p.last_name`,
-      [organizationId]
+      [organizationId, req.scoutYear.id, req.rosterStatuses]
     );
 
     res.json({ success: true, data: result.rows });
@@ -767,7 +785,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/participant-progress', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+  router.get('/participant-progress', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Check if user has parent role - parents are restricted even if they have other permissions
@@ -780,23 +798,25 @@ module.exports = (pool, logger) => {
       participantsQuery = `
           SELECT p.id, p.first_name, p.last_name, g.name as group_name
           FROM participants p
-          JOIN participant_organizations po ON p.id = po.participant_id
-          LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+          JOIN participant_enrollments po ON p.id = po.participant_id
+            AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
+          LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
           LEFT JOIN groups g ON pg.group_id = g.id
           WHERE po.organization_id = $1
           ORDER BY p.first_name, p.last_name`;
-      participantsParams = [organizationId];
+      participantsParams = [organizationId, req.scoutYear.id, req.rosterStatuses];
     } else {
       participantsQuery = `
           SELECT p.id, p.first_name, p.last_name, g.name as group_name
           FROM participants p
-          JOIN participant_organizations po ON p.id = po.participant_id
+          JOIN participant_enrollments po ON p.id = po.participant_id
+            AND po.scout_year_id = $3 AND po.status = ANY($4::text[])
           JOIN user_participants up ON p.id = up.participant_id
-          LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+          LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $3
           LEFT JOIN groups g ON pg.group_id = g.id
           WHERE po.organization_id = $1 AND up.user_id = $2
           ORDER BY p.first_name, p.last_name`;
-      participantsParams = [organizationId, req.user.id];
+      participantsParams = [organizationId, req.user.id, req.scoutYear.id, req.rosterStatuses];
     }
 
     const participantsResult = await pool.query(participantsQuery, participantsParams);
@@ -815,16 +835,18 @@ module.exports = (pool, logger) => {
       `SELECT date::text as date, status
          FROM attendance
          WHERE participant_id = $1 AND organization_id = $2
+           AND date BETWEEN $3::date AND $4::date
          ORDER BY date ASC`,
-      [participantId, organizationId]
+      [participantId, organizationId, req.scoutYear.start_date, req.scoutYear.end_date]
     );
 
     const honorsResult = await pool.query(
       `SELECT date::text as date, reason
          FROM honors
          WHERE participant_id = $1 AND organization_id = $2
+           AND date BETWEEN $3::date AND $4::date
          ORDER BY date ASC`,
-      [participantId, organizationId]
+      [participantId, organizationId, req.scoutYear.start_date, req.scoutYear.end_date]
     );
 
     const badgeResult = await pool.query(
@@ -845,10 +867,10 @@ module.exports = (pool, logger) => {
 
     const pointsResult = await pool.query(
       `SELECT created_at::date as date, value
-         FROM active_year_points
-         WHERE participant_id = $1 AND organization_id = $2
+         FROM points
+         WHERE participant_id = $1 AND organization_id = $2 AND scout_year_id = $3
          ORDER BY created_at ASC`,
-      [participantId, organizationId]
+      [participantId, organizationId, req.scoutYear.id]
     );
 
     let cumulative = 0;
@@ -905,7 +927,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/parent-contact-list', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+  router.get('/parent-contact-list', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Get all participants with their guardians
@@ -926,14 +948,15 @@ module.exports = (pool, logger) => {
           pg_table.is_primary,
           part_guard.lien
          FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         JOIN participant_enrollments po ON p.id = po.participant_id
+           AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
+         LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
          LEFT JOIN participant_guardians part_guard ON p.id = part_guard.participant_id
          LEFT JOIN parents_guardians pg_table ON part_guard.guardian_id = pg_table.id
          WHERE po.organization_id = $1
          ORDER BY p.last_name, p.first_name, pg_table.is_primary DESC, pg_table.is_emergency_contact DESC`,
-      [organizationId]
+      [organizationId, req.scoutYear.id, req.rosterStatuses]
     );
 
     res.json({

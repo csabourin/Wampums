@@ -1,7 +1,7 @@
 // RESTful routes for attendance
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
+const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdBody, validateDate, validateAttendanceStatus, checkValidation, validateIdQuery, validateDateOptional } = require('../middleware/validation');
 const { getPointSystemRules } = require('../utils');
@@ -41,20 +41,27 @@ module.exports = (pool, logger) => {
     validateDateOptional('date'),
     validateIdQuery('participant_id'),
     checkValidation,
+    withScoutYear(pool),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const { date, participant_id } = req.query;
 
+      // Attendance carries its own date, so a season is a date range rather
+      // than a foreign key. Consulting an archived year narrows to its bounds.
       let query = `
       SELECT a.*, p.first_name, p.last_name, pg.group_id, g.name as group_name
       FROM attendance a
       JOIN participants p ON a.participant_id = p.id
-      LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+      LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id
+        AND pg.organization_id = $1 AND pg.scout_year_id = $4
       LEFT JOIN groups g ON pg.group_id = g.id
       WHERE a.organization_id = $1
+        AND a.date BETWEEN $2::date AND $3::date
     `;
 
-      const params = [organizationId];
+      const params = [
+        organizationId, req.scoutYear.start_date, req.scoutYear.end_date, req.scoutYear.id
+      ];
 
       if (date) {
         query += ` AND a.date::date = $${params.length + 1}::date`;
@@ -85,7 +92,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: List of dates
    */
-  router.get('/dates', authenticate, requirePermission('attendance.view'), asyncHandler(async (req, res) => {
+  router.get('/dates', authenticate, requirePermission('attendance.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Attendance can be taken on any date that has recorded attendance, a
@@ -109,8 +116,9 @@ module.exports = (pool, logger) => {
            AND activity_end_date >= activity_start_date
            AND activity_end_date - activity_start_date < $2
        ) all_dates
+       WHERE date BETWEEN $3::date AND $4::date
        ORDER BY date DESC`,
-      [organizationId, MAX_ACTIVITY_SPAN_DAYS]
+      [organizationId, MAX_ACTIVITY_SPAN_DAYS, req.scoutYear.start_date, req.scoutYear.end_date]
     );
 
     return success(res, result.rows.map(r => r.date));
@@ -404,29 +412,32 @@ module.exports = (pool, logger) => {
     requirePermission('attendance.view'),
     validateDateOptional('date'),
     checkValidation,
+    withScoutYear(pool),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const requestedDate = req.query.date || new Date().toISOString().split('T')[0];
 
-      // Get participants with attendance for the date
+      // Get the participants enrolled that year, with attendance for the date
       const result = await pool.query(
         `SELECT p.id as participant_id, p.first_name, p.last_name,
               pg.group_id, g.name as group_name,
               a.status as attendance_status, a.date::text as date
        FROM participants p
-       JOIN participant_organizations po ON p.id = po.participant_id
-       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       JOIN participant_enrollments po ON p.id = po.participant_id
+        AND po.organization_id = $1 AND po.scout_year_id = $3 AND po.status = ANY($4::text[])
+       LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $3
        LEFT JOIN groups g ON pg.group_id = g.id
        LEFT JOIN attendance a ON p.id = a.participant_id AND a.date = $2 AND a.organization_id = $1
-       WHERE po.organization_id = $1
        ORDER BY g.name, p.first_name`,
-        [organizationId, requestedDate]
+        [organizationId, requestedDate, req.scoutYear.id, req.rosterStatuses]
       );
 
-      // Get all available dates
+      // Get all available dates within the season being consulted
       const datesResult = await pool.query(
-        `SELECT DISTINCT date::text as date FROM attendance WHERE organization_id = $1 ORDER BY date DESC`,
-        [organizationId]
+        `SELECT DISTINCT date::text as date FROM attendance
+          WHERE organization_id = $1 AND date BETWEEN $2::date AND $3::date
+          ORDER BY date DESC`,
+        [organizationId, req.scoutYear.start_date, req.scoutYear.end_date]
       );
 
       return success(res, {
@@ -448,12 +459,14 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: List of dates
    */
-  router.get('/attendance-dates', authenticate, requirePermission('attendance.view'), asyncHandler(async (req, res) => {
+  router.get('/attendance-dates', authenticate, requirePermission('attendance.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
-      `SELECT DISTINCT date::text as date FROM attendance WHERE organization_id = $1 ORDER BY date DESC`,
-      [organizationId]
+      `SELECT DISTINCT date::text as date FROM attendance
+        WHERE organization_id = $1 AND date BETWEEN $2::date AND $3::date
+        ORDER BY date DESC`,
+      [organizationId, req.scoutYear.start_date, req.scoutYear.end_date]
     );
 
     const dates = result.rows.map(row => row.date);

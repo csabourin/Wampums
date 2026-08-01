@@ -26,7 +26,10 @@ const {
   openNextScoutYear,
   listMembershipsWithoutEnrolledChild,
   flagRequiredFormsForReview,
-  expireMedicationAuthorizations
+  expireMedicationAuthorizations,
+  listTransitions,
+  listRollbackBlockers,
+  rollbackTransition
 } = require('../services/scoutYear');
 
 /** Age at which a participant leaves the section, unless configured otherwise. */
@@ -144,7 +147,8 @@ module.exports = (pool, logger) => {
               ), 0) AS points_this_year
          FROM participant_enrollments pe
          JOIN participants p ON p.id = pe.participant_id
-         LEFT JOIN participant_groups pg ON pg.participant_id = p.id AND pg.organization_id = $1
+         LEFT JOIN participant_group_assignments pg ON pg.participant_id = p.id
+          AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON g.id = pg.group_id
         WHERE pe.organization_id = $1
           AND pe.scout_year_id = $2
@@ -290,7 +294,7 @@ module.exports = (pool, logger) => {
     try {
       await client.query('BEGIN');
 
-      const { previousYear, newYear, restampedPoints } = await openNextScoutYear(client, {
+      const { previousYear, newYear, restampedPoints, newYearPriorState } = await openNextScoutYear(client, {
         organizationId,
         userId: req.user.id
       });
@@ -406,7 +410,14 @@ module.exports = (pool, logger) => {
             deactivated_membership_ids: deactivated.rows.map(r => r.id),
             flagged_form_submission_ids: flaggedForms,
             expired_medication_authorization_ids: expiredAuthorizations,
-            exceptions: Object.fromEntries(exceptionNotes)
+            exceptions: Object.fromEntries(exceptionNotes),
+            // What the year boundaries looked like before this ran. Without it a
+            // rollback could not tell a year it created from one it overwrote,
+            // nor give the closed year back the end date it was clamped from.
+            restore: {
+              previous_year: { id: previousYear.id, end_date: previousYear.end_date },
+              new_year: newYearPriorState
+            }
           })
         ]
       );
@@ -427,6 +438,155 @@ module.exports = (pool, logger) => {
         new_year: newYear,
         summary
       }, 'Scout year transition completed', 201);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }));
+
+  /**
+   * @swagger
+   * /api/v1/scout-years/transitions:
+   *   get:
+   *     summary: List the year transitions that were run
+   *     description: >
+   *       Most recent first. The latest transition also carries whether it can
+   *       still be undone, and what stands in the way when it cannot.
+   *     tags: [Scout Years]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Transition history
+   */
+  router.get('/transitions', authenticate, requirePermission('scout_year.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const transitions = await listTransitions(pool, organizationId);
+
+    // Only the most recent transition is a rollback candidate, so it is the only
+    // one worth paying the blocker queries for.
+    const latest = transitions[0];
+    const rollbackable = latest && !latest.rolled_back_at && latest.to_status === 'active';
+    const blockers = rollbackable ? await listRollbackBlockers(pool, latest) : [];
+
+    return success(res, transitions.map((transition, index) => ({
+      id: transition.id,
+      from_scout_year_id: transition.from_scout_year_id,
+      to_scout_year_id: transition.to_scout_year_id,
+      from_label: transition.from_label,
+      to_label: transition.to_label,
+      executed_at: transition.executed_at,
+      executed_by_name: transition.executed_by_name,
+      summary: transition.summary,
+      rolled_back_at: transition.rolled_back_at,
+      can_rollback: index === 0 && rollbackable && blockers.length === 0,
+      rollback_blockers: index === 0 ? blockers : []
+    })));
+  }));
+
+  /**
+   * @swagger
+   * /api/v1/scout-years/transitions/{id}/rollback:
+   *   post:
+   *     summary: Undo a year transition
+   *     description: >
+   *       Replays the transition's changeset backwards: the year it opened is
+   *       emptied and set back to planning, closed enrollments are reopened, deactivated accounts are
+   *       reactivated, review flags are cleared and expired medication
+   *       authorizations are restored. Only possible while the new year is still
+   *       empty — a refusal names what has been entered since.
+   *     tags: [Scout Years]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Transition undone
+   *       404:
+   *         description: Transition not found
+   *       409:
+   *         description: The transition can no longer be undone
+   */
+  router.post('/transitions/:id/rollback', authenticate, blockDemoRoles, requirePermission('scout_year.manage'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const transitionId = parseInt(req.params.id, 10);
+
+    if (Number.isNaN(transitionId)) {
+      return error(res, 'Invalid transition identifier', 400);
+    }
+
+    const transitions = await listTransitions(pool, organizationId);
+    const transition = transitions.find(row => row.id === transitionId);
+
+    if (!transition) {
+      return error(res, 'Transition not found', 404);
+    }
+
+    if (transition.rolled_back_at) {
+      return error(res, 'This transition has already been undone', 409);
+    }
+
+    // Undoing an older transition would have to undo every later one first.
+    if (transitions[0].id !== transition.id) {
+      return error(res, 'Only the most recent transition can be undone', 409);
+    }
+
+    if (transition.to_status !== 'active') {
+      return error(res, 'The year this transition opened is no longer the active one', 409);
+    }
+
+    const blockers = await listRollbackBlockers(pool, transition);
+    if (blockers.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'The new year already holds data, so this transition can no longer be undone',
+        blockers,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Re-read inside the transaction and lock the row, so two leaders hitting
+      // the button at the same time cannot replay the same changeset twice.
+      const locked = await client.query(
+        `SELECT id, organization_id, from_scout_year_id, to_scout_year_id,
+                executed_at, changeset, rolled_back_at
+           FROM scout_year_transitions
+          WHERE id = $1 AND organization_id = $2
+          FOR UPDATE`,
+        [transitionId, organizationId]
+      );
+
+      if (locked.rows.length === 0 || locked.rows[0].rolled_back_at) {
+        await client.query('ROLLBACK');
+        return error(res, 'This transition has already been undone', 409);
+      }
+
+      const restored = await rollbackTransition(client, {
+        transition: locked.rows[0],
+        userId: req.user.id
+      });
+
+      await client.query('COMMIT');
+
+      logger.info('Scout year transition rolled back', {
+        organizationId,
+        transitionId,
+        from: transition.to_label,
+        to: transition.from_label,
+        ...restored
+      });
+
+      return success(res, {
+        transition_id: transitionId,
+        restored_year: { id: transition.from_scout_year_id, label: transition.from_label },
+        emptied_year: { id: transition.to_scout_year_id, label: transition.to_label },
+        summary: restored
+      }, 'Scout year transition undone');
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;

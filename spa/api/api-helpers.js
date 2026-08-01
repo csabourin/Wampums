@@ -3,6 +3,7 @@
 import { CONFIG } from "../config.js";
 import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
 import { getOrganizationIdFromJWT, getUserInfoFromJWT } from "../jwt-helper.js";
+import { getSelectedScoutYearId } from "../modules/scout-year/ScoutYearContext.js";
 
 /**
  * Get current organization ID from localStorage
@@ -74,6 +75,13 @@ export function getAuthHeader() {
 
     if (organizationId) {
         headers['x-organization-id'] = organizationId;
+    }
+
+    // Only sent while consulting an archived season. On the current year the
+    // header is absent and every endpoint answers exactly as it always did.
+    const scoutYearId = getSelectedScoutYearId();
+    if (scoutYearId) {
+        headers['x-scout-year-id'] = String(scoutYearId);
     }
 
     return headers;

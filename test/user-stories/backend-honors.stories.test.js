@@ -336,7 +336,7 @@ describe('US-HON-015 — Honors API envelope and org isolation (server)', () => 
       if (query.includes('p.id as participant_id')) {
         return { rows: [{ participant_id: 1, first_name: 'Alex', last_name: 'River', group_id: 5, group_name: 'Wolves' }] };
       }
-      if (query.includes('DISTINCT date::text')) {
+      if (query.includes('DISTINCT h.date::text')) {
         return { rows: [{ date: '2026-07-15' }] };
       }
       if (query.includes('h.created_by')) {
@@ -354,6 +354,12 @@ describe('US-HON-015 — Honors API envelope and org isolation (server)', () => 
     expect(res.body.data.participants).toHaveLength(1);
     expect(res.body.data.honors).toHaveLength(1);
     expect(res.body.data.availableDates).toEqual(['2026-07-15']);
+
+    // Honors are bounded by the season being consulted; without it a count
+    // keeps accumulating across years.
+    queriesMatching(recorded, 'FROM honors h').forEach((entry) => {
+      expect(entry.query).toContain('h.date BETWEEN');
+    });
 
     recorded
       .filter((entry) => entry.query.includes('FROM honors') || entry.query.includes('FROM participants'))

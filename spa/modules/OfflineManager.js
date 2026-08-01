@@ -616,7 +616,8 @@ export class OfflineManager {
             'offline.modulePreloadWarning': 'Some pages may not work offline',
             'offline.finalizing': 'Finalizing...',
             'offline.campModeAutoEnabled': 'Camp mode automatically enabled',
-            'offline.campModeAutoDisabled': 'Camp mode automatically disabled'
+            'offline.campModeAutoDisabled': 'Camp mode automatically disabled',
+            'scout_year_read_only': 'You are viewing an archived year: nothing can be changed.'
         };
 
         return fallbacks[key] || key;

@@ -18,6 +18,36 @@ function getFactory() {
 }
 
 /**
+ * The active scout year handed to any route that resolves one.
+ *
+ * Read endpoints are year-scoped, so almost every handler now asks for the
+ * active year before running its own query. Generating that row from the schema
+ * would produce arbitrary boundaries and a random status, which is exactly the
+ * kind of detail every test would then have to stub for itself.
+ */
+const DEFAULT_SCOUT_YEAR = {
+  id: 1,
+  organization_id: 1,
+  label: '2025-2026',
+  start_date: '2025-09-01',
+  end_date: '2026-08-31',
+  status: 'active'
+};
+
+/**
+ * Answer the scout year lookup, letting everything else fall through.
+ *
+ * @param {string} query - SQL being run
+ * @returns {Object|undefined} Result when this is the year lookup
+ */
+function mockScoutYearQuery(query) {
+  if (typeof query === 'string' && query.includes('FROM scout_years')) {
+    return { rows: [{ ...DEFAULT_SCOUT_YEAR }] };
+  }
+  return undefined;
+}
+
+/**
  * Setup default mocks for all database queries
  * Uses schema-aware mock generation for all queries
  * 
@@ -33,13 +63,12 @@ function getFactory() {
 function setupDefaultMocks(__mClient, __mPool) {
   const factory = getFactory();
   
-  __mClient.query.mockImplementation((query, params) => {
-    return Promise.resolve(factory.mockQuery(query, params));
-  });
-  
-  __mPool.query.mockImplementation((query, params) => {
-    return Promise.resolve(factory.mockQuery(query, params));
-  });
+  const handler = (query, params) => {
+    return Promise.resolve(mockScoutYearQuery(query) || factory.mockQuery(query, params));
+  };
+
+  __mClient.query.mockImplementation(handler);
+  __mPool.query.mockImplementation(handler);
 }
 
 /**
@@ -73,8 +102,8 @@ function mockQueryImplementation(__mClient, __mPool, customHandler) {
       return customResult;
     }
 
-    // Fall back to schema-based mock when custom handler yields no result
-    return factory.mockQuery(query, params);
+    // Fall back to the scout year, then to the schema-based mock
+    return mockScoutYearQuery(query) || factory.mockQuery(query, params);
   };
   
   __mClient.query.mockImplementation(handler);
@@ -96,9 +125,10 @@ function resetMockFactory() {
   globalFactory = null;
 }
 
-module.exports = { 
-  setupDefaultMocks, 
-  mockQueryImplementation, 
+module.exports = {
+  setupDefaultMocks,
+  mockQueryImplementation,
   resetMockFactory,
-  MockFactory 
+  MockFactory,
+  DEFAULT_SCOUT_YEAR
 };

@@ -13,7 +13,7 @@ const router = express.Router();
 
 // Import utilities and middleware
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership, getPointSystemRules } = require('../utils/api-helpers');
-const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
+const { authenticate, requirePermission, blockDemoRoles, getOrganizationId, withScoutYear } = require('../middleware/auth');
 const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
 
 /**
@@ -51,43 +51,48 @@ module.exports = (pool, logger) => {
   router.get('/v1/honors',
     authenticate,
     requirePermission('honors.view'),
+    withScoutYear(pool),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const requestedDate = req.query.date;
+      const { id: scoutYearId, start_date: yearStart, end_date: yearEnd } = req.scoutYear;
 
-      // Get participants
+      // Get the participants enrolled that year
       const participantsResult = await pool.query(
         `SELECT p.id as participant_id, p.first_name, p.last_name,
                 pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader
          FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         JOIN participant_enrollments po ON p.id = po.participant_id
+          AND po.organization_id = $1 AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
+         LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
-         WHERE po.organization_id = $1
          ORDER BY g.name, p.first_name`,
-        [organizationId]
+        [organizationId, scoutYearId, req.rosterStatuses]
       );
 
-      // Get honors with audit trail
+      // Honors carry their own date, so a season is a date range. Without this
+      // bound an honor count keeps growing across years.
       const honorsResult = await pool.query(
         `SELECT h.id, h.participant_id, h.date::text as date, h.reason,
                 h.created_at, h.created_by, h.updated_at, h.updated_by
          FROM honors h
          JOIN participants p ON h.participant_id = p.id
-         JOIN participant_organizations po ON p.id = po.participant_id
-         WHERE po.organization_id = $1
+         JOIN participant_enrollments po ON p.id = po.participant_id
+          AND po.organization_id = $1 AND po.scout_year_id = $2
+         WHERE h.date BETWEEN $3::date AND $4::date
          ORDER BY h.date DESC`,
-        [organizationId]
+        [organizationId, scoutYearId, yearStart, yearEnd]
       );
 
-      // Get available dates (dates with honors)
+      // Get available dates (dates with honors) within that season
       const datesResult = await pool.query(
-        `SELECT DISTINCT date::text as date FROM honors h
+        `SELECT DISTINCT h.date::text as date FROM honors h
          JOIN participants p ON h.participant_id = p.id
-         JOIN participant_organizations po ON p.id = po.participant_id
-         WHERE po.organization_id = $1
+         JOIN participant_enrollments po ON p.id = po.participant_id
+          AND po.organization_id = $1 AND po.scout_year_id = $2
+         WHERE h.date BETWEEN $3::date AND $4::date
          ORDER BY date DESC`,
-        [organizationId]
+        [organizationId, scoutYearId, yearStart, yearEnd]
       );
 
       return success(res, {

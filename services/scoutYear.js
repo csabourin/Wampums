@@ -23,6 +23,8 @@ const MAX_MONTH = 12;
 const MIN_DAY = 1;
 /** Highest day-of-month accepted as a fiscal year start, so every month is valid. */
 const MAX_DAY = 28;
+/** Transitions shown in the history, newest first. */
+const TRANSITION_HISTORY_LIMIT = 20;
 
 /**
  * Format a Date as an ISO calendar date (YYYY-MM-DD) in UTC.
@@ -140,7 +142,8 @@ async function computeYearBounds(pool, organizationId, onDate = today()) {
  */
 async function getActiveScoutYear(pool, organizationId) {
   const result = await pool.query(
-    `SELECT id, organization_id, label, start_date, end_date, status
+    `SELECT id, organization_id, label,
+            start_date::text AS start_date, end_date::text AS end_date, status
        FROM scout_years
       WHERE organization_id = $1 AND status = 'active'
       LIMIT 1`,
@@ -170,7 +173,8 @@ async function ensureActiveScoutYear(pool, organizationId) {
     `INSERT INTO scout_years (organization_id, label, start_date, end_date, status)
      VALUES ($1, $2, $3, $4, 'active')
      ON CONFLICT (organization_id, label) DO UPDATE SET status = 'active'
-     RETURNING id, organization_id, label, start_date, end_date, status`,
+     RETURNING id, organization_id, label,
+               start_date::text AS start_date, end_date::text AS end_date, status`,
     [organizationId, bounds.label, bounds.startDate, bounds.endDate]
   );
   return result.rows[0];
@@ -225,7 +229,8 @@ async function resolveScoutYear(pool, organizationId, requestedYearId = null) {
   }
 
   const result = await pool.query(
-    `SELECT id, organization_id, label, start_date, end_date, status
+    `SELECT id, organization_id, label,
+            start_date::text AS start_date, end_date::text AS end_date, status
        FROM scout_years
       WHERE id = $1 AND organization_id = $2`,
     [parsed, organizationId]
@@ -257,7 +262,10 @@ async function resolveScoutYear(pool, organizationId, requestedYearId = null) {
  * @param {Object} options - Options
  * @param {number} options.organizationId - Organization ID
  * @param {string} options.userId - UUID of the user performing the transition
- * @returns {Promise<{previousYear: Object|null, newYear: Object, restampedPoints: number}>} Result
+ * @returns {Promise<{previousYear: Object|null, newYear: Object, restampedPoints: number,
+ *   newYearPriorState: Object|null}>} Result. `newYearPriorState` is the row the
+ *   new year overwrote, or null when the transition created it — the difference
+ *   between deleting and restoring it on a rollback.
  */
 async function openNextScoutYear(client, { organizationId, userId }) {
   const previousYear = await getActiveScoutYear(client, organizationId);
@@ -287,13 +295,25 @@ async function openNextScoutYear(client, { organizationId, userId }) {
     );
   }
 
+  // The year being opened may already exist as a planned or previously closed
+  // row (the migration seeds the history). Remember what the upsert is about to
+  // overwrite so a rollback restores it instead of deleting somebody's data.
+  const priorState = await client.query(
+    `SELECT id, start_date::text AS start_date, end_date::text AS end_date, status
+       FROM scout_years
+      WHERE organization_id = $1 AND label = $2`,
+    [organizationId, nominal.label]
+  );
+  const newYearPriorState = priorState.rows[0] || null;
+
   const created = await client.query(
     `INSERT INTO scout_years (organization_id, label, start_date, end_date, status)
      VALUES ($1, $2, $3, $4, 'active')
      ON CONFLICT (organization_id, label)
      DO UPDATE SET status = 'active', start_date = EXCLUDED.start_date,
                    end_date = EXCLUDED.end_date, updated_at = now()
-     RETURNING id, organization_id, label, start_date, end_date, status`,
+     RETURNING id, organization_id, label,
+               start_date::text AS start_date, end_date::text AS end_date, status`,
     [organizationId, nominal.label, toIsoDate(effectiveStart), nominal.endDate]
   );
   const newYear = created.rows[0];
@@ -312,7 +332,7 @@ async function openNextScoutYear(client, { organizationId, userId }) {
     restampedPoints = restamped.rowCount;
   }
 
-  return { previousYear, newYear, restampedPoints };
+  return { previousYear, newYear, restampedPoints, newYearPriorState };
 }
 
 /**
@@ -476,6 +496,297 @@ async function expireMedicationAuthorizations(client, organizationId, participan
   return { treatment, administration };
 }
 
+/**
+ * List an organization's year transitions, most recent first.
+ *
+ * @param {Object} pool - Database pool or client
+ * @param {number} organizationId - Organization ID
+ * @param {number} [limit] - Maximum rows to return
+ * @returns {Promise<Array<Object>>} Transitions with both year labels
+ */
+async function listTransitions(pool, organizationId, limit = TRANSITION_HISTORY_LIMIT) {
+  const result = await pool.query(
+    `SELECT t.id, t.from_scout_year_id, t.to_scout_year_id, t.executed_at,
+            t.executed_by, t.summary, t.changeset,
+            t.rolled_back_at, t.rolled_back_by,
+            t.organization_id,
+            fy.label AS from_label, ty.label AS to_label, ty.status AS to_status,
+            u.full_name AS executed_by_name
+       FROM scout_year_transitions t
+       LEFT JOIN scout_years fy ON fy.id = t.from_scout_year_id
+       LEFT JOIN scout_years ty ON ty.id = t.to_scout_year_id
+       LEFT JOIN users u ON u.id = t.executed_by
+      WHERE t.organization_id = $1
+      ORDER BY t.executed_at DESC
+      LIMIT $2`,
+    [organizationId, limit]
+  );
+  return result.rows;
+}
+
+/**
+ * List what stands in the way of undoing a transition.
+ *
+ * A transition can be undone as long as the year it opened has not been used.
+ * That is the condition which makes the replay exact: if nothing was entered
+ * since, putting every row back where it was loses nothing. The moment real work
+ * has happened in the new year — a point awarded, a meeting attended, a family
+ * registered, a form re-read — undoing would either destroy it or leave it
+ * pointing at a year that no longer exists.
+ *
+ * Each blocker is returned with a count so the refusal can name what is in the
+ * way rather than just saying no.
+ *
+ * @param {Object} pool - Database pool or client
+ * @param {Object} transition - Transition row (`organization_id`, `to_scout_year_id`,
+ *   `executed_at`, `changeset`)
+ * @returns {Promise<Array<{reason: string, count: number}>>} Blockers, empty when undoable
+ */
+async function listRollbackBlockers(pool, transition) {
+  const organizationId = transition.organization_id;
+  const toYearId = transition.to_scout_year_id;
+  const executedAt = transition.executed_at;
+  const changeset = transition.changeset || {};
+  const carriedOver = Array.isArray(changeset.carried_over_participant_ids)
+    ? changeset.carried_over_participant_ids
+    : [];
+  const flaggedForms = Array.isArray(changeset.flagged_form_submission_ids)
+    ? changeset.flagged_form_submission_ids
+    : [];
+
+  const checks = [
+    {
+      reason: 'points_awarded',
+      sql: `SELECT COUNT(*)::int AS count FROM points
+             WHERE organization_id = $1 AND scout_year_id = $2 AND created_at > $3::timestamptz`,
+      params: [organizationId, toYearId, executedAt]
+    },
+    {
+      reason: 'attendance_recorded',
+      sql: `SELECT COUNT(*)::int AS count FROM attendance
+             WHERE organization_id = $1 AND created_at > $2::timestamptz`,
+      params: [organizationId, executedAt]
+    },
+    {
+      reason: 'honors_awarded',
+      sql: `SELECT COUNT(*)::int AS count FROM honors
+             WHERE organization_id = $1 AND created_at > $2::timestamptz`,
+      params: [organizationId, executedAt]
+    },
+    {
+      // Anyone enrolled in the new year who was not carried over by the
+      // transition itself joined afterwards.
+      reason: 'participants_enrolled',
+      sql: `SELECT COUNT(*)::int AS count FROM participant_enrollments
+             WHERE organization_id = $1 AND scout_year_id = $2
+               AND NOT (participant_id = ANY($3::int[]))`,
+      params: [organizationId, toYearId, carriedOver]
+    },
+    {
+      // Dens are not carried over by a transition, so any assignment in the new
+      // year is work someone did afterwards.
+      reason: 'dens_assigned',
+      sql: `SELECT COUNT(*)::int AS count FROM participant_group_assignments
+             WHERE organization_id = $1 AND scout_year_id = $2`,
+      params: [organizationId, toYearId]
+    },
+    {
+      reason: 'forms_submitted',
+      sql: `SELECT COUNT(*)::int AS count FROM form_submissions
+             WHERE organization_id = $1 AND scout_year_id = $2 AND created_at > $3::timestamptz`,
+      params: [organizationId, toYearId, executedAt]
+    },
+    {
+      // A form the transition flagged that is no longer flagged: a parent has
+      // answered the request, and that answer belongs to the new year.
+      reason: 'forms_reviewed',
+      sql: `SELECT COUNT(*)::int AS count FROM form_submissions
+             WHERE organization_id = $1 AND id = ANY($2::int[])
+               AND review_state <> 'needs_review'`,
+      params: [organizationId, flaggedForms]
+    },
+    {
+      reason: 'authorizations_signed',
+      sql: `SELECT (
+               SELECT COUNT(*) FROM medication_treatment_authorizations
+                WHERE organization_id = $1 AND created_at > $2::timestamptz
+             ) + (
+               SELECT COUNT(*) FROM medication_admin_authorizations
+                WHERE organization_id = $1 AND created_at > $2::timestamptz
+             ) AS count`,
+      params: [organizationId, executedAt]
+    }
+  ];
+
+  const results = await Promise.all(checks.map(check => pool.query(check.sql, check.params)));
+
+  return checks
+    .map((check, index) => ({
+      reason: check.reason,
+      count: parseInt(results[index].rows[0].count, 10)
+    }))
+    .filter(blocker => blocker.count > 0);
+}
+
+/**
+ * Undo a year transition by replaying its changeset backwards.
+ *
+ * Assumes the caller has already checked `listRollbackBlockers` and is inside an
+ * open transaction. Nothing here is destructive beyond removing rows the
+ * transition itself created: closed enrollments are reopened, deactivated
+ * accounts are reactivated, flagged forms are unflagged and expired
+ * authorizations are restored.
+ *
+ * Ordering matters. The year that was opened is shrunk or removed **before** the
+ * previous year is stretched back to its original end date, because
+ * `scout_years_no_overlap` is checked per statement and the two ranges would
+ * briefly collide the other way around.
+ *
+ * @param {Object} client - Database client inside an open transaction
+ * @param {Object} options - Options
+ * @param {Object} options.transition - Transition row to undo
+ * @param {string} options.userId - UUID of the user undoing it
+ * @returns {Promise<Object>} Counters describing what was put back
+ */
+async function rollbackTransition(client, { transition, userId }) {
+  const organizationId = transition.organization_id;
+  const fromYearId = transition.from_scout_year_id;
+  const toYearId = transition.to_scout_year_id;
+  const changeset = transition.changeset || {};
+  const restore = changeset.restore || {};
+  const graduatedIds = Array.isArray(changeset.graduated_participant_ids)
+    ? changeset.graduated_participant_ids
+    : [];
+  const membershipIds = Array.isArray(changeset.deactivated_membership_ids)
+    ? changeset.deactivated_membership_ids
+    : [];
+  const flaggedForms = Array.isArray(changeset.flagged_form_submission_ids)
+    ? changeset.flagged_form_submission_ids
+    : [];
+  const expired = changeset.expired_medication_authorization_ids || {};
+  const expiredTreatment = Array.isArray(expired.treatment) ? expired.treatment : [];
+  const expiredAdministration = Array.isArray(expired.administration) ? expired.administration : [];
+
+  // A late transition re-stamped points onto the year it opened. Everything in
+  // that year predating the transition is exactly that set.
+  const restamped = fromYearId
+    ? await client.query(
+      `UPDATE points SET scout_year_id = $1
+        WHERE organization_id = $2 AND scout_year_id = $3 AND created_at <= $4::timestamptz`,
+      [fromYearId, organizationId, toYearId, transition.executed_at]
+    )
+    : { rowCount: 0 };
+
+  // Enrollments the transition created in the new year. The blockers guarantee
+  // there is nothing else in there.
+  const removedEnrollments = await client.query(
+    `DELETE FROM participant_enrollments
+      WHERE organization_id = $1 AND scout_year_id = $2
+      RETURNING participant_id`,
+    [organizationId, toYearId]
+  );
+
+  // Enrollments it closed go back to being current.
+  const reopened = await client.query(
+    `UPDATE participant_enrollments
+        SET status = 'active', ended_on = NULL, exit_reason = NULL
+      WHERE organization_id = $1 AND scout_year_id = $2
+        AND participant_id = ANY($3::int[])
+        AND status = 'graduated'
+      RETURNING participant_id`,
+    [organizationId, fromYearId, graduatedIds]
+  );
+
+  // Accounts it deactivated. One reactivated by hand in the meantime is already
+  // active and simply not matched.
+  const reactivated = await client.query(
+    `UPDATE user_organizations
+        SET status = 'active', deactivated_at = NULL, deactivated_reason = NULL,
+            last_active_scout_year_id = NULL
+      WHERE organization_id = $1 AND id = ANY($2::int[]) AND status = 'inactive'
+      RETURNING id`,
+    [organizationId, membershipIds]
+  );
+
+  // Review flags it raised. `last_reviewed_at` is deliberately left alone: it
+  // records a fact about the parent, not about the transition.
+  const unflagged = await client.query(
+    `UPDATE form_submissions
+        SET review_state = 'current', flagged_for_review_at = NULL
+      WHERE organization_id = $1 AND id = ANY($2::int[])
+        AND review_state = 'needs_review'
+      RETURNING id`,
+    [organizationId, flaggedForms]
+  );
+
+  const unexpire = async (table, ids) => {
+    if (ids.length === 0) {
+      return 0;
+    }
+    // Table names are literals chosen here, never user input.
+    const result = await client.query(
+      `UPDATE ${table}
+          SET status = 'signed', expired_at = NULL, updated_at = now()
+        WHERE organization_id = $1 AND id = ANY($2::int[]) AND status = 'expired'`,
+      [organizationId, ids]
+    );
+    return result.rowCount;
+  };
+
+  const restoredTreatment = await unexpire('medication_treatment_authorizations', expiredTreatment);
+  const restoredAdministration = await unexpire('medication_admin_authorizations', expiredAdministration);
+
+  // The opened year is emptied, not deleted: the transition record itself
+  // references it, and keeping the row is what lets the history still say a
+  // transition to that year happened and was undone. It goes back to `planning`
+  // and gives up the days it borrowed from the year it replaced — an early
+  // transition had pulled its start date back to the day it was run.
+  if (restore.new_year) {
+    await client.query(
+      `UPDATE scout_years
+          SET start_date = $2::date, end_date = $3::date, status = $4,
+              closed_at = NULL, closed_by = NULL, updated_at = now()
+        WHERE id = $1`,
+      [toYearId, restore.new_year.start_date, restore.new_year.end_date, restore.new_year.status]
+    );
+  } else {
+    await client.query(
+      `UPDATE scout_years
+          SET status = 'planning',
+              start_date = COALESCE($2::date + 1, start_date),
+              closed_at = NULL, closed_by = NULL, updated_at = now()
+        WHERE id = $1`,
+      [toYearId, restore.previous_year?.end_date || null]
+    );
+  }
+
+  if (fromYearId) {
+    await client.query(
+      `UPDATE scout_years
+          SET status = 'active', closed_at = NULL, closed_by = NULL,
+              end_date = COALESCE($2::date, end_date), updated_at = now()
+        WHERE id = $1`,
+      [fromYearId, restore.previous_year?.end_date || null]
+    );
+  }
+
+  await client.query(
+    `UPDATE scout_year_transitions
+        SET rolled_back_at = now(), rolled_back_by = $2
+      WHERE id = $1`,
+    [transition.id, userId]
+  );
+
+  return {
+    enrollments_removed: removedEnrollments.rows.length,
+    enrollments_reopened: reopened.rows.length,
+    memberships_reactivated: reactivated.rows.length,
+    forms_unflagged: unflagged.rows.length,
+    medication_authorizations_restored: restoredTreatment + restoredAdministration,
+    points_restamped: restamped.rowCount
+  };
+}
+
 module.exports = {
   DEFAULT_FISCAL_START_MONTH,
   DEFAULT_FISCAL_START_DAY,
@@ -488,5 +799,8 @@ module.exports = {
   openNextScoutYear,
   listMembershipsWithoutEnrolledChild,
   flagRequiredFormsForReview,
-  expireMedicationAuthorizations
+  expireMedicationAuthorizations,
+  listTransitions,
+  listRollbackBlockers,
+  rollbackTransition
 };

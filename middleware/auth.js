@@ -236,6 +236,59 @@ exports.getScoutYearId = async (req, pool) => {
   return scoutYear.id;
 };
 
+/** Every way an enrollment can have ended; all of them were on that year's roster. */
+const PAST_ENROLLMENT_STATUSES = ['active', 'graduated', 'left', 'transferred'];
+
+/**
+ * Enrollment statuses that count as being on a given year's roster
+ *
+ * @param {Object} scoutYear - Scout year row
+ * @returns {Array<string>} Statuses to accept
+ */
+exports.rosterStatusesFor = (scoutYear) => (
+  scoutYear && scoutYear.status === 'active' ? ['active'] : [...PAST_ENROLLMENT_STATUSES]
+);
+
+/**
+ * Resolve the scout year once and hang it on the request
+ *
+ * Read endpoints that can be pointed at an archived season use this so the
+ * handler body stays about the query rather than about error plumbing. An
+ * unknown or foreign year is a client mistake, not a server error, so it comes
+ * back as a 400 before the handler runs.
+ *
+ * Also sets `req.rosterStatuses`, the enrollment statuses that count as "on the
+ * roster" for the year being asked about. They differ, and the difference is the
+ * whole point of consulting an archive: on the year in progress the roster is
+ * who is enrolled *now*, so someone who left in November is off it; on a closed
+ * year it is everyone who belonged to that year, including the ones who left at
+ * the end of it — otherwise looking up a former member would find nothing.
+ *
+ * @param {Object} pool - Database connection pool
+ * @returns {Function} Express middleware setting `req.scoutYear`
+ *
+ * @example
+ * router.get('/v1/attendance', authenticate, withScoutYear(pool), handler);
+ * // handler: req.scoutYear -> { id, label, start_date, end_date, status }
+ * //          req.rosterStatuses -> ['active'] or every past status
+ */
+exports.withScoutYear = (pool) => async (req, res, next) => {
+  try {
+    req.scoutYear = await exports.getScoutYear(req, pool);
+    if (!req.scoutYear) {
+      throw new Error('No scout year could be resolved');
+    }
+    req.rosterStatuses = exports.rosterStatusesFor(req.scoutYear);
+    return next();
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      message: 'Unknown scout year for this organization',
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
 /**
  * Verify user belongs to organization with specific role
  * Use as middleware in routes that require organization membership

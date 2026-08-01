@@ -150,6 +150,7 @@ export async function handleResponse(response) {
  * Core API request function
  */
 import { offlineManager } from "../modules/OfflineManager.js";
+import { isArchiveMode } from "../modules/scout-year/ScoutYearContext.js";
 
 export async function makeApiRequest(endpoint, options = {}) {
     const {
@@ -165,6 +166,20 @@ export async function makeApiRequest(endpoint, options = {}) {
     let url = buildApiUrl(endpoint, params);
     if (cacheBuster) {
         url = addCacheBuster(url);
+    }
+
+    // Consulting an archived year is read-only. The guard sits here rather than
+    // only in the interface because every screen goes through this function:
+    // one forgotten disabled button would otherwise write last year's data into
+    // the current season.
+    if (method !== 'GET' && isArchiveMode()) {
+        // Translated here so the toast a caller shows stays in the page's
+        // language rather than dropping an English sentence into a French UI.
+        const archiveError = new Error(offlineManager.getTranslation('scout_year_read_only'));
+        archiveError.status = 403;
+        archiveError.isArchiveReadOnly = true;
+        debugWarn(`[Archive] Blocked ${method} ${url} while consulting an archived year`);
+        throw archiveError;
     }
 
     const isFormData = body instanceof FormData;
@@ -425,11 +440,15 @@ export const API = {
 
     /**
      * DELETE request
+     *
+     * Takes an optional body for the rare deletion that needs the caller to
+     * confirm what they are destroying rather than just name it in the URL.
      */
-    async delete(endpoint, params = {}) {
+    async delete(endpoint, params = {}, body = null) {
         return makeApiRequest(endpoint, {
             method: 'DELETE',
-            params
+            params,
+            body
         });
     }
 };
