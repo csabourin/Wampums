@@ -878,7 +878,18 @@ module.exports = (pool, logger) => {
           });
         }
 
-        const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
+        // Get the base URL from a trusted source (never from the HTTP Host header,
+        // which can be forged by an attacker to redirect the reset link).
+        // Priority: APP_URL env var > database organization domain > hardcoded default.
+        let baseUrl = process.env.APP_URL;
+        if (!baseUrl) {
+          const domainResult = await pool.query(
+            'SELECT domain FROM organization_domains WHERE organization_id = $1 ORDER BY id ASC LIMIT 1',
+            [organizationId]
+          );
+          const trustedDomain = domainResult.rows[0]?.domain || 'wampums.app';
+          baseUrl = `https://${trustedDomain}`;
+        }
         const resetLink = `${baseUrl}/reset-password?token=${rawResetToken}`;
 
         // Send password reset email with localization
