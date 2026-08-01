@@ -4,23 +4,26 @@ import { translate } from '../../app.js';
 import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { formatDate, parseDate, getTodayISO } from '../../utils/DateUtils.js';
+import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { skeletonTable } from '../../utils/SkeletonUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
+import { buildYearModel } from './PlannerModel.js';
+import { renderYearGrid, renderYearSummary } from './YearGridView.js';
+import { openMeetingSheet } from './MeetingSheet.js';
 import {
   getYearPlans,
+  createPlanMeeting,
+  deletePlanMeeting,
+  unlinkActivityEvent,
   getYearPlan,
   createYearPlan,
-  updateYearPlan,
   deleteYearPlan,
   createPeriod,
-  updatePeriod,
   deletePeriod,
   createObjective,
-  updateObjective,
   deleteObjective,
   updateYearPlanMeeting,
   addMeetingActivity,
@@ -28,8 +31,6 @@ import {
   getActivityLibrary,
   createLibraryActivity,
   deleteLibraryActivity,
-  createDistributionRule,
-  deleteDistributionRule,
   createActivityEventFromMeeting,
   getYearPlanMeeting
 } from '../../api/api-yearly-planner.js';
@@ -89,14 +90,18 @@ export class YearlyPlanner extends BaseModule {
     }
   }
 
-  async loadPlanDetail(planId) {
+  async loadPlanDetail(planId, { forceRefresh = false } = {}) {
     try {
+      this.currentPlanId = planId;
       this.isLoading = true;
       this.view = VIEW.PLAN_DETAIL;
       this.render();
 
-      const response = await getYearPlan(planId);
+      const response = await getYearPlan(planId, { forceRefresh });
       this.currentPlan = response?.data || null;
+      this.yearModel = this.currentPlan
+        ? buildYearModel(this.currentPlan, { today: getTodayISO() })
+        : null;
 
       this.isLoading = false;
       this.render();
@@ -119,6 +124,217 @@ export class YearlyPlanner extends BaseModule {
       this.activityLibrary = [];
       this.libraryError = err;
       this.app?.showMessage?.(translate('yearly_planner_error_loading'), 'error');
+    }
+  }
+
+  // =========================================================================
+  // YEAR VIEW INTERACTION
+  // =========================================================================
+
+  /**
+   * Find a chip in the current model by its date.
+   * @param {string} date - YYYY-MM-DD
+   * @returns {Object|null} Chip descriptor
+   */
+  findChip(date) {
+    for (const month of (this.yearModel?.months || [])) {
+      const chip = month.chips.find(c => c.date === date);
+      if (chip) {
+        return chip;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Open the sheet for a date.
+   * @param {string} date - YYYY-MM-DD
+   * @returns {void}
+   */
+  handleChipClick(date) {
+    const chip = this.findChip(date);
+    if (!chip) {
+      return;
+    }
+
+    openMeetingSheet({
+      chip,
+      plan: this.currentPlan,
+      lang: this.lang,
+      canManage: this.canManage,
+      onOpenPrep: (meetingDate) => {
+        // Full preparation lives in its own module; carry the plan so the back
+        // link returns to the year view rather than the plan list.
+        this.app.router.navigate(
+          `/preparation-reunions/${meetingDate}?from=plan:${this.currentPlanId}`
+        );
+      },
+      onSave: (payload) => this.handleSheetSave(chip, payload),
+      onDelete: () => this.handleSheetDelete(chip),
+      onUnlinkActivity: () => this.handleSheetUnlink(chip)
+    });
+  }
+
+  /**
+   * @param {Object} chip - Chip descriptor
+   * @param {Object} payload - PATCH body
+   * @returns {Promise<void>}
+   */
+  async handleSheetSave(chip, payload) {
+    try {
+      await updateYearPlanMeeting(chip.meetingId, payload);
+      this.app.showMessage(translate('yearly_planner_meeting_updated'), 'success');
+      await this.loadPlanDetail(this.currentPlanId, { forceRefresh: true });
+    } catch (err) {
+      debugError('Error updating meeting:', err);
+      this.app.showMessage(translate('yearly_planner_error_saving'), 'error');
+    }
+  }
+
+  /**
+   * @param {Object} chip - Chip descriptor
+   * @returns {Promise<void>}
+   */
+  async handleSheetDelete(chip) {
+    const confirmed = await confirmDestructive({
+      title: translate('yearly_planner_delete_date'),
+      message: translate('yearly_planner_delete_date_confirm')
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deletePlanMeeting(chip.meetingId);
+      this.app.showMessage(translate('yearly_planner_date_deleted'), 'success');
+      await this.loadPlanDetail(this.currentPlanId, { forceRefresh: true });
+    } catch (err) {
+      debugError('Error deleting meeting:', err);
+      // The server refuses dates that already carry attendance.
+      const message = err?.status === 409
+        ? translate('yearly_planner_delete_date_has_attendance')
+        : translate('yearly_planner_error_saving');
+      this.app.showMessage(message, 'error');
+    }
+  }
+
+  /**
+   * @param {Object} chip - Chip descriptor
+   * @returns {Promise<void>}
+   */
+  async handleSheetUnlink(chip) {
+    try {
+      await unlinkActivityEvent(chip.meetingId);
+      this.app.showMessage(translate('yearly_planner_activity_unlinked'), 'success');
+      await this.loadPlanDetail(this.currentPlanId, { forceRefresh: true });
+    } catch (err) {
+      debugError('Error unlinking activity:', err);
+      this.app.showMessage(translate('yearly_planner_error_saving'), 'error');
+    }
+  }
+
+  /**
+   * Ask for a new date. Kind drives whether consent and transport are wired up,
+   * so it is the first thing chosen, not a detail buried in the form.
+   * @returns {void}
+   */
+  showAddDateModal() {
+    const plan = this.currentPlan;
+    const modal = openModal({
+      id: 'yp-add-date',
+      title: escapeHTML(translate('yearly_planner_add_date')),
+      body: `
+        <div class="yp-sheet">
+          <label class="form-group">
+            <span>${escapeHTML(translate('yearly_planner_kind'))}</span>
+            <select id="yp-date-kind">
+              <option value="regular">${escapeHTML(translate('yearly_planner_kind_regular'))}</option>
+              <option value="weekend">${escapeHTML(translate('yearly_planner_kind_weekend'))}</option>
+              <option value="camp">${escapeHTML(translate('yearly_planner_kind_camp'))}</option>
+              <option value="special">${escapeHTML(translate('yearly_planner_kind_special'))}</option>
+            </select>
+          </label>
+          <label class="form-group">
+            <span>${escapeHTML(translate('yearly_planner_start_date'))}</span>
+            <input type="date" id="yp-date-start"
+                   min="${escapeHTML(String(plan?.start_date || '').slice(0, 10))}"
+                   max="${escapeHTML(String(plan?.end_date || '').slice(0, 10))}" required>
+          </label>
+          <label class="form-group" id="yp-date-end-group" hidden>
+            <span>${escapeHTML(translate('yearly_planner_end_date'))}</span>
+            <input type="date" id="yp-date-end">
+          </label>
+          <label class="form-group">
+            <span>${escapeHTML(translate('yearly_planner_theme'))}</span>
+            <input type="text" id="yp-date-theme" maxlength="255">
+          </label>
+          <p class="yp-sheet__hint" id="yp-date-hint" hidden>
+            ${escapeHTML(translate('yearly_planner_auto_activity_hint'))}
+          </p>
+        </div>
+      `,
+      footer: `
+        <button type="button" class="button button--ghost" data-modal-close>
+          ${escapeHTML(translate('cancel'))}
+        </button>
+        <button type="button" class="button button--primary" id="yp-date-submit">
+          ${escapeHTML(translate('add'))}
+        </button>
+      `
+    });
+
+    const kindSelect = modal.overlay.querySelector('#yp-date-kind');
+    const endGroup = modal.overlay.querySelector('#yp-date-end-group');
+    const hint = modal.overlay.querySelector('#yp-date-hint');
+
+    const syncKind = () => {
+      const kind = kindSelect.value;
+      // Only a camp spans days; only weekend and camp get consent + transport.
+      endGroup.hidden = kind !== 'camp';
+      hint.hidden = !['weekend', 'camp'].includes(kind);
+    };
+    kindSelect.addEventListener('change', syncKind);
+    syncKind();
+
+    modal.overlay.querySelector('#yp-date-submit')?.addEventListener('click', async () => {
+      const meetingDate = modal.overlay.querySelector('#yp-date-start')?.value;
+      if (!meetingDate) {
+        this.app.showMessage(translate('yearly_planner_start_date_required'), 'error');
+        return;
+      }
+      const kind = kindSelect.value;
+      const endDate = modal.overlay.querySelector('#yp-date-end')?.value;
+      const theme = modal.overlay.querySelector('#yp-date-theme')?.value?.trim();
+
+      modal.close();
+      await this.handleAddDate({
+        meeting_date: meetingDate,
+        end_date: kind === 'camp' && endDate ? endDate : undefined,
+        kind,
+        theme: theme || undefined
+      });
+    });
+  }
+
+  /**
+   * Add a one-off date, weekend outing or camp to the current plan.
+   * @param {Object} data - createPlanMeeting payload
+   * @returns {Promise<void>}
+   */
+  async handleAddDate(data) {
+    try {
+      const response = await createPlanMeeting(this.currentPlanId, data);
+      const skipped = response?.data?.activity_event_skipped;
+      this.app.showMessage(
+        skipped === 'forbidden'
+          ? translate('yearly_planner_date_added_no_activity')
+          : translate('yearly_planner_date_added'),
+        skipped ? 'warning' : 'success'
+      );
+      await this.loadPlanDetail(this.currentPlanId, { forceRefresh: true });
+    } catch (err) {
+      debugError('Error adding date:', err);
+      this.app.showMessage(translate('yearly_planner_error_saving'), 'error');
     }
   }
 
@@ -274,9 +490,18 @@ export class YearlyPlanner extends BaseModule {
           <button class="yp-tab" data-tab="objectives" role="tab">${translate('yearly_planner_tab_objectives')}</button>
         </div>
 
-        <!-- Timeline Tab -->
+        <!-- Year at a glance -->
         <div class="yp-tab-content yp-tab-content--active" id="yp-tab-timeline">
-          ${this.renderTimeline(meetings, periods, today, plan.activity_events || [])}
+          ${this.canManage ? `
+            <div class="page__actions">
+              <button class="button button--secondary" id="yp-add-date-btn">
+                <i class="fas fa-calendar-plus" aria-hidden="true"></i>
+                ${translate('yearly_planner_add_date')}
+              </button>
+            </div>
+          ` : ''}
+          ${renderYearSummary(this.yearModel)}
+          ${renderYearGrid(this.yearModel, { lang: this.lang, canManage: this.canManage })}
         </div>
 
         <!-- Periods Tab -->
@@ -290,98 +515,6 @@ export class YearlyPlanner extends BaseModule {
         </div>
       </section>
     `;
-  }
-
-  renderTimeline(meetings, periods, today, events = []) {
-    if (meetings.length === 0 && events.length === 0) {
-      return `<div class="empty-state"><p>${translate('yearly_planner_no_meetings')}</p></div>`;
-    }
-
-    // Group meetings by period
-    const periodMap = {};
-    periods.forEach(p => { periodMap[p.id] = p; });
-
-    // Interleave outings/events (activities calendar) with meetings by date
-    const items = [
-      ...meetings.map(m => ({ kind: 'meeting', date: m.meeting_date, meeting: m })),
-      ...events.map(e => ({ kind: 'event', date: e.start_date, event: e }))
-    ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
-
-    let currentPeriodId = null;
-    let groupOpen = false;
-    let html = '<div class="yp-timeline">';
-
-    const openGroup = (periodId) => {
-      if (groupOpen) html += '</div>';
-      currentPeriodId = periodId;
-      groupOpen = true;
-      const period = periodMap[periodId];
-      html += `
-        <div class="yp-timeline-group">
-          <h3 class="yp-timeline-group__title">
-            ${period ? escapeHTML(period.title) : translate('yearly_planner_unassigned')}
-          </h3>
-      `;
-    };
-
-    for (const item of items) {
-      if (item.kind === 'event') {
-        if (!groupOpen) openGroup(null);
-        const event = item.event;
-        html += `
-          <div class="yp-meeting yp-event" data-event-id="${event.id}">
-            <div class="yp-meeting__date">
-              <span class="yp-meeting__day">${formatDate(event.start_date, this.lang)}</span>
-              ${event.end_date && event.end_date !== event.start_date ? `<span class="yp-meeting__time">→ ${formatDate(event.end_date, this.lang)}</span>` : ''}
-            </div>
-            <div class="yp-meeting__info">
-              <span class="yp-meeting__theme"><i class="fas fa-campground"></i> ${escapeHTML(event.name)}</span>
-              ${event.location ? `<span class="yp-meeting__location"><i class="fas fa-map-marker-alt"></i> ${escapeHTML(event.location)}</span>` : ''}
-            </div>
-            <div class="yp-meeting__status">
-              <span class="badge badge--info">${translate('yearly_planner_outing')}</span>
-            </div>
-          </div>
-        `;
-        continue;
-      }
-
-      const meeting = item.meeting;
-      // Period header
-      if (meeting.period_id !== currentPeriodId || !groupOpen) {
-        openGroup(meeting.period_id);
-      }
-
-      const isLocked = meeting.meeting_date < today;
-      const isCancelled = meeting.is_cancelled;
-      const stateClass = isCancelled ? 'yp-meeting--cancelled' : isLocked ? 'yp-meeting--locked' : '';
-      const activityCount = meeting.activity_count || 0;
-
-      html += `
-        <div class="yp-meeting ${stateClass}" data-meeting-id="${meeting.id}">
-          <div class="yp-meeting__date">
-            <span class="yp-meeting__day">${formatDate(meeting.meeting_date, this.lang)}</span>
-            ${meeting.start_time ? `<span class="yp-meeting__time">${meeting.start_time.substring(0, 5)}</span>` : ''}
-          </div>
-          <div class="yp-meeting__info">
-            ${meeting.theme ? `<span class="yp-meeting__theme">${escapeHTML(meeting.theme)}</span>` : ''}
-            ${meeting.location ? `<span class="yp-meeting__location"><i class="fas fa-map-marker-alt"></i> ${escapeHTML(meeting.location)}</span>` : ''}
-            <span class="yp-meeting__activities">${activityCount} ${translate('activities')}</span>
-            ${meeting.is_prepared ? `<span class="badge badge--success" title="${translate('yearly_planner_prepared')}">✓ ${translate('yearly_planner_prepared')}</span>` : ''}
-          </div>
-          <div class="yp-meeting__status">
-            ${isCancelled ? `<span class="badge badge--danger">${translate('yearly_planner_cancelled')}</span>` :
-              isLocked ? `<span class="badge badge--muted"><i class="fas fa-lock"></i> ${translate('yearly_planner_locked')}</span>` :
-              `${this.canManage ? `<button class="button button--small button--secondary yp-prepare-btn" data-date="${meeting.meeting_date}">${translate('yearly_planner_prepare')}</button>` : ''}
-               <button class="button button--small yp-edit-meeting-btn" data-id="${meeting.id}">${translate('edit')}</button>`}
-          </div>
-        </div>
-      `;
-    }
-
-    if (groupOpen) html += '</div>'; // Close last group
-    html += '</div>';
-    return html;
   }
 
   renderPeriodsTab(periods) {
@@ -1280,23 +1413,18 @@ export class YearlyPlanner extends BaseModule {
       if (this.currentMeeting) this.showCreateEventModal(this.currentMeeting);
     }, { signal: this.signal });
 
-    document.querySelectorAll('.yp-meeting').forEach(el => {
-      el.addEventListener('click', async (e) => {
-        if (e.target.closest('.yp-edit-meeting-btn') || e.target.closest('.yp-prepare-btn')) return;
-        if (el.classList.contains('yp-event')) return;
-        const meetingId = parseInt(el.dataset.meetingId);
-        if (!meetingId) return;
-        try {
-          const response = await getYearPlanMeeting(meetingId);
-          this.currentMeeting = response?.data || null;
-          this.view = VIEW.MEETING_DETAIL;
-          this.render();
-          this.attachEventListeners();
-        } catch (err) {
-          debugError('Error loading meeting:', err);
-        }
-      }, { signal: this.signal });
-    });
+    // One delegated listener for the whole year rather than one per chip: a
+    // plan holds ~40 dates and is re-rendered on every mutation.
+    document.getElementById('yp-add-date-btn')?.addEventListener('click', () => {
+      this.showAddDateModal();
+    }, { signal: this.signal });
+
+    document.querySelector('.yp-year')?.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-date]');
+      if (button) {
+        this.handleChipClick(button.dataset.date);
+      }
+    }, { signal: this.signal });
 
     // Meeting detail view
     document.getElementById('yp-back-to-plan')?.addEventListener('click', () => {

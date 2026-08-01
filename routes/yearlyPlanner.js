@@ -194,9 +194,20 @@ module.exports = (pool, logger) => {
                   (SELECT COUNT(*) FROM year_plan_meeting_activities WHERE meeting_id = m.id) as activity_count,
                   (m.animateur_responsable IS NOT NULL OR EXISTS (
                     SELECT 1 FROM year_plan_meeting_activities a WHERE a.meeting_id = m.id
-                  )) as is_prepared
+                  )) as is_prepared,
+                  COALESCE(
+                    (SELECT ARRAY_AGG(DISTINCT a.series_id)
+                       FROM year_plan_meeting_activities a
+                      WHERE a.meeting_id = m.id AND a.series_id IS NOT NULL),
+                    ARRAY[]::varchar[]
+                  ) as series_ids,
+                  -- Span of the linked outing: what makes a camp render as a
+                  -- multi-day block instead of a single chip.
+                  (act.activity_end_date - act.activity_start_date + 1) as span_days,
+                  COALESCE(act.activity_end_date, act.activity_start_date)::text as span_end_date
            FROM year_plan_meetings m
            LEFT JOIN year_plan_periods p ON m.period_id = p.id
+           LEFT JOIN activities act ON act.id = m.activity_id AND act.is_active = TRUE
            WHERE m.year_plan_id = $1 AND m.organization_id = $2
            ORDER BY m.meeting_date`,
           [planId, organizationId]
@@ -214,16 +225,31 @@ module.exports = (pool, logger) => {
 
       // Outings/events (activities table) within the plan range, so the
       // timeline can show camps and outings next to regular meetings.
+      // Consent and transport status travels with the outing so a chip can show
+      // its badges without a request per date.
       const eventsResult = await pool.query(
-        `SELECT id, name,
-                COALESCE(activity_start_date, activity_date)::text as start_date,
-                COALESCE(activity_end_date, activity_start_date, activity_date)::text as end_date,
-                meeting_location_going as location
-         FROM activities
-         WHERE organization_id = $1 AND is_active = TRUE
-           AND COALESCE(activity_start_date, activity_date) >= $2
-           AND COALESCE(activity_start_date, activity_date) <= $3
-         ORDER BY COALESCE(activity_start_date, activity_date)`,
+        `SELECT a.id, a.name,
+                COALESCE(a.activity_start_date, a.activity_date)::text as start_date,
+                COALESCE(a.activity_end_date, a.activity_start_date, a.activity_date)::text as end_date,
+                a.meeting_location_going as location,
+                ypm.id as linked_meeting_id,
+                COUNT(DISTINCT co.id) as carpool_offer_count,
+                COUNT(DISTINCT ca.id) as assigned_participant_count,
+                COUNT(DISTINCT ps.id) FILTER (WHERE ps.status = 'pending') as pending_slip_count,
+                COUNT(DISTINCT ps.id) FILTER (WHERE ps.status = 'signed') as signed_slip_count,
+                COUNT(DISTINCT ps.id) FILTER (WHERE ps.status = 'declined') as declined_slip_count
+         FROM activities a
+         LEFT JOIN year_plan_meetings ypm
+                ON ypm.activity_id = a.id AND ypm.organization_id = a.organization_id
+         LEFT JOIN carpool_offers co
+                ON co.activity_id = a.id AND co.is_active = TRUE
+         LEFT JOIN carpool_assignments ca ON ca.carpool_offer_id = co.id
+         LEFT JOIN permission_slips ps ON ps.activity_id = a.id
+         WHERE a.organization_id = $1 AND a.is_active = TRUE
+           AND COALESCE(a.activity_start_date, a.activity_date) >= $2
+           AND COALESCE(a.activity_start_date, a.activity_date) <= $3
+         GROUP BY a.id, ypm.id
+         ORDER BY COALESCE(a.activity_start_date, a.activity_date)`,
         [organizationId, plan.start_date, plan.end_date]
       );
       plan.activity_events = eventsResult.rows;

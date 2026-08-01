@@ -133,6 +133,44 @@ export async function updateYearPlanMeeting(meetingId, data) {
 }
 
 /**
+ * Add a single date to a plan: a one-off meeting, a weekend outing, or a
+ * multi-day camp. Weekend and camp kinds also create the linked activity that
+ * unlocks consent forms and carpooling.
+ *
+ * @param {number} planId - Year plan ID
+ * @param {Object} data - { meeting_date, end_date?, kind?, theme?, location?, period_id? }
+ * @returns {Promise<Object>} API response
+ */
+export async function createPlanMeeting(planId, data) {
+  const response = await API.post(`v1/yearly-planner/plans/${planId}/meetings`, data);
+  await invalidatePlanner({ includeMeetingPrep: true, includeActivities: true });
+  return response;
+}
+
+/**
+ * Remove a date from the calendar. The linked outing, if any, is unlinked but
+ * never deleted.
+ * @param {number} meetingId - Year plan meeting ID
+ * @returns {Promise<Object>} API response
+ */
+export async function deletePlanMeeting(meetingId) {
+  const response = await API.delete(`v1/yearly-planner/meetings/${meetingId}`);
+  await invalidatePlanner({ includeMeetingPrep: true, includeActivities: true });
+  return response;
+}
+
+/**
+ * Detach a meeting from its outing without deleting the outing.
+ * @param {number} meetingId - Year plan meeting ID
+ * @returns {Promise<Object>} API response
+ */
+export async function unlinkActivityEvent(meetingId) {
+  const response = await API.delete(`v1/yearly-planner/meetings/${meetingId}/activity-event`);
+  await invalidatePlanner({ includeMeetingPrep: true, includeActivities: true });
+  return response;
+}
+
+/**
  * Create an outing/event in the activities calendar from a planned meeting
  * (enables carpools, permission slips and the iCal feed) and link it back.
  * @param {number} meetingId - Year plan meeting ID
