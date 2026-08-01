@@ -192,6 +192,7 @@ class MockFactory {
           // Forms permissions
           { permission_id: 21, permission_key: 'forms.view', permission_name: 'View Forms', category: 'forms' },
           { permission_id: 22, permission_key: 'forms.manage', permission_name: 'Manage Forms', category: 'forms' },
+          { permission_id: 52, permission_key: 'forms.submit', permission_name: 'Submit Forms', category: 'forms' },
           
           // Guardian permissions
           { permission_id: 23, permission_key: 'guardians.view', permission_name: 'View Guardians', category: 'guardians' },
@@ -246,7 +247,22 @@ class MockFactory {
           { permission_id: 50, permission_key: 'communications.send', permission_name: 'Send Communications', category: 'communications' },
           
           // Permission slip permissions
-          { permission_id: 51, permission_key: 'permission_slips.sign', permission_name: 'Sign Permission Slips', category: 'permission_slips' }
+          { permission_id: 51, permission_key: 'permission_slips.sign', permission_name: 'Sign Permission Slips', category: 'permission_slips' },
+
+          // Permissions introduced by newer protected workflows. This fixture
+          // represents an explicitly authorized administrator; denial tests
+          // override the query with the exact permissions they are exercising.
+          { permission_id: 53, permission_key: 'participants.transfer', permission_name: 'Transfer Participants', category: 'participants' },
+          { permission_id: 54, permission_key: 'participants.erase', permission_name: 'Erase Participants', category: 'participants' },
+          { permission_id: 55, permission_key: 'alumni.manage', permission_name: 'Manage Alumni', category: 'alumni' },
+          { permission_id: 56, permission_key: 'organization.manage', permission_name: 'Manage Organization', category: 'organization' },
+          { permission_id: 57, permission_key: 'meetings.view', permission_name: 'View Meetings', category: 'meetings' },
+          { permission_id: 58, permission_key: 'meetings.manage', permission_name: 'Manage Meetings', category: 'meetings' },
+          { permission_id: 59, permission_key: 'scout_year.view', permission_name: 'View Scout Years', category: 'scout_year' },
+          { permission_id: 60, permission_key: 'scout_year.manage', permission_name: 'Manage Scout Years', category: 'scout_year' },
+          { permission_id: 61, permission_key: 'incidents.view', permission_name: 'View Incidents', category: 'incidents' },
+          { permission_id: 62, permission_key: 'incidents.manage', permission_name: 'Manage Incidents', category: 'incidents' },
+          { permission_id: 63, permission_key: 'notifications.send', permission_name: 'Send Notifications', category: 'notifications' }
         ]
       };
     }
@@ -286,6 +302,8 @@ class MockFactory {
             { permission_key: 'users.manage' },
             { permission_key: 'carpools.view' },
             { permission_key: 'finance.manage' },
+            { permission_key: 'forms.view' },
+            { permission_key: 'forms.submit' },
             { permission_key: 'forms.manage' },
             { permission_key: 'notifications.send' },
           ]
@@ -300,9 +318,10 @@ class MockFactory {
       // Membership check (authenticate middleware) or generic user_organizations query
       return { 
         rows: [{ 
-          user_id: '550e8400-e29b-41d4-a716-446655440000',
-          organization_id: 3,
-          role_ids: [1]
+          user_id: params[0] || '550e8400-e29b-41d4-a716-446655440000',
+          organization_id: params[1] || 3,
+          role_ids: [1],
+          status: 'active'
         }] 
       };
     }

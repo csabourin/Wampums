@@ -36,6 +36,7 @@ jest.mock('pg', () => {
 const { Pool } = require('pg');
 const { setupDefaultMocks, mockQueryImplementation } = require('./mock-helpers');
 let app;
+let requireAnyPermission;
 
 const TEST_SECRET = 'testsecret';
 const ORG_ID = 1;
@@ -56,18 +57,22 @@ function generateToken(overrides = {}, secret = TEST_SECRET) {
   }, secret);
 }
 
-function installAuthedPoolMock(handler) {
+function installAuthedPoolMock(handler, { activeMembership = true } = {}) {
   const { __mClient, __mPool } = require('pg');
   mockQueryImplementation(__mClient, __mPool, async (query, params) => {
     if (typeof query === 'string' && query.includes('SELECT organization_id FROM user_organizations')) {
-      return { rows: [{ organization_id: params?.[1] ?? ORG_ID }] };
+      return {
+        rows: activeMembership
+          ? [{ organization_id: params?.[1] ?? ORG_ID }]
+          : []
+      };
     }
     const customResult = await handler(query, params);
     if (customResult !== undefined) {
       return customResult;
     }
     return undefined;
-  });
+  }, { activeMembership });
 }
 
 beforeAll(() => {
@@ -79,6 +84,7 @@ beforeAll(() => {
   process.env.DB_PASSWORD = 'test';
   process.env.DB_PORT = '5432';
 
+  ({ requireAnyPermission } = require('../middleware/auth'));
   app = require('../api');
 });
 
@@ -212,6 +218,23 @@ describe('getOrganizationId middleware', () => {
     // Should fail gracefully with 500 or organization error
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
+
+  test('rejects a deactivated membership even when the JWT still contains permissions', async () => {
+    const token = generateToken({
+      permissions: ['users.view', 'users.manage']
+    });
+
+    installAuthedPoolMock(() => Promise.resolve({
+      rows: [{ permission_key: 'users.view' }]
+    }), { activeMembership: false });
+
+    const res = await request(app)
+      .get('/api/v1/users')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/active|membership|organization/i);
+  });
 });
 
 // ============================================
@@ -337,6 +360,64 @@ describe('requirePermission middleware', () => {
           && Array.isArray(params)
       )
     ).toBe(true);
+  });
+});
+
+describe('requireAnyPermission middleware', () => {
+  function createResponse() {
+    return {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis()
+    };
+  }
+
+  test.each(['forms.view', 'forms.submit', 'forms.manage'])(
+    'allows form review access with %s',
+    async (permission) => {
+      const pool = {
+        query: jest.fn().mockResolvedValue({
+          rows: [{ permission_key: permission }]
+        })
+      };
+      const req = {
+        user: { id: USER_ID, organizationId: ORG_ID },
+        headers: {},
+        query: {},
+        body: {},
+        app: { locals: { pool } }
+      };
+      const res = createResponse();
+      const next = jest.fn();
+
+      await requireAnyPermission('forms.view', 'forms.submit', 'forms.manage')(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining("uo.status = 'active'"),
+        [USER_ID, ORG_ID, ['forms.view', 'forms.submit', 'forms.manage']]
+      );
+    }
+  );
+
+  test('denies form review access when none of the accepted permissions is active', async () => {
+    const pool = { query: jest.fn().mockResolvedValue({ rows: [] }) };
+    const req = {
+      user: { id: USER_ID, organizationId: ORG_ID },
+      headers: {},
+      query: {},
+      body: {},
+      app: { locals: { pool } }
+    };
+    const res = createResponse();
+    const next = jest.fn();
+
+    await requireAnyPermission('forms.view', 'forms.submit', 'forms.manage')(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      requiredAny: ['forms.view', 'forms.submit', 'forms.manage']
+    }));
   });
 });
 

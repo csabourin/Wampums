@@ -35,6 +35,30 @@ const DEFAULT_SCOUT_YEAR = {
 };
 
 /**
+ * Match the authentication middleware's live-membership lookup.
+ *
+ * Route tests normally describe an authenticated organization member. Keeping
+ * this prerequisite separate prevents a handler-specific empty result from
+ * accidentally turning the test into an authentication-denial test.
+ *
+ * @param {string|Object} query - SQL query or pg query config
+ * @param {Array} params - Query parameters
+ * @returns {Object|undefined} Active membership result for the auth lookup
+ */
+function mockActiveMembershipQuery(query, params = []) {
+  const queryText = typeof query === 'string' ? query : query?.text;
+  if (typeof queryText !== 'string') return undefined;
+
+  const normalized = queryText.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (normalized.includes(
+    "select organization_id from user_organizations where user_id = $1 and organization_id = $2 and status = 'active'"
+  )) {
+    return { rows: [{ organization_id: params[1] }] };
+  }
+  return undefined;
+}
+
+/**
  * Answer the scout year lookup, letting everything else fall through.
  *
  * @param {string} query - SQL being run
@@ -78,6 +102,7 @@ function setupDefaultMocks(__mClient, __mPool) {
  * @param {Object} __mClient - Mocked pg client
  * @param {Object} __mPool - Mocked pg pool
  * @param {Function} customHandler - Custom query handler (query, params) => result
+ * @param {Object} options - Set activeMembership to false for explicit denial tests
  * 
  * @example
  * ```javascript
@@ -92,10 +117,19 @@ function setupDefaultMocks(__mClient, __mPool) {
  * });
  * ```
  */
-function mockQueryImplementation(__mClient, __mPool, customHandler) {
+function mockQueryImplementation(
+  __mClient,
+  __mPool,
+  customHandler,
+  { activeMembership = true } = {}
+) {
   const factory = getFactory();
   
   const handler = async (query, params) => {
+    if (activeMembership) {
+      const membership = mockActiveMembershipQuery(query, params);
+      if (membership) return membership;
+    }
     // Try custom handler first (supports sync + async handlers)
     const customResult = await customHandler(query, params);
     if (customResult !== undefined && customResult !== null) {
@@ -130,5 +164,6 @@ module.exports = {
   mockQueryImplementation,
   resetMockFactory,
   MockFactory,
-  DEFAULT_SCOUT_YEAR
+  DEFAULT_SCOUT_YEAR,
+  mockActiveMembershipQuery
 };

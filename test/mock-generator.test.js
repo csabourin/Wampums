@@ -98,6 +98,18 @@ describe('Mock Factory', () => {
     expect(result.rows[0].permission_key).toBeDefined();
   });
   
+  test('authorized fixture includes current form and participant workflow permissions', () => {
+    const result = factory.mockQuery('SELECT permission_key FROM role_permissions');
+    const permissionKeys = result.rows.map(row => row.permission_key);
+
+    expect(permissionKeys).toEqual(expect.arrayContaining([
+      'forms.submit',
+      'participants.transfer',
+      'participants.erase'
+    ]));
+  });
+
+
   test('handles table queries', () => {
     const result = factory.mockQuery('SELECT * FROM users WHERE organization_id = 1');
     
@@ -167,8 +179,42 @@ describe('Mock Helpers', () => {
     expect(result.rows[0].total).toBe('42');
   });
   
+  test('keeps the active membership prerequisite when a route mock returns no rows', async () => {
+    mockQueryImplementation(
+      mockClient,
+      mockPool,
+      () => Promise.resolve({ rows: [] })
+    );
+
+    const result = await mockPool.query(
+      `SELECT organization_id FROM user_organizations
+        WHERE user_id = $1 AND organization_id = $2 AND status = 'active'`,
+      [100, 42]
+    );
+
+    expect(result.rows).toEqual([{ organization_id: 42 }]);
+  });
+
+  test('allows an explicit inactive-membership scenario', async () => {
+    mockQueryImplementation(
+      mockClient,
+      mockPool,
+      () => Promise.resolve({ rows: [] }),
+      { activeMembership: false }
+    );
+
+    const result = await mockPool.query(
+      `SELECT organization_id FROM user_organizations
+        WHERE user_id = $1 AND organization_id = $2 AND status = 'active'`,
+      [100, 42]
+    );
+
+    expect(result.rows).toEqual([]);
+  });
+
   test('resetMockFactory creates new instance', () => {
     const factory1 = new MockFactory();
+
     const activity1 = factory1.mockTable('activities');
     
     resetMockFactory();

@@ -72,10 +72,10 @@ beforeEach(() => {
   const { __mClient, __mPool } = require('pg');
   const { MockFactory } = require('./mock-helpers');
   
-  __mClient.query.mockClear();
+  __mClient.query.mockReset();
   __mClient.release.mockClear();
   __mPool.connect.mockClear();
-  __mPool.query.mockClear();
+  __mPool.query.mockReset();
   
   // Setup mock implementation that handles organization_domains AND falls back to default mocks
   const factory = new MockFactory();
@@ -220,14 +220,16 @@ describe('Authorization & Permission Checks', () => {
   test('requirePermission returns 403 when user lacks required permission', async () => {
     const token = generateToken();
 
-    // Mock permission query - no matching permissions
-    __mPool.query.mockResolvedValueOnce({ rows: [] });
-    // Mock roles query
-    __mPool.query.mockResolvedValueOnce({ rows: [] });
+    __mPool.query
+      .mockResolvedValueOnce({ rows: [{ organization_id: ORG_ID }] }) // active membership
+      .mockResolvedValueOnce({ rows: [] }) // no matching permissions
+      .mockResolvedValueOnce({ rows: [] }) // no roles
+      .mockResolvedValueOnce({ rows: [{ status: 'active' }] }); // denial context
 
     const res = await request(app)
       .get('/api/v1/participants')
-      .set('Authorization', `Bearer ${token}`);
+      .set('Authorization', `Bearer ${token}`)
+      .set('x-organization-id', String(ORG_ID));
 
     expect(res.status).toBe(403);
     expect(res.body.success).toBe(false);
@@ -237,6 +239,10 @@ describe('Authorization & Permission Checks', () => {
   test('requirePermission passes when user has correct permission', async () => {
     const token = generateToken();
 
+    // Mock active organization membership
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ organization_id: ORG_ID }]
+    });
     // Mock permission query
     __mPool.query.mockResolvedValueOnce({
       rows: [{ permission_key: 'participants.view' }]
@@ -265,13 +271,9 @@ describe('Authorization & Permission Checks', () => {
   test('blockDemoRoles returns 403 for demo users on write operations', async () => {
     const token = generateToken({ user_role: 'demoadmin' });
 
-    // Mock permission query for requirePermission
+    // Mock active organization membership
     __mPool.query.mockResolvedValueOnce({
-      rows: [{ permission_key: 'participants.create' }]
-    });
-    // Mock roles query
-    __mPool.query.mockResolvedValueOnce({
-      rows: [{ role_name: 'demoadmin', display_name: 'Demo Admin' }]
+      rows: [{ organization_id: ORG_ID }]
     });
     // Mock blockDemoRoles check - user has demo role
     __mPool.query.mockResolvedValueOnce({
