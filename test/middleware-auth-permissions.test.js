@@ -523,6 +523,16 @@ describe('Multi-tenant isolation', () => {
       if (query.includes('FROM participants p')) {
         participantQueryParams = params;
       }
+      if (query.includes('FROM scout_years')) {
+        // The roster is scoped to a scout year, so the endpoint resolves one
+        // before it can query participants.
+        return Promise.resolve({
+          rows: [{
+            id: 7, organization_id: userOrg, label: '2025-2026',
+            start_date: '2025-09-01', end_date: '2026-08-31', status: 'active'
+          }]
+        });
+      }
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'participants.view' }]

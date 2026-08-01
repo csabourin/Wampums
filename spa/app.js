@@ -267,6 +267,18 @@ export const app = {
                         // Handle post-login actions if logged in
                         if (this.isLoggedIn) {
                                 this.handlePostLoginActions();
+
+                                // The year selector sits outside #app so it survives navigation.
+                                // It draws nothing for a unit that has only ever had one year.
+                                import('./modules/scout-year/ScoutYearBanner.js')
+                                        .then(({ initScoutYearBanner }) => initScoutYearBanner())
+                                        .catch(error => debugError("Failed to mount the scout year selector:", error));
+
+                                // Grey out what cannot be changed while an archived year is shown.
+                                // The API layer already refuses those writes; this makes it visible.
+                                import('./modules/scout-year/ArchiveReadOnly.js')
+                                        .then(({ initArchiveReadOnly }) => initArchiveReadOnly())
+                                        .catch(error => debugError("Failed to install the archive read-only guard:", error));
                         }
 
                         // Detect a client running against a different server build than

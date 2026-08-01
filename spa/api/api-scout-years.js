@@ -53,6 +53,33 @@ export async function executeTransition(payload) {
 }
 
 /**
+ * List the year transitions that were run, most recent first.
+ *
+ * The most recent one carries `can_rollback` and, when it cannot be undone,
+ * `rollback_blockers` naming what has been entered since.
+ *
+ * @returns {Promise<Array<Object>>} Transition history
+ */
+export async function getTransitions() {
+  const response = await API.getNoCache('v1/scout-years/transitions');
+  return response.data || [];
+}
+
+/**
+ * Undo a year transition.
+ *
+ * Only possible while the year it opened is still empty; otherwise the server
+ * refuses and says what is in the way.
+ *
+ * @param {number} transitionId - Transition ID
+ * @returns {Promise<Object>} What was put back
+ */
+export async function rollbackTransition(transitionId) {
+  const response = await API.post(`v1/scout-years/transitions/${transitionId}/rollback`);
+  return response.data;
+}
+
+/**
  * List active memberships that no longer have an enrolled child.
  *
  * @returns {Promise<Array<Object>>} Candidate memberships

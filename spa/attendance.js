@@ -669,12 +669,12 @@ export class Attendance {
       <div class="attendance-container">
         ${this.renderCampBanner()}
         <div class="date-navigation">
-          <select id="dateSelect" class="date-select">
+          <select id="dateSelect" class="date-select" data-archive-safe>
             ${this.renderDateOptions()}
           </select>
         </div>
         <div class="search-container" style="margin-bottom: 1rem;">
-          <input type="search" id="attendance-search" class="search-input" style="width: 100%; padding: 0.5rem;" placeholder="${translate("search")}..." value="${escapeHTML(this.searchTerm)}">
+          <input type="search" id="attendance-search" class="search-input" data-archive-safe style="width: 100%; padding: 0.5rem;" placeholder="${translate("search")}..." value="${escapeHTML(this.searchTerm)}">
         </div>
         ${this.renderMarkRemainingButton()}
         <div id="attendance-list" class="attendance-list">

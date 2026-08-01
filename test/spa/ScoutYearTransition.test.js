@@ -46,11 +46,15 @@ const mockGetScoutYears = jest.fn();
 const mockGetTransitionPreview = jest.fn();
 const mockExecuteTransition = jest.fn();
 const mockSetMembershipStatus = jest.fn();
+const mockGetTransitions = jest.fn();
+const mockRollbackTransition = jest.fn();
 jest.mock('../../spa/api/api-scout-years.js', () => ({
   getScoutYears: (...args) => mockGetScoutYears(...args),
   getTransitionPreview: (...args) => mockGetTransitionPreview(...args),
   executeTransition: (...args) => mockExecuteTransition(...args),
-  setMembershipStatus: (...args) => mockSetMembershipStatus(...args)
+  setMembershipStatus: (...args) => mockSetMembershipStatus(...args),
+  getTransitions: (...args) => mockGetTransitions(...args),
+  rollbackTransition: (...args) => mockRollbackTransition(...args)
 }));
 
 import { ScoutYearTransition } from '../../spa/modules/scout-year/ScoutYearTransition.js';
@@ -97,8 +101,26 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockConfirmDialog.mockResolvedValue(true);
   mockGetScoutYears.mockResolvedValue(YEARS);
+  mockGetTransitions.mockResolvedValue([]);
+  // A test that drops the manage permission must not decide it for the next one.
+  require('../../spa/utils/PermissionUtils.js').hasPermission.mockReturnValue(true);
   app = { lang: 'fr', showMessage: jest.fn() };
 });
+
+/** A transition that is still undoable. */
+const UNDOABLE_TRANSITION = {
+  id: 7,
+  from_scout_year_id: 3,
+  to_scout_year_id: 4,
+  from_label: '2025-2026',
+  to_label: '2026-2027',
+  executed_at: '2026-08-25T18:00:00.000Z',
+  executed_by_name: 'Sylvie Tremblay',
+  summary: { graduated: 1, carried_over: 2, memberships_deactivated: 1 },
+  rolled_back_at: null,
+  can_rollback: true,
+  rollback_blockers: []
+};
 
 /**
  * @returns {Promise<ScoutYearTransition>} An initialised module
@@ -368,5 +390,101 @@ describe('read-only access', () => {
     expect(document.querySelector('.scout-year-wizard')).toBeNull();
     expect(document.querySelector('.scout-year-history')).not.toBeNull();
     expect(document.body.textContent).toContain('2024-2025');
+  });
+});
+
+describe('undoing the last transition', () => {
+  test('offers the undo button while the new year is still empty', async () => {
+    mockGetTransitions.mockResolvedValue([UNDOABLE_TRANSITION]);
+    await mount();
+
+    const button = document.querySelector('#rollback-btn');
+    expect(button).not.toBeNull();
+    expect(button.dataset.transitionId).toBe('7');
+    expect(document.body.textContent).toContain('scout_year_rollback_title');
+  });
+
+  test('names what is in the way instead of offering a button that would fail', async () => {
+    mockGetTransitions.mockResolvedValue([{
+      ...UNDOABLE_TRANSITION,
+      can_rollback: false,
+      rollback_blockers: [
+        { reason: 'points_awarded', count: 12 },
+        { reason: 'attendance_recorded', count: 3 }
+      ]
+    }]);
+    await mount();
+
+    expect(document.querySelector('#rollback-btn')).toBeNull();
+    const blockers = [...document.querySelectorAll('.scout-year-rollback__blockers li')]
+      .map(item => item.textContent.trim());
+    expect(blockers).toEqual([
+      'scout_year_rollback_blocker_points_awarded',
+      'scout_year_rollback_blocker_attendance_recorded'
+    ]);
+  });
+
+  test('a leader without the manage permission is not offered the undo', async () => {
+    const { hasPermission } = require('../../spa/utils/PermissionUtils.js');
+    hasPermission.mockReturnValue(false);
+    mockGetTransitions.mockResolvedValue([UNDOABLE_TRANSITION]);
+
+    const module = new ScoutYearTransition(app);
+    await module.init();
+
+    expect(document.body.textContent).toContain('scout_year_rollback_title');
+    expect(document.querySelector('#rollback-btn')).toBeNull();
+  });
+
+  test('undoing reloads the roster and returns the wizard to the first step', async () => {
+    mockGetTransitions.mockResolvedValue([UNDOABLE_TRANSITION]);
+    const module = await mount();
+    module.step = 4;
+    module.result = { previous_year: { label: '2025-2026' }, new_year: { label: '2026-2027' }, summary: {} };
+
+    mockRollbackTransition.mockResolvedValue({ summary: { enrollments_reopened: 1 } });
+    mockGetTransitions.mockResolvedValue([
+      { ...UNDOABLE_TRANSITION, rolled_back_at: '2026-08-26T09:00:00.000Z', can_rollback: false }
+    ]);
+
+    document.querySelector('#rollback-btn').click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(mockRollbackTransition).toHaveBeenCalledWith(7);
+    expect(module.step).toBe(1);
+    expect(module.result).toBeNull();
+    expect(app.showMessage).toHaveBeenCalledWith('scout_year_rollback_success', 'success');
+    expect(document.querySelector('#rollback-btn')).toBeNull();
+    expect(document.body.textContent).toContain('scout_year_rollback_done');
+  });
+
+  test('a dismissed confirmation leaves the transition alone', async () => {
+    mockGetTransitions.mockResolvedValue([UNDOABLE_TRANSITION]);
+    const module = await mount();
+
+    mockConfirmDialog.mockResolvedValue(false);
+    await module.handleRollback(7);
+
+    expect(mockRollbackTransition).not.toHaveBeenCalled();
+  });
+
+  test('a server refusal reloads the reason rather than leaving a stale button', async () => {
+    mockGetTransitions.mockResolvedValue([UNDOABLE_TRANSITION]);
+    const module = await mount();
+
+    // Something was entered between the page load and the click.
+    mockRollbackTransition.mockRejectedValue(new Error('The new year already holds data'));
+    mockGetTransitions.mockResolvedValue([{
+      ...UNDOABLE_TRANSITION,
+      can_rollback: false,
+      rollback_blockers: [{ reason: 'points_awarded', count: 1 }]
+    }]);
+
+    await module.handleRollback(7);
+
+    expect(app.showMessage).toHaveBeenCalledWith('The new year already holds data', 'error');
+    expect(app.showMessage).not.toHaveBeenCalledWith('scout_year_rollback_success', 'success');
+    expect(document.querySelector('#rollback-btn')).toBeNull();
+    expect(document.querySelector('.scout-year-rollback__blockers')).not.toBeNull();
   });
 });

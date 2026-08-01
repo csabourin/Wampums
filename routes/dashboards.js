@@ -15,6 +15,8 @@ const router = express.Router();
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { hasStaffRole, isParentOnly } = require('../config/role-constants');
 const { requireJWTSecret, signJWTToken } = require('../utils/jwt-config');
+const { resolveScoutYear } = require('../services/scoutYear');
+const { rosterStatusesFor } = require('../middleware/auth');
 
 // Validate JWT secret at startup
 requireJWTSecret();
@@ -211,27 +213,42 @@ document.addEventListener("DOMContentLoaded", function() {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
 
+      // Which season is being looked at. Defaults to the active one; an
+      // archived year is requested with ?scout_year_id= or x-scout-year-id.
+      let scoutYear;
+      try {
+        scoutYear = await resolveScoutYear(
+          pool,
+          organizationId,
+          req.query.scout_year_id ?? req.headers['x-scout-year-id'] ?? null
+        );
+      } catch (yearError) {
+        return res.status(400).json({
+          success: false,
+          message: 'Unknown scout year for this organization'
+        });
+      }
+
       // Get participants scoped to user permissions
       const participantBaseQuery = `
         SELECT p.id, p.first_name, p.last_name, p.date_naissance,
                g.name as group_name
         FROM participants p
-        JOIN participant_organizations po ON p.id = po.participant_id
-        LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+        JOIN participant_enrollments po ON p.id = po.participant_id
+         AND po.organization_id = $1 AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
+        LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
         LEFT JOIN groups g ON pg.group_id = g.id
       `;
 
+      const rosterStatuses = rosterStatusesFor(scoutYear);
+
       const childrenResult = canViewAllParticipants
-        ? await pool.query(
-          `${participantBaseQuery}
-             WHERE po.organization_id = $1`,
-          [organizationId]
-        )
+        ? await pool.query(participantBaseQuery, [organizationId, scoutYear.id, rosterStatuses])
         : await pool.query(
           `${participantBaseQuery}
              JOIN user_participants up ON p.id = up.participant_id
-             WHERE up.user_id = $2 AND po.organization_id = $1`,
-          [organizationId, decoded.user_id]
+             WHERE up.user_id = $4`,
+          [organizationId, scoutYear.id, rosterStatuses, decoded.user_id]
         );
 
       const children = [];
@@ -250,14 +267,21 @@ document.addEventListener("DOMContentLoaded", function() {
           success: true,
           data: {
             children: [],
-            next_meeting: nextMeetingResult.rows[0] || null
+            next_meeting: nextMeetingResult.rows[0] || null,
+            scout_year: {
+              id: scoutYear.id,
+              label: scoutYear.label,
+              status: scoutYear.status,
+              start_date: scoutYear.start_date,
+              end_date: scoutYear.end_date
+            }
           }
         });
       }
 
       // Batch fetch all data with optimized queries (fix N+1 problem)
       const [attendanceResults, pointsResults, honorsResults, badgesResults, formsResults] = await Promise.all([
-        // Get attendance (last 10 per child)
+        // Get attendance (last 10 per child) within the season being consulted
         pool.query(
           `SELECT participant_id, date::text as date, status
            FROM (
@@ -265,28 +289,31 @@ document.addEventListener("DOMContentLoaded", function() {
                     ROW_NUMBER() OVER (PARTITION BY participant_id ORDER BY date DESC) as rn
              FROM attendance
              WHERE participant_id = ANY($1) AND organization_id = $2
+               AND date BETWEEN $3::date AND $4::date
            ) t
            WHERE rn <= 10
            ORDER BY participant_id, date DESC`,
-          [childIds, organizationId]
+          [childIds, organizationId, scoutYear.start_date, scoutYear.end_date]
         ),
 
-        // Get total points for all children
+        // Get that season's points for all children
         pool.query(
           `SELECT participant_id, COALESCE(SUM(value), 0) as total_points
-           FROM active_year_points
-           WHERE participant_id = ANY($1) AND organization_id = $2
+           FROM points
+           WHERE participant_id = ANY($1) AND organization_id = $2 AND scout_year_id = $3
            GROUP BY participant_id`,
-          [childIds, organizationId]
+          [childIds, organizationId, scoutYear.id]
         ),
 
-        // Get honors count for all children
+        // Get that season's honor count. Without the date bound this keeps
+        // climbing year after year and stops meaning anything.
         pool.query(
           `SELECT participant_id, COUNT(*) as honor_count
            FROM honors
            WHERE participant_id = ANY($1) AND organization_id = $2
+             AND date BETWEEN $3::date AND $4::date
            GROUP BY participant_id`,
-          [childIds, organizationId]
+          [childIds, organizationId, scoutYear.start_date, scoutYear.end_date]
         ),
 
         // Get approved badges for all children
@@ -377,7 +404,14 @@ document.addEventListener("DOMContentLoaded", function() {
         success: true,
         data: {
           children,
-          next_meeting: nextMeetingResult.rows[0] || null
+          next_meeting: nextMeetingResult.rows[0] || null,
+          scout_year: {
+            id: scoutYear.id,
+            label: scoutYear.label,
+            status: scoutYear.status,
+            start_date: scoutYear.start_date,
+            end_date: scoutYear.end_date
+          }
         }
       });
     } catch (error) {

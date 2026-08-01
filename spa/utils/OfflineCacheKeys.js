@@ -1,4 +1,5 @@
 import { getCurrentOrganizationId, getCurrentUserId } from '../api/api-helpers.js';
+import { getSelectedScoutYearId } from '../modules/scout-year/ScoutYearContext.js';
 
 /**
  * Normalize query params by removing null/undefined and sorting keys for stable cache keys.
@@ -82,10 +83,16 @@ export function buildScopedCacheKey(
     userId = null,
 ) {
     const rawKey = String(cacheKey);
-    if (/\|scope:user:[^|]+\|org:[^|]+$/.test(rawKey)) {
+    if (/\|scope:user:[^|]+\|org:[^|]+(\|year:\d+)?$/.test(rawKey)) {
         return rawKey;
     }
     const orgScope = organizationId ?? getCurrentOrganizationId() ?? 'none';
     const userScope = userId ?? getCurrentUserId() ?? 'anonymous';
-    return `${rawKey}|scope:user:${encodeURIComponent(String(userScope))}|org:${encodeURIComponent(String(orgScope))}`;
+    const base = `${rawKey}|scope:user:${encodeURIComponent(String(userScope))}|org:${encodeURIComponent(String(orgScope))}`;
+
+    // Archived years get their own entries. The suffix is only appended while
+    // one is selected, so keys for the current season stay byte-identical to
+    // what is already cached and nothing has to be invalidated.
+    const yearScope = getSelectedScoutYearId();
+    return yearScope ? `${base}|year:${yearScope}` : base;
 }

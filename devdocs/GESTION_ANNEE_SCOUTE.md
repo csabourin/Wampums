@@ -1,16 +1,18 @@
 # Gestion de l'année scoute — proposition d'architecture
 
-**Statut :** phases 1 à 3 + interface implémentées — annulation, consultation historique et renouvellements à faire
-**Date :** 2026-07-31
+**Statut :** phases 1 à 5 implémentées, plus les tanières annuelles, la lecture seule visuelle et le droit à l'effacement — restent les frais, l'alumni, le transfert et la conservation
+**Date :** 2026-08-01
 
 > **Décisions prises :** vue de compatibilité (§4.2) ; parents sans enfant passés à
 > `inactive` par défaut (§4.5) ; formulaires conservés avec un drapeau
-> « à réviser » plutôt que remis à zéro (§10).
+> « à réviser » plutôt que remis à zéro (§10) ; **annulation possible tant que la
+> nouvelle année est vide**, sans fenêtre de temps (§8.3).
 >
 > **Livré :** `migrations/create_scout_years_and_enrollments.sql`,
 > `services/scoutYear.js`, `routes/scoutYears.js`, helpers `getScoutYear` /
-> `getScoutYearId` dans `middleware/auth.js`,
-> `spa/modules/scout-year/ScoutYearTransition.js`. Voir §9 pour l'état exact.
+> `getScoutYearId` / `withScoutYear` dans `middleware/auth.js`,
+> `spa/modules/scout-year/` (assistant, contexte d'année, bandeau d'archives).
+> Voir §9 pour l'état exact.
 
 ---
 
@@ -261,10 +263,13 @@ Les phases 1 à 3 sont surtout de la migration SQL et des ajustements ciblés. L
 ## 8. Décisions restantes
 
 1. ~~Parents sans enfant : `inactive` ou `alumni` ?~~ → **`inactive`** par défaut. Les trois statuts existent en base ; `alumni` est disponible mais aucun automatisme ne l'attribue.
-2. **Présences et honneurs : colonne `scout_year_id` ou filtrage par plage de dates ?** Non tranché, non implémenté. Ces deux tables sont toujours interrogées sans borne d'année (§9).
-3. **Portée du rollback :** annulation possible indéfiniment tant que la nouvelle année est vide, ou fenêtre fixe de N jours ? La table `scout_year_transitions` enregistre déjà le nécessaire ; l'endpoint reste à écrire.
+2. **Présences et honneurs : colonne `scout_year_id` ou filtrage par plage de dates ?** → **filtrage par plage de dates**, appliqué en lecture (§9). Les deux tables portent déjà une date ; les endpoints la bornent maintenant sur `scout_years.start_date/end_date`, ce qui règle le décompte d'honneurs qui traversait les années. Reste ouvert le seul cas que la plage de dates ne tranche pas : une saisie **rétroactive** faite après la transition mais datée de l'an dernier compte dans l'année précédente, ce qui est correct pour la consultation mais empêche l'annulation (elle est comptée comme activité). Une colonne `scout_year_id` lèverait l'ambiguïté ; elle n'est pas nécessaire pour l'usage courant.
+3. ~~**Portée du rollback :** indéfiniment tant que la nouvelle année est vide, ou fenêtre de N jours ?~~ → **tant que la nouvelle année est vide**, sans limite de temps. Le refus est nominatif : il nomme ce qui a été saisi depuis (§9).
 4. **Progressions de badges/OAS en cours :** se reportent à la nouvelle année, ou repartent à zéro avec l'historique conservé ? Aucun changement fait : elles se reportent (comportement actuel).
-5. **Transfert vers une unité sœur :** la colonne `transferred_to_organization_id` existe, aucune interface ne l'alimente.
+5. **Transfert vers une unité sœur :** la colonne `transferred_to_organization_id` existe, aucune interface ne l'alimente. **Décidé, pas implémenté :** le transfert doit emmener les parents avec le jeune ; si un parent a d'autres enfants dans d'autres unités, il obtient une adhésion à chacune plutôt qu'un déplacement, et ne voit dans chaque vue que l'enfant qui y est inscrit — ce dernier point fonctionne déjà, la liste des participants d'un parent est filtrée par organisation. La fonction vivra dans l'espace district.
+6. ~~**Tanières d'une année à l'autre ?**~~ → **remises à zéro**, avec historique par année (§9). Les tanières elles-mêmes gardent leur nom ; ce sont les affectations et les rôles de sizainier qui repartent de zéro chaque septembre. Pas de suivi des changements *en cours* d'année : ce qui compte est l'état à la fin de l'année.
+7. ~~**Effacement à la demande : jusqu'où ?**~~ → **le jeune, plus les parents qui n'ont plus aucun autre enfant** ; trace d'audit sans données personnelles ; réservé aux administrateurs d'unité et au district (§9).
+8. **Statut alumni — conception validée, pas implémentée.** Jamais automatique : la transition continue de poser `inactive`. Le consentement se demande au départ, par un courriel avec un lien à un clic (jeton signé, sans connexion, puisque l'accès vient d'être retiré) ; le silence laisse `inactive`. `alumni` débloque une audience distincte dans les annonces, **jamais incluse dans un envoi général**, avec désabonnement à un clic. C'est aussi l'ancrage de la future politique de conservation : une famille sans consentement et sans enfant inscrit devient candidate à la purge, un alumni consentant a une relation active qui justifie qu'on garde ses coordonnées.
 
 ---
 
@@ -320,14 +325,170 @@ La migration **ne supprime jamais de ligne** : si une inscription ne peut être 
 
 11 tests jsdom couvrent le parcours : pré-sélection par la règle d'âge, jeune sans date de naissance signalé et jamais sorti d'office, exception avec note, recalcul des parents, contenu exact de la charge utile envoyée, annulation du dialogue et échec serveur qui laisse l'animateur sur l'écran de confirmation.
 
+**Annulation d'une transition** — `POST /api/v1/scout-years/transitions/:id/rollback`, plus
+`GET /api/v1/scout-years/transitions` pour l'historique :
+
+- le `changeset` est rejoué à l'envers : les inscriptions créées dans la nouvelle année sont
+  supprimées, celles qui avaient été clôturées redeviennent actives, les comptes désactivés sont
+  réactivés, les drapeaux « à réviser » sont retirés et les autorisations médicales repassent à
+  `signed`. `last_reviewed_at` n'est **pas** touché : il enregistre un fait sur le parent, pas sur
+  la transition ;
+- **portée** : possible tant que la nouvelle année est vide. Le refus est un 409 qui **nomme** ce
+  qui bloque, avec un compte — points attribués, présences prises, honneurs remis, jeunes inscrits,
+  formulaires remplis, fiches révisées par un parent, autorisations signées ;
+- seule la transition la plus récente est annulable, et seulement si l'année qu'elle a ouverte est
+  encore l'année active. La ligne est verrouillée (`FOR UPDATE`) le temps du rejeu, donc deux
+  animateurs qui cliquent en même temps ne peuvent pas la rejouer deux fois ;
+- l'année ouverte n'est pas supprimée — `scout_year_transitions.to_scout_year_id` la référence, et
+  la garder est ce qui permet à l'historique de dire qu'une transition a eu lieu puis été annulée.
+  Elle repasse en `planning` et rend les jours qu'elle avait empruntés à l'année précédente (une
+  transition lancée en avance avait ramené sa date de début au jour du clic). L'ordre compte :
+  l'année ouverte est rétrécie **avant** que la précédente ne retrouve sa date de fin, sinon la
+  contrainte d'exclusion `scout_years_no_overlap` se déclenche ;
+- `openNextScoutYear` enregistre désormais dans le `changeset` l'état d'avant (`restore`) : la date
+  de fin d'origine de l'année fermée, et la ligne que l'upsert a écrasée le cas échéant. Sans ça
+  l'annulation ne saurait pas distinguer une année qu'elle a créée d'une année qui préexistait.
+
+**Interface** — `spa/modules/scout-year/ScoutYearTransition.js` : section « Dernière transition »
+sous le rapport et sur la page, avec le bouton « Annuler cette transition » quand c'est encore
+possible, la liste nominative des obstacles quand ça ne l'est plus, et la date d'annulation quand
+c'est déjà fait. Un refus du serveur recharge la raison plutôt que de laisser un bouton périmé.
+
+**Consultation des années passées** — l'année consultée se choisit à un seul endroit et se propage
+partout :
+
+- `spa/modules/scout-year/ScoutYearContext.js` retient l'année choisie. Choisir l'année **active**
+  efface la sélection au lieu de la stocker : l'absence de choix *est* « la saison en cours », donc
+  le chemin par défaut n'envoie aucun en-tête et réutilise les entrées de cache existantes. Une
+  sélection faite dans une autre unité est ignorée ;
+- `spa/modules/scout-year/ScoutYearBanner.js` : sélecteur placé **hors de `#app`** pour survivre à
+  la navigation, invisible pour une unité qui n'a qu'une seule année, et bandeau d'avertissement
+  quand on consulte une archive ;
+- `getAuthHeader()` ajoute `x-scout-year-id`, `buildScopedCacheKey()` suffixe la clé de cache, et
+  `makeApiRequest()` **refuse toute écriture** en mode archive. La garde est dans la couche API et
+  pas seulement dans l'interface : un seul bouton oublié écrirait sinon les données de l'an dernier
+  dans la saison en cours, sans bruit, puisque le serveur estampille les écritures avec l'année
+  active quelle que soit l'année affichée ;
+- côté serveur, `withScoutYear(pool)` (`middleware/auth.js`) résout l'année une fois et pose
+  `req.scoutYear` et `req.rosterStatuses`. Une année inconnue ou appartenant à une autre unité est
+  un 400, pas un silence.
+
+**Ce que « l'effectif d'une année » veut dire** — et c'est le point qui n'était pas évident : sur
+l'année en cours, c'est qui est inscrit **maintenant**, donc un jeune parti en novembre n'y est
+plus ; sur une année close, c'est **tout le monde** qui en a fait partie, y compris ceux qui sont
+sortis à la fin. Sans cette distinction, chercher un ancien jeune dans son année ne le trouvait
+pas — l'inscription y porte `status = 'graduated'`. C'est `req.rosterStatuses` qui porte la
+différence.
+
+**Endpoints rendus conscients de l'année** : `participants` (liste et décompte, effectif et points),
+`attendance` (`/`, `/dates`, `/attendance`, `/attendance-dates` — bornés par la plage de dates de
+l'année), `honors` (`GET /v1/honors`), les 15 rapports de `routes/reports.js`, et le tableau de bord
+parent (`/api/dashboard/parent`, qui renvoie aussi `scout_year`). Les totaux de points et les
+décomptes d'honneurs de ces endpoints sont désormais bornés par l'année consultée.
+
+**Correctif de fuseau horaire** — les comparaisons de `created_at` du rollback castent explicitement
+en `::timestamptz`. Une `Date` JS liée contre une colonne `timestamp without time zone` perd son
+décalage : avec un serveur applicatif en UTC-4 et une base en UTC, les vérifications d'« année
+vide » se trompaient de quatre heures et bloquaient l'annulation à tort. La suite d'intégration
+tourne dans cette configuration précise, ce qui est comment le bug est apparu.
+
+**Vérification** — `npm run test:scout-year` : 24 tests contre un vrai PostgreSQL. Transition
+complète, annulation exacte, double annulation refusée, chaque famille d'obstacle, transition
+rejouée après annulation, consultation d'une année close pour l'effectif / les présences / les
+honneurs / un rapport, année étrangère refusée, tanières vides à la rentrée et lisibles dans
+l'année passée, affectation écrite dans l'année en cours et pas dans celle consultée, et le
+double comptage des frais (le test échoue bien avec l'ancienne vue : deux lignes au lieu d'une).
+Pour l'effacement : les traces qui partent y compris celles qu'aucune cascade ne couvre, le parent
+gardé parce qu'il a un autre enfant, le parent gardé parce qu'il est animateur, le refus sans le nom
+exact, le refus pour un animateur, le refus pour un jeune d'une autre unité, et le journal d'audit
+vérifié comme ne contenant aucun nom. Ignorés sans `SCOUT_YEAR_TEST_DATABASE_URL`.
+
+Plus 20 tests jsdom sur l'assistant, le contexte d'année, la garde en lecture seule côté API et la
+désactivation visuelle. Suite complète à 855 tests verts, 8 scripts de lint au vert.
+
+**Tanières annuelles** — `migrations/add_scout_year_to_participant_groups.sql`, même motif que les
+inscriptions : `participant_groups` devient `participant_group_assignments` avec un `scout_year_id`
+et une PK à trois colonnes, et une vue de compatibilité du même nom, filtrée sur l'année active,
+laisse les ~68 lectures existantes fonctionner. Les 10 écritures (toutes dans `participants.js`)
+visent la table réelle et estampillent toujours l'année **en cours** : on n'écrit jamais une
+affectation dans une archive.
+
+Les affectations **ne sont pas reconduites** par la transition : la nouvelle année démarre sans
+aucune, et l'équipe les refait à la rentrée. Les tanières elles-mêmes (`groups`) gardent leur nom et
+leur identité. Aucun suivi des changements en cours d'année — ce qui compte est l'état à la fin de
+l'année, et c'est exactement ce que donnent des lignes rattachées à l'année. Une affectation faite
+dans la nouvelle année compte comme activité et bloque donc l'annulation de la transition
+(`dens_assigned`).
+
+**Lecture seule visible** — `spa/modules/scout-year/ArchiveReadOnly.js`. La couche API refusait déjà
+toute écriture ; ce module rend l'état lisible plutôt que de présenter une page pleine de contrôles
+qui échoueront tous au clic. Il observe `#app` (un `MutationObserver` débounçé) et désactive les
+contrôles à chaque rendu, ce qui évite de toucher quarante modules. **Opt-out avec
+`data-archive-safe`** pour tout ce qui sert à consulter — sélecteur de date, recherche, filtre de
+tanière — parce que restreindre ce qu'on regarde est précisément l'intérêt d'ouvrir une archive. Un
+contrôle que la page avait elle-même désactivé n'est jamais réactivé au retour.
+
+**Droit à l'effacement** — `services/erasure.js`, `migrations/add_erasure_log.sql`,
+`DELETE /api/v1/participants/:id/erasure`. Le seul endroit de l'application qui détruit vraiment des
+données, et il le fait vraiment : masquer les lignes ne serait pas un effacement.
+
+- **Ce qui part** : le jeune et tout ce qui cascade (inscriptions, affectations, points, présences,
+  honneurs, formulaires, médication, OAS), plus ce qu'aucune clé étrangère ne rattraperait — les
+  frais et paiements (`participant_fees` refuse de cascader), et `badge_progress` / `names` qui
+  portent un `participant_id` sans contrainte derrière.
+- **Les tuteurs** sans autre enfant, et **les comptes parents** sans autre enfant *et* sans rôle
+  au-delà de parent. Un parent qui est aussi animateur garde son compte : le supprimer arracherait
+  les traces de l'unité, qui ne sont pas les siennes à effacer. Les comptes conservés sont
+  **remontés** avec leur raison, pas silencieusement ignorés. La suppression d'un compte se fait
+  dans un `SAVEPOINT` : si une référence imprévue la bloque, le compte est conservé et signalé
+  plutôt que de faire échouer tout l'effacement.
+- **Ce qui reste** : les lignes qui pointent avec `ON DELETE SET NULL` survivent, anonymisées — une
+  entrée de campagne de financement garde son montant, un rapport d'incident garde son récit. C'est
+  le bon résultat pour la comptabilité et pour une trace de sécurité, mais le nom peut subsister
+  dans le texte libre du rapport : le compte est **remonté à l'administrateur** pour traitement
+  manuel plutôt que passé sous silence.
+- **Garde-fous** : permission `participants.erase`, accordée à `unitadmin` et `district` seulement,
+  jamais à `animation` ; re-vérifiée contre la base par la route, pas seulement dans le jeton ; et
+  le nom complet du jeune doit être saisi, vérifié côté serveur.
+- **Trace** : `erasure_log` enregistre qui, quand et combien de lignes — **jamais un nom, un
+  courriel ou un identifiant de participant**. De quoi démontrer que la demande a été honorée sans
+  reconstituer la personne qu'on a effacée.
+
+**Correctif de revenus budgétaires** — `migrations/fix_budget_revenue_duplicate_fees.sql`.
+Régression introduite par `create_scout_years_and_enrollments.sql` : `v_budget_revenue` joignait
+`participant_organizations` sur le seul `participant_id`, ce qui était sans conséquence quand
+c'était une table à une ligne par jeune. Le renommage en `participant_enrollments` a re-pointé la
+vue **automatiquement** — une vue stocke l'OID de la table, pas son nom, donc rien n'a échoué et
+rien n'a averti — et la jointure a commencé à ramener une ligne *par année scoute*. Conséquences,
+toutes deux en production : un paiement compté une fois par saison d'inscription, donc des revenus
+qui gonflent à chaque transition ; et la ligne prenant l'`organization_id` de l'inscription plutôt
+que celui des frais, donc un jeune transféré pouvait faire apparaître des frais dans le budget
+d'une autre unité. La jointure est supprimée : `participant_fees` porte son propre
+`organization_id`, qui est le propriétaire légitime de l'argent.
+
 ### Pas fait
 
-- **Annulation** : `POST /transitions/:id/rollback` n'existe pas. Le journal contient déjà de quoi la rejouer.
-- **Sélecteur d'année et lecture seule** (§4.3, phase 5) : seul `GET /api/v1/points` accepte `?scout_year_id=`. Les rapports, tableaux de bord et présences répondent toujours pour l'année active uniquement.
-- **Présences et honneurs** non bornés par l'année (décision 2 ci-dessus). Concrètement, un décompte d'honneurs cumulé traverse encore les années.
-- **Sixaines annuelles** (§4.4) : `participant_groups` n'a pas de `scout_year_id`. Les affectations survivent à la transition et il n'y a pas d'historique par année. Les lignes des jeunes partis restent mais sont désormais filtrées à la lecture.
-- **Frais et cotisations** (§6) : `participant_fees` et `payment_plans` ne sont pas rattachés à l'année ; les soldes impayés de l'an dernier restent tels quels.
-- **Purge / conservation** : aucune politique de rétention implémentée.
+- **Modules non bornés par l'année** : finance, covoiturages, badges, formulaires, ressources et
+  activités répondent toujours pour l'année active. Confirmé comme acceptable. Ils utilisent la vue
+  de compatibilité et peuvent être convertis un par un, sans risque, sur le même modèle.
+- **Frais et cotisations** (§6) : `participant_fees` et `payment_plans` ne sont pas rattachés à
+  l'année ; les soldes impayés de l'an dernier restent tels quels. Confirmé comme voulu.
+- **Purge / conservation (Loi 25)** : aucune politique de rétention automatique. L'effacement est
+  désormais possible **sur demande** ; ce qui manque est la purge *non demandée* après N ans.
+- **Statut alumni** : conception validée (§8.8), rien d'implémenté.
+- **Transfert vers une unité sœur** : décidé (§8.5), rien d'implémenté.
+- **Texte libre des rapports d'incident** : non expurgé par l'effacement, par choix. Le nombre de
+  rapports concernés est remonté à l'administrateur.
+
+### Trouvé au passage, hors périmètre
+
+`organizations.(id, program_section)` et `organization_program_sections.organization_id` se
+référencent mutuellement, et **aucune des deux contraintes n'est `DEFERRABLE`**. Aucune des deux
+lignes ne peut donc être insérée en premier : créer une organisation depuis
+`routes/organizations.js:499` échoue. La suite d'intégration contourne le problème en suspendant les
+triggers de clé étrangère (`session_replication_role`), ce qui n'est acceptable que sur une base
+jetable. Le correctif serait de rendre `organizations_program_section_fk` `DEFERRABLE INITIALLY
+DEFERRED` et d'insérer les deux lignes dans une même transaction.
 
 ---
 

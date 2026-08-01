@@ -17,6 +17,7 @@
     "postinstall": "npm rebuild bcrypt --build-from-source",
     "test": "jest",
     "test:stories": "jest test/user-stories",
+    "test:scout-year": "jest test/scout-year-rollback.integration.test.js test/erasure.integration.test.js",
     "lint:api-version": "node scripts/modernization/check-api-version.js",
     "lint:duplicate-mounts": "node scripts/modernization/check-duplicate-mounts.js",
     "lint:spa-files": "node scripts/modernization/check-spa-files.js",

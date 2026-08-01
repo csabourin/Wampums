@@ -211,11 +211,11 @@ export class ManagePoints {
           <button class="sort-btn" data-sort="name" title="${translate("sort_by_name")}">👤</button>
           <button class="sort-btn active" data-sort="group" title="${translate("sort_by_group")}">👥</button>
           <button class="sort-btn" data-sort="points" title="${translate("sort_by_points")}">🏆</button>
-          <button class="filter-toggle-btn" id="filter-toggle" title="${translate("filter_by_group")}">🔍</button>
+          <button class="filter-toggle-btn" id="filter-toggle" data-archive-safe title="${translate("filter_by_group")}">🔍</button>
         </div>
         <div class="filter-options hidden" id="filter-container">
           <label for="group-filter">${translate("filter_by_group")}:</label>
-          <select id="group-filter">
+          <select id="group-filter" data-archive-safe>
             <option value="">${translate("all_groups")}</option>
             ${this.groups
         .map(

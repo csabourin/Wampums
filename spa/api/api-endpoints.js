@@ -867,6 +867,32 @@ export async function removeParticipantFromOrganization(participantId, organizat
 }
 
 /**
+ * Permanently erase a participant and their family, at the family's request.
+ *
+ * Irreversible, and unlike every other removal in this application nothing of
+ * the person is kept: they will not be findable by consulting an earlier year,
+ * because the record itself is gone. Reserved to unit administrators and
+ * district; the server checks that again regardless of what the interface shows.
+ *
+ * @param {number|string} participantId - Participant to erase
+ * @param {string} confirmFullName - The participant's full name, typed by the administrator
+ * @returns {Promise<Object>} What was erased, and which accounts were kept
+ */
+export async function eraseParticipant(participantId, confirmFullName) {
+    const response = await API.delete(
+        `v1/participants/${participantId}/erasure`,
+        {},
+        { confirm_full_name: confirmFullName }
+    );
+
+    if (response?.success) {
+        await invalidateUserAssociationCaches();
+    }
+
+    return response;
+}
+
+/**
  * Associate user to participant
  */
 export async function associateUser(participantId, userId) {
