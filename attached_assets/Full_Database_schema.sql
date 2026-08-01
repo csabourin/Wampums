@@ -2,10 +2,10 @@
 -- PostgreSQL database dump
 --
 
-\restrict L84YoWtthCy8fnnZ8rGa2FaUQLQyChrPeRdVkFLH1V1k4sBt0qQdlM7zSxxAX2y
+\restrict gJjnYqQhHIoLpimte7cmxRu8e7oe8dxT2yjqPbaDadautsPtsV0vlWO6li8akVb
 
 -- Dumped from database version 18.4 (Debian 18.4-1.pgdg13+1)
--- Dumped by pg_dump version 18.4
+-- Dumped by pg_dump version 18.4 (Debian 18.4-1.pgdg13+1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -292,6 +292,85 @@ $$;
 --
 
 COMMENT ON FUNCTION public.notify_announcement_scheduled() IS 'Trigger function that sends NOTIFY when announcements are scheduled. Used to eliminate polling and reduce compute usage.';
+
+
+--
+-- Name: participant_groups_delete(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.participant_groups_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  DELETE FROM participant_group_assignments pga
+   USING scout_years sy
+   WHERE sy.id = pga.scout_year_id
+     AND sy.status = 'active'
+     AND pga.participant_id = OLD.participant_id
+     AND pga.organization_id = OLD.organization_id;
+
+  RETURN OLD;
+END;
+$$;
+
+
+--
+-- Name: participant_groups_insert(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.participant_groups_insert() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_scout_year_id integer;
+BEGIN
+  SELECT sy.id INTO v_scout_year_id
+    FROM scout_years sy
+   WHERE sy.organization_id = NEW.organization_id AND sy.status = 'active'
+   LIMIT 1;
+
+  IF v_scout_year_id IS NULL THEN
+    RAISE EXCEPTION 'No active scout year for organization %', NEW.organization_id;
+  END IF;
+
+  INSERT INTO participant_group_assignments
+          (participant_id, group_id, organization_id, scout_year_id,
+           first_leader, second_leader, roles)
+   VALUES (NEW.participant_id, NEW.group_id, NEW.organization_id, v_scout_year_id,
+           COALESCE(NEW.first_leader, FALSE), COALESCE(NEW.second_leader, FALSE), NEW.roles)
+   ON CONFLICT (participant_id, organization_id, scout_year_id)
+   DO UPDATE SET group_id = EXCLUDED.group_id,
+                 first_leader = EXCLUDED.first_leader,
+                 second_leader = EXCLUDED.second_leader,
+                 roles = EXCLUDED.roles;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: participant_groups_update(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.participant_groups_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  UPDATE participant_group_assignments pga
+     SET group_id = NEW.group_id,
+         first_leader = COALESCE(NEW.first_leader, FALSE),
+         second_leader = COALESCE(NEW.second_leader, FALSE),
+         roles = NEW.roles
+    FROM scout_years sy
+   WHERE sy.id = pga.scout_year_id
+     AND sy.status = 'active'
+     AND pga.participant_id = OLD.participant_id
+     AND pga.organization_id = OLD.organization_id;
+
+  RETURN NEW;
+END;
+$$;
 
 
 --
@@ -1696,6 +1775,57 @@ CREATE SEQUENCE public.equipment_reservations_id_seq
 --
 
 ALTER SEQUENCE public.equipment_reservations_id_seq OWNED BY public.equipment_reservations.id;
+
+
+--
+-- Name: erasure_log; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.erasure_log (
+    id integer NOT NULL,
+    organization_id integer NOT NULL,
+    performed_at timestamp with time zone DEFAULT now() NOT NULL,
+    performed_by uuid,
+    participants_erased integer DEFAULT 0 NOT NULL,
+    guardians_erased integer DEFAULT 0 NOT NULL,
+    users_erased integer DEFAULT 0 NOT NULL,
+    users_retained integer DEFAULT 0 NOT NULL,
+    rows_deleted jsonb DEFAULT '{}'::jsonb NOT NULL
+);
+
+
+--
+-- Name: TABLE erasure_log; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.erasure_log IS 'One row per honoured erasure request. Holds counts only, never a name, an email or a participant id: the point is to prove the request was carried out without reconstituting the person.';
+
+
+--
+-- Name: COLUMN erasure_log.users_retained; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.erasure_log.users_retained IS 'Parent accounts deliberately kept: they still have another enrolled child, or they hold a non-parent role in the unit. Reported so the admin knows the request was only partly applicable.';
+
+
+--
+-- Name: erasure_log_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.erasure_log_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: erasure_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.erasure_log_id_seq OWNED BY public.erasure_log.id;
 
 
 --
@@ -3681,17 +3811,48 @@ ALTER SEQUENCE public.participant_fees_id_seq OWNED BY public.participant_fees.i
 
 
 --
--- Name: participant_groups; Type: TABLE; Schema: public; Owner: -
+-- Name: participant_group_assignments; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.participant_groups (
-    participant_id integer NOT NULL,
+CREATE TABLE public.participant_group_assignments (
+    participant_id integer CONSTRAINT participant_groups_participant_id_not_null NOT NULL,
     group_id integer,
-    organization_id integer NOT NULL,
-    first_leader boolean DEFAULT false NOT NULL,
-    second_leader boolean DEFAULT false NOT NULL,
-    roles text
+    organization_id integer CONSTRAINT participant_groups_organization_id_not_null NOT NULL,
+    first_leader boolean DEFAULT false CONSTRAINT participant_groups_first_leader_not_null NOT NULL,
+    second_leader boolean DEFAULT false CONSTRAINT participant_groups_second_leader_not_null NOT NULL,
+    roles text,
+    scout_year_id integer NOT NULL
 );
+
+
+--
+-- Name: TABLE participant_group_assignments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.participant_group_assignments IS 'Which den a participant belonged to in a given scout year, with their den role. One row per participant per year; assignments are not carried over by a year transition.';
+
+
+--
+-- Name: participant_groups; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.participant_groups AS
+ SELECT pga.participant_id,
+    pga.group_id,
+    pga.organization_id,
+    pga.first_leader,
+    pga.second_leader,
+    pga.roles
+   FROM (public.participant_group_assignments pga
+     JOIN public.scout_years sy ON ((sy.id = pga.scout_year_id)))
+  WHERE (sy.status = 'active'::text);
+
+
+--
+-- Name: VIEW participant_groups; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.participant_groups IS 'Compatibility view over participant_group_assignments, restricted to the active scout year. New code should write to participant_group_assignments directly.';
 
 
 --
@@ -5212,7 +5373,7 @@ CREATE VIEW public.v_active_forms WITH (security_invoker='on') AS
 --
 
 CREATE VIEW public.v_budget_revenue WITH (security_invoker='on') AS
- SELECT po.organization_id,
+ SELECT pf.organization_id,
     bc.id AS budget_category_id,
     bc.name AS category_name,
     'participant_fee'::text AS revenue_source,
@@ -5220,10 +5381,9 @@ CREATE VIEW public.v_budget_revenue WITH (security_invoker='on') AS
     py.amount,
     (((p.first_name)::text || ' '::text) || (p.last_name)::text) AS participant_name,
     py.id AS source_id
-   FROM (((((public.payments py
+   FROM ((((public.payments py
      JOIN public.participant_fees pf ON ((py.participant_fee_id = pf.id)))
      JOIN public.participants p ON ((pf.participant_id = p.id)))
-     JOIN public.participant_enrollments po ON ((p.id = po.participant_id)))
      LEFT JOIN public.fee_definitions fd ON ((pf.fee_definition_id = fd.id)))
      LEFT JOIN public.budget_categories bc ON ((fd.budget_category_id = bc.id)))
 UNION ALL
@@ -5263,6 +5423,13 @@ UNION ALL
     br.id AS source_id
    FROM (public.budget_revenues br
      LEFT JOIN public.budget_categories bc ON ((br.budget_category_id = bc.id)));
+
+
+--
+-- Name: VIEW v_budget_revenue; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_budget_revenue IS 'Every revenue line of an organization. Participant fees are attributed through participant_fees.organization_id, never through an enrollment: a participant has one enrollment per scout year, and joining them would count each payment once per year.';
 
 
 --
@@ -5790,6 +5957,13 @@ ALTER TABLE ONLY public.equipment_items ALTER COLUMN id SET DEFAULT nextval('pub
 --
 
 ALTER TABLE ONLY public.equipment_reservations ALTER COLUMN id SET DEFAULT nextval('public.equipment_reservations_id_seq'::regclass);
+
+
+--
+-- Name: erasure_log id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.erasure_log ALTER COLUMN id SET DEFAULT nextval('public.erasure_log_id_seq'::regclass);
 
 
 --
@@ -6520,6 +6694,14 @@ ALTER TABLE ONLY public.equipment_reservations
 
 
 --
+-- Name: erasure_log erasure_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.erasure_log
+    ADD CONSTRAINT erasure_log_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: fee_definitions fee_definitions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7016,11 +7198,11 @@ ALTER TABLE ONLY public.participant_fees
 
 
 --
--- Name: participant_groups participant_groups_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: participant_group_assignments participant_group_assignments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.participant_groups
-    ADD CONSTRAINT participant_groups_pkey PRIMARY KEY (participant_id, organization_id);
+ALTER TABLE ONLY public.participant_group_assignments
+    ADD CONSTRAINT participant_group_assignments_pkey PRIMARY KEY (participant_id, organization_id, scout_year_id);
 
 
 --
@@ -7669,6 +7851,13 @@ ALTER TABLE ONLY public.year_plan_reminders
 
 ALTER TABLE ONLY public.year_plans
     ADD CONSTRAINT year_plans_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: erasure_log_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX erasure_log_org_idx ON public.erasure_log USING btree (organization_id, performed_at DESC);
 
 
 --
@@ -8480,14 +8669,14 @@ CREATE INDEX idx_participant_fees_lookup ON public.participant_fees USING btree 
 -- Name: idx_participant_groups_group_org; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_participant_groups_group_org ON public.participant_groups USING btree (group_id, organization_id);
+CREATE INDEX idx_participant_groups_group_org ON public.participant_group_assignments USING btree (group_id, organization_id);
 
 
 --
 -- Name: idx_participant_groups_participant_org; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_participant_groups_participant_org ON public.participant_groups USING btree (participant_id, organization_id);
+CREATE INDEX idx_participant_groups_participant_org ON public.participant_group_assignments USING btree (participant_id, organization_id);
 
 
 --
@@ -9023,6 +9212,13 @@ CREATE INDEX participant_enrollments_year_idx ON public.participant_enrollments 
 
 
 --
+-- Name: participant_group_assignments_year_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX participant_group_assignments_year_idx ON public.participant_group_assignments USING btree (organization_id, scout_year_id, group_id);
+
+
+--
 -- Name: points_scout_year_group_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9202,6 +9398,27 @@ CREATE TRIGGER medication_receptions_updated_at_trigger BEFORE UPDATE ON public.
 --
 
 CREATE TRIGGER medication_treatment_auth_year_trigger BEFORE INSERT ON public.medication_treatment_authorizations FOR EACH ROW EXECUTE FUNCTION public.medication_authorization_set_scout_year();
+
+
+--
+-- Name: participant_groups participant_groups_delete_trigger; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER participant_groups_delete_trigger INSTEAD OF DELETE ON public.participant_groups FOR EACH ROW EXECUTE FUNCTION public.participant_groups_delete();
+
+
+--
+-- Name: participant_groups participant_groups_insert_trigger; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER participant_groups_insert_trigger INSTEAD OF INSERT ON public.participant_groups FOR EACH ROW EXECUTE FUNCTION public.participant_groups_insert();
+
+
+--
+-- Name: participant_groups participant_groups_update_trigger; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER participant_groups_update_trigger INSTEAD OF UPDATE ON public.participant_groups FOR EACH ROW EXECUTE FUNCTION public.participant_groups_update();
 
 
 --
@@ -9616,6 +9833,22 @@ ALTER TABLE ONLY public.equipment_reservations
 
 ALTER TABLE ONLY public.equipment_reservations
     ADD CONSTRAINT equipment_reservations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: erasure_log erasure_log_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.erasure_log
+    ADD CONSTRAINT erasure_log_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id);
+
+
+--
+-- Name: erasure_log erasure_log_performed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.erasure_log
+    ADD CONSTRAINT erasure_log_performed_by_fkey FOREIGN KEY (performed_by) REFERENCES public.users(id);
 
 
 --
@@ -10407,7 +10640,7 @@ ALTER TABLE ONLY public.organization_settings
 --
 
 ALTER TABLE ONLY public.organizations
-    ADD CONSTRAINT organizations_program_section_fk FOREIGN KEY (id, program_section) REFERENCES public.organization_program_sections(organization_id, section_key) ON DELETE RESTRICT;
+    ADD CONSTRAINT organizations_program_section_fk FOREIGN KEY (id, program_section) REFERENCES public.organization_program_sections(organization_id, section_key) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
@@ -10563,26 +10796,34 @@ ALTER TABLE ONLY public.participant_fees
 
 
 --
--- Name: participant_groups participant_groups_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: participant_group_assignments participant_group_assignments_scout_year_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.participant_groups
+ALTER TABLE ONLY public.participant_group_assignments
+    ADD CONSTRAINT participant_group_assignments_scout_year_id_fkey FOREIGN KEY (scout_year_id) REFERENCES public.scout_years(id);
+
+
+--
+-- Name: participant_group_assignments participant_groups_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_group_assignments
     ADD CONSTRAINT participant_groups_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
 
 
 --
--- Name: participant_groups participant_groups_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: participant_group_assignments participant_groups_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.participant_groups
+ALTER TABLE ONLY public.participant_group_assignments
     ADD CONSTRAINT participant_groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --
--- Name: participant_groups participant_groups_participant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: participant_group_assignments participant_groups_participant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.participant_groups
+ALTER TABLE ONLY public.participant_group_assignments
     ADD CONSTRAINT participant_groups_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
@@ -11326,5 +11567,5 @@ ALTER TABLE ONLY public.year_plans
 -- PostgreSQL database dump complete
 --
 
-\unrestrict L84YoWtthCy8fnnZ8rGa2FaUQLQyChrPeRdVkFLH1V1k4sBt0qQdlM7zSxxAX2y
+\unrestrict gJjnYqQhHIoLpimte7cmxRu8e7oe8dxT2yjqPbaDadautsPtsV0vlWO6li8akVb
 
