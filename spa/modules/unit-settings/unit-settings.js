@@ -143,6 +143,12 @@ export class UnitSettings extends BaseModule {
         label: translate("form_permissions") || "Form Permissions",
         description: translate("unit_settings_link_forms") || "Control which roles can access each form.",
       },
+      hasPermission("scout_year.view") && {
+        href: "/scout-year",
+        icon: "fa-calendar-days",
+        label: translate("scout_year_title") || "Scout Year",
+        description: translate("unit_settings_link_scout_year") || "Start a new scout year and consult past ones.",
+      },
     ].filter(Boolean);
 
     if (!links.length) return "";

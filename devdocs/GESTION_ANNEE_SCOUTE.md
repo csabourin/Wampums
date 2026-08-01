@@ -1,14 +1,16 @@
 # Gestion de l'année scoute — proposition d'architecture
 
-**Statut :** phases 1 à 3 implémentées — phases 4 à 6 à faire
+**Statut :** phases 1 à 3 + interface implémentées — annulation, consultation historique et renouvellements à faire
 **Date :** 2026-07-31
 
 > **Décisions prises :** vue de compatibilité (§4.2) ; parents sans enfant passés à
-> `inactive` par défaut (§4.5) ; livraison des phases 1 à 3 d'un bloc.
+> `inactive` par défaut (§4.5) ; formulaires conservés avec un drapeau
+> « à réviser » plutôt que remis à zéro (§10).
 >
 > **Livré :** `migrations/create_scout_years_and_enrollments.sql`,
 > `services/scoutYear.js`, `routes/scoutYears.js`, helpers `getScoutYear` /
-> `getScoutYearId` dans `middleware/auth.js`. Voir §9 pour l'état exact.
+> `getScoutYearId` dans `middleware/auth.js`,
+> `spa/modules/scout-year/ScoutYearTransition.js`. Voir §9 pour l'état exact.
 
 ---
 
@@ -306,12 +308,100 @@ La migration **ne supprime jamais de ligne** : si une inscription ne peut être 
 
 **Vérification** — migration exécutée et ré-exécutée sur un PostgreSQL 16 jetable, transition complète jouée bout en bout contre les vraies routes (28 assertions), suite du projet à 815 tests verts, 8 scripts de lint au vert.
 
+**Interface** — `spa/modules/scout-year/ScoutYearTransition.js`, route `/scout-year`, accessible depuis les réglages de l'unité :
+
+- assistant en trois écrans (effectif → conséquences → confirmation) puis rapport ;
+- les jeunes qui demandent une décision remontent en haut de liste — sortants d'abord, puis ceux que la règle d'âge n'a pas pu juger, puis la majorité qu'on ne touche pas ;
+- une bascule par jeune pour le garder par exception, avec champ de note qui apparaît seulement dans ce cas ;
+- l'écran des conséquences **redemande une prévisualisation** avec les dispositions réellement choisies (`?graduating_ids=`), donc la liste des parents touchés n'est jamais périmée ;
+- chaque parent proposé est décochable individuellement ; un dialogue de confirmation précède l'exécution ;
+- historique des années visible même sans la permission de gestion ;
+- `css/scout-year.css`, mobile-first, cibles tactiles à 44 px ; 47 clés de traduction ajoutées dans `en.json` et `fr.json`.
+
+11 tests jsdom couvrent le parcours : pré-sélection par la règle d'âge, jeune sans date de naissance signalé et jamais sorti d'office, exception avec note, recalcul des parents, contenu exact de la charge utile envoyée, annulation du dialogue et échec serveur qui laisse l'animateur sur l'écran de confirmation.
+
 ### Pas fait
 
-- **Interface** : aucun module SPA. L'assistant décrit au §5 n'existe que côté API ; il faut encore `spa/modules/scout-year/` et les clés i18n.
 - **Annulation** : `POST /transitions/:id/rollback` n'existe pas. Le journal contient déjà de quoi la rejouer.
 - **Sélecteur d'année et lecture seule** (§4.3, phase 5) : seul `GET /api/v1/points` accepte `?scout_year_id=`. Les rapports, tableaux de bord et présences répondent toujours pour l'année active uniquement.
 - **Présences et honneurs** non bornés par l'année (décision 2 ci-dessus). Concrètement, un décompte d'honneurs cumulé traverse encore les années.
 - **Sixaines annuelles** (§4.4) : `participant_groups` n'a pas de `scout_year_id`. Les affectations survivent à la transition et il n'y a pas d'historique par année. Les lignes des jeunes partis restent mais sont désormais filtrées à la lecture.
-- **Renouvellements** (§6, phase 6) : fiches santé, autorisations médicales, frais — rien n'a changé, une fiche de l'an dernier reste considérée valide.
+- **Frais et cotisations** (§6) : `participant_fees` et `payment_plans` ne sont pas rattachés à l'année ; les soldes impayés de l'an dernier restent tels quels.
 - **Purge / conservation** : aucune politique de rétention implémentée.
+
+---
+
+## 10. Renouvellement des formulaires — approche retenue
+
+**Décision :** on ne repart pas d'une fiche vide. Le contenu saisi l'an dernier reste en place ; la transition y appose un drapeau **« à réviser »** pour que les parents la relisent et la corrigent au besoin. Cela vaut pour **tous les formulaires**, pas seulement la fiche santé.
+
+C'est le bon compromis : une allergie ou un contact d'urgence ne change généralement pas d'une année à l'autre, et re-saisir douze champs identiques est le meilleur moyen d'obtenir des fiches abandonnées à moitié remplies. Mais une fiche non relue depuis deux ans ne doit pas passer pour à jour.
+
+### Ce que ça implique
+
+**Base de données**
+
+```sql
+ALTER TABLE form_submissions
+  ADD COLUMN scout_year_id integer REFERENCES scout_years(id),
+  ADD COLUMN review_state text NOT NULL DEFAULT 'current'
+      CHECK (review_state IN ('current', 'needs_review')),
+  ADD COLUMN flagged_for_review_at timestamptz,
+  ADD COLUMN last_reviewed_at timestamptz,
+  ADD COLUMN last_reviewed_by uuid REFERENCES users(id);
+```
+
+`review_state` porte l'état, `last_reviewed_at` porte la preuve. Confirmer sans rien changer est une action valide et doit être enregistrée comme telle : c'est l'information dont l'animateur a besoin (« cette fiche a bien été relue le 4 septembre »), et elle est distincte de `updated_at`.
+
+**Transition** — l'exécution passe à `needs_review` toutes les soumissions actives des jeunes reconduits, et l'inscrit dans le `changeset` pour rester annulable.
+
+**Côté parent** — un bandeau sur le tableau de bord listant les fiches à réviser, et sur chaque formulaire deux boutons : « Confirmer sans changement » et « Mettre à jour ». Les deux effacent le drapeau et écrivent `last_reviewed_at`.
+
+**Côté animateur** — une colonne d'état sur la liste des participants, un filtre « fiches à réviser », et une relance groupée par courriel réutilisant les annonces existantes.
+
+### Points à trancher avant d'implémenter
+
+1. **Portée** — tous les formulaires publiés, ou seulement ceux marqués `is_required` ? Un formulaire ponctuel (sortie de l'an dernier) n'a pas de sens à réviser. Je proposerais : drapeau sur les formulaires `is_required`, plus ceux dont le `category` est santé/autorisation.
+2. **Blocage ou simple signal ?** Est-ce qu'une fiche santé non révisée empêche l'inscription à une activité, ou est-ce seulement visible ? Le blocage est plus sûr et plus friction ; commencer par le signal seul me paraît raisonnable.
+3. **Autorisations médicales** — elles portent une signature et une date. Une simple révision suffit-elle, ou faut-elle une nouvelle signature explicite ? Juridiquement, c'est probablement le seul cas où re-signer s'impose.
+4. **Rappels** — au bout de combien de temps sans révision relance-t-on, et combien de fois ?
+
+### État d'implémentation du §10
+
+**Fait** — `migrations/add_form_review_flag.sql` et le raccordement complet :
+
+- `form_submissions` reçoit `scout_year_id`, `review_state`, `flagged_for_review_at`, `last_reviewed_at`, `last_reviewed_by`, plus un trigger qui estampille l'année sur toute nouvelle soumission ;
+- la transition passe à `needs_review` les formulaires **`is_required`** des jeunes reconduits, et note les identifiants touchés dans le `changeset` pour une annulation future ; le résumé remonte `forms_flagged_for_review` ;
+- `GET /api/v1/forms/submissions/needs-review` — un parent ne voit que ses enfants, l'équipe voit l'unité ;
+- `POST /api/v1/forms/submissions/:id/confirm-review` — confirmer sans rien changer, ce qui efface le drapeau et écrit `last_reviewed_at` **sans toucher `updated_at`** : c'est précisément ce qui distingue « relue » de « modifiée » ;
+- modifier une fiche efface aussi le drapeau et enregistre la révision ;
+- bannière sur le tableau de bord parent avec les deux boutons « Confirmer sans changement » et « Mettre à jour ».
+
+Décisions appliquées : portée limitée aux formulaires requis, simple signal sans blocage.
+
+**Vérifié** contre un PostgreSQL réel : le contenu est conservé, seule la fiche requise du jeune reconduit est marquée, la sortie facultative ne l'est pas, la fiche du jeune parti n'est pas touchée, un parent non lié ne voit ni ne peut confirmer la fiche d'un autre enfant, et `updated_at` ne bouge pas lors d'une confirmation.
+
+**Autorisations médicales — re-signature explicite.** C'est la seule exception au principe « on conserve et on demande une relecture ». Une autorisation porte une signature et une responsabilité légale : la transition la passe à `expired`, et seule une nouvelle signature la rétablit. Il n'y a délibérément **pas** de bouton « confirmer sans changement » pour celles-là.
+
+Les deux tables d'autorisation sont en ajout seul : signer insère une ligne, l'application lit la plus récente. Expirer ne modifie donc que le statut ; la signature de l'an dernier reste au dossier comme trace de ce qui avait été autorisé, et la nouvelle s'ajoute à côté. La lecture continue de renvoyer les réponses précédentes — le parent les voit pré-remplies — mais avec `requires_new_signature`, et `GET /v1/medication/authorizations/pending-signature` alimente une bannière distincte sur le tableau de bord parent.
+
+**Rappels** : aucune relance automatique pour l'instant, par décision. Les fiches à réviser et les autorisations à signer sont visibles sur le tableau de bord, sans courriel de relance.
+
+---
+
+## 11. Ordre de déploiement — à respecter
+
+**La migration `create_scout_years_and_enrollments.sql` doit être appliquée en même temps que le déploiement du code, pas avant.**
+
+Elle transforme `participant_organizations` en vue. Le code de la version précédente y écrit à cinq endroits. Des triggers `INSTEAD OF` en couvrent trois (INSERT simple, `ON CONFLICT DO NOTHING` sans cible, DELETE), mais **pas** les deux qui utilisent une cible de conflit explicite :
+
+```sql
+INSERT INTO participant_organizations (...)
+ON CONFLICT (participant_id, organization_id) DO NOTHING
+```
+
+PostgreSQL ne sait pas faire correspondre une cible de conflit à une vue et refuse la requête. Les deux endpoints concernés dans l'ancienne version sont l'enregistrement d'un participant et la liaison à une organisation (`routes/participants.js`).
+
+Conséquence : entre l'application de la migration et le déploiement de cette branche, créer ou lier un participant échoue. Les lectures, les points, les présences et les formulaires continuent de fonctionner normalement.
+
+Ordre recommandé : fusionner la branche → déployer → appliquer `create_scout_years_and_enrollments.sql` → `add_form_review_flag.sql` → `add_medication_authorization_resignature.sql` (les deux dernières dépendent de la première) → régénérer le dump de schéma.

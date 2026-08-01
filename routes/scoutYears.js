@@ -24,7 +24,9 @@ const {
   ensureActiveScoutYear,
   listScoutYears,
   openNextScoutYear,
-  listMembershipsWithoutEnrolledChild
+  listMembershipsWithoutEnrolledChild,
+  flagRequiredFormsForReview,
+  expireMedicationAuthorizations
 } = require('../services/scoutYear');
 
 /** Age at which a participant leaves the section, unless configured otherwise. */
@@ -162,12 +164,30 @@ module.exports = (pool, logger) => {
       needs_review: row.age_at_reference === null
     }));
 
-    const graduatingIds = participants
+    const proposedGraduatingIds = participants
       .filter(p => p.disposition === 'graduating')
       .map(p => p.id);
 
-    // Which parents would be left without an enrolled child, assuming the
-    // proposed dispositions are applied.
+    // The wizard re-asks for a preview once the leader has overridden some
+    // dispositions, so the list of affected parents stays in sync with the
+    // choices actually made.
+    // Only ids that are actually on this year's roster count, deduplicated:
+    // anything else would skew the counts (a tampered list could even report
+    // more leavers than there are participants) and produce an inconsistent
+    // preview.
+    const enrolledIds = new Set(participants.map(p => p.id));
+    const overrideIds = typeof req.query.graduating_ids === 'string'
+      ? [...new Set(
+        req.query.graduating_ids
+          .split(',')
+          .map(value => parseInt(value.trim(), 10))
+          .filter(value => !Number.isNaN(value) && enrolledIds.has(value))
+      )]
+      : null;
+    const graduatingIds = overrideIds === null ? proposedGraduatingIds : overrideIds;
+
+    // Which parents would be left without an enrolled child, assuming those
+    // dispositions are applied.
     const membershipCandidates = await listMembershipsWithoutEnrolledChild(
       pool,
       organizationId,
@@ -218,7 +238,7 @@ module.exports = (pool, logger) => {
       participants,
       memberships_to_deactivate: membershipsAfterTransition,
       counts: {
-        returning: participants.filter(p => p.disposition === 'returning').length,
+        returning: participants.length - graduatingIds.length,
         graduating: graduatingIds.length,
         needs_review: participants.filter(p => p.needs_review).length,
         memberships_to_deactivate: membershipsAfterTransition.length
@@ -341,12 +361,32 @@ module.exports = (pool, logger) => {
         );
       }
 
+      // Returning participants keep their forms; the parents are simply asked
+      // to re-read the required ones.
+      const carriedOverIds = carriedOver.rows.map(r => r.participant_id);
+      const flaggedForms = await flagRequiredFormsForReview(
+        client,
+        organizationId,
+        carriedOverIds
+      );
+
+      // Medication authorizations carry a signature: they expire and must be
+      // signed again, not merely re-read.
+      const expiredAuthorizations = await expireMedicationAuthorizations(
+        client,
+        organizationId,
+        carriedOverIds
+      );
+
       const summary = {
         graduated: graduated.rows.length,
         carried_over: carriedOver.rows.length,
         memberships_deactivated: deactivated.rows.length,
         memberships_skipped: membershipIds.length - deactivated.rows.length,
-        points_restamped: restampedPoints
+        points_restamped: restampedPoints,
+        forms_flagged_for_review: flaggedForms.length,
+        medication_authorizations_expired:
+          expiredAuthorizations.treatment.length + expiredAuthorizations.administration.length
       };
 
       const transition = await client.query(
@@ -364,6 +404,8 @@ module.exports = (pool, logger) => {
             graduated_participant_ids: graduated.rows.map(r => r.participant_id),
             carried_over_participant_ids: carriedOver.rows.map(r => r.participant_id),
             deactivated_membership_ids: deactivated.rows.map(r => r.id),
+            flagged_form_submission_ids: flaggedForms,
+            expired_medication_authorization_ids: expiredAuthorizations,
             exceptions: Object.fromEntries(exceptionNotes)
           })
         ]

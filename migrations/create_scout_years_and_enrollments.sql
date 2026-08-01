@@ -310,7 +310,104 @@ CREATE OR REPLACE VIEW participant_organizations AS
      AND pe.status = 'active';
 
 COMMENT ON VIEW participant_organizations IS
-  'Read-only compatibility view over participant_enrollments, restricted to the active scout year. Write to participant_enrollments instead.';
+  'Compatibility view over participant_enrollments, restricted to the active scout year. New code should write to participant_enrollments directly; INSTEAD OF triggers keep older deployments working.';
+
+-- Writes through the view.
+--
+-- Application code writes to participant_enrollments directly. These triggers
+-- soften the migration for anything still running the previous code: plain
+-- INSERTs, `ON CONFLICT DO NOTHING` without a conflict target, and DELETEs all
+-- keep working. Deleting through the view closes the enrollment rather than
+-- destroying it, which is the whole point of the model.
+--
+-- LIMIT — this does NOT fully decouple the migration from the code deploy.
+-- PostgreSQL cannot match a conflict target against a view, so a statement of
+-- the form
+--     INSERT INTO participant_organizations (...)
+--     ON CONFLICT (participant_id, organization_id) DO NOTHING
+-- fails with "there is no unique or exclusion constraint matching the ON
+-- CONFLICT specification". Two such statements exist in the release that
+-- precedes this change (routes/participants.js, the save-participant and
+-- link-organization handlers). Apply this migration together with the deploy
+-- that removes them.
+
+CREATE OR REPLACE FUNCTION participant_organizations_insert()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_scout_year_id integer;
+BEGIN
+  SELECT sy.id INTO v_scout_year_id
+    FROM scout_years sy
+   WHERE sy.organization_id = NEW.organization_id AND sy.status = 'active'
+   LIMIT 1;
+
+  IF v_scout_year_id IS NULL THEN
+    RAISE EXCEPTION 'No active scout year for organization %', NEW.organization_id;
+  END IF;
+
+  INSERT INTO participant_enrollments
+          (participant_id, organization_id, scout_year_id, inscription_date, status)
+   VALUES (NEW.participant_id, NEW.organization_id, v_scout_year_id,
+           COALESCE(NEW.inscription_date, CURRENT_DATE), 'active')
+   ON CONFLICT (participant_id, organization_id, scout_year_id)
+   DO UPDATE SET status = 'active', ended_on = NULL, exit_reason = NULL;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION participant_organizations_delete()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  UPDATE participant_enrollments pe
+     SET status = 'left', ended_on = CURRENT_DATE
+    FROM scout_years sy
+   WHERE sy.id = pe.scout_year_id
+     AND sy.status = 'active'
+     AND pe.participant_id = OLD.participant_id
+     AND pe.organization_id = OLD.organization_id
+     AND pe.status = 'active';
+
+  RETURN OLD;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION participant_organizations_update()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  UPDATE participant_enrollments pe
+     SET inscription_date = NEW.inscription_date
+    FROM scout_years sy
+   WHERE sy.id = pe.scout_year_id
+     AND sy.status = 'active'
+     AND pe.participant_id = OLD.participant_id
+     AND pe.organization_id = OLD.organization_id
+     AND pe.status = 'active';
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS participant_organizations_insert_trigger ON participant_organizations;
+CREATE TRIGGER participant_organizations_insert_trigger
+  INSTEAD OF INSERT ON participant_organizations
+  FOR EACH ROW EXECUTE FUNCTION participant_organizations_insert();
+
+DROP TRIGGER IF EXISTS participant_organizations_delete_trigger ON participant_organizations;
+CREATE TRIGGER participant_organizations_delete_trigger
+  INSTEAD OF DELETE ON participant_organizations
+  FOR EACH ROW EXECUTE FUNCTION participant_organizations_delete();
+
+DROP TRIGGER IF EXISTS participant_organizations_update_trigger ON participant_organizations;
+CREATE TRIGGER participant_organizations_update_trigger
+  INSTEAD OF UPDATE ON participant_organizations
+  FOR EACH ROW EXECUTE FUNCTION participant_organizations_update();
 
 -- ---------------------------------------------------------------------------
 -- 5. Year-scoped points
@@ -363,17 +460,19 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  SELECT id INTO NEW.scout_year_id
-    FROM scout_years
-   WHERE organization_id = NEW.organization_id
-     AND COALESCE(NEW.created_at, now())::date BETWEEN start_date AND end_date
+  -- Every column is qualified: `id`, `status` and `organization_id` all exist
+  -- on the row being inserted too, and an unqualified reference is ambiguous.
+  SELECT sy.id INTO NEW.scout_year_id
+    FROM scout_years sy
+   WHERE sy.organization_id = NEW.organization_id
+     AND COALESCE(NEW.created_at, now())::date BETWEEN sy.start_date AND sy.end_date
    LIMIT 1;
 
   IF NEW.scout_year_id IS NULL THEN
-    SELECT id INTO NEW.scout_year_id
-      FROM scout_years
-     WHERE organization_id = NEW.organization_id
-       AND status = 'active'
+    SELECT sy.id INTO NEW.scout_year_id
+      FROM scout_years sy
+     WHERE sy.organization_id = NEW.organization_id
+       AND sy.status = 'active'
      LIMIT 1;
   END IF;
 

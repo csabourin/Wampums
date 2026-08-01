@@ -14,6 +14,11 @@ import {
         signPermissionSlip,
 } from "./api/api-endpoints.js";
 import { getActivities } from "./api/api-activities.js";
+import {
+        getFormsNeedingReview,
+        confirmFormReview,
+        getAuthorizationsPendingSignature,
+} from "./api/api-scout-years.js";
 import { buildApiUrl } from "./api/api-core.js";
 import {
         debugLog,
@@ -25,7 +30,7 @@ import { translate } from "./app.js";
 import { hexStringToUint8Array, base64UrlEncode } from "./functions.js";
 import { CONFIG } from "./config.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
-import { setContent } from "./utils/DOMUtils.js";
+import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { isParent, canViewFinance, canManageFinance, canViewBudget, canManageBudget } from "./utils/PermissionUtils.js";
 import { formatDateShort, parseDate } from "./utils/DateUtils.js";
 import {
@@ -45,6 +50,8 @@ export class ParentDashboard {
                 this.participantStatements = new Map();
                 this.permissionSlips = new Map();
                 this.permissionSlipHandlerBound = false;
+                this.formsToReview = [];
+                this.authorizationsToSign = [];
         }
 
         canAccessFinanceWorkspace() {
@@ -91,6 +98,34 @@ export class ParentDashboard {
                 } catch (error) {
                         debugError("Error fetching permission slips:", error);
                         hasErrors = true;
+                }
+
+                // The two reminder lists are independent: one failing must not hide
+                // the other, and neither may hide the dashboard.
+                const [reviewResult, signatureResult] = await Promise.allSettled([
+                        getFormsNeedingReview(),
+                        getAuthorizationsPendingSignature(),
+                ]);
+
+                if (reviewResult.status === "fulfilled") {
+                        this.formsToReview = reviewResult.value;
+                } else {
+                        debugError("Error fetching forms to review:", reviewResult.reason);
+                        this.formsToReview = [];
+                }
+
+                if (signatureResult.status === "fulfilled") {
+                        this.authorizationsToSign = signatureResult.value;
+                } else {
+                        debugError(
+                                "Error fetching authorizations to sign:",
+                                signatureResult.reason,
+                        );
+                        this.authorizationsToSign = [];
+                }
+
+                if (this.formsToReview.length || this.authorizationsToSign.length) {
+                        await loadStylesheet("/css/form-review.css");
                 }
 
                 // Always render the page, even with partial data
@@ -448,6 +483,9 @@ export class ParentDashboard {
                                         ${backLink}
                                 </header>
 
+                                ${this.renderAuthorizationsToSign()}
+                                ${this.renderFormsToReview()}
+
                                 <section class="parent-dashboard__actions">
                                         <h2 class="visually-hidden">${translate("main_actions")}</h2>
                                         <div class="parent-dashboard__actions-grid">
@@ -491,6 +529,157 @@ export class ParentDashboard {
                 setContent(document.getElementById("app"), content);
                 this.bindStatementHandlers();
                 this.bindPermissionSlipHandlers();
+                this.bindFormReviewHandlers();
+        }
+
+        /**
+         * Banner listing the medication authorizations awaiting a new signature.
+         *
+         * Deliberately separate from the "forms to review" banner, and
+         * deliberately without a "confirm without change" button: an
+         * authorization to give medication carries a signature and a legal
+         * responsibility, so it cannot be settled by saying nothing changed. The
+         * only way out is to sign again.
+         *
+         * @returns {string} Banner markup, or an empty string when nothing is due
+         */
+        renderAuthorizationsToSign() {
+                if (!this.authorizationsToSign.length) {
+                        return "";
+                }
+
+                const items = this.authorizationsToSign
+                        .map((authorization) => {
+                                const child = escapeHTML(
+                                        `${authorization.first_name} ${authorization.last_name}`,
+                                );
+                                const kind =
+                                        authorization.kind === "treatment"
+                                                ? translate(
+                                                                "authorization_kind_treatment",
+                                                        )
+                                                : translate(
+                                                                "authorization_kind_administration",
+                                                        );
+                                return `
+                                        <li class="form-review__item">
+                                                <div class="form-review__text">
+                                                        <strong>${escapeHTML(kind)}</strong>
+                                                        <span class="muted-text">${child}</span>
+                                                </div>
+                                                <div class="form-review__actions">
+                                                        <a href="/medication-authorizations/${authorization.participant_id}"
+                                                           class="dashboard-button dashboard-button--primary">
+                                                                ${translate("authorization_sign_again")}
+                                                        </a>
+                                                </div>
+                                        </li>`;
+                        })
+                        .join("");
+
+                return `
+                        <section class="parent-dashboard__form-review form-review form-review--signature" aria-live="polite">
+                                <h2 class="form-review__title">${translate("authorization_signature_title")}</h2>
+                                <p class="form-review__description">${translate("authorization_signature_description")}</p>
+                                <ul class="form-review__list">${items}</ul>
+                        </section>`;
+        }
+
+        /**
+         * Banner listing the required forms waiting for a parent to re-read them.
+         *
+         * The content of those forms was kept across the year transition; what is
+         * asked here is a confirmation that it is still accurate. Confirming
+         * without changing anything is a legitimate answer, so it gets a button of
+         * its own next to the one that opens the form for editing.
+         *
+         * @returns {string} Banner markup, or an empty string when nothing is due
+         */
+        renderFormsToReview() {
+                if (!this.formsToReview.length) {
+                        return "";
+                }
+
+                const items = this.formsToReview
+                        .map((form) => {
+                                const child = escapeHTML(
+                                        `${form.first_name} ${form.last_name}`,
+                                );
+                                const label = escapeHTML(
+                                        form.display_name || form.form_type,
+                                );
+                                return `
+                                        <li class="form-review__item" data-submission-id="${form.id}">
+                                                <div class="form-review__text">
+                                                        <strong>${label}</strong>
+                                                        <span class="muted-text">${child}</span>
+                                                </div>
+                                                <div class="form-review__actions">
+                                                        <button type="button"
+                                                                class="dashboard-button dashboard-button--secondary js-confirm-review"
+                                                                data-submission-id="${form.id}">
+                                                                ${translate("form_review_confirm")}
+                                                        </button>
+                                                        <a href="/dynamic-form/${encodeURIComponent(form.form_type)}/${form.participant_id}"
+                                                           class="dashboard-button dashboard-button--primary">
+                                                                ${translate("form_review_update")}
+                                                        </a>
+                                                </div>
+                                        </li>`;
+                        })
+                        .join("");
+
+                return `
+                        <section class="parent-dashboard__form-review form-review" aria-live="polite">
+                                <h2 class="form-review__title">${translate("form_review_title")}</h2>
+                                <p class="form-review__description">${translate("form_review_description")}</p>
+                                <ul class="form-review__list">${items}</ul>
+                        </section>`;
+        }
+
+        bindFormReviewHandlers() {
+                document
+                        .querySelectorAll(".js-confirm-review")
+                        .forEach((button) => {
+                                button.addEventListener("click", () =>
+                                        this.handleConfirmReview(button),
+                                );
+                        });
+        }
+
+        /**
+         * Record that a form was re-read and found still accurate.
+         *
+         * @param {HTMLElement} button - The button that was pressed
+         * @returns {Promise<void>}
+         */
+        async handleConfirmReview(button) {
+                const submissionId = parseInt(button.dataset.submissionId, 10);
+                if (Number.isNaN(submissionId)) {
+                        return;
+                }
+
+                button.disabled = true;
+
+                try {
+                        await confirmFormReview(submissionId);
+                        this.formsToReview = this.formsToReview.filter(
+                                (form) => form.id !== submissionId,
+                        );
+                        this.app.showMessage(
+                                translate("form_review_confirmed"),
+                                "success",
+                        );
+                        this.render();
+                        this.attachEventListeners();
+                } catch (error) {
+                        debugError("Failed to confirm form review:", error);
+                        button.disabled = false;
+                        this.app.showMessage(
+                                translate("form_review_failed"),
+                                "error",
+                        );
+                }
         }
 
         renderCarpoolButton() {

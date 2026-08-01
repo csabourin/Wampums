@@ -44,6 +44,7 @@ import {
   canManageIncidents,
   canViewMeetings,
   canManageMeetings,
+  hasPermission,
   isParent
 } from "./utils/PermissionUtils.js";
 
@@ -127,7 +128,8 @@ const lazyModules = {
   UnitSettings: () => import('./modules/unit-settings/unit-settings.js').then(m => m.UnitSettings),
   OfflinePreparation: () => import('./offline_preparation.js').then(m => m.OfflinePreparation),
   IncidentReport: () => import('./modules/incident-report/incident-report.js').then(m => m.IncidentReport),
-  YearlyPlanner: () => import('./modules/yearly-planner/YearlyPlanner.js').then(m => m.YearlyPlanner)
+  YearlyPlanner: () => import('./modules/yearly-planner/YearlyPlanner.js').then(m => m.YearlyPlanner),
+  ScoutYearTransition: () => import('./modules/scout-year/ScoutYearTransition.js').then(m => m.ScoutYearTransition)
 };
 
 // Cache for loaded modules
@@ -217,7 +219,8 @@ const routes = {
   "/incident-reports/:id": "incidentReportView",
   "/incident-reports/:id/edit": "incidentReportEdit",
   "/yearly-planner": "yearlyPlanner",
-  "/unit-settings": "unitSettings"
+  "/unit-settings": "unitSettings",
+  "/scout-year": "scoutYear"
 
 };
 
@@ -584,6 +587,15 @@ export class Router {
           const unitSettings = new UnitSettings(this.app);
           this.currentModuleInstance = unitSettings;
           await unitSettings.init();
+          break;
+        case "scoutYear":
+          if (!guard(hasPermission('scout_year.view') || hasPermission('scout_year.manage'))) {
+            break;
+          }
+          const ScoutYearTransition = await this.loadModule('ScoutYearTransition');
+          const scoutYearTransition = new ScoutYearTransition(this.app);
+          this.currentModuleInstance = scoutYearTransition;
+          await scoutYearTransition.init();
           break;
         case "incidentReports":
           if (!guard(canViewIncidents())) break;
