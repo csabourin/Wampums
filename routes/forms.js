@@ -517,7 +517,7 @@ module.exports = (pool, logger) => {
     }
 
     const existing = await pool.query(
-      'SELECT id, participant_id FROM form_submissions WHERE id = $1 AND organization_id = $2',
+      'SELECT id, participant_id, form_type FROM form_submissions WHERE id = $1 AND organization_id = $2',
       [submissionId, organizationId]
     );
 
@@ -525,11 +525,25 @@ module.exports = (pool, logger) => {
       return error(res, 'Form submission not found', 404);
     }
 
+    const { participant_id: participantId, form_type: formType } = existing.rows[0];
     const dataScope = await getUserDataScope(req, pool);
-    if (dataScope !== 'organization') {
+
+    if (dataScope === 'organization') {
+      // Organization scope alone is not authority over a form: without this
+      // check, any organization-scoped role could clear the review flag of any
+      // participant and record itself as the reviewer.
+      const membership = await verifyOrganizationMembership(pool, req.user.id, organizationId);
+      const userRoles = membership.roles || [];
+      const canEdit = await checkFormPermission(pool, organizationId, userRoles, formType, 'edit');
+      const canSubmit = await checkFormPermission(pool, organizationId, userRoles, formType, 'submit');
+
+      if (!canEdit && !canSubmit) {
+        return error(res, 'You do not have permission to review this form type', 403);
+      }
+    } else {
       const accessCheck = await pool.query(
         'SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2',
-        [req.user.id, existing.rows[0].participant_id]
+        [req.user.id, participantId]
       );
       if (accessCheck.rows.length === 0) {
         return error(res, 'Access denied to this participant', 403);

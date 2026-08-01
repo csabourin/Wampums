@@ -2941,5 +2941,11 @@
   "form_review_failed": "Could not record your confirmation. Please try again.",
   "form_review_needs_review": "To review",
   "form_review_last_reviewed": "Last reviewed on {date}",
-  "form_review_never_reviewed": "Never reviewed"
+  "form_review_never_reviewed": "Never reviewed",
+  "authorization_signature_title": "Authorizations to sign again",
+  "authorization_signature_description": "These authorizations carry your signature, so they cannot simply be confirmed: a new scout year requires a new signature.",
+  "authorization_kind_treatment": "Care and treatment authorization",
+  "authorization_kind_administration": "Medication administration authorization",
+  "authorization_sign_again": "Sign again",
+  "authorization_expired_notice": "This authorization expired at the end of the previous scout year. Your previous answers are shown; sign again to renew it."
 }

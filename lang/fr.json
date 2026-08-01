@@ -2941,5 +2941,11 @@
   "form_review_failed": "Impossible d'enregistrer votre confirmation. Veuillez réessayer.",
   "form_review_needs_review": "À réviser",
   "form_review_last_reviewed": "Dernière révision le {date}",
-  "form_review_never_reviewed": "Jamais révisée"
+  "form_review_never_reviewed": "Jamais révisée",
+  "authorization_signature_title": "Autorisations à signer de nouveau",
+  "authorization_signature_description": "Ces autorisations portent votre signature ; elles ne peuvent donc pas être simplement confirmées : une nouvelle année scoute exige une nouvelle signature.",
+  "authorization_kind_treatment": "Autorisation de soins et de traitement",
+  "authorization_kind_administration": "Autorisation d'administration de médicaments",
+  "authorization_sign_again": "Signer de nouveau",
+  "authorization_expired_notice": "Cette autorisation a expiré à la fin de l'année scoute précédente. Vos réponses précédentes sont affichées ; signez de nouveau pour la renouveler."
 }

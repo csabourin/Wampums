@@ -338,9 +338,9 @@ AS $$
 DECLARE
   v_scout_year_id integer;
 BEGIN
-  SELECT id INTO v_scout_year_id
-    FROM scout_years
-   WHERE organization_id = NEW.organization_id AND status = 'active'
+  SELECT sy.id INTO v_scout_year_id
+    FROM scout_years sy
+   WHERE sy.organization_id = NEW.organization_id AND sy.status = 'active'
    LIMIT 1;
 
   IF v_scout_year_id IS NULL THEN
@@ -460,17 +460,19 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  SELECT id INTO NEW.scout_year_id
-    FROM scout_years
-   WHERE organization_id = NEW.organization_id
-     AND COALESCE(NEW.created_at, now())::date BETWEEN start_date AND end_date
+  -- Every column is qualified: `id`, `status` and `organization_id` all exist
+  -- on the row being inserted too, and an unqualified reference is ambiguous.
+  SELECT sy.id INTO NEW.scout_year_id
+    FROM scout_years sy
+   WHERE sy.organization_id = NEW.organization_id
+     AND COALESCE(NEW.created_at, now())::date BETWEEN sy.start_date AND sy.end_date
    LIMIT 1;
 
   IF NEW.scout_year_id IS NULL THEN
-    SELECT id INTO NEW.scout_year_id
-      FROM scout_years
-     WHERE organization_id = NEW.organization_id
-       AND status = 'active'
+    SELECT sy.id INTO NEW.scout_year_id
+      FROM scout_years sy
+     WHERE sy.organization_id = NEW.organization_id
+       AND sy.status = 'active'
      LIMIT 1;
   END IF;
 

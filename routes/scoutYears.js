@@ -25,7 +25,8 @@ const {
   listScoutYears,
   openNextScoutYear,
   listMembershipsWithoutEnrolledChild,
-  flagRequiredFormsForReview
+  flagRequiredFormsForReview,
+  expireMedicationAuthorizations
 } = require('../services/scoutYear');
 
 /** Age at which a participant leaves the section, unless configured otherwise. */
@@ -170,11 +171,18 @@ module.exports = (pool, logger) => {
     // The wizard re-asks for a preview once the leader has overridden some
     // dispositions, so the list of affected parents stays in sync with the
     // choices actually made.
+    // Only ids that are actually on this year's roster count, deduplicated:
+    // anything else would skew the counts (a tampered list could even report
+    // more leavers than there are participants) and produce an inconsistent
+    // preview.
+    const enrolledIds = new Set(participants.map(p => p.id));
     const overrideIds = typeof req.query.graduating_ids === 'string'
-      ? req.query.graduating_ids
-        .split(',')
-        .map(value => parseInt(value.trim(), 10))
-        .filter(value => !Number.isNaN(value))
+      ? [...new Set(
+        req.query.graduating_ids
+          .split(',')
+          .map(value => parseInt(value.trim(), 10))
+          .filter(value => !Number.isNaN(value) && enrolledIds.has(value))
+      )]
       : null;
     const graduatingIds = overrideIds === null ? proposedGraduatingIds : overrideIds;
 
@@ -355,10 +363,19 @@ module.exports = (pool, logger) => {
 
       // Returning participants keep their forms; the parents are simply asked
       // to re-read the required ones.
+      const carriedOverIds = carriedOver.rows.map(r => r.participant_id);
       const flaggedForms = await flagRequiredFormsForReview(
         client,
         organizationId,
-        carriedOver.rows.map(r => r.participant_id)
+        carriedOverIds
+      );
+
+      // Medication authorizations carry a signature: they expire and must be
+      // signed again, not merely re-read.
+      const expiredAuthorizations = await expireMedicationAuthorizations(
+        client,
+        organizationId,
+        carriedOverIds
       );
 
       const summary = {
@@ -367,7 +384,9 @@ module.exports = (pool, logger) => {
         memberships_deactivated: deactivated.rows.length,
         memberships_skipped: membershipIds.length - deactivated.rows.length,
         points_restamped: restampedPoints,
-        forms_flagged_for_review: flaggedForms.length
+        forms_flagged_for_review: flaggedForms.length,
+        medication_authorizations_expired:
+          expiredAuthorizations.treatment.length + expiredAuthorizations.administration.length
       };
 
       const transition = await client.query(
@@ -386,6 +405,7 @@ module.exports = (pool, logger) => {
             carried_over_participant_ids: carriedOver.rows.map(r => r.participant_id),
             deactivated_membership_ids: deactivated.rows.map(r => r.id),
             flagged_form_submission_ids: flaggedForms,
+            expired_medication_authorization_ids: expiredAuthorizations,
             exceptions: Object.fromEntries(exceptionNotes)
           })
         ]

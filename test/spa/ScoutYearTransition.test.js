@@ -179,6 +179,23 @@ describe('consequences step', () => {
     expect(document.querySelector('.scout-year-list__item.is-empty')).not.toBeNull();
   });
 
+  test('stays on the roster step when the refreshed list cannot be fetched', async () => {
+    const module = await mount();
+
+    const toggle = document.querySelector('#disposition-1');
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+
+    mockGetTransitionPreview.mockRejectedValue(new Error('network'));
+    await module.handleNext();
+
+    // Advancing here would offer to deactivate the parent of a child the leader
+    // just decided to keep.
+    expect(module.step).toBe(1);
+    expect(app.showMessage).toHaveBeenCalledWith('scout_year_refresh_failed', 'error');
+    expect(module.selectedMemberships.has(PARENT_OF_ALICE.membership_id)).toBe(true);
+  });
+
   test('parents are pre-checked but can be spared individually', async () => {
     const module = await mount();
 
@@ -191,6 +208,44 @@ describe('consequences step', () => {
     checkbox.checked = false;
     checkbox.dispatchEvent(new Event('change', { bubbles: true }));
     expect(module.selectedMemberships.has(55)).toBe(false);
+  });
+});
+
+describe('event listeners', () => {
+  test('a click on Next advances exactly one step, however many re-renders happened', async () => {
+    const module = await mount();
+
+    // Each toggle re-renders; listeners must not stack.
+    for (const id of [1, 2, 3]) {
+      const toggle = document.querySelector(`#disposition-${id}`);
+      toggle.checked = !toggle.checked;
+      toggle.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    mockGetTransitionPreview.mockResolvedValue(buildPreview([PARENT_OF_ALICE]));
+    document.querySelector('#next-step-btn').click();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(module.step).toBe(2);
+    // A duplicated listener would have run the confirmation step's action too.
+    expect(mockExecuteTransition).not.toHaveBeenCalled();
+  });
+
+  test('a click on Next never reaches execution before the confirmation step', async () => {
+    const module = await mount();
+
+    mockGetTransitionPreview.mockResolvedValue(buildPreview([PARENT_OF_ALICE]));
+    document.querySelector('#next-step-btn').click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(module.step).toBe(2);
+
+    document.querySelector('#next-step-btn').click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(module.step).toBe(3);
+    expect(mockExecuteTransition).not.toHaveBeenCalled();
+    expect(mockConfirmDialog).not.toHaveBeenCalled();
   });
 });
 

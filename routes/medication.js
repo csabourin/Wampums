@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
+const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
 
@@ -935,6 +935,50 @@ module.exports = (pool, logger) => {
    * GET /v1/medication/authorizations/:participantId
    * Gets the latest PDF A and PDF B authorizations for a participant
    */
+  /**
+   * GET /v1/medication/authorizations/pending-signature
+   * Participants whose medication authorizations must be signed again.
+   *
+   * Parents see their own children only; staff see the whole unit.
+   */
+  router.get('/v1/medication/authorizations/pending-signature', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const dataScope = await getUserDataScope(req, pool);
+    const isStaff = dataScope === 'organization';
+
+    const result = await pool.query(
+      `WITH latest AS (
+         SELECT participant_id, 'treatment' AS kind, status, expired_at,
+                ROW_NUMBER() OVER (PARTITION BY participant_id ORDER BY created_at DESC) AS rn
+           FROM medication_treatment_authorizations
+          WHERE organization_id = $1
+          UNION ALL
+         SELECT participant_id, 'administration' AS kind, status, expired_at,
+                ROW_NUMBER() OVER (PARTITION BY participant_id ORDER BY created_at DESC) AS rn
+           FROM medication_admin_authorizations
+          WHERE organization_id = $1
+       )
+       SELECT l.participant_id, l.kind, l.expired_at,
+              p.first_name, p.last_name
+         FROM latest l
+         JOIN participants p ON p.id = l.participant_id
+         JOIN participant_organizations po ON po.participant_id = l.participant_id
+          AND po.organization_id = $1
+        WHERE l.rn = 1
+          AND l.status <> 'signed'
+          AND ($2 OR EXISTS (
+                SELECT 1 FROM user_participants up
+                 WHERE up.user_id = $3 AND up.participant_id = l.participant_id
+              ))
+        ORDER BY p.first_name, p.last_name, l.kind`,
+      [organizationId, isStaff, req.user.id]
+    );
+
+    return success(res, result.rows);
+  }));
+
+  // Declared before /:participantId: Express matches in order, so a literal
+  // path placed after a parameterised one is never reached.
   router.get('/v1/medication/authorizations/:participantId', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const participantId = Number.parseInt(req.params.participantId, 10);
@@ -985,11 +1029,22 @@ module.exports = (pool, logger) => {
       [organizationId, participantId]
     );
 
+    // The latest authorization is still returned even once expired, so the
+    // parent sees last year's answers pre-filled. What changes is that it no
+    // longer counts as consent: a medication authorization carries a signature,
+    // so the new year needs a new one rather than a simple confirmation.
+    const needsSignature = (row) => !row || row.status !== 'signed';
+
     return success(res, {
       treatment: treatmentRes.rows[0] || null,
-      administration: adminRes.rows[0] || null
+      administration: adminRes.rows[0] || null,
+      requires_new_signature: {
+        treatment: needsSignature(treatmentRes.rows[0]),
+        administration: needsSignature(adminRes.rows[0])
+      }
     });
   }));
+
 
   /**
    * POST /v1/medication/authorizations/treatment

@@ -381,7 +381,11 @@ Décisions appliquées : portée limitée aux formulaires requis, simple signal 
 
 **Vérifié** contre un PostgreSQL réel : le contenu est conservé, seule la fiche requise du jeune reconduit est marquée, la sortie facultative ne l'est pas, la fiche du jeune parti n'est pas touchée, un parent non lié ne voit ni ne peut confirmer la fiche d'un autre enfant, et `updated_at` ne bouge pas lors d'une confirmation.
 
-**Reste ouvert** : les autorisations médicales (re-signature explicite plutôt que simple relecture ?) et la cadence des rappels. Aucune relance automatique n'est envoyée pour l'instant.
+**Autorisations médicales — re-signature explicite.** C'est la seule exception au principe « on conserve et on demande une relecture ». Une autorisation porte une signature et une responsabilité légale : la transition la passe à `expired`, et seule une nouvelle signature la rétablit. Il n'y a délibérément **pas** de bouton « confirmer sans changement » pour celles-là.
+
+Les deux tables d'autorisation sont en ajout seul : signer insère une ligne, l'application lit la plus récente. Expirer ne modifie donc que le statut ; la signature de l'an dernier reste au dossier comme trace de ce qui avait été autorisé, et la nouvelle s'ajoute à côté. La lecture continue de renvoyer les réponses précédentes — le parent les voit pré-remplies — mais avec `requires_new_signature`, et `GET /v1/medication/authorizations/pending-signature` alimente une bannière distincte sur le tableau de bord parent.
+
+**Rappels** : aucune relance automatique pour l'instant, par décision. Les fiches à réviser et les autorisations à signer sont visibles sur le tableau de bord, sans courriel de relance.
 
 ---
 
@@ -400,4 +404,4 @@ PostgreSQL ne sait pas faire correspondre une cible de conflit à une vue et ref
 
 Conséquence : entre l'application de la migration et le déploiement de cette branche, créer ou lier un participant échoue. Les lectures, les points, les présences et les formulaires continuent de fonctionner normalement.
 
-Ordre recommandé : fusionner la branche → déployer → appliquer `create_scout_years_and_enrollments.sql` → appliquer `add_form_review_flag.sql` (qui dépend de la première) → régénérer le dump de schéma.
+Ordre recommandé : fusionner la branche → déployer → appliquer `create_scout_years_and_enrollments.sql` → `add_form_review_flag.sql` → `add_medication_authorization_resignature.sql` (les deux dernières dépendent de la première) → régénérer le dump de schéma.

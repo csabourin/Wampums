@@ -59,6 +59,8 @@ export class ScoutYearTransition extends BaseModule {
     this.selectedMemberships = new Set();
     /** Dispositions the age rule proposed, to detect leader overrides. */
     this.proposedDispositions = new Map();
+    /** Delegated listeners are bound once; see attachEventListeners(). */
+    this._listenersAttached = false;
   }
 
   async init() {
@@ -462,13 +464,23 @@ export class ScoutYearTransition extends BaseModule {
 
   // ------------------------------------------------------------------- events
 
+  /**
+   * Attach the delegated listeners, exactly once.
+   *
+   * `render()` only replaces the contents of `#app`, never the element itself,
+   * so delegated listeners survive every re-render. Re-attaching them would
+   * stack duplicates — BaseModule only removes listeners when the module is
+   * destroyed — and each duplicate would run the handler again: a single click
+   * on Next would advance a step *and* fire the next step's action, skipping
+   * the confirmation screen entirely.
+   */
   attachEventListeners() {
     const container = document.getElementById('app');
-    if (!container) {
+    if (!container || this._listenersAttached) {
       return;
     }
+    this._listenersAttached = true;
 
-    // Delegated so listeners survive every re-render of the wizard.
     this.addEventListener(container, 'change', (event) => {
       const dispositionToggle = event.target.closest('.js-disposition-toggle');
       if (dispositionToggle) {
@@ -503,11 +515,13 @@ export class ScoutYearTransition extends BaseModule {
   }
 
   /**
-   * Re-render the page and keep delegation working.
+   * Re-render the page.
+   *
+   * Listeners are delegated on `#app` and bound once, so there is nothing to
+   * re-attach here.
    */
   rerender() {
     this.render();
-    this.attachEventListeners();
   }
 
   handleDispositionToggle(input) {
@@ -542,7 +556,12 @@ export class ScoutYearTransition extends BaseModule {
 
   async handleNext() {
     if (this.step === STEP_ROSTER) {
-      await this.refreshConsequences();
+      const refreshed = await this.refreshConsequences();
+      if (!refreshed) {
+        // Advancing on a stale list could deactivate the parent of a child the
+        // leader just decided to keep. Stay put until we have fresh figures.
+        return;
+      }
       this.step = STEP_CONSEQUENCES;
       this.rerender();
       return;
@@ -560,6 +579,8 @@ export class ScoutYearTransition extends BaseModule {
   /**
    * Recompute the affected parent accounts from the dispositions actually
    * chosen, so the second step never shows a stale list.
+   *
+   * @returns {Promise<boolean>} True when the list was refreshed
    */
   async refreshConsequences() {
     try {
@@ -569,9 +590,11 @@ export class ScoutYearTransition extends BaseModule {
       this.selectedMemberships = new Set(
         refreshed.memberships_to_deactivate.map(m => m.membership_id)
       );
+      return true;
     } catch (error) {
       debugError('Failed to refresh transition consequences:', error);
       this.app?.showMessage?.(translate('scout_year_refresh_failed'), 'error');
+      return false;
     }
   }
 

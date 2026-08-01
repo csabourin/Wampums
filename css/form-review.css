@@ -72,3 +72,12 @@
     flex: 0 0 auto;
   }
 }
+
+/*
+ * Signature variant: a stronger accent than the review banner, because this one
+ * cannot be dismissed by confirming — it needs a real signature.
+ */
+.form-review--signature {
+  background: var(--surface-warning, #fffbeb);
+  border-left-color: var(--warning-color, #f59e0b);
+}

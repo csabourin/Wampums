@@ -433,6 +433,49 @@ async function flagRequiredFormsForReview(client, organizationId, participantIds
   return result.rows.map(row => row.id);
 }
 
+/**
+ * Expire the standing medication authorizations of returning participants.
+ *
+ * Unlike a health form, an authorization to give medication carries a parent
+ * signature and a legal responsibility, so re-reading it is not enough: the
+ * parent has to sign again for the new year.
+ *
+ * Nothing is deleted. Both tables are append-only, so the expired row stays on
+ * file as the record of what was authorized last year, and the next signature
+ * is inserted alongside it.
+ *
+ * @param {Object} client - Database client inside an open transaction
+ * @param {number} organizationId - Organization ID
+ * @param {Array<number>} participantIds - Participants carried over to the new year
+ * @returns {Promise<{treatment: Array<number>, administration: Array<number>}>} Expired authorization ids
+ */
+async function expireMedicationAuthorizations(client, organizationId, participantIds) {
+  if (!Array.isArray(participantIds) || participantIds.length === 0) {
+    return { treatment: [], administration: [] };
+  }
+
+  const expire = async (table) => {
+    const result = await client.query(
+      `UPDATE ${table}
+          SET status = 'expired',
+              expired_at = now(),
+              updated_at = now()
+        WHERE organization_id = $1
+          AND participant_id = ANY($2::int[])
+          AND status = 'signed'
+        RETURNING id`,
+      [organizationId, participantIds]
+    );
+    return result.rows.map(row => row.id);
+  };
+
+  // Table names are literals chosen here, never user input.
+  const treatment = await expire('medication_treatment_authorizations');
+  const administration = await expire('medication_admin_authorizations');
+
+  return { treatment, administration };
+}
+
 module.exports = {
   DEFAULT_FISCAL_START_MONTH,
   DEFAULT_FISCAL_START_DAY,
@@ -444,5 +487,6 @@ module.exports = {
   resolveScoutYear,
   openNextScoutYear,
   listMembershipsWithoutEnrolledChild,
-  flagRequiredFormsForReview
+  flagRequiredFormsForReview,
+  expireMedicationAuthorizations
 };

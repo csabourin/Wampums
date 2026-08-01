@@ -106,3 +106,17 @@ export async function confirmFormReview(submissionId) {
   const response = await API.post(`v1/forms/submissions/${submissionId}/confirm-review`);
   return response.data;
 }
+
+/**
+ * List participants whose medication authorizations must be signed again.
+ *
+ * These are deliberately not part of the "forms to review" list: an
+ * authorization carries a signature, so it cannot be settled by confirming that
+ * nothing changed — it has to be signed anew.
+ *
+ * @returns {Promise<Array<Object>>} Authorizations awaiting a signature
+ */
+export async function getAuthorizationsPendingSignature() {
+  const response = await API.getNoCache('v1/medication/authorizations/pending-signature');
+  return response.data || [];
+}

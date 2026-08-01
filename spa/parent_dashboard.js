@@ -17,6 +17,7 @@ import { getActivities } from "./api/api-activities.js";
 import {
         getFormsNeedingReview,
         confirmFormReview,
+        getAuthorizationsPendingSignature,
 } from "./api/api-scout-years.js";
 import { buildApiUrl } from "./api/api-core.js";
 import {
@@ -50,6 +51,7 @@ export class ParentDashboard {
                 this.permissionSlips = new Map();
                 this.permissionSlipHandlerBound = false;
                 this.formsToReview = [];
+                this.authorizationsToSign = [];
         }
 
         canAccessFinanceWorkspace() {
@@ -99,14 +101,18 @@ export class ParentDashboard {
                 }
 
                 try {
-                        this.formsToReview = await getFormsNeedingReview();
-                        if (this.formsToReview.length) {
+                        [this.formsToReview, this.authorizationsToSign] = await Promise.all([
+                                getFormsNeedingReview(),
+                                getAuthorizationsPendingSignature(),
+                        ]);
+                        if (this.formsToReview.length || this.authorizationsToSign.length) {
                                 await loadStylesheet("/css/form-review.css");
                         }
                 } catch (error) {
-                        debugError("Error fetching forms to review:", error);
-                        // A missing review list must never hide the dashboard.
+                        debugError("Error fetching pending forms:", error);
+                        // A missing list must never hide the dashboard.
                         this.formsToReview = [];
+                        this.authorizationsToSign = [];
                 }
 
                 // Always render the page, even with partial data
@@ -464,6 +470,7 @@ export class ParentDashboard {
                                         ${backLink}
                                 </header>
 
+                                ${this.renderAuthorizationsToSign()}
                                 ${this.renderFormsToReview()}
 
                                 <section class="parent-dashboard__actions">
@@ -513,6 +520,59 @@ export class ParentDashboard {
         }
 
         /**
+         * Banner listing the medication authorizations awaiting a new signature.
+         *
+         * Deliberately separate from the "forms to review" banner, and
+         * deliberately without a "confirm without change" button: an
+         * authorization to give medication carries a signature and a legal
+         * responsibility, so it cannot be settled by saying nothing changed. The
+         * only way out is to sign again.
+         *
+         * @returns {string} Banner markup, or an empty string when nothing is due
+         */
+        renderAuthorizationsToSign() {
+                if (!this.authorizationsToSign.length) {
+                        return "";
+                }
+
+                const items = this.authorizationsToSign
+                        .map((authorization) => {
+                                const child = escapeHTML(
+                                        `${authorization.first_name} ${authorization.last_name}`,
+                                );
+                                const kind =
+                                        authorization.kind === "treatment"
+                                                ? translate(
+                                                                "authorization_kind_treatment",
+                                                        )
+                                                : translate(
+                                                                "authorization_kind_administration",
+                                                        );
+                                return `
+                                        <li class="form-review__item">
+                                                <div class="form-review__text">
+                                                        <strong>${escapeHTML(kind)}</strong>
+                                                        <span class="muted-text">${child}</span>
+                                                </div>
+                                                <div class="form-review__actions">
+                                                        <a href="/medication-authorizations/${authorization.participant_id}"
+                                                           class="dashboard-button dashboard-button--primary">
+                                                                ${translate("authorization_sign_again")}
+                                                        </a>
+                                                </div>
+                                        </li>`;
+                        })
+                        .join("");
+
+                return `
+                        <section class="parent-dashboard__form-review form-review form-review--signature" aria-live="polite">
+                                <h2 class="form-review__title">${translate("authorization_signature_title")}</h2>
+                                <p class="form-review__description">${translate("authorization_signature_description")}</p>
+                                <ul class="form-review__list">${items}</ul>
+                        </section>`;
+        }
+
+        /**
          * Banner listing the required forms waiting for a parent to re-read them.
          *
          * The content of those forms was kept across the year transition; what is
@@ -547,7 +607,7 @@ export class ParentDashboard {
                                                                 data-submission-id="${form.id}">
                                                                 ${translate("form_review_confirm")}
                                                         </button>
-                                                        <a href="/formulaire-inscription/${form.participant_id}"
+                                                        <a href="/dynamic-form/${encodeURIComponent(form.form_type)}/${form.participant_id}"
                                                            class="dashboard-button dashboard-button--primary">
                                                                 ${translate("form_review_update")}
                                                         </a>
