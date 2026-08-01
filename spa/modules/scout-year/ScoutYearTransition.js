@@ -479,10 +479,9 @@ export class ScoutYearTransition extends BaseModule {
         feedback.textContent = translate('alumni_invitations_sent')
           .replace('{count}', String(outcome?.invited ?? 0));
       }
-    } catch (error) {
       debugError('Failed to send alumni invitations:', error);
       if (feedback) {
-        feedback.textContent = translate('alumni_consent_invalid');
+        feedback.textContent = translate('error_generic');
       }
       if (button) {
         button.disabled = false;
