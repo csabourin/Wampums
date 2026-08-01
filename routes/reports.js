@@ -41,8 +41,8 @@ const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handl
  * shown, not the absence of version history — see §9 of
  * devdocs/GESTION_ANNEE_SCOUTE.md.
  *
- * Both fragments expect `$1` = organization id and `$4` = the selected year's
- * start date, and attach to a query whose participant table is aliased `p`.
+ * Both fragments expect `$1` = organization id, `$4`/`$5` = the selected
+ * year's start/end dates, and attach to a participant table aliased `p`.
  */
 const HEALTH_FORM_AS_OF_YEAR = `
   LEFT JOIN LATERAL (
@@ -52,7 +52,8 @@ const HEALTH_FORM_AS_OF_YEAR = `
      WHERE sub.participant_id = p.id
        AND sub.organization_id = $1
        AND sub.form_type = 'fiche_sante'
-       AND (sub_year.start_date IS NULL OR sub_year.start_date <= $4::date)
+       AND ((sub.scout_year_id IS NOT NULL AND sub_year.start_date <= $4::date)
+         OR (sub.scout_year_id IS NULL AND sub.created_at < ($5::date + INTERVAL '1 day')))
      ORDER BY sub_year.start_date DESC NULLS LAST, sub.updated_at DESC NULLS LAST, sub.id DESC
      LIMIT 1
   ) fs ON TRUE`;
@@ -65,7 +66,8 @@ const REGISTRATION_FORM_AS_OF_YEAR = `
      WHERE sub.participant_id = p.id
        AND sub.organization_id = $1
        AND sub.form_type = 'participant_registration'
-       AND (sub_year.start_date IS NULL OR sub_year.start_date <= $4::date)
+       AND ((sub.scout_year_id IS NOT NULL AND sub_year.start_date <= $4::date)
+         OR (sub.scout_year_id IS NULL AND sub.created_at < ($5::date + INTERVAL '1 day')))
      ORDER BY sub_year.start_date DESC NULLS LAST, sub.updated_at DESC NULLS LAST, sub.id DESC
      LIMIT 1
   ) fs ON TRUE`;
@@ -207,10 +209,11 @@ module.exports = (pool, logger) => {
         WHERE po.organization_id = $1
       `;
 
-    const params = [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.start_date];
+    const params = [organizationId, req.scoutYear.id, req.rosterStatuses,
+      req.scoutYear.start_date, req.scoutYear.end_date];
 
     if (groupId) {
-      query += ` AND pg.group_id = $5`;
+      query += ` AND pg.group_id = $6`;
       params.push(groupId);
     }
 
@@ -428,16 +431,19 @@ module.exports = (pool, logger) => {
          LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
          LEFT JOIN (
-           SELECT sub.participant_id, sub.organization_id, sub.form_type, sub_year.start_date
+           SELECT sub.participant_id, sub.organization_id, sub.form_type,
+                  sub.scout_year_id, sub.created_at, sub_year.start_date
              FROM form_submissions sub
              LEFT JOIN scout_years sub_year ON sub_year.id = sub.scout_year_id
          ) fs ON fs.participant_id = p.id
               AND fs.organization_id = $1
-              AND (fs.start_date IS NULL OR fs.start_date <= $4::date)
+              AND ((fs.scout_year_id IS NOT NULL AND fs.start_date <= $4::date)
+                OR (fs.scout_year_id IS NULL AND fs.created_at < ($5::date + INTERVAL '1 day')))
          WHERE po.organization_id = $1
          GROUP BY p.id, p.first_name, p.last_name, g.name
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.start_date]
+      [organizationId, req.scoutYear.id, req.rosterStatuses,
+        req.scoutYear.start_date, req.scoutYear.end_date]
     );
 
     // Calculate missing forms for each participant
@@ -499,7 +505,8 @@ module.exports = (pool, logger) => {
          ${HEALTH_FORM_AS_OF_YEAR}
          WHERE po.organization_id = $1
          ORDER BY p.first_name, p.last_name`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.start_date]
+      [organizationId, req.scoutYear.id, req.rosterStatuses,
+        req.scoutYear.start_date, req.scoutYear.end_date]
     );
 
     res.json({ success: true, data: result.rows });
@@ -539,7 +546,8 @@ module.exports = (pool, logger) => {
          WHERE po.organization_id = $1
            AND fs.submission_data->>'has_allergies' = 'yes'
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.start_date]
+      [organizationId, req.scoutYear.id, req.rosterStatuses,
+        req.scoutYear.start_date, req.scoutYear.end_date]
     );
 
     res.json({ success: true, data: result.rows });
@@ -578,7 +586,8 @@ module.exports = (pool, logger) => {
          WHERE po.organization_id = $1
            AND fs.submission_data->>'has_medication' = 'yes'
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.start_date]
+      [organizationId, req.scoutYear.id, req.rosterStatuses,
+        req.scoutYear.start_date, req.scoutYear.end_date]
     );
 
     res.json({ success: true, data: result.rows });
@@ -615,7 +624,8 @@ module.exports = (pool, logger) => {
          ${HEALTH_FORM_AS_OF_YEAR}
          WHERE po.organization_id = $1
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.start_date]
+      [organizationId, req.scoutYear.id, req.rosterStatuses,
+        req.scoutYear.start_date, req.scoutYear.end_date]
     );
 
     res.json({ success: true, data: result.rows });
@@ -652,7 +662,8 @@ module.exports = (pool, logger) => {
          ${REGISTRATION_FORM_AS_OF_YEAR}
          WHERE po.organization_id = $1
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.start_date]
+      [organizationId, req.scoutYear.id, req.rosterStatuses,
+        req.scoutYear.start_date, req.scoutYear.end_date]
     );
 
     res.json({ success: true, data: result.rows });
@@ -689,7 +700,8 @@ module.exports = (pool, logger) => {
          ${REGISTRATION_FORM_AS_OF_YEAR}
          WHERE po.organization_id = $1
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.start_date]
+      [organizationId, req.scoutYear.id, req.rosterStatuses,
+        req.scoutYear.start_date, req.scoutYear.end_date]
     );
 
     res.json({ success: true, data: result.rows });

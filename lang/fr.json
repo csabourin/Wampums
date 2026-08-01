@@ -3017,5 +3017,6 @@
   "transfer_not_a_sibling_unit": "Cette unité ne fait pas partie de ce groupe local.",
   "transfer_not_enrolled": "Ce participant n'est pas inscrit pour l'année en cours.",
   "transfer_target_has_no_active_year": "L'unité de destination n'a pas d'année scoute ouverte.",
-  "erasure_shared_with_other_organizations": "Ce participant a aussi des données dans une autre unité. Chaque unité doit procéder à l'effacement de ses propres données."
+  "erasure_shared_with_other_organizations": "Ce participant a aussi des données dans une autre unité. Chaque unité doit procéder à l'effacement de ses propres données.",
+  "erasure_awaiting_organization_approvals": "Cette demande d'effacement est enregistrée. Elle sera exécutée lorsque toutes les unités qui détiennent des données sur ce participant l'auront approuvée."
 }

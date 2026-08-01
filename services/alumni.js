@@ -275,7 +275,7 @@ async function getOrganizationName(pool, organizationId) {
  */
 async function sendAlumniInvitations(pool, logger, { organizationId, membershipIds, baseUrl }) {
   const candidates = await listInvitationCandidates(pool, organizationId);
-  const requested = Array.isArray(membershipIds) && membershipIds.length > 0
+  const requested = Array.isArray(membershipIds)
     ? new Set(membershipIds.map(Number))
     : null;
   const targets = requested

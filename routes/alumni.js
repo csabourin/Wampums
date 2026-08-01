@@ -24,27 +24,10 @@ const {
   listAlumni,
   sendAlumniInvitations
 } = require('../services/alumni');
+const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 
 module.exports = (pool, logger) => {
   const router = express.Router();
-
-  /**
-   * Resolve the origin the emailed links should point at.
-   *
-   * Taken from the request rather than configured, so a unit on its own domain
-   * sends links to that domain instead of to the canonical one.
-   *
-   * @param {Object} req - Express request
-   * @returns {string} Origin, scheme included
-   */
-  function resolveBaseUrl(req) {
-    const host = req.get('host') || 'wampums.app';
-    const forwardedProto = req.headers['x-forwarded-proto'];
-    const protocol = forwardedProto
-      ? forwardedProto.split(',')[0].trim()
-      : (req.secure ? 'https' : 'http');
-    return `${protocol}://${host}`;
-  }
 
   /**
    * Departed families that may still be invited.
@@ -94,7 +77,7 @@ module.exports = (pool, logger) => {
       const outcome = await sendAlumniInvitations(pool, logger, {
         organizationId,
         membershipIds,
-        baseUrl: resolveBaseUrl(req)
+        baseUrl: await resolveOrganizationBaseUrl(pool, organizationId)
       });
 
       return success(res, outcome, 'Alumni invitations processed');

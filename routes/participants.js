@@ -1255,13 +1255,13 @@ module.exports = (pool) => {
           performedBy: req.user.id
         });
 
-        // Another unit holds records on this child. Nothing has been deleted;
-        // the request stands, but each unit has to honour it for its own file.
+        // Keep this organization's approval. The last owning organization to
+        // approve will perform the global erasure in the same transaction.
         if (summary.blocked) {
-          await client.query('ROLLBACK');
+          await client.query('COMMIT');
           return error(
             res,
-            'This participant also has records in another organization. Each organization must carry out the erasure for its own records.',
+            'erasure_awaiting_organization_approvals',
             409,
             summary.organizations.map(org => ({ organization_id: org.id, organization_name: org.name }))
           );

@@ -307,7 +307,10 @@ export class ManageUsersParticipants {
       this.attachEventListeners();
     } catch (error) {
       debugError("Erasure failed:", error);
-      this.showError(error?.message || translate("erase_participant_failed"));
+      const message = error?.message === "erasure_awaiting_organization_approvals"
+        ? translate(error.message)
+        : (error?.message || translate("erase_participant_failed"));
+      this.showError(message);
     }
   }
 

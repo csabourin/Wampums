@@ -516,7 +516,7 @@ describe.skipIf(!DATABASE_URL)('Right to erasure', () => {
     client.release();
   });
 
-  test('refuses when a sister unit also holds records on the child', async () => {
+  test('records each owning unit approval and erases after the final approval', async () => {
     // `participants` is a global row, so deleting it would cascade through the
     // other unit's enrollments, attendance and forms — records the requesting
     // unit has no standing to destroy.
@@ -547,7 +547,35 @@ describe.skipIf(!DATABASE_URL)('Right to erasure', () => {
     expect(await one('SELECT COUNT(*)::int FROM erasure_log WHERE organization_id = $1',
       [ids.organizationId])).toBe(0);
 
-    await pool.query('DELETE FROM participant_enrollments WHERE organization_id = $1', [otherOrg]);
+    expect(await one(
+      `SELECT COUNT(*)::int FROM participant_erasure_approvals
+        WHERE participant_id = $1 AND organization_id = $2`,
+      [ids.childB, ids.organizationId]
+    )).toBe(1);
+
+    // The route can approve only the organization in its authenticated
+    // context; it cannot approve on another unit's behalf.
+    await pool.query(
+      `INSERT INTO user_organizations (user_id, organization_id, role_ids, status)
+       SELECT user_id, $2, role_ids, 'active'
+         FROM user_organizations
+        WHERE user_id = $1 AND organization_id = $3`,
+      [ids.adminUserId, otherOrg, ids.organizationId]
+    );
+    mockContext.organizationId = otherOrg;
+
+    const finalApproval = await erase(ids.childB, 'Bruno Bergeron');
+    expect(finalApproval.status).toBe(200);
+    expect(await one('SELECT COUNT(*)::int FROM participants WHERE id = $1', [ids.childB])).toBe(0);
+    expect(await one(
+      'SELECT COUNT(*)::int FROM participant_erasure_approvals WHERE participant_id = $1',
+      [ids.childB]
+    )).toBe(0);
+
+    mockContext.organizationId = ids.organizationId;
+
+    await pool.query('DELETE FROM erasure_log WHERE organization_id = $1', [otherOrg]);
+    await pool.query('DELETE FROM user_organizations WHERE organization_id = $1', [otherOrg]);
     await pool.query('DELETE FROM scout_years WHERE id = $1', [otherYear]);
     const client = await pool.connect();
     await client.query('BEGIN');

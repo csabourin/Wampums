@@ -20,7 +20,7 @@ requireJWTSecret();
 /**
  * Verify JWT token and attach user to request
  */
-exports.authenticate = (req, res, next) => {
+exports.authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -44,6 +44,34 @@ exports.authenticate = (req, res, next) => {
       permissions: decoded.permissions || [], // New: array of permission keys
       organizationId: decoded.organizationId || decoded.organization_id
     };
+
+    // JWT authorization claims are a snapshot. Re-check the membership on every
+    // protected request so disabling a member takes effect immediately instead
+    // of waiting for an otherwise valid token to expire.
+    if (req.user.organizationId) {
+      const pool = req.app?.locals?.pool;
+      if (!pool) {
+        logger.error('Database pool not available in authenticate middleware');
+        return res.status(500).json({
+          success: false,
+          message: 'Server configuration error',
+          timestamp: new Date().toISOString()
+        });
+      }
+      const membership = await pool.query(
+        `SELECT organization_id FROM user_organizations
+          WHERE user_id = $1 AND organization_id = $2 AND status = 'active'`,
+        [req.user.id, req.user.organizationId]
+      );
+      if (membership.rows.length === 0) {
+        return res.status(403).json({
+          success: false,
+          message: 'This account is no longer active in this organization',
+          membershipStatus: 'inactive_or_missing',
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
 
     next();
   } catch (error) {
@@ -494,6 +522,54 @@ exports.requirePermission = (...permissions) => {
         success: false,
         message: 'Permission check failed'
       });
+    }
+  };
+};
+
+/**
+ * Require at least one permission from the supplied list.
+ */
+exports.requireAnyPermission = (...permissions) => {
+  const requiredPermissions = Array.isArray(permissions[0]) ? permissions[0] : permissions;
+  return async (req, res, next) => {
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ success: false, message: 'Authentication required' });
+      }
+      const pool = req.app?.locals?.pool;
+      if (!pool) {
+        logger.error('Database pool not available in requireAnyPermission middleware');
+        return res.status(500).json({ success: false, message: 'Server configuration error' });
+      }
+      const organizationId = await exports.getOrganizationId(req, pool);
+      req.organizationId = organizationId;
+      const result = await pool.query(
+        `SELECT DISTINCT p.permission_key
+           FROM user_organizations uo
+           CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) role_id_text
+           JOIN role_permissions rp ON rp.role_id = role_id_text::integer
+           JOIN permissions p ON p.id = rp.permission_id
+          WHERE uo.user_id = $1
+            AND uo.organization_id = $2
+            AND uo.status = 'active'
+            AND p.permission_key = ANY($3::text[])`,
+        [req.user.id, organizationId, requiredPermissions]
+      );
+      if (result.rows.length === 0) {
+        return res.status(403).json({
+          success: false,
+          message: 'Insufficient permissions',
+          requiredAny: requiredPermissions
+        });
+      }
+      req.userPermissions = result.rows.map(row => row.permission_key);
+      return next();
+    } catch (error) {
+      if (error instanceof OrganizationNotFoundError) {
+        return respondWithOrganizationFallback(res);
+      }
+      logger.error('Error in requireAnyPermission middleware:', error);
+      return res.status(500).json({ success: false, message: 'Permission check failed' });
     }
   };
 };

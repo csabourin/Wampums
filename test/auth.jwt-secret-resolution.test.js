@@ -30,7 +30,7 @@ describe('JWT secret resolution compatibility', () => {
       jwtSecretKey: undefined,
       jwtSecret: 'secret-legacy-only',
     },
-  ])('$name', ({ jwtSecretKey, jwtSecret }) => {
+  ])('$name', async ({ jwtSecretKey, jwtSecret }) => {
     if (jwtSecretKey === undefined) {
       delete process.env.JWT_SECRET_KEY;
     } else {
@@ -65,14 +65,18 @@ describe('JWT secret resolution compatibility', () => {
     expect(decodedByUtils.organizationId).toBe(7);
 
     // Middleware-level verification
-    const req = { headers: { authorization: `Bearer ${token}` } };
+    const pool = { query: jest.fn().mockResolvedValue({ rows: [{ organization_id: 7 }] }) };
+    const req = {
+      headers: { authorization: `Bearer ${token}` },
+      app: { locals: { pool } }
+    };
     const res = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis(),
     };
     const next = jest.fn();
 
-    authenticate(req, res, next);
+    await authenticate(req, res, next);
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(res.status).not.toHaveBeenCalled();
@@ -81,5 +85,25 @@ describe('JWT secret resolution compatibility', () => {
       role: 'admin',
       organizationId: 7,
     }));
+    expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('user_organizations'), [42, 7]);
+  });
+
+  test('rejects a valid token as soon as its organization membership is disabled', async () => {
+    process.env.JWT_SECRET_KEY = 'membership-revocation-secret';
+    delete process.env.JWT_SECRET;
+    const { signJWTToken } = require('../utils/jwt-config');
+    const { authenticate } = require('../middleware/auth');
+    const token = signJWTToken({ user_id: 42, organizationId: 7 }, { expiresIn: '1h' });
+    const req = {
+      headers: { authorization: `Bearer ${token}` },
+      app: { locals: { pool: { query: jest.fn().mockResolvedValue({ rows: [] }) } } }
+    };
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis() };
+    const next = jest.fn();
+
+    await authenticate(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
   });
 });

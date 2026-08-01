@@ -89,7 +89,7 @@ async function findLinkedFamily(client, participantId) {
  * @param {number} organizationId - Organization the request came through
  * @returns {Promise<Array<{id: number, name: string}>>} Other organizations
  */
-async function findOtherOrganizations(client, participantId, organizationId) {
+async function findOwningOrganizations(client, participantId) {
   const result = await client.query(
     `SELECT DISTINCT o.id, o.name
        FROM (
@@ -100,17 +100,29 @@ async function findOtherOrganizations(client, participantId, organizationId) {
          SELECT organization_id FROM form_submissions WHERE participant_id = $1
          UNION
          SELECT organization_id FROM participant_group_assignments WHERE participant_id = $1
+         UNION
+         SELECT organization_id FROM points WHERE participant_id = $1
+         UNION
+         SELECT organization_id FROM attendance WHERE participant_id = $1
+         UNION
+         SELECT organization_id FROM honors WHERE participant_id = $1
+         UNION
+         SELECT organization_id FROM badge_progress WHERE participant_id = $1
        ) owners
        JOIN organizations o ON o.id = owners.organization_id
       WHERE owners.organization_id IS NOT NULL
-        AND owners.organization_id <> $2
       ORDER BY o.name`,
-    [participantId, organizationId]
+    [participantId]
   );
 
   return result.rows;
 }
 
+
+async function findOtherOrganizations(client, participantId, organizationId) {
+  const owners = await findOwningOrganizations(client, participantId);
+  return owners.filter(owner => owner.id !== organizationId);
+}
 /**
  * Remove the money trail attached to a participant.
  *
@@ -285,9 +297,34 @@ async function eraseParticipant(client, { organizationId, participant, performed
   // between sister units belongs to both files, and the request has to be
   // honoured by each of them in turn — the alternative is one unit silently
   // destroying another's attendance, forms and honours through the cascade.
-  const otherOrganizations = await findOtherOrganizations(client, participantId, organizationId);
-  if (otherOrganizations.length > 0) {
-    return { blocked: 'shared_with_other_organizations', organizations: otherOrganizations };
+  await client.query('SELECT id FROM participants WHERE id = $1 FOR UPDATE', [participantId]);
+  const owningOrganizations = await findOwningOrganizations(client, participantId);
+  const ownerIds = owningOrganizations.map(owner => owner.id);
+  if (!ownerIds.includes(organizationId)) {
+    return { blocked: 'not_an_owner', organizations: owningOrganizations };
+  }
+
+  if (owningOrganizations.length > 1) {
+    await client.query(
+      `INSERT INTO participant_erasure_approvals
+              (participant_id, organization_id, approved_by, approved_at)
+       VALUES ($1, $2, $3, now())
+       ON CONFLICT (participant_id, organization_id)
+       DO UPDATE SET approved_by = EXCLUDED.approved_by, approved_at = now()`,
+      [participantId, organizationId, performedBy]
+    );
+    const approvals = await client.query(
+      `SELECT organization_id
+         FROM participant_erasure_approvals
+        WHERE participant_id = $1
+          AND organization_id = ANY($2::int[])`,
+      [participantId, ownerIds]
+    );
+    const approvedIds = new Set(approvals.rows.map(row => row.organization_id));
+    const pending = owningOrganizations.filter(owner => !approvedIds.has(owner.id));
+    if (pending.length > 0) {
+      return { blocked: 'awaiting_organization_approvals', organizations: pending };
+    }
   }
 
   const { guardianIds, userIds } = await findLinkedFamily(client, participantId);
@@ -359,6 +396,7 @@ async function eraseParticipant(client, { organizationId, participant, performed
 
 module.exports = {
   PARENT_ONLY_ROLES,
+  findOwningOrganizations,
   UNLINKED_PARTICIPANT_TABLES,
   findOtherOrganizations,
   eraseParticipant

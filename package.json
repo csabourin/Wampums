@@ -99,7 +99,7 @@
       "/mobile/"
     ],
     "transform": {
-      "^.+\\.js$": [
+      "^.*/spa/.+\\.js$": [
         "babel-jest",
         {
           "presets": [

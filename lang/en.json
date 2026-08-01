@@ -3017,5 +3017,6 @@
   "transfer_not_a_sibling_unit": "That unit is not part of this local group.",
   "transfer_not_enrolled": "This participant is not enrolled in the current year.",
   "transfer_target_has_no_active_year": "The destination unit has no open scout year.",
-  "erasure_shared_with_other_organizations": "This participant also has records in another unit. Each unit must carry out the erasure for its own records."
+  "erasure_shared_with_other_organizations": "This participant also has records in another unit. Each unit must carry out the erasure for its own records.",
+  "erasure_awaiting_organization_approvals": "This erasure request is recorded. It will be completed after every unit that owns records for this participant has approved it."
 }

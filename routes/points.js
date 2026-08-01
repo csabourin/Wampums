@@ -11,7 +11,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import auth middleware
-const { authenticate, requirePermission, blockDemoRoles, getOrganizationId, getScoutYear } = require('../middleware/auth');
+const { authenticate, requirePermission, blockDemoRoles, getOrganizationId, getScoutYear, rosterStatusesFor } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/response');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 
@@ -50,6 +50,7 @@ module.exports = (pool, logger) => {
     } catch (err) {
       return errorResponse(res, 'Unknown scout year for this organization', 400);
     }
+    const rosterStatuses = rosterStatusesFor(scoutYear);
 
     // Fetch all groups with group-only points plus the sum of current member points.
     const groupsResult = await pool.query(
@@ -66,21 +67,22 @@ module.exports = (pool, logger) => {
        ) group_points ON group_points.group_id = g.id
        LEFT JOIN (
          SELECT pg.group_id, SUM(COALESCE(participant_points.total_points, 0)) AS total_points
-         FROM participant_groups pg
+         FROM participant_group_assignments pg
          JOIN participant_enrollments pe ON pe.participant_id = pg.participant_id
-          AND pe.organization_id = $1 AND pe.scout_year_id = $2 AND pe.status = 'active'
+          AND pe.organization_id = $1 AND pe.scout_year_id = $2
+          AND pe.status = ANY($3::text[])
          LEFT JOIN (
            SELECT participant_id, SUM(value) AS total_points
            FROM points
            WHERE organization_id = $1 AND participant_id IS NOT NULL AND scout_year_id = $2
            GROUP BY participant_id
          ) participant_points ON participant_points.participant_id = pg.participant_id
-         WHERE pg.organization_id = $1
+         WHERE pg.organization_id = $1 AND pg.scout_year_id = $2
          GROUP BY pg.group_id
        ) member_points ON member_points.group_id = g.id
        WHERE g.organization_id = $1
        ORDER BY g.name`,
-      [organizationId, scoutYear.id]
+      [organizationId, scoutYear.id, rosterStatuses]
     );
 
     // Fetch the participants enrolled that year with their group and total points
@@ -88,13 +90,15 @@ module.exports = (pool, logger) => {
       `SELECT part.id, part.first_name, part.last_name, pg.group_id, COALESCE(SUM(p.value), 0) AS total_points
        FROM participants part
        JOIN participant_enrollments pe ON part.id = pe.participant_id
-        AND pe.organization_id = $1 AND pe.scout_year_id = $2 AND pe.status = 'active'
-       LEFT JOIN participant_groups pg ON part.id = pg.participant_id AND pg.organization_id = $1
+        AND pe.organization_id = $1 AND pe.scout_year_id = $2
+        AND pe.status = ANY($3::text[])
+       LEFT JOIN participant_group_assignments pg ON part.id = pg.participant_id
+        AND pg.organization_id = $1 AND pg.scout_year_id = $2
        LEFT JOIN points p ON part.id = p.participant_id AND p.organization_id = $1
         AND p.scout_year_id = $2
        GROUP BY part.id, part.first_name, part.last_name, pg.group_id
        ORDER BY part.first_name`,
-      [organizationId, scoutYear.id]
+      [organizationId, scoutYear.id, rosterStatuses]
     );
 
     res.json({
@@ -184,11 +188,13 @@ module.exports = (pool, logger) => {
           // points on a stale participant_groups row.
           const membersResult = await client.query(
             `SELECT p.id FROM participants p
-               JOIN participant_groups pg ON p.id = pg.participant_id
-               JOIN participant_organizations po ON po.participant_id = p.id
-                AND po.organization_id = $1
-               WHERE pg.organization_id = $1 AND pg.group_id = $2`,
-            [organizationId, groupId]
+               JOIN participant_group_assignments pg ON p.id = pg.participant_id
+               JOIN participant_enrollments po ON po.participant_id = p.id
+                AND po.organization_id = $1 AND po.scout_year_id = $3
+                AND po.status = 'active'
+               WHERE pg.organization_id = $1 AND pg.group_id = $2
+                 AND pg.scout_year_id = $3`,
+            [organizationId, groupId, activeScoutYear.id]
           );
 
           let memberIds = membersResult.rows.map(r => r.id);
@@ -231,9 +237,9 @@ module.exports = (pool, logger) => {
 
           // Insert a point record for the group (group-level tracking)
           await client.query(
-            `INSERT INTO points (participant_id, group_id, organization_id, value)
-               VALUES (NULL, $1, $2, $3)`,
-            [groupId, organizationId, value]
+            `INSERT INTO points (participant_id, group_id, organization_id, scout_year_id, value)
+               VALUES (NULL, $1, $2, $3, $4)`,
+            [groupId, organizationId, activeScoutYear.id, value]
           );
 
           // PERFORMANCE FIX: Batch insert all member points and calculate totals in a single query
@@ -242,16 +248,16 @@ module.exports = (pool, logger) => {
           if (memberIds.length > 0) {
             // Build VALUES clause for batch insert
             const valuesClauses = memberIds.map((_, idx) =>
-              `($${idx * 4 + 1}, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4})`
+              `($${idx * 5 + 1}, $${idx * 5 + 2}, $${idx * 5 + 3}, $${idx * 5 + 4}, $${idx * 5 + 5})`
             ).join(', ');
 
             const insertValues = memberIds.flatMap(memberId =>
-              [memberId, groupId, organizationId, value]
+              [memberId, groupId, organizationId, activeScoutYear.id, value]
             );
 
             // Batch insert all points
             await client.query(
-              `INSERT INTO points (participant_id, group_id, organization_id, value)
+              `INSERT INTO points (participant_id, group_id, organization_id, scout_year_id, value)
                  VALUES ${valuesClauses}`,
               insertValues
             );
@@ -330,10 +336,12 @@ module.exports = (pool, logger) => {
           const participantResult = await client.query(
             `SELECT pg.group_id
                FROM participants p
-               JOIN participant_organizations po ON p.id = po.participant_id
-               LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $2
-               WHERE p.id = $1 AND po.organization_id = $2`,
-            [participantId, organizationId]
+               JOIN participant_enrollments po ON p.id = po.participant_id
+                AND po.organization_id = $2 AND po.scout_year_id = $3 AND po.status = 'active'
+               LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id
+                AND pg.organization_id = $2 AND pg.scout_year_id = $3
+               WHERE p.id = $1`,
+            [participantId, organizationId, activeScoutYear.id]
           );
 
           if (participantResult.rows.length === 0) {
@@ -343,9 +351,9 @@ module.exports = (pool, logger) => {
           const groupId = participantResult.rows[0].group_id || null;
 
           await client.query(
-            `INSERT INTO points (participant_id, group_id, organization_id, value)
-               VALUES ($1, $2, $3, $4)`,
-            [participantId, groupId, organizationId, value]
+            `INSERT INTO points (participant_id, group_id, organization_id, scout_year_id, value)
+               VALUES ($1, $2, $3, $4, $5)`,
+            [participantId, groupId, organizationId, activeScoutYear.id, value]
           );
 
           // Calculate new total for this participant
@@ -405,6 +413,8 @@ module.exports = (pool, logger) => {
    */
   router.get('/leaderboard', authenticate, requirePermission('points.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
+    const scoutYear = await getScoutYear(req, pool);
+    const rosterStatuses = rosterStatusesFor(scoutYear);
     const { type, limit } = req.query;
     const resultLimit = parseInt(limit) || 10;
 
@@ -417,22 +427,23 @@ module.exports = (pool, logger) => {
          FROM groups g
          LEFT JOIN (
            SELECT group_id, SUM(value) AS total_points
-           FROM active_year_points
-           WHERE organization_id = $1 AND participant_id IS NULL
+           FROM points
+           WHERE organization_id = $1 AND scout_year_id = $2 AND participant_id IS NULL
            GROUP BY group_id
          ) group_points ON group_points.group_id = g.id
          LEFT JOIN (
            SELECT pg.group_id, COUNT(DISTINCT pg.participant_id) AS member_count
-           FROM participant_groups pg
-           JOIN participant_organizations po ON po.participant_id = pg.participant_id
-            AND po.organization_id = $1
-           WHERE pg.organization_id = $1
+           FROM participant_group_assignments pg
+           JOIN participant_enrollments po ON po.participant_id = pg.participant_id
+            AND po.organization_id = $1 AND po.scout_year_id = $2
+            AND po.status = ANY($3::text[])
+           WHERE pg.organization_id = $1 AND pg.scout_year_id = $2
            GROUP BY pg.group_id
          ) member_counts ON member_counts.group_id = g.id
          WHERE g.organization_id = $1
          ORDER BY total_points DESC
-         LIMIT $2`,
-        [organizationId, resultLimit]
+         LIMIT $4`,
+        [organizationId, scoutYear.id, rosterStatuses, resultLimit]
       );
 
       res.json({ success: true, data: result.rows, type: 'groups' });
@@ -443,15 +454,19 @@ module.exports = (pool, logger) => {
                 g.name as group_name,
                 COALESCE(SUM(pts.value), 0) as total_points
          FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         JOIN participant_enrollments po ON p.id = po.participant_id
+          AND po.organization_id = $1 AND po.scout_year_id = $2
+          AND po.status = ANY($3::text[])
+         LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id
+          AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
-         LEFT JOIN active_year_points pts ON pts.participant_id = p.id AND pts.organization_id = $1
+         LEFT JOIN points pts ON pts.participant_id = p.id AND pts.organization_id = $1
+          AND pts.scout_year_id = $2
          WHERE po.organization_id = $1
          GROUP BY p.id, p.first_name, p.last_name, g.name
          ORDER BY total_points DESC
-         LIMIT $2`,
-        [organizationId, resultLimit]
+         LIMIT $4`,
+        [organizationId, scoutYear.id, rosterStatuses, resultLimit]
       );
 
       res.json({ success: true, data: result.rows, type: 'individuals' });
@@ -476,30 +491,35 @@ module.exports = (pool, logger) => {
   router.get('/report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
+    const scoutYear = await getScoutYear(req, pool);
+    const rosterStatuses = rosterStatusesFor(scoutYear);
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
               COALESCE(point_totals.total_points, 0) as total_points,
               COALESCE(honor_counts.honors_count, 0) as honors_count
        FROM participants p
-       JOIN participant_organizations po ON p.id = po.participant_id
-       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       JOIN participant_enrollments po ON p.id = po.participant_id
+        AND po.organization_id = $1 AND po.scout_year_id = $2
+        AND po.status = ANY($3::text[])
+       LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id
+        AND pg.organization_id = $1 AND pg.scout_year_id = $2
        LEFT JOIN groups g ON pg.group_id = g.id
        LEFT JOIN (
          SELECT participant_id, SUM(value) AS total_points
-         FROM active_year_points
-         WHERE organization_id = $1 AND participant_id IS NOT NULL
+         FROM points
+         WHERE organization_id = $1 AND scout_year_id = $2 AND participant_id IS NOT NULL
          GROUP BY participant_id
        ) point_totals ON point_totals.participant_id = p.id
        LEFT JOIN (
          SELECT participant_id, COUNT(DISTINCT id) AS honors_count
          FROM honors
-         WHERE organization_id = $1
+         WHERE organization_id = $1 AND date BETWEEN $4::date AND $5::date
          GROUP BY participant_id
        ) honor_counts ON honor_counts.participant_id = p.id
        WHERE po.organization_id = $1
        GROUP BY p.id, p.first_name, p.last_name, g.name, point_totals.total_points, honor_counts.honors_count
        ORDER BY total_points DESC, p.first_name, p.last_name`,
-      [organizationId]
+      [organizationId, scoutYear.id, rosterStatuses, scoutYear.start_date, scoutYear.end_date]
     );
 
     res.json({ success: true, data: result.rows });

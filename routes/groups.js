@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const winston = require('winston');
-const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
+const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { requireJWTSecret, verifyJWTToken } = require('../utils/jwt-config');
 // Configure logger for non-v1 endpoints
@@ -45,7 +45,7 @@ module.exports = (pool) => {
    *       200:
    *         description: List of groups
    */
-  router.get('/', authenticate, requirePermission('groups.view'), asyncHandler(async (req, res) => {
+  router.get('/', authenticate, requirePermission('groups.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -55,21 +55,22 @@ module.exports = (pool) => {
        FROM groups g
        LEFT JOIN (
          SELECT pg.group_id, COUNT(DISTINCT pg.participant_id) AS member_count
-         FROM participant_groups pg
-         JOIN participant_organizations po ON po.participant_id = pg.participant_id
-          AND po.organization_id = $1
-         WHERE pg.organization_id = $1
+         FROM participant_group_assignments pg
+         JOIN participant_enrollments po ON po.participant_id = pg.participant_id
+          AND po.organization_id = $1 AND po.scout_year_id = $2
+          AND po.status = ANY($3::text[])
+         WHERE pg.organization_id = $1 AND pg.scout_year_id = $2
          GROUP BY pg.group_id
        ) member_counts ON member_counts.group_id = g.id
        LEFT JOIN (
          SELECT group_id, SUM(value) AS total_points
-         FROM active_year_points
-         WHERE organization_id = $1 AND participant_id IS NULL
+         FROM points
+         WHERE organization_id = $1 AND scout_year_id = $2 AND participant_id IS NULL
          GROUP BY group_id
        ) group_points ON group_points.group_id = g.id
        WHERE g.organization_id = $1
        ORDER BY g.name`,
-      [organizationId]
+      [organizationId, req.scoutYear.id, req.rosterStatuses]
     );
 
     // Ensure numeric fields are numbers (PostgreSQL may return as strings)
@@ -100,7 +101,7 @@ module.exports = (pool) => {
    *       200:
    *         description: Group details with members
    */
-  router.get('/:id', authenticate, requirePermission('groups.view'), asyncHandler(async (req, res) => {
+  router.get('/:id', authenticate, requirePermission('groups.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 
@@ -108,10 +109,11 @@ module.exports = (pool) => {
     const groupResult = await pool.query(
       `SELECT g.*, COALESCE(SUM(p.value), 0) as total_points
        FROM groups g
-       LEFT JOIN points p ON g.id = p.group_id AND p.participant_id IS NULL AND p.organization_id = $1
+       LEFT JOIN points p ON g.id = p.group_id AND p.participant_id IS NULL
+        AND p.organization_id = $1 AND p.scout_year_id = $3
        WHERE g.id = $2 AND g.organization_id = $1
        GROUP BY g.id`,
-      [organizationId, id]
+      [organizationId, id, req.scoutYear.id]
     );
 
     if (groupResult.rows.length === 0) {
@@ -123,12 +125,16 @@ module.exports = (pool) => {
       `SELECT p.*, pg.first_leader, pg.second_leader,
               COALESCE(SUM(pts.value), 0) as total_points
        FROM participants p
-       JOIN participant_groups pg ON p.id = pg.participant_id
+       JOIN participant_group_assignments pg ON p.id = pg.participant_id
+       JOIN participant_enrollments pe ON pe.participant_id = p.id
+        AND pe.organization_id = $1 AND pe.scout_year_id = $3
+        AND pe.status = ANY($4::text[])
        LEFT JOIN points pts ON p.id = pts.participant_id AND pts.organization_id = $1
-       WHERE pg.group_id = $2 AND pg.organization_id = $1
+        AND pts.scout_year_id = $3
+       WHERE pg.group_id = $2 AND pg.organization_id = $1 AND pg.scout_year_id = $3
        GROUP BY p.id, pg.first_leader, pg.second_leader
        ORDER BY pg.first_leader DESC, pg.second_leader DESC, p.first_name`,
-      [organizationId, id]
+      [organizationId, id, req.scoutYear.id, req.rosterStatuses]
     );
 
     const group = groupResult.rows[0];

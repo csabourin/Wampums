@@ -383,15 +383,14 @@ async function verifyOrganizationMembership(pool, userId, organizationId, requir
     const membershipResult = await pool.query(
       `SELECT role_ids
        FROM user_organizations
-       WHERE user_id = $1 AND organization_id = $2`,
+       WHERE user_id = $1 AND organization_id = $2
+         AND status = 'active'`,
       [userId, organizationId]
     );
 
     if (membershipResult.rows.length === 0) {
-      return { authorized: false, role: null, roles: [], permissions: [], message: 'User not a member of this organization' };
+      return { authorized: false, role: null, roles: [], permissions: [], message: 'User is not an active member of this organization' };
     }
-
-    const membership = membershipResult.rows[0];
 
     // Resolve role names from role IDs for permission-aware checks
     const rolesResult = await pool.query(
@@ -399,7 +398,8 @@ async function verifyOrganizationMembership(pool, userId, organizationId, requir
        FROM user_organizations uo
        CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
        JOIN roles r ON r.id = role_id_text::integer
-       WHERE uo.user_id = $1 AND uo.organization_id = $2`,
+       WHERE uo.user_id = $1 AND uo.organization_id = $2
+         AND uo.status = 'active'`,
       [userId, organizationId]
     );
 
@@ -421,7 +421,8 @@ async function verifyOrganizationMembership(pool, userId, organizationId, requir
          CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
          JOIN role_permissions rp ON rp.role_id = role_id_text::integer
          JOIN permissions p ON p.id = rp.permission_id
-         WHERE uo.user_id = $1 AND uo.organization_id = $2`,
+         WHERE uo.user_id = $1 AND uo.organization_id = $2
+           AND uo.status = 'active'`,
         [userId, organizationId]
       );
 

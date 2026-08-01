@@ -70,6 +70,14 @@ function disableControls() {
     }
     // Already disabled for its own reasons: leave it alone, and leave no marker,
     // so restoring never enables a control the page meant to keep disabled.
+    if (element.isContentEditable) {
+      element.setAttribute('contenteditable', 'false');
+      element.setAttribute(MARKER_ATTRIBUTE, 'contenteditable');
+      element.setAttribute('aria-disabled', 'true');
+      count += 1;
+      return;
+    }
+
     if (element.disabled) {
       return;
     }
@@ -90,7 +98,11 @@ function disableControls() {
  */
 function restoreControls() {
   document.querySelectorAll(`[${MARKER_ATTRIBUTE}]`).forEach((element) => {
-    element.disabled = false;
+    if (element.getAttribute(MARKER_ATTRIBUTE) === 'contenteditable') {
+      element.setAttribute('contenteditable', 'true');
+    } else {
+      element.disabled = false;
+    }
     element.removeAttribute(MARKER_ATTRIBUTE);
     element.removeAttribute('aria-disabled');
   });

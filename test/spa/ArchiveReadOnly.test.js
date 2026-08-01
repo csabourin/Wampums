@@ -57,6 +57,7 @@ beforeEach(() => {
       <input id="search" type="search" data-archive-safe />
       <button id="already-off" disabled>Déjà désactivé</button>
       <a id="back" href="/dashboard">Retour</a>
+      <span id="editable-group" contenteditable="true">Louveteaux</span>
     </div>`;
 });
 
@@ -80,6 +81,7 @@ test('greys out mutating controls but not the ones used to browse', () => {
   expect(document.getElementById('search').disabled).toBe(false);
 
   // Navigation is never blocked — disabling links would trap the leader.
+  expect(document.getElementById('editable-group').getAttribute('contenteditable')).toBe('false');
   expect(document.getElementById('back').hasAttribute('data-archive-disabled')).toBe(false);
 
   expect(document.getElementById('app').classList.contains('is-archive-readonly')).toBe(true);
@@ -106,6 +108,7 @@ test('gives the controls back when returning to the current year', async () => {
 
   expect(document.getElementById('save').disabled).toBe(false);
   expect(document.getElementById('save').hasAttribute('aria-disabled')).toBe(false);
+  expect(document.getElementById('editable-group').getAttribute('contenteditable')).toBe('true');
 });
 
 test('never re-enables a control the page had disabled itself', async () => {

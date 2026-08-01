@@ -25,38 +25,16 @@ const {
   getOrganizationName,
   UNSUBSCRIBE_PURPOSE
 } = require('../services/alumni');
-
-/** Where alumni links point when no request is available to ask. */
-const DEFAULT_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://wampums.app';
-
-/**
- * Resolve the origin an organization's emailed links should use.
- *
- * @param {Object} pool - Database pool
- * @param {number} organizationId - Organization ID
- * @returns {Promise<string>} Origin, scheme included
- */
-async function resolveOrganizationBaseUrl(pool, organizationId) {
-  const { rows } = await pool.query(
-    `SELECT domain FROM organization_domains
-      WHERE organization_id = $1
-      ORDER BY created_at ASC
-      LIMIT 1`,
-    [organizationId],
-  );
-
-  const domain = rows[0]?.domain;
-  if (!domain) {
-    return DEFAULT_BASE_URL;
-  }
-  return /^https?:\/\//i.test(domain) ? domain : `https://${domain}`;
-}
+const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 
 const ALLOWED_ROLES = ['admin', 'animation', 'parent'];
 /** Who an announcement can address. The two are mutually exclusive by design. */
 const MEMBERS_AUDIENCE = 'members';
 const ALUMNI_AUDIENCE = 'alumni';
 const ALLOWED_AUDIENCES = [MEMBERS_AUDIENCE, ALUMNI_AUDIENCE];
+const MAX_ANNOUNCEMENT_SUBJECT_LENGTH = 255;
+const MAX_ANNOUNCEMENT_MESSAGE_LENGTH = 10000;
+const MAX_ANNOUNCEMENT_GROUPS = 200;
 const pg = require('pg');
 const { Client } = pg;
 
@@ -66,21 +44,32 @@ const { Client } = pg;
  * @returns {Object}
  */
 function normalizeAnnouncementPayload(body) {
-  const audience = ALLOWED_AUDIENCES.includes(body.audience) ? body.audience : MEMBERS_AUDIENCE;
-  const roles = Array.isArray(body.recipient_roles)
-    ? body.recipient_roles.filter((role) => ALLOWED_ROLES.includes(role))
+  const payload = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+  const audience = ALLOWED_AUDIENCES.includes(payload.audience) ? payload.audience : MEMBERS_AUDIENCE;
+  const roles = Array.isArray(payload.recipient_roles)
+    && payload.recipient_roles.length <= ALLOWED_ROLES.length
+    ? payload.recipient_roles.filter((role) => ALLOWED_ROLES.includes(role))
     : [];
-  const groups = Array.isArray(body.recipient_group_ids)
-    ? body.recipient_group_ids.map(Number).filter((id) => Number.isInteger(id))
+  const groups = Array.isArray(payload.recipient_group_ids)
+    && payload.recipient_group_ids.length <= MAX_ANNOUNCEMENT_GROUPS
+    ? payload.recipient_group_ids.map(Number).filter((id) => Number.isInteger(id) && id > 0)
     : [];
 
-  const scheduledAt = body.scheduled_at ? new Date(body.scheduled_at) : null;
-  const saveAsDraft = Boolean(body.save_as_draft);
-  const sendNow = body.send_now !== undefined ? Boolean(body.send_now) : !scheduledAt && !saveAsDraft;
+  const scheduledAt = typeof payload.scheduled_at === 'string' && payload.scheduled_at
+    ? new Date(payload.scheduled_at)
+    : null;
+  const saveAsDraft = Boolean(payload.save_as_draft);
+  const sendNow = payload.send_now !== undefined ? Boolean(payload.send_now) : !scheduledAt && !saveAsDraft;
+  const subject = typeof payload.subject === 'string'
+    ? payload.subject.slice(0, MAX_ANNOUNCEMENT_SUBJECT_LENGTH)
+    : '';
+  const message = typeof payload.message === 'string'
+    ? payload.message.slice(0, MAX_ANNOUNCEMENT_MESSAGE_LENGTH)
+    : '';
 
   return {
-    subject: sanitizeInput(body.subject).slice(0, 255),
-    message: sanitizeInput(body.message),
+    subject: sanitizeInput(subject),
+    message: sanitizeInput(message),
     audience,
     // An alumni mailing has no roles and no dens to filter on: the people it
     // reaches left the unit. Any role or group the client sent is dropped here
@@ -882,3 +871,4 @@ module.exports.shutdownListenerForTests = async function() {
     await global.__announcementListenerShutdown();
   }
 };
+module.exports.normalizeAnnouncementPayloadForTests = normalizeAnnouncementPayload;

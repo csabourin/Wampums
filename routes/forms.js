@@ -9,7 +9,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope } = require('../middleware/auth');
+const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope, requireAnyPermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 
 // Import utilities
@@ -454,7 +454,9 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Submissions waiting for a review
    */
-  router.get('/submissions/needs-review', authenticate, asyncHandler(async (req, res) => {
+  router.get('/submissions/needs-review', authenticate,
+    requireAnyPermission('forms.view', 'forms.submit', 'forms.manage'),
+    asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const dataScope = await getUserDataScope(req, pool);
     const isStaff = dataScope === 'organization';
@@ -486,7 +488,7 @@ module.exports = (pool, logger) => {
     );
 
     return success(res, result.rows);
-  }));
+    }));
 
   /**
    * @swagger
@@ -508,7 +510,9 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Submission not found
    */
-  router.post('/submissions/:submissionId/confirm-review', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.post('/submissions/:submissionId/confirm-review', authenticate, blockDemoRoles,
+    requireAnyPermission('forms.view', 'forms.submit', 'forms.manage'),
+    asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const submissionId = parseInt(req.params.submissionId, 10);
 
@@ -564,7 +568,7 @@ module.exports = (pool, logger) => {
     logger.info(`Form submission ${submissionId} confirmed as reviewed by ${req.user.id}`);
 
     return success(res, result.rows[0], 'Form confirmed as up to date');
-  }));
+    }));
 
   router.post('/submissions', asyncHandler(async (req, res) => {
     try {

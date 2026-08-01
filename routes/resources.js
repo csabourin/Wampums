@@ -17,6 +17,7 @@ const { checkValidation } = require("../middleware/validation");
 const { handleOrganizationResolutionError } = require("../utils/api-helpers");
 const { sendEmail, getUserEmailLanguage } = require("../utils/index");
 const { buildPermissionSlipEmailContent } = require("../utils/permission-slip-email");
+const { resolveOrganizationBaseUrl } = require("../utils/public-url");
 const {
   MAX_FILE_SIZE,
   OUTPUT_MIME_TYPE,
@@ -1763,10 +1764,7 @@ module.exports = (pool) => {
             continue;
           }
 
-          // Generate link using request domain
-          const protocol = req.protocol;
-          const host = req.get("host");
-          const baseUrl = `${protocol}://${host}`;
+          const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
           const signLink = `${baseUrl}/permission-slip/${slip.access_token}`;
           const webSignLink = signLink; // Web link (legacy compatibility)
           const mobileSignLink = `wampums://permission-slip/${slip.access_token}`;
@@ -2025,10 +2023,7 @@ module.exports = (pool) => {
             continue;
           }
 
-          // Generate link using request domain
-          const protocol = req.protocol;
-          const host = req.get("host");
-          const baseUrl = `${protocol}://${host}`;
+          const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
           const signLink = `${baseUrl}/permission-slip/${slip.access_token}`;
           const webSignLink = signLink; // Web link (legacy compatibility)
           const mobileSignLink = `wampums://permission-slip/${slip.access_token}`;
