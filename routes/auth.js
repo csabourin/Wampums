@@ -157,7 +157,8 @@ module.exports = (pool, logger) => {
         const trimmedPassword = password.trim();
 
         const userResult = await pool.query(
-          `SELECT u.id, u.email, u.password, u.is_verified, u.full_name
+          `SELECT u.id, u.email, u.password, u.is_verified, u.full_name,
+                  uo.status AS membership_status
            FROM users u
            JOIN user_organizations uo ON u.id = uo.user_id
            WHERE u.email = $1 AND uo.organization_id = $2`,
@@ -193,6 +194,21 @@ module.exports = (pool, logger) => {
           return res.status(403).json({
             success: false,
             message: 'account_not_verified_login'
+          });
+        }
+
+        // A membership deactivated at the year transition keeps its account and
+        // history, but can no longer sign in to the organization.
+        if (user.membership_status && user.membership_status !== 'active') {
+          logger.info('Login refused for inactive membership', {
+            userId: user.id,
+            organizationId,
+            membershipStatus: user.membership_status
+          });
+          return res.status(403).json({
+            success: false,
+            message: 'membership_inactive',
+            membershipStatus: user.membership_status
           });
         }
 
@@ -275,7 +291,8 @@ module.exports = (pool, logger) => {
            FROM user_organizations uo
            CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
            JOIN roles r ON r.id = role_id_text::integer
-           WHERE uo.user_id = $1 AND uo.organization_id = $2`,
+           WHERE uo.user_id = $1 AND uo.organization_id = $2
+             AND uo.status = 'active'`,
           [user.id, organizationId]
         );
 
@@ -285,7 +302,8 @@ module.exports = (pool, logger) => {
            CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
            JOIN role_permissions rp ON rp.role_id = role_id_text::integer
            JOIN permissions p ON p.id = rp.permission_id
-           WHERE uo.user_id = $1 AND uo.organization_id = $2`,
+           WHERE uo.user_id = $1 AND uo.organization_id = $2
+             AND uo.status = 'active'`,
           [user.id, organizationId]
         );
 
@@ -399,7 +417,7 @@ module.exports = (pool, logger) => {
 
         // Fetch user
         const userResult = await pool.query(
-          `SELECT u.id, u.email, u.full_name
+          `SELECT u.id, u.email, u.full_name, uo.status AS membership_status
            FROM users u
            JOIN user_organizations uo ON u.id = uo.user_id
            WHERE u.email = $1 AND uo.organization_id = $2`,
@@ -412,6 +430,19 @@ module.exports = (pool, logger) => {
           return res.status(401).json({
             success: false,
             message: 'invalid_email'
+          });
+        }
+
+        if (user.membership_status && user.membership_status !== 'active') {
+          logger.info('2FA login refused for inactive membership', {
+            userId: user.id,
+            organizationId,
+            membershipStatus: user.membership_status
+          });
+          return res.status(403).json({
+            success: false,
+            message: 'membership_inactive',
+            membershipStatus: user.membership_status
           });
         }
 
@@ -435,7 +466,8 @@ module.exports = (pool, logger) => {
            FROM user_organizations uo
            CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
            JOIN roles r ON r.id = role_id_text::integer
-           WHERE uo.user_id = $1 AND uo.organization_id = $2`,
+           WHERE uo.user_id = $1 AND uo.organization_id = $2
+             AND uo.status = 'active'`,
           [user.id, organizationId]
         );
 
@@ -445,7 +477,8 @@ module.exports = (pool, logger) => {
            CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
            JOIN role_permissions rp ON rp.role_id = role_id_text::integer
            JOIN permissions p ON p.id = rp.permission_id
-           WHERE uo.user_id = $1 AND uo.organization_id = $2`,
+           WHERE uo.user_id = $1 AND uo.organization_id = $2
+             AND uo.status = 'active'`,
           [user.id, organizationId]
         );
 

@@ -54,14 +54,16 @@ module.exports = (pool) => {
               COALESCE(group_points.total_points, 0) as total_points
        FROM groups g
        LEFT JOIN (
-         SELECT group_id, COUNT(DISTINCT participant_id) AS member_count
-         FROM participant_groups
-         WHERE organization_id = $1
-         GROUP BY group_id
+         SELECT pg.group_id, COUNT(DISTINCT pg.participant_id) AS member_count
+         FROM participant_groups pg
+         JOIN participant_organizations po ON po.participant_id = pg.participant_id
+          AND po.organization_id = $1
+         WHERE pg.organization_id = $1
+         GROUP BY pg.group_id
        ) member_counts ON member_counts.group_id = g.id
        LEFT JOIN (
          SELECT group_id, SUM(value) AS total_points
-         FROM points
+         FROM active_year_points
          WHERE organization_id = $1 AND participant_id IS NULL
          GROUP BY group_id
        ) group_points ON group_points.group_id = g.id

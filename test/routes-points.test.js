@@ -84,6 +84,18 @@ describe('GET /api/v1/points', () => {
       if (query.includes('role_name')) {
         return Promise.resolve({ rows: [{ role_name: 'admin', display_name: 'Admin' }] });
       }
+      if (query.includes('FROM scout_years')) {
+        return Promise.resolve({
+          rows: [{
+            id: 1,
+            organization_id: 1,
+            label: '2025-2026',
+            start_date: '2025-09-01',
+            end_date: '2026-08-31',
+            status: 'active'
+          }]
+        });
+      }
       if (query.includes('FROM groups g') && query.includes('member_points')) {
         groupQuery = query;
         return Promise.resolve({
@@ -120,6 +132,9 @@ describe('GET /api/v1/points', () => {
     });
     expect(groupQuery).toContain('participant_id IS NULL');
     expect(groupQuery).toContain('participant_id IS NOT NULL');
+    // Totals belong to a scout year, so opening a new year resets the score.
+    expect(groupQuery).toContain('scout_year_id');
+    expect(res.body.scout_year).toMatchObject({ label: '2025-2026', status: 'active' });
   });
 });
 

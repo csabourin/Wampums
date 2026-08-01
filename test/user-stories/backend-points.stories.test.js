@@ -48,12 +48,32 @@ function generateToken(overrides = {}) {
   }, TEST_SECRET);
 }
 
+/**
+ * Point totals are scoped to a scout year, so every points route resolves the
+ * active year first. Answer that lookup for all stories unless one overrides it.
+ */
+const ACTIVE_SCOUT_YEAR = {
+  id: 7,
+  organization_id: ORG_ID,
+  label: '2025-2026',
+  start_date: '2025-09-01',
+  end_date: '2026-08-31',
+  status: 'active'
+};
+
 function installHandler(storyHandler) {
   const { __mClient, __mPool } = require('pg');
   const recorded = [];
   mockQueryImplementation(__mClient, __mPool, (query, params) => {
     recorded.push({ query, params });
-    return storyHandler(query, params);
+    const storyResult = storyHandler(query, params);
+    if (storyResult !== undefined) {
+      return storyResult;
+    }
+    if (query.includes('FROM scout_years')) {
+      return { rows: [ACTIVE_SCOUT_YEAR] };
+    }
+    return undefined;
   });
   return recorded;
 }

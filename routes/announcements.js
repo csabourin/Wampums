@@ -87,6 +87,7 @@ async function buildRecipients(pool, organizationId, roles, groupIds) {
     JOIN users u ON u.id = uo.user_id
     JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
     WHERE uo.organization_id = $1
+      AND uo.status = 'active'
       AND r.role_name = ANY($${groupParams.length + 1}::text[])
       AND u.email IS NOT NULL AND u.email <> ''
   `;
@@ -149,6 +150,7 @@ async function buildRecipients(pool, organizationId, roles, groupIds) {
     JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
     WHERE s.organization_id = $1
       AND uo.organization_id = $1
+      AND uo.status = 'active'
       AND r.role_name = ANY($2::text[])
   `;
   const subscribersResult = await pool.query(subscriberQuery, [organizationId, roleFilter]);
