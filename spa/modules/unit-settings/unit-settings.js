@@ -352,7 +352,10 @@ export class UnitSettings extends BaseModule {
     if (error?.status === 400) {
       return translate("unit_settings_invalid_settings");
     }
-    if (error?.status === 401 || error?.status === 403) {
+    if (error?.status === 401) {
+      return translate("authentication_required");
+    }
+    if (error?.status === 403) {
       return translate("insufficient_permissions");
     }
     return translate("error_saving");
