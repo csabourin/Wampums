@@ -80,12 +80,25 @@ function calculateAge(dateOfBirth) {
  * @returns {string} Sanitized input
  */
 function sanitizeInput(input) {
-  if (!input) return "";
-  const str = String(input);
+  if (input === null || input === undefined) return "";
+
+  let str;
+  if (typeof input === "string") {
+    str = input;
+  } else {
+    try {
+      str = JSON.stringify(input);
+    } catch (e) {
+      str = String(input);
+    }
+  }
+
+  if (typeof str !== "string") {
+    str = String(str);
+  }
+
   const MAX_SANITIZE_INPUT_LENGTH = 10000;
-  const safeStr = str.length > MAX_SANITIZE_INPUT_LENGTH
-    ? str.slice(0, MAX_SANITIZE_INPUT_LENGTH)
-    : str;
+  const safeStr = str.slice(0, MAX_SANITIZE_INPUT_LENGTH);
   const result = [];
   let i = 0;
   while (i < safeStr.length) {
