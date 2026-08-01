@@ -4,6 +4,7 @@ const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, getUserDataScope } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
+const { ensureActiveScoutYear } = require('../services/scoutYear');
 
 /**
  * Fetch a group's context for a specific organization.
@@ -97,7 +98,7 @@ module.exports = (pool) => {
         LEFT JOIN form_submissions fs ON fs.participant_id = p.id AND fs.organization_id = $1
         LEFT JOIN (
           SELECT participant_id, SUM(value) AS total_points
-          FROM points
+          FROM active_year_points
           WHERE organization_id = $1 AND participant_id IS NOT NULL
           GROUP BY participant_id
         ) point_totals ON point_totals.participant_id = p.id
@@ -146,7 +147,7 @@ module.exports = (pool) => {
         LEFT JOIN form_submissions fs ON fs.participant_id = p.id AND fs.organization_id = $1
         LEFT JOIN (
           SELECT participant_id, SUM(value) AS total_points
-          FROM points
+          FROM active_year_points
           WHERE organization_id = $1 AND participant_id IS NOT NULL
           GROUP BY participant_id
         ) point_totals ON point_totals.participant_id = p.id
@@ -281,11 +282,13 @@ module.exports = (pool) => {
 
       const participantId = participantResult.rows[0].id;
 
-      // Link to organization
+      // Enroll in the active scout year. participant_organizations is a
+      // read-only view over participant_enrollments.
+      const scoutYear = await ensureActiveScoutYear(client, organizationId);
       await client.query(
-        `INSERT INTO participant_organizations (participant_id, organization_id)
-         VALUES ($1, $2)`,
-        [participantId, organizationId]
+        `INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id)
+         VALUES ($1, $2, $3)`,
+        [participantId, organizationId, scoutYear.id]
       );
 
       // Link to group if provided
@@ -614,12 +617,14 @@ module.exports = (pool) => {
 
         participantId = insertResult.rows[0].id;
 
-        // Link to organization
+        // Enroll in the active scout year. participant_organizations is a
+        // read-only view over participant_enrollments.
+        const scoutYear = await ensureActiveScoutYear(client, organizationId);
         await client.query(
-          `INSERT INTO participant_organizations (participant_id, organization_id)
-           VALUES ($1, $2)
-           ON CONFLICT (participant_id, organization_id) DO NOTHING`,
-          [participantId, organizationId]
+          `INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (participant_id, organization_id, scout_year_id) DO NOTHING`,
+          [participantId, organizationId, scoutYear.id]
         );
       }
 
@@ -797,13 +802,16 @@ module.exports = (pool) => {
       return error(res, 'Participant ID is required', 400);
     }
 
-    // Insert with inscription_date (defaults to today if not provided)
-    // On conflict, keep the existing inscription_date (don't update it)
+    // Enroll in the active scout year with inscription_date (defaults to today).
+    // On conflict, keep the existing inscription_date but revive an enrollment
+    // that was closed at a previous transition.
+    const scoutYear = await ensureActiveScoutYear(pool, organizationId);
     await pool.query(
-      `INSERT INTO participant_organizations (participant_id, organization_id, inscription_date)
-       VALUES ($1, $2, COALESCE($3::date, CURRENT_DATE))
-       ON CONFLICT (participant_id, organization_id) DO NOTHING`,
-      [participant_id, organizationId, inscription_date]
+      `INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id, inscription_date)
+       VALUES ($1, $2, $3, COALESCE($4::date, CURRENT_DATE))
+       ON CONFLICT (participant_id, organization_id, scout_year_id)
+       DO UPDATE SET status = 'active', ended_on = NULL, exit_reason = NULL`,
+      [participant_id, organizationId, scoutYear.id, inscription_date]
     );
 
     return success(res, null, 'Participant linked to organization');
@@ -1169,7 +1177,7 @@ module.exports = (pool) => {
                 WHERE participant_id = p.id AND organization_id = $2), '[]'::json
              ) as form_submissions,
              COALESCE(
-               (SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $2),
+               (SELECT SUM(value) FROM active_year_points WHERE participant_id = p.id AND organization_id = $2),
                0
              ) as total_points
       FROM participants p
@@ -1307,7 +1315,11 @@ module.exports = (pool) => {
    * @swagger
    * /api/v1/participants/{id}:
    *   delete:
-   *     summary: Delete a participant
+   *     summary: Remove a participant from the current scout year
+   *     description: >
+   *       Closes the participant's enrollment for the active scout year. Nothing
+   *       is deleted: the participant and every past year stay consultable in the
+   *       archives.
    *     tags: [Participants]
    *     security:
    *       - bearerAuth: []
@@ -1319,24 +1331,32 @@ module.exports = (pool) => {
    *           type: integer
    *     responses:
    *       200:
-   *         description: Participant deleted
+   *         description: Enrollment closed for the active scout year
    */
   router.delete('/:id', authenticate, blockDemoRoles, requirePermission('participants.delete'), asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const { exit_reason: exitReason } = req.body || {};
     const organizationId = await getOrganizationId(req, pool);
+    const scoutYear = await ensureActiveScoutYear(pool, organizationId);
 
     const result = await pool.query(
-      `DELETE FROM participant_organizations
-       WHERE participant_id = $1 AND organization_id = $2
-       RETURNING *`,
-      [id, organizationId]
+      `UPDATE participant_enrollments
+          SET status = 'left',
+              ended_on = CURRENT_DATE,
+              exit_reason = COALESCE($4, exit_reason)
+        WHERE participant_id = $1
+          AND organization_id = $2
+          AND scout_year_id = $3
+          AND status = 'active'
+        RETURNING participant_id, organization_id, scout_year_id, status, ended_on`,
+      [id, organizationId, scoutYear.id, exitReason || null]
     );
 
     if (result.rows.length === 0) {
       return error(res, 'Participant not found', 404);
     }
 
-    return success(res, null, 'Participant removed from organization');
+    return success(res, result.rows[0], 'Participant removed from the current scout year');
   }));
 
   return router;

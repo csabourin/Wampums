@@ -274,7 +274,7 @@ document.addEventListener("DOMContentLoaded", function() {
         // Get total points for all children
         pool.query(
           `SELECT participant_id, COALESCE(SUM(value), 0) as total_points
-           FROM points
+           FROM active_year_points
            WHERE participant_id = ANY($1) AND organization_id = $2
            GROUP BY participant_id`,
           [childIds, organizationId]

@@ -2,6 +2,7 @@
 const winston = require('winston');
 const { OrganizationNotFoundError, respondWithOrganizationFallback } = require('../utils/api-helpers');
 const { requireJWTSecret, verifyJWTToken } = require('../utils/jwt-config');
+const scoutYearService = require('../services/scoutYear');
 
 // Configure logger for auth middleware
 const logger = winston.createLogger({
@@ -200,6 +201,42 @@ exports.getOrganizationId = async (req, pool) => {
 };
 
 /**
+ * Get the scout year a request is about
+ *
+ * Defaults to the organization's active year. A past year can be consulted with
+ * `?scout_year_id=` or the `x-scout-year-id` header; requests for a year that
+ * belongs to another organization are rejected.
+ *
+ * @param {Object} req - Express request object
+ * @param {Object} pool - Database connection pool
+ * @returns {Promise<Object>} Scout year row ({ id, label, start_date, end_date, status })
+ *
+ * @example
+ * const scoutYear = await getScoutYear(req, pool);
+ * const rows = await pool.query(
+ *   'SELECT * FROM points WHERE organization_id = $1 AND scout_year_id = $2',
+ *   [organizationId, scoutYear.id]
+ * );
+ */
+exports.getScoutYear = async (req, pool) => {
+  const organizationId = await exports.getOrganizationId(req, pool);
+  const requested = req.query?.scout_year_id ?? req.headers['x-scout-year-id'] ?? null;
+  return scoutYearService.resolveScoutYear(pool, organizationId, requested);
+};
+
+/**
+ * Get the ID of the scout year a request is about
+ *
+ * @param {Object} req - Express request object
+ * @param {Object} pool - Database connection pool
+ * @returns {Promise<number>} Scout year ID
+ */
+exports.getScoutYearId = async (req, pool) => {
+  const scoutYear = await exports.getScoutYear(req, pool);
+  return scoutYear.id;
+};
+
+/**
  * Verify user belongs to organization with specific role
  * Use as middleware in routes that require organization membership
  *
@@ -237,7 +274,7 @@ exports.requireOrganizationRole = (allowedRoles = null) => {
 
       // Verify user belongs to organization
       const result = await pool.query(
-        'SELECT role FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+        'SELECT role, status FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
         [req.user.id, organizationId]
       );
 
@@ -245,6 +282,16 @@ exports.requireOrganizationRole = (allowedRoles = null) => {
         return res.status(403).json({
           success: false,
           message: 'User not a member of this organization'
+        });
+      }
+
+      // Deactivated memberships (e.g. a parent with no enrolled child) keep their
+      // account and history but lose access to the organization.
+      if (result.rows[0].status !== 'active') {
+        return res.status(403).json({
+          success: false,
+          message: 'This account is no longer active in this organization',
+          membershipStatus: result.rows[0].status
         });
       }
 
@@ -324,6 +371,7 @@ exports.requirePermission = (...permissions) => {
         JOIN role_permissions rp ON rp.role_id = role_id_text::integer
         JOIN permissions p ON p.id = rp.permission_id
         WHERE uo.user_id = $1 AND uo.organization_id = $2
+          AND uo.status = 'active'
       `;
 
       const result = await pool.query(permissionsQuery, [req.user.id, organizationId]);
@@ -339,6 +387,7 @@ exports.requirePermission = (...permissions) => {
         CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
         JOIN roles r ON r.id = role_id_text::integer
         WHERE uo.user_id = $1 AND uo.organization_id = $2
+          AND uo.status = 'active'
       `;
 
       const rolesResult = await pool.query(rolesQuery, [req.user.id, organizationId]);
@@ -351,6 +400,26 @@ exports.requirePermission = (...permissions) => {
 
       if (!hasAllPermissions) {
         const missingPermissions = requiredPermissions.filter(perm => !userPermissions.includes(perm));
+
+        // A deactivated membership resolves to zero permissions. Say so, instead
+        // of reporting every permission as missing.
+        const membership = await pool.query(
+          'SELECT status FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+          [req.user.id, organizationId]
+        );
+        const membershipStatus = membership.rows[0]?.status;
+
+        if (membershipStatus && membershipStatus !== 'active') {
+          logger.info(`Inactive membership blocked for user ${req.user.id} (status ${membershipStatus})`);
+          return res.status(403).json({
+            success: false,
+            message: 'This account is no longer active in this organization',
+            membershipStatus,
+            required: requiredPermissions,
+            missing: missingPermissions
+          });
+        }
+
         logger.info(`Permission denied for user ${req.user.id}: missing ${missingPermissions.join(', ')}`);
 
         return res.status(403).json({
@@ -535,6 +604,7 @@ exports.getUserDataScope = async (req, pool) => {
       CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
       JOIN roles r ON r.id = role_id_text::integer
       WHERE uo.user_id = $1 AND uo.organization_id = $2
+        AND uo.status = 'active'
       ORDER BY r.data_scope DESC
     `, [req.user.id, organizationId]);
 

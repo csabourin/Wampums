@@ -689,7 +689,7 @@ module.exports = (pool, logger) => {
          LEFT JOIN groups g ON pg.group_id = g.id
          LEFT JOIN (
            SELECT participant_id, SUM(value) AS total_points
-           FROM points
+           FROM active_year_points
            WHERE organization_id = $1 AND participant_id IS NOT NULL
            GROUP BY participant_id
          ) point_totals ON point_totals.participant_id = p.id
@@ -845,7 +845,7 @@ module.exports = (pool, logger) => {
 
     const pointsResult = await pool.query(
       `SELECT created_at::date as date, value
-         FROM points
+         FROM active_year_points
          WHERE participant_id = $1 AND organization_id = $2
          ORDER BY created_at ASC`,
       [participantId, organizationId]

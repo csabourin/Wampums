@@ -87,11 +87,17 @@ CREATE TABLE public.points (
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   organization_id integer,
   honor_id integer,
+  scout_year_id integer,
   CONSTRAINT points_pkey PRIMARY KEY (id),
   CONSTRAINT points_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT points_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
-  CONSTRAINT points_honor_id_fkey FOREIGN KEY (honor_id) REFERENCES public.honors(id)
+  CONSTRAINT points_honor_id_fkey FOREIGN KEY (honor_id) REFERENCES public.honors(id),
+  CONSTRAINT points_scout_year_id_fkey FOREIGN KEY (scout_year_id) REFERENCES public.scout_years(id)
 );
+-- Read-only view over points restricted to each organization active scout year.
+-- CREATE VIEW public.active_year_points AS
+--   SELECT p.* FROM points p JOIN scout_years sy ON sy.id = p.scout_year_id
+--    WHERE sy.status = 'active';
 CREATE TABLE public.processed_transactions (
   id integer NOT NULL DEFAULT nextval('processed_transactions_id_seq'::regclass),
   transaction_id character varying NOT NULL,
@@ -210,6 +216,10 @@ CREATE TABLE public.user_organizations (
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   user_id uuid,
   role_ids jsonb DEFAULT '[]'::jsonb,
+  status text NOT NULL DEFAULT 'active'::text CHECK (status = ANY (ARRAY['active'::text, 'inactive'::text, 'alumni'::text])),
+  deactivated_at timestamp with time zone,
+  deactivated_reason text,
+  last_active_scout_year_id integer,
   CONSTRAINT user_organizations_pkey PRIMARY KEY (id),
   CONSTRAINT user_organizations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT user_organizations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
@@ -313,14 +323,30 @@ CREATE TABLE public.reunion_preparations (
   CONSTRAINT reunion_preparations_animateur_responsable_fkey FOREIGN KEY (animateur_responsable) REFERENCES public.users(id),
   CONSTRAINT reunion_preparations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
-CREATE TABLE public.participant_organizations (
+CREATE TABLE public.participant_enrollments (
   participant_id integer NOT NULL,
   organization_id integer NOT NULL,
   inscription_date date,
-  CONSTRAINT participant_organizations_pkey PRIMARY KEY (participant_id, organization_id),
-  CONSTRAINT participant_organizations_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
-  CONSTRAINT participant_organizations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+  scout_year_id integer NOT NULL,
+  status text NOT NULL DEFAULT 'active'::text CHECK (status = ANY (ARRAY['active'::text, 'graduated'::text, 'left'::text, 'transferred'::text])),
+  ended_on date,
+  exit_reason text,
+  exception_note text,
+  transferred_to_organization_id integer,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT participant_enrollments_pkey PRIMARY KEY (participant_id, organization_id, scout_year_id),
+  CONSTRAINT participant_enrollments_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT participant_enrollments_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT participant_enrollments_scout_year_id_fkey FOREIGN KEY (scout_year_id) REFERENCES public.scout_years(id),
+  CONSTRAINT participant_enrollments_transferred_to_organization_id_fkey FOREIGN KEY (transferred_to_organization_id) REFERENCES public.organizations(id)
 );
+-- Read-only compatibility view: the roster of the ACTIVE scout year.
+-- Every legacy read site joins this; writes must target participant_enrollments.
+-- CREATE VIEW public.participant_organizations AS
+--   SELECT pe.participant_id, pe.organization_id, pe.inscription_date
+--     FROM participant_enrollments pe
+--     JOIN scout_years sy ON sy.id = pe.scout_year_id
+--    WHERE sy.status = 'active' AND pe.status = 'active';
 CREATE TABLE public.activites_rencontre (
   id bigint NOT NULL,
   activity text NOT NULL,
@@ -1487,4 +1513,38 @@ CREATE TABLE public.medication_admin_authorizations (
   CONSTRAINT maa_admin_user_id_1_fkey FOREIGN KEY (admin_user_id_1) REFERENCES public.users(id),
   CONSTRAINT maa_admin_user_id_2_fkey FOREIGN KEY (admin_user_id_2) REFERENCES public.users(id),
   CONSTRAINT maa_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.scout_years (
+  id integer NOT NULL DEFAULT nextval('scout_years_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  label text NOT NULL,
+  start_date date NOT NULL,
+  end_date date NOT NULL,
+  status text NOT NULL DEFAULT 'planning'::text CHECK (status = ANY (ARRAY['planning'::text, 'active'::text, 'closed'::text])),
+  closed_at timestamp with time zone,
+  closed_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT scout_years_pkey PRIMARY KEY (id),
+  CONSTRAINT scout_years_label_unique UNIQUE (organization_id, label),
+  CONSTRAINT scout_years_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT scout_years_closed_by_fkey FOREIGN KEY (closed_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.scout_year_transitions (
+  id integer NOT NULL DEFAULT nextval('scout_year_transitions_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  from_scout_year_id integer,
+  to_scout_year_id integer NOT NULL,
+  executed_at timestamp with time zone NOT NULL DEFAULT now(),
+  executed_by uuid,
+  summary jsonb NOT NULL DEFAULT '{}'::jsonb,
+  changeset jsonb NOT NULL DEFAULT '{}'::jsonb,
+  rolled_back_at timestamp with time zone,
+  rolled_back_by uuid,
+  CONSTRAINT scout_year_transitions_pkey PRIMARY KEY (id),
+  CONSTRAINT scout_year_transitions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT scout_year_transitions_from_scout_year_id_fkey FOREIGN KEY (from_scout_year_id) REFERENCES public.scout_years(id),
+  CONSTRAINT scout_year_transitions_to_scout_year_id_fkey FOREIGN KEY (to_scout_year_id) REFERENCES public.scout_years(id),
+  CONSTRAINT scout_year_transitions_executed_by_fkey FOREIGN KEY (executed_by) REFERENCES public.users(id),
+  CONSTRAINT scout_year_transitions_rolled_back_by_fkey FOREIGN KEY (rolled_back_by) REFERENCES public.users(id)
 );

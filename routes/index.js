@@ -88,6 +88,7 @@ module.exports = (app, pool) => {
     const programProgressRoutes = require("./programProgress")(pool, logger);
     const incidentsRoutes = require("./incidents")(pool, logger);
     const yearlyPlannerRoutes = require("./yearlyPlanner")(pool, logger);
+    const scoutYearsRoutes = require("./scoutYears")(pool, logger);
     const appVersionRoutes = require("./appVersion")();
 
     // ============================================
@@ -167,6 +168,7 @@ module.exports = (app, pool) => {
     app.use("/api/v1/program-progress", programProgressRoutes);
     app.use("/api/v1/incidents", incidentsRoutes);
     app.use("/api/v1/yearly-planner", yearlyPlannerRoutes);
+    app.use("/api/v1/scout-years", scoutYearsRoutes);
 
     // WhatsApp routes already include /v1/* internally.
     app.use("/api", whatsappBaileysRoutes);

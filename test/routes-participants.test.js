@@ -309,7 +309,19 @@ describe('POST /api/v1/participants', () => {
           }]
         });
       }
-      if (query.includes('INSERT INTO participant_organizations')) {
+      if (query.includes('FROM scout_years')) {
+        return Promise.resolve({
+          rows: [{
+            id: 1,
+            organization_id: 1,
+            label: '2025-2026',
+            start_date: '2025-09-01',
+            end_date: '2026-08-31',
+            status: 'active'
+          }]
+        });
+      }
+      if (query.includes('INSERT INTO participant_enrollments')) {
         return Promise.resolve({ rows: [{}] });
       }
       if (query.includes('permission_key')) {

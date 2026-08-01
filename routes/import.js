@@ -1,6 +1,7 @@
 const express = require('express');
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { asyncHandler } = require('../middleware/response');
+const { ensureActiveScoutYear } = require('../services/scoutYear');
 
 module.exports = function (pool, logger) {
   const router = express.Router();
@@ -268,10 +269,13 @@ module.exports = function (pool, logger) {
             );
             participantId = newParticipant.rows[0].id;
 
+            // participant_organizations is a read-only view over
+            // participant_enrollments: enroll in the active scout year.
+            const scoutYear = await ensureActiveScoutYear(client, organizationId);
             await client.query(
-              `INSERT INTO participant_organizations (participant_id, organization_id)
-               VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-              [participantId, organizationId]
+              `INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id)
+               VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+              [participantId, organizationId, scoutYear.id]
             );
             stats.participantsCreated++;
           }
