@@ -2,10 +2,10 @@
 -- PostgreSQL database dump
 --
 
-\restrict JuCNkaBrqhK3TK1NRJ54js0hSdRUNZsv01EH96WeQpnNwjdc5ynZ9XsOvnfoWzU
+\restrict L84YoWtthCy8fnnZ8rGa2FaUQLQyChrPeRdVkFLH1V1k4sBt0qQdlM7zSxxAX2y
 
 -- Dumped from database version 18.4 (Debian 18.4-1.pgdg13+1)
--- Dumped by pg_dump version 18.4 (Debian 18.4-1.pgdg13+1)
+-- Dumped by pg_dump version 18.4
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -19,935 +19,20 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
-ALTER TABLE IF EXISTS ONLY public.year_plans DROP CONSTRAINT IF EXISTS year_plans_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plans DROP CONSTRAINT IF EXISTS year_plans_created_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_reminders DROP CONSTRAINT IF EXISTS year_plan_reminders_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_reminders DROP CONSTRAINT IF EXISTS year_plan_reminders_meeting_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_periods DROP CONSTRAINT IF EXISTS year_plan_periods_year_plan_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_periods DROP CONSTRAINT IF EXISTS year_plan_periods_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_objectives DROP CONSTRAINT IF EXISTS year_plan_objectives_year_plan_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_objectives DROP CONSTRAINT IF EXISTS year_plan_objectives_period_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_objectives DROP CONSTRAINT IF EXISTS year_plan_objectives_parent_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_objectives DROP CONSTRAINT IF EXISTS year_plan_objectives_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_meetings DROP CONSTRAINT IF EXISTS year_plan_meetings_year_plan_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_meetings DROP CONSTRAINT IF EXISTS year_plan_meetings_reunion_preparation_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_meetings DROP CONSTRAINT IF EXISTS year_plan_meetings_period_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_meetings DROP CONSTRAINT IF EXISTS year_plan_meetings_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_meetings DROP CONSTRAINT IF EXISTS year_plan_meetings_animateur_responsable_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_meetings DROP CONSTRAINT IF EXISTS year_plan_meetings_activity_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_meeting_activities DROP CONSTRAINT IF EXISTS year_plan_meeting_activities_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_meeting_activities DROP CONSTRAINT IF EXISTS year_plan_meeting_activities_meeting_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_meeting_activities DROP CONSTRAINT IF EXISTS year_plan_meeting_activities_activity_library_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.whatsapp_baileys_connections DROP CONSTRAINT IF EXISTS whatsapp_baileys_connections_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.user_participants DROP CONSTRAINT IF EXISTS user_participants_user_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.user_participants DROP CONSTRAINT IF EXISTS user_participants_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.user_organizations DROP CONSTRAINT IF EXISTS user_organizations_user_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.user_organizations DROP CONSTRAINT IF EXISTS user_organizations_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.two_factor_codes DROP CONSTRAINT IF EXISTS two_factor_codes_user_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.two_factor_codes DROP CONSTRAINT IF EXISTS two_factor_codes_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.trusted_devices DROP CONSTRAINT IF EXISTS trusted_devices_user_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.trusted_devices DROP CONSTRAINT IF EXISTS trusted_devices_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.top_awards DROP CONSTRAINT IF EXISTS top_awards_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.top_award_service_logs DROP CONSTRAINT IF EXISTS top_award_service_logs_participant_top_award_progress_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.top_award_service_logs DROP CONSTRAINT IF EXISTS top_award_service_logs_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.top_award_service_logs DROP CONSTRAINT IF EXISTS top_award_service_logs_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.top_award_service_logs DROP CONSTRAINT IF EXISTS top_award_service_logs_approved_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.top_award_reviews DROP CONSTRAINT IF EXISTS top_award_reviews_reviewer_user_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.top_award_reviews DROP CONSTRAINT IF EXISTS top_award_reviews_participant_top_award_progress_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.top_award_reviews DROP CONSTRAINT IF EXISTS top_award_reviews_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.top_award_reviews DROP CONSTRAINT IF EXISTS top_award_reviews_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.top_award_projects DROP CONSTRAINT IF EXISTS top_award_projects_participant_top_award_progress_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.top_award_projects DROP CONSTRAINT IF EXISTS top_award_projects_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.top_award_projects DROP CONSTRAINT IF EXISTS top_award_projects_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.top_award_projects DROP CONSTRAINT IF EXISTS top_award_projects_approved_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.subscribers DROP CONSTRAINT IF EXISTS subscribers_user_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.subscribers DROP CONSTRAINT IF EXISTS subscribers_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.role_permissions DROP CONSTRAINT IF EXISTS role_permissions_role_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.role_permissions DROP CONSTRAINT IF EXISTS role_permissions_permission_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.reunion_preparations DROP CONSTRAINT IF EXISTS reunion_preparations_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.reunion_preparations DROP CONSTRAINT IF EXISTS reunion_preparations_animateur_responsable_fkey;
-ALTER TABLE IF EXISTS ONLY public.rappel_reunion DROP CONSTRAINT IF EXISTS rappel_reunion_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.progress_evidence DROP CONSTRAINT IF EXISTS progress_evidence_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.progress_evidence DROP CONSTRAINT IF EXISTS progress_evidence_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.progress_evidence DROP CONSTRAINT IF EXISTS progress_evidence_created_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.progress_approvals DROP CONSTRAINT IF EXISTS progress_approvals_reviewed_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.progress_approvals DROP CONSTRAINT IF EXISTS progress_approvals_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.progress_approvals DROP CONSTRAINT IF EXISTS progress_approvals_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.points DROP CONSTRAINT IF EXISTS points_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.points DROP CONSTRAINT IF EXISTS points_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.points DROP CONSTRAINT IF EXISTS points_honor_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.permission_slips DROP CONSTRAINT IF EXISTS permission_slips_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.permission_slips DROP CONSTRAINT IF EXISTS permission_slips_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.permission_slips DROP CONSTRAINT IF EXISTS permission_slips_meeting_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.permission_slips DROP CONSTRAINT IF EXISTS permission_slips_guardian_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.permission_slips DROP CONSTRAINT IF EXISTS permission_slips_activity_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.payments DROP CONSTRAINT IF EXISTS payments_payment_plan_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.payments DROP CONSTRAINT IF EXISTS payments_participant_fee_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.payment_plans DROP CONSTRAINT IF EXISTS payment_plans_participant_fee_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_top_award_progress DROP CONSTRAINT IF EXISTS participant_top_award_progress_top_award_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_top_award_progress DROP CONSTRAINT IF EXISTS participant_top_award_progress_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_top_award_progress DROP CONSTRAINT IF EXISTS participant_top_award_progress_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_organizations DROP CONSTRAINT IF EXISTS participant_organizations_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_organizations DROP CONSTRAINT IF EXISTS participant_organizations_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_oas_stage_award DROP CONSTRAINT IF EXISTS participant_oas_stage_award_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_oas_stage_award DROP CONSTRAINT IF EXISTS participant_oas_stage_award_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_oas_stage_award DROP CONSTRAINT IF EXISTS participant_oas_stage_award_oas_stage_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_oas_stage_award DROP CONSTRAINT IF EXISTS participant_oas_stage_award_awarded_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_oas_competency DROP CONSTRAINT IF EXISTS participant_oas_competency_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_oas_competency DROP CONSTRAINT IF EXISTS participant_oas_competency_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_oas_competency DROP CONSTRAINT IF EXISTS participant_oas_competency_oas_competency_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_oas_competency DROP CONSTRAINT IF EXISTS participant_oas_competency_awarded_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_medications DROP CONSTRAINT IF EXISTS participant_medications_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_medications DROP CONSTRAINT IF EXISTS participant_medications_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_medications DROP CONSTRAINT IF EXISTS participant_medications_medication_requirement_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_guardians DROP CONSTRAINT IF EXISTS participant_guardians_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_guardians DROP CONSTRAINT IF EXISTS participant_guardians_guardian_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_groups DROP CONSTRAINT IF EXISTS participant_groups_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_groups DROP CONSTRAINT IF EXISTS participant_groups_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_groups DROP CONSTRAINT IF EXISTS participant_groups_group_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_fees DROP CONSTRAINT IF EXISTS participant_fees_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_fees DROP CONSTRAINT IF EXISTS participant_fees_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_fees DROP CONSTRAINT IF EXISTS participant_fees_fee_definition_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_credentials DROP CONSTRAINT IF EXISTS participant_credentials_verified_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_credentials DROP CONSTRAINT IF EXISTS participant_credentials_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.participant_credentials DROP CONSTRAINT IF EXISTS participant_credentials_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.pab_themes DROP CONSTRAINT IF EXISTS pab_themes_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.pab_reviews DROP CONSTRAINT IF EXISTS pab_reviews_reviewer_user_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.pab_reviews DROP CONSTRAINT IF EXISTS pab_reviews_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.pab_reviews DROP CONSTRAINT IF EXISTS pab_reviews_pab_plan_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.pab_reviews DROP CONSTRAINT IF EXISTS pab_reviews_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.pab_plans DROP CONSTRAINT IF EXISTS pab_plans_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.pab_plans DROP CONSTRAINT IF EXISTS pab_plans_pab_theme_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.pab_plans DROP CONSTRAINT IF EXISTS pab_plans_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.pab_plans DROP CONSTRAINT IF EXISTS pab_plans_created_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.pab_plan_items DROP CONSTRAINT IF EXISTS pab_plan_items_pab_plan_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.pab_plan_items DROP CONSTRAINT IF EXISTS pab_plan_items_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.organizations DROP CONSTRAINT IF EXISTS organizations_program_section_fk;
-ALTER TABLE IF EXISTS ONLY public.organization_settings DROP CONSTRAINT IF EXISTS organization_settings_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.organization_program_sections DROP CONSTRAINT IF EXISTS organization_program_sections_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.organization_local_groups DROP CONSTRAINT IF EXISTS organization_local_groups_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.organization_local_groups DROP CONSTRAINT IF EXISTS organization_local_groups_local_group_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.organization_form_formats DROP CONSTRAINT IF EXISTS organization_form_formats_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.organization_form_formats DROP CONSTRAINT IF EXISTS organization_form_formats_created_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.organization_domains DROP CONSTRAINT IF EXISTS organization_domains_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.objective_achievements DROP CONSTRAINT IF EXISTS objective_achievements_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.objective_achievements DROP CONSTRAINT IF EXISTS objective_achievements_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.objective_achievements DROP CONSTRAINT IF EXISTS objective_achievements_objective_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.objective_achievements DROP CONSTRAINT IF EXISTS objective_achievements_meeting_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.objective_achievements DROP CONSTRAINT IF EXISTS objective_achievements_created_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.oas_stages DROP CONSTRAINT IF EXISTS oas_stages_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.oas_stages DROP CONSTRAINT IF EXISTS oas_stages_oas_skill_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.oas_skills DROP CONSTRAINT IF EXISTS oas_skills_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.oas_competencies DROP CONSTRAINT IF EXISTS oas_competencies_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.oas_competencies DROP CONSTRAINT IF EXISTS oas_competencies_oas_stage_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.oas_competencies DROP CONSTRAINT IF EXISTS oas_competencies_oas_skill_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.news DROP CONSTRAINT IF EXISTS news_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_treatment_authorization_supplies DROP CONSTRAINT IF EXISTS mtas_first_aid_supply_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_treatment_authorization_supplies DROP CONSTRAINT IF EXISTS mtas_authorization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_treatment_authorizations DROP CONSTRAINT IF EXISTS mta_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_treatment_authorizations DROP CONSTRAINT IF EXISTS mta_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_treatment_authorizations DROP CONSTRAINT IF EXISTS mta_guardian_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_treatment_authorizations DROP CONSTRAINT IF EXISTS mta_created_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_requirements DROP CONSTRAINT IF EXISTS medication_requirements_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_requirements DROP CONSTRAINT IF EXISTS medication_requirements_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_requirements DROP CONSTRAINT IF EXISTS medication_requirements_created_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_receptions DROP CONSTRAINT IF EXISTS medication_receptions_received_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_receptions DROP CONSTRAINT IF EXISTS medication_receptions_participant_medication_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_receptions DROP CONSTRAINT IF EXISTS medication_receptions_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_receptions DROP CONSTRAINT IF EXISTS medication_receptions_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_receptions DROP CONSTRAINT IF EXISTS medication_receptions_medication_requirement_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_receptions DROP CONSTRAINT IF EXISTS medication_receptions_activity_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_distributions DROP CONSTRAINT IF EXISTS medication_distributions_participant_medication_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_distributions DROP CONSTRAINT IF EXISTS medication_distributions_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_distributions DROP CONSTRAINT IF EXISTS medication_distributions_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_distributions DROP CONSTRAINT IF EXISTS medication_distributions_medication_requirement_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_distributions DROP CONSTRAINT IF EXISTS medication_distributions_administered_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_admin_authorization_requirements DROP CONSTRAINT IF EXISTS maar_medication_requirement_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_admin_authorization_requirements DROP CONSTRAINT IF EXISTS maar_authorization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_admin_authorizations DROP CONSTRAINT IF EXISTS maa_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_admin_authorizations DROP CONSTRAINT IF EXISTS maa_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_admin_authorizations DROP CONSTRAINT IF EXISTS maa_guardian_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_admin_authorizations DROP CONSTRAINT IF EXISTS maa_created_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_admin_authorizations DROP CONSTRAINT IF EXISTS maa_admin_user_id_2_fkey;
-ALTER TABLE IF EXISTS ONLY public.medication_admin_authorizations DROP CONSTRAINT IF EXISTS maa_admin_user_id_1_fkey;
-ALTER TABLE IF EXISTS ONLY public.incident_reports DROP CONSTRAINT IF EXISTS incident_reports_victim_user_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.incident_reports DROP CONSTRAINT IF EXISTS incident_reports_victim_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.incident_reports DROP CONSTRAINT IF EXISTS incident_reports_submitted_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.incident_reports DROP CONSTRAINT IF EXISTS incident_reports_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.incident_reports DROP CONSTRAINT IF EXISTS incident_reports_form_submission_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.incident_reports DROP CONSTRAINT IF EXISTS incident_reports_created_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.incident_reports DROP CONSTRAINT IF EXISTS incident_reports_activity_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.incident_escalation_contacts DROP CONSTRAINT IF EXISTS incident_escalation_contacts_org_fkey;
-ALTER TABLE IF EXISTS ONLY public.incident_email_queue DROP CONSTRAINT IF EXISTS incident_email_queue_org_fkey;
-ALTER TABLE IF EXISTS ONLY public.incident_email_queue DROP CONSTRAINT IF EXISTS incident_email_queue_incident_fkey;
-ALTER TABLE IF EXISTS ONLY public.honors DROP CONSTRAINT IF EXISTS honors_updated_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.honors DROP CONSTRAINT IF EXISTS honors_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.honors DROP CONSTRAINT IF EXISTS honors_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.honors DROP CONSTRAINT IF EXISTS honors_created_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.guests DROP CONSTRAINT IF EXISTS guests_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.guardian_users DROP CONSTRAINT IF EXISTS guardian_users_user_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.guardian_users DROP CONSTRAINT IF EXISTS guardian_users_guardian_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.groups DROP CONSTRAINT IF EXISTS groups_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.google_chat_spaces DROP CONSTRAINT IF EXISTS google_chat_spaces_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.google_chat_messages DROP CONSTRAINT IF EXISTS google_chat_messages_sent_by_user_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.google_chat_messages DROP CONSTRAINT IF EXISTS google_chat_messages_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.google_chat_config DROP CONSTRAINT IF EXISTS google_chat_config_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.fundraisers DROP CONSTRAINT IF EXISTS fundraisers_organization_fkey;
-ALTER TABLE IF EXISTS ONLY public.fundraisers DROP CONSTRAINT IF EXISTS fundraisers_budget_category_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.fundraiser_entries DROP CONSTRAINT IF EXISTS fundraiser_entries_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.fundraiser_entries DROP CONSTRAINT IF EXISTS fundraiser_entries_fundraiser_fkey;
-ALTER TABLE IF EXISTS ONLY public.form_submissions DROP CONSTRAINT IF EXISTS form_submissions_user_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.form_submissions DROP CONSTRAINT IF EXISTS form_submissions_reviewed_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.form_submissions DROP CONSTRAINT IF EXISTS form_submissions_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.form_submissions DROP CONSTRAINT IF EXISTS form_submissions_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.form_submissions DROP CONSTRAINT IF EXISTS form_submissions_form_version_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.form_submission_history DROP CONSTRAINT IF EXISTS form_submission_history_form_submission_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.form_submission_history DROP CONSTRAINT IF EXISTS form_submission_history_edited_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.form_permissions DROP CONSTRAINT IF EXISTS form_permissions_role_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.form_permissions DROP CONSTRAINT IF EXISTS form_permissions_form_format_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.form_format_versions DROP CONSTRAINT IF EXISTS form_format_versions_form_format_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.form_format_versions DROP CONSTRAINT IF EXISTS form_format_versions_created_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.program_catalog_stages DROP CONSTRAINT IF EXISTS fk_program_catalog_stages_version;
-ALTER TABLE IF EXISTS ONLY public.program_catalog_skills DROP CONSTRAINT IF EXISTS fk_program_catalog_skills_version;
-ALTER TABLE IF EXISTS ONLY public.program_catalog_rules DROP CONSTRAINT IF EXISTS fk_program_catalog_rules_version;
-ALTER TABLE IF EXISTS ONLY public.program_catalog_competencies DROP CONSTRAINT IF EXISTS fk_program_catalog_competencies_version;
-ALTER TABLE IF EXISTS ONLY public.program_catalog_competencies DROP CONSTRAINT IF EXISTS fk_program_catalog_competencies_stage;
-ALTER TABLE IF EXISTS ONLY public.program_catalog_competencies DROP CONSTRAINT IF EXISTS fk_program_catalog_competencies_skill;
-ALTER TABLE IF EXISTS ONLY public.organization_form_formats DROP CONSTRAINT IF EXISTS fk_current_version;
-ALTER TABLE IF EXISTS ONLY public.first_aid_supplies DROP CONSTRAINT IF EXISTS first_aid_supplies_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.fee_definitions DROP CONSTRAINT IF EXISTS fee_definitions_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.fee_definitions DROP CONSTRAINT IF EXISTS fee_definitions_budget_category_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.equipment_reservations DROP CONSTRAINT IF EXISTS equipment_reservations_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.equipment_reservations DROP CONSTRAINT IF EXISTS equipment_reservations_meeting_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.equipment_reservations DROP CONSTRAINT IF EXISTS equipment_reservations_equipment_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.equipment_reservations DROP CONSTRAINT IF EXISTS equipment_reservations_created_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.equipment_reservations DROP CONSTRAINT IF EXISTS equipment_reservations_activity_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.equipment_items DROP CONSTRAINT IF EXISTS equipment_items_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.equipment_item_organizations DROP CONSTRAINT IF EXISTS equipment_item_organizations_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.equipment_item_organizations DROP CONSTRAINT IF EXISTS equipment_item_organizations_equipment_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.carpool_offers DROP CONSTRAINT IF EXISTS carpool_offers_user_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.carpool_offers DROP CONSTRAINT IF EXISTS carpool_offers_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.carpool_offers DROP CONSTRAINT IF EXISTS carpool_offers_activity_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.carpool_assignments DROP CONSTRAINT IF EXISTS carpool_assignments_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.carpool_assignments DROP CONSTRAINT IF EXISTS carpool_assignments_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.carpool_assignments DROP CONSTRAINT IF EXISTS carpool_assignments_carpool_offer_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.carpool_assignments DROP CONSTRAINT IF EXISTS carpool_assignments_assigned_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.budget_revenues DROP CONSTRAINT IF EXISTS budget_revenues_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.budget_revenues DROP CONSTRAINT IF EXISTS budget_revenues_created_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.budget_revenues DROP CONSTRAINT IF EXISTS budget_revenues_budget_item_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.budget_revenues DROP CONSTRAINT IF EXISTS budget_revenues_budget_category_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.budget_plans DROP CONSTRAINT IF EXISTS budget_plans_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.budget_plans DROP CONSTRAINT IF EXISTS budget_plans_budget_item_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.budget_items DROP CONSTRAINT IF EXISTS budget_items_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.budget_items DROP CONSTRAINT IF EXISTS budget_items_budget_category_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.budget_expenses DROP CONSTRAINT IF EXISTS budget_expenses_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.budget_expenses DROP CONSTRAINT IF EXISTS budget_expenses_created_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.budget_expenses DROP CONSTRAINT IF EXISTS budget_expenses_budget_item_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.budget_expenses DROP CONSTRAINT IF EXISTS budget_expenses_budget_category_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.budget_categories DROP CONSTRAINT IF EXISTS budget_categories_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.badge_templates DROP CONSTRAINT IF EXISTS badge_templates_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.badge_progress DROP CONSTRAINT IF EXISTS badge_progress_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.badge_progress DROP CONSTRAINT IF EXISTS badge_progress_badge_template_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.attendance DROP CONSTRAINT IF EXISTS attendance_participant_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.attendance DROP CONSTRAINT IF EXISTS attendance_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.announcements DROP CONSTRAINT IF EXISTS announcements_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.announcements DROP CONSTRAINT IF EXISTS announcements_created_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.announcement_logs DROP CONSTRAINT IF EXISTS announcement_logs_announcement_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.activity_library DROP CONSTRAINT IF EXISTS activity_library_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.activity_library DROP CONSTRAINT IF EXISTS activity_library_created_by_fkey;
-ALTER TABLE IF EXISTS ONLY public.activity_distribution_rules DROP CONSTRAINT IF EXISTS activity_distribution_rules_year_plan_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.activity_distribution_rules DROP CONSTRAINT IF EXISTS activity_distribution_rules_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.activity_distribution_rules DROP CONSTRAINT IF EXISTS activity_distribution_rules_activity_library_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.activities DROP CONSTRAINT IF EXISTS activities_organization_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.activities DROP CONSTRAINT IF EXISTS activities_created_by_fkey;
-DROP TRIGGER IF EXISTS update_roles_updated_at ON public.roles;
-DROP TRIGGER IF EXISTS update_budget_revenues_updated_at ON public.budget_revenues;
-DROP TRIGGER IF EXISTS update_budget_plans_updated_at ON public.budget_plans;
-DROP TRIGGER IF EXISTS update_budget_items_updated_at ON public.budget_items;
-DROP TRIGGER IF EXISTS update_budget_expenses_updated_at ON public.budget_expenses;
-DROP TRIGGER IF EXISTS update_budget_categories_updated_at ON public.budget_categories;
-DROP TRIGGER IF EXISTS medication_receptions_updated_at_trigger ON public.medication_receptions;
-DROP TRIGGER IF EXISTS incident_reports_updated_at_trigger ON public.incident_reports;
-DROP TRIGGER IF EXISTS google_chat_spaces_updated_at ON public.google_chat_spaces;
-DROP TRIGGER IF EXISTS google_chat_config_updated_at ON public.google_chat_config;
-DROP TRIGGER IF EXISTS form_submission_audit_trigger ON public.form_submissions;
-DROP TRIGGER IF EXISTS check_carpool_seat_availability_trigger ON public.carpool_assignments;
-DROP TRIGGER IF EXISTS carpool_offers_updated_at_trigger ON public.carpool_offers;
-DROP TRIGGER IF EXISTS carpool_assignments_updated_at_trigger ON public.carpool_assignments;
-DROP TRIGGER IF EXISTS announcement_scheduled_update ON public.announcements;
-DROP TRIGGER IF EXISTS announcement_scheduled_insert ON public.announcements;
-DROP TRIGGER IF EXISTS activities_updated_at_trigger ON public.activities;
-DROP INDEX IF EXISTS public.uq_medreq_org_name_start;
-DROP INDEX IF EXISTS public.uq_badge_progress_source;
-DROP INDEX IF EXISTS public.uq_badge_progress_oas_stage_presentation_once;
-DROP INDEX IF EXISTS public.uniq_year_plan_meetings_org_date;
-DROP INDEX IF EXISTS public.idx_ypm_activities_unprocessed_badges;
-DROP INDEX IF EXISTS public.idx_ypm_activities_series;
-DROP INDEX IF EXISTS public.idx_ypm_activities_meeting;
-DROP INDEX IF EXISTS public.idx_yp_reminders_status;
-DROP INDEX IF EXISTS public.idx_yp_reminders_org;
-DROP INDEX IF EXISTS public.idx_yp_reminders_meeting;
-DROP INDEX IF EXISTS public.idx_year_plans_org;
-DROP INDEX IF EXISTS public.idx_year_plans_dates;
-DROP INDEX IF EXISTS public.idx_year_plan_periods_plan;
-DROP INDEX IF EXISTS public.idx_year_plan_periods_org;
-DROP INDEX IF EXISTS public.idx_year_plan_objectives_plan;
-DROP INDEX IF EXISTS public.idx_year_plan_objectives_period;
-DROP INDEX IF EXISTS public.idx_year_plan_objectives_parent;
-DROP INDEX IF EXISTS public.idx_year_plan_meetings_plan;
-DROP INDEX IF EXISTS public.idx_year_plan_meetings_period;
-DROP INDEX IF EXISTS public.idx_year_plan_meetings_date;
-DROP INDEX IF EXISTS public.idx_whatsapp_baileys_org_id;
-DROP INDEX IF EXISTS public.idx_whatsapp_baileys_connected;
-DROP INDEX IF EXISTS public.idx_whatsapp_auth_keys_gin;
-DROP INDEX IF EXISTS public.idx_whatsapp_auth_creds_gin;
-DROP INDEX IF EXISTS public.idx_users_whatsapp_phone;
-DROP INDEX IF EXISTS public.idx_users_language_preference;
-DROP INDEX IF EXISTS public.idx_user_participants_user_participant;
-DROP INDEX IF EXISTS public.idx_user_organizations_user_org;
-DROP INDEX IF EXISTS public.idx_user_organizations_role_ids;
-DROP INDEX IF EXISTS public.idx_two_factor_codes_user_org;
-DROP INDEX IF EXISTS public.idx_two_factor_codes_expires;
-DROP INDEX IF EXISTS public.idx_trusted_devices_user_org;
-DROP INDEX IF EXISTS public.idx_trusted_devices_token;
-DROP INDEX IF EXISTS public.idx_trusted_devices_expires;
-DROP INDEX IF EXISTS public.idx_top_awards_org;
-DROP INDEX IF EXISTS public.idx_top_award_service_logs_org_progress;
-DROP INDEX IF EXISTS public.idx_top_award_reviews_org_progress;
-DROP INDEX IF EXISTS public.idx_top_award_projects_org_progress;
-DROP INDEX IF EXISTS public.idx_submission_history_submission_id;
-DROP INDEX IF EXISTS public.idx_submission_history_edited_by;
-DROP INDEX IF EXISTS public.idx_submission_history_edited_at;
-DROP INDEX IF EXISTS public.idx_submission_data;
-DROP INDEX IF EXISTS public.idx_roles_data_scope;
-DROP INDEX IF EXISTS public.idx_role_permissions_role;
-DROP INDEX IF EXISTS public.idx_role_permissions_permission;
-DROP INDEX IF EXISTS public.idx_reunion_preparations_organization_date;
-DROP INDEX IF EXISTS public.idx_reunion_prep_org_date;
-DROP INDEX IF EXISTS public.idx_progress_evidence_org_source;
-DROP INDEX IF EXISTS public.idx_progress_approvals_org_source;
-DROP INDEX IF EXISTS public.idx_program_catalog_versions_program;
-DROP INDEX IF EXISTS public.idx_program_catalog_versions_applied_at;
-DROP INDEX IF EXISTS public.idx_program_catalog_stages_program_version;
-DROP INDEX IF EXISTS public.idx_program_catalog_skills_program_version;
-DROP INDEX IF EXISTS public.idx_program_catalog_rules_program_version;
-DROP INDEX IF EXISTS public.idx_program_catalog_competencies_program_version;
-DROP INDEX IF EXISTS public.idx_points_participant_org;
-DROP INDEX IF EXISTS public.idx_points_honor_id;
-DROP INDEX IF EXISTS public.idx_points_group_org_partial;
-DROP INDEX IF EXISTS public.idx_points;
-DROP INDEX IF EXISTS public.idx_permissions_key;
-DROP INDEX IF EXISTS public.idx_permissions_category;
-DROP INDEX IF EXISTS public.idx_permission_slips_status;
-DROP INDEX IF EXISTS public.idx_permission_slips_org_date;
-DROP INDEX IF EXISTS public.idx_permission_slips_email_tracking;
-DROP INDEX IF EXISTS public.idx_permission_slips_deadline;
-DROP INDEX IF EXISTS public.idx_permission_slips_activity_id;
-DROP INDEX IF EXISTS public.idx_payments_stripe_transaction;
-DROP INDEX IF EXISTS public.idx_payments_stripe_payment_intent;
-DROP INDEX IF EXISTS public.idx_participants_first_last_name;
-DROP INDEX IF EXISTS public.idx_participants_composite;
-DROP INDEX IF EXISTS public.idx_participant_top_award_org_participant;
-DROP INDEX IF EXISTS public.idx_participant_orgs_participant_org;
-DROP INDEX IF EXISTS public.idx_participant_organizations_inscription_date;
-DROP INDEX IF EXISTS public.idx_participant_oas_stage_org_participant;
-DROP INDEX IF EXISTS public.idx_participant_oas_comp_org_participant;
-DROP INDEX IF EXISTS public.idx_participant_medications_org_participant;
-DROP INDEX IF EXISTS public.idx_participant_groups_participant_org;
-DROP INDEX IF EXISTS public.idx_participant_groups_group_org;
-DROP INDEX IF EXISTS public.idx_participant_fees_lookup;
-DROP INDEX IF EXISTS public.idx_participant_credentials_org_participant;
-DROP INDEX IF EXISTS public.idx_pab_reviews_org_plan;
-DROP INDEX IF EXISTS public.idx_pab_plans_org_participant;
-DROP INDEX IF EXISTS public.idx_pab_plan_items_org_plan;
-DROP INDEX IF EXISTS public.idx_organizations_program_section;
-DROP INDEX IF EXISTS public.idx_organization_domains_domain;
-DROP INDEX IF EXISTS public.idx_org_form_formats_status;
-DROP INDEX IF EXISTS public.idx_org_form_formats_org_type;
-DROP INDEX IF EXISTS public.idx_org_form_formats_category;
-DROP INDEX IF EXISTS public.idx_obj_achievements_participant;
-DROP INDEX IF EXISTS public.idx_obj_achievements_obj;
-DROP INDEX IF EXISTS public.idx_obj_achievements_meeting;
-DROP INDEX IF EXISTS public.idx_oas_stages_org_skill;
-DROP INDEX IF EXISTS public.idx_oas_skills_org;
-DROP INDEX IF EXISTS public.idx_oas_competencies_org_skill;
-DROP INDEX IF EXISTS public.idx_medication_requirements_org;
-DROP INDEX IF EXISTS public.idx_medication_requirements_frequency_type;
-DROP INDEX IF EXISTS public.idx_medication_receptions_status;
-DROP INDEX IF EXISTS public.idx_medication_receptions_participant_id;
-DROP INDEX IF EXISTS public.idx_medication_receptions_organization_id;
-DROP INDEX IF EXISTS public.idx_medication_receptions_activity_id;
-DROP INDEX IF EXISTS public.idx_medication_distributions_schedule;
-DROP INDEX IF EXISTS public.idx_medication_distributions_reminder;
-DROP INDEX IF EXISTS public.idx_incident_reports_victim_participant;
-DROP INDEX IF EXISTS public.idx_incident_reports_status;
-DROP INDEX IF EXISTS public.idx_incident_reports_organization_id;
-DROP INDEX IF EXISTS public.idx_incident_reports_incident_date;
-DROP INDEX IF EXISTS public.idx_incident_reports_created_by;
-DROP INDEX IF EXISTS public.idx_incident_reports_activity_id;
-DROP INDEX IF EXISTS public.idx_incident_escalation_contacts_org;
-DROP INDEX IF EXISTS public.idx_incident_email_queue_pending;
-DROP INDEX IF EXISTS public.idx_incident_email_queue_org;
-DROP INDEX IF EXISTS public.idx_honors_participant_org;
-DROP INDEX IF EXISTS public.idx_honors_org_date;
-DROP INDEX IF EXISTS public.idx_honors_created_by;
-DROP INDEX IF EXISTS public.idx_honors_created_at;
-DROP INDEX IF EXISTS public.idx_guests_org_date;
-DROP INDEX IF EXISTS public.idx_guardians_courriel;
-DROP INDEX IF EXISTS public.idx_groups_section;
-DROP INDEX IF EXISTS public.idx_groups_organization;
-DROP INDEX IF EXISTS public.idx_groups;
-DROP INDEX IF EXISTS public.idx_google_chat_spaces_org_id;
-DROP INDEX IF EXISTS public.idx_google_chat_spaces_broadcast;
-DROP INDEX IF EXISTS public.idx_google_chat_messages_space_id;
-DROP INDEX IF EXISTS public.idx_google_chat_messages_org_id;
-DROP INDEX IF EXISTS public.idx_google_chat_config_org_id;
-DROP INDEX IF EXISTS public.idx_google_chat_config_active;
-DROP INDEX IF EXISTS public.idx_fundraisers_budget_category;
-DROP INDEX IF EXISTS public.idx_form_versions_format_id;
-DROP INDEX IF EXISTS public.idx_form_versions_created_at;
-DROP INDEX IF EXISTS public.idx_form_versions_active;
-DROP INDEX IF EXISTS public.idx_form_submissions_version;
-DROP INDEX IF EXISTS public.idx_form_submissions_status;
-DROP INDEX IF EXISTS public.idx_form_submissions_participant_org_type;
-DROP INDEX IF EXISTS public.idx_form_submissions_participant_org;
-DROP INDEX IF EXISTS public.idx_form_submissions_participant;
-DROP INDEX IF EXISTS public.idx_form_submissions_org_type;
-DROP INDEX IF EXISTS public.idx_form_permissions_role;
-DROP INDEX IF EXISTS public.idx_form_permissions_form;
-DROP INDEX IF EXISTS public.idx_form_formats_display_context;
-DROP INDEX IF EXISTS public.idx_fee_definitions_budget_category;
-DROP INDEX IF EXISTS public.idx_equipment_reservations_status;
-DROP INDEX IF EXISTS public.idx_equipment_reservations_org_date;
-DROP INDEX IF EXISTS public.idx_equipment_reservations_activity_org;
-DROP INDEX IF EXISTS public.idx_equipment_reservations_activity_id;
-DROP INDEX IF EXISTS public.idx_equipment_items_org;
-DROP INDEX IF EXISTS public.idx_equipment_item_org_org;
-DROP INDEX IF EXISTS public.idx_dist_rules_plan;
-DROP INDEX IF EXISTS public.idx_carpool_offers_user;
-DROP INDEX IF EXISTS public.idx_carpool_offers_organization;
-DROP INDEX IF EXISTS public.idx_carpool_offers_activity;
-DROP INDEX IF EXISTS public.idx_carpool_offers_active;
-DROP INDEX IF EXISTS public.idx_carpool_assignments_participant;
-DROP INDEX IF EXISTS public.idx_carpool_assignments_organization;
-DROP INDEX IF EXISTS public.idx_carpool_assignments_offer;
-DROP INDEX IF EXISTS public.idx_carpool_assignments_assigned_by;
-DROP INDEX IF EXISTS public.idx_budget_revenues_org_date;
-DROP INDEX IF EXISTS public.idx_budget_revenues_item;
-DROP INDEX IF EXISTS public.idx_budget_revenues_category;
-DROP INDEX IF EXISTS public.idx_budget_plans_org_year;
-DROP INDEX IF EXISTS public.idx_budget_items_org;
-DROP INDEX IF EXISTS public.idx_budget_items_category;
-DROP INDEX IF EXISTS public.idx_budget_expenses_org_date;
-DROP INDEX IF EXISTS public.idx_budget_expenses_item;
-DROP INDEX IF EXISTS public.idx_budget_expenses_category;
-DROP INDEX IF EXISTS public.idx_budget_categories_org;
-DROP INDEX IF EXISTS public.idx_badge_templates_program_type;
-DROP INDEX IF EXISTS public.idx_badge_templates_org_section;
-DROP INDEX IF EXISTS public.idx_badge_templates_org_official_key_version_unique;
-DROP INDEX IF EXISTS public.idx_badge_templates_official_key;
-DROP INDEX IF EXISTS public.idx_badge_progress_template;
-DROP INDEX IF EXISTS public.idx_badge_progress_status_approval;
-DROP INDEX IF EXISTS public.idx_badge_progress_source;
-DROP INDEX IF EXISTS public.idx_badge_progress_section;
-DROP INDEX IF EXISTS public.idx_badge_progress_participant_template;
-DROP INDEX IF EXISTS public.idx_badge_progress_participant_org_status;
-DROP INDEX IF EXISTS public.idx_badge_progress_participant_date;
-DROP INDEX IF EXISTS public.idx_badge_progress_org_delivery;
-DROP INDEX IF EXISTS public.idx_attendance_participant_org_date;
-DROP INDEX IF EXISTS public.idx_attendance_organization_id;
-DROP INDEX IF EXISTS public.idx_attendance_name_date;
-DROP INDEX IF EXISTS public.idx_attendance_created_at;
-DROP INDEX IF EXISTS public.idx_announcements_scheduled;
-DROP INDEX IF EXISTS public.idx_announcements_org_status;
-DROP INDEX IF EXISTS public.idx_ai_usage_log_user;
-DROP INDEX IF EXISTS public.idx_ai_usage_log_org;
-DROP INDEX IF EXISTS public.idx_ai_usage_log_month;
-DROP INDEX IF EXISTS public.idx_activity_library_org;
-DROP INDEX IF EXISTS public.idx_activity_library_category;
-DROP INDEX IF EXISTS public.idx_activities_organization;
-DROP INDEX IF EXISTS public.idx_activities_date;
-DROP INDEX IF EXISTS public.idx_activities_active;
-ALTER TABLE IF EXISTS ONLY public.year_plans DROP CONSTRAINT IF EXISTS year_plans_pkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_reminders DROP CONSTRAINT IF EXISTS year_plan_reminders_pkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_periods DROP CONSTRAINT IF EXISTS year_plan_periods_pkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_objectives DROP CONSTRAINT IF EXISTS year_plan_objectives_pkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_meetings DROP CONSTRAINT IF EXISTS year_plan_meetings_pkey;
-ALTER TABLE IF EXISTS ONLY public.year_plan_meeting_activities DROP CONSTRAINT IF EXISTS year_plan_meeting_activities_pkey;
-ALTER TABLE IF EXISTS ONLY public.whatsapp_baileys_connections DROP CONSTRAINT IF EXISTS whatsapp_baileys_connections_pkey;
-ALTER TABLE IF EXISTS ONLY public.users DROP CONSTRAINT IF EXISTS users_verification_token_key;
-ALTER TABLE IF EXISTS ONLY public.users DROP CONSTRAINT IF EXISTS users_uuid_unique;
-ALTER TABLE IF EXISTS ONLY public.users DROP CONSTRAINT IF EXISTS users_pkey;
-ALTER TABLE IF EXISTS ONLY public.users DROP CONSTRAINT IF EXISTS users_email_key;
-ALTER TABLE IF EXISTS ONLY public.profiles DROP CONSTRAINT IF EXISTS users_duplicate_uuid_key;
-ALTER TABLE IF EXISTS ONLY public.profiles DROP CONSTRAINT IF EXISTS users_duplicate_pkey;
-ALTER TABLE IF EXISTS ONLY public.profiles DROP CONSTRAINT IF EXISTS users_duplicate_email_key;
-ALTER TABLE IF EXISTS ONLY public.user_participants DROP CONSTRAINT IF EXISTS user_participants_pkey;
-ALTER TABLE IF EXISTS ONLY public.user_organizations DROP CONSTRAINT IF EXISTS user_organizations_pkey;
-ALTER TABLE IF EXISTS ONLY public.user_organizations DROP CONSTRAINT IF EXISTS user_organization_unique;
-ALTER TABLE IF EXISTS ONLY public.program_catalog_versions DROP CONSTRAINT IF EXISTS uq_program_catalog_versions_program_version;
-ALTER TABLE IF EXISTS ONLY public.program_catalog_stages DROP CONSTRAINT IF EXISTS uq_program_catalog_stages;
-ALTER TABLE IF EXISTS ONLY public.program_catalog_skills DROP CONSTRAINT IF EXISTS uq_program_catalog_skills;
-ALTER TABLE IF EXISTS ONLY public.program_catalog_rules DROP CONSTRAINT IF EXISTS uq_program_catalog_rules;
-ALTER TABLE IF EXISTS ONLY public.program_catalog_competencies DROP CONSTRAINT IF EXISTS uq_program_catalog_competencies;
-ALTER TABLE IF EXISTS ONLY public.reunion_preparations DROP CONSTRAINT IF EXISTS unique_reunion_preparation;
-ALTER TABLE IF EXISTS ONLY public.carpool_assignments DROP CONSTRAINT IF EXISTS unique_participant_offer;
-ALTER TABLE IF EXISTS ONLY public.participant_fees DROP CONSTRAINT IF EXISTS unique_participant_fee_period;
-ALTER TABLE IF EXISTS ONLY public.whatsapp_baileys_connections DROP CONSTRAINT IF EXISTS unique_org_whatsapp_connection;
-ALTER TABLE IF EXISTS ONLY public.honors DROP CONSTRAINT IF EXISTS unique_honor_per_date_per_org;
-ALTER TABLE IF EXISTS ONLY public.google_chat_spaces DROP CONSTRAINT IF EXISTS unique_google_chat_space;
-ALTER TABLE IF EXISTS ONLY public.form_format_versions DROP CONSTRAINT IF EXISTS unique_form_version;
-ALTER TABLE IF EXISTS ONLY public.form_permissions DROP CONSTRAINT IF EXISTS unique_form_role_permission;
-ALTER TABLE IF EXISTS ONLY public.subscribers DROP CONSTRAINT IF EXISTS unique_endpoint;
-ALTER TABLE IF EXISTS ONLY public.attendance DROP CONSTRAINT IF EXISTS unique_attendance_participant_date_org;
-ALTER TABLE IF EXISTS ONLY public.google_chat_config DROP CONSTRAINT IF EXISTS unique_active_google_chat_config;
-ALTER TABLE IF EXISTS ONLY public.two_factor_codes DROP CONSTRAINT IF EXISTS two_factor_codes_pkey;
-ALTER TABLE IF EXISTS ONLY public.trusted_devices DROP CONSTRAINT IF EXISTS trusted_devices_pkey;
-ALTER TABLE IF EXISTS ONLY public.trusted_devices DROP CONSTRAINT IF EXISTS trusted_devices_device_token_key;
-ALTER TABLE IF EXISTS ONLY public.translations DROP CONSTRAINT IF EXISTS translations_pkey;
-ALTER TABLE IF EXISTS ONLY public.top_awards DROP CONSTRAINT IF EXISTS top_awards_pkey;
-ALTER TABLE IF EXISTS ONLY public.top_awards DROP CONSTRAINT IF EXISTS top_awards_organization_id_code_key;
-ALTER TABLE IF EXISTS ONLY public.top_award_service_logs DROP CONSTRAINT IF EXISTS top_award_service_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.top_award_reviews DROP CONSTRAINT IF EXISTS top_award_reviews_pkey;
-ALTER TABLE IF EXISTS ONLY public.top_award_projects DROP CONSTRAINT IF EXISTS top_award_projects_pkey;
-ALTER TABLE IF EXISTS ONLY public.sync_log DROP CONSTRAINT IF EXISTS sync_log_pkey;
-ALTER TABLE IF EXISTS ONLY public.subscribers DROP CONSTRAINT IF EXISTS subscribers_pkey;
-ALTER TABLE IF EXISTS ONLY public.roles DROP CONSTRAINT IF EXISTS roles_role_name_key;
-ALTER TABLE IF EXISTS ONLY public.roles DROP CONSTRAINT IF EXISTS roles_pkey;
-ALTER TABLE IF EXISTS ONLY public.role_permissions DROP CONSTRAINT IF EXISTS role_permissions_pkey;
-ALTER TABLE IF EXISTS ONLY public.reunion_preparations DROP CONSTRAINT IF EXISTS reunion_preparations_pkey;
-ALTER TABLE IF EXISTS ONLY public.rappel_reunion DROP CONSTRAINT IF EXISTS rappel_reunion_pkey;
-ALTER TABLE IF EXISTS ONLY public.progress_evidence DROP CONSTRAINT IF EXISTS progress_evidence_pkey;
-ALTER TABLE IF EXISTS ONLY public.progress_approvals DROP CONSTRAINT IF EXISTS progress_approvals_pkey;
-ALTER TABLE IF EXISTS ONLY public.program_catalog_versions DROP CONSTRAINT IF EXISTS program_catalog_versions_pkey;
-ALTER TABLE IF EXISTS ONLY public.program_catalog_stages DROP CONSTRAINT IF EXISTS program_catalog_stages_pkey;
-ALTER TABLE IF EXISTS ONLY public.program_catalog_skills DROP CONSTRAINT IF EXISTS program_catalog_skills_pkey;
-ALTER TABLE IF EXISTS ONLY public.program_catalog_rules DROP CONSTRAINT IF EXISTS program_catalog_rules_pkey;
-ALTER TABLE IF EXISTS ONLY public.program_catalog_competencies DROP CONSTRAINT IF EXISTS program_catalog_competencies_pkey;
-ALTER TABLE IF EXISTS ONLY public.profile DROP CONSTRAINT IF EXISTS profile_uuid_key;
-ALTER TABLE IF EXISTS ONLY public.profile DROP CONSTRAINT IF EXISTS profile_pkey;
-ALTER TABLE IF EXISTS ONLY public.profile DROP CONSTRAINT IF EXISTS profile_email_key;
-ALTER TABLE IF EXISTS ONLY public.processed_transactions DROP CONSTRAINT IF EXISTS processed_transactions_pkey;
-ALTER TABLE IF EXISTS ONLY public.points DROP CONSTRAINT IF EXISTS points_pkey;
-ALTER TABLE IF EXISTS ONLY public.permissions DROP CONSTRAINT IF EXISTS permissions_pkey;
-ALTER TABLE IF EXISTS ONLY public.permissions DROP CONSTRAINT IF EXISTS permissions_permission_key_key;
-ALTER TABLE IF EXISTS ONLY public.permission_slips DROP CONSTRAINT IF EXISTS permission_slips_pkey;
-ALTER TABLE IF EXISTS ONLY public.permission_slips DROP CONSTRAINT IF EXISTS permission_slips_organization_id_participant_id_meeting_dat_key;
-ALTER TABLE IF EXISTS ONLY public.permission_slips DROP CONSTRAINT IF EXISTS permission_slips_access_token_key;
-ALTER TABLE IF EXISTS ONLY public.payments DROP CONSTRAINT IF EXISTS payments_pkey;
-ALTER TABLE IF EXISTS ONLY public.payment_plans DROP CONSTRAINT IF EXISTS payment_plans_pkey;
-ALTER TABLE IF EXISTS ONLY public.participant_top_award_progress DROP CONSTRAINT IF EXISTS participant_top_award_progress_pkey;
-ALTER TABLE IF EXISTS ONLY public.participant_top_award_progress DROP CONSTRAINT IF EXISTS participant_top_award_progres_organization_id_participant_i_key;
-ALTER TABLE IF EXISTS ONLY public.participant_organizations DROP CONSTRAINT IF EXISTS participant_organizations_pkey;
-ALTER TABLE IF EXISTS ONLY public.participant_oas_stage_award DROP CONSTRAINT IF EXISTS participant_oas_stage_award_pkey;
-ALTER TABLE IF EXISTS ONLY public.participant_oas_stage_award DROP CONSTRAINT IF EXISTS participant_oas_stage_award_organization_id_participant_id__key;
-ALTER TABLE IF EXISTS ONLY public.participant_oas_competency DROP CONSTRAINT IF EXISTS participant_oas_competency_pkey;
-ALTER TABLE IF EXISTS ONLY public.participant_oas_competency DROP CONSTRAINT IF EXISTS participant_oas_competency_organization_id_participant_id_o_key;
-ALTER TABLE IF EXISTS ONLY public.participant_medications DROP CONSTRAINT IF EXISTS participant_medications_pkey;
-ALTER TABLE IF EXISTS ONLY public.participant_medications DROP CONSTRAINT IF EXISTS participant_medications_organization_id_medication_requirem_key;
-ALTER TABLE IF EXISTS ONLY public.participant_guardians DROP CONSTRAINT IF EXISTS participant_guardians_pkey1;
-ALTER TABLE IF EXISTS ONLY public.participant_groups DROP CONSTRAINT IF EXISTS participant_groups_pkey;
-ALTER TABLE IF EXISTS ONLY public.participant_fees DROP CONSTRAINT IF EXISTS participant_fees_pkey;
-ALTER TABLE IF EXISTS ONLY public.participant_credentials DROP CONSTRAINT IF EXISTS participant_credentials_pkey;
-ALTER TABLE IF EXISTS ONLY public.participant_credentials DROP CONSTRAINT IF EXISTS participant_credentials_organization_id_participant_id_cred_key;
-ALTER TABLE IF EXISTS ONLY public.pab_themes DROP CONSTRAINT IF EXISTS pab_themes_pkey;
-ALTER TABLE IF EXISTS ONLY public.pab_themes DROP CONSTRAINT IF EXISTS pab_themes_organization_id_code_key;
-ALTER TABLE IF EXISTS ONLY public.pab_reviews DROP CONSTRAINT IF EXISTS pab_reviews_pkey;
-ALTER TABLE IF EXISTS ONLY public.pab_plans DROP CONSTRAINT IF EXISTS pab_plans_pkey;
-ALTER TABLE IF EXISTS ONLY public.pab_plan_items DROP CONSTRAINT IF EXISTS pab_plan_items_pkey;
-ALTER TABLE IF EXISTS ONLY public.organizations DROP CONSTRAINT IF EXISTS organizations_pkey;
-ALTER TABLE IF EXISTS ONLY public.organizations DROP CONSTRAINT IF EXISTS "organizations_API_KEY_key";
-ALTER TABLE IF EXISTS ONLY public.organization_settings DROP CONSTRAINT IF EXISTS organization_settings_pkey;
-ALTER TABLE IF EXISTS ONLY public.organization_settings DROP CONSTRAINT IF EXISTS organization_settings_organization_id_setting_key_key;
-ALTER TABLE IF EXISTS ONLY public.organization_program_sections DROP CONSTRAINT IF EXISTS organization_program_sections_pkey;
-ALTER TABLE IF EXISTS ONLY public.organization_local_groups DROP CONSTRAINT IF EXISTS organization_local_groups_pkey;
-ALTER TABLE IF EXISTS ONLY public.organization_form_formats DROP CONSTRAINT IF EXISTS organization_form_formats_pkey;
-ALTER TABLE IF EXISTS ONLY public.organization_domains DROP CONSTRAINT IF EXISTS organization_domains_pkey;
-ALTER TABLE IF EXISTS ONLY public.objective_achievements DROP CONSTRAINT IF EXISTS objective_achievements_pkey;
-ALTER TABLE IF EXISTS ONLY public.objective_achievements DROP CONSTRAINT IF EXISTS objective_achievements_organization_id_objective_id_partici_key;
-ALTER TABLE IF EXISTS ONLY public.oas_stages DROP CONSTRAINT IF EXISTS oas_stages_pkey;
-ALTER TABLE IF EXISTS ONLY public.oas_stages DROP CONSTRAINT IF EXISTS oas_stages_organization_id_oas_skill_id_stage_order_key;
-ALTER TABLE IF EXISTS ONLY public.oas_skills DROP CONSTRAINT IF EXISTS oas_skills_pkey;
-ALTER TABLE IF EXISTS ONLY public.oas_skills DROP CONSTRAINT IF EXISTS oas_skills_organization_id_code_key;
-ALTER TABLE IF EXISTS ONLY public.oas_competencies DROP CONSTRAINT IF EXISTS oas_competencies_pkey;
-ALTER TABLE IF EXISTS ONLY public.oas_competencies DROP CONSTRAINT IF EXISTS oas_competencies_organization_id_code_key;
-ALTER TABLE IF EXISTS ONLY public.news DROP CONSTRAINT IF EXISTS news_pkey;
-ALTER TABLE IF EXISTS ONLY public.participants DROP CONSTRAINT IF EXISTS new_participants_pkey;
-ALTER TABLE IF EXISTS ONLY public.names DROP CONSTRAINT IF EXISTS names_pkey;
-ALTER TABLE IF EXISTS ONLY public.medication_treatment_authorization_supplies DROP CONSTRAINT IF EXISTS mtas_pkey;
-ALTER TABLE IF EXISTS ONLY public.medication_treatment_authorizations DROP CONSTRAINT IF EXISTS medication_treatment_authorizations_pkey;
-ALTER TABLE IF EXISTS ONLY public.medication_requirements DROP CONSTRAINT IF EXISTS medication_requirements_pkey;
-ALTER TABLE IF EXISTS ONLY public.medication_receptions DROP CONSTRAINT IF EXISTS medication_receptions_pkey;
-ALTER TABLE IF EXISTS ONLY public.medication_distributions DROP CONSTRAINT IF EXISTS medication_distributions_pkey;
-ALTER TABLE IF EXISTS ONLY public.medication_distributions DROP CONSTRAINT IF EXISTS medication_distributions_organization_id_medication_require_key;
-ALTER TABLE IF EXISTS ONLY public.medication_admin_authorizations DROP CONSTRAINT IF EXISTS medication_admin_authorizations_pkey;
-ALTER TABLE IF EXISTS ONLY public.medication_admin_authorization_requirements DROP CONSTRAINT IF EXISTS maar_pkey;
-ALTER TABLE IF EXISTS ONLY public.local_groups DROP CONSTRAINT IF EXISTS local_groups_slug_key;
-ALTER TABLE IF EXISTS ONLY public.local_groups DROP CONSTRAINT IF EXISTS local_groups_pkey;
-ALTER TABLE IF EXISTS ONLY public.languages DROP CONSTRAINT IF EXISTS languages_pkey;
-ALTER TABLE IF EXISTS ONLY public.incident_reports DROP CONSTRAINT IF EXISTS incident_reports_pkey;
-ALTER TABLE IF EXISTS ONLY public.incident_escalation_contacts DROP CONSTRAINT IF EXISTS incident_escalation_contacts_pkey;
-ALTER TABLE IF EXISTS ONLY public.incident_email_queue DROP CONSTRAINT IF EXISTS incident_email_queue_pkey;
-ALTER TABLE IF EXISTS ONLY public.honors DROP CONSTRAINT IF EXISTS honors_pkey;
-ALTER TABLE IF EXISTS ONLY public.honors DROP CONSTRAINT IF EXISTS honors_name_id_date_unique;
-ALTER TABLE IF EXISTS ONLY public.guests DROP CONSTRAINT IF EXISTS guests_pkey;
-ALTER TABLE IF EXISTS ONLY public.parents_guardians DROP CONSTRAINT IF EXISTS guardians_pkey;
-ALTER TABLE IF EXISTS ONLY public.guardian_users DROP CONSTRAINT IF EXISTS guardian_users_pkey;
-ALTER TABLE IF EXISTS ONLY public.guardian_users DROP CONSTRAINT IF EXISTS guardian_users_gu_id_key;
-ALTER TABLE IF EXISTS ONLY public.groups DROP CONSTRAINT IF EXISTS groups_pkey;
-ALTER TABLE IF EXISTS ONLY public.google_chat_spaces DROP CONSTRAINT IF EXISTS google_chat_spaces_pkey;
-ALTER TABLE IF EXISTS ONLY public.google_chat_messages DROP CONSTRAINT IF EXISTS google_chat_messages_pkey;
-ALTER TABLE IF EXISTS ONLY public.google_chat_config DROP CONSTRAINT IF EXISTS google_chat_config_pkey;
-ALTER TABLE IF EXISTS ONLY public.fundraisers DROP CONSTRAINT IF EXISTS fundraisers_pkey;
-ALTER TABLE IF EXISTS ONLY public.fundraiser_entries DROP CONSTRAINT IF EXISTS fundraiser_entries_pkey;
-ALTER TABLE IF EXISTS ONLY public.form_submissions DROP CONSTRAINT IF EXISTS form_submissions_unique_constraint;
-ALTER TABLE IF EXISTS ONLY public.form_submissions DROP CONSTRAINT IF EXISTS form_submissions_pkey;
-ALTER TABLE IF EXISTS ONLY public.form_submission_history DROP CONSTRAINT IF EXISTS form_submission_history_pkey;
-ALTER TABLE IF EXISTS ONLY public.form_permissions DROP CONSTRAINT IF EXISTS form_permissions_pkey;
-ALTER TABLE IF EXISTS ONLY public.form_permissions DROP CONSTRAINT IF EXISTS form_permissions_form_format_id_role_id_key;
-ALTER TABLE IF EXISTS ONLY public.form_format_versions DROP CONSTRAINT IF EXISTS form_format_versions_pkey;
-ALTER TABLE IF EXISTS ONLY public.first_aid_supplies DROP CONSTRAINT IF EXISTS first_aid_supplies_pkey;
-ALTER TABLE IF EXISTS ONLY public.fee_definitions DROP CONSTRAINT IF EXISTS fee_definitions_pkey;
-ALTER TABLE IF EXISTS ONLY public.equipment_reservations DROP CONSTRAINT IF EXISTS equipment_reservations_unique_reservation;
-ALTER TABLE IF EXISTS ONLY public.equipment_reservations DROP CONSTRAINT IF EXISTS equipment_reservations_pkey;
-ALTER TABLE IF EXISTS ONLY public.equipment_items DROP CONSTRAINT IF EXISTS equipment_items_pkey;
-ALTER TABLE IF EXISTS ONLY public.equipment_items DROP CONSTRAINT IF EXISTS equipment_items_organization_id_name_key;
-ALTER TABLE IF EXISTS ONLY public.equipment_item_organizations DROP CONSTRAINT IF EXISTS equipment_item_organizations_pkey;
-ALTER TABLE IF EXISTS ONLY public.carpool_offers DROP CONSTRAINT IF EXISTS carpool_offers_pkey;
-ALTER TABLE IF EXISTS ONLY public.carpool_assignments DROP CONSTRAINT IF EXISTS carpool_assignments_pkey;
-ALTER TABLE IF EXISTS ONLY public.fundraiser_entries DROP CONSTRAINT IF EXISTS calendars_id_key;
-ALTER TABLE IF EXISTS ONLY public.budget_revenues DROP CONSTRAINT IF EXISTS budget_revenues_pkey;
-ALTER TABLE IF EXISTS ONLY public.budget_plans DROP CONSTRAINT IF EXISTS budget_plans_pkey;
-ALTER TABLE IF EXISTS ONLY public.budget_plans DROP CONSTRAINT IF EXISTS budget_plans_organization_id_budget_item_id_fiscal_year_sta_key;
-ALTER TABLE IF EXISTS ONLY public.budget_items DROP CONSTRAINT IF EXISTS budget_items_pkey;
-ALTER TABLE IF EXISTS ONLY public.budget_expenses DROP CONSTRAINT IF EXISTS budget_expenses_pkey;
-ALTER TABLE IF EXISTS ONLY public.budget_categories DROP CONSTRAINT IF EXISTS budget_categories_pkey;
-ALTER TABLE IF EXISTS ONLY public.budget_categories DROP CONSTRAINT IF EXISTS budget_categories_organization_id_name_key;
-ALTER TABLE IF EXISTS ONLY public.badge_templates DROP CONSTRAINT IF EXISTS badge_templates_pkey;
-ALTER TABLE IF EXISTS ONLY public.badge_templates DROP CONSTRAINT IF EXISTS badge_templates_org_key;
-ALTER TABLE IF EXISTS ONLY public.badge_progress DROP CONSTRAINT IF EXISTS badge_progress_pkey;
-ALTER TABLE IF EXISTS ONLY public.attendance DROP CONSTRAINT IF EXISTS attendance_pkey;
-ALTER TABLE IF EXISTS ONLY public.announcements DROP CONSTRAINT IF EXISTS announcements_pkey;
-ALTER TABLE IF EXISTS ONLY public.announcement_logs DROP CONSTRAINT IF EXISTS announcement_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.ai_usage_monthly DROP CONSTRAINT IF EXISTS ai_usage_monthly_pkey;
-ALTER TABLE IF EXISTS ONLY public.ai_usage_log DROP CONSTRAINT IF EXISTS ai_usage_log_pkey;
-ALTER TABLE IF EXISTS ONLY public.activity_library DROP CONSTRAINT IF EXISTS activity_library_pkey;
-ALTER TABLE IF EXISTS ONLY public.activity_distribution_rules DROP CONSTRAINT IF EXISTS activity_distribution_rules_pkey;
-ALTER TABLE IF EXISTS ONLY public.activities DROP CONSTRAINT IF EXISTS activities_pkey;
-ALTER TABLE IF EXISTS ONLY public.activites_rencontre DROP CONSTRAINT IF EXISTS activites_rencontre_pkey;
-ALTER TABLE IF EXISTS public.year_plans ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.year_plan_reminders ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.year_plan_periods ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.year_plan_objectives ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.year_plan_meetings ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.year_plan_meeting_activities ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.whatsapp_baileys_connections ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.user_organizations ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.translations ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.top_awards ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.top_award_service_logs ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.top_award_reviews ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.top_award_projects ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.sync_log ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.subscribers ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.roles ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.reunion_preparations ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.rappel_reunion ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.progress_evidence ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.progress_approvals ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.program_catalog_versions ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.program_catalog_stages ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.program_catalog_skills ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.program_catalog_rules ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.program_catalog_competencies ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.processed_transactions ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.points ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.permissions ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.permission_slips ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.payments ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.payment_plans ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.participants ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.participant_top_award_progress ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.participant_oas_stage_award ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.participant_oas_competency ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.participant_medications ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.participant_fees ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.participant_credentials ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.parents_guardians ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.pab_themes ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.pab_reviews ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.pab_plans ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.pab_plan_items ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.organizations ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.organization_settings ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.organization_form_formats ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.organization_domains ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.objective_achievements ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.oas_stages ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.oas_skills ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.oas_competencies ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.news ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.names ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.medication_treatment_authorizations ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.medication_requirements ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.medication_distributions ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.medication_admin_authorizations ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.local_groups ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.languages ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.honors ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.guests ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.groups ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.google_chat_spaces ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.google_chat_messages ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.google_chat_config ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.form_submissions ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.form_submission_history ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.form_permissions ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.form_format_versions ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.first_aid_supplies ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.fee_definitions ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.equipment_reservations ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.equipment_items ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.carpool_offers ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.carpool_assignments ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.budget_revenues ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.budget_plans ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.budget_items ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.budget_expenses ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.budget_categories ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.badge_templates ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.badge_progress ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.attendance ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.announcements ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.announcement_logs ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.activity_library ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.activity_distribution_rules ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.activities ALTER COLUMN id DROP DEFAULT;
-DROP SEQUENCE IF EXISTS public.year_plans_id_seq;
-DROP TABLE IF EXISTS public.year_plans;
-DROP SEQUENCE IF EXISTS public.year_plan_reminders_id_seq;
-DROP TABLE IF EXISTS public.year_plan_reminders;
-DROP SEQUENCE IF EXISTS public.year_plan_periods_id_seq;
-DROP TABLE IF EXISTS public.year_plan_periods;
-DROP SEQUENCE IF EXISTS public.year_plan_objectives_id_seq;
-DROP TABLE IF EXISTS public.year_plan_objectives;
-DROP SEQUENCE IF EXISTS public.year_plan_meetings_id_seq;
-DROP TABLE IF EXISTS public.year_plan_meetings;
-DROP SEQUENCE IF EXISTS public.year_plan_meeting_activities_id_seq;
-DROP TABLE IF EXISTS public.year_plan_meeting_activities;
-DROP SEQUENCE IF EXISTS public.whatsapp_baileys_connections_id_seq;
-DROP TABLE IF EXISTS public.whatsapp_baileys_connections;
-DROP VIEW IF EXISTS public.v_form_submission_stats;
-DROP VIEW IF EXISTS public.v_budget_summary_by_category;
-DROP VIEW IF EXISTS public.v_budget_revenue;
-DROP VIEW IF EXISTS public.v_active_forms;
-DROP VIEW IF EXISTS public.user_role_permissions_summary;
-DROP TABLE IF EXISTS public.users;
-DROP VIEW IF EXISTS public.user_permissions;
-DROP TABLE IF EXISTS public.user_participants;
-DROP SEQUENCE IF EXISTS public.user_organizations_id_seq;
-DROP TABLE IF EXISTS public.user_organizations;
-DROP TABLE IF EXISTS public.two_factor_codes;
-DROP TABLE IF EXISTS public.trusted_devices;
-DROP SEQUENCE IF EXISTS public.translations_id_seq;
-DROP TABLE IF EXISTS public.translations;
-DROP SEQUENCE IF EXISTS public.top_awards_id_seq;
-DROP TABLE IF EXISTS public.top_awards;
-DROP SEQUENCE IF EXISTS public.top_award_service_logs_id_seq;
-DROP TABLE IF EXISTS public.top_award_service_logs;
-DROP SEQUENCE IF EXISTS public.top_award_reviews_id_seq;
-DROP TABLE IF EXISTS public.top_award_reviews;
-DROP SEQUENCE IF EXISTS public.top_award_projects_id_seq;
-DROP TABLE IF EXISTS public.top_award_projects;
-DROP SEQUENCE IF EXISTS public.sync_log_id_seq;
-DROP TABLE IF EXISTS public.sync_log;
-DROP SEQUENCE IF EXISTS public.subscribers_id_seq;
-DROP TABLE IF EXISTS public.subscribers;
-DROP SEQUENCE IF EXISTS public.roles_id_seq;
-DROP TABLE IF EXISTS public.roles;
-DROP TABLE IF EXISTS public.role_permissions;
-DROP SEQUENCE IF EXISTS public.reunion_preparations_id_seq;
-DROP TABLE IF EXISTS public.reunion_preparations;
-DROP SEQUENCE IF EXISTS public.rappel_reunion_id_seq;
-DROP TABLE IF EXISTS public.rappel_reunion;
-DROP SEQUENCE IF EXISTS public.progress_evidence_id_seq;
-DROP TABLE IF EXISTS public.progress_evidence;
-DROP SEQUENCE IF EXISTS public.progress_approvals_id_seq;
-DROP TABLE IF EXISTS public.progress_approvals;
-DROP SEQUENCE IF EXISTS public.program_catalog_versions_id_seq;
-DROP TABLE IF EXISTS public.program_catalog_versions;
-DROP SEQUENCE IF EXISTS public.program_catalog_stages_id_seq;
-DROP TABLE IF EXISTS public.program_catalog_stages;
-DROP SEQUENCE IF EXISTS public.program_catalog_skills_id_seq;
-DROP TABLE IF EXISTS public.program_catalog_skills;
-DROP SEQUENCE IF EXISTS public.program_catalog_rules_id_seq;
-DROP TABLE IF EXISTS public.program_catalog_rules;
-DROP SEQUENCE IF EXISTS public.program_catalog_competencies_id_seq;
-DROP TABLE IF EXISTS public.program_catalog_competencies;
-DROP TABLE IF EXISTS public.profiles;
-DROP TABLE IF EXISTS public.profile;
-DROP SEQUENCE IF EXISTS public.processed_transactions_id_seq;
-DROP TABLE IF EXISTS public.processed_transactions;
-DROP SEQUENCE IF EXISTS public.points_id_seq;
-DROP TABLE IF EXISTS public.points;
-DROP SEQUENCE IF EXISTS public.permissions_id_seq;
-DROP TABLE IF EXISTS public.permissions;
-DROP SEQUENCE IF EXISTS public.permission_slips_id_seq;
-DROP TABLE IF EXISTS public.permission_slips;
-DROP SEQUENCE IF EXISTS public.payments_id_seq;
-DROP TABLE IF EXISTS public.payments;
-DROP SEQUENCE IF EXISTS public.payment_plans_id_seq;
-DROP TABLE IF EXISTS public.payment_plans;
-DROP SEQUENCE IF EXISTS public.participant_top_award_progress_id_seq;
-DROP TABLE IF EXISTS public.participant_top_award_progress;
-DROP TABLE IF EXISTS public.participant_organizations;
-DROP SEQUENCE IF EXISTS public.participant_oas_stage_award_id_seq;
-DROP TABLE IF EXISTS public.participant_oas_stage_award;
-DROP SEQUENCE IF EXISTS public.participant_oas_competency_id_seq;
-DROP TABLE IF EXISTS public.participant_oas_competency;
-DROP SEQUENCE IF EXISTS public.participant_medications_id_seq;
-DROP TABLE IF EXISTS public.participant_medications;
-DROP TABLE IF EXISTS public.participant_guardians;
-DROP TABLE IF EXISTS public.participant_groups;
-DROP SEQUENCE IF EXISTS public.participant_fees_id_seq;
-DROP TABLE IF EXISTS public.participant_fees;
-DROP SEQUENCE IF EXISTS public.participant_credentials_id_seq;
-DROP TABLE IF EXISTS public.participant_credentials;
-DROP SEQUENCE IF EXISTS public.pab_themes_id_seq;
-DROP TABLE IF EXISTS public.pab_themes;
-DROP SEQUENCE IF EXISTS public.pab_reviews_id_seq;
-DROP TABLE IF EXISTS public.pab_reviews;
-DROP SEQUENCE IF EXISTS public.pab_plans_id_seq;
-DROP TABLE IF EXISTS public.pab_plans;
-DROP SEQUENCE IF EXISTS public.pab_plan_items_id_seq;
-DROP TABLE IF EXISTS public.pab_plan_items;
-DROP SEQUENCE IF EXISTS public.organizations_id_seq;
-DROP TABLE IF EXISTS public.organizations;
-DROP SEQUENCE IF EXISTS public.organization_settings_id_seq;
-DROP TABLE IF EXISTS public.organization_settings;
-DROP TABLE IF EXISTS public.organization_program_sections;
-DROP TABLE IF EXISTS public.organization_local_groups;
-DROP SEQUENCE IF EXISTS public.organization_form_formats_id_seq;
-DROP TABLE IF EXISTS public.organization_form_formats;
-DROP SEQUENCE IF EXISTS public.organization_domains_id_seq;
-DROP TABLE IF EXISTS public.organization_domains;
-DROP SEQUENCE IF EXISTS public.objective_achievements_id_seq;
-DROP TABLE IF EXISTS public.objective_achievements;
-DROP SEQUENCE IF EXISTS public.oas_stages_id_seq;
-DROP TABLE IF EXISTS public.oas_stages;
-DROP SEQUENCE IF EXISTS public.oas_skills_id_seq;
-DROP TABLE IF EXISTS public.oas_skills;
-DROP SEQUENCE IF EXISTS public.oas_competencies_id_seq;
-DROP TABLE IF EXISTS public.oas_competencies;
-DROP SEQUENCE IF EXISTS public.news_id_seq;
-DROP TABLE IF EXISTS public.news;
-DROP SEQUENCE IF EXISTS public.new_participants_id_seq;
-DROP TABLE IF EXISTS public.participants;
-DROP SEQUENCE IF EXISTS public.names_id_seq;
-DROP TABLE IF EXISTS public.names;
-DROP SEQUENCE IF EXISTS public.medication_treatment_authorizations_id_seq;
-DROP TABLE IF EXISTS public.medication_treatment_authorizations;
-DROP TABLE IF EXISTS public.medication_treatment_authorization_supplies;
-DROP SEQUENCE IF EXISTS public.medication_requirements_id_seq;
-DROP TABLE IF EXISTS public.medication_requirements;
-DROP TABLE IF EXISTS public.medication_receptions;
-DROP SEQUENCE IF EXISTS public.medication_receptions_id_seq;
-DROP SEQUENCE IF EXISTS public.medication_distributions_id_seq;
-DROP TABLE IF EXISTS public.medication_distributions;
-DROP SEQUENCE IF EXISTS public.medication_admin_authorizations_id_seq;
-DROP TABLE IF EXISTS public.medication_admin_authorizations;
-DROP TABLE IF EXISTS public.medication_admin_authorization_requirements;
-DROP SEQUENCE IF EXISTS public.local_groups_id_seq;
-DROP TABLE IF EXISTS public.local_groups;
-DROP SEQUENCE IF EXISTS public.languages_id_seq;
-DROP TABLE IF EXISTS public.languages;
-DROP TABLE IF EXISTS public.incident_reports;
-DROP SEQUENCE IF EXISTS public.incident_reports_id_seq;
-DROP TABLE IF EXISTS public.incident_escalation_contacts;
-DROP SEQUENCE IF EXISTS public.incident_escalation_contacts_id_seq;
-DROP TABLE IF EXISTS public.incident_email_queue;
-DROP SEQUENCE IF EXISTS public.incident_email_queue_id_seq;
-DROP SEQUENCE IF EXISTS public.honors_id_seq;
-DROP TABLE IF EXISTS public.honors;
-DROP SEQUENCE IF EXISTS public.guests_id_seq;
-DROP TABLE IF EXISTS public.guests;
-DROP SEQUENCE IF EXISTS public.guardians_id_seq;
-DROP TABLE IF EXISTS public.parents_guardians;
-DROP TABLE IF EXISTS public.guardian_users;
-DROP SEQUENCE IF EXISTS public.groups_id_seq;
-DROP TABLE IF EXISTS public.groups;
-DROP SEQUENCE IF EXISTS public.google_chat_spaces_id_seq;
-DROP TABLE IF EXISTS public.google_chat_spaces;
-DROP SEQUENCE IF EXISTS public.google_chat_messages_id_seq;
-DROP TABLE IF EXISTS public.google_chat_messages;
-DROP SEQUENCE IF EXISTS public.google_chat_config_id_seq;
-DROP TABLE IF EXISTS public.google_chat_config;
-DROP TABLE IF EXISTS public.fundraisers;
-DROP SEQUENCE IF EXISTS public.form_submissions_id_seq;
-DROP TABLE IF EXISTS public.form_submissions;
-DROP SEQUENCE IF EXISTS public.form_submission_history_id_seq;
-DROP TABLE IF EXISTS public.form_submission_history;
-DROP SEQUENCE IF EXISTS public.form_permissions_id_seq;
-DROP TABLE IF EXISTS public.form_permissions;
-DROP SEQUENCE IF EXISTS public.form_format_versions_id_seq;
-DROP TABLE IF EXISTS public.form_format_versions;
-DROP SEQUENCE IF EXISTS public.first_aid_supplies_id_seq;
-DROP TABLE IF EXISTS public.first_aid_supplies;
-DROP SEQUENCE IF EXISTS public.fee_definitions_id_seq;
-DROP TABLE IF EXISTS public.fee_definitions;
-DROP SEQUENCE IF EXISTS public.equipment_reservations_id_seq;
-DROP TABLE IF EXISTS public.equipment_reservations;
-DROP SEQUENCE IF EXISTS public.equipment_items_id_seq;
-DROP VIEW IF EXISTS public.equipment_item_organizations_view;
-DROP TABLE IF EXISTS public.equipment_items;
-DROP TABLE IF EXISTS public.equipment_item_organizations;
-DROP SEQUENCE IF EXISTS public.carpool_offers_id_seq;
-DROP TABLE IF EXISTS public.carpool_offers;
-DROP SEQUENCE IF EXISTS public.carpool_assignments_id_seq;
-DROP TABLE IF EXISTS public.carpool_assignments;
-DROP TABLE IF EXISTS public.fundraiser_entries;
-DROP SEQUENCE IF EXISTS public.budget_revenues_id_seq;
-DROP TABLE IF EXISTS public.budget_revenues;
-DROP SEQUENCE IF EXISTS public.budget_plans_id_seq;
-DROP TABLE IF EXISTS public.budget_plans;
-DROP SEQUENCE IF EXISTS public.budget_items_id_seq;
-DROP TABLE IF EXISTS public.budget_items;
-DROP SEQUENCE IF EXISTS public.budget_expenses_id_seq;
-DROP TABLE IF EXISTS public.budget_expenses;
-DROP SEQUENCE IF EXISTS public.budget_categories_id_seq;
-DROP TABLE IF EXISTS public.budget_categories;
-DROP SEQUENCE IF EXISTS public.badge_templates_id_seq;
-DROP TABLE IF EXISTS public.badge_templates;
-DROP SEQUENCE IF EXISTS public.badge_progress_id_seq;
-DROP TABLE IF EXISTS public.badge_progress;
-DROP SEQUENCE IF EXISTS public.attendance_id_seq;
-DROP TABLE IF EXISTS public.attendance;
-DROP SEQUENCE IF EXISTS public.announcements_id_seq;
-DROP TABLE IF EXISTS public.announcements;
-DROP SEQUENCE IF EXISTS public.announcement_logs_id_seq;
-DROP TABLE IF EXISTS public.announcement_logs;
-DROP TABLE IF EXISTS public.ai_usage_monthly;
-DROP TABLE IF EXISTS public.ai_usage_log;
-DROP SEQUENCE IF EXISTS public.activity_library_id_seq;
-DROP TABLE IF EXISTS public.activity_library;
-DROP SEQUENCE IF EXISTS public.activity_distribution_rules_id_seq;
-DROP TABLE IF EXISTS public.activity_distribution_rules;
-DROP SEQUENCE IF EXISTS public.activities_id_seq;
-DROP TABLE IF EXISTS public.activities;
-DROP TABLE IF EXISTS public.activites_rencontre;
-DROP FUNCTION IF EXISTS public.update_updated_at_column();
-DROP FUNCTION IF EXISTS public.update_medication_receptions_updated_at();
-DROP FUNCTION IF EXISTS public.update_incident_reports_updated_at();
-DROP FUNCTION IF EXISTS public.update_google_chat_updated_at();
-DROP FUNCTION IF EXISTS public.update_carpool_offers_updated_at();
-DROP FUNCTION IF EXISTS public.update_carpool_assignments_updated_at();
-DROP FUNCTION IF EXISTS public.update_activities_updated_at();
-DROP FUNCTION IF EXISTS public.publish_form_version(p_version_id integer);
-DROP FUNCTION IF EXISTS public.notify_announcement_scheduled();
-DROP FUNCTION IF EXISTS public.form_has_context(p_form_id integer, p_context text);
-DROP FUNCTION IF EXISTS public.create_new_form_version(p_form_format_id integer, p_form_structure jsonb, p_display_name character varying, p_change_description text, p_created_by uuid);
-DROP FUNCTION IF EXISTS public.create_form_submission_audit_trail();
-DROP FUNCTION IF EXISTS public.check_carpool_seat_availability();
+--
+-- Name: btree_gist; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA public;
+
+
+--
+-- Name: EXTENSION btree_gist; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON EXTENSION btree_gist IS 'support for indexing common datatypes in GiST';
+
+
 --
 -- Name: check_carpool_seat_availability(); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -1107,6 +192,71 @@ COMMENT ON FUNCTION public.form_has_context(p_form_id integer, p_context text) I
 
 
 --
+-- Name: form_submissions_set_scout_year(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_submissions_set_scout_year() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NEW.scout_year_id IS NOT NULL OR NEW.organization_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- Every column is qualified: `id`, `status` and `organization_id` all exist
+  -- on the row being inserted too, and an unqualified reference is ambiguous.
+  SELECT sy.id INTO NEW.scout_year_id
+    FROM scout_years sy
+   WHERE sy.organization_id = NEW.organization_id
+     AND COALESCE(NEW.created_at, now())::date BETWEEN sy.start_date AND sy.end_date
+   LIMIT 1;
+
+  IF NEW.scout_year_id IS NULL THEN
+    SELECT sy.id INTO NEW.scout_year_id
+      FROM scout_years sy
+     WHERE sy.organization_id = NEW.organization_id
+       AND sy.status = 'active'
+     LIMIT 1;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: medication_authorization_set_scout_year(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.medication_authorization_set_scout_year() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NEW.scout_year_id IS NOT NULL OR NEW.organization_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- Every column is qualified: `id`, `status` and `organization_id` all exist
+  -- on the authorization row too, and an unqualified reference is ambiguous.
+  SELECT sy.id INTO NEW.scout_year_id
+    FROM scout_years sy
+   WHERE sy.organization_id = NEW.organization_id
+     AND COALESCE(NEW.date_signature, NEW.created_at, now())::date BETWEEN sy.start_date AND sy.end_date
+   LIMIT 1;
+
+  IF NEW.scout_year_id IS NULL THEN
+    SELECT sy.id INTO NEW.scout_year_id
+      FROM scout_years sy
+     WHERE sy.organization_id = NEW.organization_id AND sy.status = 'active'
+     LIMIT 1;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: notify_announcement_scheduled(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1142,6 +292,114 @@ $$;
 --
 
 COMMENT ON FUNCTION public.notify_announcement_scheduled() IS 'Trigger function that sends NOTIFY when announcements are scheduled. Used to eliminate polling and reduce compute usage.';
+
+
+--
+-- Name: participant_organizations_delete(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.participant_organizations_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  UPDATE participant_enrollments pe
+     SET status = 'left', ended_on = CURRENT_DATE
+    FROM scout_years sy
+   WHERE sy.id = pe.scout_year_id
+     AND sy.status = 'active'
+     AND pe.participant_id = OLD.participant_id
+     AND pe.organization_id = OLD.organization_id
+     AND pe.status = 'active';
+
+  RETURN OLD;
+END;
+$$;
+
+
+--
+-- Name: participant_organizations_insert(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.participant_organizations_insert() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_scout_year_id integer;
+BEGIN
+  SELECT sy.id INTO v_scout_year_id
+    FROM scout_years sy
+   WHERE sy.organization_id = NEW.organization_id AND sy.status = 'active'
+   LIMIT 1;
+
+  IF v_scout_year_id IS NULL THEN
+    RAISE EXCEPTION 'No active scout year for organization %', NEW.organization_id;
+  END IF;
+
+  INSERT INTO participant_enrollments
+          (participant_id, organization_id, scout_year_id, inscription_date, status)
+   VALUES (NEW.participant_id, NEW.organization_id, v_scout_year_id,
+           COALESCE(NEW.inscription_date, CURRENT_DATE), 'active')
+   ON CONFLICT (participant_id, organization_id, scout_year_id)
+   DO UPDATE SET status = 'active', ended_on = NULL, exit_reason = NULL;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: participant_organizations_update(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.participant_organizations_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  UPDATE participant_enrollments pe
+     SET inscription_date = NEW.inscription_date
+    FROM scout_years sy
+   WHERE sy.id = pe.scout_year_id
+     AND sy.status = 'active'
+     AND pe.participant_id = OLD.participant_id
+     AND pe.organization_id = OLD.organization_id
+     AND pe.status = 'active';
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: points_set_scout_year(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.points_set_scout_year() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NEW.scout_year_id IS NOT NULL OR NEW.organization_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- Every column is qualified: `id`, `status` and `organization_id` all exist
+  -- on the row being inserted too, and an unqualified reference is ambiguous.
+  SELECT sy.id INTO NEW.scout_year_id
+    FROM scout_years sy
+   WHERE sy.organization_id = NEW.organization_id
+     AND COALESCE(NEW.created_at, now())::date BETWEEN sy.start_date AND sy.end_date
+   LIMIT 1;
+
+  IF NEW.scout_year_id IS NULL THEN
+    SELECT sy.id INTO NEW.scout_year_id
+      FROM scout_years sy
+     WHERE sy.organization_id = NEW.organization_id
+       AND sy.status = 'active'
+     LIMIT 1;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
 
 
 --
@@ -1184,6 +442,63 @@ BEGIN
 
 END;
 $$;
+
+
+--
+-- Name: scout_year_for_date(integer, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.scout_year_for_date(p_organization_id integer, p_on_date date) RETURNS TABLE(year_label text, year_start date, year_end date)
+    LANGUAGE plpgsql STABLE
+    AS $$
+DECLARE
+  v_setting    jsonb;
+  v_month      integer := 9;
+  v_day        integer := 1;
+  v_start_year integer;
+  v_start      date;
+BEGIN
+  SELECT setting_value
+    INTO v_setting
+    FROM organization_settings
+   WHERE organization_id = p_organization_id
+     AND setting_key = 'fiscal_year'
+   LIMIT 1;
+
+  IF v_setting IS NOT NULL THEN
+    v_month := COALESCE(NULLIF(v_setting->>'start_month', '')::integer, 9);
+    v_day   := COALESCE(NULLIF(v_setting->>'start_day', '')::integer, 1);
+  END IF;
+
+  -- Guard against an out-of-range configuration rather than raising.
+  IF v_month < 1 OR v_month > 12 THEN
+    v_month := 9;
+  END IF;
+  IF v_day < 1 OR v_day > 28 THEN
+    v_day := LEAST(GREATEST(v_day, 1), 28);
+  END IF;
+
+  v_start_year := EXTRACT(YEAR FROM p_on_date)::integer;
+  v_start := make_date(v_start_year, v_month, v_day);
+
+  IF p_on_date < v_start THEN
+    v_start_year := v_start_year - 1;
+    v_start := make_date(v_start_year, v_month, v_day);
+  END IF;
+
+  year_label := v_start_year::text || '-' || (v_start_year + 1)::text;
+  year_start := v_start;
+  year_end   := (v_start + INTERVAL '1 year' - INTERVAL '1 day')::date;
+  RETURN NEXT;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION scout_year_for_date(p_organization_id integer, p_on_date date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.scout_year_for_date(p_organization_id integer, p_on_date date) IS 'Scout year label and boundaries containing p_on_date, based on the organization fiscal_year setting.';
 
 
 --
@@ -1287,6 +602,74 @@ $$;
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
+
+--
+-- Name: points; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.points (
+    id integer NOT NULL,
+    participant_id integer,
+    group_id integer,
+    value integer NOT NULL,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    organization_id integer,
+    honor_id integer,
+    scout_year_id integer
+);
+
+
+--
+-- Name: COLUMN points.honor_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.points.honor_id IS 'Links point award to honor (CASCADE delete on honor removal)';
+
+
+--
+-- Name: scout_years; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.scout_years (
+    id integer NOT NULL,
+    organization_id integer NOT NULL,
+    label text NOT NULL,
+    start_date date NOT NULL,
+    end_date date NOT NULL,
+    status text DEFAULT 'planning'::text NOT NULL,
+    closed_at timestamp with time zone,
+    closed_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT scout_years_dates_ordered CHECK ((end_date > start_date)),
+    CONSTRAINT scout_years_status_check CHECK ((status = ANY (ARRAY['planning'::text, 'active'::text, 'closed'::text])))
+);
+
+
+--
+-- Name: active_year_points; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.active_year_points AS
+ SELECT p.id,
+    p.participant_id,
+    p.group_id,
+    p.value,
+    p.created_at,
+    p.organization_id,
+    p.honor_id,
+    p.scout_year_id
+   FROM (public.points p
+     JOIN public.scout_years sy ON ((sy.id = p.scout_year_id)))
+  WHERE (sy.status = 'active'::text);
+
+
+--
+-- Name: VIEW active_year_points; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.active_year_points IS 'Read-only view over points, restricted to each organization active scout year.';
+
 
 --
 -- Name: activites_rencontre; Type: TABLE; Schema: public; Owner: -
@@ -2561,6 +1944,12 @@ CREATE TABLE public.form_submissions (
     submitted_at timestamp without time zone,
     ip_address character varying(45),
     user_agent text,
+    scout_year_id integer,
+    review_state text DEFAULT 'current'::text NOT NULL,
+    flagged_for_review_at timestamp with time zone,
+    last_reviewed_at timestamp with time zone,
+    last_reviewed_by uuid,
+    CONSTRAINT form_submissions_review_state_check CHECK ((review_state = ANY (ARRAY['current'::text, 'needs_review'::text]))),
     CONSTRAINT form_submissions_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('submitted'::character varying)::text, ('reviewed'::character varying)::text, ('approved'::character varying)::text, ('rejected'::character varying)::text])))
 );
 
@@ -3277,7 +2666,9 @@ CREATE TABLE public.medication_admin_authorizations (
     status character varying(50) DEFAULT 'signed'::character varying,
     created_by uuid,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    scout_year_id integer,
+    expired_at timestamp with time zone
 );
 
 
@@ -3524,7 +2915,9 @@ CREATE TABLE public.medication_treatment_authorizations (
     status character varying(50) DEFAULT 'signed'::character varying,
     created_by uuid,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    scout_year_id integer,
+    expired_at timestamp with time zone
 );
 
 
@@ -4224,6 +3617,32 @@ ALTER SEQUENCE public.participant_credentials_id_seq OWNED BY public.participant
 
 
 --
+-- Name: participant_enrollments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.participant_enrollments (
+    participant_id integer CONSTRAINT participant_organizations_participant_id_not_null NOT NULL,
+    organization_id integer CONSTRAINT participant_organizations_organization_id_not_null NOT NULL,
+    inscription_date date,
+    scout_year_id integer NOT NULL,
+    status text DEFAULT 'active'::text NOT NULL,
+    ended_on date,
+    exit_reason text,
+    exception_note text,
+    transferred_to_organization_id integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT participant_enrollments_status_check CHECK ((status = ANY (ARRAY['active'::text, 'graduated'::text, 'left'::text, 'transferred'::text])))
+);
+
+
+--
+-- Name: COLUMN participant_enrollments.inscription_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.participant_enrollments.inscription_date IS 'Date à laquelle le participant a joint l''organisation';
+
+
+--
 -- Name: participant_fees; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4402,21 +3821,23 @@ ALTER SEQUENCE public.participant_oas_stage_award_id_seq OWNED BY public.partici
 
 
 --
--- Name: participant_organizations; Type: TABLE; Schema: public; Owner: -
+-- Name: participant_organizations; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE TABLE public.participant_organizations (
-    participant_id integer NOT NULL,
-    organization_id integer NOT NULL,
-    inscription_date date
-);
+CREATE VIEW public.participant_organizations AS
+ SELECT pe.participant_id,
+    pe.organization_id,
+    pe.inscription_date
+   FROM (public.participant_enrollments pe
+     JOIN public.scout_years sy ON ((sy.id = pe.scout_year_id)))
+  WHERE ((sy.status = 'active'::text) AND (pe.status = 'active'::text));
 
 
 --
--- Name: COLUMN participant_organizations.inscription_date; Type: COMMENT; Schema: public; Owner: -
+-- Name: VIEW participant_organizations; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.participant_organizations.inscription_date IS 'Date à laquelle le participant a joint l''organisation';
+COMMENT ON VIEW public.participant_organizations IS 'Compatibility view over participant_enrollments, restricted to the active scout year. New code should write to participant_enrollments directly; INSTEAD OF triggers keep older deployments working.';
 
 
 --
@@ -4715,28 +4136,6 @@ CREATE SEQUENCE public.permissions_id_seq
 --
 
 ALTER SEQUENCE public.permissions_id_seq OWNED BY public.permissions.id;
-
-
---
--- Name: points; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.points (
-    id integer NOT NULL,
-    participant_id integer,
-    group_id integer,
-    value integer NOT NULL,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    organization_id integer,
-    honor_id integer
-);
-
-
---
--- Name: COLUMN points.honor_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.points.honor_id IS 'Links point award to honor (CASCADE delete on honor removal)';
 
 
 --
@@ -5246,6 +4645,64 @@ ALTER SEQUENCE public.roles_id_seq OWNED BY public.roles.id;
 
 
 --
+-- Name: scout_year_transitions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.scout_year_transitions (
+    id integer NOT NULL,
+    organization_id integer NOT NULL,
+    from_scout_year_id integer,
+    to_scout_year_id integer NOT NULL,
+    executed_at timestamp with time zone DEFAULT now() NOT NULL,
+    executed_by uuid,
+    summary jsonb DEFAULT '{}'::jsonb NOT NULL,
+    changeset jsonb DEFAULT '{}'::jsonb NOT NULL,
+    rolled_back_at timestamp with time zone,
+    rolled_back_by uuid
+);
+
+
+--
+-- Name: scout_year_transitions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.scout_year_transitions_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: scout_year_transitions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.scout_year_transitions_id_seq OWNED BY public.scout_year_transitions.id;
+
+
+--
+-- Name: scout_years_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.scout_years_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: scout_years_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.scout_years_id_seq OWNED BY public.scout_years.id;
+
+
+--
 -- Name: subscribers; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5597,7 +5054,12 @@ CREATE TABLE public.user_organizations (
     organization_id integer NOT NULL,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     user_id uuid,
-    role_ids jsonb DEFAULT '[]'::jsonb
+    role_ids jsonb DEFAULT '[]'::jsonb,
+    status text DEFAULT 'active'::text NOT NULL,
+    deactivated_at timestamp with time zone,
+    deactivated_reason text,
+    last_active_scout_year_id integer,
+    CONSTRAINT user_organizations_status_check CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text, 'alumni'::text])))
 );
 
 
@@ -5761,7 +5223,7 @@ CREATE VIEW public.v_budget_revenue WITH (security_invoker='on') AS
    FROM (((((public.payments py
      JOIN public.participant_fees pf ON ((py.participant_fee_id = pf.id)))
      JOIN public.participants p ON ((pf.participant_id = p.id)))
-     JOIN public.participant_organizations po ON ((p.id = po.participant_id)))
+     JOIN public.participant_enrollments po ON ((p.id = po.participant_id)))
      LEFT JOIN public.fee_definitions fd ON ((pf.fee_definition_id = fd.id)))
      LEFT JOIN public.budget_categories bc ON ((fd.budget_category_id = bc.id)))
 UNION ALL
@@ -6723,6 +6185,20 @@ ALTER TABLE ONLY public.roles ALTER COLUMN id SET DEFAULT nextval('public.roles_
 
 
 --
+-- Name: scout_year_transitions id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scout_year_transitions ALTER COLUMN id SET DEFAULT nextval('public.scout_year_transitions_id_seq'::regclass);
+
+
+--
+-- Name: scout_years id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scout_years ALTER COLUMN id SET DEFAULT nextval('public.scout_years_id_seq'::regclass);
+
+
+--
 -- Name: subscribers id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -7524,6 +7000,14 @@ ALTER TABLE ONLY public.participant_credentials
 
 
 --
+-- Name: participant_enrollments participant_enrollments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_enrollments
+    ADD CONSTRAINT participant_enrollments_pkey PRIMARY KEY (participant_id, organization_id, scout_year_id);
+
+
+--
 -- Name: participant_fees participant_fees_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7593,14 +7077,6 @@ ALTER TABLE ONLY public.participant_oas_stage_award
 
 ALTER TABLE ONLY public.participant_oas_stage_award
     ADD CONSTRAINT participant_oas_stage_award_pkey PRIMARY KEY (id);
-
-
---
--- Name: participant_organizations participant_organizations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.participant_organizations
-    ADD CONSTRAINT participant_organizations_pkey PRIMARY KEY (participant_id, organization_id);
 
 
 --
@@ -7809,6 +7285,38 @@ ALTER TABLE ONLY public.roles
 
 ALTER TABLE ONLY public.roles
     ADD CONSTRAINT roles_role_name_key UNIQUE (role_name);
+
+
+--
+-- Name: scout_year_transitions scout_year_transitions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scout_year_transitions
+    ADD CONSTRAINT scout_year_transitions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: scout_years scout_years_label_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scout_years
+    ADD CONSTRAINT scout_years_label_unique UNIQUE (organization_id, label);
+
+
+--
+-- Name: scout_years scout_years_no_overlap; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scout_years
+    ADD CONSTRAINT scout_years_no_overlap EXCLUDE USING gist (organization_id WITH =, daterange(start_date, end_date, '[]'::text) WITH &&);
+
+
+--
+-- Name: scout_years scout_years_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scout_years
+    ADD CONSTRAINT scout_years_pkey PRIMARY KEY (id);
 
 
 --
@@ -8161,6 +7669,20 @@ ALTER TABLE ONLY public.year_plan_reminders
 
 ALTER TABLE ONLY public.year_plans
     ADD CONSTRAINT year_plans_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: form_submissions_review_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_submissions_review_idx ON public.form_submissions USING btree (organization_id, review_state) WHERE (review_state = 'needs_review'::text);
+
+
+--
+-- Name: form_submissions_scout_year_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_submissions_scout_year_idx ON public.form_submissions USING btree (organization_id, scout_year_id, participant_id);
 
 
 --
@@ -8993,14 +8515,14 @@ CREATE INDEX idx_participant_oas_stage_org_participant ON public.participant_oas
 -- Name: idx_participant_organizations_inscription_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_participant_organizations_inscription_date ON public.participant_organizations USING btree (inscription_date);
+CREATE INDEX idx_participant_organizations_inscription_date ON public.participant_enrollments USING btree (inscription_date);
 
 
 --
 -- Name: idx_participant_orgs_participant_org; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_participant_orgs_participant_org ON public.participant_organizations USING btree (participant_id, organization_id);
+CREATE INDEX idx_participant_orgs_participant_org ON public.participant_enrollments USING btree (participant_id, organization_id);
 
 
 --
@@ -9473,6 +8995,69 @@ CREATE INDEX idx_ypm_activities_unprocessed_badges ON public.year_plan_meeting_a
 
 
 --
+-- Name: medication_admin_auth_year_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX medication_admin_auth_year_idx ON public.medication_admin_authorizations USING btree (organization_id, participant_id, scout_year_id);
+
+
+--
+-- Name: medication_treatment_auth_year_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX medication_treatment_auth_year_idx ON public.medication_treatment_authorizations USING btree (organization_id, participant_id, scout_year_id);
+
+
+--
+-- Name: participant_enrollments_participant_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX participant_enrollments_participant_idx ON public.participant_enrollments USING btree (participant_id);
+
+
+--
+-- Name: participant_enrollments_year_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX participant_enrollments_year_idx ON public.participant_enrollments USING btree (organization_id, scout_year_id, status);
+
+
+--
+-- Name: points_scout_year_group_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX points_scout_year_group_idx ON public.points USING btree (organization_id, scout_year_id, group_id);
+
+
+--
+-- Name: points_scout_year_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX points_scout_year_idx ON public.points USING btree (organization_id, scout_year_id, participant_id);
+
+
+--
+-- Name: scout_year_transitions_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX scout_year_transitions_org_idx ON public.scout_year_transitions USING btree (organization_id, executed_at DESC);
+
+
+--
+-- Name: scout_years_one_active_per_org; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX scout_years_one_active_per_org ON public.scout_years USING btree (organization_id) WHERE (status = 'active'::text);
+
+
+--
+-- Name: scout_years_org_range_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX scout_years_org_range_idx ON public.scout_years USING btree (organization_id, start_date, end_date);
+
+
+--
 -- Name: uniq_year_plan_meetings_org_date; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9498,6 +9083,13 @@ CREATE UNIQUE INDEX uq_badge_progress_source ON public.badge_progress USING btre
 --
 
 CREATE UNIQUE INDEX uq_medreq_org_name_start ON public.medication_requirements USING btree (organization_id, medication_name, COALESCE(start_date, '0001-01-01'::date));
+
+
+--
+-- Name: user_organizations_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX user_organizations_status_idx ON public.user_organizations USING btree (organization_id, status);
 
 
 --
@@ -9564,6 +9156,13 @@ CREATE TRIGGER form_submission_audit_trigger BEFORE UPDATE ON public.form_submis
 
 
 --
+-- Name: form_submissions form_submissions_set_scout_year_trigger; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER form_submissions_set_scout_year_trigger BEFORE INSERT ON public.form_submissions FOR EACH ROW EXECUTE FUNCTION public.form_submissions_set_scout_year();
+
+
+--
 -- Name: google_chat_config google_chat_config_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -9585,10 +9184,52 @@ CREATE TRIGGER incident_reports_updated_at_trigger BEFORE UPDATE ON public.incid
 
 
 --
+-- Name: medication_admin_authorizations medication_admin_auth_year_trigger; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER medication_admin_auth_year_trigger BEFORE INSERT ON public.medication_admin_authorizations FOR EACH ROW EXECUTE FUNCTION public.medication_authorization_set_scout_year();
+
+
+--
 -- Name: medication_receptions medication_receptions_updated_at_trigger; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER medication_receptions_updated_at_trigger BEFORE UPDATE ON public.medication_receptions FOR EACH ROW EXECUTE FUNCTION public.update_medication_receptions_updated_at();
+
+
+--
+-- Name: medication_treatment_authorizations medication_treatment_auth_year_trigger; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER medication_treatment_auth_year_trigger BEFORE INSERT ON public.medication_treatment_authorizations FOR EACH ROW EXECUTE FUNCTION public.medication_authorization_set_scout_year();
+
+
+--
+-- Name: participant_organizations participant_organizations_delete_trigger; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER participant_organizations_delete_trigger INSTEAD OF DELETE ON public.participant_organizations FOR EACH ROW EXECUTE FUNCTION public.participant_organizations_delete();
+
+
+--
+-- Name: participant_organizations participant_organizations_insert_trigger; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER participant_organizations_insert_trigger INSTEAD OF INSERT ON public.participant_organizations FOR EACH ROW EXECUTE FUNCTION public.participant_organizations_insert();
+
+
+--
+-- Name: participant_organizations participant_organizations_update_trigger; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER participant_organizations_update_trigger INSTEAD OF UPDATE ON public.participant_organizations FOR EACH ROW EXECUTE FUNCTION public.participant_organizations_update();
+
+
+--
+-- Name: points points_set_scout_year_trigger; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER points_set_scout_year_trigger BEFORE INSERT ON public.points FOR EACH ROW EXECUTE FUNCTION public.points_set_scout_year();
 
 
 --
@@ -10114,6 +9755,14 @@ ALTER TABLE ONLY public.form_submissions
 
 
 --
+-- Name: form_submissions form_submissions_last_reviewed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_submissions
+    ADD CONSTRAINT form_submissions_last_reviewed_by_fkey FOREIGN KEY (last_reviewed_by) REFERENCES public.users(id);
+
+
+--
 -- Name: form_submissions form_submissions_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10135,6 +9784,14 @@ ALTER TABLE ONLY public.form_submissions
 
 ALTER TABLE ONLY public.form_submissions
     ADD CONSTRAINT form_submissions_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.users(id);
+
+
+--
+-- Name: form_submissions form_submissions_scout_year_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_submissions
+    ADD CONSTRAINT form_submissions_scout_year_id_fkey FOREIGN KEY (scout_year_id) REFERENCES public.scout_years(id);
 
 
 --
@@ -10418,6 +10075,14 @@ ALTER TABLE ONLY public.medication_admin_authorization_requirements
 
 
 --
+-- Name: medication_admin_authorizations medication_admin_authorizations_scout_year_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.medication_admin_authorizations
+    ADD CONSTRAINT medication_admin_authorizations_scout_year_id_fkey FOREIGN KEY (scout_year_id) REFERENCES public.scout_years(id);
+
+
+--
 -- Name: medication_distributions medication_distributions_administered_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10527,6 +10192,14 @@ ALTER TABLE ONLY public.medication_requirements
 
 ALTER TABLE ONLY public.medication_requirements
     ADD CONSTRAINT medication_requirements_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: medication_treatment_authorizations medication_treatment_authorizations_scout_year_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.medication_treatment_authorizations
+    ADD CONSTRAINT medication_treatment_authorizations_scout_year_id_fkey FOREIGN KEY (scout_year_id) REFERENCES public.scout_years(id);
 
 
 --
@@ -10850,6 +10523,22 @@ ALTER TABLE ONLY public.participant_credentials
 
 
 --
+-- Name: participant_enrollments participant_enrollments_scout_year_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_enrollments
+    ADD CONSTRAINT participant_enrollments_scout_year_id_fkey FOREIGN KEY (scout_year_id) REFERENCES public.scout_years(id);
+
+
+--
+-- Name: participant_enrollments participant_enrollments_transferred_to_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_enrollments
+    ADD CONSTRAINT participant_enrollments_transferred_to_organization_id_fkey FOREIGN KEY (transferred_to_organization_id) REFERENCES public.organizations(id);
+
+
+--
 -- Name: participant_fees participant_fees_fee_definition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11002,18 +10691,18 @@ ALTER TABLE ONLY public.participant_oas_stage_award
 
 
 --
--- Name: participant_organizations participant_organizations_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: participant_enrollments participant_organizations_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.participant_organizations
+ALTER TABLE ONLY public.participant_enrollments
     ADD CONSTRAINT participant_organizations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --
--- Name: participant_organizations participant_organizations_participant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: participant_enrollments participant_organizations_participant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.participant_organizations
+ALTER TABLE ONLY public.participant_enrollments
     ADD CONSTRAINT participant_organizations_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
@@ -11130,6 +10819,14 @@ ALTER TABLE ONLY public.points
 
 
 --
+-- Name: points points_scout_year_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.points
+    ADD CONSTRAINT points_scout_year_id_fkey FOREIGN KEY (scout_year_id) REFERENCES public.scout_years(id);
+
+
+--
 -- Name: progress_approvals progress_approvals_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11215,6 +10912,62 @@ ALTER TABLE ONLY public.role_permissions
 
 ALTER TABLE ONLY public.role_permissions
     ADD CONSTRAINT role_permissions_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: scout_year_transitions scout_year_transitions_executed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scout_year_transitions
+    ADD CONSTRAINT scout_year_transitions_executed_by_fkey FOREIGN KEY (executed_by) REFERENCES public.users(id);
+
+
+--
+-- Name: scout_year_transitions scout_year_transitions_from_scout_year_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scout_year_transitions
+    ADD CONSTRAINT scout_year_transitions_from_scout_year_id_fkey FOREIGN KEY (from_scout_year_id) REFERENCES public.scout_years(id);
+
+
+--
+-- Name: scout_year_transitions scout_year_transitions_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scout_year_transitions
+    ADD CONSTRAINT scout_year_transitions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id);
+
+
+--
+-- Name: scout_year_transitions scout_year_transitions_rolled_back_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scout_year_transitions
+    ADD CONSTRAINT scout_year_transitions_rolled_back_by_fkey FOREIGN KEY (rolled_back_by) REFERENCES public.users(id);
+
+
+--
+-- Name: scout_year_transitions scout_year_transitions_to_scout_year_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scout_year_transitions
+    ADD CONSTRAINT scout_year_transitions_to_scout_year_id_fkey FOREIGN KEY (to_scout_year_id) REFERENCES public.scout_years(id);
+
+
+--
+-- Name: scout_years scout_years_closed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scout_years
+    ADD CONSTRAINT scout_years_closed_by_fkey FOREIGN KEY (closed_by) REFERENCES public.users(id);
+
+
+--
+-- Name: scout_years scout_years_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scout_years
+    ADD CONSTRAINT scout_years_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id);
 
 
 --
@@ -11367,6 +11120,14 @@ ALTER TABLE ONLY public.two_factor_codes
 
 ALTER TABLE ONLY public.two_factor_codes
     ADD CONSTRAINT two_factor_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_organizations user_organizations_last_active_scout_year_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_organizations
+    ADD CONSTRAINT user_organizations_last_active_scout_year_id_fkey FOREIGN KEY (last_active_scout_year_id) REFERENCES public.scout_years(id);
 
 
 --
@@ -11565,4 +11326,5 @@ ALTER TABLE ONLY public.year_plans
 -- PostgreSQL database dump complete
 --
 
-\unrestrict JuCNkaBrqhK3TK1NRJ54js0hSdRUNZsv01EH96WeQpnNwjdc5ynZ9XsOvnfoWzU
+\unrestrict L84YoWtthCy8fnnZ8rGa2FaUQLQyChrPeRdVkFLH1V1k4sBt0qQdlM7zSxxAX2y
+

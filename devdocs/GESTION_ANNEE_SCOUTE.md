@@ -405,3 +405,21 @@ PostgreSQL ne sait pas faire correspondre une cible de conflit à une vue et ref
 Conséquence : entre l'application de la migration et le déploiement de cette branche, créer ou lier un participant échoue. Les lectures, les points, les présences et les formulaires continuent de fonctionner normalement.
 
 Ordre recommandé : fusionner la branche → déployer → appliquer `create_scout_years_and_enrollments.sql` → `add_form_review_flag.sql` → `add_medication_authorization_resignature.sql` (les deux dernières dépendent de la première) → régénérer le dump de schéma.
+
+### Application en production — 2026-08-01
+
+Fait, dans cet ordre, après le déploiement du code. Répétée d'abord sur une restauration de la sauvegarde de production (PostgreSQL 18.4, mêmes données) : 224 ms au total, aucune erreur. En production : 5,3 s + 5,8 s + 2,2 s, latence réseau comprise.
+
+Résultat, tous les compteurs préservés :
+
+| | avant | après |
+|---|---|---|
+| inscriptions | 83 | 83, dont 0 non rattachée |
+| effectif via la vue | 83 | 83 |
+| points | 1881 | 1881, dont 0 non estampillé |
+| soumissions de formulaires | 230 | 230, dont 0 non estampillée |
+| adhésions | 121 | 121, toutes actives |
+
+Historique reconstitué depuis la plus ancienne trace d'activité de chaque unité : trois années pour 6A St-Paul Aylmer (depuis 2023-2024), deux pour Demo Organization, une pour les trois autres. Aucune fiche marquée à réviser et aucune autorisation expirée — normal, aucune transition n'a encore été lancée.
+
+Vérifié après coup sur la production : les deux chemins d'écriture (direct et via la vue) fonctionnent, les jointures de l'application renvoient le bon nombre de lignes, et les nouvelles routes répondent 401 plutôt que 404. Le dump de schéma a été régénéré.
