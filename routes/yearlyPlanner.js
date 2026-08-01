@@ -644,7 +644,6 @@ module.exports = (pool, logger) => {
       const organizationId = await getOrganizationId(req, pool);
       const meetingId = parseInt(req.params.id);
 
-      // Check if meeting is in the past (locked)
       const meetingCheck = await pool.query(
         'SELECT id, meeting_date FROM year_plan_meetings WHERE id = $1 AND organization_id = $2',
         [meetingId, organizationId]
@@ -654,12 +653,21 @@ module.exports = (pool, logger) => {
         return error(res, 'Meeting not found', 404);
       }
 
-      const meetingDate = new Date(meetingCheck.rows[0].meeting_date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      if (meetingDate < today) {
-        return error(res, 'Cannot edit past meetings (locked)', 409);
+      // Past meetings stay editable: documenting what actually happened is
+      // normal for an animation team, and POST /v1/meetings/preparation already
+      // rewrites the same row with no date restriction, so a lock here protected
+      // nothing while making the planner worse than the preparation page.
+      // Only already-processed honors are defended, below.
+      if (req.body.is_cancelled === true) {
+        const processed = await pool.query(
+          `SELECT 1 FROM year_plan_meeting_activities
+            WHERE meeting_id = $1 AND organization_id = $2 AND processed = TRUE
+            LIMIT 1`,
+          [meetingId, organizationId]
+        );
+        if (processed.rows.length > 0) {
+          return error(res, 'meeting_already_processed', 409);
+        }
       }
 
       // Only columns explicitly present in the body are touched. A COALESCE-based
@@ -854,7 +862,8 @@ module.exports = (pool, logger) => {
       const organizationId = await getOrganizationId(req, pool);
       const meetingId = parseInt(req.params.meetingId);
 
-      // Verify meeting exists and is not locked
+      // Verify meeting exists. Past dates are allowed: series placement spans
+      // whole terms and must not fail on dates that have already gone by.
       const meetingCheck = await pool.query(
         'SELECT id, meeting_date FROM year_plan_meetings WHERE id = $1 AND organization_id = $2',
         [meetingId, organizationId]
@@ -862,13 +871,6 @@ module.exports = (pool, logger) => {
 
       if (meetingCheck.rows.length === 0) {
         return error(res, 'Meeting not found', 404);
-      }
-
-      const meetingDate = new Date(meetingCheck.rows[0].meeting_date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (meetingDate < today) {
-        return error(res, 'Cannot edit past meetings (locked)', 409);
       }
 
       const {
