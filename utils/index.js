@@ -81,9 +81,20 @@ function calculateAge(dateOfBirth) {
  */
 function sanitizeInput(input) {
   if (!input) return "";
-  return String(input)
-    .replace(/<[^<>]*>?/g, "") // Remove HTML tags (complete and incomplete)
-    .trim();
+  const str = String(input);
+  const result = [];
+  let i = 0;
+  while (i < str.length) {
+    if (str[i] === '<') {
+      // Skip everything up to and including the next '>', or to end of string
+      const closeIdx = str.indexOf('>', i + 1);
+      i = closeIdx !== -1 ? closeIdx + 1 : str.length;
+    } else {
+      result.push(str[i]);
+      i++;
+    }
+  }
+  return result.join('').trim();
 }
 
 /**
