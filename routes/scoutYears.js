@@ -32,6 +32,8 @@ const {
   rollbackTransition
 } = require('../services/scoutYear');
 
+/** PostgreSQL's `serialization_failure`, raised when SERIALIZABLE detects a conflict. */
+const SERIALIZATION_FAILURE = '40001';
 /** Age at which a participant leaves the section, unless configured otherwise. */
 const DEFAULT_MAX_AGE = 12;
 /** Reference day used to evaluate that age: December 31st of the starting year. */
@@ -536,19 +538,31 @@ module.exports = (pool, logger) => {
       return error(res, 'The year this transition opened is no longer the active one', 409);
     }
 
-    const blockers = await listRollbackBlockers(pool, transition);
-    if (blockers.length > 0) {
+    // An early, cheap refusal so the common case does not open a transaction.
+    // It is not the check the rollback relies on — that one runs inside the
+    // transaction below, because anything decided out here is already stale.
+    const advisoryBlockers = await listRollbackBlockers(pool, transition);
+    if (advisoryBlockers.length > 0) {
       return res.status(409).json({
         success: false,
         message: 'The new year already holds data, so this transition can no longer be undone',
-        blockers,
+        blockers: advisoryBlockers,
         timestamp: new Date().toISOString()
       });
     }
 
     const client = await pool.connect();
     try {
-      await client.query('BEGIN');
+      // SERIALIZABLE, and not for form's sake. The rollback deletes every
+      // enrollment of the new year, so it must not run on a "the year is empty"
+      // answer that was true a moment ago: a leader enrolling a family between
+      // the check and the delete would have that enrollment destroyed with no
+      // trace. Locking the transition row does not help — ordinary enrollment,
+      // point and attendance writes never touch it. Under SERIALIZABLE the
+      // blocker queries below take predicate locks over exactly the rows such a
+      // writer would insert, so a concurrent write turns into a serialization
+      // failure instead of silent data loss.
+      await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
 
       // Re-read inside the transaction and lock the row, so two leaders hitting
       // the button at the same time cannot replay the same changeset twice.
@@ -564,6 +578,21 @@ module.exports = (pool, logger) => {
       if (locked.rows.length === 0 || locked.rows[0].rolled_back_at) {
         await client.query('ROLLBACK');
         return error(res, 'This transition has already been undone', 409);
+      }
+
+      // The check that counts, on the same snapshot as the deletion.
+      const blockers = await listRollbackBlockers(client, {
+        ...locked.rows[0],
+        organization_id: organizationId
+      });
+      if (blockers.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          success: false,
+          message: 'The new year already holds data, so this transition can no longer be undone',
+          blockers,
+          timestamp: new Date().toISOString()
+        });
       }
 
       const restored = await rollbackTransition(client, {
@@ -589,6 +618,19 @@ module.exports = (pool, logger) => {
       }, 'Scout year transition undone');
     } catch (err) {
       await client.query('ROLLBACK');
+
+      // Someone wrote to the year while this was undoing it. Nothing happened,
+      // and the honest answer is the same refusal the blockers give: the year is
+      // no longer empty.
+      if (err.code === SERIALIZATION_FAILURE) {
+        return res.status(409).json({
+          success: false,
+          message: 'The new year was written to while this rollback ran, so it can no longer be undone',
+          blockers: [{ reason: 'concurrent_write', count: 1 }],
+          timestamp: new Date().toISOString()
+        });
+      }
+
       throw err;
     } finally {
       client.release();

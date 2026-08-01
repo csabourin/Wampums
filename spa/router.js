@@ -129,7 +129,8 @@ const lazyModules = {
   OfflinePreparation: () => import('./offline_preparation.js').then(m => m.OfflinePreparation),
   IncidentReport: () => import('./modules/incident-report/incident-report.js').then(m => m.IncidentReport),
   YearlyPlanner: () => import('./modules/yearly-planner/YearlyPlanner.js').then(m => m.YearlyPlanner),
-  ScoutYearTransition: () => import('./modules/scout-year/ScoutYearTransition.js').then(m => m.ScoutYearTransition)
+  ScoutYearTransition: () => import('./modules/scout-year/ScoutYearTransition.js').then(m => m.ScoutYearTransition),
+  AlumniLink: () => import('./modules/alumni/AlumniLink.js').then(m => m.AlumniLink)
 };
 
 // Cache for loaded modules
@@ -177,6 +178,8 @@ const routes = {
   "/fundraisers": "fundraisers",
   "/calendars/:id": "calendars",
   "/reset-password": "resetPassword",
+  "/alumni-consent": "alumniConsent",
+  "/alumni-unsubscribe": "alumniUnsubscribe",
   "/reports": "reports",
   "/preparation-reunions": "preparation_reunions",
   "/preparation-reunions/:date": "preparation_reunions",
@@ -348,7 +351,9 @@ export class Router {
         return true;
       };
       // Allow access to login, register, permission slip signing, and index pages without being logged in
-      if (!this.app.isLoggedIn && !["login", "register", "resetPassword", "permissionSlipSign"].includes(routeName)) {
+      // The alumni links are reached by people whose access was just withdrawn,
+      // so requiring a session would make them unusable by design.
+      if (!this.app.isLoggedIn && !["login", "register", "resetPassword", "permissionSlipSign", "alumniConsent", "alumniUnsubscribe"].includes(routeName)) {
         if (path !== "/login") {
           debugWarn('Redirecting to login from route:', routeName);
           history.pushState(null, "", "/login");
@@ -664,6 +669,12 @@ export class Router {
           break;
         case "resetPassword":
           await this.loadResetPasswordPage();
+          break;
+        case "alumniConsent":
+          await this.loadAlumniLinkPage("consent");
+          break;
+        case "alumniUnsubscribe":
+          await this.loadAlumniLinkPage("unsubscribe");
           break;
         case "attendance":
           if (!guard(canViewAttendance())) {
@@ -1156,6 +1167,13 @@ export class Router {
     const resetPassword = new ResetPassword(this.app);
     this.currentModuleInstance = resetPassword;
     resetPassword.render(token, errorParam);
+  }
+
+  async loadAlumniLinkPage(action) {
+    const AlumniLink = await this.loadModule('AlumniLink');
+    const alumniLink = new AlumniLink(this.app, action);
+    this.currentModuleInstance = alumniLink;
+    await alumniLink.init();
   }
 
   async loadManageParticipants() {

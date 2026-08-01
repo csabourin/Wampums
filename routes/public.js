@@ -18,6 +18,11 @@ const rateLimit = require('express-rate-limit');
 // Import utilities
 const { getCurrentOrganizationId, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { sendEmail, sanitizeInput } = require('../utils/index');
+const {
+  describeConsentInvitation,
+  recordConsent,
+  recordOptOut
+} = require('../services/alumni');
 
 const SUPPORTED_TRANSLATION_LANGS = ['en', 'fr', 'uk', 'it', 'id'];
 const DATE_LOCALES = {
@@ -426,6 +431,62 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
           message: 'An error occurred while processing your request'
         });
       }
+    })
+  );
+
+  /**
+   * Alumni opt-in and unsubscribe.
+   *
+   * Unauthenticated by design: these links are sent at the moment a family's
+   * access is withdrawn, so the person clicking them has no account left to log
+   * into. The signed token in the link is the whole authorisation, and it names
+   * a membership and nothing else — no address, no child, nothing that would
+   * leak if the link were forwarded.
+   *
+   * Both endpoints answer 200 whatever the token turns out to be, with the
+   * outcome in `state`. Distinguishing "no such membership" from "expired link"
+   * by status code would turn these into an oracle for probing tokens, and
+   * neither the reader nor the page needs the distinction.
+   */
+  const alumniLinkLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 30,
+    message: 'Too many requests, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  /**
+   * Describe an opt-in link without acting on it, so the landing page can name
+   * the unit before asking for a click.
+   */
+  router.get('/alumni/invitation',
+    alumniLinkLimiter,
+    asyncHandler(async (req, res) => {
+      const result = await describeConsentInvitation(pool, req.query.token);
+      return res.json({ success: true, data: result });
+    })
+  );
+
+  /**
+   * Opt in. The click on "keep me informed" is what lands here.
+   */
+  router.post('/alumni/consent',
+    alumniLinkLimiter,
+    asyncHandler(async (req, res) => {
+      const result = await recordConsent(pool, req.body?.token);
+      return res.json({ success: true, data: result });
+    })
+  );
+
+  /**
+   * Unsubscribe. Reached from the footer of every alumni mailing.
+   */
+  router.post('/alumni/unsubscribe',
+    alumniLinkLimiter,
+    asyncHandler(async (req, res) => {
+      const result = await recordOptOut(pool, req.body?.token);
+      return res.json({ success: true, data: result });
     })
   );
 

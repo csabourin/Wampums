@@ -15,11 +15,48 @@ const {
   handleOrganizationResolutionError,
   escapeHtml,
 } = require('../utils/api-helpers');
-const { sanitizeInput, sendEmail, sendWhatsApp } = require('../utils');
+const { sanitizeInput, sendEmail, sendWhatsApp, getUserEmailLanguage } = require('../utils');
 const { checkValidation } = require('../middleware/validation');
 const { isTestEnvironment } = require('../test/test-helpers');
+const {
+  listAlumni,
+  issueAlumniToken,
+  buildUnsubscribeFooter,
+  getOrganizationName,
+  UNSUBSCRIBE_PURPOSE
+} = require('../services/alumni');
+
+/** Where alumni links point when no request is available to ask. */
+const DEFAULT_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://wampums.app';
+
+/**
+ * Resolve the origin an organization's emailed links should use.
+ *
+ * @param {Object} pool - Database pool
+ * @param {number} organizationId - Organization ID
+ * @returns {Promise<string>} Origin, scheme included
+ */
+async function resolveOrganizationBaseUrl(pool, organizationId) {
+  const { rows } = await pool.query(
+    `SELECT domain FROM organization_domains
+      WHERE organization_id = $1
+      ORDER BY created_at ASC
+      LIMIT 1`,
+    [organizationId],
+  );
+
+  const domain = rows[0]?.domain;
+  if (!domain) {
+    return DEFAULT_BASE_URL;
+  }
+  return /^https?:\/\//i.test(domain) ? domain : `https://${domain}`;
+}
 
 const ALLOWED_ROLES = ['admin', 'animation', 'parent'];
+/** Who an announcement can address. The two are mutually exclusive by design. */
+const MEMBERS_AUDIENCE = 'members';
+const ALUMNI_AUDIENCE = 'alumni';
+const ALLOWED_AUDIENCES = [MEMBERS_AUDIENCE, ALUMNI_AUDIENCE];
 const pg = require('pg');
 const { Client } = pg;
 
@@ -29,6 +66,7 @@ const { Client } = pg;
  * @returns {Object}
  */
 function normalizeAnnouncementPayload(body) {
+  const audience = ALLOWED_AUDIENCES.includes(body.audience) ? body.audience : MEMBERS_AUDIENCE;
   const roles = Array.isArray(body.recipient_roles)
     ? body.recipient_roles.filter((role) => ALLOWED_ROLES.includes(role))
     : [];
@@ -43,8 +81,12 @@ function normalizeAnnouncementPayload(body) {
   return {
     subject: sanitizeInput(body.subject).slice(0, 255),
     message: sanitizeInput(body.message),
-    roles,
-    groups,
+    audience,
+    // An alumni mailing has no roles and no dens to filter on: the people it
+    // reaches left the unit. Any role or group the client sent is dropped here
+    // rather than carried into storage, so a later send cannot reinterpret it.
+    roles: audience === ALUMNI_AUDIENCE ? [] : roles,
+    groups: audience === ALUMNI_AUDIENCE ? [] : groups,
     scheduledAt: scheduledAt && !Number.isNaN(scheduledAt.getTime()) ? scheduledAt : null,
     saveAsDraft,
     sendNow,
@@ -72,9 +114,55 @@ async function fetchAnnouncementTemplates(pool, organizationId) {
 }
 
 /**
- * Build email, push, and WhatsApp recipients based on roles and group filters
+ * Build the alumni audience.
+ *
+ * Email only, and only for memberships that opted in. No push and no WhatsApp:
+ * those channels belong to an account that is no longer active, and a former
+ * member who agreed to an occasional email did not agree to a phone
+ * notification.
+ *
+ * Every address is returned with its own unsubscribe token, because the whole
+ * arrangement rests on leaving being as easy as one click.
+ *
+ * @param {Object} pool - Database pool
+ * @param {number} organizationId - Organization ID
+ * @returns {Promise<{emails: Array<string>, subscribers: Array, whatsappNumbers: Array, alumniByEmail: Map}>} Recipients
  */
-async function buildRecipients(pool, organizationId, roles, groupIds) {
+async function buildAlumniRecipients(pool, organizationId) {
+  const alumni = await listAlumni(pool, organizationId);
+  const alumniByEmail = new Map();
+
+  alumni.forEach((row) => {
+    if (!alumniByEmail.has(row.email)) {
+      alumniByEmail.set(row.email, row);
+    }
+  });
+
+  return {
+    emails: [...alumniByEmail.keys()],
+    subscribers: [],
+    whatsappNumbers: [],
+    alumniByEmail,
+  };
+}
+
+/**
+ * Build email, push, and WhatsApp recipients based on roles and group filters
+ *
+ * @param {Object} pool - Database pool
+ * @param {number} organizationId - Organization ID
+ * @param {Array<string>} roles - Recipient roles
+ * @param {Array<number>} groupIds - Recipient den ids
+ * @param {string} [audience] - 'members' (the unit) or 'alumni' (former families)
+ * @returns {Promise<Object>} Recipients per channel
+ */
+async function buildRecipients(pool, organizationId, roles, groupIds, audience = MEMBERS_AUDIENCE) {
+  // The alumni audience is a separate list, never a filter over the unit's:
+  // that is what keeps it out of a general send.
+  if (audience === ALUMNI_AUDIENCE) {
+    return buildAlumniRecipients(pool, organizationId);
+  }
+
   const roleFilter = roles.length ? roles : ALLOWED_ROLES;
   const includeParents = roleFilter.includes('parent');
   const groupFilterClause = groupIds.length ? 'AND pgroups.group_id = ANY($2::int[])' : '';
@@ -166,16 +254,45 @@ async function buildRecipients(pool, organizationId, roles, groupIds) {
  * Send announcement via email, push, WhatsApp, and Google Chat
  */
 async function dispatchAnnouncement(pool, logger, announcement, whatsappService = null, googleChatService = null) {
-  const { emails, subscribers, whatsappNumbers } = await buildRecipients(
+  const audience = announcement.audience || MEMBERS_AUDIENCE;
+  const { emails, subscribers, whatsappNumbers, alumniByEmail } = await buildRecipients(
     pool,
     announcement.organization_id,
     announcement.recipient_roles,
     announcement.recipient_groups,
+    audience,
   );
+
+  const isAlumniSend = audience === ALUMNI_AUDIENCE;
+  const organizationName = isAlumniSend
+    ? await getOrganizationName(pool, announcement.organization_id)
+    : null;
+  // Scheduled sends run without a request, so the unsubscribe link cannot be
+  // derived from the caller's host the way the invitation's is.
+  const baseUrl = isAlumniSend
+    ? await resolveOrganizationBaseUrl(pool, announcement.organization_id)
+    : null;
 
   const emailLogs = await Promise.allSettled(
     emails.map(async (email) => {
-      const success = await sendEmail(email, announcement.subject, announcement.message);
+      let body = announcement.message;
+      let html = null;
+      let fromName = null;
+
+      // An alumni mailing carries its own way out. Building the footer per
+      // recipient is what makes the link personal — a shared one could only
+      // unsubscribe everybody or nobody.
+      if (isAlumniSend) {
+        const membership = alumniByEmail.get(email);
+        const language = await getUserEmailLanguage(pool, email, announcement.organization_id);
+        const unsubscribeLink = `${baseUrl}/alumni-unsubscribe?token=${issueAlumniToken(membership, UNSUBSCRIBE_PURPOSE)}`;
+        const footer = buildUnsubscribeFooter({ language, unsubscribeLink });
+        body = `${announcement.message}${footer.text}`;
+        html = `<div>${escapeHtml(announcement.message).replace(/\n/g, '<br />')}</div>${footer.html}`;
+        fromName = organizationName;
+      }
+
+      const success = await sendEmail(email, announcement.subject, body, html, fromName);
       await pool.query(
         `INSERT INTO announcement_logs (announcement_id, channel, recipient_email, status, error_message)
          VALUES ($1, 'email', $2, $3, $4)`,
@@ -298,9 +415,13 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
     );
   }
 
-  // Send Google Chat broadcast
+  // Send Google Chat broadcast.
+  //
+  // Never for an alumni send: the broadcast space belongs to the unit, so
+  // posting there would put a message meant for former families in front of the
+  // current ones — the general send this audience exists to stay out of.
   let googleChatOutcome = { successes: 0, failures: 0 };
-  if (googleChatService) {
+  if (googleChatService && !isAlumniSend) {
     try {
       // Check if Google Chat is configured for this organization
       const configCheck = await pool.query(
@@ -590,7 +711,12 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
     [
       check('subject').trim().notEmpty().withMessage('Subject is required'),
       check('message').trim().notEmpty().withMessage('Message is required'),
-      check('recipient_roles').isArray({ min: 1 }).withMessage('recipient_roles must include at least one role'),
+      check('audience').optional().isIn(ALLOWED_AUDIENCES).withMessage(`audience must be one of ${ALLOWED_AUDIENCES.join(', ')}`),
+      // An alumni mailing has no roles to pick from, so the requirement only
+      // applies to the unit's own audience.
+      check('recipient_roles')
+        .if((_value, { req }) => req.body?.audience !== ALUMNI_AUDIENCE)
+        .isArray({ min: 1 }).withMessage('recipient_roles must include at least one role'),
       check('recipient_group_ids').optional().isArray().withMessage('recipient_group_ids must be an array'),
       check('scheduled_at').optional().isISO8601().withMessage('scheduled_at must be a valid date'),
       check('save_as_draft').optional().isBoolean(),
@@ -606,15 +732,22 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
         }
 
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
+        const normalized = normalizeAnnouncementPayload(req.body);
+
+        // Writing to former families is a narrower right than writing to the
+        // unit: it reaches people who no longer belong to it and who agreed to
+        // hear from the organization, not from anyone who can post a notice.
+        const requiredPermissions = normalized.audience === ALUMNI_AUDIENCE
+          ? ['communications.send', 'alumni.manage']
+          : ['communications.send'];
         const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
-          requiredPermissions: ['communications.send'],
+          requiredPermissions,
         });
         if (!membership.authorized) {
           return res.status(403).json({ success: false, message: membership.message });
         }
 
-        const normalized = normalizeAnnouncementPayload(req.body);
-        if (!normalized.roles.length) {
+        if (normalized.audience !== ALUMNI_AUDIENCE && !normalized.roles.length) {
           return res.status(400).json({ success: false, message: 'No valid roles provided' });
         }
 
@@ -627,8 +760,8 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
 
         const insertQuery = `
           INSERT INTO announcements
-            (organization_id, created_by, subject, message, recipient_roles, recipient_groups, scheduled_at, status)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            (organization_id, created_by, subject, message, recipient_roles, recipient_groups, scheduled_at, status, audience)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
           RETURNING *
         `;
 
@@ -641,6 +774,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
           normalized.groups,
           normalized.scheduledAt,
           initialStatus,
+          normalized.audience,
         ]);
 
         const announcement = rows[0];
@@ -680,7 +814,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
       }
 
       const announcementsQuery = `
-        SELECT id, subject, message, recipient_roles, recipient_groups, scheduled_at, sent_at, status, created_at
+        SELECT id, subject, message, recipient_roles, recipient_groups, audience, scheduled_at, sent_at, status, created_at
         FROM announcements
         WHERE organization_id = $1
         ORDER BY created_at DESC
@@ -727,6 +861,16 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
 
   return router;
 };
+
+/**
+ * Recipient resolution, exported so the audience separation can be asserted
+ * against a real database. It is the single property this whole feature rests
+ * on — an alumni address must never appear in a members send, and vice versa —
+ * and it lives in a query, not in a branch a unit test could stub.
+ *
+ * @private Used only in test environments
+ */
+module.exports.buildRecipientsForTests = buildRecipients;
 
 /**
  * Export shutdown function for tests to clean up resources

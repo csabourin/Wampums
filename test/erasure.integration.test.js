@@ -64,8 +64,10 @@ describe.skipIf(!DATABASE_URL)('Right to erasure', () => {
   /**
    * Create an organization and its program section.
    *
-   * The two tables reference each other and neither constraint is deferrable,
-   * so foreign key triggers are suspended for the pair.
+   * The two tables reference each other, so both rows go in one transaction and
+   * the organization side of the cycle is checked at COMMIT
+   * (`fix_organizations_program_section_fk_deferrable.sql`). No trigger is suspended: doing
+   * so is what let a genuinely uncreatable organization look creatable.
    *
    * @returns {Promise<number>} Organization ID
    */
@@ -73,7 +75,6 @@ describe.skipIf(!DATABASE_URL)('Right to erasure', () => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query("SET LOCAL session_replication_role = 'replica'");
       const created = await client.query(
         "INSERT INTO organizations (name) VALUES ('Erasure Test Unit') RETURNING id"
       );
@@ -505,6 +506,48 @@ describe.skipIf(!DATABASE_URL)('Right to erasure', () => {
 
     await pool.query('DELETE FROM participant_enrollments WHERE participant_id = $1', [stranger]);
     await pool.query('DELETE FROM participants WHERE id = $1', [stranger]);
+    await pool.query('DELETE FROM scout_years WHERE id = $1', [otherYear]);
+    const client = await pool.connect();
+    await client.query('BEGIN');
+    await client.query("SET LOCAL session_replication_role = 'replica'");
+    await client.query('DELETE FROM organization_program_sections WHERE organization_id = $1', [otherOrg]);
+    await client.query('DELETE FROM organizations WHERE id = $1', [otherOrg]);
+    await client.query('COMMIT');
+    client.release();
+  });
+
+  test('refuses when a sister unit also holds records on the child', async () => {
+    // `participants` is a global row, so deleting it would cascade through the
+    // other unit's enrollments, attendance and forms — records the requesting
+    // unit has no standing to destroy.
+    const otherOrg = await createOrganization();
+    const otherYear = await one(
+      `INSERT INTO scout_years (organization_id, label, start_date, end_date, status)
+       VALUES ($1, '2025-2026', '2025-09-01', '2026-08-31', 'active') RETURNING id`,
+      [otherOrg]
+    );
+    await pool.query(
+      `INSERT INTO participant_enrollments
+              (participant_id, organization_id, scout_year_id, inscription_date, status)
+       VALUES ($1, $2, $3, CURRENT_DATE, 'transferred')`,
+      [ids.childB, otherOrg, otherYear]
+    );
+
+    const response = await erase(ids.childB, 'Bruno Bergeron');
+    expect(response.status).toBe(409);
+    expect(response.body.errors).toEqual([
+      expect.objectContaining({ organization_id: otherOrg })
+    ]);
+
+    // Nothing was touched, in either unit.
+    expect(await one('SELECT COUNT(*)::int FROM participants WHERE id = $1', [ids.childB])).toBe(1);
+    expect(await one(
+      'SELECT COUNT(*)::int FROM participant_enrollments WHERE participant_id = $1', [ids.childB]
+    )).toBe(2);
+    expect(await one('SELECT COUNT(*)::int FROM erasure_log WHERE organization_id = $1',
+      [ids.organizationId])).toBe(0);
+
+    await pool.query('DELETE FROM participant_enrollments WHERE organization_id = $1', [otherOrg]);
     await pool.query('DELETE FROM scout_years WHERE id = $1', [otherYear]);
     const client = await pool.connect();
     await client.query('BEGIN');

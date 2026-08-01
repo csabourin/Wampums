@@ -53,20 +53,46 @@ function hostElement() {
 }
 
 /**
+ * Build the archive warning and its way out.
+ *
+ * @param {Object} selected - Year currently being consulted
+ * @returns {string} Notice markup
+ */
+function archiveNoticeMarkup(selected) {
+  return `<p class="scout-year-banner__notice" role="status">
+         ${translate('scout_year_archive_notice').replace('{year}', escapeHTML(selected.label))}
+         <button type="button" class="scout-year-banner__exit" id="scout-year-exit">
+           ${translate('scout_year_back_to_current')}
+         </button>
+       </p>`;
+}
+
+/**
  * Draw the selector, plus the archive warning when one is in effect.
  *
  * @returns {void}
  */
 function render() {
   const element = hostElement();
+  const selected = getSelectedScoutYear();
 
   if (years.length < MIN_YEARS_TO_OFFER_SWITCH) {
+    // With an archived year in effect, the list being short means the year
+    // request failed — not that there is nothing to switch between. Read-only
+    // mode and the write guard are still on, so clearing the banner here would
+    // strand the user in an archive with no way back. The exit stays, without
+    // the selector there is no list to fill.
+    if (selected) {
+      element.classList.add('is-archive');
+      setContent(element, archiveNoticeMarkup(selected));
+      return;
+    }
+
     setContent(element, '');
     element.classList.remove('is-archive');
     return;
   }
 
-  const selected = getSelectedScoutYear();
   const activeYear = years.find(year => year.status === 'active');
   const selectedId = selected?.id ?? activeYear?.id ?? '';
 
@@ -81,14 +107,7 @@ function render() {
     })
     .join('');
 
-  const archiveNotice = selected
-    ? `<p class="scout-year-banner__notice" role="status">
-         ${translate('scout_year_archive_notice').replace('{year}', escapeHTML(selected.label))}
-         <button type="button" class="scout-year-banner__exit" id="scout-year-exit">
-           ${translate('scout_year_back_to_current')}
-         </button>
-       </p>`
-    : '';
+  const archiveNotice = selected ? archiveNoticeMarkup(selected) : '';
 
   element.classList.toggle('is-archive', Boolean(selected));
 

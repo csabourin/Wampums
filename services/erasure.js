@@ -71,11 +71,56 @@ async function findLinkedFamily(client, participantId) {
 }
 
 /**
+ * Find the other organizations holding data on this participant.
+ *
+ * A participant record is global — `participants` has no `organization_id`; it
+ * is the enrollment that is per-unit. So deleting the row reaches every unit the
+ * child was ever in, and the cascade takes their attendance, forms, honours and
+ * enrollments with it. An administrator of one unit erasing another unit's
+ * records is not something the requesting unit has any standing to do, however
+ * legitimate the family's request is.
+ *
+ * The answer therefore has to come from every table that attributes a row to a
+ * tenant, not from enrollments alone: a unit that holds a fee or a form for this
+ * child has records at stake even if the enrollment was never opened.
+ *
+ * @param {Object} client - Database client inside an open transaction
+ * @param {number} participantId - Participant being erased
+ * @param {number} organizationId - Organization the request came through
+ * @returns {Promise<Array<{id: number, name: string}>>} Other organizations
+ */
+async function findOtherOrganizations(client, participantId, organizationId) {
+  const result = await client.query(
+    `SELECT DISTINCT o.id, o.name
+       FROM (
+         SELECT organization_id FROM participant_enrollments WHERE participant_id = $1
+         UNION
+         SELECT organization_id FROM participant_fees WHERE participant_id = $1
+         UNION
+         SELECT organization_id FROM form_submissions WHERE participant_id = $1
+         UNION
+         SELECT organization_id FROM participant_group_assignments WHERE participant_id = $1
+       ) owners
+       JOIN organizations o ON o.id = owners.organization_id
+      WHERE owners.organization_id IS NOT NULL
+        AND owners.organization_id <> $2
+      ORDER BY o.name`,
+    [participantId, organizationId]
+  );
+
+  return result.rows;
+}
+
+/**
  * Remove the money trail attached to a participant.
  *
  * `participant_fees` refuses to cascade — the accounting is meant to outlive a
  * participant record — so it and everything hanging off it come out by hand,
  * innermost first.
+ *
+ * Not filtered by organization, and safe not to be: `eraseParticipant` refuses
+ * to run at all unless the requesting unit is the only one holding data on this
+ * participant, so by the time this is reached every fee belongs to it.
  *
  * @param {Object} client - Database client inside an open transaction
  * @param {number} participantId - Participant being erased
@@ -229,10 +274,21 @@ async function countRemainingMentions(client, organizationId, firstName, lastNam
  * @param {number} options.organizationId - Organization the request came through
  * @param {Object} options.participant - Participant row ({ id, first_name, last_name })
  * @param {string} options.performedBy - UUID of the administrator carrying it out
- * @returns {Promise<Object>} What was removed and what was kept
+ * @returns {Promise<Object>} What was removed and what was kept, or
+ *   `{ blocked: 'shared_with_other_organizations', organizations }` when another
+ *   unit's records are at stake
  */
 async function eraseParticipant(client, { organizationId, participant, performedBy }) {
   const participantId = participant.id;
+
+  // Exclusive ownership first, before anything is deleted. A child who moved
+  // between sister units belongs to both files, and the request has to be
+  // honoured by each of them in turn — the alternative is one unit silently
+  // destroying another's attendance, forms and honours through the cascade.
+  const otherOrganizations = await findOtherOrganizations(client, participantId, organizationId);
+  if (otherOrganizations.length > 0) {
+    return { blocked: 'shared_with_other_organizations', organizations: otherOrganizations };
+  }
 
   const { guardianIds, userIds } = await findLinkedFamily(client, participantId);
   const financials = await eraseFinancials(client, participantId);
@@ -304,5 +360,6 @@ async function eraseParticipant(client, { organizationId, participant, performed
 module.exports = {
   PARENT_ONLY_ROLES,
   UNLINKED_PARTICIPANT_TABLES,
+  findOtherOrganizations,
   eraseParticipant
 };

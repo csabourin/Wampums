@@ -17,6 +17,59 @@ const { asyncHandler } = require('../middleware/response');
 // Import utilities
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 
+/*
+ * Reading a form submission "as of" a scout year.
+ *
+ * These reports scope the roster and the den to the selected year, but a form
+ * submission is not a per-year row: the year transition deliberately keeps last
+ * year's content and only asks for a re-read (§10), so a returning child has one
+ * health form stamped with the year it was first filled in. Two consequences,
+ * both of which these fragments exist to handle:
+ *
+ *   * joining on `fs.scout_year_id = <selected year>` would empty the report for
+ *     every returning participant, since their form belongs to an earlier year;
+ *   * joining without any year condition lets a closed year's report display a
+ *     form filled in two seasons later, and lets a participant with submissions
+ *     from several years appear once per submission.
+ *
+ * What a historical report should show is the submission that was in force
+ * during the selected year: the most recent one that existed by then. Hence a
+ * lateral picking a single row, ordered by the year it belongs to.
+ *
+ * The residual limit is stated plainly: a submission edited in a later season is
+ * a mutable row, so its *content* is today's. Scoping fixes which record is
+ * shown, not the absence of version history — see §9 of
+ * devdocs/GESTION_ANNEE_SCOUTE.md.
+ *
+ * Both fragments expect `$1` = organization id and `$4` = the selected year's
+ * start date, and attach to a query whose participant table is aliased `p`.
+ */
+const HEALTH_FORM_AS_OF_YEAR = `
+  LEFT JOIN LATERAL (
+    SELECT sub.submission_data
+      FROM form_submissions sub
+      LEFT JOIN scout_years sub_year ON sub_year.id = sub.scout_year_id
+     WHERE sub.participant_id = p.id
+       AND sub.organization_id = $1
+       AND sub.form_type = 'fiche_sante'
+       AND (sub_year.start_date IS NULL OR sub_year.start_date <= $4::date)
+     ORDER BY sub_year.start_date DESC NULLS LAST, sub.updated_at DESC NULLS LAST, sub.id DESC
+     LIMIT 1
+  ) fs ON TRUE`;
+
+const REGISTRATION_FORM_AS_OF_YEAR = `
+  LEFT JOIN LATERAL (
+    SELECT sub.submission_data
+      FROM form_submissions sub
+      LEFT JOIN scout_years sub_year ON sub_year.id = sub.scout_year_id
+     WHERE sub.participant_id = p.id
+       AND sub.organization_id = $1
+       AND sub.form_type = 'participant_registration'
+       AND (sub_year.start_date IS NULL OR sub_year.start_date <= $4::date)
+     ORDER BY sub_year.start_date DESC NULLS LAST, sub.updated_at DESC NULLS LAST, sub.id DESC
+     LIMIT 1
+  ) fs ON TRUE`;
+
 /**
  * Export route factory function
  * Allows dependency injection of pool and logger
@@ -150,16 +203,14 @@ module.exports = (pool, logger) => {
           AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
         LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
         LEFT JOIN groups g ON pg.group_id = g.id
-        LEFT JOIN form_submissions fs ON p.id = fs.participant_id
-          AND fs.organization_id = $1
-          AND fs.form_type = 'fiche_sante'
+        ${HEALTH_FORM_AS_OF_YEAR}
         WHERE po.organization_id = $1
       `;
 
-    const params = [organizationId, req.scoutYear.id, req.rosterStatuses];
+    const params = [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.start_date];
 
     if (groupId) {
-      query += ` AND pg.group_id = $4`;
+      query += ` AND pg.group_id = $5`;
       params.push(groupId);
     }
 
@@ -376,11 +427,17 @@ module.exports = (pool, logger) => {
            AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
          LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
-         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.organization_id = $1
+         LEFT JOIN (
+           SELECT sub.participant_id, sub.organization_id, sub.form_type, sub_year.start_date
+             FROM form_submissions sub
+             LEFT JOIN scout_years sub_year ON sub_year.id = sub.scout_year_id
+         ) fs ON fs.participant_id = p.id
+              AND fs.organization_id = $1
+              AND (fs.start_date IS NULL OR fs.start_date <= $4::date)
          WHERE po.organization_id = $1
          GROUP BY p.id, p.first_name, p.last_name, g.name
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses]
+      [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.start_date]
     );
 
     // Calculate missing forms for each participant
@@ -439,10 +496,10 @@ module.exports = (pool, logger) => {
          FROM participants p
          JOIN participant_enrollments po ON p.id = po.participant_id
            AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
-         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante'
+         ${HEALTH_FORM_AS_OF_YEAR}
          WHERE po.organization_id = $1
          ORDER BY p.first_name, p.last_name`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses]
+      [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.start_date]
     );
 
     res.json({ success: true, data: result.rows });
@@ -478,11 +535,11 @@ module.exports = (pool, logger) => {
            AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
          LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
-         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante' AND fs.organization_id = $1
+         ${HEALTH_FORM_AS_OF_YEAR}
          WHERE po.organization_id = $1
            AND fs.submission_data->>'has_allergies' = 'yes'
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses]
+      [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.start_date]
     );
 
     res.json({ success: true, data: result.rows });
@@ -517,11 +574,11 @@ module.exports = (pool, logger) => {
            AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
          LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
-         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante' AND fs.organization_id = $1
+         ${HEALTH_FORM_AS_OF_YEAR}
          WHERE po.organization_id = $1
            AND fs.submission_data->>'has_medication' = 'yes'
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses]
+      [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.start_date]
     );
 
     res.json({ success: true, data: result.rows });
@@ -555,10 +612,10 @@ module.exports = (pool, logger) => {
            AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
          LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
-         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante' AND fs.organization_id = $1
+         ${HEALTH_FORM_AS_OF_YEAR}
          WHERE po.organization_id = $1
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses]
+      [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.start_date]
     );
 
     res.json({ success: true, data: result.rows });
@@ -592,10 +649,10 @@ module.exports = (pool, logger) => {
            AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
          LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
-         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'participant_registration' AND fs.organization_id = $1
+         ${REGISTRATION_FORM_AS_OF_YEAR}
          WHERE po.organization_id = $1
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses]
+      [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.start_date]
     );
 
     res.json({ success: true, data: result.rows });
@@ -629,10 +686,10 @@ module.exports = (pool, logger) => {
            AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
          LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
-         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'participant_registration' AND fs.organization_id = $1
+         ${REGISTRATION_FORM_AS_OF_YEAR}
          WHERE po.organization_id = $1
          ORDER BY g.name, p.last_name, p.first_name`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses]
+      [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.start_date]
     );
 
     res.json({ success: true, data: result.rows });

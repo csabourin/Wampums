@@ -70,9 +70,11 @@ describe.skipIf(!DATABASE_URL)('Scout year rollback', () => {
    *
    * `organizations.(id, program_section)` and
    * `organization_program_sections.organization_id` reference each other, so
-   * neither row can be inserted first. Foreign key triggers are suspended for
-   * the pair — a superuser-only trick, acceptable because this suite only ever
-   * runs against a disposable database.
+   * neither row can be inserted first. `fix_organizations_program_section_fk_deferrable.sql`
+   * defers the organization side to COMMIT, which is what makes both rows
+   * insertable in one transaction. This used to suspend foreign key triggers
+   * instead — a superuser-only trick that also hid the fact that creating an
+   * organization was impossible through the application.
    *
    * @returns {Promise<number>} Organization ID
    */
@@ -80,7 +82,6 @@ describe.skipIf(!DATABASE_URL)('Scout year rollback', () => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query("SET LOCAL session_replication_role = 'replica'");
       const created = await client.query(
         "INSERT INTO organizations (name) VALUES ('Rollback Test Unit') RETURNING id"
       );

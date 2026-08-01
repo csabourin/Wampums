@@ -266,10 +266,10 @@ Les phases 1 à 3 sont surtout de la migration SQL et des ajustements ciblés. L
 2. **Présences et honneurs : colonne `scout_year_id` ou filtrage par plage de dates ?** → **filtrage par plage de dates**, appliqué en lecture (§9). Les deux tables portent déjà une date ; les endpoints la bornent maintenant sur `scout_years.start_date/end_date`, ce qui règle le décompte d'honneurs qui traversait les années. Reste ouvert le seul cas que la plage de dates ne tranche pas : une saisie **rétroactive** faite après la transition mais datée de l'an dernier compte dans l'année précédente, ce qui est correct pour la consultation mais empêche l'annulation (elle est comptée comme activité). Une colonne `scout_year_id` lèverait l'ambiguïté ; elle n'est pas nécessaire pour l'usage courant.
 3. ~~**Portée du rollback :** indéfiniment tant que la nouvelle année est vide, ou fenêtre de N jours ?~~ → **tant que la nouvelle année est vide**, sans limite de temps. Le refus est nominatif : il nomme ce qui a été saisi depuis (§9).
 4. **Progressions de badges/OAS en cours :** se reportent à la nouvelle année, ou repartent à zéro avec l'historique conservé ? Aucun changement fait : elles se reportent (comportement actuel).
-5. **Transfert vers une unité sœur :** la colonne `transferred_to_organization_id` existe, aucune interface ne l'alimente. **Décidé, pas implémenté :** le transfert doit emmener les parents avec le jeune ; si un parent a d'autres enfants dans d'autres unités, il obtient une adhésion à chacune plutôt qu'un déplacement, et ne voit dans chaque vue que l'enfant qui y est inscrit — ce dernier point fonctionne déjà, la liste des participants d'un parent est filtrée par organisation. La fonction vivra dans l'espace district.
+5. ~~**Transfert vers une unité sœur :**~~ → **implémenté côté serveur** (§9). Le transfert emmène les parents ; un parent qui garde un enfant dans l'unité d'origine obtient une adhésion à chacune plutôt qu'un déplacement, et ne voit dans chaque vue que l'enfant qui y est inscrit — ce dernier point fonctionnait déjà, la liste des participants d'un parent est filtrée par organisation. La destination est bornée au groupe local. **L'interface reste à faire** : elle vivra dans l'espace district, qui n'est pas repris ici.
 6. ~~**Tanières d'une année à l'autre ?**~~ → **remises à zéro**, avec historique par année (§9). Les tanières elles-mêmes gardent leur nom ; ce sont les affectations et les rôles de sizainier qui repartent de zéro chaque septembre. Pas de suivi des changements *en cours* d'année : ce qui compte est l'état à la fin de l'année.
 7. ~~**Effacement à la demande : jusqu'où ?**~~ → **le jeune, plus les parents qui n'ont plus aucun autre enfant** ; trace d'audit sans données personnelles ; réservé aux administrateurs d'unité et au district (§9).
-8. **Statut alumni — conception validée, pas implémentée.** Jamais automatique : la transition continue de poser `inactive`. Le consentement se demande au départ, par un courriel avec un lien à un clic (jeton signé, sans connexion, puisque l'accès vient d'être retiré) ; le silence laisse `inactive`. `alumni` débloque une audience distincte dans les annonces, **jamais incluse dans un envoi général**, avec désabonnement à un clic. C'est aussi l'ancrage de la future politique de conservation : une famille sans consentement et sans enfant inscrit devient candidate à la purge, un alumni consentant a une relation active qui justifie qu'on garde ses coordonnées.
+8. ~~**Statut alumni — conception validée, pas implémentée.**~~ → **implémenté** (§9), aux règles décrites ici sans écart. Jamais automatique : la transition continue de poser `inactive`. Le consentement se demande au départ, par un courriel avec un lien à un clic (jeton signé, sans connexion, puisque l'accès vient d'être retiré) ; le silence laisse `inactive`. `alumni` débloque une audience distincte dans les annonces, **jamais incluse dans un envoi général**, avec désabonnement à un clic. C'est aussi l'ancrage de la future politique de conservation : une famille sans consentement et sans enfant inscrit devient candidate à la purge, un alumni consentant a une relation active qui justifie qu'on garde ses coordonnées.
 
 ---
 
@@ -466,6 +466,78 @@ que celui des frais, donc un jeune transféré pouvait faire apparaître des fra
 d'une autre unité. La jointure est supprimée : `participant_fees` porte son propre
 `organization_id`, qui est le propriétaire légitime de l'argent.
 
+### Statut alumni — `migrations/add_alumni_consent.sql`
+
+`user_organizations` reçoit `alumni_invited_at`, `alumni_consent_at`, `alumni_opted_out_at`, plus
+une contrainte `CHECK` qui **refuse en base** un statut `alumni` sans consentement : l'audience ne
+peut pas être bâtie sur un statut que personne n'a accordé. Permission `alumni.manage`
+(`unitadmin`, `district`, `administration`).
+
+- `services/alumni.js` : jetons signés par objet (`alumni_consent` 180 j, `alumni_unsubscribe`
+  5 ans — un lien de désabonnement expiré est une promesse rompue), candidats à l'invitation,
+  envoi, consentement, désabonnement ;
+- `GET /api/v1/alumni/candidates`, `GET /api/v1/alumni`, `POST /api/v1/alumni/invitations` — un
+  membership déjà invité n'est plus candidat, donc rejouer l'envoi ne produit jamais un deuxième
+  courriel ; l'horodatage n'est posé que si le courriel est **réellement parti** ;
+- publics, sans authentification, parce que l'accès vient d'être retiré :
+  `GET /api/v1/public/alumni/invitation`, `POST /api/v1/public/alumni/consent`,
+  `POST /api/v1/public/alumni/unsubscribe`. Ils répondent 200 quel que soit le sort du jeton, l'issue
+  étant dans `state` : distinguer « membership inconnu » de « lien expiré » par le code HTTP en
+  ferait un oracle ;
+- `announcements.audience` (`members` | `alumni`) : l'exclusion est une propriété de l'annonce
+  stockée, pas du chemin de code. Un envoi alumni est **courriel seulement** — ni push, ni WhatsApp,
+  ni diffusion Google Chat, dont l'espace appartient à l'unité — et chaque message porte son lien de
+  désabonnement personnel. Écrire aux alumni exige `communications.send` **et** `alumni.manage` ;
+- page publique `spa/modules/alumni/AlumniLink.js` (`/alumni-consent`, `/alumni-unsubscribe`). Le
+  consentement demande un clic plutôt que d'agir au chargement : un client de messagerie qui
+  préfetche les liens consentirait à la place de la personne. Le désabonnement, lui, agit
+  immédiatement ;
+- l'invitation est proposée **par un bouton** dans le rapport de transition, pas déclenchée par la
+  transition elle-même : celle-ci s'exécute dans une transaction, et rien qui envoie du courriel n'y
+  a sa place.
+
+### Transfert vers une unité sœur — `migrations/add_transfer_provenance.sql`
+
+`participant_enrollments` reçoit `transferred_at` et `transferred_by`. Deux colonnes plutôt qu'une
+table : l'inscription close portait déjà le résultat, il n'y manquait que la provenance.
+
+- `services/transfer.js` + `GET /api/v1/transfers/destinations`, `POST /api/v1/transfers/preview`,
+  `POST /api/v1/transfers` (permission `participants.transfer`, déjà en base) ;
+- la destination est bornée aux unités du même groupe local (`organization_local_groups`) : la
+  permission ne peut pas atteindre un locataire sans rapport ;
+- l'inscription d'origine est close (`transferred`), celle de destination ouverte dans l'année active
+  de la cible, **date d'inscription conservée** — l'ancienneté appartient au jeune ;
+- les parents suivent. Celui qui garde un enfant à l'origine obtient une adhésion **de plus** ;
+  celui qui n'a plus personne y est désactivé (`transferred`) ; celui qui tient un rôle autre que
+  parent n'est jamais touché ;
+- ne suivent **pas**, délibérément : les formulaires (ils portent un `organization_id` et ont été
+  remplis pour une autre unité ; le nombre laissé derrière est remonté), la tanière, les points, les
+  présences, les honneurs, ainsi que les frais et soldes — l'argent est dû à l'unité qui l'a facturé.
+- **L'interface manque** : elle appartient à l'espace district, non repris ici. Le client
+  `spa/api/api-transfers.js` est en place pour elle.
+
+### Défauts corrigés au passage
+
+- **Effacement inter-unités.** `participants` est une ligne globale : l'effacement en cascade
+  atteignait les présences, formulaires, honneurs et inscriptions d'une **autre** unité, et
+  `eraseFinancials` supprimait les frais sans filtre d'organisation. L'effacement exige désormais la
+  possession exclusive et répond 409 en nommant les unités concernées ; chacune doit honorer la
+  demande pour ses propres données.
+- **Annulation de transition non atomique.** Les bloqueurs étaient évalués hors transaction, et le
+  verrou ne portait que sur la ligne de transition — qu'aucune écriture ordinaire ne touche. Une
+  inscription saisie entre la vérification et la suppression était détruite sans trace. La
+  vérification est rejouée **dans** la transaction, en isolation `SERIALIZABLE` : une écriture
+  concurrente devient un échec de sérialisation, rendu en 409, au lieu d'une perte silencieuse.
+- **Rapports archivés.** L'inscription et la tanière étaient bornées par année, la jointure
+  `form_submissions` ne l'était pas : un rapport d'année close pouvait montrer des données médicales
+  saisies deux saisons plus tard, ou une ligne par soumission. Une jointure latérale retient
+  désormais la soumission **en vigueur** pendant l'année demandée. La borne stricte
+  `scout_year_id = <année>` aurait été fausse : la transition conserve la fiche de l'an dernier, un
+  jeune reconduit n'a donc pas de soumission datée de l'année en cours.
+- **Bannière d'archive.** Si le chargement des années échouait alors qu'une année archivée était
+  sélectionnée, la bannière disparaissait tandis que le mode lecture seule restait actif :
+  l'utilisateur ne pouvait plus en sortir. La sortie est maintenue dès qu'une sélection existe.
+
 ### Pas fait
 
 - **Modules non bornés par l'année** : finance, covoiturages, badges, formulaires, ressources et
@@ -474,21 +546,48 @@ d'une autre unité. La jointure est supprimée : `participant_fees` porte son pr
 - **Frais et cotisations** (§6) : `participant_fees` et `payment_plans` ne sont pas rattachés à
   l'année ; les soldes impayés de l'an dernier restent tels quels. Confirmé comme voulu.
 - **Purge / conservation (Loi 25)** : aucune politique de rétention automatique. L'effacement est
-  désormais possible **sur demande** ; ce qui manque est la purge *non demandée* après N ans.
-- **Statut alumni** : conception validée (§8.8), rien d'implémenté.
-- **Transfert vers une unité sœur** : décidé (§8.5), rien d'implémenté.
+  possible **sur demande** ; ce qui manque est la purge *non demandée* après N ans. Le statut alumni
+  en est désormais l'ancrage : une famille sans consentement et sans enfant inscrit est candidate,
+  un alumnus consentant ne l'est pas.
+- **Interface de transfert** : le serveur est complet, l'écran appartient à l'espace district.
+- **Historique des versions de formulaire** : les rapports archivés désignent maintenant la bonne
+  soumission, mais son *contenu* reste mutable — une fiche modifiée cette saison affiche le texte
+  d'aujourd'hui dans le rapport de l'an dernier. Corriger cela demanderait un versionnement des
+  soumissions, hors périmètre.
 - **Texte libre des rapports d'incident** : non expurgé par l'effacement, par choix. Le nombre de
   rapports concernés est remonté à l'administrateur.
 
-### Trouvé au passage, hors périmètre
+### Trouvé au passage, hors périmètre — corrigé
 
+`POST /api/v1/organizations` était inutilisable, pour **deux** raisons indépendantes. La première
+était connue, la seconde ne l'était pas : elle n'apparaît qu'une fois la première levée.
+
+**1. Le cycle de clés étrangères** — `migrations/fix_organizations_program_section_fk_deferrable.sql`.
 `organizations.(id, program_section)` et `organization_program_sections.organization_id` se
-référencent mutuellement, et **aucune des deux contraintes n'est `DEFERRABLE`**. Aucune des deux
-lignes ne peut donc être insérée en premier : créer une organisation depuis
-`routes/organizations.js:499` échoue. La suite d'intégration contourne le problème en suspendant les
-triggers de clé étrangère (`session_replication_role`), ce qui n'est acceptable que sur une base
-jetable. Le correctif serait de rendre `organizations_program_section_fk` `DEFERRABLE INITIALLY
-DEFERRED` et d'insérer les deux lignes dans une même transaction.
+référencent mutuellement et aucune des deux contraintes n'était `DEFERRABLE` : le cycle n'avait pas
+de point d'entrée. Comme `program_section` vaut `'general'` par défaut, même l'insertion la plus
+simple échouait.
+
+Le correctif défère **un seul** côté, `organizations_program_section_fk`, en `INITIALLY DEFERRED` :
+l'organisation est insérée, ses sections semées dans la même transaction, la contrainte vérifiée au
+COMMIT. Déférer l'autre côté serait inutile — dès que la ligne d'organisation existe dans la
+transaction, une section qui la référence est valide immédiatement. `ALTER CONSTRAINT` ne réécrit que
+l'entrée de catalogue : pas de scan, pas de revalidation.
+
+Déférer dit **quand** on vérifie, pas **si** : une organisation sans sa section est toujours refusée,
+au COMMIT au lieu de l'INSERT. C'est vérifié par un test. La suppression, que le `RESTRICT` bloquait
+aussi, fonctionne également.
+
+**2. Un paramètre non typé** — `routes/organizations.js`. La liaison du créateur à sa nouvelle unité
+faisait `jsonb_build_array($3)`. `jsonb_build_array` prend `"any"`, PostgreSQL n'a donc rien pour
+inférer le type et rejette l'instruction : `could not determine data type of parameter $3`. Le route
+retournait 500 même une fois la contrainte déférée. Corrigé par un `$3::int` explicite.
+
+Les fixtures d'intégration ne suspendent plus les triggers de clé étrangère
+(`session_replication_role = 'replica'`) pour créer une organisation : elles passent par les mêmes
+contraintes que l'application. C'est précisément cette suspension qui rendait le défaut invisible —
+une organisation impossible à créer avait l'air créable. `test/organization-creation.integration.test.js`
+exerce désormais le vrai route de bout en bout.
 
 ---
 
@@ -584,3 +683,52 @@ Résultat, tous les compteurs préservés :
 Historique reconstitué depuis la plus ancienne trace d'activité de chaque unité : trois années pour 6A St-Paul Aylmer (depuis 2023-2024), deux pour Demo Organization, une pour les trois autres. Aucune fiche marquée à réviser et aucune autorisation expirée — normal, aucune transition n'a encore été lancée.
 
 Vérifié après coup sur la production : les deux chemins d'écriture (direct et via la vue) fonctionnent, les jointures de l'application renvoient le bon nombre de lignes, et les nouvelles routes répondent 401 plutôt que 404. Le dump de schéma a été régénéré.
+
+### Deuxième vague — 2026-08-01
+
+Appliquée en production dans cet ordre, après une sauvegarde `pg_dump -Fc` :
+
+1. `fix_budget_revenue_duplicate_fees.sql` — 1,4 s ;
+2. `add_scout_year_to_participant_groups.sql` — 3,3 s ;
+3. `add_erasure_log.sql` — 1,8 s.
+
+État avant : `participant_groups` était encore une table, `v_budget_revenue` joignait toujours
+`participant_enrollments`, `erasure_log` n'existait pas, et **aucune** organisation n'avait
+d'affectation de tanière sans année active — la condition qui aurait fait échouer la deuxième
+migration.
+
+Résultat, compteurs préservés : 47 affectations de tanière (dont 0 non estampillée, 47 visibles
+via la vue), 83 inscriptions, 1881 points, 88 participants, 121 adhésions. `v_budget_revenue` ne
+joint plus les inscriptions et rend les mêmes totaux qu'un décompte direct des paiements — la
+duplication de revenus était **latente et non encore matérialisée**, aucune transition n'ayant
+encore été lancée : le correctif est préventif.
+
+Vérifié ensuite : les trois déclencheurs `INSTEAD OF` sont en place, un `ON CONFLICT DO NOTHING`
+sans cible passe par la vue sans rien changer, et — sur une restauration locale de la sauvegarde,
+plutôt qu'en production — l'INSERT estampille l'année active, l'UPDATE et le DELETE ne touchent que
+l'année active, et l'affectation d'une année close reste dans la table sans être visible par la vue.
+Les trois migrations sont ré-exécutables sans effet. `attached_assets/Full_Database_schema.sql` a été
+régénéré depuis la production (`pg_dump 18.4`) ; le diff ne contient rien d'autre que ces trois
+migrations.
+
+Suite de tests rejouée contre cette restauration : 53 tests, tous verts.
+
+### Reste à appliquer, avec le déploiement de cette branche
+
+`add_alumni_consent.sql` et `add_transfer_provenance.sql`.
+
+`fix_organizations_program_section_fk_deferrable.sql` est **déjà appliquée en production** : la contrainte y a
+été déférée le 2026-08-01, entre le dump du matin (qui la donnait encore non déférée) et le contrôle
+de l'après-midi. La migration est conservée et reste nécessaire pour toute base reconstruite à partir
+d'un dump antérieur ; sur la production elle est sans effet, `ALTER CONSTRAINT` vers un état déjà
+atteint.
+
+Le blocage restant de `POST /api/v1/organizations` en production est donc **uniquement** le
+`$3::int`, qui est du code et part avec le déploiement.
+
+**Pas avant le déploiement** pour les deux premières : le code
+actuel en production insère dans `announcements` sans colonne `audience`, ce qui reste valide (la
+colonne a une valeur par défaut), mais l'inverse ne l'est pas — la nouvelle version écrit `audience`
+et lit les colonnes `alumni_*`. Les deux sont additives, ré-exécutables, et n'ont aucun effet sur les
+données existantes : la production ne contient aucune adhésion `alumni` et aucun transfert.
+Régénérer le dump de schéma après coup.
