@@ -14,6 +14,26 @@ const { check } = require('express-validator');
 const { checkValidation } = require('../middleware/validation');
 const { getMeetingDefaults, computeEndTime, formatLocalDate } = require('../utils/meeting-defaults');
 
+/**
+ * Kinds of dated block on the planner calendar.
+ * regular = weekly meeting night, weekend = single out-of-schedule outing,
+ * camp = multi-day block (the span lives on the linked activities row),
+ * special = a one-off that is neither.
+ */
+const MEETING_KINDS = ['regular', 'weekend', 'camp', 'special'];
+
+/** Kinds that get a linked activities row (consent + carpooling) by default. */
+const ACTIVITY_EVENT_KINDS = ['weekend', 'camp'];
+
+/**
+ * Columns PATCH /meetings/:id may write. Used to build the SET clause, so a
+ * request can never name a column of its own.
+ */
+const PATCHABLE_MEETING_FIELDS = [
+  'start_time', 'end_time', 'duration_minutes', 'location',
+  'theme', 'notes', 'is_cancelled', 'period_id', 'meeting_kind', 'metadata'
+];
+
 module.exports = (pool, logger) => {
   const router = express.Router();
 
@@ -642,35 +662,37 @@ module.exports = (pool, logger) => {
         return error(res, 'Cannot edit past meetings (locked)', 409);
       }
 
-      const {
-        start_time, end_time, duration_minutes, location,
-        theme, notes, is_cancelled, period_id, metadata
-      } = req.body;
+      // Only columns explicitly present in the body are touched. A COALESCE-based
+      // update cannot express "clear this field", and treating an absent key as
+      // NULL silently wiped period_id on every partial update — which would erase
+      // the period a meeting belongs to each time the planner saves a theme.
+      const updates = [];
+      const values = [];
+      for (const field of PATCHABLE_MEETING_FIELDS) {
+        if (!Object.prototype.hasOwnProperty.call(req.body, field)) {
+          continue;
+        }
+        let value = req.body[field];
+        if (field === 'metadata') {
+          value = JSON.stringify(value || {});
+        }
+        if (field === 'meeting_kind' && !MEETING_KINDS.includes(value)) {
+          return error(res, `meeting_kind must be one of: ${MEETING_KINDS.join(', ')}`, 400);
+        }
+        updates.push(`${field} = $${updates.length + 3}`);
+        values.push(value);
+      }
 
-      const result = await pool.query(
-        `UPDATE year_plan_meetings SET
-          start_time = COALESCE($1, start_time),
-          end_time = COALESCE($2, end_time),
-          duration_minutes = COALESCE($3, duration_minutes),
-          location = COALESCE($4, location),
-          theme = COALESCE($5, theme),
-          notes = COALESCE($6, notes),
-          is_cancelled = COALESCE($7, is_cancelled),
-          period_id = $8,
-          metadata = COALESCE($9, metadata),
-          updated_at = NOW()
-         WHERE id = $10 AND organization_id = $11
-         RETURNING *`,
-        [
-          start_time || null, end_time || null,
-          duration_minutes || null, location || null,
-          theme || null, notes || null,
-          is_cancelled != null ? is_cancelled : null,
-          period_id !== undefined ? period_id : null,
-          metadata ? JSON.stringify(metadata) : null,
-          meetingId, organizationId
-        ]
-      );
+      if (updates.length === 0) {
+        return success(res, meetingCheck.rows[0], 'No changes detected');
+      }
+
+      // Field names come from the PATCHABLE_MEETING_FIELDS whitelist above, never
+      // from the request; every value is parameterized.
+      const updateSql = `UPDATE year_plan_meetings SET ${updates.join(', ')}, updated_at = NOW()
+         WHERE id = $1 AND organization_id = $2
+         RETURNING *`;
+      const result = await pool.query(updateSql, [meetingId, organizationId, ...values]);
 
       return success(res, result.rows[0], 'Meeting updated');
     })
