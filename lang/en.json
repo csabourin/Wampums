@@ -2932,5 +2932,14 @@
   "scout_year_deactivate": "Deactivate",
   "scout_year_membership_reactivated": "Account reactivated.",
   "scout_year_membership_failed": "Could not change the account status.",
-  "unit_settings_link_scout_year": "Start a new scout year and consult past ones."
+  "unit_settings_link_scout_year": "Start a new scout year and consult past ones.",
+  "form_review_title": "Forms to review",
+  "form_review_description": "The information you filled in has been kept. Please re-read it and confirm it is still accurate, or update it if something changed.",
+  "form_review_confirm": "Confirm without change",
+  "form_review_update": "Update",
+  "form_review_confirmed": "Thank you, the form is marked as up to date.",
+  "form_review_failed": "Could not record your confirmation. Please try again.",
+  "form_review_needs_review": "To review",
+  "form_review_last_reviewed": "Last reviewed on {date}",
+  "form_review_never_reviewed": "Never reviewed"
 }

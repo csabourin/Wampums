@@ -326,7 +326,7 @@ La migration **ne supprime jamais de ligne** : si une inscription ne peut être 
 - **Sélecteur d'année et lecture seule** (§4.3, phase 5) : seul `GET /api/v1/points` accepte `?scout_year_id=`. Les rapports, tableaux de bord et présences répondent toujours pour l'année active uniquement.
 - **Présences et honneurs** non bornés par l'année (décision 2 ci-dessus). Concrètement, un décompte d'honneurs cumulé traverse encore les années.
 - **Sixaines annuelles** (§4.4) : `participant_groups` n'a pas de `scout_year_id`. Les affectations survivent à la transition et il n'y a pas d'historique par année. Les lignes des jeunes partis restent mais sont désormais filtrées à la lecture.
-- **Renouvellements** (§6, phase 6) : fiches santé, autorisations médicales, frais — rien n'a changé, une fiche de l'an dernier reste considérée valide. Approche retenue, à implémenter : voir §10.
+- **Frais et cotisations** (§6) : `participant_fees` et `payment_plans` ne sont pas rattachés à l'année ; les soldes impayés de l'an dernier restent tels quels.
 - **Purge / conservation** : aucune politique de rétention implémentée.
 
 ---
@@ -365,3 +365,39 @@ ALTER TABLE form_submissions
 2. **Blocage ou simple signal ?** Est-ce qu'une fiche santé non révisée empêche l'inscription à une activité, ou est-ce seulement visible ? Le blocage est plus sûr et plus friction ; commencer par le signal seul me paraît raisonnable.
 3. **Autorisations médicales** — elles portent une signature et une date. Une simple révision suffit-elle, ou faut-elle une nouvelle signature explicite ? Juridiquement, c'est probablement le seul cas où re-signer s'impose.
 4. **Rappels** — au bout de combien de temps sans révision relance-t-on, et combien de fois ?
+
+### État d'implémentation du §10
+
+**Fait** — `migrations/add_form_review_flag.sql` et le raccordement complet :
+
+- `form_submissions` reçoit `scout_year_id`, `review_state`, `flagged_for_review_at`, `last_reviewed_at`, `last_reviewed_by`, plus un trigger qui estampille l'année sur toute nouvelle soumission ;
+- la transition passe à `needs_review` les formulaires **`is_required`** des jeunes reconduits, et note les identifiants touchés dans le `changeset` pour une annulation future ; le résumé remonte `forms_flagged_for_review` ;
+- `GET /api/v1/forms/submissions/needs-review` — un parent ne voit que ses enfants, l'équipe voit l'unité ;
+- `POST /api/v1/forms/submissions/:id/confirm-review` — confirmer sans rien changer, ce qui efface le drapeau et écrit `last_reviewed_at` **sans toucher `updated_at`** : c'est précisément ce qui distingue « relue » de « modifiée » ;
+- modifier une fiche efface aussi le drapeau et enregistre la révision ;
+- bannière sur le tableau de bord parent avec les deux boutons « Confirmer sans changement » et « Mettre à jour ».
+
+Décisions appliquées : portée limitée aux formulaires requis, simple signal sans blocage.
+
+**Vérifié** contre un PostgreSQL réel : le contenu est conservé, seule la fiche requise du jeune reconduit est marquée, la sortie facultative ne l'est pas, la fiche du jeune parti n'est pas touchée, un parent non lié ne voit ni ne peut confirmer la fiche d'un autre enfant, et `updated_at` ne bouge pas lors d'une confirmation.
+
+**Reste ouvert** : les autorisations médicales (re-signature explicite plutôt que simple relecture ?) et la cadence des rappels. Aucune relance automatique n'est envoyée pour l'instant.
+
+---
+
+## 11. Ordre de déploiement — à respecter
+
+**La migration `create_scout_years_and_enrollments.sql` doit être appliquée en même temps que le déploiement du code, pas avant.**
+
+Elle transforme `participant_organizations` en vue. Le code de la version précédente y écrit à cinq endroits. Des triggers `INSTEAD OF` en couvrent trois (INSERT simple, `ON CONFLICT DO NOTHING` sans cible, DELETE), mais **pas** les deux qui utilisent une cible de conflit explicite :
+
+```sql
+INSERT INTO participant_organizations (...)
+ON CONFLICT (participant_id, organization_id) DO NOTHING
+```
+
+PostgreSQL ne sait pas faire correspondre une cible de conflit à une vue et refuse la requête. Les deux endpoints concernés dans l'ancienne version sont l'enregistrement d'un participant et la liaison à une organisation (`routes/participants.js`).
+
+Conséquence : entre l'application de la migration et le déploiement de cette branche, créer ou lier un participant échoue. Les lectures, les points, les présences et les formulaires continuent de fonctionner normalement.
+
+Ordre recommandé : fusionner la branche → déployer → appliquer `create_scout_years_and_enrollments.sql` → appliquer `add_form_review_flag.sql` (qui dépend de la première) → régénérer le dump de schéma.

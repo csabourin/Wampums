@@ -2932,5 +2932,14 @@
   "scout_year_deactivate": "Désactiver",
   "scout_year_membership_reactivated": "Compte réactivé.",
   "scout_year_membership_failed": "Impossible de changer le statut du compte.",
-  "unit_settings_link_scout_year": "Démarrer une nouvelle année scoute et consulter les précédentes."
+  "unit_settings_link_scout_year": "Démarrer une nouvelle année scoute et consulter les précédentes.",
+  "form_review_title": "Fiches à réviser",
+  "form_review_description": "Les informations que vous avez saisies ont été conservées. Merci de les relire et de confirmer qu'elles sont toujours exactes, ou de les mettre à jour si quelque chose a changé.",
+  "form_review_confirm": "Confirmer sans changement",
+  "form_review_update": "Mettre à jour",
+  "form_review_confirmed": "Merci, la fiche est marquée comme à jour.",
+  "form_review_failed": "Impossible d'enregistrer votre confirmation. Veuillez réessayer.",
+  "form_review_needs_review": "À réviser",
+  "form_review_last_reviewed": "Dernière révision le {date}",
+  "form_review_never_reviewed": "Jamais révisée"
 }

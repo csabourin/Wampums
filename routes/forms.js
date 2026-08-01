@@ -9,7 +9,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { authenticate, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
+const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 
 // Import utilities
@@ -438,6 +438,120 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
+  /**
+   * @swagger
+   * /api/v1/forms/submissions/needs-review:
+   *   get:
+   *     summary: List required forms waiting for a review
+   *     description: >
+   *       After a year transition the content of a form is kept but flagged so
+   *       the parent re-reads it. Parents see their own children only; staff see
+   *       the whole unit.
+   *     tags: [Forms]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Submissions waiting for a review
+   */
+  router.get('/submissions/needs-review', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const dataScope = await getUserDataScope(req, pool);
+    const isStaff = dataScope === 'organization';
+
+    const result = await pool.query(
+      `SELECT fs.id,
+              fs.participant_id,
+              fs.form_type,
+              fs.flagged_for_review_at,
+              fs.last_reviewed_at,
+              p.first_name,
+              p.last_name,
+              off.display_name,
+              off.category
+         FROM form_submissions fs
+         JOIN participants p ON p.id = fs.participant_id
+         JOIN participant_organizations po ON po.participant_id = fs.participant_id
+          AND po.organization_id = fs.organization_id
+         LEFT JOIN organization_form_formats off
+           ON off.organization_id = fs.organization_id AND off.form_type = fs.form_type
+        WHERE fs.organization_id = $1
+          AND fs.review_state = 'needs_review'
+          AND ($2 OR EXISTS (
+                SELECT 1 FROM user_participants up
+                 WHERE up.user_id = $3 AND up.participant_id = fs.participant_id
+              ))
+        ORDER BY p.first_name, p.last_name, off.display_order NULLS LAST, fs.form_type`,
+      [organizationId, isStaff, req.user.id]
+    );
+
+    return success(res, result.rows);
+  }));
+
+  /**
+   * @swagger
+   * /api/v1/forms/submissions/{submissionId}/confirm-review:
+   *   post:
+   *     summary: Confirm a form is still accurate, without changing it
+   *     description: >
+   *       Clears the review flag and records when the form was last re-read.
+   *       Confirming without editing is a valid answer, and a distinct fact from
+   *       updated_at, which confirming never moves.
+   *     tags: [Forms]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Review recorded
+   *       403:
+   *         description: No access to this participant
+   *       404:
+   *         description: Submission not found
+   */
+  router.post('/submissions/:submissionId/confirm-review', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const submissionId = parseInt(req.params.submissionId, 10);
+
+    if (Number.isNaN(submissionId)) {
+      return error(res, 'Invalid submission identifier', 400);
+    }
+
+    const existing = await pool.query(
+      'SELECT id, participant_id FROM form_submissions WHERE id = $1 AND organization_id = $2',
+      [submissionId, organizationId]
+    );
+
+    if (existing.rows.length === 0) {
+      return error(res, 'Form submission not found', 404);
+    }
+
+    const dataScope = await getUserDataScope(req, pool);
+    if (dataScope !== 'organization') {
+      const accessCheck = await pool.query(
+        'SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2',
+        [req.user.id, existing.rows[0].participant_id]
+      );
+      if (accessCheck.rows.length === 0) {
+        return error(res, 'Access denied to this participant', 403);
+      }
+    }
+
+    const result = await pool.query(
+      `UPDATE form_submissions
+          SET review_state = 'current',
+              flagged_for_review_at = NULL,
+              last_reviewed_at = now(),
+              last_reviewed_by = $3::uuid
+        WHERE id = $1 AND organization_id = $2
+        RETURNING id, participant_id, form_type, review_state, last_reviewed_at`,
+      [submissionId, organizationId, req.user.id]
+    );
+
+    logger.info(`Form submission ${submissionId} confirmed as reviewed by ${req.user.id}`);
+
+    return success(res, result.rows[0], 'Form confirmed as up to date');
+  }));
+
   router.post('/submissions', asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
@@ -513,7 +627,11 @@ module.exports = (pool, logger) => {
                  status = $4::varchar,
                  submitted_at = CASE WHEN $4::varchar = 'submitted' AND submitted_at IS NULL THEN NOW() ELSE submitted_at END,
                  ip_address = $5,
-                 user_agent = $6
+                 user_agent = $6,
+                 review_state = 'current',
+                 flagged_for_review_at = NULL,
+                 last_reviewed_at = NOW(),
+                 last_reviewed_by = $2::uuid
              WHERE participant_id = $7 AND organization_id = $8 AND form_type = $9
              RETURNING *`,
             [JSON.stringify(submission_data), decoded.user_id, formVersionId, submissionStatus,

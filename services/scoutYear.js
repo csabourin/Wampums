@@ -391,6 +391,48 @@ async function listMembershipsWithoutEnrolledChild(
   return result.rows;
 }
 
+/**
+ * Flag the required forms of returning participants as needing a review.
+ *
+ * The content is deliberately kept: a health form or an emergency contact
+ * rarely changes, and retyping it every September is how you get half-filled
+ * forms. What the parent is asked for is a re-read, which they can settle by
+ * confirming without changing anything.
+ *
+ * Only forms declared required (`organization_form_formats.is_required`) are
+ * flagged — nobody needs to review last year's one-off outing form.
+ *
+ * @param {Object} client - Database client inside an open transaction
+ * @param {number} organizationId - Organization ID
+ * @param {Array<number>} participantIds - Participants carried over to the new year
+ * @returns {Promise<Array<number>>} Ids of the submissions that were flagged
+ */
+async function flagRequiredFormsForReview(client, organizationId, participantIds) {
+  if (!Array.isArray(participantIds) || participantIds.length === 0) {
+    return [];
+  }
+
+  const result = await client.query(
+    `UPDATE form_submissions fs
+        SET review_state = 'needs_review',
+            flagged_for_review_at = now()
+      WHERE fs.organization_id = $1
+        AND fs.participant_id = ANY($2::int[])
+        AND fs.review_state <> 'needs_review'
+        AND EXISTS (
+          SELECT 1
+            FROM organization_form_formats off
+           WHERE off.organization_id = fs.organization_id
+             AND off.form_type = fs.form_type
+             AND off.is_required = TRUE
+        )
+      RETURNING fs.id`,
+    [organizationId, participantIds]
+  );
+
+  return result.rows.map(row => row.id);
+}
+
 module.exports = {
   DEFAULT_FISCAL_START_MONTH,
   DEFAULT_FISCAL_START_DAY,
@@ -401,5 +443,6 @@ module.exports = {
   listScoutYears,
   resolveScoutYear,
   openNextScoutYear,
-  listMembershipsWithoutEnrolledChild
+  listMembershipsWithoutEnrolledChild,
+  flagRequiredFormsForReview
 };

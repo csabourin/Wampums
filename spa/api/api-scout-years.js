@@ -80,3 +80,29 @@ export async function setMembershipStatus(membershipId, status, reason) {
   );
   return response.data;
 }
+
+/**
+ * List required forms flagged as needing a review.
+ *
+ * Parents get their own children only; staff get the whole unit.
+ *
+ * @returns {Promise<Array<Object>>} Submissions waiting for a review
+ */
+export async function getFormsNeedingReview() {
+  const response = await API.getNoCache('v1/forms/submissions/needs-review');
+  return response.data || [];
+}
+
+/**
+ * Confirm a form is still accurate without changing it.
+ *
+ * Clears the review flag and records when the form was last re-read — a fact
+ * `updated_at` cannot carry, since confirming modifies nothing.
+ *
+ * @param {number} submissionId - Form submission ID
+ * @returns {Promise<Object>} Updated submission
+ */
+export async function confirmFormReview(submissionId) {
+  const response = await API.post(`v1/forms/submissions/${submissionId}/confirm-review`);
+  return response.data;
+}

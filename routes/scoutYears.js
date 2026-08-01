@@ -24,7 +24,8 @@ const {
   ensureActiveScoutYear,
   listScoutYears,
   openNextScoutYear,
-  listMembershipsWithoutEnrolledChild
+  listMembershipsWithoutEnrolledChild,
+  flagRequiredFormsForReview
 } = require('../services/scoutYear');
 
 /** Age at which a participant leaves the section, unless configured otherwise. */
@@ -352,12 +353,21 @@ module.exports = (pool, logger) => {
         );
       }
 
+      // Returning participants keep their forms; the parents are simply asked
+      // to re-read the required ones.
+      const flaggedForms = await flagRequiredFormsForReview(
+        client,
+        organizationId,
+        carriedOver.rows.map(r => r.participant_id)
+      );
+
       const summary = {
         graduated: graduated.rows.length,
         carried_over: carriedOver.rows.length,
         memberships_deactivated: deactivated.rows.length,
         memberships_skipped: membershipIds.length - deactivated.rows.length,
-        points_restamped: restampedPoints
+        points_restamped: restampedPoints,
+        forms_flagged_for_review: flaggedForms.length
       };
 
       const transition = await client.query(
@@ -375,6 +385,7 @@ module.exports = (pool, logger) => {
             graduated_participant_ids: graduated.rows.map(r => r.participant_id),
             carried_over_participant_ids: carriedOver.rows.map(r => r.participant_id),
             deactivated_membership_ids: deactivated.rows.map(r => r.id),
+            flagged_form_submission_ids: flaggedForms,
             exceptions: Object.fromEntries(exceptionNotes)
           })
         ]
