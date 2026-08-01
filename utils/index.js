@@ -82,7 +82,7 @@ function calculateAge(dateOfBirth) {
 function sanitizeInput(input) {
   if (!input) return "";
   return String(input)
-    .replace(/<[^>]*>/g, "") // Remove HTML tags
+    .replace(/<[^<>]*>?/g, "") // Remove HTML tags (complete and incomplete)
     .trim();
 }
 
