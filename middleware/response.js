@@ -1,5 +1,7 @@
 // Standardized API response middleware
 
+const INTERNAL_SERVER_ERROR_MESSAGE = 'internal_server_error';
+
 /**
  * Success response wrapper
  * @param {Object} res - Express response object
@@ -26,7 +28,7 @@ exports.success = (res, data = null, message = 'Success', statusCode = 200) => {
 exports.error = (res, message = 'An error occurred', statusCode = 400, errors = null) => {
   const response = {
     success: false,
-    message,
+    message: statusCode === 500 ? INTERNAL_SERVER_ERROR_MESSAGE : message,
     timestamp: new Date().toISOString()
   };
 
@@ -35,6 +37,34 @@ exports.error = (res, message = 'An error occurred', statusCode = 400, errors = 
   }
 
   return res.status(statusCode).json(response);
+};
+
+/**
+ * Prevent route-local HTTP 500 responses from exposing database, SDK, filesystem, or
+ * stack details. This provides a final safety boundary while older handlers are
+ * migrated to the standardized response helpers.
+ *
+ * @param {import('express').Request} req - Express request
+ * @param {import('express').Response} res - Express response
+ * @param {import('express').NextFunction} next - Continue middleware chain
+ * @returns {*} Result of the next middleware
+ */
+exports.sanitizeServerErrorResponses = (req, res, next) => {
+  const sendJson = res.json.bind(res);
+
+  res.json = (body) => {
+    if (res.statusCode === 500) {
+      return sendJson({
+        success: false,
+        message: INTERNAL_SERVER_ERROR_MESSAGE,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    return sendJson(body);
+  };
+
+  return next();
 };
 
 /**

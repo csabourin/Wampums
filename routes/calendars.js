@@ -8,7 +8,6 @@
  */
 
 const express = require('express');
-const router = express.Router();
 
 const {
   authenticate,
@@ -27,6 +26,7 @@ const { success, error, asyncHandler } = require('../middleware/response');
  * @returns {Router} Express router with fundraiser entry routes
  */
 module.exports = (pool, logger) => {
+  const router = express.Router();
   /**
    * @swagger
    * /api/v1/calendars:

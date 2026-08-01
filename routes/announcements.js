@@ -5,7 +5,7 @@
  */
 
 const express = require('express');
-const { asyncHandler } = require('../middleware/response');
+const { asyncHandler, error: errorResponse } = require('../middleware/response');
 const { check } = require('express-validator');
 const router = express.Router();
 const {
@@ -778,7 +778,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
           return;
         }
         logger.error('Error creating announcement:', error);
-        res.status(500).json({ success: false, message: error.message });
+        return errorResponse(res, 'internal_server_error', 500);
       }
     }),
   );
@@ -844,7 +844,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
         return;
       }
       logger.error('Error fetching announcements:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return errorResponse(res, 'internal_server_error', 500);
     }
   }));
 

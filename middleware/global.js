@@ -6,6 +6,7 @@ const swaggerUi = require("swagger-ui-express");
 const swaggerSpecs = require("../config/swagger");
 const logger = require("../config/logger");
 const ejs = require("ejs");
+const { sanitizeServerErrorResponses } = require("./response");
 
 const isProduction = process.env.NODE_ENV === "production";
 const REQUEST_BODY_LIMIT = "20mb";
@@ -98,6 +99,7 @@ module.exports = (app) => {
     // Body Parsing
     app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
     app.use(express.urlencoded({ limit: REQUEST_BODY_LIMIT, extended: true }));
+    app.use(sanitizeServerErrorResponses);
 
     // ETag
     app.set("etag", "strong");

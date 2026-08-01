@@ -688,7 +688,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching honors:', error);
-      return errorResponse(res, error.message, 500);
+      return errorResponse(res, 'internal_server_error', 500);
     }
   }));
 
@@ -813,7 +813,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error awarding honor:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return errorResponse(res, 'internal_server_error', 500);
     }
   }));
 
@@ -923,7 +923,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching honors history:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return errorResponse(res, 'internal_server_error', 500);
     }
   }));
 
@@ -976,7 +976,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching honors report:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return errorResponse(res, 'internal_server_error', 500);
     }
   }));
 
@@ -1029,7 +1029,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching recent honors:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return errorResponse(res, 'internal_server_error', 500);
     }
   }));
 

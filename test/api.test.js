@@ -64,10 +64,10 @@ describe('Authenticated API communication', () => {
   test('returns data when valid token is provided', async () => {
     const { __mPool } = require('pg');
     
-    // Mock form types query
-    __mPool.query.mockResolvedValueOnce({ 
-      rows: [{ form_type: 'general' }] 
-    });
+    // Authentication now re-checks active membership before loading form types.
+    __mPool.query
+      .mockResolvedValueOnce({ rows: [{ organization_id: 1 }] })
+      .mockResolvedValueOnce({ rows: [{ form_type: 'general' }] });
 
     const token = jwt.sign({ user_id: 1, organizationId: 1 }, 'testsecret');
 

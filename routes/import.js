@@ -1,6 +1,6 @@
 const express = require('express');
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
-const { asyncHandler } = require('../middleware/response');
+const { asyncHandler, error: errorResponse } = require('../middleware/response');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 
 module.exports = function (pool, logger) {
@@ -518,7 +518,7 @@ module.exports = function (pool, logger) {
         return;
       }
       logger.error('SISC import error:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return errorResponse(res, 'internal_server_error', 500);
     } finally {
       client.release();
     }

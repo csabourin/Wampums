@@ -8,14 +8,10 @@
  */
 
 const express = require('express');
-const router = express.Router();
 
 // Import auth middleware
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
-const { asyncHandler } = require('../middleware/response');
-
-// Import utilities
-const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { asyncHandler, success, error } = require('../middleware/response');
 
 /**
  * Export route factory function
@@ -26,6 +22,7 @@ const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handl
  * @returns {Router} Express router with fundraiser routes
  */
 module.exports = (pool, logger) => {
+  const router = express.Router();
   /**
    * @swagger
    * /api/v1/fundraisers:
@@ -80,10 +77,7 @@ module.exports = (pool, logger) => {
 
       const result = await pool.query(query, [organizationId]);
 
-      res.json({
-        success: true,
-        fundraisers: result.rows
-      });
+      return success(res, { fundraisers: result.rows });
   }));
 
   /**
@@ -124,10 +118,10 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Fundraiser not found' });
+        return error(res, 'Fundraiser not found', 404);
       }
 
-      res.json({ success: true, fundraiser: result.rows[0] });
+      return success(res, { fundraiser: result.rows[0] });
   }));
 
   /**
@@ -158,7 +152,7 @@ module.exports = (pool, logger) => {
    *               objective:
    *                 type: number
    *     responses:
-   *       200:
+   *       201:
    *         description: Fundraiser created
    *       400:
    *         description: Missing required fields
@@ -169,7 +163,7 @@ module.exports = (pool, logger) => {
       const { name, start_date, end_date, objective } = req.body;
 
       if (!name || !start_date || !end_date) {
-        return res.status(400).json({ success: false, message: 'Name, start_date, and end_date are required' });
+        return error(res, 'Name, start_date, and end_date are required', 400);
       }
 
       // Start a transaction
@@ -221,11 +215,12 @@ module.exports = (pool, logger) => {
 
         await client.query('COMMIT');
 
-        res.json({
-          success: true,
-          fundraiser,
-          participants_added: participantsResult.rows.length
-        });
+        return success(
+          res,
+          { fundraiser, participants_added: participantsResult.rows.length },
+          'Fundraiser created',
+          201
+        );
       } catch (error) {
         await client.query('ROLLBACK');
         throw error;
@@ -293,15 +288,15 @@ module.exports = (pool, logger) => {
       );
 
       if (updateResult.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Fundraiser not found' });
+        return error(res, 'Fundraiser not found', 404);
       }
 
-      res.json({ success: true, fundraiser: updateResult.rows[0] });
+      return success(res, { fundraiser: updateResult.rows[0] }, 'Fundraiser updated');
   }));
 
   /**
    * @swagger
-   * /api/fundraisers/{id}/archive:
+   * /api/v1/fundraisers/{id}/archive:
    *   put:
    *     summary: Archive/unarchive a fundraiser
    *     description: Toggle archive status of a fundraiser (admin/animation only)
@@ -335,14 +330,14 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Fundraiser not found
    */
-  router.put('/fundraisers/:id/archive', authenticate, blockDemoRoles, requirePermission('fundraisers.edit'), asyncHandler(async (req, res) => {
+  router.put('/:id/archive', authenticate, blockDemoRoles, requirePermission('fundraisers.edit'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
     const { archived } = req.body;
 
     if (archived === undefined) {
-      return res.status(400).json({ success: false, message: 'Archived status is required' });
+      return error(res, 'Archived status is required', 400);
     }
 
     const result = await pool.query(
@@ -354,10 +349,10 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Fundraiser not found' });
+      return error(res, 'Fundraiser not found', 404);
     }
 
-    res.json({ success: true, fundraiser: result.rows[0] });
+    return success(res, { fundraiser: result.rows[0] }, 'Fundraiser archive status updated');
   }));
 
   return router;

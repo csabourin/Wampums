@@ -712,7 +712,7 @@ export async function clearUserCaches(organizationId) {
  * Approve user (admin only)
  */
 export async function approveUser(userId) {
-    return API.post('approve-user', { user_id: userId });
+    return API.post('v1/users/approve', { user_id: userId });
 }
 
 /**
@@ -741,8 +741,8 @@ export async function getRolePermissions(roleId, options = {}) {
  */
 export async function getUserOrganizations(options = {}) {
     const { forceRefresh = false } = options || {};
-    return API.get('user-organizations', {}, {
-        cacheKey: 'user-organizations',
+    return API.get('v1/users/me/organizations', {}, {
+        cacheKey: 'v1/users/me/organizations',
         cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
         forceRefresh
     });
@@ -1785,6 +1785,17 @@ export async function getFundraiserDetails(fundraiserId) {
  */
 export async function saveFundraiser(fundraiserData) {
     return API.post('v1/fundraisers', fundraiserData);
+}
+
+/**
+ * Update an existing fundraiser.
+ *
+ * @param {string|number} fundraiserId - Fundraiser identifier
+ * @param {Object} fundraiserData - Fields to update
+ * @returns {Promise<Object>} API response
+ */
+export async function updateFundraiser(fundraiserId, fundraiserData) {
+    return API.put(`v1/fundraisers/${fundraiserId}`, fundraiserData);
 }
 
 /**

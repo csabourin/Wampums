@@ -34,9 +34,10 @@ export class Fundraisers {
 	async fetchFundraisers() {
 		try {
 			const response = await getFundraisers(true); // Get all including archived
-			if (response.success && response.fundraisers) {
-				this.fundraisers = response.fundraisers.filter(f => !f.archived);
-				this.archivedFundraisers = response.fundraisers.filter(f => f.archived);
+			const fundraisers = response.data?.fundraisers || [];
+			if (response.success) {
+				this.fundraisers = fundraisers.filter(f => !f.archived);
+				this.archivedFundraisers = fundraisers.filter(f => f.archived);
 
 				// Sort by start_date descending (most recent first)
 				this.fundraisers.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));

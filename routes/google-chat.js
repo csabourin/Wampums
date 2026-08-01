@@ -16,17 +16,15 @@
  */
 
 const express = require('express');
-const { asyncHandler } = require('../middleware/response');
-const router = express.Router();
+const { asyncHandler, success, error: errorResponse } = require('../middleware/response');
 const { check } = require('express-validator');
 
-// Import utilities
 const {
-  verifyJWT,
-  getCurrentOrganizationId,
-  verifyOrganizationMembership,
-  handleOrganizationResolutionError
-} = require('../utils/api-helpers');
+  authenticate,
+  blockDemoRoles,
+  requirePermission,
+  getOrganizationId,
+} = require('../middleware/auth');
 const { checkValidation } = require('../middleware/validation');
 const GoogleChatService = require('../services/google-chat');
 
@@ -39,12 +37,13 @@ const GoogleChatService = require('../services/google-chat');
  * @returns {Router} Express router with Google Chat routes
  */
 module.exports = (pool, logger) => {
+  const router = express.Router();
   // Initialize Google Chat service
   const googleChatService = new GoogleChatService(pool);
 
   /**
    * @swagger
-   * /api/google-chat/config:
+   * /api/v1/google-chat/config:
    *   post:
    *     summary: Configure Google Chat integration
    *     description: Upload service account credentials and configure Google Chat for the organization (admin only)
@@ -72,7 +71,10 @@ module.exports = (pool, logger) => {
    *       500:
    *         description: Configuration failed
    */
-  router.post('/google-chat/config',
+  router.post('/config',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('org.edit'),
     check('credentials').isObject().withMessage('Service account credentials are required'),
     check('credentials.type').equals('service_account').withMessage('Invalid credentials format'),
     check('credentials.project_id').notEmpty().withMessage('Project ID is required'),
@@ -81,22 +83,7 @@ module.exports = (pool, logger) => {
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const token = req.headers.authorization?.split(' ')[1];
-        const payload = verifyJWT(token);
-
-        if (!payload || !payload.user_id) {
-          return res.status(401).json({ error: 'Unauthorized' });
-        }
-
-        const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-        // Only admins can configure Google Chat
-        const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
-          requiredPermissions: ['org.edit'],
-        });
-        if (!membership.authorized) {
-          return res.status(403).json({ error: 'Admin access required' });
-        }
+        const organizationId = await getOrganizationId(req, pool);
 
         const { credentials } = req.body;
 
@@ -120,23 +107,16 @@ module.exports = (pool, logger) => {
 
         logger.info(`Google Chat configured for organization ${organizationId} with service account ${credentials.client_email}`);
 
-        res.json({
-          success: true,
-          message: 'Google Chat configuration saved successfully',
-          data: result.rows[0]
-        });
-      } catch (error) {
-        if (handleOrganizationResolutionError(res, error, logger)) {
-          return;
-        }
-        logger.error('Error configuring Google Chat:', error);
-        res.status(500).json({ error: error.message });
+        return success(res, result.rows[0], 'Google Chat configuration saved successfully');
+      } catch (routeError) {
+        logger.error('Error configuring Google Chat:', routeError);
+        return errorResponse(res, 'internal_server_error', 500);
       }
     }));
 
   /**
    * @swagger
-   * /api/google-chat/config:
+   * /api/v1/google-chat/config:
    *   get:
    *     summary: Get Google Chat configuration status
    *     description: Check if Google Chat is configured for the organization
@@ -150,23 +130,9 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/google-chat/config', asyncHandler(async (req, res) => {
+  router.get('/config', authenticate, requirePermission('org.view'), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const payload = verifyJWT(token);
-
-      if (!payload || !payload.user_id) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
-        requiredPermissions: ['org.view'],
-      });
-      if (!membership.authorized) {
-        return res.status(403).json({ error: 'Insufficient permissions' });
-      }
+      const organizationId = await getOrganizationId(req, pool);
 
       const result = await pool.query(
         `SELECT id, service_account_email, project_id, is_active, created_at, updated_at
@@ -176,30 +142,23 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return res.json({
-          success: true,
-          configured: false,
-          message: 'Google Chat is not configured for this organization'
-        });
+        return success(
+          res,
+          { configured: false, config: null },
+          'Google Chat is not configured for this organization'
+        );
       }
 
-      res.json({
-        success: true,
-        configured: true,
-        data: result.rows[0]
-      });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching Google Chat configuration:', error);
-      res.status(500).json({ error: error.message });
+      return success(res, { configured: true, config: result.rows[0] });
+    } catch (routeError) {
+      logger.error('Error fetching Google Chat configuration:', routeError);
+      return errorResponse(res, 'internal_server_error', 500);
     }
   }));
 
   /**
    * @swagger
-   * /api/google-chat/spaces:
+   * /api/v1/google-chat/spaces:
    *   post:
    *     summary: Register a Google Chat Space
    *     description: Register a Google Chat Space for the organization (admin only)
@@ -231,7 +190,10 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Admin access required
    */
-  router.post('/google-chat/spaces',
+  router.post('/spaces',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('org.edit'),
     check('spaceId').notEmpty().withMessage('Space ID is required').matches(/^spaces\//).withMessage('Space ID must start with "spaces/"'),
     check('spaceName').optional().isString(),
     check('isBroadcastSpace').optional().isBoolean(),
@@ -239,21 +201,7 @@ module.exports = (pool, logger) => {
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const token = req.headers.authorization?.split(' ')[1];
-        const payload = verifyJWT(token);
-
-        if (!payload || !payload.user_id) {
-          return res.status(401).json({ error: 'Unauthorized' });
-        }
-
-        const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-        const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
-          requiredPermissions: ['org.edit'],
-        });
-        if (!membership.authorized) {
-          return res.status(403).json({ error: 'Admin access required' });
-        }
+        const organizationId = await getOrganizationId(req, pool);
 
         const { spaceId, spaceName, isBroadcastSpace, description } = req.body;
 
@@ -300,23 +248,16 @@ module.exports = (pool, logger) => {
 
         logger.info(`Space ${spaceId} registered for organization ${organizationId}, broadcast: ${isBroadcastSpace}`);
 
-        res.json({
-          success: true,
-          message: 'Space registered successfully',
-          data: result.rows[0]
-        });
-      } catch (error) {
-        if (handleOrganizationResolutionError(res, error, logger)) {
-          return;
-        }
-        logger.error('Error registering Google Chat space:', error);
-        res.status(500).json({ error: error.message });
+        return success(res, result.rows[0], 'Space registered successfully');
+      } catch (routeError) {
+        logger.error('Error registering Google Chat space:', routeError);
+        return errorResponse(res, 'internal_server_error', 500);
       }
     }));
 
   /**
    * @swagger
-   * /api/google-chat/spaces:
+   * /api/v1/google-chat/spaces:
    *   get:
    *     summary: List registered Google Chat Spaces
    *     description: Get all registered Google Chat Spaces for the organization
@@ -328,23 +269,9 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Spaces retrieved successfully
    */
-  router.get('/google-chat/spaces', asyncHandler(async (req, res) => {
+  router.get('/spaces', authenticate, requirePermission('communications.send'), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const payload = verifyJWT(token);
-
-      if (!payload || !payload.user_id) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
-        requiredPermissions: ['communications.send'],
-      });
-      if (!membership.authorized) {
-        return res.status(403).json({ error: 'Insufficient permissions' });
-      }
+      const organizationId = await getOrganizationId(req, pool);
 
       const result = await pool.query(
         `SELECT id, space_id, space_name, space_type, is_broadcast_space, is_active,
@@ -355,22 +282,16 @@ module.exports = (pool, logger) => {
         [organizationId]
       );
 
-      res.json({
-        success: true,
-        data: result.rows
-      });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching Google Chat spaces:', error);
-      res.status(500).json({ error: error.message });
+      return success(res, result.rows);
+    } catch (routeError) {
+      logger.error('Error fetching Google Chat spaces:', routeError);
+      return errorResponse(res, 'internal_server_error', 500);
     }
   }));
 
   /**
    * @swagger
-   * /api/google-chat/send-message:
+   * /api/v1/google-chat/send-message:
    *   post:
    *     summary: Send a message to a Google Chat Space
    *     description: Send a message to a specific Google Chat Space (admin only)
@@ -400,28 +321,17 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Admin access required
    */
-  router.post('/google-chat/send-message',
+  router.post('/send-message',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('communications.send'),
     check('spaceId').notEmpty().withMessage('Space ID is required'),
     check('message').notEmpty().withMessage('Message is required').isLength({ max: 4096 }).withMessage('Message must not exceed 4096 characters'),
     check('subject').optional().isString().isLength({ max: 500 }).withMessage('Subject must not exceed 500 characters'),
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const token = req.headers.authorization?.split(' ')[1];
-        const payload = verifyJWT(token);
-
-        if (!payload || !payload.user_id) {
-          return res.status(401).json({ error: 'Unauthorized' });
-        }
-
-        const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-        const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
-          requiredPermissions: ['communications.send'],
-        });
-        if (!membership.authorized) {
-          return res.status(403).json({ error: 'Admin access required' });
-        }
+        const organizationId = await getOrganizationId(req, pool);
 
         const { spaceId, subject, message } = req.body;
 
@@ -438,24 +348,21 @@ module.exports = (pool, logger) => {
           `INSERT INTO google_chat_messages
            (organization_id, space_id, message_id, subject, message_text, sent_by_user_id, delivery_status)
            VALUES ($1, $2, $3, $4, $5, $6, 'sent')`,
-          [organizationId, spaceId, response.name, subject || null, message, payload.user_id]
+          [organizationId, spaceId, response.name, subject || null, message, req.user.id]
         );
 
-        logger.info(`Message sent to space ${spaceId} by user ${payload.user_id}`);
+        logger.info(`Message sent to space ${spaceId} by user ${req.user.id}`);
 
-        res.json({
-          success: true,
-          message: 'Message sent successfully',
-          data: {
+        return success(
+          res,
+          {
             messageId: response.name,
             spaceId
-          }
-        });
-      } catch (error) {
-        if (handleOrganizationResolutionError(res, error, logger)) {
-          return;
-        }
-        logger.error('Error sending Google Chat message:', error);
+          },
+          'Message sent successfully'
+        );
+      } catch (routeError) {
+        logger.error('Error sending Google Chat message:', routeError);
 
         // Log failed delivery
         try {
@@ -464,25 +371,25 @@ module.exports = (pool, logger) => {
              (organization_id, space_id, subject, message_text, sent_by_user_id, delivery_status, error_message)
              VALUES ($1, $2, $3, $4, $5, 'failed', $6)`,
             [
-              await getCurrentOrganizationId(req, pool, logger),
+              await getOrganizationId(req, pool),
               req.body.spaceId,
               req.body.subject || null,
               req.body.message,
-              payload.user_id,
-              error.message
+              req.user.id,
+              routeError.message
             ]
           );
         } catch (logError) {
           logger.error('Error logging failed message:', logError);
         }
 
-        res.status(500).json({ error: error.message });
+        return errorResponse(res, 'internal_server_error', 500);
       }
     }));
 
   /**
    * @swagger
-   * /api/google-chat/broadcast:
+   * /api/v1/google-chat/broadcast:
    *   post:
    *     summary: Broadcast message to default announcement space
    *     description: Send a broadcast message to the organization's default Google Chat Space (admin only)
@@ -512,51 +419,33 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: No broadcast space configured
    */
-  router.post('/google-chat/broadcast',
+  router.post('/broadcast',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('communications.send'),
     check('subject').notEmpty().withMessage('Subject is required').isLength({ max: 500 }).withMessage('Subject must not exceed 500 characters'),
     check('message').notEmpty().withMessage('Message is required').isLength({ max: 4096 }).withMessage('Message must not exceed 4096 characters'),
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const token = req.headers.authorization?.split(' ')[1];
-        const payload = verifyJWT(token);
-
-        if (!payload || !payload.user_id) {
-          return res.status(401).json({ error: 'Unauthorized' });
-        }
-
-        const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-        const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
-          requiredPermissions: ['communications.send'],
-        });
-        if (!membership.authorized) {
-          return res.status(403).json({ error: 'Admin access required' });
-        }
+        const organizationId = await getOrganizationId(req, pool);
 
         const { subject, message } = req.body;
 
         const response = await googleChatService.sendBroadcast(organizationId, subject, message);
 
-        logger.info(`Broadcast sent for organization ${organizationId} by user ${payload.user_id}`);
+        logger.info(`Broadcast sent for organization ${organizationId} by user ${req.user.id}`);
 
-        res.json({
-          success: true,
-          message: 'Broadcast sent successfully',
-          data: response
-        });
-      } catch (error) {
-        if (handleOrganizationResolutionError(res, error, logger)) {
-          return;
-        }
-        logger.error('Error sending Google Chat broadcast:', error);
-        res.status(500).json({ error: error.message });
+        return success(res, response, 'Broadcast sent successfully');
+      } catch (routeError) {
+        logger.error('Error sending Google Chat broadcast:', routeError);
+        return errorResponse(res, 'internal_server_error', 500);
       }
     }));
 
   /**
    * @swagger
-   * /api/google-chat/messages:
+   * /api/v1/google-chat/messages:
    *   get:
    *     summary: Get message history
    *     description: Retrieve Google Chat message history for the organization
@@ -574,23 +463,9 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Message history retrieved
    */
-  router.get('/google-chat/messages', asyncHandler(async (req, res) => {
+  router.get('/messages', authenticate, requirePermission('communications.send'), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const payload = verifyJWT(token);
-
-      if (!payload || !payload.user_id) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
-        requiredPermissions: ['communications.send'],
-      });
-      if (!membership.authorized) {
-        return res.status(403).json({ error: 'Insufficient permissions' });
-      }
+      const organizationId = await getOrganizationId(req, pool);
 
       const limit = parseInt(req.query.limit) || 50;
 
@@ -608,16 +483,10 @@ module.exports = (pool, logger) => {
         [organizationId, limit]
       );
 
-      res.json({
-        success: true,
-        data: result.rows
-      });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching Google Chat messages:', error);
-      res.status(500).json({ error: error.message });
+      return success(res, result.rows);
+    } catch (routeError) {
+      logger.error('Error fetching Google Chat messages:', routeError);
+      return errorResponse(res, 'internal_server_error', 500);
     }
   }));
 

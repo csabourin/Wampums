@@ -356,7 +356,7 @@ describe('Consistent Error Shapes', () => {
 // ============================================
 
 describe('Response Middleware Functions', () => {
-  const { success, error, paginated } = require('../middleware/response');
+  const { success, error, paginated, sanitizeServerErrorResponses } = require('../middleware/response');
 
   test('success() returns correct envelope', () => {
     const mockRes = {
@@ -424,6 +424,46 @@ describe('Response Middleware Functions', () => {
 
     const body = mockRes.json.mock.calls[0][0];
     expect(body.errors).toEqual(validationErrors);
+  });
+
+  test.each([
+    '/srv/app/routes/forms.js:696',
+    'duplicate key violates unique constraint users_email_key',
+    'Error: SDK failed\n    at send (/app/node_modules/sdk/index.js:12:3)'
+  ])('error() hides internal 500 detail: %s', (internalMessage) => {
+    const mockRes = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn()
+    };
+
+    error(mockRes, internalMessage, 500);
+
+    expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+      success: false,
+      message: 'internal_server_error'
+    }));
+    expect(JSON.stringify(mockRes.json.mock.calls[0][0])).not.toContain(internalMessage);
+  });
+
+  test.each([
+    '/srv/app/routes/announcements.js:781',
+    'relation fundraiser_entries does not exist',
+    'Error: SDK failed\n    at send (/app/node_modules/sdk/index.js:12:3)'
+  ])('server-error middleware sanitizes direct JSON responses: %s', (internalMessage) => {
+    const json = jest.fn();
+    const mockRes = { statusCode: 500, json };
+    const next = jest.fn();
+
+    sanitizeServerErrorResponses({}, mockRes, next);
+    mockRes.json({ error: internalMessage, message: internalMessage });
+
+    expect(next).toHaveBeenCalled();
+    expect(json).toHaveBeenCalledWith(expect.objectContaining({
+      success: false,
+      message: 'internal_server_error',
+      timestamp: expect.any(String)
+    }));
+    expect(JSON.stringify(json.mock.calls[0][0])).not.toContain(internalMessage);
   });
 
   test('paginated() returns correct pagination envelope', () => {
