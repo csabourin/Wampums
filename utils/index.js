@@ -82,15 +82,19 @@ function calculateAge(dateOfBirth) {
 function sanitizeInput(input) {
   if (!input) return "";
   const str = String(input);
+  const MAX_SANITIZE_INPUT_LENGTH = 10000;
+  const safeStr = str.length > MAX_SANITIZE_INPUT_LENGTH
+    ? str.slice(0, MAX_SANITIZE_INPUT_LENGTH)
+    : str;
   const result = [];
   let i = 0;
-  while (i < str.length) {
-    if (str[i] === '<') {
+  while (i < safeStr.length) {
+    if (safeStr[i] === '<') {
       // Skip everything up to and including the next '>', or to end of string
-      const closeIdx = str.indexOf('>', i + 1);
-      i = closeIdx !== -1 ? closeIdx + 1 : str.length;
+      const closeIdx = safeStr.indexOf('>', i + 1);
+      i = closeIdx !== -1 ? closeIdx + 1 : safeStr.length;
     } else {
-      result.push(str[i]);
+      result.push(safeStr[i]);
       i++;
     }
   }
