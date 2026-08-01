@@ -120,6 +120,7 @@ describe('GET /api/v1/activities/calendar.ics', () => {
     const { __mPool } = require('pg');
 
     __mPool.query
+      .mockResolvedValueOnce({ rows: [{ organization_id: ORG_ID }] }) // authenticate membership check
       .mockResolvedValueOnce({ rows: [{ permission_key: 'activities.view' }] })
       .mockResolvedValueOnce({ rows: [{ role_name: 'parent', display_name: 'Parent' }] })
       .mockResolvedValueOnce({ rows: [{ name: 'Demo Organization' }] })
@@ -160,7 +161,7 @@ describe('GET /api/v1/activities/calendar.ics', () => {
     expect(response.text).toContain('END:VCALENDAR');
 
     expect(__mPool.query).toHaveBeenNthCalledWith(
-      4,
+      5,
       expect.stringContaining('FROM activities'),
       [ORG_ID]
     );
@@ -170,6 +171,9 @@ describe('GET /api/v1/activities/calendar.ics', () => {
     const { __mPool } = require('pg');
 
     __mPool.query
+      .mockResolvedValueOnce({
+        rows: [{ organization_id: ORG_ID }] // authenticate membership check
+      })
       .mockResolvedValueOnce({
         rows: [{ permission_key: 'activities.view' }]
       })
@@ -200,6 +204,9 @@ describe('GET /api/v1/activities/calendar.ics', () => {
     const { __mPool } = require('pg');
 
     __mPool.query
+      .mockResolvedValueOnce({
+        rows: [{ organization_id: ORG_ID }] // authenticate membership check
+      })
       .mockResolvedValueOnce({
         rows: [{ permission_key: 'activities.view' }]
       })
@@ -245,6 +252,9 @@ describe('GET /api/v1/activities/calendar.ics', () => {
     const { __mPool } = require('pg');
 
     __mPool.query
+      .mockResolvedValueOnce({
+        rows: [{ organization_id: ORG_ID }] // authenticate membership check
+      })
       .mockResolvedValueOnce({
         rows: [{ permission_key: 'activities.view' }]
       })

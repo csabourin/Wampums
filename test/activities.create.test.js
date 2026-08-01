@@ -45,11 +45,11 @@ beforeAll(() => {
 
 beforeEach(() => {
   const { __mClient, __mPool } = require('pg');
+  __mClient.query.mockReset();
+  __mClient.release.mockReset();
+  __mPool.connect.mockReset();
+  __mPool.query.mockReset();
   setupDefaultMocks(__mClient, __mPool);
-  __mClient.query.mockClear();
-  __mClient.release.mockClear();
-  __mPool.connect.mockClear();
-  __mPool.query.mockClear();
 });
 
 afterEach(() => {
@@ -78,6 +78,11 @@ describe('POST /api/v1/activities', () => {
   it('should create activity with all required fields', async () => {
     const { __mPool } = require('pg');
     
+    // Mock authenticate middleware query (membership check)
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ organization_id: 1 }]
+    });
+
     // Mock blockDemoRoles middleware query (checking for demo roles)
     __mPool.query.mockResolvedValueOnce({
       rows: [] // No demo roles
@@ -138,6 +143,11 @@ describe('POST /api/v1/activities', () => {
   it('should create activity with legacy "name" field (backward compatibility)', async () => {
     const { __mPool } = require('pg');
     
+    // Mock authenticate middleware query (membership check)
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ organization_id: 1 }]
+    });
+
     // Mock blockDemoRoles middleware query (checking for demo roles)
     __mPool.query.mockResolvedValueOnce({
       rows: [] // No demo roles
@@ -198,6 +208,11 @@ describe('POST /api/v1/activities', () => {
   it('should reject activity with missing required fields', async () => {
     const { __mPool } = require('pg');
     
+    // Mock authenticate middleware query (membership check)
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ organization_id: 1 }]
+    });
+
     // Mock blockDemoRoles middleware query (checking for demo roles)
     __mPool.query.mockResolvedValueOnce({
       rows: [] // No demo roles
@@ -231,6 +246,11 @@ describe('POST /api/v1/activities', () => {
   it('should handle empty strings in optional fields and pass them to database', async () => {
     const { __mPool } = require('pg');
     
+    // Mock authenticate middleware query (membership check)
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ organization_id: 1 }]
+    });
+
     // Mock blockDemoRoles middleware query (checking for demo roles)
     __mPool.query.mockResolvedValueOnce({
       rows: [] // No demo roles
@@ -289,9 +309,9 @@ describe('POST /api/v1/activities', () => {
     expect(response.body.success).toBe(true);
     
     // Verify the INSERT query was called with empty strings converted appropriately
-    // The fourth query call is the INSERT (first three are blockDemoRoles + permission/role checks)
-    expect(__mPool.query).toHaveBeenCalledTimes(4);
-    const insertCall = __mPool.query.mock.calls[3];
+    // The fifth query call is the INSERT (first four: authenticate + blockDemoRoles + permission/role checks)
+    expect(__mPool.query).toHaveBeenCalledTimes(5);
+    const insertCall = __mPool.query.mock.calls[4];
     expect(insertCall[1]).toEqual(expect.arrayContaining([
       expect.any(Number), // organizationId
       expect.any(String), // userId
@@ -314,6 +334,11 @@ describe('POST /api/v1/activities', () => {
   it('should provide specific error message for missing fields', async () => {
     const { __mPool } = require('pg');
     
+    // Mock authenticate middleware query (membership check)
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ organization_id: 1 }]
+    });
+
     // Mock blockDemoRoles middleware query (checking for demo roles)
     __mPool.query.mockResolvedValueOnce({
       rows: [] // No demo roles

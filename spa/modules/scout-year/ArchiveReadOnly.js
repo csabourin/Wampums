@@ -70,7 +70,7 @@ function disableControls() {
     }
     // Already disabled for its own reasons: leave it alone, and leave no marker,
     // so restoring never enables a control the page meant to keep disabled.
-    if (element.isContentEditable) {
+    if (element.getAttribute('contenteditable') === 'true') {
       element.setAttribute('contenteditable', 'false');
       element.setAttribute(MARKER_ATTRIBUTE, 'contenteditable');
       element.setAttribute('aria-disabled', 'true');
