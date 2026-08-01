@@ -2823,6 +2823,28 @@ export async function fetchOrganizationSettings(params = {}) {
 }
 
 /**
+ * Get current organization settings without a cached copy for the settings editor.
+ */
+export async function fetchEditableOrganizationSettings() {
+    return API.getNoCache('v1/organizations/settings');
+}
+
+/**
+ * Update organization identity and recurring meeting defaults.
+ *
+ * @param {Object} organizationInfo - Validated unit settings form values
+ */
+export async function updateOrganizationInfo(organizationInfo) {
+    const response = await API.patch('v1/organizations/settings/organization-info', organizationInfo);
+    try {
+        await deleteCachedData('org_settings');
+    } catch (cacheError) {
+        debugWarn('Failed to invalidate organization settings cache', cacheError);
+    }
+    return response;
+}
+
+/**
  * Backward compatibility alias
  */
 export const getOrganizationSettings = fetchOrganizationSettings;

@@ -432,6 +432,104 @@ describe('GET /api/v1/organizations/settings', () => {
     expect(res.status).toBe(200);
     expect(updateCalled).toBe(true);
   });
+
+  test('PATCH /api/v1/organizations/settings/organization-info updates unit and meeting defaults', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ organizationId: ORG_ID });
+    const queries = [];
+
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      queries.push({ query, params });
+
+      if (query.includes("r.role_name IN ('demoadmin', 'demoparent')")) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('SELECT DISTINCT p.permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'org.edit' }] });
+      }
+      if (query.includes('SELECT DISTINCT r.role_name, r.display_name')) {
+        return Promise.resolve({ rows: [{ role_name: 'unitadmin', display_name: 'Unit admin' }] });
+      }
+      if (query.includes('UPDATE organizations')) {
+        return Promise.resolve({ rows: [{ id: ORG_ID }] });
+      }
+      if (query.includes("'organization_info'")) {
+        return Promise.resolve({
+          rows: [{
+            setting_value: {
+              name: '12e Unité',
+              meeting_day: 'Thursday',
+              meeting_time: '18:30',
+              meeting_duration: 105,
+              endroit: 'Centre communautaire',
+              animateur_responsable: 'Alex Tremblay'
+            }
+          }]
+        });
+      }
+      if (query === 'BEGIN' || query === 'COMMIT') {
+        return Promise.resolve({ rows: [] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .patch('/api/v1/organizations/settings/organization-info')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: '12e Unité',
+        unit: '12e',
+        district: 'District du Nord',
+        meeting_day: 'Thursday',
+        meeting_time: '18:30',
+        meeting_duration: 105,
+        endroit: 'Centre communautaire',
+        animateur_responsable: 'Alex Tremblay',
+        logo: '/images/12e.png'
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.organization_info.meeting_day).toBe('Thursday');
+    expect(queries.some(({ query }) => query.includes("'meeting_length'"))).toBe(true);
+    expect(queries.some(({ query, params }) => (
+      query.includes('UPDATE organizations') && params.includes('12e Unité')
+    ))).toBe(true);
+  });
+
+  test('PATCH /api/v1/organizations/settings/organization-info rejects invalid meeting defaults', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ organizationId: ORG_ID });
+
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes("r.role_name IN ('demoadmin', 'demoparent')")) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('SELECT DISTINCT p.permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'org.edit' }] });
+      }
+      if (query.includes('SELECT DISTINCT r.role_name, r.display_name')) {
+        return Promise.resolve({ rows: [{ role_name: 'unitadmin', display_name: 'Unit admin' }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .patch('/api/v1/organizations/settings/organization-info')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: '12e Unité',
+        meeting_day: 'Funday',
+        meeting_time: '31:90',
+        meeting_duration: 5
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors.map(({ field }) => field).sort()).toEqual([
+      'meeting_day',
+      'meeting_duration',
+      'meeting_time'
+    ]);
+  });
 });
 
 // ============================================
