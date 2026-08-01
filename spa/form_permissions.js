@@ -9,11 +9,9 @@
 
 import { API } from './api/api-core.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
-import { CONFIG } from './config.js';
 import { translate } from './app.js';
-import { isAdmin, isDistrictAdmin } from './utils/PermissionUtils.js';
+import { isAdmin } from './utils/PermissionUtils.js';
 import { setContent } from './utils/DOMUtils.js';
-import { escapeHTML } from './utils/SecurityUtils.js';
 
 export class FormPermissionsManager {
   constructor(app) {
@@ -50,10 +48,19 @@ export class FormPermissionsManager {
    */
   async loadPermissions() {
     try {
-      const response = await API.get('v1/forms/form-permissions');
+      // This matrix contains mutable authorization state and database IDs. A
+      // cached response can both hide a successful save and submit an ID for a
+      // form format that has since been deleted or recreated.
+      const response = await API.get(
+        'v1/forms/form-permissions',
+        {},
+        { forceRefresh: true }
+      );
 
       if (response.success) {
         this.permissions = response.data;
+        this.formTypes.clear();
+        this.roles.clear();
 
         // Extract unique form types and roles
         this.permissions.forEach(perm => {
@@ -83,6 +90,18 @@ export class FormPermissionsManager {
       });
 
       if (response.success) {
+        if (response.queued) {
+          this.app.showMessage(translate('offline.savedLocally'), 'info');
+          return true;
+        }
+
+        const savedPermissions = this.permissions.find(perm =>
+          Number(perm.form_format_id) === formFormatId && Number(perm.role_id) === roleId
+        );
+        if (savedPermissions) {
+          Object.assign(savedPermissions, permissions);
+        }
+
         this.app.showMessage(translate('permissions_updated'), 'success');
         return true;
       } else {
@@ -90,7 +109,7 @@ export class FormPermissionsManager {
       }
     } catch (error) {
       debugError('Error updating permission:', error);
-      this.app.showMessage(translate('error_updating_permissions'), 'error');
+      await this.handleStaleForm(error, 'error_updating_permissions');
       return false;
     }
   }
@@ -106,6 +125,17 @@ export class FormPermissionsManager {
       });
 
       if (response.success) {
+        if (response.queued) {
+          this.app.showMessage(translate('offline.savedLocally'), 'info');
+          return true;
+        }
+
+        this.permissions
+          .filter(perm => Number(perm.form_format_id) === formFormatId)
+          .forEach(perm => {
+            perm.display_context = [...displayContext];
+          });
+
         this.app.showMessage(translate('display_context_updated'), 'success');
         return true;
       } else {
@@ -113,8 +143,32 @@ export class FormPermissionsManager {
       }
     } catch (error) {
       debugError('Error updating display context:', error);
-      this.app.showMessage(translate('error_updating_display_context'), 'error');
+      await this.handleStaleForm(error, 'error_updating_display_context');
       return false;
+    }
+  }
+
+  /**
+   * Recover when a form format changed after this page was loaded.
+   *
+   * @param {Error} error - API error raised by the failed update
+   * @param {string} fallbackMessageKey - Localized message for other failures
+   * @returns {Promise<void>}
+   */
+  async handleStaleForm(error, fallbackMessageKey) {
+    if (error?.status !== 404) {
+      this.app.showMessage(translate(fallbackMessageKey), 'error');
+      return;
+    }
+
+    this.app.showMessage(translate('form_not_found'), 'error');
+
+    try {
+      await this.loadPermissions();
+      this.render();
+      this.attachEventListeners();
+    } catch (refreshError) {
+      debugError('Error refreshing stale form permissions:', refreshError);
     }
   }
 
@@ -270,7 +324,6 @@ export class FormPermissionsManager {
       checkbox.addEventListener('change', async (event) => {
         const formFormatId = parseInt(event.target.dataset.formFormatId, 10);
         const roleId = parseInt(event.target.dataset.roleId, 10);
-        const permission = event.target.dataset.permission;
         const isChecked = event.target.checked;
 
         // Get all current permissions for this form/role combination
@@ -285,14 +338,24 @@ export class FormPermissionsManager {
 
         checkboxes.forEach(cb => {
           permissions[cb.dataset.permission] = cb.checked;
+          cb.disabled = true;
         });
+        row.setAttribute('aria-busy', 'true');
 
-        // Update on the server
-        const success = await this.updatePermission(formFormatId, roleId, permissions);
+        try {
+          // Update on the server. Locking the row keeps two snapshots from
+          // racing and overwriting one another when several boxes are tapped.
+          const success = await this.updatePermission(formFormatId, roleId, permissions);
 
-        // If update failed, revert the checkbox
-        if (!success) {
-          event.target.checked = !isChecked;
+          // If update failed, revert the checkbox
+          if (!success) {
+            event.target.checked = !isChecked;
+          }
+        } finally {
+          checkboxes.forEach(cb => {
+            cb.disabled = false;
+          });
+          row.removeAttribute('aria-busy');
         }
       });
     });
@@ -301,7 +364,6 @@ export class FormPermissionsManager {
     document.querySelectorAll('.context-checkbox').forEach(checkbox => {
       checkbox.addEventListener('change', async (event) => {
         const formFormatId = parseInt(event.target.dataset.formFormatId, 10);
-        const changedContext = event.target.dataset.context;
         const isChecked = event.target.checked;
 
         // Get all current display contexts for this form
@@ -313,14 +375,23 @@ export class FormPermissionsManager {
           if (cb.checked) {
             displayContext.push(cb.dataset.context);
           }
+          cb.disabled = true;
         });
+        section.setAttribute('aria-busy', 'true');
 
-        // Update on the server
-        const success = await this.updateDisplayContext(formFormatId, displayContext);
+        try {
+          // Update on the server
+          const success = await this.updateDisplayContext(formFormatId, displayContext);
 
-        // If update failed, revert the checkbox
-        if (!success) {
-          event.target.checked = !isChecked;
+          // If update failed, revert the checkbox
+          if (!success) {
+            event.target.checked = !isChecked;
+          }
+        } finally {
+          contextCheckboxes.forEach(cb => {
+            cb.disabled = false;
+          });
+          section.removeAttribute('aria-busy');
         }
       });
     });
