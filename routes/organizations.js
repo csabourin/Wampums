@@ -14,7 +14,7 @@ const bcrypt = require('bcryptjs');
 
 // Import auth middleware
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
-const { asyncHandler } = require('../middleware/response');
+const { asyncHandler, success, error: errorResponse } = require('../middleware/response');
 const { requireJWTSecret, signJWTToken } = require('../utils/jwt-config');
 
 // Import utilities
@@ -36,6 +36,104 @@ const PUBLIC_ORGANIZATION_SETTING_KEYS = [
 // Settings rarely change, so caching them significantly improves response time
 const orgSettingsCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
+
+const ORGANIZATION_INFO_LIMITS = Object.freeze({
+  shortText: 255,
+  location: 500,
+  logoUrl: 2048,
+  minimumMeetingDuration: 15,
+  maximumMeetingDuration: 720
+});
+const VALID_MEETING_DAYS = new Set([
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday'
+]);
+const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * Normalize and validate fields editable from the unit settings page.
+ * Unknown properties are deliberately excluded so callers cannot overwrite
+ * internal organization settings, while the database merge preserves existing
+ * legacy/custom properties.
+ *
+ * @param {Object} input - Submitted organization information
+ * @returns {{value: Object, errors: Array<{field: string, msg: string}>}}
+ */
+function validateOrganizationInfo(input) {
+  const value = {};
+  const errors = [];
+  const textFields = [
+    ['name', ORGANIZATION_INFO_LIMITS.shortText],
+    ['unit', ORGANIZATION_INFO_LIMITS.shortText],
+    ['district', ORGANIZATION_INFO_LIMITS.shortText],
+    ['endroit', ORGANIZATION_INFO_LIMITS.location],
+    ['animateur_responsable', ORGANIZATION_INFO_LIMITS.shortText],
+    ['logo', ORGANIZATION_INFO_LIMITS.logoUrl]
+  ];
+
+  for (const [field, maximumLength] of textFields) {
+    if (!Object.prototype.hasOwnProperty.call(input, field)) continue;
+
+    if (typeof input[field] !== 'string') {
+      errors.push({ field, msg: 'Must be a string' });
+      continue;
+    }
+
+    const normalized = input[field].trim();
+    if (normalized.length > maximumLength) {
+      errors.push({ field, msg: `Must be ${maximumLength} characters or fewer` });
+      continue;
+    }
+    value[field] = normalized;
+  }
+
+  if (!value.name) {
+    errors.push({ field: 'name', msg: 'Organization name is required' });
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, 'meeting_day')) {
+    if (typeof input.meeting_day !== 'string' || !VALID_MEETING_DAYS.has(input.meeting_day)) {
+      errors.push({ field: 'meeting_day', msg: 'Invalid meeting day' });
+    } else {
+      value.meeting_day = input.meeting_day;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, 'meeting_time')) {
+    if (typeof input.meeting_time !== 'string' || !TIME_PATTERN.test(input.meeting_time)) {
+      errors.push({ field: 'meeting_time', msg: 'Meeting time must use HH:MM format' });
+    } else {
+      value.meeting_time = input.meeting_time;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, 'meeting_duration')) {
+    const duration = Number(input.meeting_duration);
+    if (
+      !Number.isInteger(duration)
+      || duration < ORGANIZATION_INFO_LIMITS.minimumMeetingDuration
+      || duration > ORGANIZATION_INFO_LIMITS.maximumMeetingDuration
+    ) {
+      errors.push({
+        field: 'meeting_duration',
+        msg: `Meeting duration must be between ${ORGANIZATION_INFO_LIMITS.minimumMeetingDuration} and ${ORGANIZATION_INFO_LIMITS.maximumMeetingDuration} minutes`
+      });
+    } else {
+      value.meeting_duration = duration;
+    }
+  }
+
+  if (value.logo && !/^(?:https?:\/\/|\/(?!\/))/i.test(value.logo)) {
+    errors.push({ field: 'logo', msg: 'Logo must be an HTTP(S) URL or an absolute site path' });
+  }
+
+  return { value, errors };
+}
 
 /**
  * Load and parse organization settings from the database, ensuring program sections are hydrated.
@@ -347,6 +445,80 @@ module.exports = (pool, logger) => {
         success: false,
         message: 'Error fetching organization settings'
       });
+    }
+  }));
+
+  /**
+   * Update the identity and recurring-meeting defaults shown on Unit Settings.
+   * Existing organization_info properties that are not editable on that page
+   * are retained, including organization-specific extensions.
+   */
+  router.patch('/settings/organization-info', authenticate, blockDemoRoles, requirePermission('org.edit'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const input = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+      ? req.body
+      : {};
+    const validation = validateOrganizationInfo(input);
+
+    if (validation.errors.length > 0) {
+      return errorResponse(res, 'Invalid organization settings', 400, validation.errors);
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const organizationResult = await client.query(
+        `UPDATE organizations
+         SET name = $2, updated_at = NOW()
+         WHERE id = $1
+         RETURNING id`,
+        [organizationId, validation.value.name]
+      );
+
+      if (organizationResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return errorResponse(res, 'Organization not found', 404);
+      }
+
+      const infoResult = await client.query(
+        `INSERT INTO organization_settings
+           (organization_id, setting_key, setting_value, created_at, updated_at)
+         VALUES ($1, 'organization_info', $2::jsonb, NOW(), NOW())
+         ON CONFLICT (organization_id, setting_key)
+         DO UPDATE SET
+           setting_value = COALESCE(organization_settings.setting_value, '{}'::jsonb) || EXCLUDED.setting_value,
+           updated_at = NOW()
+         RETURNING setting_value`,
+        [organizationId, JSON.stringify(validation.value)]
+      );
+
+      if (validation.value.meeting_duration !== undefined) {
+        await client.query(
+          `INSERT INTO organization_settings
+             (organization_id, setting_key, setting_value, created_at, updated_at)
+           VALUES ($1, 'meeting_length', $2::jsonb, NOW(), NOW())
+           ON CONFLICT (organization_id, setting_key)
+           DO UPDATE SET
+             setting_value = COALESCE(organization_settings.setting_value, '{}'::jsonb) || EXCLUDED.setting_value,
+             updated_at = NOW()`,
+          [organizationId, JSON.stringify({ duration_minutes: validation.value.meeting_duration })]
+        );
+      }
+
+      await client.query('COMMIT');
+      orgSettingsCache.delete(`org_${organizationId}`);
+
+      return success(
+        res,
+        { organization_info: infoResult.rows[0].setting_value },
+        'Organization information updated'
+      );
+    } catch (updateError) {
+      await client.query('ROLLBACK');
+      throw updateError;
+    } finally {
+      client.release();
     }
   }));
 
