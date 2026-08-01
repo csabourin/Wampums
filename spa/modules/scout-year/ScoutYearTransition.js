@@ -615,6 +615,11 @@ export class ScoutYearTransition extends BaseModule {
     this.isSubmitting = true;
     this.rerender();
 
+    // Only the transition call itself may leave the wizard on the confirmation
+    // step. The endpoint is not idempotent — running it twice would close the
+    // year that was just opened and open yet another one — so anything that
+    // happens after it commits must never look like a failure that invites a
+    // retry.
     try {
       this.result = await executeTransition({
         graduating_participant_ids: this.graduatingIds(),
@@ -624,18 +629,28 @@ export class ScoutYearTransition extends BaseModule {
           note: this.exceptionNotes.get(p.id) || ''
         }))
       });
-
-      debugLog('Transition executed', this.result.summary);
-      this.years = await getScoutYears({ forceRefresh: true });
-      this.step = STEP_REPORT;
-      this.app?.showMessage?.(translate('scout_year_execute_success'), 'success');
     } catch (error) {
       debugError('Transition failed:', error);
       this.app?.showMessage?.(error?.message || translate('scout_year_execute_failed'), 'error');
-    } finally {
       this.isSubmitting = false;
       this.rerender();
+      return;
     }
+
+    debugLog('Transition executed', this.result.summary);
+    this.step = STEP_REPORT;
+    this.app?.showMessage?.(translate('scout_year_execute_success'), 'success');
+
+    // The year history is decoration on the report screen; failing to refresh
+    // it must not cast doubt on a transition that already went through.
+    try {
+      this.years = await getScoutYears({ forceRefresh: true });
+    } catch (error) {
+      debugError('Failed to refresh the scout year history:', error);
+    }
+
+    this.isSubmitting = false;
+    this.rerender();
   }
 
   /**

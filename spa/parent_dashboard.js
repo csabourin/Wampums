@@ -100,19 +100,32 @@ export class ParentDashboard {
                         hasErrors = true;
                 }
 
-                try {
-                        [this.formsToReview, this.authorizationsToSign] = await Promise.all([
-                                getFormsNeedingReview(),
-                                getAuthorizationsPendingSignature(),
-                        ]);
-                        if (this.formsToReview.length || this.authorizationsToSign.length) {
-                                await loadStylesheet("/css/form-review.css");
-                        }
-                } catch (error) {
-                        debugError("Error fetching pending forms:", error);
-                        // A missing list must never hide the dashboard.
+                // The two reminder lists are independent: one failing must not hide
+                // the other, and neither may hide the dashboard.
+                const [reviewResult, signatureResult] = await Promise.allSettled([
+                        getFormsNeedingReview(),
+                        getAuthorizationsPendingSignature(),
+                ]);
+
+                if (reviewResult.status === "fulfilled") {
+                        this.formsToReview = reviewResult.value;
+                } else {
+                        debugError("Error fetching forms to review:", reviewResult.reason);
                         this.formsToReview = [];
+                }
+
+                if (signatureResult.status === "fulfilled") {
+                        this.authorizationsToSign = signatureResult.value;
+                } else {
+                        debugError(
+                                "Error fetching authorizations to sign:",
+                                signatureResult.reason,
+                        );
                         this.authorizationsToSign = [];
+                }
+
+                if (this.formsToReview.length || this.authorizationsToSign.length) {
+                        await loadStylesheet("/css/form-review.css");
                 }
 
                 // Always render the page, even with partial data

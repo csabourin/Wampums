@@ -943,11 +943,26 @@ module.exports = (pool, logger) => {
    */
   router.get('/v1/medication/authorizations/pending-signature', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const dataScope = await getUserDataScope(req, pool);
-    const isStaff = dataScope === 'organization';
+
+    // Organization-wide visibility requires the medication permission, exactly
+    // like the participant-specific route below. Data scope alone is not
+    // enough: without this, any organization-scoped custom role could learn
+    // which children have authorizations pending. Anyone else still sees the
+    // children they are linked to.
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: MEDICATION_READ_PERMISSIONS,
+    });
+    const isStaff = authCheck.authorized;
 
     const result = await pool.query(
-      `WITH latest AS (
+      `WITH linked_participants AS (
+         SELECT up.user_id, up.participant_id FROM user_participants up
+         UNION
+         SELECT gu.user_id, pg.participant_id
+           FROM guardian_users gu
+           JOIN participant_guardians pg ON pg.guardian_id = gu.guardian_id
+       ),
+       latest AS (
          SELECT participant_id, 'treatment' AS kind, status, expired_at,
                 ROW_NUMBER() OVER (PARTITION BY participant_id ORDER BY created_at DESC) AS rn
            FROM medication_treatment_authorizations
@@ -967,8 +982,8 @@ module.exports = (pool, logger) => {
         WHERE l.rn = 1
           AND l.status <> 'signed'
           AND ($2 OR EXISTS (
-                SELECT 1 FROM user_participants up
-                 WHERE up.user_id = $3 AND up.participant_id = l.participant_id
+                SELECT 1 FROM linked_participants lp
+                 WHERE lp.user_id = $3 AND lp.participant_id = l.participant_id
               ))
         ORDER BY p.first_name, p.last_name, l.kind`,
       [organizationId, isStaff, req.user.id]

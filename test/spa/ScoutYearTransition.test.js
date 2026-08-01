@@ -309,6 +309,29 @@ describe('execution', () => {
     });
   });
 
+  test('a failing history refresh does not present a committed transition as failed', async () => {
+    const module = await mount();
+    await advanceToConfirm(module);
+
+    mockExecuteTransition.mockResolvedValue({
+      previous_year: { label: '2025-2026' },
+      new_year: { label: '2026-2027' },
+      summary: { graduated: 1, carried_over: 2, memberships_deactivated: 1 }
+    });
+    // The transition committed; only the follow-up history GET fails.
+    mockGetScoutYears.mockRejectedValue(new Error('network'));
+
+    await module.handleNext();
+
+    // Reporting failure here would leave Execute enabled, and a retry would run
+    // the non-idempotent endpoint again — closing the year just opened.
+    expect(module.step).toBe(4);
+    expect(document.querySelector('.scout-year-report')).not.toBeNull();
+    expect(app.showMessage).toHaveBeenCalledWith('scout_year_execute_success', 'success');
+    expect(app.showMessage).not.toHaveBeenCalledWith('scout_year_execute_failed', 'error');
+    expect(mockExecuteTransition).toHaveBeenCalledTimes(1);
+  });
+
   test('does nothing when the confirmation dialog is dismissed', async () => {
     const module = await mount();
     await advanceToConfirm(module);
