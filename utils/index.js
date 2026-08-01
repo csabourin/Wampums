@@ -75,9 +75,12 @@ function calculateAge(dateOfBirth) {
 }
 
 /**
- * Sanitize input by removing HTML tags and trimming
+ * Sanitize input by removing HTML tags and trimming.
+ * Inputs longer than 10,000 characters are silently truncated to that limit
+ * before sanitization; callers that need to enforce a different maximum length
+ * should validate length independently before calling this function.
  * @param {string} input - Input to sanitize
- * @returns {string} Sanitized input
+ * @returns {string} Sanitized and trimmed input, capped at 10,000 characters
  */
 function sanitizeInput(input) {
   if (input === null || input === undefined) return "";
