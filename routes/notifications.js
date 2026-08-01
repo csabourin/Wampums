@@ -121,7 +121,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching push subscribers:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return error(res, 'internal_server_error', 500);
     }
   }));
 
@@ -236,7 +236,7 @@ module.exports = (pool, logger) => {
           return;
         }
         logger.error('Error sending notification:', error);
-        res.status(500).json({ error: error.message });
+        return error(res, 'internal_server_error', 500);
       }
     }));
 

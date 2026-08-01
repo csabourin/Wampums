@@ -8,7 +8,6 @@
  */
 
 const express = require('express');
-const router = express.Router();
 const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope, requireAnyPermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 
@@ -25,6 +24,7 @@ const { hasStaffRole } = require('../config/role-constants');
  * @returns {Router} Express router with form routes
  */
 module.exports = (pool, logger) => {
+  const router = express.Router();
   const parseFormSchema = (schemaValue) => {
     if (!schemaValue) {
       return {};
@@ -100,7 +100,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/types', asyncHandler(async (req, res) => {
+  router.get('/types', authenticate, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -125,7 +125,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form types:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return error(res, 'internal_server_error', 500);
     }
   }));
 
@@ -188,7 +188,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/formats', asyncHandler(async (req, res) => {
+  router.get('/formats', authenticate, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -251,7 +251,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form formats:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return error(res, 'internal_server_error', 500);
     }
   }));
 
@@ -285,7 +285,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Access denied
    */
-  router.get('/submissions', asyncHandler(async (req, res) => {
+  router.get('/submissions', authenticate, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -400,7 +400,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form submission:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return error(res, 'internal_server_error', 500);
     }
   }));
 
@@ -570,7 +570,7 @@ module.exports = (pool, logger) => {
     return success(res, result.rows[0], 'Form confirmed as up to date');
     }));
 
-  router.post('/submissions', asyncHandler(async (req, res) => {
+  router.post('/submissions', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -693,7 +693,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error saving form submission:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return error(res, 'internal_server_error', 500);
     }
   }));
 
@@ -706,7 +706,7 @@ module.exports = (pool, logger) => {
    *     security:
    *       - bearerAuth: []
    */
-  router.delete('/submissions', asyncHandler(async (req, res) => {
+  router.delete('/submissions', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -767,7 +767,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error deleting form submission:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return error(res, 'internal_server_error', 500);
     }
   }));
 
@@ -796,7 +796,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Form structure not found
    */
-  router.get('/structure/:form_type', asyncHandler(async (req, res) => {
+  router.get('/structure/:form_type', authenticate, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -831,7 +831,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form structure:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return error(res, 'internal_server_error', 500);
     }
   }));
 
@@ -864,7 +864,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: No submission data found
    */
-  router.get('/submissions/list', asyncHandler(async (req, res) => {
+  router.get('/submissions/list', authenticate, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -924,7 +924,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form submissions:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return error(res, 'internal_server_error', 500);
     }
   }));
 
@@ -953,7 +953,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Risk acceptance not found
    */
-  router.get('/risk-acceptance', asyncHandler(async (req, res) => {
+  router.get('/risk-acceptance', authenticate, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -983,7 +983,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching risk acceptance:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return error(res, 'internal_server_error', 500);
     }
   }));
 
@@ -1032,7 +1032,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.post('/risk-acceptance', asyncHandler(async (req, res) => {
+  router.post('/risk-acceptance', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -1085,7 +1085,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error saving risk acceptance:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return error(res, 'internal_server_error', 500);
     }
   }));
 
@@ -1145,7 +1145,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.post('/health-forms', asyncHandler(async (req, res) => {
+  router.post('/health-forms', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const client = await pool.connect();
 
     try {
@@ -1241,7 +1241,7 @@ module.exports = (pool, logger) => {
       }
       await client.query('ROLLBACK');
       logger.error('Error saving health form:', error);
-      res.status(500).json({ success: false, message: 'Error saving health form: ' + error.message });
+      return error(res, 'internal_server_error', 500);
     } finally {
       client.release();
     }
@@ -1270,7 +1270,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Access denied
    */
-  router.get('/form-submission-history/:submissionId', asyncHandler(async (req, res) => {
+  router.get('/form-submission-history/:submissionId', authenticate, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -1326,7 +1326,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching submission history:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return error(res, 'internal_server_error', 500);
     }
   }));
 
@@ -1362,7 +1362,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.put('/form-submission-status', asyncHandler(async (req, res) => {
+  router.put('/form-submission-status', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -1420,7 +1420,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error updating submission status:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return error(res, 'internal_server_error', 500);
     }
   }));
 
@@ -1445,7 +1445,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/form-versions/:formType', asyncHandler(async (req, res) => {
+  router.get('/form-versions/:formType', authenticate, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -1490,7 +1490,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form versions:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return error(res, 'internal_server_error', 500);
     }
   }));
 
@@ -1511,7 +1511,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions (requires district or unitadmin role)
    */
-  router.get('/form-permissions', asyncHandler(async (req, res) => {
+  router.get('/form-permissions', authenticate, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -1566,7 +1566,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form permissions:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return error(res, 'internal_server_error', 500);
     }
   }));
 
@@ -1604,7 +1604,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.put('/form-display-context', asyncHandler(async (req, res) => {
+  router.put('/form-display-context', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -1684,7 +1684,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error updating form display context:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return error(res, 'internal_server_error', 500);
     }
   }));
 
@@ -1727,7 +1727,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.put('/form-permissions', asyncHandler(async (req, res) => {
+  router.put('/form-permissions', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -1802,7 +1802,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error updating form permissions:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return error(res, 'internal_server_error', 500);
     }
   }));
 

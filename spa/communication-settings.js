@@ -46,8 +46,8 @@ export class CommunicationSettings extends BaseModule {
         }),
       ]);
 
-      if (configResponse?.configured) {
-        this.googleChatConfig = configResponse.data || null;
+      if (configResponse?.data?.configured) {
+        this.googleChatConfig = configResponse.data.config || null;
       } else {
         this.googleChatConfig = null;
       }

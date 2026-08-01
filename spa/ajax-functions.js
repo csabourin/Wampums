@@ -255,7 +255,7 @@ export {
     getFundraisers,
     getFundraiserDetails as getFundraiser,
     saveFundraiser as createFundraiser,
-    saveFundraiser as updateFundraiser,
+    updateFundraiser,
     archiveFundraiser,
     getCalendarsForFundraiser,
     updateCalendarEntry,

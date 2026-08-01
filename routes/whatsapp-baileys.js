@@ -8,7 +8,7 @@
  */
 
 const express = require('express');
-const { asyncHandler } = require('../middleware/response');
+const { asyncHandler, error: errorResponse } = require('../middleware/response');
 const router = express.Router();
 const {
   verifyJWT,
@@ -73,7 +73,7 @@ module.exports = (pool, logger, whatsappService) => {
         return;
       }
       logger.error('Error initiating WhatsApp connection:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return errorResponse(res, 'internal_server_error', 500);
     }
   }));
 
@@ -114,7 +114,7 @@ module.exports = (pool, logger, whatsappService) => {
         return;
       }
       logger.error('Error disconnecting WhatsApp:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return errorResponse(res, 'internal_server_error', 500);
     }
   }));
 
@@ -160,7 +160,7 @@ module.exports = (pool, logger, whatsappService) => {
         return;
       }
       logger.error('Error getting WhatsApp status:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return errorResponse(res, 'internal_server_error', 500);
     }
   }));
 
@@ -212,7 +212,7 @@ module.exports = (pool, logger, whatsappService) => {
         return;
       }
       logger.error('Error sending test WhatsApp message:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return errorResponse(res, 'internal_server_error', 500);
     }
   }));
 

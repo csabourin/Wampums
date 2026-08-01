@@ -1,0 +1,18 @@
+[
+  { "method": "GET", "path": "/api/v1/fundraisers", "routerVariable": "fundraisersRoutes", "routeFile": "routes/fundraisers.js", "routePath": "/", "clientFile": "spa/api/api-endpoints.js", "clientEndpoint": "v1/fundraisers" },
+  { "method": "POST", "path": "/api/v1/fundraisers", "routerVariable": "fundraisersRoutes", "routeFile": "routes/fundraisers.js", "routePath": "/", "clientFile": "spa/api/api-endpoints.js", "clientEndpoint": "v1/fundraisers" },
+  { "method": "GET", "path": "/api/v1/fundraisers/:id", "routerVariable": "fundraisersRoutes", "routeFile": "routes/fundraisers.js", "routePath": "/:id", "clientFile": "spa/api/api-endpoints.js", "clientEndpoint": "v1/fundraisers/${fundraiserId}" },
+  { "method": "PUT", "path": "/api/v1/fundraisers/:id", "routerVariable": "fundraisersRoutes", "routeFile": "routes/fundraisers.js", "routePath": "/:id", "clientFile": "spa/api/api-endpoints.js", "clientEndpoint": "v1/fundraisers/${fundraiserId}" },
+  { "method": "PUT", "path": "/api/v1/fundraisers/:id/archive", "routerVariable": "fundraisersRoutes", "routeFile": "routes/fundraisers.js", "routePath": "/:id/archive", "clientFile": "spa/api/api-endpoints.js", "clientEndpoint": "v1/fundraisers/${fundraiserId}/archive" },
+  { "method": "GET", "path": "/api/v1/calendars", "routerVariable": "calendarsRoutes", "routeFile": "routes/calendars.js", "routePath": "/", "clientFile": "spa/api/api-endpoints.js", "clientEndpoint": "v1/calendars" },
+  { "method": "PUT", "path": "/api/v1/calendars/:id", "routerVariable": "calendarsRoutes", "routeFile": "routes/calendars.js", "routePath": "/:id", "clientFile": "spa/api/api-endpoints.js", "clientEndpoint": "v1/calendars/${id}" },
+  { "method": "POST", "path": "/api/v1/users/approve", "routerVariable": "usersRoutes", "routeFile": "routes/users.js", "routePath": "/approve", "clientFile": "spa/api/api-endpoints.js", "clientEndpoint": "v1/users/approve" },
+  { "method": "GET", "path": "/api/v1/users/me/organizations", "routerVariable": "usersRoutes", "routeFile": "routes/users.js", "routePath": "/me/organizations", "clientFile": "spa/api/api-endpoints.js", "clientEndpoint": "v1/users/me/organizations" },
+  { "method": "GET", "path": "/api/v1/google-chat/config", "routerVariable": "googleChatRoutes", "routeFile": "routes/google-chat.js", "routePath": "/config", "clientFile": "spa/communication-settings.js", "clientEndpoint": "google-chat/config" },
+  { "method": "POST", "path": "/api/v1/google-chat/config", "routerVariable": "googleChatRoutes", "routeFile": "routes/google-chat.js", "routePath": "/config", "clientFile": "spa/communication-settings.js", "clientEndpoint": "google-chat/config" },
+  { "method": "GET", "path": "/api/v1/google-chat/spaces", "routerVariable": "googleChatRoutes", "routeFile": "routes/google-chat.js", "routePath": "/spaces", "clientFile": "spa/communication-settings.js", "clientEndpoint": "google-chat/spaces" },
+  { "method": "POST", "path": "/api/v1/google-chat/spaces", "routerVariable": "googleChatRoutes", "routeFile": "routes/google-chat.js", "routePath": "/spaces", "clientFile": "spa/communication-settings.js", "clientEndpoint": "google-chat/spaces" },
+  { "method": "POST", "path": "/api/v1/google-chat/send-message", "routerVariable": "googleChatRoutes", "routeFile": "routes/google-chat.js", "routePath": "/send-message", "clientFile": "spa/communication-settings.js", "clientEndpoint": "google-chat/send-message" },
+  { "method": "POST", "path": "/api/v1/google-chat/broadcast", "routerVariable": "googleChatRoutes", "routeFile": "routes/google-chat.js", "routePath": "/broadcast" },
+  { "method": "GET", "path": "/api/v1/google-chat/messages", "routerVariable": "googleChatRoutes", "routeFile": "routes/google-chat.js", "routePath": "/messages" }
+]

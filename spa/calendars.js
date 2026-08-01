@@ -36,8 +36,8 @@ export class Calendars {
 	async fetchFundraiser() {
 		try {
 			const response = await getFundraiser(this.fundraiserId);
-			if (response.success && response.fundraiser) {
-				this.fundraiser = response.fundraiser;
+			if (response.success && response.data?.fundraiser) {
+				this.fundraiser = response.data.fundraiser;
 			}
 		} catch (error) {
 			debugError('Error fetching fundraiser:', error);
@@ -48,7 +48,7 @@ export class Calendars {
 	async fetchCalendars() {
 		try {
 			const response = await getCalendarsForFundraiser(this.fundraiserId);
-			this.calendars = response.fundraiser_entries || [];
+			this.calendars = response.data?.fundraiser_entries || [];
 			this.applySorting();
 		} catch (error) {
 			debugError('Error fetching fundraiser entries:', error);

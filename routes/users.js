@@ -8,7 +8,6 @@
  */
 
 const express = require('express');
-const router = express.Router();
 
 // Import auth middleware
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
@@ -26,6 +25,7 @@ const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, 
  * @returns {Router} Express router with user management routes
  */
 module.exports = (pool, logger) => {
+  const router = express.Router();
   /**
    * @swagger
    * /api/v1/users:
@@ -211,6 +211,35 @@ module.exports = (pool, logger) => {
        WHERE up.user_id = $2 AND po.organization_id = $1
        ORDER BY p.first_name, p.last_name`,
       [organizationId, req.user.id]
+    );
+
+    return success(res, result.rows);
+  }));
+
+  /**
+   * @swagger
+   * /api/v1/users/me/organizations:
+   *   get:
+   *     summary: List organizations available to the current user
+   *     tags: [Users]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Organizations retrieved successfully
+   */
+  router.get('/me/organizations', authenticate, asyncHandler(async (req, res) => {
+    const result = await pool.query(
+      `SELECT DISTINCT o.id, o.name,
+              jsonb_agg(DISTINCT r.role_name) as roles
+       FROM organizations o
+       INNER JOIN user_organizations uo ON o.id = uo.organization_id
+       CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+       LEFT JOIN roles r ON r.id = role_id_text::integer
+       WHERE uo.user_id = $1 AND uo.status = 'active'
+       GROUP BY o.id, o.name
+       ORDER BY o.name`,
+      [req.user.id]
     );
 
     return success(res, result.rows);

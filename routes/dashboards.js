@@ -8,7 +8,7 @@
  */
 
 const express = require('express');
-const { asyncHandler } = require('../middleware/response');
+const { asyncHandler, error: errorResponse } = require('../middleware/response');
 const router = express.Router();
 
 // Import utilities
@@ -419,7 +419,7 @@ document.addEventListener("DOMContentLoaded", function() {
         return;
       }
       logger.error('Error fetching parent dashboard:', error);
-      res.status(500).json({ success: false, message: error.message });
+      return errorResponse(res, 'internal_server_error', 500);
     }
   }));
 
