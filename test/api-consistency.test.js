@@ -109,6 +109,7 @@ beforeEach(() => {
 
   // Mock organization domain lookup (for getCurrentOrganizationId)
   // This returns a default organization when hostname lookup occurs
+  const defaultQueryImplementation = __mPool.query.getMockImplementation();
   __mPool.query.mockImplementation((query, params) => {
     // Check if this is an organization_domains query
     if (typeof query === 'string' && query.includes('organization_domains')) {
@@ -116,8 +117,10 @@ beforeEach(() => {
         rows: [{ organization_id: ORG_ID }]
       });
     }
-    // Default: return empty rows for other queries
-    return Promise.resolve({ rows: [] });
+    // Preserve the shared active-membership and permission fixtures. Replacing
+    // them with empty rows makes authenticated requests fail before the
+    // response contract under test is reached.
+    return defaultQueryImplementation(query, params);
   });
 });
 
