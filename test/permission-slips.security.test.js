@@ -39,7 +39,7 @@ afterAll((done) => {
 });
 
 describe('Permission Slip Security', () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
 
     beforeEach(() => {
         __mPool.query.mockReset();
@@ -134,6 +134,12 @@ describe('Permission Slip Security', () => {
         test('GET /api/v1/resources/permission-slips/:id/view should allow with valid authentication', async () => {
             const token = jwt.sign({ user_id: 1, organizationId: 1 }, TEST_SECRET);
 
+            setupDefaultMocks(__mClient, __mPool);
+
+            // Mock active organization membership
+            __mPool.query.mockResolvedValueOnce({
+                rows: [{ organization_id: 1 }]
+            });
             // Mock permissions check
             __mPool.query.mockResolvedValueOnce({
                 rows: [{ permission_key: 'activities.view' }]
@@ -142,7 +148,7 @@ describe('Permission Slip Security', () => {
             __mPool.query.mockResolvedValueOnce({
                 rows: [{ role_name: 'leader', display_name: 'Leader' }]
             });
-            // Mock the slip result
+            // Mock the organization-scoped slip result
             __mPool.query.mockResolvedValueOnce({
                 rows: [{ id: TEST_ID, activity_title: 'Camp' }]
             });
@@ -160,6 +166,7 @@ describe('Permission Slip Security', () => {
             const token = jwt.sign({ user_id: 1, organizationId: 1 }, TEST_SECRET);
 
             __mPool.query
+                .mockResolvedValueOnce({ rows: [{ organization_id: 1 }] })
                 .mockResolvedValueOnce({ rows: [] })
                 .mockResolvedValueOnce({ rows: [{ permission_key: 'activities.edit' }] })
                 .mockResolvedValueOnce({ rows: [{ role_name: 'leader', display_name: 'Leader' }] })
@@ -172,7 +179,7 @@ describe('Permission Slip Security', () => {
 
             expect(res.status).toBe(200);
             expect(res.body.data.permission_slip.status).toBe('archived');
-            const archiveQuery = __mPool.query.mock.calls[3];
+            const archiveQuery = __mPool.query.mock.calls[4];
             expect(archiveQuery[0]).toContain('organization_id = $2');
             expect(archiveQuery[1]).toEqual([TEST_ID, 1]);
         });

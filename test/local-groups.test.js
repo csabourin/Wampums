@@ -33,11 +33,11 @@ beforeAll(() => {
 
 beforeEach(() => {
   const { __mClient, __mPool } = require('pg');
+  __mClient.query.mockReset();
+  __mPool.query.mockReset();
   setupDefaultMocks(__mClient, __mPool);
-  __mClient.query.mockClear();
   __mClient.release.mockClear();
   __mPool.connect.mockClear();
-  __mPool.query.mockClear();
 });
 
 afterEach(() => {
@@ -54,13 +54,15 @@ describe('Local groups API', () => {
     const { __mPool } = require('pg');
 
     __mPool.query
+      .mockResolvedValueOnce({ rows: [{ organization_id: 5 }] }) // active membership
       .mockResolvedValueOnce({ rows: [{ permission_key: 'org.view' }] }) // permissions
       .mockResolvedValueOnce({ rows: [{ role_name: 'admin', display_name: 'Admin' }] }) // roles
       .mockResolvedValueOnce({ rows: [{ id: 1, name: 'Groupe 6 Aylmer', slug: 'groupe-6-aylmer' }] }); // memberships
 
     const res = await request(app)
       .get('/api/v1/local-groups/memberships')
-      .set('Authorization', `Bearer ${token}`);
+      .set('Authorization', `Bearer ${token}`)
+      .set('x-organization-id', '5');
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -73,9 +75,11 @@ describe('Local groups API', () => {
     const { __mPool } = require('pg');
 
     __mPool.query
+      .mockResolvedValueOnce({ rows: [{ organization_id: 7 }] }) // active membership
       .mockResolvedValueOnce({ rows: [] }) // demo roles
       .mockResolvedValueOnce({ rows: [] }) // permissions missing org.edit
-      .mockResolvedValueOnce({ rows: [] }); // roles
+      .mockResolvedValueOnce({ rows: [] }) // roles
+      .mockResolvedValueOnce({ rows: [{ status: 'active' }] }); // denial context
 
     const res = await request(app)
       .post('/api/v1/local-groups/memberships')
@@ -92,6 +96,7 @@ describe('Local groups API', () => {
     const { __mPool } = require('pg');
 
     __mPool.query
+      .mockResolvedValueOnce({ rows: [{ organization_id: 9 }] }) // active membership
       .mockResolvedValueOnce({ rows: [] }) // demo roles
       .mockResolvedValueOnce({ rows: [{ permission_key: 'org.edit' }] }) // permissions
       .mockResolvedValueOnce({ rows: [{ role_name: 'admin', display_name: 'Admin' }] }) // roles

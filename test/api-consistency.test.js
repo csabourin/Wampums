@@ -101,11 +101,11 @@ beforeAll(() => {
 
 beforeEach(() => {
   const { __mClient, __mPool } = require('pg');
+  __mClient.query.mockReset();
+  __mPool.query.mockReset();
   setupDefaultMocks(__mClient, __mPool);
-  __mClient.query.mockClear();
   __mClient.release.mockClear();
   __mPool.connect.mockClear();
-  __mPool.query.mockClear();
 
   // Mock organization domain lookup (for getCurrentOrganizationId)
   // This returns a default organization when hostname lookup occurs
@@ -314,9 +314,11 @@ describe('Consistent Error Shapes', () => {
   test('403 permission error includes required/missing permission details', async () => {
     const token = generateToken();
 
-    // No permissions granted
-    __mPool.query.mockResolvedValueOnce({ rows: [] });
-    __mPool.query.mockResolvedValueOnce({ rows: [] });
+    __mPool.query
+      .mockResolvedValueOnce({ rows: [{ organization_id: ORG_ID }] }) // active membership
+      .mockResolvedValueOnce({ rows: [] }) // no permissions granted
+      .mockResolvedValueOnce({ rows: [] }) // no roles granted
+      .mockResolvedValueOnce({ rows: [{ status: 'active' }] }); // denial context
 
     const res = await withOrganizationHeader(request(app)
       .get('/api/v1/participants')
@@ -668,14 +670,21 @@ describe('Write Operations Require Authentication', () => {
     { method: 'post', path: '/api/v1/activities' },
     { method: 'post', path: '/api/v1/attendance' },
     { method: 'post', path: '/api/v1/badges/progress' },
-    { method: 'post', path: '/api/v1/notifications/subscription' },
+    {
+      method: 'post',
+      path: '/api/v1/notifications/subscription',
+      body: {
+        endpoint: 'https://push.example.com/subscription',
+        keys: { p256dh: 'test-p256dh', auth: 'test-auth' }
+      }
+    },
     { method: 'post', path: '/api/v1/fundraisers' },
   ];
 
   test.each(writeEndpoints)(
     '$method $path returns 401 without token',
-    async ({ method, path }) => {
-      const res = await request(app)[method](path).send({});
+    async ({ method, path, body = {} }) => {
+      const res = await request(app)[method](path).send(body);
       expect(res.status).toBe(401);
       expect(res.body.success).toBe(false);
     }
