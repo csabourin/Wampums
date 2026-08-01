@@ -871,12 +871,18 @@ module.exports = (pool, logger) => {
           });
         }
 
-        // Get the domain for the reset link from the request host to support multiple organizations/domains
-        const host = req.get('host') || 'wampums.app';
-        // Determine protocol - prefer https, but respect x-forwarded-proto if behind a proxy (like Replit or Load Balancer)
-        const forwardedProto = req.headers['x-forwarded-proto'];
-        const protocol = forwardedProto ? forwardedProto.split(',')[0].trim() : (req.secure ? 'https' : 'http');
-        const baseUrl = `${protocol}://${host}`;
+        // Get the base URL from a trusted source (never from the HTTP Host header,
+        // which can be forged by an attacker to redirect the reset link).
+        // Priority: APP_URL env var > database organization domain > hardcoded default.
+        let baseUrl = process.env.APP_URL;
+        if (!baseUrl) {
+          const domainResult = await pool.query(
+            'SELECT domain FROM organization_domains WHERE organization_id = $1 ORDER BY id ASC LIMIT 1',
+            [organizationId]
+          );
+          const trustedDomain = domainResult.rows[0]?.domain || 'wampums.app';
+          baseUrl = `https://${trustedDomain}`;
+        }
         const resetLink = `${baseUrl}/reset-password?token=${rawResetToken}`;
 
         // Send password reset email with localization
