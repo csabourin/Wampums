@@ -49,6 +49,7 @@ const SAVE_STATUS_TRANSLATIONS = {
   [MEETING_SAVE_STATES.DIRTY]: 'meeting_autosave_unsaved',
   [MEETING_SAVE_STATES.SAVING]: 'meeting_autosave_saving',
   [MEETING_SAVE_STATES.LOCAL]: 'meeting_autosave_local',
+  [MEETING_SAVE_STATES.CONFLICT]: 'meeting_autosave_date_conflict',
   [MEETING_SAVE_STATES.ERROR]: 'meeting_autosave_failed'
 };
 

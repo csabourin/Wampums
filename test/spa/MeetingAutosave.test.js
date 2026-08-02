@@ -235,6 +235,81 @@ describe('MeetingAutosave', () => {
     expect(setup.controller.date).toBe('2026-08-12');
   });
 
+  test('preserves both drafts and pauses server save on a destination collision', async () => {
+    const destinationDraft = {
+      version: 1,
+      revision: 7,
+      updatedAt: 1200,
+      formData: { date: '2026-08-12', notes: 'Existing destination work' }
+    };
+    mockGetCachedData.mockImplementation((key) => Promise.resolve(
+      key === 'meeting_preparation_draft_2026-08-12'
+        ? destinationDraft
+        : null
+    ));
+    const setup = createController();
+    setup.setCurrent({ date: '2026-08-12', notes: 'Moved source work' });
+
+    setup.controller.markDirty();
+    await jest.advanceTimersByTimeAsync(1000);
+
+    expect(mockSetCachedData).toHaveBeenCalledWith(
+      'meeting_preparation_draft_2026-08-05',
+      expect.objectContaining({
+        formData: { date: '2026-08-12', notes: 'Moved source work' }
+      }),
+      30000
+    );
+    expect(mockSetCachedData.mock.calls.some(
+      ([key]) => key === 'meeting_preparation_draft_2026-08-12'
+    )).toBe(false);
+    expect(mockDeleteCachedData).not.toHaveBeenCalledWith(
+      'meeting_preparation_draft_2026-08-05'
+    );
+    expect(mockDeleteCachedData).not.toHaveBeenCalledWith(
+      'meeting_preparation_draft_2026-08-12'
+    );
+    expect(setup.save).not.toHaveBeenCalled();
+    expect(setup.controller.state).toBe(MEETING_SAVE_STATES.CONFLICT);
+    expect(setup.controller.draftConflict).toEqual(expect.objectContaining({
+      destinationDate: '2026-08-12'
+    }));
+  });
+
+  test('resumes migration after the user chooses an unused date', async () => {
+    mockGetCachedData.mockImplementation((key) => Promise.resolve(
+      key === 'meeting_preparation_draft_2026-08-12'
+        ? {
+            version: 1,
+            formData: { date: '2026-08-12', notes: 'Existing destination work' }
+          }
+        : null
+    ));
+    const setup = createController();
+    setup.setCurrent({ date: '2026-08-12', notes: 'Moved source work' });
+    setup.controller.markDirty();
+    await jest.advanceTimersByTimeAsync(150);
+    expect(setup.controller.state).toBe(MEETING_SAVE_STATES.CONFLICT);
+
+    setup.setCurrent({ date: '2026-08-19', notes: 'Moved source work' });
+    setup.controller.markDirty();
+    await jest.advanceTimersByTimeAsync(150);
+
+    expect(mockSetCachedData).toHaveBeenCalledWith(
+      'meeting_preparation_draft_2026-08-19',
+      expect.objectContaining({ date: '2026-08-19' }),
+      30000
+    );
+    expect(mockDeleteCachedData).toHaveBeenCalledWith(
+      'meeting_preparation_draft_2026-08-05'
+    );
+    expect(mockDeleteCachedData).not.toHaveBeenCalledWith(
+      'meeting_preparation_draft_2026-08-12'
+    );
+    expect(setup.controller.draftConflict).toBeNull();
+    expect(setup.controller.state).toBe(MEETING_SAVE_STATES.LOCAL);
+  });
+
   test('migrates a legacy draft stored under a different form date', async () => {
     mockGetCachedData.mockResolvedValue({
       version: 1,

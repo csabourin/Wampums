@@ -11,6 +11,7 @@ export const MEETING_SAVE_STATES = Object.freeze({
   DIRTY: 'dirty',
   SAVING: 'saving',
   LOCAL: 'local',
+  CONFLICT: 'conflict',
   ERROR: 'error'
 });
 
@@ -24,6 +25,20 @@ const DRAFT_VERSION = 1;
  */
 function fingerprint(formData) {
   return JSON.stringify(formData || {});
+}
+
+/**
+ * Determine whether a destination contains user work that must be preserved.
+ * Synchronized markers and identical snapshots are safe to replace.
+ * @param {Object|null} existingDraft - Draft currently stored at the destination
+ * @param {Object} snapshot - Snapshot requesting the destination key
+ * @returns {boolean} Whether migration must stop to preserve both drafts
+ */
+function hasDraftCollision(existingDraft, snapshot) {
+  if (!existingDraft?.formData || existingDraft.synchronized) return false;
+  const existingFingerprint = existingDraft.fingerprint ||
+    fingerprint(existingDraft.formData);
+  return existingFingerprint !== snapshot.fingerprint;
 }
 
 /**
@@ -73,6 +88,7 @@ export class MeetingAutosave {
     this.manualErrorRequested = false;
     this.destroyed = false;
     this.activeDraftKey = this.draftKey;
+    this.draftConflict = null;
   }
 
   /** @returns {string} Logical cache key; IndexedDB adds user/org/year scope. */
@@ -142,7 +158,7 @@ export class MeetingAutosave {
         this.localDraftSafe = true;
       }
       if (!this.localDraftSafe) return this.latestSnapshot;
-      this.setStatus(MEETING_SAVE_STATES.LOCAL);
+      if (!this.draftConflict) this.setStatus(MEETING_SAVE_STATES.LOCAL);
       return this.latestSnapshot;
     } catch (error) {
       debugError('Unable to restore meeting preparation draft:', error);
@@ -222,7 +238,11 @@ export class MeetingAutosave {
    */
   persistDraft(snapshot = this.latestSnapshot) {
     if (!snapshot) return this.localWritePromise.then(() => true);
-    if (this.localDraftSafe && this.lastLocalRevision === snapshot.revision) {
+    if (
+      this.localDraftSafe &&
+      this.lastLocalRevision === snapshot.revision &&
+      !this.draftConflict
+    ) {
       return this.localWritePromise.then(() => true);
     }
 
@@ -233,6 +253,27 @@ export class MeetingAutosave {
       .then(async () => {
         const draftKey = this.getSnapshotDraftKey(snapshot);
         const previousDraftKey = this.activeDraftKey;
+        if (previousDraftKey && previousDraftKey !== draftKey) {
+          const destinationDraft = await getCachedData(draftKey);
+          if (hasDraftCollision(destinationDraft, snapshot)) {
+            await setCachedData(
+              previousDraftKey,
+              snapshot,
+              CONFIG.UI.MEETING_DRAFT_EXPIRATION
+            );
+            if (this.latestSnapshot?.revision === snapshot.revision) {
+              this.draftConflict = {
+                sourceDraftKey: previousDraftKey,
+                destinationDraftKey: draftKey,
+                destinationDate: snapshot.date
+              };
+              this.localDraftSafe = true;
+              this.lastLocalRevision = snapshot.revision;
+              this.setStatus(MEETING_SAVE_STATES.CONFLICT);
+            }
+            return true;
+          }
+        }
         await setCachedData(
           draftKey,
           snapshot,
@@ -243,9 +284,13 @@ export class MeetingAutosave {
           await this.removeDraft(previousDraftKey, 'obsolete date');
         }
         if (this.latestSnapshot?.revision === snapshot.revision) {
+          this.draftConflict = null;
           this.localDraftSafe = true;
           this.lastLocalRevision = snapshot.revision;
-          if (this.state === MEETING_SAVE_STATES.DIRTY) {
+          if (
+            this.state === MEETING_SAVE_STATES.DIRTY ||
+            this.state === MEETING_SAVE_STATES.CONFLICT
+          ) {
             this.setStatus(MEETING_SAVE_STATES.LOCAL);
           }
         }
@@ -299,6 +344,10 @@ export class MeetingAutosave {
       return true;
     }
     await this.persistDraft(this.latestSnapshot);
+    if (this.draftConflict) {
+      this.manualErrorRequested = false;
+      return false;
+    }
 
     if (this.serverSavePromise) {
       this.saveAgain = true;
@@ -323,6 +372,10 @@ export class MeetingAutosave {
         return true;
       }
       await this.persistDraft(snapshot);
+      if (this.draftConflict) {
+        this.setStatus(MEETING_SAVE_STATES.CONFLICT);
+        return false;
+      }
       if (!this.isValid(snapshot.formData)) {
         this.setStatus(MEETING_SAVE_STATES.LOCAL);
         return false;

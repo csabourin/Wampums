@@ -1190,6 +1190,7 @@
   "meeting_autosave_saved": "Tersimpan",
   "meeting_autosave_local": "Draf tersimpan di perangkat ini",
   "meeting_autosave_failed": "Tidak dapat menyimpan — gunakan Simpan untuk mencoba lagi",
+  "meeting_autosave_date_conflict": "Draf lain yang belum disinkronkan sudah menggunakan tanggal ini — pilih tanggal lain",
   "reunion_preparation_saved_success": "Persiapan reuni berhasil disimpan",
   "reunions_precendentes": "Pertemuan sebelumnya",
   "risk_acceptance_not_found": "Penerimaan risiko tidak ditemukan",

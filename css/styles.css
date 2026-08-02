@@ -5200,7 +5200,8 @@ body.online .pending-update {
   animation: spin 0.6s linear infinite;
 }
 
-.meeting-save-status[data-state="error"] {
+.meeting-save-status[data-state="error"],
+.meeting-save-status[data-state="conflict"] {
   color: var(--color-error);
 }
 

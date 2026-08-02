@@ -1165,6 +1165,7 @@
   "meeting_autosave_saved": "Salvato",
   "meeting_autosave_local": "Bozza salvata su questo dispositivo",
   "meeting_autosave_failed": "Salvataggio non riuscito — usa Salva per riprovare",
+  "meeting_autosave_date_conflict": "Un'altra bozza non sincronizzata usa già questa data — scegli un'altra data",
   "reunion_preparation_saved_success": "Preparazione della riunione salvata correttamente",
   "reunions_precendentes": "Incontri precedenti",
   "risk_acceptance_not_found": "Accettazione del rischio non trovata",

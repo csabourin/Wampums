@@ -512,6 +512,7 @@
     "meeting_autosave_saved": "Saved",
     "meeting_autosave_local": "Draft saved on this device",
     "meeting_autosave_failed": "Couldn’t save — use Save to retry",
+    "meeting_autosave_date_conflict": "Another unsaved draft already uses this date — choose a different date",
     "risque_allergies": "Severe allergies",
     "risque_animaux_plantes": "Contact with wild animals or poisonous\/irritating plants",
     "risque_blessures_chutes": "Injuries from falls or other movements (sprains, strains, fractures, etc.)",
