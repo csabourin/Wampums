@@ -1,7 +1,9 @@
 import { translate } from "../app.js";
+import { CONFIG } from "../config.js";
 import { getSectionActivityTemplates } from "../utils/meetingSections.js";
 import { setContent } from "../utils/DOMUtils.js";
 import { debugLog, debugWarn } from "../utils/DebugUtils.js";
+import { escapeHTML } from "../utils/SecurityUtils.js";
 import { AchievementModal } from "./AchievementModal.js";
 
 /**
@@ -28,6 +30,8 @@ export class ActivityManager {
                 this.durationOverride = null; // Optional override for special meetings
                 this.achievementModal = null; // Will hold the AchievementModal instance
                 this.quickEditActive = false;
+                this.reorderAbortController = null;
+                this.reorderState = null;
         }
 
         /**
@@ -236,6 +240,7 @@ export class ActivityManager {
 
                 this.addDurationListeners();
                 this.addAchievementListeners();
+                this.addReorderListeners();
         }
 
         /**
@@ -318,6 +323,10 @@ export class ActivityManager {
                 return `
                         <div class="activity-row-container" data-position="${a.position || index}">
                                 <div class="activity-row" data-id="${a.id || index}" data-position="${a.position || index}" data-default="${a.isDefault}">
+                                        <button type="button" class="activity-drag-handle" title="${translate("drag_handle")}" aria-label="${translate("drag_handle")}" aria-keyshortcuts="ArrowUp ArrowDown" aria-grabbed="false">
+                                                <span class="activity-drag-handle__dots" aria-hidden="true"></span>
+                                        </button>
+                                        <span class="activity-row__drag-title">${escapeHTML(activityName)}</span>
                                         <div class="activity-row__time">
                                                 <input type="time" value="${time}" class="activity-time">
                                                 <input type="text" value="${duration}" class="activity-duration" placeholder="00:00">
@@ -461,6 +470,7 @@ export class ActivityManager {
 
                 // Recalculate following times from the newly inserted row
                 this.updateFollowingTimes(insertAt);
+                this.notifyActivitiesChanged();
         }
 
         /**
@@ -481,6 +491,7 @@ export class ActivityManager {
                         const recalcFrom = Math.max(0, deleteAt - 1);
                         this.updateFollowingTimes(recalcFrom);
                 }
+                this.notifyActivitiesChanged();
         }
 
         /**
@@ -643,6 +654,334 @@ export class ActivityManager {
                                 this.updateFollowingTimes(rowIndex);
                         });
                 });
+        }
+
+        /**
+         * Attach pointer and keyboard controls to the agenda drag handles.
+         * Mouse dragging starts immediately; touch and pen input require a long press.
+         */
+        addReorderListeners() {
+                this.cancelReorder();
+                this.reorderAbortController?.abort();
+                this.reorderAbortController = new AbortController();
+                const signal = this.reorderAbortController.signal;
+                const handles = document.querySelectorAll(
+                        "#activities-list .activity-drag-handle",
+                );
+
+                handles.forEach((handle) => {
+                        handle.addEventListener(
+                                "pointerdown",
+                                (event) => this.handleReorderPointerDown(event),
+                                { signal },
+                        );
+                        handle.addEventListener(
+                                "keydown",
+                                (event) => this.handleReorderKeyDown(event),
+                                { signal },
+                        );
+                });
+
+                window.addEventListener(
+                        "pointermove",
+                        (event) => this.handleReorderPointerMove(event),
+                        { signal },
+                );
+                window.addEventListener(
+                        "pointerup",
+                        (event) => this.handleReorderPointerEnd(event, true),
+                        { signal },
+                );
+                window.addEventListener(
+                        "pointercancel",
+                        (event) => this.handleReorderPointerEnd(event, false),
+                        { signal },
+                );
+        }
+
+        /**
+         * Begin or schedule a row reorder from its dedicated handle.
+         * @param {PointerEvent} event - Pointer-down event from a drag handle
+         */
+        handleReorderPointerDown(event) {
+                if (event.pointerType === "mouse" && event.button !== 0) {
+                        return;
+                }
+
+                const row = event.currentTarget.closest(".activity-row");
+                const sourceIndex = Number(row?.dataset.position);
+                if (!row || !Number.isInteger(sourceIndex)) {
+                        return;
+                }
+
+                event.preventDefault();
+                this.cancelReorder();
+                this.reorderState = {
+                        pointerId: event.pointerId,
+                        pointerType: event.pointerType,
+                        handle: event.currentTarget,
+                        rowContainer: row.closest(".activity-row-container"),
+                        sourceIndex,
+                        targetPosition: sourceIndex,
+                        startX: event.clientX,
+                        startY: event.clientY,
+                        lastY: event.clientY,
+                        rowCenter: row.getBoundingClientRect().top +
+                                row.getBoundingClientRect().height / 2,
+                        active: false,
+                        longPressTimer: null,
+                };
+
+                if (typeof event.currentTarget.setPointerCapture === "function") {
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                }
+
+                if (event.pointerType === "mouse") {
+                        this.startReorder();
+                        return;
+                }
+
+                this.reorderState.longPressTimer = window.setTimeout(
+                        () => this.startReorder(),
+                        CONFIG.UI.MEETING_REORDER_LONG_PRESS_DELAY,
+                );
+        }
+
+        /**
+         * Activate visual reorder mode after the pointer gesture is accepted.
+         */
+        startReorder() {
+                const state = this.reorderState;
+                if (!state || state.active) {
+                        return;
+                }
+
+                state.longPressTimer = null;
+                state.active = true;
+                this.selectedActivities = this.getSelectedActivitiesFromDOM();
+                const list = document.getElementById("activities-list");
+                list?.querySelectorAll(".activity-row-container")
+                        .forEach((container, index) => {
+                                const title = container.querySelector(
+                                        ".activity-row__drag-title",
+                                );
+                                if (title) {
+                                        title.textContent =
+                                                this.selectedActivities[index]?.activity ||
+                                                translate("default_activity_name");
+                                }
+                        });
+                list?.classList.add("is-reordering");
+                list?.classList.toggle(
+                        "is-touch-reordering",
+                        state.pointerType !== "mouse",
+                );
+                document.body.classList.add("activity-reorder-active");
+                state.rowContainer?.classList.add("is-dragging");
+                state.handle.setAttribute("aria-grabbed", "true");
+
+                window.requestAnimationFrame(() => {
+                        if (this.reorderState?.active) {
+                                const activeRow = this.reorderState.rowContainer
+                                        ?.querySelector(".activity-row");
+                                const rect = activeRow?.getBoundingClientRect();
+                                const currentCenter = rect
+                                        ? rect.top + rect.height / 2
+                                        : this.reorderState.rowCenter;
+                                const scrollDelta = currentCenter -
+                                        this.reorderState.rowCenter;
+                                if (scrollDelta) {
+                                        window.scrollBy(0, scrollDelta);
+                                }
+                                this.updateReorderTarget(this.reorderState.lastY);
+                        }
+                });
+        }
+
+        /**
+         * Track a pending long press or update the active insertion marker.
+         * @param {PointerEvent} event - Pointer movement event
+         */
+        handleReorderPointerMove(event) {
+                const state = this.reorderState;
+                if (!state || event.pointerId !== state.pointerId) {
+                        return;
+                }
+
+                state.lastY = event.clientY;
+                if (!state.active) {
+                        const distance = Math.hypot(
+                                event.clientX - state.startX,
+                                event.clientY - state.startY,
+                        );
+                        if (distance > CONFIG.UI.MEETING_REORDER_MOVE_TOLERANCE) {
+                                this.cancelReorder();
+                        }
+                        return;
+                }
+
+                event.preventDefault();
+                this.updateReorderTarget(event.clientY);
+        }
+
+        /**
+         * Position the dark insertion marker at the closest row boundary.
+         * @param {number} clientY - Current pointer Y coordinate
+         */
+        updateReorderTarget(clientY) {
+                const list = document.getElementById("activities-list");
+                const state = this.reorderState;
+                if (!list || !state) {
+                        return;
+                }
+
+                const rows = Array.from(
+                        list.querySelectorAll(".activity-row-container"),
+                );
+                let targetPosition = rows.length;
+                for (let index = 0; index < rows.length; index += 1) {
+                        const rect = rows[index].getBoundingClientRect();
+                        if (clientY < rect.top + rect.height / 2) {
+                                targetPosition = index;
+                                break;
+                        }
+                }
+
+                state.targetPosition = targetPosition;
+                list.querySelectorAll(".insert-here-divider").forEach((divider) => {
+                        divider.classList.toggle(
+                                "is-drop-target",
+                                Number(divider.dataset.position) === targetPosition,
+                        );
+                });
+        }
+
+        /**
+         * Complete or cancel the active pointer reorder.
+         * @param {PointerEvent} event - Pointer end event
+         * @param {boolean} commit - Whether to apply the indicated move
+         */
+        handleReorderPointerEnd(event, commit) {
+                const state = this.reorderState;
+                if (!state || event.pointerId !== state.pointerId) {
+                        return;
+                }
+
+                const wasActive = state.active;
+                const sourceIndex = state.sourceIndex;
+                const targetPosition = state.targetPosition;
+                this.cancelReorder();
+
+                if (commit && wasActive) {
+                        const targetIndex = targetPosition > sourceIndex
+                                ? targetPosition - 1
+                                : targetPosition;
+                        this.moveActivity(sourceIndex, targetIndex);
+                }
+        }
+
+        /**
+         * Support precise, accessible one-row moves from the focused handle.
+         * @param {KeyboardEvent} event - Handle key event
+         */
+        handleReorderKeyDown(event) {
+                if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
+                        return;
+                }
+
+                event.preventDefault();
+                const row = event.currentTarget.closest(".activity-row");
+                const sourceIndex = Number(row?.dataset.position);
+                const offset = event.key === "ArrowUp" ? -1 : 1;
+                this.selectedActivities = this.getSelectedActivitiesFromDOM();
+                this.moveActivity(sourceIndex, sourceIndex + offset);
+        }
+
+        /**
+         * Move one activity and rebuild all agenda start times from the original
+         * meeting start. Durations travel with their activity.
+         * @param {number} sourceIndex - Current array index
+         * @param {number} targetIndex - Desired final array index
+         */
+        moveActivity(sourceIndex, targetIndex) {
+                if (!Number.isInteger(sourceIndex) || !Number.isInteger(targetIndex)) {
+                        return;
+                }
+
+                const lastIndex = this.selectedActivities.length - 1;
+                const boundedTarget = Math.max(0, Math.min(targetIndex, lastIndex));
+                if (sourceIndex < 0 || sourceIndex > lastIndex || sourceIndex === boundedTarget) {
+                        return;
+                }
+
+                const meetingStart = this.selectedActivities[0]?.time || "";
+                const [movedActivity] = this.selectedActivities.splice(sourceIndex, 1);
+                this.selectedActivities.splice(boundedTarget, 0, movedActivity);
+                this.recalculateTimes(meetingStart);
+                this.renderActivitiesTable();
+                this.notifyActivitiesChanged();
+
+                window.requestAnimationFrame(() => {
+                        document.querySelector(
+                                `#activities-list .activity-row[data-position="${boundedTarget}"] .activity-drag-handle`,
+                        )?.focus();
+                });
+        }
+
+        /**
+         * Recalculate positions and sequential start times after a reorder.
+         * @param {string} meetingStart - Start time that remains fixed for row zero
+         */
+        recalculateTimes(meetingStart) {
+                this.selectedActivities.forEach((activity, index) => {
+                        activity.position = index;
+                        if (index === 0) {
+                                activity.time = meetingStart;
+                                return;
+                        }
+
+                        const previous = this.selectedActivities[index - 1];
+                        activity.time = previous.time
+                                ? this.addDurationToTime(
+                                          previous.time,
+                                          previous.duration || "00:00",
+                                  )
+                                : "";
+                });
+        }
+
+        /**
+         * Clear timers and visual state for the current reorder gesture.
+         */
+        cancelReorder() {
+                const state = this.reorderState;
+                if (state?.longPressTimer) {
+                        window.clearTimeout(state.longPressTimer);
+                }
+                if (
+                        state?.handle &&
+                        typeof state.handle.releasePointerCapture === "function" &&
+                        state.handle.hasPointerCapture?.(state.pointerId)
+                ) {
+                        state.handle.releasePointerCapture(state.pointerId);
+                }
+                state?.handle?.setAttribute("aria-grabbed", "false");
+                state?.rowContainer?.classList.remove("is-dragging");
+                document.getElementById("activities-list")?.classList.remove("is-reordering");
+                document.getElementById("activities-list")?.classList.remove("is-touch-reordering");
+                document.querySelectorAll(".insert-here-divider.is-drop-target")
+                        .forEach((divider) => divider.classList.remove("is-drop-target"));
+                document.body.classList.remove("activity-reorder-active");
+                this.reorderState = null;
+        }
+
+        /**
+         * Release reorder listeners when the meeting preparation module closes.
+         */
+        destroy() {
+                this.cancelReorder();
+                this.reorderAbortController?.abort();
+                this.reorderAbortController = null;
         }
 
         /**
@@ -815,6 +1154,17 @@ export class ActivityManager {
                                 toggleBtn.classList.remove("active");
                         }
                 }
+                this.notifyActivitiesChanged();
+        }
+
+        /**
+         * Notify the preparation form after a structural activity change that
+         * does not naturally emit an input or change event.
+         */
+        notifyActivitiesChanged() {
+                document.getElementById("activities-list")?.dispatchEvent(
+                        new CustomEvent("activitieschange", { bubbles: true }),
+                );
         }
 
         /**

@@ -27,6 +27,7 @@ import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { ActivityManager } from '../ActivityManager.js';
 import { PrintManager } from '../PrintManager.js';
 import { aiGenerateText } from '../AI.js';
+import { MeetingAutosave, MEETING_SAVE_STATES } from './MeetingAutosave.js';
 import {
   getMeetingActivities,
   getAnimateurs,
@@ -42,6 +43,14 @@ import {
 import { createReminder, getMeetingReminders } from '../../api/api-yearly-planner.js';
 
 const DEFAULT_MEETING_LENGTH_MINUTES = 90;
+
+const SAVE_STATUS_TRANSLATIONS = {
+  [MEETING_SAVE_STATES.SAVED]: 'meeting_autosave_saved',
+  [MEETING_SAVE_STATES.DIRTY]: 'meeting_autosave_unsaved',
+  [MEETING_SAVE_STATES.SAVING]: 'meeting_autosave_saving',
+  [MEETING_SAVE_STATES.LOCAL]: 'meeting_autosave_local',
+  [MEETING_SAVE_STATES.ERROR]: 'meeting_autosave_failed'
+};
 
 export class MeetingPrep extends BaseModule {
   constructor(app, options = {}) {
@@ -68,6 +77,8 @@ export class MeetingPrep extends BaseModule {
     this.activityManager = null;
     this.printManager = null;
     this.renderAbortController = null;
+    this.meetingAutosave = null;
+    this.saveState = MEETING_SAVE_STATES.SAVED;
   }
 
   /**
@@ -90,6 +101,8 @@ export class MeetingPrep extends BaseModule {
         this.sectionConfig,
         this.organizationSettings.organization_info?.name || '',
       );
+
+      this.setupAutosaveLifecycle();
 
       await this.loadMeeting(normalizeDateString(date) || this.getInitialDate());
     } catch (err) {
@@ -212,7 +225,17 @@ export class MeetingPrep extends BaseModule {
    */
   async loadMeeting(date, options = {}) {
     const normalizedDate = normalizeDateString(date);
+
+    if (this.meetingAutosave && this.meetingAutosave.date !== normalizedDate) {
+      await this.meetingAutosave.flush();
+      await this.meetingAutosave.destroy();
+      this.meetingAutosave = null;
+    }
+
     this.currentDate = normalizedDate;
+    if (this.canManage) {
+      this.meetingAutosave ||= this.createMeetingAutosave(normalizedDate);
+    }
 
     try {
       await this.updateHonorsForMeeting(normalizedDate);
@@ -222,6 +245,12 @@ export class MeetingPrep extends BaseModule {
         this.updateSectionConfig(payload.meetingSections);
       }
       this.meeting = payload.meeting || this.createDraftMeeting(normalizedDate);
+      const restoredDraft = this.meetingAutosave
+        ? await this.meetingAutosave.restoreDraft()
+        : null;
+      if (restoredDraft) {
+        this.applyLocalDraft(restoredDraft.formData);
+      }
       if (this.meeting.id) {
         const meetingReminder = await getMeetingReminders(this.meeting.id, { forceRefresh: true })
           .catch(err => {
@@ -256,6 +285,15 @@ export class MeetingPrep extends BaseModule {
 
       this.render();
       this.attachEventListeners();
+      if (restoredDraft) {
+        this.meetingAutosave?.scheduleServerSave();
+      } else if (this.meetingAutosave) {
+        this.meetingAutosave.setBaseline(this.collectFormData());
+        if (!payload.meeting) {
+          this.meetingAutosave.setStatus(MEETING_SAVE_STATES.DIRTY);
+        }
+      }
+      this.updateSaveStatus();
     } catch (err) {
       debugError('Error loading meeting:', err);
       this.app.showMessage(translate('error_loading_meeting_data'), 'error');
@@ -290,6 +328,71 @@ export class MeetingPrep extends BaseModule {
   }
 
   /**
+   * Build the autosave controller for one meeting-date editing context.
+   * @param {string} date - Date used to scope the local recovery draft
+   * @returns {MeetingAutosave} Autosave controller
+   */
+  createMeetingAutosave(date) {
+    return new MeetingAutosave({
+      date,
+      capture: () => this.collectFormData(),
+      isValid: (formData) => this.isFormDataValid(formData),
+      save: (formData) => saveReunionPreparation(formData),
+      onSaved: (response, snapshot, options) =>
+        this.applyAutosaveResponse(response, snapshot, options),
+      onStatus: (state) => {
+        this.saveState = state;
+        this.updateSaveStatus();
+      },
+      onManualError: (error) => {
+        debugError('Error saving meeting preparation:', error);
+        this.app.showMessage(translate('error_saving_reunion_preparation'), 'error');
+      }
+    });
+  }
+
+  /**
+   * Protect only changes that have not reached either IndexedDB or the server.
+   */
+  setupAutosaveLifecycle() {
+    this.addWindowEventListener('beforeunload', (event) => {
+      if (!this.meetingAutosave?.hasUnsafeChanges()) return;
+      event.preventDefault();
+      event.returnValue = '';
+    });
+    this.addDocumentEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        void this.meetingAutosave?.persistDraft();
+      }
+    });
+    this.addWindowEventListener('pagehide', () => {
+      void this.meetingAutosave?.persistDraft();
+    });
+    this.addWindowEventListener('online', () => {
+      void this.meetingAutosave?.flush();
+    });
+  }
+
+  /**
+   * Overlay a scoped recovery draft on the server meeting before rendering.
+   * @param {Object} formData - Complete preparation draft
+   */
+  applyLocalDraft(formData) {
+    this.meeting = {
+      ...this.meeting,
+      date: formData.date || this.currentDate,
+      meeting_date: formData.date || this.currentDate,
+      animateur_responsable: formData.animateur_responsable || null,
+      youth_of_honor: formData.youth_of_honor || [],
+      endroit: formData.endroit || '',
+      location: formData.endroit || this.meeting.location || '',
+      duration_override: formData.duration_override || null,
+      notes: formData.notes || '',
+      activities: Array.isArray(formData.activities) ? formData.activities : []
+    };
+  }
+
+  /**
    * Start a brand new meeting one week after the currently selected one.
    */
   async createAndLoadNewMeeting() {
@@ -315,6 +418,40 @@ export class MeetingPrep extends BaseModule {
     if (this.embedded) return '';
     return `<a href="/dashboard" class="button button--ghost button--sm">← ${translate('back')}</a>
             <h1>${translate('tile_preparation_reunions')}</h1>`;
+  }
+
+  /** @returns {string} Compact, non-banner autosave status markup. */
+  renderSaveStatus() {
+    const translationKey = SAVE_STATUS_TRANSLATIONS[this.saveState] ||
+      SAVE_STATUS_TRANSLATIONS[MEETING_SAVE_STATES.SAVED];
+    return `
+      <span id="meeting-save-status" class="meeting-save-status" data-state="${this.saveState}" role="status" aria-live="polite">
+        <span class="meeting-save-status__indicator" aria-hidden="true"></span>
+        <span class="meeting-save-status__label">${translate(translationKey)}</span>
+      </span>
+    `;
+  }
+
+  /** Update the compact status and explicit Save fallback without rerendering. */
+  updateSaveStatus() {
+    const status = document.getElementById('meeting-save-status');
+    const saveButton = document.getElementById('meeting-save-button');
+    const translationKey = SAVE_STATUS_TRANSLATIONS[this.saveState] ||
+      SAVE_STATUS_TRANSLATIONS[MEETING_SAVE_STATES.SAVED];
+
+    if (status) {
+      status.dataset.state = this.saveState;
+      status.setAttribute(
+        'aria-busy',
+        this.saveState === MEETING_SAVE_STATES.SAVING ? 'true' : 'false'
+      );
+      const label = status.querySelector('.meeting-save-status__label');
+      if (label) label.textContent = translate(translationKey);
+    }
+    if (saveButton) {
+      saveButton.disabled = this.saveState === MEETING_SAVE_STATES.SAVED ||
+        this.saveState === MEETING_SAVE_STATES.SAVING;
+    }
   }
 
   render() {
@@ -416,6 +553,7 @@ export class MeetingPrep extends BaseModule {
               <button type="button" id="toggle-quick-edit" class="button button--ghost">${translate('toggle_quick_edit_mode')}</button>
             </div>
             <div class="activities-grid__header">
+              <div class="activities-grid__header-cell activities-grid__header-cell--handle" aria-hidden="true"></div>
               <div class="activities-grid__header-cell">${translate('heure_et_duree')}</div>
               <div class="activities-grid__header-cell">${translate('activite_responsable_materiel')}</div>
             </div>
@@ -427,7 +565,8 @@ export class MeetingPrep extends BaseModule {
           </div>
           ${this.canManage ? `
             <div class="form-actions form-actions--mobile">
-              <button type="submit" class="button button--primary">${translate('save')}</button>
+              ${this.renderSaveStatus()}
+              <button type="submit" id="meeting-save-button" class="button button--primary" ${this.saveState === MEETING_SAVE_STATES.SAVED ? 'disabled' : ''}>${translate('save')}</button>
               <button type="button" id="print-button" class="button button--secondary">${translate('print')}</button>
             </div>
           ` : `
@@ -593,7 +732,11 @@ export class MeetingPrep extends BaseModule {
     listen(document.getElementById('new-meeting'), 'click', () => this.createAndLoadNewMeeting());
     listen(document.getElementById('magic-generate-btn'), 'click', () => this.handleMagicGenerate());
     listen(document.getElementById('print-button'), 'click', () => this.printManager.printPreparation());
-    listen(document.getElementById('reunion-form'), 'submit', (e) => this.handleSubmit(e));
+    const reunionForm = document.getElementById('reunion-form');
+    listen(reunionForm, 'submit', (e) => this.handleSubmit(e));
+    listen(reunionForm, 'input', () => this.scheduleMeetingAutosave());
+    listen(reunionForm, 'change', () => this.scheduleMeetingAutosave());
+    listen(reunionForm, 'activitieschange', () => this.scheduleMeetingAutosave({ immediate: true }));
     listen(document.getElementById('reminder-form'), 'submit', (e) => this.handleReminderSubmit(e));
     listen(document.getElementById('toggle-quick-edit'), 'click', () => this.toggleQuickEditMode());
 
@@ -657,6 +800,16 @@ export class MeetingPrep extends BaseModule {
     document.getElementById('toggle-quick-edit')?.classList.toggle('active');
   }
 
+  /**
+   * Capture the full form after a user edit and schedule local/server saves.
+   * @param {Object} options - Scheduling options
+   * @param {boolean} [options.immediate] - Bypass server debounce for structural edits
+   */
+  scheduleMeetingAutosave({ immediate = false } = {}) {
+    if (!this.canManage || !this.meetingAutosave) return;
+    this.meetingAutosave.markDirty({ immediate });
+  }
+
   showDescriptionModal(description) {
     const { overlay } = openModal({
       id: 'activity-description-modal',
@@ -670,16 +823,16 @@ export class MeetingPrep extends BaseModule {
   // SAVE
   // ==========================================================================
 
-  extractFormData() {
+  /**
+   * Collect the complete form without surfacing validation. This snapshot is
+   * safe for local recovery even while required fields are incomplete.
+   * @returns {Object} Meeting preparation payload
+   */
+  collectFormData() {
     const honorValues = document.getElementById('youth-of-honor').value
       .split('\n')
       .map(line => line.trim())
       .filter(Boolean);
-
-    if (this.sectionConfig?.honorField?.required && honorValues.length === 0) {
-      this.app.showMessage(translate('meeting_section_honor_required'), 'error');
-      throw new Error('Honoree required for this section');
-    }
 
     const durationOverrideField = document.getElementById('duration-override');
     const durationOverride = durationOverrideField?.value
@@ -700,6 +853,100 @@ export class MeetingPrep extends BaseModule {
     return formData;
   }
 
+  /**
+   * Test whether a local draft is complete enough for a server autosave.
+   * Browser-native required-field validation stays silent in this path.
+   * @param {Object} formData - Meeting preparation payload
+   * @returns {boolean} True when the server may accept the full snapshot
+   */
+  isFormDataValid(formData) {
+    const form = document.getElementById('reunion-form');
+    const honorValid = !this.sectionConfig?.honorField?.required ||
+      formData.youth_of_honor.length > 0;
+    return Boolean(formData.date && honorValid && form?.checkValidity());
+  }
+
+  /**
+   * Collect and validate an explicit Save request.
+   * @returns {Object} Valid meeting preparation payload
+   */
+  extractFormData() {
+    const formData = this.collectFormData();
+    if (this.sectionConfig?.honorField?.required && formData.youth_of_honor.length === 0) {
+      this.app.showMessage(translate('meeting_section_honor_required'), 'error');
+      throw new Error('Honoree required for this section');
+    }
+    return formData;
+  }
+
+  /**
+   * Merge a normalized save response into the live form without rerendering or
+   * stealing focus. Server activity IDs are adopted after the latest save.
+   * @param {Object} response - API response
+   * @param {Object} snapshot - Payload revision that was saved
+   * @param {Object} options - { isLatest }
+   */
+  async applyAutosaveResponse(response, snapshot, { isLatest }) {
+    const savedMeeting = response?.data;
+    if (!savedMeeting) return;
+
+    this.meeting = { ...this.meeting, ...savedMeeting };
+    if (isLatest) {
+      this.currentDate = normalizeDateString(
+        savedMeeting.date || savedMeeting.meeting_date || snapshot.formData.date
+      );
+      const currentActivities = this.activityManager.getSelectedActivitiesFromDOM();
+      const savedActivities = savedMeeting.activities || [];
+      if (currentActivities.length === savedActivities.length) {
+        const mergedActivities = currentActivities.map((activity, index) => ({
+          ...savedActivities[index],
+          ...activity,
+          id: savedActivities[index]?.id || activity.id,
+          position: index
+        }));
+        this.activityManager.setSelectedActivities(mergedActivities);
+        document.querySelectorAll('#activities-list .activity-row')
+          .forEach((row, index) => {
+            if (mergedActivities[index]?.id) {
+              row.dataset.id = mergedActivities[index].id;
+            }
+            row.dataset.position = String(index);
+          });
+      }
+    }
+
+    const savedDate = normalizeDateString(
+      savedMeeting.date || savedMeeting.meeting_date || snapshot.formData.date
+    );
+    const existingDate = this.meetingDates.find(
+      entry => normalizeDateString(entry.date) === savedDate
+    );
+    if (existingDate) {
+      existingDate.is_prepared = true;
+    } else if (savedDate) {
+      this.meetingDates.push({ date: savedDate, is_prepared: true, is_cancelled: false });
+    }
+    const dateSelect = document.getElementById('date-select');
+    if (dateSelect) {
+      setContent(
+        dateSelect,
+        `<option value="">${translate('select_date')}</option>${this.renderDateOptions()}`
+      );
+    }
+
+    try {
+      await Promise.all([
+        deleteCachedData('reunion_dates'),
+        deleteCachedData(`reunion_preparation_${snapshot.formData.date}`),
+        clearYearlyPlannerCaches()
+      ]);
+    } catch (error) {
+      // The server write already succeeded; cache cleanup must not turn a
+      // successful autosave into a false failure state.
+      debugError('Unable to clear meeting caches after autosave:', error);
+    }
+  }
+
   async handleSubmit(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -712,33 +959,17 @@ export class MeetingPrep extends BaseModule {
       return;
     }
 
+    this.meetingAutosave?.markDirty({ formData, immediate: false, force: true });
     const submitButton = e.target.querySelector('button[type="submit"]');
     setButtonLoading(submitButton, true);
     try {
-      const response = await saveReunionPreparation(formData);
-      this.meeting = response?.data || this.meeting;
-      this.currentDate = normalizeDateString(this.meeting.date || formData.date);
-
-      await deleteCachedData('reunion_dates');
-      await deleteCachedData(`reunion_preparation_${formData.date}`);
-      // Preparation writes the same year_plan_meetings row the yearly planner
-      // reads, so its cached plan and meeting views are now stale too.
-      await clearYearlyPlannerCaches();
-      const datesResponse = await getReunionDates(true);
-      this.meetingDates = datesResponse?.data || this.meetingDates;
-
-      // Re-render from the server-normalized meeting so the date picker's
-      // prepared flag and the timeline reflect the saved state.
-      this.activityManager.setSelectedActivities(this.meeting.activities || []);
-      this.render();
-      this.attachEventListeners();
-
-      this.app.showMessage(translate('reunion_preparation_saved'), 'success');
+      await this.meetingAutosave?.flush({ manual: true });
     } catch (err) {
       debugError('Error saving meeting preparation:', err);
       this.app.showMessage(translate('error_saving_reunion_preparation'), 'error');
     } finally {
       setButtonLoading(submitButton, false);
+      this.updateSaveStatus();
     }
   }
 
@@ -874,6 +1105,7 @@ export class MeetingPrep extends BaseModule {
       );
       this.activityManager.setSelectedActivities(mergedActivities);
       this.activityManager.renderActivitiesTable();
+      this.scheduleMeetingAutosave({ immediate: true });
 
       this.app.showMessage(translate('plan_generated_success'), 'success');
     } catch (err) {
@@ -892,6 +1124,13 @@ export class MeetingPrep extends BaseModule {
     if (this.isDestroyed) {
       return;
     }
+    const autosave = this.meetingAutosave;
+    if (autosave?.latestSnapshot) {
+      void autosave.flush().finally(() => autosave.destroy());
+    } else {
+      void autosave?.destroy();
+    }
+    this.activityManager?.destroy();
     super.destroy();
     this.renderAbortController?.abort();
   }

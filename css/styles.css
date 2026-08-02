@@ -4653,14 +4653,89 @@ body.online .pending-update {
 
 /* Activity Row - Enhanced Mobile-First Cards */
 .activity-row {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: var(--touch-target-min) minmax(0, 1fr);
   gap: var(--space-sm);
   padding: var(--space-md);
   border-block-start: 2px solid var(--color-border-light);
   background: var(--color-surface);
   transition: all var(--transition-base);
   position: relative;
+}
+
+.activity-drag-handle {
+  grid-column: 1;
+  grid-row: 1 / span 5;
+  align-self: stretch;
+  min-inline-size: var(--touch-target-min);
+  min-block-size: var(--touch-target-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.activity-drag-handle:hover,
+.activity-drag-handle:focus-visible {
+  color: var(--color-text);
+  background: var(--color-secondary);
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.activity-drag-handle:active,
+.activity-row-container.is-dragging .activity-drag-handle {
+  cursor: grabbing;
+  color: var(--color-text);
+}
+
+.activity-drag-handle__dots {
+  display: block;
+  inline-size: 24px;
+  block-size: 32px;
+  margin: auto;
+  background-image: radial-gradient(circle, currentColor 0 4px, transparent 4.5px);
+  background-position: 0 0;
+  background-size: 12px 12px;
+}
+
+.activity-row__drag-title {
+  display: none;
+  grid-column: 2;
+  align-self: center;
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-row__time,
+.activity-row__activity,
+.activity-row__responsable,
+.activity-row__materiel,
+.activity-row__actions {
+  grid-column: 2;
+}
+
+.activity-row-container.is-dragging .activity-row {
+  opacity: 0.65;
+  box-shadow: inset 0 0 0 2px var(--color-text);
+}
+
+.activity-reorder-active,
+.activity-reorder-active * {
+  cursor: grabbing !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 .activity-row:first-child {
@@ -5011,6 +5086,63 @@ body.online .pending-update {
   transform: scale(0.98);
 }
 
+/* Reordering reuses the zero-height insert slots as an unambiguous drop line. */
+.activities-grid__body.is-reordering .insert-here-divider {
+  display: block !important;
+  position: relative;
+  z-index: 2;
+  block-size: 0;
+  min-block-size: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+.activities-grid__body.is-reordering .insert-here-divider::before {
+  content: '';
+  position: absolute;
+  inset-block-start: -2px;
+  inset-inline: var(--space-sm);
+  block-size: 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-text);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.activities-grid__body.is-reordering .insert-here-divider.is-drop-target::before {
+  opacity: 1;
+}
+
+.activities-grid__body.is-reordering .insert-here-btn {
+  display: none;
+}
+
+.activities-grid__body.is-touch-reordering .activity-row {
+  grid-template-columns: var(--touch-target-min) minmax(0, 1fr);
+  min-block-size: calc(var(--touch-target-min) + var(--space-sm));
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.activities-grid__body.is-touch-reordering .activity-drag-handle {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.activities-grid__body.is-touch-reordering .activity-row__drag-title {
+  display: block;
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.activities-grid__body.is-touch-reordering .activity-row__time,
+.activities-grid__body.is-touch-reordering .activity-row__activity,
+.activities-grid__body.is-touch-reordering .activity-row__responsable,
+.activities-grid__body.is-touch-reordering .activity-row__materiel,
+.activities-grid__body.is-touch-reordering .activity-row__actions,
+.activities-grid__body.is-touch-reordering .achievement-summary {
+  display: none;
+}
+
 /* Activities Grid Toolbar */
 .activities-grid__toolbar {
   display: flex;
@@ -5028,6 +5160,48 @@ body.online .pending-update {
 
 .hidden {
   display: none !important;
+}
+
+/* Quiet meeting autosave state, kept beside the explicit Save fallback. */
+.meeting-save-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  min-block-size: 28px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.meeting-save-status__indicator {
+  inline-size: 9px;
+  block-size: 9px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+
+.meeting-save-status[data-state="saved"] {
+  color: var(--color-success);
+}
+
+.meeting-save-status[data-state="dirty"],
+.meeting-save-status[data-state="local"] {
+  color: var(--color-text-muted);
+}
+
+.meeting-save-status[data-state="saving"] .meeting-save-status__indicator {
+  inline-size: 14px;
+  block-size: 14px;
+  border: 2px solid var(--color-border);
+  border-block-start-color: var(--color-primary);
+  background: transparent;
+  animation: spin 0.6s linear infinite;
+}
+
+.meeting-save-status[data-state="error"] {
+  color: var(--color-error);
 }
 
 /* Form Actions - Sticky on Mobile */
@@ -5285,15 +5459,19 @@ body.online .pending-update {
   /* Show header when container is sufficiently wide */
   .activities-grid__header {
     display: grid;
-    grid-template-columns: minmax(160px, 180px) minmax(280px, 1fr) minmax(140px, 180px) minmax(140px, 180px);
+    grid-template-columns: var(--touch-target-min) minmax(160px, 180px) minmax(280px, 1fr) minmax(140px, 180px) minmax(140px, 180px);
     gap: var(--space-sm);
     padding: var(--space-xs) var(--space-sm);
+  }
+
+  .activities-grid__header-cell:last-child {
+    grid-column: 3 / -1;
   }
 
   /* Switch rows to horizontal grid inside the container */
   .activity-row {
     display: grid;
-    grid-template-columns: minmax(160px, 180px) minmax(280px, 1fr) minmax(140px, 180px) minmax(140px, 180px);
+    grid-template-columns: var(--touch-target-min) minmax(160px, 180px) minmax(280px, 1fr) minmax(140px, 180px) minmax(140px, 180px);
     grid-template-rows: auto auto;
     gap: var(--space-sm);
     align-items: start;
@@ -5301,28 +5479,32 @@ body.online .pending-update {
   }
 
   .activity-row__time {
-    grid-column: 1;
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+
+  .activity-drag-handle {
     grid-row: 1 / 3;
   }
 
   .activity-row__activity {
-    grid-column: 2;
+    grid-column: 3;
     grid-row: 1;
     margin-block-end: 0;
   }
 
   .activity-row__responsable {
-    grid-column: 3;
-    grid-row: 1;
-  }
-
-  .activity-row__materiel {
     grid-column: 4;
     grid-row: 1;
   }
 
+  .activity-row__materiel {
+    grid-column: 5;
+    grid-row: 1;
+  }
+
   .activity-row__actions {
-    grid-column: 2 / -1;
+    grid-column: 3 / -1;
     grid-row: 2;
     border-block-start: 1px solid var(--color-border-light);
     padding-block-start: var(--space-xs);
@@ -5335,38 +5517,42 @@ body.online .pending-update {
 
   /* Desktop-like proportions within the container */
   .activities-grid__header {
-    grid-template-columns: 220px 1.4fr 0.9fr 0.9fr 120px;
+    grid-template-columns: var(--touch-target-min) 220px 1.4fr 0.9fr 0.9fr 120px;
     gap: var(--space-sm);
   }
 
   .activity-row {
-    grid-template-columns: 220px 1.4fr 0.9fr 0.9fr 120px;
+    grid-template-columns: var(--touch-target-min) 220px 1.4fr 0.9fr 0.9fr 120px;
     grid-template-rows: auto;
     gap: var(--space-sm);
   }
 
   .activity-row__time {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .activity-row__activity {
     grid-column: 2;
     grid-row: 1;
   }
 
-  .activity-row__responsable {
+  .activity-drag-handle {
+    grid-row: 1;
+  }
+
+  .activity-row__activity {
     grid-column: 3;
     grid-row: 1;
   }
 
-  .activity-row__materiel {
+  .activity-row__responsable {
     grid-column: 4;
     grid-row: 1;
   }
 
-  .activity-row__actions {
+  .activity-row__materiel {
     grid-column: 5;
+    grid-row: 1;
+  }
+
+  .activity-row__actions {
+    grid-column: 6;
     grid-row: 1;
     padding-block-start: 0;
     border-block-start: none;
