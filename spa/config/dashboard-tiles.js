@@ -54,7 +54,7 @@ export const DASHBOARD_TILES = [
     moment: "now",
     domain: "attendance",
     priority: 1,
-    gate: { any: ["points.view", "points.manage"] },
+    gate: { permission: "points.manage" },
   },
   {
     featureKey: "honors",
@@ -65,7 +65,7 @@ export const DASHBOARD_TILES = [
     moment: "now",
     domain: "attendance",
     priority: 2,
-    gate: { any: ["honors.view", "honors.create", "honors.manage"] },
+    gate: { permission: "points.manage" },
   },
   {
     featureKey: "meetings",
@@ -77,7 +77,7 @@ export const DASHBOARD_TILES = [
     moment: "now",
     domain: "attendance",
     priority: 3,
-    gate: { any: ["meetings.view", "meetings.manage"] },
+    gate: { any: ["activities.view", "participants.view"] },
   },
 
   // ---------------------------------------------------------------
@@ -91,6 +91,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_permission_slips_aliases",
     moment: "week",
     domain: "safety",
+    gate: { permission: "participants.view" },
   },
   {
     featureKey: "carpool",
@@ -101,6 +102,7 @@ export const DASHBOARD_TILES = [
     moment: "week",
     domain: "logistics",
     id: "carpool-quick-access",
+    gate: { check: "carpool" },
   },
   {
     featureKey: "activities",
@@ -110,7 +112,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_activities_aliases",
     moment: "week",
     domain: "logistics",
-    gate: { any: ["activities.view", "activities.create"] },
+    gate: { any: ["activities.view", "activities.create", "activities.edit", "activities.delete"] },
   },
   {
     featureKey: "yearly_planner",
@@ -120,7 +122,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_yearly_planner_aliases",
     moment: "week",
     domain: "logistics",
-    gate: { any: ["meetings.view", "meetings.manage"] },
+    gate: { permission: "meetings.view" },
   },
 
   // ---------------------------------------------------------------
@@ -135,6 +137,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_parent_contact_list_aliases",
     moment: "tools",
     domain: "people",
+    gate: { any: ["communications.send", "participants.view"] },
   },
   {
     featureKey: "participants",
@@ -174,6 +177,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_participant_documents_aliases",
     moment: "tools",
     domain: "people",
+    gate: { permission: "participants.view" },
   },
   {
     featureKey: "den_report",
@@ -183,7 +187,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_den_list_report_aliases",
     moment: "tools",
     domain: "people",
-    gate: { any: ["reports.view", "reports.export"] },
+    gate: { permission: "reports.view" },
   },
   {
     featureKey: "progression",
@@ -196,6 +200,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_progression_aliases",
     moment: "tools",
     domain: "people",
+    gate: { any: ["badges.view", "badges.approve", "participants.view"] },
   },
   {
     featureKey: "parent_preview",
@@ -205,6 +210,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_parent_preview_aliases",
     moment: "tools",
     domain: "people",
+    gate: { check: "parentTools" },
   },
   {
     featureKey: "mailing_list",
@@ -228,6 +234,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_medication_planning_aliases",
     moment: "tools",
     domain: "safety",
+    gate: { any: ["medication.view", "medication.manage", "medication.distribute"] },
   },
   {
     featureKey: "medication_dispensing",
@@ -237,6 +244,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_medication_dispensing_aliases",
     moment: "tools",
     domain: "safety",
+    gate: { any: ["medication.view", "medication.manage", "medication.distribute"] },
   },
   {
     featureKey: "medication_reception",
@@ -246,6 +254,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_medication_reception_aliases",
     moment: "tools",
     domain: "safety",
+    gate: { any: ["medication.view", "medication.manage", "medication.distribute"] },
   },
   {
     featureKey: "incident_reports",
@@ -271,6 +280,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_inventory_aliases",
     moment: "tools",
     domain: "logistics",
+    gate: { any: ["inventory.view", "inventory.manage", "inventory.reserve", "inventory.value"] },
   },
   {
     featureKey: "material_management",
@@ -280,6 +290,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_material_management_aliases",
     moment: "tools",
     domain: "logistics",
+    gate: { any: ["inventory.view", "inventory.manage", "inventory.reserve", "inventory.value"] },
   },
 
   // ---------------------------------------------------------------
@@ -324,7 +335,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_fundraisers_aliases",
     moment: "tools",
     domain: "money",
-    gate: { permission: "fundraisers.view" },
+    gate: { any: ["fundraisers.view", "fundraisers.create", "fundraisers.edit", "fundraisers.delete", "finance.view"] },
   },
   {
     featureKey: "revenue_dashboard",
@@ -334,7 +345,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_revenue_dashboard_aliases",
     moment: "tools",
     domain: "money",
-    gate: { any: ["finance.view", "fundraisers.view"] },
+    gate: { any: ["finance.view", "fundraisers.view", "budget.view"] },
   },
   {
     featureKey: "budgets",
@@ -344,7 +355,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_budgets_aliases",
     moment: "tools",
     domain: "money",
-    gate: { permission: "budget.view" },
+    gate: { any: ["budget.view", "budget.manage", "finance.manage"] },
   },
 
   // ---------------------------------------------------------------
@@ -359,7 +370,7 @@ export const DASHBOARD_TILES = [
     moment: "tools",
     domain: "admin",
     priority: 10,
-    gate: { any: ["reports.view", "reports.export"] },
+    gate: { permission: "reports.view" },
   },
   {
     href: "/unit-settings",
@@ -390,7 +401,7 @@ export const DASHBOARD_TILES = [
     moment: "tools",
     domain: "admin",
     priority: 20,
-    gate: { permission: "roles.view" },
+    gate: { any: ["roles.view", "roles.manage"] },
   },
   {
     featureKey: "form_permissions",
@@ -401,7 +412,7 @@ export const DASHBOARD_TILES = [
     moment: "tools",
     domain: "admin",
     priority: 21,
-    gate: { check: "manageForms" },
+    gate: { check: "adminPanel" },
   },
   {
     featureKey: "district",
@@ -476,20 +487,13 @@ export const OFFLINE_AVAILABLE_ROUTES = new Set([
  * Tiles shown in the finance-focused workspace, alongside the money tiles.
  */
 export const FINANCE_WORKSPACE_EXTRA_TILES = [
-  {
-    href: "/parent-dashboard",
-    icon: "fa-users",
-    label: "tile_parent_preview",
-    domain: "people",
-    parentOnly: true,
-  },
-  {
-    href: "/account-info",
-    icon: "fa-circle-user",
-    label: "tile_account_info",
-    domain: "admin",
-  },
-];
+  { featureKey: "parent_preview", parentOnly: true },
+  { featureKey: "account_info" },
+].map(({ featureKey, ...workspaceOptions }) => {
+  const tile = DASHBOARD_TILES.find((candidate) => candidate.featureKey === featureKey);
+  if (!tile) throw new Error(`Unknown finance workspace dashboard feature: ${featureKey}`);
+  return { ...tile, ...workspaceOptions };
+});
 
 /**
  * Look up a tile's layout context by route.

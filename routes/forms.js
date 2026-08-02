@@ -824,7 +824,9 @@ module.exports = (pool, logger) => {
 
       res.json({
         success: true,
-        data: JSON.parse(result.rows[0].form_structure)
+        // PostgreSQL JSONB values are normally decoded by `pg` already, while
+        // some test and compatibility adapters still return JSON strings.
+        data: parseFormSchema(result.rows[0].form_structure)
       });
     } catch (error) {
       if (handleOrganizationResolutionError(res, error, logger)) {

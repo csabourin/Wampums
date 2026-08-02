@@ -259,6 +259,37 @@ describe('GET /api/v1/forms', () => {
 });
 
 // ============================================
+// GET /api/v1/forms/structure/:form_type
+// ============================================
+
+describe('GET /api/v1/forms/structure/:form_type', () => {
+  test.each([
+    ['a decoded JSONB object', { fields: [{ name: 'incident_date', type: 'date' }] }],
+    ['a JSON string', JSON.stringify({ fields: [{ name: 'incident_date', type: 'date' }] })]
+  ])('returns the form structure when PostgreSQL supplies %s', async (_label, storedStructure) => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken();
+
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('FROM organization_form_formats') && query.includes('form_type = $1')) {
+        expect(params).toEqual(['incident_report', ORG_ID]);
+        return Promise.resolve({ rows: [{ form_structure: storedStructure }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .get('/api/v1/forms/structure/incident_report')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({
+      fields: [{ name: 'incident_date', type: 'date' }]
+    });
+  });
+});
+
+// ============================================
 // GET /api/v1/forms/:id - GET SINGLE FORM
 // ============================================
 
