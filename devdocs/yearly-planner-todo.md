@@ -13,6 +13,11 @@ checks covered plan detail plus camp schedule copying and reopening. Desktop and
 stored beside this document, and the keyboard-only placement flow completed without page errors or viewport
 overflow. Temporary `[Planner QA]` records used for that acceptance pass were removed from the local database.
 
+On 2026-08-01, all 28 files formerly under `migrations/` were audited against Railway production. Three
+partial items were completed and the second audit reported every migration as applied. The SQL files were
+then retired from the repository; migration filenames and commands below are preserved as historical notes
+and are no longer runnable from this checkout.
+
 The original implementation brief is preserved below as the feature and acceptance history.
 
 ---
