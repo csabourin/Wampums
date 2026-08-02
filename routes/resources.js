@@ -510,9 +510,10 @@ module.exports = (pool) => {
             req.body.share_with_local_group === false || sharedIdsProvided,
         });
 
+        const equipment = await resolveEquipmentPhoto(insertResult.rows[0]);
         return success(
           res,
-          { equipment: insertResult.rows[0] },
+          { equipment },
           "Equipment saved",
           201,
         );
@@ -676,9 +677,10 @@ module.exports = (pool) => {
               shareWithLocalGroupOverride === false || sharedIdsProvided,
           });
 
+          const equipment = await resolveEquipmentPhoto(existingEquipment.rows[0]);
           return success(
             res,
-            { equipment: existingEquipment.rows[0] },
+            { equipment },
             "Equipment updated",
           );
         }
@@ -708,7 +710,8 @@ module.exports = (pool) => {
             shareWithLocalGroupOverride === false || sharedIdsProvided,
         });
 
-        return success(res, { equipment: result.rows[0] }, "Equipment updated");
+        const equipment = await resolveEquipmentPhoto(result.rows[0]);
+        return success(res, { equipment }, "Equipment updated");
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
