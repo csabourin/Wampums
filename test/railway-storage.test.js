@@ -7,6 +7,7 @@ const {
   getPhotoOrganizationId,
   getSignedPhotoUrl,
   getStorageConfig,
+  getStorageImageOrigins,
   isPhotoReferenceOwnedByOrganization,
   isStorageConfigured,
   validateFile,
@@ -126,6 +127,30 @@ describe("railway-storage utilities", () => {
       forcePathStyle: false,
     });
     expect(isStorageConfigured(config)).toBe(true);
+  });
+
+  test("builds the exact virtual-hosted Railway image origin", () => {
+    const origins = getStorageImageOrigins({
+      endpoint: "https://t3.storageapi.dev",
+      bucket: "wampums-files-example",
+      forcePathStyle: false,
+    });
+
+    expect(origins).toEqual([
+      "https://t3.storageapi.dev",
+      "https://wampums-files-example.t3.storageapi.dev",
+    ]);
+    expect(origins).not.toContain("https://*.storageapi.dev");
+  });
+
+  test("uses only the endpoint origin for path-style storage", () => {
+    expect(
+      getStorageImageOrigins({
+        endpoint: "https://t3.storageapi.dev/bucket-path",
+        bucket: "wampums-files-example",
+        forcePathStyle: true,
+      }),
+    ).toEqual(["https://t3.storageapi.dev"]);
   });
 
   test("validateFile rejects files that exceed the maximum size", () => {

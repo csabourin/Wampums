@@ -117,6 +117,44 @@ function getStorageConfig() {
 }
 
 /**
+ * Resolve the exact image origins used by Railway's S3 endpoint. Virtual-host
+ * style places the bucket name before the configured endpoint hostname, while
+ * path style serves objects directly from the endpoint origin.
+ * @param {ReturnType<typeof getStorageConfig>} [config]
+ * @returns {string[]}
+ */
+function getStorageImageOrigins(config = getStorageConfig()) {
+  if (!config.endpoint) return [];
+
+  try {
+    const endpoint = new URL(config.endpoint);
+    if (!['http:', 'https:'].includes(endpoint.protocol)) return [];
+
+    const origins = new Set([endpoint.origin]);
+    const bucket = (config.bucket || '').trim();
+    const isValidBucketName =
+      /^[a-z0-9](?:[a-z0-9.-]{0,61}[a-z0-9])?$/i.test(bucket) &&
+      !bucket.includes('..');
+    const endpointAlreadyIncludesBucket =
+      bucket &&
+      (endpoint.hostname === bucket || endpoint.hostname.startsWith(`${bucket}.`));
+    if (
+      !config.forcePathStyle &&
+      isValidBucketName &&
+      !endpointAlreadyIncludesBucket
+    ) {
+      const bucketEndpoint = new URL(endpoint.origin);
+      bucketEndpoint.hostname = `${config.bucket}.${endpoint.hostname}`;
+      origins.add(bucketEndpoint.origin);
+    }
+
+    return Array.from(origins);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Build or reuse an S3 client for the current Railway configuration.
  * @returns {S3Client}
  */
@@ -493,6 +531,7 @@ module.exports = {
   getPhotoOrganizationId,
   getSignedPhotoUrl,
   getStorageConfig,
+  getStorageImageOrigins,
   isAllowedImageType,
   isPhotoReferenceOwnedByOrganization,
   isStorageConfigured,
