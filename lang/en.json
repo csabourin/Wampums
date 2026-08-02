@@ -2005,6 +2005,7 @@
   "equipment_photo_remove": "Remove photo",
   "equipment_photo_too_large": "Photo is too large. Maximum size is 30MB.",
   "equipment_photo_invalid_type": "Invalid file type. Please upload a JPEG, PNG, GIF, HEIC, HEIF, or WebP image.",
+  "equipment_photo_organization_mismatch": "This photo does not belong to the organization that owns the equipment.",
   "equipment_photo_upload_error": "Failed to upload photo, but equipment was saved.",
   "equipment_photo_processing": "Optimizing photo… {percent}%",
   "equipment_photo_processing_done": "Optimization complete.",

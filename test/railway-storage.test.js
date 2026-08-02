@@ -4,7 +4,10 @@ const {
   OUTPUT_MIME_TYPE,
   extractPathFromUrl,
   generateFilePath,
+  getPhotoOrganizationId,
+  getSignedPhotoUrl,
   getStorageConfig,
+  isPhotoReferenceOwnedByOrganization,
   isStorageConfigured,
   validateFile,
 } = require("../utils/railway-storage");
@@ -67,6 +70,24 @@ describe("railway-storage utilities", () => {
     expect(extractPathFromUrl("org_3/equipment_9_123.webp")).toBe(
       "org_3/equipment_9_123.webp",
     );
+  });
+
+  test("reads and validates the tenant prefix on equipment photo keys", () => {
+    const photoReference = "org_3/equipment_9_123.webp";
+
+    expect(getPhotoOrganizationId(photoReference)).toBe(3);
+    expect(isPhotoReferenceOwnedByOrganization(photoReference, 3)).toBe(true);
+    expect(isPhotoReferenceOwnedByOrganization(photoReference, 2)).toBe(false);
+    expect(getPhotoOrganizationId("org_3/participant_9_123.webp")).toBeNull();
+  });
+
+  test("does not sign an equipment key owned by another organization", async () => {
+    const signedUrl = await getSignedPhotoUrl(
+      "org_2/equipment_9_123.webp",
+      1,
+    );
+
+    expect(signedUrl).toBeNull();
   });
 
   test("extractPathFromUrl migrates legacy Supabase public URLs", () => {

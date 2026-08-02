@@ -373,13 +373,54 @@ function extractPathFromUrl(photoReference) {
 }
 
 /**
+ * Read the organization identifier embedded in an equipment photo key.
+ * References that are not managed equipment photos deliberately return null.
+ * @param {string} photoReference
+ * @returns {number|null}
+ */
+function getPhotoOrganizationId(photoReference) {
+  const filePath = extractPathFromUrl(photoReference);
+  if (!filePath) return null;
+
+  const pathParts = filePath.split("/");
+  const organizationMatch = /^org_(\d+)$/.exec(pathParts[0]);
+  if (
+    pathParts.length !== 2 ||
+    !organizationMatch ||
+    !pathParts[1].startsWith("equipment_")
+  ) {
+    return null;
+  }
+
+  const organizationId = Number.parseInt(organizationMatch[1], 10);
+  return Number.isSafeInteger(organizationId) ? organizationId : null;
+}
+
+/**
+ * Confirm that a managed equipment photo belongs to the expected tenant.
+ * @param {string} photoReference
+ * @param {number|string} organizationId
+ * @returns {boolean}
+ */
+function isPhotoReferenceOwnedByOrganization(photoReference, organizationId) {
+  const photoOrganizationId = getPhotoOrganizationId(photoReference);
+  const expectedOrganizationId = Number(organizationId);
+  return (
+    photoOrganizationId !== null &&
+    Number.isSafeInteger(expectedOrganizationId) &&
+    photoOrganizationId === expectedOrganizationId
+  );
+}
+
+/**
  * Generate a temporary browser-readable URL for a stored photo reference.
  * @param {string} photoReference
+ * @param {number|string} organizationId - Organization that owns the equipment.
  * @returns {Promise<string|null>}
  */
-async function getSignedPhotoUrl(photoReference) {
+async function getSignedPhotoUrl(photoReference, organizationId) {
   const filePath = extractPathFromUrl(photoReference);
-  if (!filePath || !isStorageConfigured()) return photoReference || null;
+  if (!filePath) return photoReference || null;
 
   const pathParts = filePath.split("/");
   const isEquipmentPhotoKey =
@@ -392,6 +433,14 @@ async function getSignedPhotoUrl(photoReference) {
       typeof photoReference === "string" && photoReference.trim().includes("://");
     return isUrlReference ? photoReference : null;
   }
+
+  // Never use bucket-wide credentials for a key outside the equipment owner's
+  // tenant prefix. A missing owner is treated as unauthorized as well.
+  if (!isPhotoReferenceOwnedByOrganization(filePath, organizationId)) {
+    return null;
+  }
+
+  if (!isStorageConfigured()) return photoReference || null;
 
   const rawTtl = Number.parseInt(
     process.env.RAILWAY_S3_SIGNED_URL_TTL_SECONDS,
@@ -441,9 +490,11 @@ module.exports = {
   deleteFile,
   extractPathFromUrl,
   generateFilePath,
+  getPhotoOrganizationId,
   getSignedPhotoUrl,
   getStorageConfig,
   isAllowedImageType,
+  isPhotoReferenceOwnedByOrganization,
   isStorageConfigured,
   uploadFile,
   validateFile,

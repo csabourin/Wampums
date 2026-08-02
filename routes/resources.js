@@ -29,6 +29,7 @@ const {
   uploadFile,
   deleteFile,
   extractPathFromUrl,
+  getPhotoOrganizationId,
   isStorageConfigured,
   WEBP_EXTENSION,
 } = require("../utils/railway-storage");
@@ -92,7 +93,10 @@ module.exports = (pool) => {
     if (!equipment?.photo_url) return equipment;
     return {
       ...equipment,
-      photo_url: await getSignedPhotoUrl(equipment.photo_url),
+      photo_url: await getSignedPhotoUrl(
+        equipment.photo_url,
+        equipment.organization_id,
+      ),
     };
   }
 
@@ -449,6 +453,17 @@ module.exports = (pool) => {
         const normalizedAcquisitionDate = acquisition_date
           ? parseDate(acquisition_date)
           : null;
+        let storedPhotoReference = photo_url || null;
+        const photoOrganizationId = getPhotoOrganizationId(photo_url);
+        if (
+          photoOrganizationId !== null &&
+          photoOrganizationId !== organizationId
+        ) {
+          return error(res, "equipment_photo_organization_mismatch", 400);
+        }
+        if (photoOrganizationId !== null) {
+          storedPhotoReference = extractPathFromUrl(photo_url);
+        }
 
         const insertResult = await pool.query(
           `INSERT INTO equipment_items
@@ -479,7 +494,7 @@ module.exports = (pool) => {
             condition_note,
             mergedAttributes,
             item_value || null,
-            photo_url || null,
+            storedPhotoReference,
             normalizedAcquisitionDate,
             location_type || LOCATION_TYPES[0],
             location_details ?? "",
@@ -557,9 +572,36 @@ module.exports = (pool) => {
           : [];
         const shareWithLocalGroupOverride = req.body.share_with_local_group;
 
+        // Verify organization has access to this equipment (owner or shared)
+        await verifyEquipmentAccess(equipmentId, organizationId);
+
+        const existingEquipment = await pool.query(
+          `SELECT * FROM equipment_items WHERE id = $1`,
+          [equipmentId],
+        );
+
+        if (existingEquipment.rows.length === 0) {
+          return error(res, "Equipment not found", 404);
+        }
+
+        const ownerOrganizationId = existingEquipment.rows[0].organization_id;
+
         // Handle acquisition_date normalization
         if (req.body.acquisition_date) {
           req.body.acquisition_date = parseDate(req.body.acquisition_date);
+        }
+
+        if (req.body.photo_url) {
+          const photoOrganizationId = getPhotoOrganizationId(req.body.photo_url);
+          if (
+            photoOrganizationId !== null &&
+            photoOrganizationId !== ownerOrganizationId
+          ) {
+            return error(res, "equipment_photo_organization_mismatch", 400);
+          }
+          if (photoOrganizationId !== null) {
+            req.body.photo_url = extractPathFromUrl(req.body.photo_url);
+          }
         }
 
         const fields = [
@@ -584,18 +626,6 @@ module.exports = (pool) => {
             values.push(req.body[field]);
           }
         });
-
-        // Verify organization has access to this equipment (owner or shared)
-        await verifyEquipmentAccess(equipmentId, organizationId);
-
-        const existingEquipment = await pool.query(
-          `SELECT * FROM equipment_items WHERE id = $1`,
-          [equipmentId],
-        );
-
-        if (existingEquipment.rows.length === 0) {
-          return error(res, "Equipment not found", 404);
-        }
 
         const currentAttributes =
           existingEquipment.rows[0].attributes && typeof existingEquipment.rows[0].attributes === "object"
@@ -785,7 +815,7 @@ module.exports = (pool) => {
 
         // Get current photo URL
         const equipmentCheck = await pool.query(
-          "SELECT id, photo_url FROM equipment_items WHERE id = $1",
+          "SELECT id, organization_id, photo_url FROM equipment_items WHERE id = $1",
           [equipmentId],
         );
 
@@ -814,7 +844,7 @@ module.exports = (pool) => {
 
         // Generate file path and upload
         const filePath = generateFilePath(
-          organizationId,
+          equipmentCheck.rows[0].organization_id,
           equipmentId,
           req.file.originalname,
           WEBP_EXTENSION,
