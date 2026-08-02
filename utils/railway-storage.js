@@ -381,6 +381,18 @@ async function getSignedPhotoUrl(photoReference) {
   const filePath = extractPathFromUrl(photoReference);
   if (!filePath || !isStorageConfigured()) return photoReference || null;
 
+  const pathParts = filePath.split("/");
+  const isEquipmentPhotoKey =
+    pathParts.length === 2 &&
+    /^org_\d+$/.test(pathParts[0]) &&
+    pathParts[1].startsWith("equipment_");
+
+  if (!isEquipmentPhotoKey) {
+    const isUrlReference =
+      typeof photoReference === "string" && photoReference.trim().includes("://");
+    return isUrlReference ? photoReference : null;
+  }
+
   const rawTtl = Number.parseInt(
     process.env.RAILWAY_S3_SIGNED_URL_TTL_SECONDS,
     10,
