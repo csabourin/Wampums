@@ -21,7 +21,10 @@ import {
 } from '../../utils/MeetingDateUtils.js';
 import { getUpcomingBirthdays } from '../../utils/BirthdayUtils.js';
 import { getActiveSectionConfig, getHonorLabel } from '../../utils/meetingSections.js';
-import { mergeTimelineWithTemplates } from '../../utils/MeetingPlanUtils.js';
+import {
+  mergeTimelineWithTemplates,
+  normalizeMeetingDurationMinutes,
+} from '../../utils/MeetingPlanUtils.js';
 import { getUnitVocabulary } from '../../utils/UnitVocabularyUtils.js';
 import { deleteCachedData, clearYearlyPlannerCaches } from '../../indexedDB.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
@@ -1059,11 +1062,12 @@ export class MeetingPrep extends BaseModule {
         { term: vocabulary.group_achievement, definition: translate('unit_vocabulary_term_group_achievement') },
         { term: vocabulary.subgroup_singular, definition: translate('unit_vocabulary_term_subgroup_singular') },
       ].filter(({ term }) => Boolean(term));
-      const meetingDurationMinutes = Number(
+      const meetingDurationMinutes = normalizeMeetingDurationMinutes(
         this.meeting?.duration_override
           || this.meeting?.duration_minutes
           || this.organizationSettings.meeting_length?.duration_minutes
           || DEFAULT_MEETING_LENGTH_MINUTES,
+        DEFAULT_MEETING_LENGTH_MINUTES,
       );
 
       const payload = {

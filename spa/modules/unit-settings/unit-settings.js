@@ -158,7 +158,8 @@ export class UnitSettings extends BaseModule {
         ${this.orgName ? `<p class="unit-settings-org-name">${escapeHTML(this.orgName)}</p>` : ""}
 
         ${this.renderTabs()}
-        <div class="unit-settings-tab-panel" role="tabpanel">
+        <div class="unit-settings-tab-panel" id="unit-settings-tab-panel" role="tabpanel"
+          aria-labelledby="unit-settings-tab-${this.activeTab}">
           ${this.activeTab === "general" ? `
             ${this.renderUnitDetailsSection()}
             ${this.canEditOrg ? this.renderLanguageSection() : ""}
@@ -178,7 +179,9 @@ export class UnitSettings extends BaseModule {
         ${SETTINGS_TABS.map((tab) => {
           const active = this.activeTab === tab;
           return `<button type="button" role="tab" class="unit-settings-tab ${active ? "is-active" : ""}"
-            data-settings-tab="${tab}" aria-selected="${active}">
+            id="unit-settings-tab-${tab}" data-settings-tab="${tab}"
+            aria-controls="unit-settings-tab-panel" aria-selected="${active}"
+            tabindex="${active ? "0" : "-1"}">
             ${escapeHTML(translate(`unit_settings_tab_${tab}`))}
           </button>`;
         }).join("")}
@@ -472,13 +475,28 @@ export class UnitSettings extends BaseModule {
   }
 
   attachEventListeners() {
-    document.querySelectorAll("[data-settings-tab]").forEach((button) => {
-      this.addEventListener(button, "click", () => {
-        const requestedTab = button.dataset.settingsTab;
-        if (!SETTINGS_TABS.includes(requestedTab) || requestedTab === this.activeTab) return;
+    const tabButtons = Array.from(document.querySelectorAll("[data-settings-tab]"));
+    const activateTab = (requestedTab, shouldFocus = false) => {
+      if (!SETTINGS_TABS.includes(requestedTab)) return;
+      if (requestedTab !== this.activeTab) {
         this.activeTab = requestedTab;
         this.render();
         this.attachEventListeners();
+      }
+      if (shouldFocus) document.getElementById(`unit-settings-tab-${requestedTab}`)?.focus();
+    };
+
+    tabButtons.forEach((button, index) => {
+      this.addEventListener(button, "click", () => activateTab(button.dataset.settingsTab, true));
+      this.addEventListener(button, "keydown", (event) => {
+        let targetIndex = null;
+        if (event.key === "ArrowRight") targetIndex = (index + 1) % tabButtons.length;
+        if (event.key === "ArrowLeft") targetIndex = (index - 1 + tabButtons.length) % tabButtons.length;
+        if (event.key === "Home") targetIndex = 0;
+        if (event.key === "End") targetIndex = tabButtons.length - 1;
+        if (targetIndex === null) return;
+        event.preventDefault();
+        activateTab(tabButtons[targetIndex].dataset.settingsTab, true);
       });
     });
 

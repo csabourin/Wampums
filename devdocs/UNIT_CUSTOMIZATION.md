@@ -20,6 +20,10 @@ section defaults. A custom profile retains the current program section.
 
 Organizations that have never saved vocabulary keep the historical Cubs
 experience. Saving the generic profile makes the neutral vocabulary explicit.
+For the same compatibility reason, an explicit legacy
+`organization_info.meeting_section` takes precedence over the database's
+unsaved `program_section` default. Once vocabulary is saved, its synchronized
+program section becomes authoritative.
 
 ## API
 
@@ -39,6 +43,11 @@ Cubs, Beavers, Generic, and fully custom profiles with separate English and
 French values. Dashboard switches hide functions on both web and mobile without
 changing permissions. Unit Settings itself remains reachable, so a unit cannot
 hide its way out of configuration.
+
+Mobile loads organization customization in the authenticated root navigator
+before choosing a leader or parent dashboard. Logout and organization changes
+clear the process-wide vocabulary first, preventing terminology from one unit
+from leaking into another unit's session.
 
 The General tab also links authorized form managers to `/form-builder`; forms
 remain governed by the existing form-management permissions.

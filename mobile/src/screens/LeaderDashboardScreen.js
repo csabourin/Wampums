@@ -41,7 +41,7 @@ import {
 } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import StorageUtils from '../utils/StorageUtils';
-import { configureUnitVocabulary } from '../utils/UnitVocabularyUtils';
+import { applyOrganizationCustomization } from '../utils/OrganizationCustomizationUtils';
 import CacheManager from '../utils/CacheManager';
 import SecurityUtils from '../utils/SecurityUtils';
 import DateUtils from '../utils/DateUtils';
@@ -285,7 +285,7 @@ const LeaderDashboardScreen = () => {
       );
       if (!isMounted()) return;
       const cachedOrg = cachedSettings?.organization_info;
-      configureUnitVocabulary(cachedSettings);
+      applyOrganizationCustomization(cachedSettings);
 
       if (cachedOrg) {
         setOrganizationName(
@@ -302,7 +302,7 @@ const LeaderDashboardScreen = () => {
       const settingsResponse = await getOrganizationSettings();
       if (!isMounted()) return;
       if (settingsResponse.success && settingsResponse.data) {
-        configureUnitVocabulary(settingsResponse.data);
+        applyOrganizationCustomization(settingsResponse.data);
         const orgInfo = settingsResponse.data.organization_info || {};
         const sanitizedName = SecurityUtils.sanitizeInput(orgInfo.name || '');
         const sanitizedLogo = SecurityUtils.sanitizeUrl(orgInfo.logo || '');

@@ -51,6 +51,32 @@ function mergeMeetingSectionConfig(customConfig) {
 }
 
 /**
+ * Resolve the active section without letting the database's legacy `general`
+ * default erase an explicitly saved meeting section. Once unit vocabulary has
+ * been saved, its synchronized program section becomes authoritative.
+ *
+ * @param {object} meetingSections Merged meeting section configuration.
+ * @param {object} context Organization section settings.
+ * @returns {string} Active meeting section key.
+ */
+function resolveMeetingSectionKey(meetingSections, context = {}) {
+  const sections = meetingSections?.sections || {};
+  const legacySection = context.organizationInfo?.meeting_section;
+  const programSection = context.programSection;
+
+  if (!context.hasUnitVocabulary && legacySection && sections[legacySection]) {
+    return legacySection;
+  }
+  if (programSection && sections[programSection]) {
+    return programSection;
+  }
+  if (legacySection && sections[legacySection]) {
+    return legacySection;
+  }
+  return meetingSections.defaultSection;
+}
+
+/**
  * Get meeting section configuration for an organization, with fallback to
  * global defaults (organization_id = 0) and static defaults.
  *
@@ -62,21 +88,32 @@ function mergeMeetingSectionConfig(customConfig) {
 async function getMeetingSectionConfig(pool, organizationId, logger) {
   // Try organization-specific settings first
   const orgSetting = await pool.query(
-    `SELECT o.program_section, os.setting_value
+    `SELECT o.program_section,
+            meeting_sections.setting_value AS meeting_sections,
+            organization_info.setting_value AS organization_info,
+            (unit_vocabulary.setting_value IS NOT NULL) AS has_unit_vocabulary
      FROM organizations o
-     LEFT JOIN organization_settings os
-       ON os.organization_id = o.id AND os.setting_key = 'meeting_sections'
+     LEFT JOIN organization_settings meeting_sections
+       ON meeting_sections.organization_id = o.id AND meeting_sections.setting_key = 'meeting_sections'
+     LEFT JOIN organization_settings organization_info
+       ON organization_info.organization_id = o.id AND organization_info.setting_key = 'organization_info'
+     LEFT JOIN organization_settings unit_vocabulary
+       ON unit_vocabulary.organization_id = o.id AND unit_vocabulary.setting_key = 'unit_vocabulary'
      WHERE o.id = $1`,
     [organizationId]
   );
 
-  const parsedOrgSetting = parseSettingValue(orgSetting.rows[0]?.setting_value, logger);
+  const organizationRow = orgSetting.rows[0] || {};
+  const organizationInfo = parseSettingValue(organizationRow.organization_info, logger) || {};
+  const sectionContext = {
+    programSection: organizationRow.program_section,
+    organizationInfo,
+    hasUnitVocabulary: organizationRow.has_unit_vocabulary === true
+  };
+  const parsedOrgSetting = parseSettingValue(organizationRow.meeting_sections, logger);
   if (parsedOrgSetting) {
     const mergedConfig = mergeMeetingSectionConfig(parsedOrgSetting);
-    const programSection = orgSetting.rows[0]?.program_section;
-    if (programSection && mergedConfig.sections[programSection]) {
-      mergedConfig.defaultSection = programSection;
-    }
+    mergedConfig.defaultSection = resolveMeetingSectionKey(mergedConfig, sectionContext);
     return mergedConfig;
   }
 
@@ -89,23 +126,18 @@ async function getMeetingSectionConfig(pool, organizationId, logger) {
   const parsedShared = parseSettingValue(sharedSetting.rows[0]?.setting_value, logger);
   if (parsedShared) {
     const mergedShared = mergeMeetingSectionConfig(parsedShared);
-    const programSection = orgSetting.rows[0]?.program_section;
-    if (programSection && mergedShared.sections[programSection]) {
-      mergedShared.defaultSection = programSection;
-    }
+    mergedShared.defaultSection = resolveMeetingSectionKey(mergedShared, sectionContext);
     return mergedShared;
   }
 
   // Final fallback to static defaults
   const mergedDefaults = mergeMeetingSectionConfig(defaultMeetingSections);
-  const programSection = orgSetting.rows[0]?.program_section;
-  if (programSection && mergedDefaults.sections[programSection]) {
-    mergedDefaults.defaultSection = programSection;
-  }
+  mergedDefaults.defaultSection = resolveMeetingSectionKey(mergedDefaults, sectionContext);
   return mergedDefaults;
 }
 
 module.exports = {
   getMeetingSectionConfig,
-  mergeMeetingSectionConfig
+  mergeMeetingSectionConfig,
+  resolveMeetingSectionKey
 };

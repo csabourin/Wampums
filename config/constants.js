@@ -60,6 +60,21 @@ const FILE_LIMITS = {
 };
 
 /**
+ * AI request limits. These cap prompt size and collection cardinality before
+ * untrusted request data reaches an external model.
+ */
+const AI_LIMITS = {
+  MAX_TEXT_LENGTH: parseEnvInt(process.env.AI_MAX_TEXT_LENGTH, 10_000),
+  MAX_FOCUS_LENGTH: parseEnvInt(process.env.AI_MAX_FOCUS_LENGTH, 2_000),
+  MAX_SHORT_TEXT_LENGTH: parseEnvInt(process.env.AI_MAX_SHORT_TEXT_LENGTH, 300),
+  MAX_VOCABULARY_TERMS: parseEnvInt(process.env.AI_MAX_VOCABULARY_TERMS, 30),
+  MAX_ACTIVITY_TEMPLATES: parseEnvInt(process.env.AI_MAX_ACTIVITY_TEMPLATES, 30),
+  MIN_DURATION_MINUTES: parseEnvInt(process.env.AI_MIN_DURATION_MINUTES, 15),
+  MAX_DURATION_MINUTES: parseEnvInt(process.env.AI_MAX_DURATION_MINUTES, 720),
+  MAX_PARTICIPANTS: parseEnvInt(process.env.AI_MAX_PARTICIPANTS, 500),
+};
+
+/**
  * Date Range Limits
  */
 const DATE_LIMITS = {
@@ -101,6 +116,7 @@ const CACHE = {
 module.exports = {
   RATE_LIMITS,
   FILE_LIMITS,
+  AI_LIMITS,
   DATE_LIMITS,
   PAGINATION,
   SESSION,

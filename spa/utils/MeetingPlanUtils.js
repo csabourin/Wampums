@@ -1,4 +1,24 @@
 /**
+ * Normalize a configured meeting duration before including it in an AI request.
+ *
+ * @param {unknown} value Candidate duration in minutes.
+ * @param {number} fallback Safe configured fallback.
+ * @returns {number} A finite positive integer duration.
+ */
+export function normalizeMeetingDurationMinutes(value, fallback) {
+  const parsedDuration = Number.parseInt(String(value), 10);
+  if (Number.isFinite(parsedDuration) && parsedDuration > 0) {
+    return parsedDuration;
+  }
+
+  const parsedFallback = Number.parseInt(String(fallback), 10);
+  if (!Number.isFinite(parsedFallback) || parsedFallback <= 0) {
+    throw new TypeError('Meeting duration fallback must be a finite positive integer');
+  }
+  return parsedFallback;
+}
+
+/**
  * Merge AI timeline with template activities, enforcing allowed responsibles.
  * @param {Array<Object>} planTimeline - AI-generated timeline items
  * @param {Array<Object>} templates - Section config activity templates

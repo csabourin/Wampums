@@ -85,6 +85,20 @@ test('renders vocabulary and dashboard tabs with organization-level controls', a
   await module.init();
 
   expect(document.querySelectorAll('[data-settings-tab]')).toHaveLength(3);
+  const generalTab = document.getElementById('unit-settings-tab-general');
+  const vocabularyTab = document.getElementById('unit-settings-tab-vocabulary');
+  const tabPanel = document.getElementById('unit-settings-tab-panel');
+  expect(generalTab.getAttribute('aria-controls')).toBe('unit-settings-tab-panel');
+  expect(generalTab.getAttribute('aria-selected')).toBe('true');
+  expect(generalTab.getAttribute('tabindex')).toBe('0');
+  expect(vocabularyTab.getAttribute('tabindex')).toBe('-1');
+  expect(tabPanel.getAttribute('aria-labelledby')).toBe('unit-settings-tab-general');
+
+  generalTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  expect(document.activeElement.id).toBe('unit-settings-tab-vocabulary');
+  expect(document.getElementById('unit-settings-tab-vocabulary').getAttribute('aria-selected')).toBe('true');
+  expect(document.getElementById('unit-settings-tab-panel').getAttribute('aria-labelledby'))
+    .toBe('unit-settings-tab-vocabulary');
 
   module.activeTab = 'vocabulary';
   module.render();
