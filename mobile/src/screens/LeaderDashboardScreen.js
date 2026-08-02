@@ -41,6 +41,7 @@ import {
 } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import StorageUtils from '../utils/StorageUtils';
+import { configureUnitVocabulary } from '../utils/UnitVocabularyUtils';
 import CacheManager from '../utils/CacheManager';
 import SecurityUtils from '../utils/SecurityUtils';
 import DateUtils from '../utils/DateUtils';
@@ -49,7 +50,7 @@ import theme, { commonStyles } from '../theme';
 // Static St-Paul image (relative to /mobile/src/screens)
 const StPaulImage = require('../../assets/images/6eASt-Paul.webp');
 import CONFIG from '../config';
-import { debugError } from '../utils/DebugUtils';
+import { debugError, debugLog } from '../utils/DebugUtils';
 import { useIsMounted } from '../hooks/useIsMounted';
 
 // Components
@@ -57,6 +58,46 @@ import { LoadingSpinner, ErrorMessage } from '../components';
 
 const FALLBACK_ORG_LOGO = require('../../assets/icon.png');
 const ORGANIZATION_SETTINGS_KEY = 'organizationSettings';
+const MOBILE_DASHBOARD_FEATURE_KEYS = Object.freeze({
+  managePoints: 'points',
+  manageHonors: 'honors',
+  attendance: 'attendance',
+  upcomingMeeting: 'meetings',
+  approveBadges: 'progression',
+  badgeDashboard: 'progression',
+  parentContact: 'parent_contacts',
+  medicationDistribution: 'medication_dispensing',
+  parentDashboard: 'parent_preview',
+  activitiesCalendar: 'activities',
+  carpoolCoordination: 'carpool',
+  meetingPrep: 'meetings',
+  participantDocuments: 'participant_documents',
+  inventory: 'inventory',
+  materialManagement: 'material_management',
+  medicationPlanning: 'medication_planning',
+  permissionSlips: 'permission_slips',
+  resources: 'material_management',
+  reports: 'reports',
+  permissionSlipsDashboard: 'permission_slips',
+  fundraisers: 'fundraisers',
+  financeMemberships: 'finance',
+  financeDefinitions: 'finance',
+  financialReport: 'finance',
+  expenses: 'expenses',
+  externalRevenue: 'external_revenue',
+  manageParticipants: 'participants',
+  manageGroups: 'groups',
+  manageUsersParticipants: 'family_links',
+  accountInfo: 'account_info',
+  mailingList: 'mailing_list',
+  revenueDashboard: 'revenue_dashboard',
+  budgets: 'budgets',
+  groupParticipantReport: 'den_report',
+  roleManagement: 'role_management',
+  districtManagement: 'district',
+  formPermissions: 'form_permissions',
+  createOrganization: 'create_organization',
+});
 
 /**
  * LeaderDashboardScreen Component
@@ -97,6 +138,7 @@ const LeaderDashboardScreen = () => {
   const [organizationName, setOrganizationName] = useSafeState('');
   const [organizationLogo, setOrganizationLogo] = useSafeState('');
   const [userPermissions, setUserPermissions] = useSafeState([]);
+  const [hiddenDashboardFeatures, setHiddenDashboardFeatures] = useSafeState([]);
 
   const gridColumns = 2;
   const gridGap = theme.spacing.sm;
@@ -243,6 +285,7 @@ const LeaderDashboardScreen = () => {
       );
       if (!isMounted()) return;
       const cachedOrg = cachedSettings?.organization_info;
+      configureUnitVocabulary(cachedSettings);
 
       if (cachedOrg) {
         setOrganizationName(
@@ -250,16 +293,27 @@ const LeaderDashboardScreen = () => {
         );
         setOrganizationLogo(SecurityUtils.sanitizeUrl(cachedOrg.logo || ''));
       }
+      setHiddenDashboardFeatures(
+        Array.isArray(cachedSettings?.dashboard_configuration?.hidden_tile_keys)
+          ? cachedSettings.dashboard_configuration.hidden_tile_keys
+          : []
+      );
 
       const settingsResponse = await getOrganizationSettings();
       if (!isMounted()) return;
       if (settingsResponse.success && settingsResponse.data) {
+        configureUnitVocabulary(settingsResponse.data);
         const orgInfo = settingsResponse.data.organization_info || {};
         const sanitizedName = SecurityUtils.sanitizeInput(orgInfo.name || '');
         const sanitizedLogo = SecurityUtils.sanitizeUrl(orgInfo.logo || '');
 
         setOrganizationName(sanitizedName);
         setOrganizationLogo(sanitizedLogo);
+        setHiddenDashboardFeatures(
+          Array.isArray(settingsResponse.data.dashboard_configuration?.hidden_tile_keys)
+            ? settingsResponse.data.dashboard_configuration.hidden_tile_keys
+            : []
+        );
         await StorageUtils.setItem(
           ORGANIZATION_SETTINGS_KEY,
           settingsResponse.data
@@ -305,6 +359,8 @@ const LeaderDashboardScreen = () => {
    */
   const canAccessAction = (action) => {
     if (!action) return false;
+    const featureKey = MOBILE_DASHBOARD_FEATURE_KEYS[action.key];
+    if (featureKey && hiddenDashboardFeatures.includes(featureKey)) return false;
     if (!action.permission && !action.permissions) return true;
 
     if (action.permission) {

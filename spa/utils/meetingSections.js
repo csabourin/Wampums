@@ -35,7 +35,8 @@ export function mergeMeetingSectionConfig(customConfig) {
  */
 export function getActiveSectionConfig(meetingSectionConfig, organizationSettings) {
   const mergedConfig = mergeMeetingSectionConfig(meetingSectionConfig || organizationSettings?.meeting_sections);
-  const requestedSection = organizationSettings?.organization_info?.meeting_section;
+  const requestedSection = organizationSettings?.program_section
+    || organizationSettings?.organization_info?.meeting_section;
 
   const sectionKey = requestedSection && mergedConfig.sections[requestedSection]
     ? requestedSection

@@ -2855,6 +2855,28 @@ export async function updateOrganizationInfo(organizationInfo) {
     return response;
 }
 
+/** Update organization vocabulary and program preset. */
+export async function updateUnitVocabulary(vocabulary) {
+    const response = await API.patch('v1/organizations/settings/vocabulary', vocabulary);
+    try {
+        await deleteCachedData('org_settings');
+    } catch (cacheError) {
+        debugWarn('Failed to invalidate organization settings cache', cacheError);
+    }
+    return response;
+}
+
+/** Update organization-wide dashboard tile visibility. */
+export async function updateDashboardConfiguration(configuration) {
+    const response = await API.patch('v1/organizations/settings/dashboard', configuration);
+    try {
+        await deleteCachedData('org_settings');
+    } catch (cacheError) {
+        debugWarn('Failed to invalidate organization settings cache', cacheError);
+    }
+    return response;
+}
+
 /**
  * Backward compatibility alias
  */

@@ -561,7 +561,7 @@ export class BadgeTracker {
             ${
               starData.star_type === "proie"
                 ? `🎯 ${translate("badge_type_proie") || "Proie"}`
-                : `🐺 ${translate("badge_type_battue") || "Battue"}`
+                : `👥 ${translate("badge_type_battue") || "Group"}`
             }
           </span>
         `
@@ -650,7 +650,7 @@ export class BadgeTracker {
                 ${
                   item.star_type === "proie"
                     ? `🎯 ${translate("badge_type_proie") || "Proie"}`
-                    : `🐺 ${translate("badge_type_battue") || "Battue"}`
+                    : `👥 ${translate("badge_type_battue") || "Group"}`
                 }
               </span>
             `

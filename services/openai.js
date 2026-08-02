@@ -140,6 +140,7 @@ function buildMessages(mode, payload) {
 
     switch (mode) {
         case "meeting_plan":
+            const responseLanguage = payload.locale === "en" ? "ENGLISH" : "FRENCH";
             // Build template structure if provided
             let templateContext = "";
             if (payload.activityTemplates && payload.activityTemplates.length > 0) {
@@ -155,14 +156,20 @@ function buildMessages(mode, payload) {
                 honorContext = `\n\nMost recent honor to mention: ${payload.recentHonor.name} received ${payload.recentHonor.honor} on ${payload.recentHonor.date}.`;
             }
 
+            const vocabularyContext = payload.vocabulary && typeof payload.vocabulary === "object"
+                ? `\n\nUnit vocabulary:\n${Object.entries(payload.vocabulary)
+                    .map(([key, value]) => `- ${key}: ${value}`)
+                    .join("\n")}`
+                : "";
+
             return [
                 {
-                    role: "system", content: `${systemBase} Create a scout meeting plan in JSON format IN FRENCH.
+                    role: "system", content: `${systemBase} Create a scout meeting plan in JSON format IN ${responseLanguage}.
 Output structure:
 {
-  "theme": "string (meeting theme in French)",
-  "goals": "string (meeting objectives in French)",
-  "materials": ["string (list of materials needed in French)"],
+  "theme": "string (meeting theme)",
+  "goals": "string (meeting objectives)",
+  "materials": ["string (list of materials needed)"],
   "timeline": [{ 
     "time": "HH:MM", 
     "duration": "HH:MM", 
@@ -173,20 +180,17 @@ Output structure:
 }
 
 Important context:
-- "Loup d'honneur" is a brief formality at the start of meetings (5-10 minutes), not a ceremony
-- "Trève de l'eau" is a water break that typically comes after active games
-- "Accueil des louveteaux" is the welcome/opening activity
-- Activities should be practical, age-appropriate scout activities
-- Use French terminology for scout activities
+- Activities should be practical and age-appropriate for the unit's youth
+- Use the unit vocabulary exactly as supplied
 - Include 'responsable' for activities when a specific leader should handle it
-- Include 'materiel' for activities that need specific equipment${templateContext}${honorContext}`
+- Include 'materiel' for activities that need specific equipment${templateContext}${honorContext}${vocabularyContext}`
                 },
                 {
-                    role: "user", content: `Create a ${payload.duration} meeting plan for ${payload.section} scouts on ${payload.date}.
+                    role: "user", content: `Create a ${payload.duration} meeting plan for the youth unit named "${payload.section}" on ${payload.date}.
 Focus: ${payload.focus}.
 Generate 5-7 activities with realistic times and durations.
 For each activity, if relevant, suggest which leader (responsable) should handle it and what specific materials (materiel) are needed.
-RESPOND IN FRENCH.`
+RESPOND IN ${responseLanguage}.`
                 }
             ];
 

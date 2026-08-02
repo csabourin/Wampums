@@ -15,6 +15,7 @@ import StorageUtils from '../utils/StorageUtils';
 import { getTranslations as fetchTranslationsFromAPI } from '../api/api-endpoints';
 import CONFIG from '../config';
 import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
+import { translateWithUnitVocabulary } from '../utils/UnitVocabularyUtils.js';
 
 // Create i18n instance with proper v4 configuration
 const i18n = new I18n(
@@ -271,7 +272,7 @@ export const translate = (key, options = {}) => {
   // Get translation, using key as default if translation doesn't exist
   const translation = i18n.t(key, { ...options, defaultValue: key });
 
-  return translation;
+  return translateWithUnitVocabulary(i18n, currentLanguage, key, translation, options);
 };
 
 /**

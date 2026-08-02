@@ -6,7 +6,9 @@ import { makeApiRequest } from "../../api/api-core.js";
 import {
   fetchEditableOrganizationSettings,
   getLeaders,
+  updateDashboardConfiguration,
   updateOrganizationInfo,
+  updateUnitVocabulary,
 } from "../../api/api-endpoints.js";
 import { escapeHTML } from "../../utils/SecurityUtils.js";
 import { DAYS_OF_WEEK } from "../../utils/MeetingDateUtils.js";
@@ -17,6 +19,12 @@ import {
   canViewRoles,
   canManageForms,
 } from "../../utils/PermissionUtils.js";
+import { DASHBOARD_TILES, TOOL_GROUP_ORDER } from "../../config/dashboard-tiles.js";
+import {
+  createVocabularyFromProfile,
+  getVocabularyProfile,
+  UNIT_CUSTOMIZATION_CONFIG,
+} from "../../utils/UnitVocabularyUtils.js";
 
 const SUPPORTED_LANGUAGES = [
   { code: "fr", label: "Français" },
@@ -33,6 +41,8 @@ const MAXIMUM_MEETING_DURATION_MINUTES = 720;
 const SHORT_TEXT_MAX_LENGTH = 255;
 const LOCATION_MAX_LENGTH = 500;
 const LOGO_URL_MAX_LENGTH = 2048;
+const VOCABULARY_TERM_MAX_LENGTH = 80;
+const SETTINGS_TABS = ["general", "vocabulary", "dashboard"];
 
 export class UnitSettings extends BaseModule {
   constructor(app) {
@@ -46,6 +56,9 @@ export class UnitSettings extends BaseModule {
     this.twoFactorDisabled = false;
     this.canManageOrg = false;
     this.canEditOrg = false;
+    this.activeTab = "general";
+    this.vocabulary = createVocabularyFromProfile("cubs");
+    this.dashboardConfiguration = { version: 1, hidden_tile_keys: [] };
   }
 
   async init() {
@@ -86,6 +99,16 @@ export class UnitSettings extends BaseModule {
     };
     this.orgName = this.organizationInfo.name || "";
     this.emailLanguage = data.default_email_language || "fr";
+    const profile = getVocabularyProfile(data);
+    this.vocabulary = data.unit_vocabulary
+      ? JSON.parse(JSON.stringify(data.unit_vocabulary))
+      : createVocabularyFromProfile(profile);
+    this.dashboardConfiguration = {
+      version: UNIT_CUSTOMIZATION_CONFIG.version,
+      hidden_tile_keys: Array.isArray(data.dashboard_configuration?.hidden_tile_keys)
+        ? [...data.dashboard_configuration.hidden_tile_keys]
+        : [],
+    };
 
     const security = data.security || {};
     this.twoFactorDisabled = security.two_factor_disabled === true;
@@ -134,12 +157,32 @@ export class UnitSettings extends BaseModule {
 
         ${this.orgName ? `<p class="unit-settings-org-name">${escapeHTML(this.orgName)}</p>` : ""}
 
-        ${this.renderUnitDetailsSection()}
-        ${this.canEditOrg ? this.renderLanguageSection() : ""}
-        ${this.canManageOrg ? this.renderSecuritySection() : ""}
-        ${this.renderQuickLinks()}
+        ${this.renderTabs()}
+        <div class="unit-settings-tab-panel" role="tabpanel">
+          ${this.activeTab === "general" ? `
+            ${this.renderUnitDetailsSection()}
+            ${this.canEditOrg ? this.renderLanguageSection() : ""}
+            ${this.canManageOrg ? this.renderSecuritySection() : ""}
+            ${this.renderQuickLinks()}
+          ` : ""}
+          ${this.activeTab === "vocabulary" ? this.renderVocabularySection() : ""}
+          ${this.activeTab === "dashboard" ? this.renderDashboardSection() : ""}
+        </div>
       </div>`
     );
+  }
+
+  renderTabs() {
+    return `
+      <nav class="unit-settings-tabs" role="tablist" aria-label="${escapeHTML(translate("unit_settings_title"))}">
+        ${SETTINGS_TABS.map((tab) => {
+          const active = this.activeTab === tab;
+          return `<button type="button" role="tab" class="unit-settings-tab ${active ? "is-active" : ""}"
+            data-settings-tab="${tab}" aria-selected="${active}">
+            ${escapeHTML(translate(`unit_settings_tab_${tab}`))}
+          </button>`;
+        }).join("")}
+      </nav>`;
   }
 
   renderUnitDetailsSection() {
@@ -230,6 +273,104 @@ export class UnitSettings extends BaseModule {
       </section>`;
   }
 
+  renderVocabularySection() {
+    const termKeys = Object.keys(UNIT_CUSTOMIZATION_CONFIG.profiles.generic.locales.en);
+    const profileOptions = ["cubs", "beavers", "generic", "custom"]
+      .map((profile) => `<option value="${profile}" ${this.vocabulary.profile === profile ? "selected" : ""}>
+        ${escapeHTML(translate(`unit_vocabulary_profile_${profile}`))}
+      </option>`)
+      .join("");
+
+    const localeColumns = ["fr", "en"].map((locale) => `
+      <fieldset class="unit-vocabulary-locale">
+        <legend>${escapeHTML(translate(`unit_vocabulary_locale_${locale}`))}</legend>
+        ${termKeys.map((termKey) => `
+          <div class="form-group">
+            <label for="vocabulary-${locale}-${termKey}">
+              ${escapeHTML(translate(`unit_vocabulary_term_${termKey}`))}
+            </label>
+            <input type="text" class="form-control unit-vocabulary-input"
+              id="vocabulary-${locale}-${termKey}"
+              data-locale="${locale}" data-term-key="${termKey}"
+              maxlength="${VOCABULARY_TERM_MAX_LENGTH}"
+              value="${escapeHTML(this.vocabulary.locales?.[locale]?.[termKey] || "")}" required
+              ${this.canEditOrg ? "" : "disabled"}>
+          </div>`).join("")}
+      </fieldset>`).join("");
+
+    return `
+      <section class="account-section">
+        <h2>${escapeHTML(translate("unit_vocabulary_title"))}</h2>
+        <p class="section-description">${escapeHTML(translate("unit_vocabulary_description"))}</p>
+        ${!this.canEditOrg ? `<p class="unit-settings-read-only">${translate("unit_settings_read_only")}</p>` : ""}
+        <form id="unit-vocabulary-form" class="unit-settings-form">
+          <div class="form-group unit-vocabulary-profile">
+            <label for="unit-vocabulary-profile">${escapeHTML(translate("unit_vocabulary_profile"))}</label>
+            <select id="unit-vocabulary-profile" class="form-control" ${this.canEditOrg ? "" : "disabled"}>
+              ${profileOptions}
+            </select>
+            <small>${escapeHTML(translate("unit_vocabulary_profile_hint"))}</small>
+          </div>
+          <div class="unit-vocabulary-grid">${localeColumns}</div>
+          ${this.canEditOrg ? `<button type="submit" id="save-vocabulary-btn" class="button button--primary">
+            ${escapeHTML(translate("save"))}
+          </button>` : ""}
+        </form>
+      </section>`;
+  }
+
+  renderDashboardSection() {
+    const hiddenKeys = new Set(this.dashboardConfiguration.hidden_tile_keys || []);
+    const tilesByFeature = new Map();
+    DASHBOARD_TILES.forEach((tile) => {
+      if (tile.featureKey && !tilesByFeature.has(tile.featureKey)) {
+        tilesByFeature.set(tile.featureKey, tile);
+      }
+    });
+    const domainOrder = ["attendance", "people", "progression", "safety", ...TOOL_GROUP_ORDER];
+    const orderedDomains = Array.from(new Set([
+      ...domainOrder,
+      ...Array.from(tilesByFeature.values()).map((tile) => tile.domain),
+    ]));
+
+    const groups = orderedDomains.map((domain) => {
+      const tiles = Array.from(tilesByFeature.values()).filter((tile) => tile.domain === domain);
+      if (!tiles.length) return "";
+      return `
+        <fieldset class="unit-dashboard-group">
+          <legend>${escapeHTML(translate(`domain_${domain}`))}</legend>
+          ${tiles.map((tile) => {
+            const required = UNIT_CUSTOMIZATION_CONFIG.requiredDashboardFeatureKeys.includes(tile.featureKey);
+            const checked = required || !hiddenKeys.has(tile.featureKey);
+            return `
+              <label class="unit-dashboard-toggle" for="dashboard-feature-${tile.featureKey}">
+                <span>
+                  <strong>${escapeHTML(translate(tile.label))}</strong>
+                  ${required ? `<small>${escapeHTML(translate("unit_dashboard_required"))}</small>` : ""}
+                </span>
+                <input type="checkbox" role="switch" class="unit-dashboard-feature"
+                  id="dashboard-feature-${tile.featureKey}" data-feature-key="${tile.featureKey}"
+                  ${checked ? "checked" : ""} ${required || !this.canEditOrg ? "disabled" : ""}>
+              </label>`;
+          }).join("")}
+        </fieldset>`;
+    }).join("");
+
+    return `
+      <section class="account-section">
+        <h2>${escapeHTML(translate("unit_dashboard_title"))}</h2>
+        <p class="section-description">${escapeHTML(translate("unit_dashboard_description"))}</p>
+        <p class="unit-dashboard-note">${escapeHTML(translate("unit_dashboard_visibility_note"))}</p>
+        ${!this.canEditOrg ? `<p class="unit-settings-read-only">${translate("unit_settings_read_only")}</p>` : ""}
+        <form id="unit-dashboard-form" class="unit-settings-form">
+          <div class="unit-dashboard-groups">${groups}</div>
+          ${this.canEditOrg ? `<button type="submit" id="save-dashboard-btn" class="button button--primary">
+            ${escapeHTML(translate("save"))}
+          </button>` : ""}
+        </form>
+      </section>`;
+  }
+
   renderLanguageSection() {
     const options = SUPPORTED_LANGUAGES.map(
       ({ code, label }) =>
@@ -289,6 +430,12 @@ export class UnitSettings extends BaseModule {
         description: translate("unit_settings_link_roles") || "Manage roles and permissions for your members.",
       },
       canManageForms() && {
+        href: "/form-builder",
+        icon: "fa-file-pen",
+        label: translate("form_builder_title") || "Form Builder",
+        description: translate("unit_settings_link_form_builder"),
+      },
+      canManageForms() && {
         href: "/form-permissions",
         icon: "fa-clipboard-check",
         label: translate("form_permissions") || "Form Permissions",
@@ -325,6 +472,16 @@ export class UnitSettings extends BaseModule {
   }
 
   attachEventListeners() {
+    document.querySelectorAll("[data-settings-tab]").forEach((button) => {
+      this.addEventListener(button, "click", () => {
+        const requestedTab = button.dataset.settingsTab;
+        if (!SETTINGS_TABS.includes(requestedTab) || requestedTab === this.activeTab) return;
+        this.activeTab = requestedTab;
+        this.render();
+        this.attachEventListeners();
+      });
+    });
+
     const unitDetailsForm = document.getElementById("unit-details-form");
     if (unitDetailsForm && this.canEditOrg) {
       this.addEventListener(unitDetailsForm, "submit", (event) => this.handleSaveUnitDetails(event));
@@ -338,6 +495,30 @@ export class UnitSettings extends BaseModule {
     const twoFaToggle = document.getElementById("disable-2fa-toggle");
     if (twoFaToggle) {
       this.addEventListener(twoFaToggle, "change", (e) => this.handleTwoFactorToggle(e.target.checked));
+    }
+
+    const vocabularyForm = document.getElementById("unit-vocabulary-form");
+    if (vocabularyForm && this.canEditOrg) {
+      this.addEventListener(vocabularyForm, "submit", (event) => this.handleSaveVocabulary(event));
+    }
+
+    const profileSelect = document.getElementById("unit-vocabulary-profile");
+    if (profileSelect && this.canEditOrg) {
+      this.addEventListener(profileSelect, "change", () => {
+        const selectedProfile = profileSelect.value;
+        const nextVocabulary = createVocabularyFromProfile(
+          selectedProfile === "custom" ? "generic" : selectedProfile,
+        );
+        nextVocabulary.profile = selectedProfile;
+        this.vocabulary = nextVocabulary;
+        this.render();
+        this.attachEventListeners();
+      });
+    }
+
+    const dashboardForm = document.getElementById("unit-dashboard-form");
+    if (dashboardForm && this.canEditOrg) {
+      this.addEventListener(dashboardForm, "submit", (event) => this.handleSaveDashboard(event));
     }
   }
 
@@ -411,6 +592,84 @@ export class UnitSettings extends BaseModule {
         saveButton.disabled = false;
         saveButton.textContent = translate("save");
       }
+    }
+  }
+
+  async handleSaveVocabulary(event) {
+    event.preventDefault();
+    const form = document.getElementById("unit-vocabulary-form");
+    const btn = document.getElementById("save-vocabulary-btn");
+    if (!form || !btn || !form.reportValidity()) return;
+
+    const locales = { en: {}, fr: {} };
+    document.querySelectorAll(".unit-vocabulary-input").forEach((input) => {
+      locales[input.dataset.locale][input.dataset.termKey] = input.value.trim();
+    });
+    const payload = {
+      version: UNIT_CUSTOMIZATION_CONFIG.version,
+      profile: document.getElementById("unit-vocabulary-profile")?.value || "custom",
+      locales,
+    };
+
+    btn.disabled = true;
+    btn.textContent = translate("saving");
+    try {
+      const response = await updateUnitVocabulary(payload);
+      this.vocabulary = response?.data?.unit_vocabulary || payload;
+      if (this.app) {
+        this.app.organizationSettings = {
+          ...(this.app.organizationSettings || {}),
+          unit_vocabulary: this.vocabulary,
+          program_section: response?.data?.program_section
+            || this.app.organizationSettings?.program_section,
+        };
+      }
+      this.app?.showMessage?.(translate("unit_vocabulary_saved"), "success");
+      this.render();
+      this.attachEventListeners();
+    } catch (error) {
+      debugError("Failed to save unit vocabulary:", error);
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), "error");
+    } finally {
+      const saveButton = document.getElementById("save-vocabulary-btn");
+      if (saveButton) {
+        saveButton.disabled = false;
+        saveButton.textContent = translate("save");
+      }
+    }
+  }
+
+  async handleSaveDashboard(event) {
+    event.preventDefault();
+    const btn = document.getElementById("save-dashboard-btn");
+    if (!btn) return;
+
+    const hiddenTileKeys = Array.from(document.querySelectorAll(".unit-dashboard-feature"))
+      .filter((input) => !input.checked && !input.disabled)
+      .map((input) => input.dataset.featureKey);
+    const payload = {
+      version: UNIT_CUSTOMIZATION_CONFIG.version,
+      hidden_tile_keys: hiddenTileKeys,
+    };
+
+    btn.disabled = true;
+    btn.textContent = translate("saving");
+    try {
+      const response = await updateDashboardConfiguration(payload);
+      this.dashboardConfiguration = response?.data?.dashboard_configuration || payload;
+      if (this.app) {
+        this.app.organizationSettings = {
+          ...(this.app.organizationSettings || {}),
+          dashboard_configuration: this.dashboardConfiguration,
+        };
+      }
+      this.app?.showMessage?.(translate("unit_dashboard_saved"), "success");
+    } catch (error) {
+      debugError("Failed to save dashboard configuration:", error);
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = translate("save");
     }
   }
 

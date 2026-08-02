@@ -16,6 +16,11 @@ const bcrypt = require('bcryptjs');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { asyncHandler, success, error: errorResponse } = require('../middleware/response');
 const { requireJWTSecret, signJWTToken } = require('../utils/jwt-config');
+const {
+  validateUnitVocabulary,
+  validateDashboardConfiguration,
+  getProgramSectionForProfile
+} = require('../utils/unitCustomization');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
@@ -26,6 +31,7 @@ requireJWTSecret();
 
 const PUBLIC_ORGANIZATION_SETTING_KEYS = [
   'organization_info',
+  'unit_vocabulary',
   'program_sections',
   'meeting_sections',
   'branding',
@@ -175,7 +181,13 @@ async function loadOrganizationSettings(pool, organizationId, skipCache = false)
   await ensureProgramSectionsSeeded(pool, organizationId);
   settings.program_sections = await getProgramSections(pool, organizationId);
 
-  const [localGroupMemberships, allLocalGroups] = await Promise.all([
+  const [organizationContext, localGroupMemberships, allLocalGroups] = await Promise.all([
+    pool.query(
+      `SELECT program_section
+       FROM organizations
+       WHERE id = $1`,
+      [organizationId]
+    ),
     pool.query(
       `SELECT lg.id, lg.name, lg.slug
        FROM local_groups lg
@@ -191,6 +203,8 @@ async function loadOrganizationSettings(pool, organizationId, skipCache = false)
        ORDER BY name`
     )
   ]);
+
+  settings.program_section = organizationContext.rows[0]?.program_section || 'general';
 
   settings.local_groups = {
     memberships: localGroupMemberships.rows,
@@ -520,6 +534,85 @@ module.exports = (pool, logger) => {
     } finally {
       client.release();
     }
+  }));
+
+  /** Update the program preset and locale-specific vocabulary for one organization. */
+  router.patch('/settings/vocabulary', authenticate, blockDemoRoles, requirePermission('org.edit'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const validation = validateUnitVocabulary(req.body);
+
+    if (validation.errors.length > 0) {
+      return errorResponse(res, 'Invalid unit vocabulary', 400, validation.errors);
+    }
+
+    const programSection = getProgramSectionForProfile(validation.value.profile);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await ensureProgramSectionsSeeded(client, organizationId);
+
+      if (programSection) {
+        const organizationResult = await client.query(
+          `UPDATE organizations
+           SET program_section = $2, updated_at = NOW()
+           WHERE id = $1
+           RETURNING id`,
+          [organizationId, programSection]
+        );
+        if (organizationResult.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 'Organization not found', 404);
+        }
+      }
+
+      await client.query(
+        `INSERT INTO organization_settings
+           (organization_id, setting_key, setting_value, created_at, updated_at)
+         VALUES ($1, 'unit_vocabulary', $2::jsonb, NOW(), NOW())
+         ON CONFLICT (organization_id, setting_key)
+         DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = NOW()`,
+        [organizationId, JSON.stringify(validation.value)]
+      );
+
+      await client.query('COMMIT');
+      orgSettingsCache.delete(`org_${organizationId}`);
+      return success(
+        res,
+        { unit_vocabulary: validation.value, program_section: programSection },
+        'Unit vocabulary updated'
+      );
+    } catch (updateError) {
+      await client.query('ROLLBACK');
+      throw updateError;
+    } finally {
+      client.release();
+    }
+  }));
+
+  /** Update organization-wide dashboard tile visibility. */
+  router.patch('/settings/dashboard', authenticate, blockDemoRoles, requirePermission('org.edit'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const validation = validateDashboardConfiguration(req.body);
+
+    if (validation.errors.length > 0) {
+      return errorResponse(res, 'Invalid dashboard configuration', 400, validation.errors);
+    }
+
+    await pool.query(
+      `INSERT INTO organization_settings
+         (organization_id, setting_key, setting_value, created_at, updated_at)
+       VALUES ($1, 'dashboard_configuration', $2::jsonb, NOW(), NOW())
+       ON CONFLICT (organization_id, setting_key)
+       DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = NOW()`,
+      [organizationId, JSON.stringify(validation.value)]
+    );
+
+    orgSettingsCache.delete(`org_${organizationId}`);
+    return success(
+      res,
+      { dashboard_configuration: validation.value },
+      'Dashboard configuration updated'
+    );
   }));
 
   router.put('/settings', authenticate, blockDemoRoles, requirePermission('organization.manage'), asyncHandler(async (req, res) => {

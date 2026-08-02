@@ -62,14 +62,22 @@ function mergeMeetingSectionConfig(customConfig) {
 async function getMeetingSectionConfig(pool, organizationId, logger) {
   // Try organization-specific settings first
   const orgSetting = await pool.query(
-    `SELECT setting_value FROM organization_settings
-     WHERE organization_id = $1 AND setting_key = 'meeting_sections'`,
+    `SELECT o.program_section, os.setting_value
+     FROM organizations o
+     LEFT JOIN organization_settings os
+       ON os.organization_id = o.id AND os.setting_key = 'meeting_sections'
+     WHERE o.id = $1`,
     [organizationId]
   );
 
   const parsedOrgSetting = parseSettingValue(orgSetting.rows[0]?.setting_value, logger);
   if (parsedOrgSetting) {
-    return mergeMeetingSectionConfig(parsedOrgSetting);
+    const mergedConfig = mergeMeetingSectionConfig(parsedOrgSetting);
+    const programSection = orgSetting.rows[0]?.program_section;
+    if (programSection && mergedConfig.sections[programSection]) {
+      mergedConfig.defaultSection = programSection;
+    }
+    return mergedConfig;
   }
 
   // Fallback to shared defaults stored under organization_id = 0
@@ -80,11 +88,21 @@ async function getMeetingSectionConfig(pool, organizationId, logger) {
 
   const parsedShared = parseSettingValue(sharedSetting.rows[0]?.setting_value, logger);
   if (parsedShared) {
-    return mergeMeetingSectionConfig(parsedShared);
+    const mergedShared = mergeMeetingSectionConfig(parsedShared);
+    const programSection = orgSetting.rows[0]?.program_section;
+    if (programSection && mergedShared.sections[programSection]) {
+      mergedShared.defaultSection = programSection;
+    }
+    return mergedShared;
   }
 
   // Final fallback to static defaults
-  return mergeMeetingSectionConfig(defaultMeetingSections);
+  const mergedDefaults = mergeMeetingSectionConfig(defaultMeetingSections);
+  const programSection = orgSetting.rows[0]?.program_section;
+  if (programSection && mergedDefaults.sections[programSection]) {
+    mergedDefaults.defaultSection = programSection;
+  }
+  return mergedDefaults;
 }
 
 module.exports = {
