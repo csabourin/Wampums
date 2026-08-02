@@ -461,6 +461,31 @@ describe('Security Headers', () => {
     expect(res.headers['content-security-policy']).toBeDefined();
   });
 
+  test('CSP allows only the configured Railway bucket image origin', () => {
+    const { getContentSecurityImageSources } = require('../middleware/global');
+    const originalEndpoint = process.env.AWS_ENDPOINT_URL;
+    const originalBucket = process.env.AWS_S3_BUCKET_NAME;
+    const originalUrlStyle = process.env.AWS_S3_URL_STYLE;
+
+    process.env.AWS_ENDPOINT_URL = 'https://t3.storageapi.dev';
+    process.env.AWS_S3_BUCKET_NAME = 'wampums-files-example';
+    process.env.AWS_S3_URL_STYLE = 'virtual';
+    try {
+      const imageSources = getContentSecurityImageSources();
+      expect(imageSources).toContain(
+        'https://wampums-files-example.t3.storageapi.dev',
+      );
+      expect(imageSources).not.toContain('https://*.storageapi.dev');
+    } finally {
+      if (originalEndpoint === undefined) delete process.env.AWS_ENDPOINT_URL;
+      else process.env.AWS_ENDPOINT_URL = originalEndpoint;
+      if (originalBucket === undefined) delete process.env.AWS_S3_BUCKET_NAME;
+      else process.env.AWS_S3_BUCKET_NAME = originalBucket;
+      if (originalUrlStyle === undefined) delete process.env.AWS_S3_URL_STYLE;
+      else process.env.AWS_S3_URL_STYLE = originalUrlStyle;
+    }
+  });
+
   test('includes X-Content-Type-Options header', async () => {
     const res = await request(app).get('/health');
     expect(res.headers['x-content-type-options']).toBe('nosniff');

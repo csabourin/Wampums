@@ -7,6 +7,7 @@ const swaggerSpecs = require("../config/swagger");
 const logger = require("../config/logger");
 const ejs = require("ejs");
 const { sanitizeServerErrorResponses } = require("./response");
+const { getStorageImageOrigins } = require("../utils/railway-storage");
 
 const isProduction = process.env.NODE_ENV === "production";
 const REQUEST_BODY_LIMIT = "20mb";
@@ -50,6 +51,21 @@ const BASE_URL = "https://wampums.app";
 
 /** Views directory for EJS templates */
 const VIEWS_DIR = path.join(process.cwd(), "views");
+
+/**
+ * Build the image CSP from fixed application sources and the exact configured
+ * Railway bucket origin. Avoid allowing every tenant on storageapi.dev.
+ * @returns {string[]}
+ */
+function getContentSecurityImageSources() {
+    return [
+        "'self'",
+        "data:",
+        "blob:",
+        ...getStorageImageOrigins(),
+        "https://www.gravatar.com",
+    ];
+}
 
 /**
  * Render an EJS template file with provided locals.
@@ -130,7 +146,7 @@ module.exports = (app) => {
                     defaultSrc: ["'self'"],
                     scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://js.stripe.com"],
                     styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
-                    imgSrc: ["'self'", "data:", "blob:", "https://storage.railway.app", "https://*.storage.railway.app", "https://www.gravatar.com"],
+                    imgSrc: getContentSecurityImageSources(),
                     connectSrc: connectSrc.concat(["https://api.stripe.com"]),
                     fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
                     objectSrc: ["'none'"],
@@ -467,3 +483,5 @@ module.exports = (app) => {
 
     logger.info("✅ Global middleware initialized");
 };
+
+module.exports.getContentSecurityImageSources = getContentSecurityImageSources;

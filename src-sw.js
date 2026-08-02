@@ -182,7 +182,9 @@ registerRoute(
     if (request.destination !== 'image') return false;
     if (
       url.hostname === 'storage.railway.app' ||
-      url.hostname.endsWith('.storage.railway.app')
+      url.hostname.endsWith('.storage.railway.app') ||
+      url.hostname === 'storageapi.dev' ||
+      url.hostname.endsWith('.storageapi.dev')
     ) return false;
     return true;
   },
