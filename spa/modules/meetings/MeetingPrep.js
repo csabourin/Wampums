@@ -67,6 +67,7 @@ export class MeetingPrep extends BaseModule {
 
     this.activityManager = null;
     this.printManager = null;
+    this.renderAbortController = null;
   }
 
   /**
@@ -563,29 +564,42 @@ export class MeetingPrep extends BaseModule {
   // ==========================================================================
 
   attachEventListeners() {
+    if (this.isDestroyed) {
+      return;
+    }
+
+    // Loading or saving a meeting replaces the form. Release every handler
+    // from the previous form before binding the newly rendered controls.
+    this.renderAbortController?.abort();
+    this.renderAbortController = new AbortController();
+    const renderSignal = this.renderAbortController.signal;
+    const listen = (element, event, handler, options = {}) => {
+      element?.addEventListener(event, handler, { ...options, signal: renderSignal });
+    };
+
     // Block Enter-key submits inside the activity grid
-    this.addEventListener(document.getElementById('reunion-form'), 'keydown', (e) => {
+    listen(document.getElementById('reunion-form'), 'keydown', (e) => {
       if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.type !== 'submit') {
         e.preventDefault();
       }
     });
 
-    this.addEventListener(document.getElementById('date-select'), 'change', (e) => {
+    listen(document.getElementById('date-select'), 'change', (e) => {
       if (e.target.value) {
         this.loadMeeting(e.target.value);
       }
     });
 
-    this.addEventListener(document.getElementById('new-meeting'), 'click', () => this.createAndLoadNewMeeting());
-    this.addEventListener(document.getElementById('magic-generate-btn'), 'click', () => this.handleMagicGenerate());
-    this.addEventListener(document.getElementById('print-button'), 'click', () => this.printManager.printPreparation());
-    this.addEventListener(document.getElementById('reunion-form'), 'submit', (e) => this.handleSubmit(e));
-    this.addEventListener(document.getElementById('reminder-form'), 'submit', (e) => this.handleReminderSubmit(e));
-    this.addEventListener(document.getElementById('toggle-quick-edit'), 'click', () => this.toggleQuickEditMode());
+    listen(document.getElementById('new-meeting'), 'click', () => this.createAndLoadNewMeeting());
+    listen(document.getElementById('magic-generate-btn'), 'click', () => this.handleMagicGenerate());
+    listen(document.getElementById('print-button'), 'click', () => this.printManager.printPreparation());
+    listen(document.getElementById('reunion-form'), 'submit', (e) => this.handleSubmit(e));
+    listen(document.getElementById('reminder-form'), 'submit', (e) => this.handleReminderSubmit(e));
+    listen(document.getElementById('toggle-quick-edit'), 'click', () => this.toggleQuickEditMode());
 
     const activitiesContainer = document.getElementById('activities-container');
 
-    this.addEventListener(activitiesContainer, 'change', (e) => {
+    listen(activitiesContainer, 'change', (e) => {
       const row = e.target.closest('.activity-row');
       if (!row) {
         return;
@@ -604,7 +618,7 @@ export class MeetingPrep extends BaseModule {
       }
     });
 
-    this.addEventListener(activitiesContainer, 'input', (e) => {
+    listen(activitiesContainer, 'input', (e) => {
       const row = e.target.closest('.activity-row');
       if (!row) {
         return;
@@ -617,7 +631,7 @@ export class MeetingPrep extends BaseModule {
       }
     });
 
-    this.addEventListener(activitiesContainer, 'click', (e) => {
+    listen(activitiesContainer, 'click', (e) => {
       if (e.target.classList.contains('description-btn')) {
         e.preventDefault();
         e.stopPropagation();
@@ -872,5 +886,13 @@ export class MeetingPrep extends BaseModule {
     } finally {
       setButtonLoading(btn, false);
     }
+  }
+
+  destroy() {
+    if (this.isDestroyed) {
+      return;
+    }
+    super.destroy();
+    this.renderAbortController?.abort();
   }
 }

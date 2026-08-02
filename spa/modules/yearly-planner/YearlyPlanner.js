@@ -69,6 +69,7 @@ export class YearlyPlanner extends BaseModule {
       ? requestedLang
       : CONFIG.DEFAULT_LANG;
     this.placement = new ArmedPlacement();
+    this.viewAbortController = null;
   }
 
   /**
@@ -767,7 +768,7 @@ export class YearlyPlanner extends BaseModule {
 
     return `
       <section class="page yearly-planner">
-        <header class="page__header">
+        <header class="page__header yp-plan-detail-header">
           <button class="button button--text yp-back-btn" id="yp-back-to-list">
             <i class="fas fa-arrow-left"></i> ${translate('back')}
           </button>
@@ -1419,32 +1420,43 @@ export class YearlyPlanner extends BaseModule {
   // =========================================================================
 
   attachEventListeners() {
+    if (this.isDestroyed) {
+      return;
+    }
+
+    // A plan mutation replaces the complete view and calls this method again.
+    // Abort the previous render's handlers immediately instead of retaining
+    // every detached button until the module is eventually destroyed.
+    this.viewAbortController?.abort();
+    this.viewAbortController = new AbortController();
+    const viewSignal = this.viewAbortController.signal;
+
     // Plan list view
-    document.getElementById('yp-create-btn')?.addEventListener('click', () => this.showCreatePlanModal(), { signal: this.signal });
-    document.getElementById('yp-create-empty-btn')?.addEventListener('click', () => this.showCreatePlanModal(), { signal: this.signal });
+    document.getElementById('yp-create-btn')?.addEventListener('click', () => this.showCreatePlanModal(), { signal: viewSignal });
+    document.getElementById('yp-create-empty-btn')?.addEventListener('click', () => this.showCreatePlanModal(), { signal: viewSignal });
 
     document.getElementById('yp-retry-btn')?.addEventListener('click', async () => {
       await this.loadPlans({ forceRefresh: true });
       this.render();
       this.attachEventListeners();
-    }, { signal: this.signal });
+    }, { signal: viewSignal });
 
     document.getElementById('yp-library-btn')?.addEventListener('click', async () => {
       this.view = VIEW.LIBRARY;
       await this.loadLibrary();
       this.render();
       this.attachEventListeners();
-    }, { signal: this.signal });
+    }, { signal: viewSignal });
 
     document.querySelectorAll('.yp-open-plan-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.loadPlanDetail(parseInt(btn.dataset.id)), { signal: this.signal });
+      btn.addEventListener('click', () => this.loadPlanDetail(parseInt(btn.dataset.id)), { signal: viewSignal });
     });
 
     document.querySelectorAll('.yp-delete-plan-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         this.handleDeletePlan(parseInt(btn.dataset.id));
-      }, { signal: this.signal });
+      }, { signal: viewSignal });
     });
 
     // Plan detail view
@@ -1454,7 +1466,7 @@ export class YearlyPlanner extends BaseModule {
       await this.loadPlans();
       this.render();
       this.attachEventListeners();
-    }, { signal: this.signal });
+    }, { signal: viewSignal });
 
     // Tabs
     document.querySelectorAll('.yp-tab').forEach(tab => {
@@ -1470,11 +1482,11 @@ export class YearlyPlanner extends BaseModule {
           target.classList.add('yp-tab-content--active');
           target.style.display = '';
         }
-      }, { signal: this.signal });
+      }, { signal: viewSignal });
     });
 
-    document.getElementById('yp-print-plan')?.addEventListener('click', () => window.print(), { signal: this.signal });
-    document.getElementById('yp-export-plan')?.addEventListener('click', () => this.exportPlanCsv(), { signal: this.signal });
+    document.getElementById('yp-print-plan')?.addEventListener('click', () => window.print(), { signal: viewSignal });
+    document.getElementById('yp-export-plan')?.addEventListener('click', () => this.exportPlanCsv(), { signal: viewSignal });
     document.getElementById('yp-calendar-rules')?.addEventListener('click', () => {
       this.calendarEditor?.destroy();
       this.calendarEditor = new PlanCalendarEditor(this.app, {
@@ -1482,10 +1494,10 @@ export class YearlyPlanner extends BaseModule {
         onSaved: () => this.loadPlanDetail(this.currentPlanId, { forceRefresh: true })
       });
       this.calendarEditor.open();
-    }, { signal: this.signal });
+    }, { signal: viewSignal });
 
     // Period actions
-    document.getElementById('yp-add-period-btn')?.addEventListener('click', () => this.showCreatePeriodModal(), { signal: this.signal });
+    document.getElementById('yp-add-period-btn')?.addEventListener('click', () => this.showCreatePeriodModal(), { signal: viewSignal });
     document.querySelectorAll('.yp-edit-period-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const period = this.currentPlan?.periods?.find(item => item.id === parseInt(btn.dataset.id, 10));
@@ -1498,16 +1510,16 @@ export class YearlyPlanner extends BaseModule {
           onSaved: () => this.loadPlanDetail(this.currentPlanId, { forceRefresh: true })
         });
         this.periodEditor.open();
-      }, { signal: this.signal });
+      }, { signal: viewSignal });
     });
     document.querySelectorAll('.yp-delete-period-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.handleDeletePeriod(parseInt(btn.dataset.id)), { signal: this.signal });
+      btn.addEventListener('click', () => this.handleDeletePeriod(parseInt(btn.dataset.id)), { signal: viewSignal });
     });
 
     // Objective actions
-    document.getElementById('yp-add-objective-btn')?.addEventListener('click', () => this.showCreateObjectiveModal(), { signal: this.signal });
+    document.getElementById('yp-add-objective-btn')?.addEventListener('click', () => this.showCreateObjectiveModal(), { signal: viewSignal });
     document.querySelectorAll('.yp-delete-obj-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.handleDeleteObjective(parseInt(btn.dataset.id)), { signal: this.signal });
+      btn.addEventListener('click', () => this.handleDeleteObjective(parseInt(btn.dataset.id)), { signal: viewSignal });
     });
     document.querySelectorAll('.yp-manage-achievements-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1521,7 +1533,7 @@ export class YearlyPlanner extends BaseModule {
           onSaved: () => this.loadPlanDetail(this.currentPlanId, { forceRefresh: true })
         });
         this.achievementEditor.open();
-      }, { signal: this.signal });
+      }, { signal: viewSignal });
     });
     document.getElementById('yp-add-distribution-rule')?.addEventListener('click', () => {
       this.distributionEditor?.destroy();
@@ -1530,7 +1542,7 @@ export class YearlyPlanner extends BaseModule {
         onSaved: () => this.loadPlanDetail(this.currentPlanId, { forceRefresh: true })
       });
       this.distributionEditor.open();
-    }, { signal: this.signal });
+    }, { signal: viewSignal });
     document.querySelectorAll('.yp-delete-distribution-rule').forEach(btn => {
       btn.addEventListener('click', async () => {
         if (!(await confirmDestructive({
@@ -1546,7 +1558,7 @@ export class YearlyPlanner extends BaseModule {
           debugError('Error deleting distribution rule:', err);
           this.app.showMessage(translate('yearly_planner_error_deleting'), 'error');
         }
-      }, { signal: this.signal });
+      }, { signal: viewSignal });
     });
 
     // Deep-link into the meeting preparation page for a date
@@ -1554,29 +1566,29 @@ export class YearlyPlanner extends BaseModule {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         this.app.router.navigate(`/preparation-reunions/${btn.dataset.date}`);
-      }, { signal: this.signal });
+      }, { signal: viewSignal });
     });
     // One delegated listener for the whole year rather than one per chip: a
     // plan holds ~40 dates and is re-rendered on every mutation.
     document.getElementById('yp-add-date-btn')?.addEventListener('click', () => {
       this.showAddDateModal();
-    }, { signal: this.signal });
+    }, { signal: viewSignal });
 
     document.getElementById('yp-place-series-btn')?.addEventListener('click', () => {
       this.startPlacement();
-    }, { signal: this.signal });
+    }, { signal: viewSignal });
 
     document.getElementById('yp-arm-cancel')?.addEventListener('click', () => {
       this.cancelPlacement();
-    }, { signal: this.signal });
+    }, { signal: viewSignal });
 
     document.getElementById('yp-arm-confirm')?.addEventListener('click', () => {
       this.confirmPlacement();
-    }, { signal: this.signal });
+    }, { signal: viewSignal });
 
     document.getElementById('yp-arm-series')?.addEventListener('change', (event) => {
       this.placement.setSeries(event.target.checked);
-    }, { signal: this.signal });
+    }, { signal: viewSignal });
 
     document.querySelector('.yp-year')?.addEventListener('click', (event) => {
       const button = event.target.closest('[data-date]');
@@ -1593,19 +1605,19 @@ export class YearlyPlanner extends BaseModule {
         return;
       }
       this.handleChipClick(button.dataset.date);
-    }, { signal: this.signal });
+    }, { signal: viewSignal });
 
     // Library view
     document.getElementById('yp-back-from-library')?.addEventListener('click', () => {
       this.view = VIEW.LIST;
       this.render();
       this.attachEventListeners();
-    }, { signal: this.signal });
+    }, { signal: viewSignal });
 
-    document.getElementById('yp-add-library-btn')?.addEventListener('click', () => this.showAddLibraryActivityModal(), { signal: this.signal });
+    document.getElementById('yp-add-library-btn')?.addEventListener('click', () => this.showAddLibraryActivityModal(), { signal: viewSignal });
 
     document.querySelectorAll('.yp-delete-lib-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.handleDeleteLibraryActivity(parseInt(btn.dataset.id)), { signal: this.signal });
+      btn.addEventListener('click', () => this.handleDeleteLibraryActivity(parseInt(btn.dataset.id)), { signal: viewSignal });
     });
 
     // Library search
@@ -1617,7 +1629,26 @@ export class YearlyPlanner extends BaseModule {
           const name = item.querySelector('strong')?.textContent?.toLowerCase() || '';
           item.style.display = name.includes(term) ? '' : 'none';
         });
-      }, { signal: this.signal });
+      }, { signal: viewSignal });
     }
+  }
+
+  destroy() {
+    if (this.isDestroyed) {
+      return;
+    }
+    super.destroy();
+    this.viewAbortController?.abort();
+    [
+      this.campSchedule,
+      this.calendarEditor,
+      this.periodEditor,
+      this.achievementEditor,
+      this.distributionEditor
+    ].forEach(child => {
+      if (child && !child.isDestroyed) {
+        child.destroy();
+      }
+    });
   }
 }

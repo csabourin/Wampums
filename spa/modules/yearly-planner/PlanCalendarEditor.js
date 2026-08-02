@@ -30,6 +30,11 @@ export class PlanCalendarEditor extends BaseModule {
       `,
       onClose: () => this.destroy()
     });
+    this.addEventListener(
+      this.modal.overlay.querySelector('#yp-calendar-rules-save'),
+      'click',
+      () => this.save()
+    );
     this.render();
   }
 
@@ -80,7 +85,6 @@ export class PlanCalendarEditor extends BaseModule {
       </div>
     `);
     this.wireBody();
-    this.modal.overlay.querySelector('#yp-calendar-rules-save')?.addEventListener('click', () => this.save());
   }
 
   capture() {

@@ -784,7 +784,7 @@
 
 /* Keep every plan action reachable on narrow screens, then place the actions
    beside the title when there is enough room. */
-.yearly-planner > .page__header {
+.yp-plan-detail-header {
   align-items: flex-start;
 }
 
@@ -794,12 +794,12 @@
 }
 
 @media (min-width: 900px) {
-  .yearly-planner > .page__header {
+  .yp-plan-detail-header {
     display: grid;
     grid-template-columns: auto minmax(12rem, 1fr) auto;
   }
 
-  .yearly-planner > .page__header h1 {
+  .yp-plan-detail-header h1 {
     text-align: center;
   }
 
