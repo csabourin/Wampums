@@ -172,6 +172,7 @@ export class Dashboard extends BaseModule {
   async fetchOrganizationInfo() {
     try {
       const settings = await this.app.waitForOrganizationSettings();
+      this.organizationSettings = settings || {};
       const org = settings?.organization_info;
 
       if (org?.name) {
@@ -319,6 +320,7 @@ export class Dashboard extends BaseModule {
     const isOffline = !navigator.onLine;
     const isVisible = (tile) =>
       this._passesGate(tile.gate) &&
+      this._isFeatureEnabled(tile.featureKey) &&
       (!isOffline || OFFLINE_AVAILABLE_ROUTES.has(tile.href));
 
     const financeWorkspaceMode = this.mode === "finance-focused";
@@ -480,6 +482,19 @@ export class Dashboard extends BaseModule {
     }
   }
 
+  /**
+   * Apply the organization-wide visibility policy. Missing settings and tiles
+   * without a feature key remain visible for backward compatibility.
+   *
+   * @param {string|undefined} featureKey - Stable dashboard feature key.
+   * @returns {boolean} True when the feature may appear on the dashboard.
+   */
+  _isFeatureEnabled(featureKey) {
+    if (!featureKey) return true;
+    const hiddenKeys = this.organizationSettings?.dashboard_configuration?.hidden_tile_keys;
+    return !Array.isArray(hiddenKeys) || !hiddenKeys.includes(featureKey);
+  }
+
   _getTileContext(tile) {
     const ctx = getTileContext(tile.href);
     if (tile.href !== "/medication-dispensing") return ctx;
@@ -545,9 +560,12 @@ export class Dashboard extends BaseModule {
     today.setHours(0, 0, 0, 0);
     const dayOut = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    const canSeeMedication = hasAnyPermission("medication.manage", "medication.view");
-    const canSeeSlips = hasPermission("participants.view");
-    const canSeeActivities = hasAnyPermission("activities.view", "activities.manage");
+    const canSeeMedication = this._isFeatureEnabled("medication_dispensing")
+      && hasAnyPermission("medication.manage", "medication.view");
+    const canSeeSlips = this._isFeatureEnabled("permission_slips")
+      && hasPermission("participants.view");
+    const canSeeActivities = this._isFeatureEnabled("activities")
+      && hasAnyPermission("activities.view", "activities.manage");
 
     const tasks = [
       ["nextMeeting", getNextMeetingInfo()],

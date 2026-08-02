@@ -14,6 +14,11 @@ import { offlineManager } from "./modules/OfflineManager.js";
 import { setContent, clearElement, createElement } from "./utils/DOMUtils.js";
 import { applyPalette as applyDashboardPalette } from "./utils/DashboardPreferences.js";
 import { checkForStaleClient, installChunkErrorRecovery } from "./modules/app-recovery/StaleClientRecovery.js";
+import {
+        getDirectVocabularyTermKey,
+        getUnitVocabulary,
+        getVocabularyTemplateKey,
+} from "./utils/UnitVocabularyUtils.js";
 
 const debugMode = isDebugMode();
 
@@ -707,10 +712,24 @@ export const app = {
                 const activeLang = this.lang && this.translations[this.lang] ? this.lang : CONFIG.DEFAULT_LANG;
                 const translationSet = this.translations[activeLang] || {};
                 const defaultSet = this.translations[CONFIG.DEFAULT_LANG] || {};
-                if (!translationSet[key] && !defaultSet[key]) {
+                const vocabulary = getUnitVocabulary(this.organizationSettings, activeLang);
+                const directTermKey = getDirectVocabularyTermKey(key);
+                if (directTermKey && vocabulary[directTermKey]) {
+                        return vocabulary[directTermKey];
+                }
+
+                const vocabularyTemplateKey = Object.keys(vocabulary).length > 0
+                        ? getVocabularyTemplateKey(key)
+                        : null;
+                const resolvedKey = vocabularyTemplateKey || key;
+                if (!translationSet[resolvedKey] && !defaultSet[resolvedKey]) {
                         debugLog(`Missing translation for key: ${key} in language: ${activeLang}`);
                 }
-                return translationSet[key] || defaultSet[key] || key;
+                const translated = translationSet[resolvedKey] || defaultSet[resolvedKey] || key;
+                return Object.entries(vocabulary).reduce(
+                        (text, [termKey, value]) => text.replaceAll(`{${termKey}}`, value),
+                        translated,
+                );
         },
 
         async syncOfflineData() {

@@ -54,24 +54,13 @@ export class BadgeForm {
         this.territoires = result.data.territoires || [];
       } else {
         this.templates = [];
-        this.territoires = this.getDefaultTerritoires();
+        this.territoires = [];
       }
     } catch (error) {
       debugError("Error fetching badge system settings:", error);
       this.templates = [];
-      this.territoires = this.getDefaultTerritoires();
+      this.territoires = [];
     }
-  }
-
-  getDefaultTerritoires() {
-    return [
-      { name: "Débrouillard comme Kaa", image: "kaa.png" },
-      { name: "Vrai comme Baloo", image: "baloo.png" },
-      { name: "Respectueux comme Rikki Tikki Tavi", image: "rikki.png" },
-      { name: "Dynamique comme Bagheera", image: "bagheera.png" },
-      { name: "Heureux comme Ferao", image: "ferao.png" },
-      { name: "Solidaire comme Frère Gris", image: "frereGris.png" },
-    ];
   }
 
   getTemplatesForSection() {

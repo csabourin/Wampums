@@ -177,8 +177,10 @@ module.exports = (pool) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
-      `INSERT INTO groups (name, organization_id)
-       VALUES ($1, $2)
+      `INSERT INTO groups (name, organization_id, section)
+       SELECT $1, id, program_section
+       FROM organizations
+       WHERE id = $2
        RETURNING *`,
       [normalizedName, organizationId]
     );

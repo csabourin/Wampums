@@ -227,19 +227,7 @@ module.exports = (pool, logger) => {
       // Honor requirement comes from the organization's meeting section config
       const meetingSections = await getMeetingSectionConfig(pool, organizationId, logger);
       const defaults = await getMeetingDefaults(pool, organizationId);
-      let sectionKey = meetingSections.defaultSection;
-      const orgSectionResult = await pool.query(
-        `SELECT setting_value FROM organization_settings
-         WHERE organization_id = $1 AND setting_key = 'organization_info'`,
-        [organizationId]
-      );
-      if (orgSectionResult.rows[0]?.setting_value) {
-        const rawInfo = orgSectionResult.rows[0].setting_value;
-        const orgInfo = typeof rawInfo === 'string' ? JSON.parse(rawInfo) : rawInfo;
-        if (orgInfo?.meeting_section && meetingSections.sections?.[orgInfo.meeting_section]) {
-          sectionKey = orgInfo.meeting_section;
-        }
-      }
+      const sectionKey = meetingSections.defaultSection;
       const honorConfig = meetingSections.sections?.[sectionKey]?.honorField || {};
       const honorValues = Array.isArray(youth_of_honor)
         ? youth_of_honor

@@ -34,6 +34,8 @@ jest.mock('../../spa/utils/MeetingDateUtils.js', () => ({
 }));
 
 const mockUpdateOrganizationInfo = jest.fn();
+const mockUpdateUnitVocabulary = jest.fn();
+const mockUpdateDashboardConfiguration = jest.fn();
 jest.mock('../../spa/api/api-endpoints.js', () => ({
   fetchEditableOrganizationSettings: jest.fn(() => Promise.resolve({
     data: {
@@ -46,7 +48,9 @@ jest.mock('../../spa/api/api-endpoints.js', () => ({
     }
   })),
   getLeaders: jest.fn(() => Promise.resolve({ data: { users: [] } })),
-  updateOrganizationInfo: (...args) => mockUpdateOrganizationInfo(...args)
+  updateOrganizationInfo: (...args) => mockUpdateOrganizationInfo(...args),
+  updateUnitVocabulary: (...args) => mockUpdateUnitVocabulary(...args),
+  updateDashboardConfiguration: (...args) => mockUpdateDashboardConfiguration(...args)
 }));
 
 jest.mock('../../spa/api/api-core.js', () => ({
@@ -54,6 +58,7 @@ jest.mock('../../spa/api/api-core.js', () => ({
 }));
 
 import { UnitSettings } from '../../spa/modules/unit-settings/unit-settings.js';
+import { canManageForms } from '../../spa/utils/PermissionUtils.js';
 
 beforeEach(() => {
   document.body.innerHTML = '<div id="app"></div>';
@@ -61,6 +66,55 @@ beforeEach(() => {
   mockUpdateOrganizationInfo.mockResolvedValue({
     data: { organization_info: { name: '12e Unité' } }
   });
+  mockUpdateUnitVocabulary.mockResolvedValue({ data: {} });
+  mockUpdateDashboardConfiguration.mockResolvedValue({ data: {} });
+  canManageForms.mockReturnValue(false);
+});
+
+test('links authorized unit administrators to the form builder', async () => {
+  canManageForms.mockReturnValue(true);
+  const module = new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} });
+  await module.init();
+
+  expect(document.querySelector('a[href="/form-builder"]')).not.toBeNull();
+});
+
+test('renders vocabulary and dashboard tabs with organization-level controls', async () => {
+  const app = { showMessage: jest.fn(), organizationSettings: {}, lang: 'fr' };
+  const module = new UnitSettings(app);
+  await module.init();
+
+  expect(document.querySelectorAll('[data-settings-tab]')).toHaveLength(3);
+  const generalTab = document.getElementById('unit-settings-tab-general');
+  const vocabularyTab = document.getElementById('unit-settings-tab-vocabulary');
+  const tabPanel = document.getElementById('unit-settings-tab-panel');
+  expect(generalTab.getAttribute('aria-controls')).toBe('unit-settings-tab-panel');
+  expect(generalTab.getAttribute('aria-selected')).toBe('true');
+  expect(generalTab.getAttribute('tabindex')).toBe('0');
+  expect(vocabularyTab.getAttribute('tabindex')).toBe('-1');
+  expect(tabPanel.getAttribute('aria-labelledby')).toBe('unit-settings-tab-general');
+
+  generalTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  expect(document.activeElement.id).toBe('unit-settings-tab-vocabulary');
+  expect(document.getElementById('unit-settings-tab-vocabulary').getAttribute('aria-selected')).toBe('true');
+  expect(document.getElementById('unit-settings-tab-panel').getAttribute('aria-labelledby'))
+    .toBe('unit-settings-tab-vocabulary');
+
+  module.activeTab = 'vocabulary';
+  module.render();
+  module.attachEventListeners();
+  expect(document.getElementById('unit-vocabulary-profile')).not.toBeNull();
+  expect(document.querySelectorAll('.unit-vocabulary-input')).toHaveLength(24);
+
+  module.activeTab = 'dashboard';
+  module.render();
+  module.attachEventListeners();
+  const pointsToggle = document.getElementById('dashboard-feature-points');
+  pointsToggle.checked = false;
+  await module.handleSaveDashboard({ preventDefault: jest.fn() });
+  expect(mockUpdateDashboardConfiguration).toHaveBeenCalledWith(
+    expect.objectContaining({ hidden_tile_keys: expect.arrayContaining(['points']) })
+  );
 });
 
 test('reads every visible control when saving unit settings', async () => {

@@ -7,6 +7,7 @@ const { generateText, isOpenAIConfigured } = require("../services/openai");
 const { parseReceipt } = require("../services/veryfi");
 const { getBudgetStatus } = require("../services/ai-budget");
 const { FILE_LIMITS } = require("../config/constants");
+const { AI_MODES, validateAIPayload } = require("../utils/aiPayloadValidation");
 
 // Multer for receipt uploads (memory storage)
 const upload = multer({
@@ -30,21 +31,25 @@ router.post(
     "/text",
     authenticate,
     asyncHandler(async (req, res) => {
-        const { mode, payload } = req.body;
+        const { mode, payload } = req.body || {};
+
+        if (!AI_MODES.has(mode)) {
+            return error(res, "Invalid AI mode", 400);
+        }
+
+        const validation = validateAIPayload(mode, payload);
+        if (validation.errors.length > 0) {
+            return error(res, "Invalid AI payload", 400, validation.errors);
+        }
 
         if (!isOpenAIConfigured()) {
             return error(res, "AI service is unavailable", 503, { code: "AI_NOT_CONFIGURED" });
         }
 
-        // Basic validation
-        if (!["meeting_plan", "rewrite", "translate", "risk_suggest"].includes(mode)) {
-            return error(res, "Invalid AI mode", 400);
-        }
-
         try {
             const userContext = await buildUserContext(req);
 
-            const result = await generateText(mode, payload, userContext);
+            const result = await generateText(mode, validation.value, userContext);
 
             // Append budget status to response for UI awareness
             const budgetStatus = await getBudgetStatus();

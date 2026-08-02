@@ -1,0 +1,144 @@
+{
+  "version": 1,
+  "profiles": {
+    "cubs": {
+      "programSection": "cubs",
+      "locales": {
+        "en": {
+          "youth_singular": "Cub",
+          "youth_plural": "Cubs",
+          "subgroup_singular": "Den",
+          "subgroup_plural": "Dens",
+          "primary_youth_leader": "Sixer",
+          "assistant_youth_leader": "Second",
+          "honor_singular": "Cub of honour",
+          "honor_plural": "Cubs of honour",
+          "collective_name": "Pack",
+          "program_year": "Scout year",
+          "individual_achievement": "Individual achievement",
+          "group_achievement": "Group achievement"
+        },
+        "fr": {
+          "youth_singular": "Louveteau",
+          "youth_plural": "Louveteaux",
+          "subgroup_singular": "Tanière",
+          "subgroup_plural": "Tanières",
+          "primary_youth_leader": "Pisteur",
+          "assistant_youth_leader": "Second pisteur",
+          "honor_singular": "Loup d’honneur",
+          "honor_plural": "Loups d’honneur",
+          "collective_name": "Meute",
+          "program_year": "Année scoute",
+          "individual_achievement": "Proie",
+          "group_achievement": "Battue"
+        }
+      }
+    },
+    "beavers": {
+      "programSection": "beavers",
+      "locales": {
+        "en": {
+          "youth_singular": "Beaver",
+          "youth_plural": "Beavers",
+          "subgroup_singular": "Lodge",
+          "subgroup_plural": "Lodges",
+          "primary_youth_leader": "Lodge leader",
+          "assistant_youth_leader": "Assistant lodge leader",
+          "honor_singular": "Recognition",
+          "honor_plural": "Recognitions",
+          "collective_name": "Colony",
+          "program_year": "Scout year",
+          "individual_achievement": "Individual achievement",
+          "group_achievement": "Group achievement"
+        },
+        "fr": {
+          "youth_singular": "Castor",
+          "youth_plural": "Castors",
+          "subgroup_singular": "Hutte",
+          "subgroup_plural": "Huttes",
+          "primary_youth_leader": "Responsable de hutte",
+          "assistant_youth_leader": "Responsable adjoint de hutte",
+          "honor_singular": "Reconnaissance",
+          "honor_plural": "Reconnaissances",
+          "collective_name": "Colonie",
+          "program_year": "Année scoute",
+          "individual_achievement": "Réalisation individuelle",
+          "group_achievement": "Réalisation de groupe"
+        }
+      }
+    },
+    "generic": {
+      "programSection": "general",
+      "locales": {
+        "en": {
+          "youth_singular": "Participant",
+          "youth_plural": "Participants",
+          "subgroup_singular": "Group",
+          "subgroup_plural": "Groups",
+          "primary_youth_leader": "Group leader",
+          "assistant_youth_leader": "Assistant group leader",
+          "honor_singular": "Recognition",
+          "honor_plural": "Recognitions",
+          "collective_name": "Unit",
+          "program_year": "Program year",
+          "individual_achievement": "Individual achievement",
+          "group_achievement": "Group achievement"
+        },
+        "fr": {
+          "youth_singular": "Participant",
+          "youth_plural": "Participants",
+          "subgroup_singular": "Groupe",
+          "subgroup_plural": "Groupes",
+          "primary_youth_leader": "Responsable de groupe",
+          "assistant_youth_leader": "Responsable adjoint de groupe",
+          "honor_singular": "Reconnaissance",
+          "honor_plural": "Reconnaissances",
+          "collective_name": "Unité",
+          "program_year": "Année de programme",
+          "individual_achievement": "Réalisation individuelle",
+          "group_achievement": "Réalisation de groupe"
+        }
+      }
+    }
+  },
+  "dashboardFeatureKeys": [
+    "attendance",
+    "points",
+    "honors",
+    "meetings",
+    "permission_slips",
+    "carpool",
+    "activities",
+    "medication_planning",
+    "yearly_planner",
+    "parent_contacts",
+    "participants",
+    "groups",
+    "family_links",
+    "participant_documents",
+    "den_report",
+    "progression",
+    "parent_preview",
+    "communications",
+    "mailing_list",
+    "medication_dispensing",
+    "medication_reception",
+    "inventory",
+    "material_management",
+    "finance",
+    "expenses",
+    "external_revenue",
+    "fundraisers",
+    "revenue_dashboard",
+    "budgets",
+    "reports",
+    "account_info",
+    "role_management",
+    "form_permissions",
+    "district",
+    "create_organization"
+  ],
+  "requiredDashboardFeatureKeys": [
+    "account_info"
+  ]
+}

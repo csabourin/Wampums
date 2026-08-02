@@ -19,6 +19,10 @@ import CONFIG from '../config';
 import { LoadingSpinner } from '../components';
 import { debugLog, debugError } from '../utils/DebugUtils.js';
 import { translate as t } from '../i18n';
+import {
+  clearOrganizationCustomization,
+  initializeOrganizationCustomization,
+} from '../utils/OrganizationCustomizationUtils';
 
 const Stack = createStackNavigator();
 
@@ -63,6 +67,7 @@ const RootNavigator = () => {
   }, []);
 
   const checkAuthState = async () => {
+    clearOrganizationCustomization();
     try {
       debugLog('🔵 [RootNavigator] checkAuthState - starting');
       // Check if user is authenticated
@@ -70,6 +75,7 @@ const RootNavigator = () => {
       debugLog('🔵 [RootNavigator] JWT token:', token ? 'exists' : 'null');
 
       if (token && !StorageUtils.isJWTExpired(token)) {
+        await initializeOrganizationCustomization();
         // Load user data
         const permissions = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_PERMISSIONS);
 
@@ -96,6 +102,7 @@ const RootNavigator = () => {
 
   const handleLogout = async () => {
     debugLog('🔵 [RootNavigator] handleLogout called');
+    clearOrganizationCustomization();
     await StorageUtils.clearUserData();
     setIsAuthenticated(false);
     setUserPermissions([]);

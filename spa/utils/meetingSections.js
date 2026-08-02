@@ -35,7 +35,12 @@ export function mergeMeetingSectionConfig(customConfig) {
  */
 export function getActiveSectionConfig(meetingSectionConfig, organizationSettings) {
   const mergedConfig = mergeMeetingSectionConfig(meetingSectionConfig || organizationSettings?.meeting_sections);
-  const requestedSection = organizationSettings?.organization_info?.meeting_section;
+  const legacySection = organizationSettings?.organization_info?.meeting_section;
+  const programSection = organizationSettings?.program_section;
+  const hasSavedVocabulary = Boolean(organizationSettings?.unit_vocabulary?.profile);
+  const requestedSection = !hasSavedVocabulary && legacySection && mergedConfig.sections[legacySection]
+    ? legacySection
+    : programSection || legacySection;
 
   const sectionKey = requestedSection && mergedConfig.sections[requestedSection]
     ? requestedSection

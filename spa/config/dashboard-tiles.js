@@ -35,6 +35,7 @@ export const DASHBOARD_TILES = [
   // Attendance leads: you mark who is here before awarding anything.
   // ---------------------------------------------------------------
   {
+    featureKey: "attendance",
     href: "/attendance",
     icon: "fa-clipboard-check",
     label: "tile_attendance",
@@ -42,8 +43,10 @@ export const DASHBOARD_TILES = [
     moment: "now",
     domain: "attendance",
     priority: 0,
+    gate: { any: ["attendance.view", "attendance.manage"] },
   },
   {
+    featureKey: "points",
     href: "/managePoints",
     icon: "fa-coins",
     label: "tile_manage_points",
@@ -51,8 +54,10 @@ export const DASHBOARD_TILES = [
     moment: "now",
     domain: "attendance",
     priority: 1,
+    gate: { any: ["points.view", "points.manage"] },
   },
   {
+    featureKey: "honors",
     href: "/manageHonors",
     icon: "fa-award",
     label: "tile_manage_honors",
@@ -60,8 +65,10 @@ export const DASHBOARD_TILES = [
     moment: "now",
     domain: "attendance",
     priority: 2,
+    gate: { any: ["honors.view", "honors.create", "honors.manage"] },
   },
   {
+    featureKey: "meetings",
     // Merged destination: "Prochaine réunion" + "Préparer la réunion".
     href: "/reunions",
     icon: "fa-calendar-day",
@@ -70,12 +77,14 @@ export const DASHBOARD_TILES = [
     moment: "now",
     domain: "attendance",
     priority: 3,
+    gate: { any: ["meetings.view", "meetings.manage"] },
   },
 
   // ---------------------------------------------------------------
   // CETTE SEMAINE — what has to be ready before the next outing.
   // ---------------------------------------------------------------
   {
+    featureKey: "permission_slips",
     href: "/permission-slips",
     icon: "fa-file-signature",
     label: "tile_permission_slips",
@@ -84,6 +93,7 @@ export const DASHBOARD_TILES = [
     domain: "safety",
   },
   {
+    featureKey: "carpool",
     href: "/carpool",
     icon: "fa-car",
     label: "tile_carpool",
@@ -93,6 +103,7 @@ export const DASHBOARD_TILES = [
     id: "carpool-quick-access",
   },
   {
+    featureKey: "activities",
     href: "/activities",
     icon: "fa-calendar-days",
     label: "tile_activities",
@@ -102,6 +113,7 @@ export const DASHBOARD_TILES = [
     gate: { any: ["activities.view", "activities.create"] },
   },
   {
+    featureKey: "medication_planning",
     href: "/medication-planning",
     icon: "fa-pills",
     label: "tile_medication_planning",
@@ -110,6 +122,7 @@ export const DASHBOARD_TILES = [
     domain: "safety",
   },
   {
+    featureKey: "yearly_planner",
     href: "/yearly-planner",
     icon: "fa-calendar-alt",
     label: "tile_yearly_planner",
@@ -124,6 +137,7 @@ export const DASHBOARD_TILES = [
   // the former standalone "Communications" group folds in here.
   // ---------------------------------------------------------------
   {
+    featureKey: "parent_contacts",
     href: "/parent-contact-list",
     icon: "fa-address-book",
     label: "tile_parent_contact_list",
@@ -132,6 +146,7 @@ export const DASHBOARD_TILES = [
     domain: "people",
   },
   {
+    featureKey: "participants",
     href: "/manage-participants",
     icon: "fa-id-card",
     label: "tile_manage_participants",
@@ -141,6 +156,7 @@ export const DASHBOARD_TILES = [
     gate: { permission: "participants.view" },
   },
   {
+    featureKey: "groups",
     href: "/manage-groups",
     icon: "fa-people-group",
     label: "tile_manage_groups",
@@ -150,6 +166,7 @@ export const DASHBOARD_TILES = [
     gate: { permission: "groups.view" },
   },
   {
+    featureKey: "family_links",
     href: "/manage-users-participants",
     icon: "fa-user-gear",
     label: "tile_link_youth_parents",
@@ -159,6 +176,7 @@ export const DASHBOARD_TILES = [
     gate: { permission: "users.view" },
   },
   {
+    featureKey: "participant_documents",
     href: "/view-participant-documents",
     icon: "fa-file-lines",
     label: "tile_participant_documents",
@@ -167,6 +185,7 @@ export const DASHBOARD_TILES = [
     domain: "people",
   },
   {
+    featureKey: "den_report",
     href: "/group-participant-report",
     icon: "fa-table-list",
     label: "tile_den_list_report",
@@ -176,6 +195,7 @@ export const DASHBOARD_TILES = [
     gate: { any: ["reports.view", "reports.export"] },
   },
   {
+    featureKey: "progression",
     // Merged destination: "Suivre les badges" + "Étapes du programme".
     // Was its own "Progression" group until that merge left it with a single
     // tile — an accordion around one item is worse than no accordion.
@@ -187,6 +207,7 @@ export const DASHBOARD_TILES = [
     domain: "people",
   },
   {
+    featureKey: "parent_preview",
     href: "/parent-dashboard",
     icon: "fa-users",
     label: "tile_parent_preview",
@@ -195,6 +216,7 @@ export const DASHBOARD_TILES = [
     domain: "people",
   },
   {
+    featureKey: "communications",
     href: "/communications",
     icon: "fa-comments",
     label: "tile_communications",
@@ -204,6 +226,7 @@ export const DASHBOARD_TILES = [
     gate: { permission: "communications.send" },
   },
   {
+    featureKey: "mailing_list",
     href: "/mailing-list",
     icon: "fa-envelope-open-text",
     label: "tile_mailing_list",
@@ -217,6 +240,7 @@ export const DASHBOARD_TILES = [
   // SANTÉ ET SÉCURITÉ
   // ---------------------------------------------------------------
   {
+    featureKey: "medication_dispensing",
     href: "/medication-dispensing",
     icon: "fa-pills",
     label: "tile_medication_dispensing",
@@ -225,6 +249,7 @@ export const DASHBOARD_TILES = [
     domain: "safety",
   },
   {
+    featureKey: "medication_reception",
     href: "/medication-reception",
     icon: "fa-hospital",
     label: "tile_medication_reception",
@@ -239,6 +264,7 @@ export const DASHBOARD_TILES = [
   // du matériel" impossible to tell apart.
   // ---------------------------------------------------------------
   {
+    featureKey: "inventory",
     href: "/inventory",
     icon: "fa-warehouse",
     label: "tile_inventory",
@@ -247,6 +273,7 @@ export const DASHBOARD_TILES = [
     domain: "logistics",
   },
   {
+    featureKey: "material_management",
     href: "/material-management",
     icon: "fa-calendar-check",
     label: "tile_material_management",
@@ -260,6 +287,7 @@ export const DASHBOARD_TILES = [
   // page renders those tabs itself (spa/finance.js:293).
   // ---------------------------------------------------------------
   {
+    featureKey: "finance",
     href: "/finance",
     icon: "fa-coins",
     label: "tile_finance_payments",
@@ -269,6 +297,7 @@ export const DASHBOARD_TILES = [
     gate: { permission: "finance.view" },
   },
   {
+    featureKey: "expenses",
     href: "/expenses",
     icon: "fa-wallet",
     label: "tile_expenses",
@@ -278,6 +307,7 @@ export const DASHBOARD_TILES = [
     gate: { any: ["finance.manage", "finance.view"] },
   },
   {
+    featureKey: "external_revenue",
     href: "/external-revenue",
     icon: "fa-hand-holding-dollar",
     label: "tile_external_revenue",
@@ -287,6 +317,7 @@ export const DASHBOARD_TILES = [
     gate: { any: ["finance.manage", "finance.view"] },
   },
   {
+    featureKey: "fundraisers",
     href: "/fundraisers",
     icon: "fa-hand-holding-heart",
     label: "tile_fundraisers",
@@ -296,6 +327,7 @@ export const DASHBOARD_TILES = [
     gate: { permission: "fundraisers.view" },
   },
   {
+    featureKey: "revenue_dashboard",
     href: "/revenue-dashboard",
     icon: "fa-chart-column",
     label: "tile_revenue_dashboard",
@@ -305,6 +337,7 @@ export const DASHBOARD_TILES = [
     gate: { any: ["finance.view", "fundraisers.view"] },
   },
   {
+    featureKey: "budgets",
     href: "/budgets",
     icon: "fa-sack-dollar",
     label: "tile_budgets",
@@ -318,6 +351,7 @@ export const DASHBOARD_TILES = [
   // ADMINISTRATION — unit settings first, district/system last.
   // ---------------------------------------------------------------
   {
+    featureKey: "reports",
     href: "/reports",
     icon: "fa-chart-line",
     label: "tile_reports",
@@ -338,6 +372,7 @@ export const DASHBOARD_TILES = [
     gate: { check: "adminPanel" },
   },
   {
+    featureKey: "account_info",
     href: "/account-info",
     icon: "fa-circle-user",
     label: "tile_account_info",
@@ -347,6 +382,7 @@ export const DASHBOARD_TILES = [
     priority: 12,
   },
   {
+    featureKey: "role_management",
     href: "/role-management",
     icon: "fa-user-tag",
     label: "tile_role_management",
@@ -357,6 +393,7 @@ export const DASHBOARD_TILES = [
     gate: { permission: "roles.view" },
   },
   {
+    featureKey: "form_permissions",
     href: "/form-permissions",
     icon: "fa-clipboard-check",
     label: "tile_form_permissions",
@@ -367,6 +404,7 @@ export const DASHBOARD_TILES = [
     gate: { check: "manageForms" },
   },
   {
+    featureKey: "district",
     // Merged destination: "Espace district" + "Unités du district".
     href: "/district",
     icon: "fa-sitemap",
@@ -379,6 +417,7 @@ export const DASHBOARD_TILES = [
     id: "admin-link",
   },
   {
+    featureKey: "create_organization",
     href: "/create-organization",
     icon: "fa-building",
     label: "tile_create_organization",

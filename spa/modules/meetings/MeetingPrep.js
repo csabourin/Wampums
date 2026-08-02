@@ -21,7 +21,11 @@ import {
 } from '../../utils/MeetingDateUtils.js';
 import { getUpcomingBirthdays } from '../../utils/BirthdayUtils.js';
 import { getActiveSectionConfig, getHonorLabel } from '../../utils/meetingSections.js';
-import { mergeTimelineWithTemplates } from '../../utils/MeetingPlanUtils.js';
+import {
+  mergeTimelineWithTemplates,
+  normalizeMeetingDurationMinutes,
+} from '../../utils/MeetingPlanUtils.js';
+import { getUnitVocabulary } from '../../utils/UnitVocabularyUtils.js';
 import { deleteCachedData, clearYearlyPlannerCaches } from '../../indexedDB.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { ActivityManager } from '../ActivityManager.js';
@@ -1052,16 +1056,26 @@ export class MeetingPrep extends BaseModule {
       const mostRecentHonor = this.recentHonorsRaw.length > 0 ? this.recentHonorsRaw[0] : null;
       const allowedResponsables = this.animateurs.map(a => a.full_name).filter(Boolean);
 
+      const vocabulary = getUnitVocabulary(this.organizationSettings, this.lang);
       const glossary = [
-        { term: 'Proie', definition: 'présentation au groupe' },
-        { term: 'tannière', definition: 'sous-groupe autrefois appelés sizaines' },
-        { term: 'Rocher du conseil', definition: "rassemblement où l'on peut demander des badges et des étoiles et parler librement" }
-      ];
+        { term: vocabulary.individual_achievement, definition: translate('unit_vocabulary_term_individual_achievement') },
+        { term: vocabulary.group_achievement, definition: translate('unit_vocabulary_term_group_achievement') },
+        { term: vocabulary.subgroup_singular, definition: translate('unit_vocabulary_term_subgroup_singular') },
+      ].filter(({ term }) => Boolean(term));
+      const meetingDurationMinutes = normalizeMeetingDurationMinutes(
+        this.meeting?.duration_override
+          || this.meeting?.duration_minutes
+          || this.organizationSettings.meeting_length?.duration_minutes
+          || DEFAULT_MEETING_LENGTH_MINUTES,
+        DEFAULT_MEETING_LENGTH_MINUTES,
+      );
 
       const payload = {
         date: dateVal,
-        section: this.sectionConfig?.name || 'Scouts',
-        duration: '2 hours',
+        section: vocabulary.collective_name || this.sectionConfig?.name || 'Unit',
+        locale: this.lang,
+        vocabulary,
+        duration: `${meetingDurationMinutes} minutes`,
         focus,
         theme: this.meeting?.theme || null,
         activityTemplates: templates.map(t => ({
@@ -1078,10 +1092,10 @@ export class MeetingPrep extends BaseModule {
         glossary,
         meetingDefaults: {
           mandatoryAgenda: [
-            { time: '18:45', duration: '00:05', activity: 'Accueil des louveteaux' },
-            { duration: '00:10', activity: "Présence / Loup d'honneur / Prière / Mot de bienvenue / Actualités" }
+            { time: '18:45', duration: '00:05', activity: translate('activity_welcome_cubs') },
+            { duration: '00:10', activity: `${translate('attendance')} / ${vocabulary.honor_singular || translate('youth_of_honor')}` }
           ],
-          instructions: 'Include the mandatory agenda at the very start of the plan, at the meeting start time. Use Scouts du Canada terminology and respect provided activity templates.'
+          instructions: 'Include the mandatory agenda at the very start of the plan, at the meeting start time. Respect the provided unit vocabulary and activity templates.'
         },
         constraints: {
           useTemplateActivities: true,

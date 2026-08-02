@@ -51,6 +51,32 @@ function mergeMeetingSectionConfig(customConfig) {
 }
 
 /**
+ * Resolve the active section without letting the database's legacy `general`
+ * default erase an explicitly saved meeting section. Once unit vocabulary has
+ * been saved, its synchronized program section becomes authoritative.
+ *
+ * @param {object} meetingSections Merged meeting section configuration.
+ * @param {object} context Organization section settings.
+ * @returns {string} Active meeting section key.
+ */
+function resolveMeetingSectionKey(meetingSections, context = {}) {
+  const sections = meetingSections?.sections || {};
+  const legacySection = context.organizationInfo?.meeting_section;
+  const programSection = context.programSection;
+
+  if (!context.hasUnitVocabulary && legacySection && sections[legacySection]) {
+    return legacySection;
+  }
+  if (programSection && sections[programSection]) {
+    return programSection;
+  }
+  if (legacySection && sections[legacySection]) {
+    return legacySection;
+  }
+  return meetingSections.defaultSection;
+}
+
+/**
  * Get meeting section configuration for an organization, with fallback to
  * global defaults (organization_id = 0) and static defaults.
  *
@@ -62,14 +88,33 @@ function mergeMeetingSectionConfig(customConfig) {
 async function getMeetingSectionConfig(pool, organizationId, logger) {
   // Try organization-specific settings first
   const orgSetting = await pool.query(
-    `SELECT setting_value FROM organization_settings
-     WHERE organization_id = $1 AND setting_key = 'meeting_sections'`,
+    `SELECT o.program_section,
+            meeting_sections.setting_value AS meeting_sections,
+            organization_info.setting_value AS organization_info,
+            (unit_vocabulary.setting_value IS NOT NULL) AS has_unit_vocabulary
+     FROM organizations o
+     LEFT JOIN organization_settings meeting_sections
+       ON meeting_sections.organization_id = o.id AND meeting_sections.setting_key = 'meeting_sections'
+     LEFT JOIN organization_settings organization_info
+       ON organization_info.organization_id = o.id AND organization_info.setting_key = 'organization_info'
+     LEFT JOIN organization_settings unit_vocabulary
+       ON unit_vocabulary.organization_id = o.id AND unit_vocabulary.setting_key = 'unit_vocabulary'
+     WHERE o.id = $1`,
     [organizationId]
   );
 
-  const parsedOrgSetting = parseSettingValue(orgSetting.rows[0]?.setting_value, logger);
+  const organizationRow = orgSetting.rows[0] || {};
+  const organizationInfo = parseSettingValue(organizationRow.organization_info, logger) || {};
+  const sectionContext = {
+    programSection: organizationRow.program_section,
+    organizationInfo,
+    hasUnitVocabulary: organizationRow.has_unit_vocabulary === true
+  };
+  const parsedOrgSetting = parseSettingValue(organizationRow.meeting_sections, logger);
   if (parsedOrgSetting) {
-    return mergeMeetingSectionConfig(parsedOrgSetting);
+    const mergedConfig = mergeMeetingSectionConfig(parsedOrgSetting);
+    mergedConfig.defaultSection = resolveMeetingSectionKey(mergedConfig, sectionContext);
+    return mergedConfig;
   }
 
   // Fallback to shared defaults stored under organization_id = 0
@@ -80,14 +125,19 @@ async function getMeetingSectionConfig(pool, organizationId, logger) {
 
   const parsedShared = parseSettingValue(sharedSetting.rows[0]?.setting_value, logger);
   if (parsedShared) {
-    return mergeMeetingSectionConfig(parsedShared);
+    const mergedShared = mergeMeetingSectionConfig(parsedShared);
+    mergedShared.defaultSection = resolveMeetingSectionKey(mergedShared, sectionContext);
+    return mergedShared;
   }
 
   // Final fallback to static defaults
-  return mergeMeetingSectionConfig(defaultMeetingSections);
+  const mergedDefaults = mergeMeetingSectionConfig(defaultMeetingSections);
+  mergedDefaults.defaultSection = resolveMeetingSectionKey(mergedDefaults, sectionContext);
+  return mergedDefaults;
 }
 
 module.exports = {
   getMeetingSectionConfig,
-  mergeMeetingSectionConfig
+  mergeMeetingSectionConfig,
+  resolveMeetingSectionKey
 };
