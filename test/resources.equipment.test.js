@@ -397,6 +397,7 @@ describe("Equipment sharing and metadata", () => {
       .send({
         name: "Camp stove",
         quantity_total: 2,
+        photo_url: "org_1/equipment_3_123.webp",
         location_type: "leader_home",
         location_details: "Call ahead for garage code",
       });
@@ -406,11 +407,16 @@ describe("Equipment sharing and metadata", () => {
     expect(response.body.data.equipment.location_details).toBe(
       "Call ahead for garage code",
     );
+    expect(response.body.data.equipment.photo_url).toBe(
+      "https://signed.example/org_1/equipment_3_123.webp",
+    );
     const newEquipmentId = response.body.data.equipment.id;
     expect(equipmentItemOrganizations[newEquipmentId].has(2)).toBe(true);
   });
 
   test("updates equipment location fields", async () => {
+    equipmentItems[1].photo_url = "org_1/equipment_1_123.webp";
+
     const response = await request(app)
       .put("/api/v1/resources/equipment/1")
       .send({
@@ -421,6 +427,9 @@ describe("Equipment sharing and metadata", () => {
     expect(response.status).toBe(200);
     expect(response.body.data.equipment.location_type).toBe("warehouse");
     expect(response.body.data.equipment.location_details).toBe("Locker 12");
+    expect(response.body.data.equipment.photo_url).toBe(
+      "https://signed.example/org_1/equipment_1_123.webp",
+    );
   });
 
   test("returns reservation locations with audit context", async () => {
