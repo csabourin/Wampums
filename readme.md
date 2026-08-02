@@ -36,6 +36,10 @@ Configure at least:
 - `LOCAL_REGISTRATION_PASSWORD` when initializing a local development database
 - `PORT` if the API should not use its default port, `5000`
 
+Existing deployments that still define `SB_URL` remain supported. Migrate by
+copying that PostgreSQL URL to `DATABASE_URL`, deploying with both variables,
+then removing `SB_URL` after the new deployment connects successfully.
+
 The repository also supports the service-specific variables listed in `.env.example`. Do not commit populated environment files.
 
 Run the API and web development server in separate terminals:

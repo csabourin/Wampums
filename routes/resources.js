@@ -25,12 +25,14 @@ const {
   isAllowedImageType,
   convertImageToWebP,
   generateFilePath,
+  getSignedPhotoUrl,
   uploadFile,
   deleteFile,
   extractPathFromUrl,
+  getPhotoOrganizationId,
   isStorageConfigured,
   WEBP_EXTENSION,
-} = require("../utils/supabase-storage");
+} = require("../utils/railway-storage");
 
 // Configure multer for memory storage (30MB limit; client-side resize should reduce payloads)
 const upload = multer({
@@ -80,6 +82,23 @@ module.exports = (pool) => {
     "demoadmin",
     "equipment",
   ];
+
+  /**
+   * Replace an internal or legacy photo reference with a temporary Railway S3
+   * URL suitable for direct display in a browser.
+   * @param {Object} equipment
+   * @returns {Promise<Object>}
+   */
+  async function resolveEquipmentPhoto(equipment) {
+    if (!equipment?.photo_url) return equipment;
+    return {
+      ...equipment,
+      photo_url: await getSignedPhotoUrl(
+        equipment.photo_url,
+        equipment.organization_id,
+      ),
+    };
+  }
 
   /**
    * Determine whether equipment should be shared with the owner's local group.
@@ -347,7 +366,10 @@ module.exports = (pool) => {
           [organizationId],
         );
 
-        return success(res, { equipment: result.rows });
+        const equipment = await Promise.all(
+          result.rows.map(resolveEquipmentPhoto),
+        );
+        return success(res, { equipment });
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
@@ -431,6 +453,17 @@ module.exports = (pool) => {
         const normalizedAcquisitionDate = acquisition_date
           ? parseDate(acquisition_date)
           : null;
+        let storedPhotoReference = photo_url || null;
+        const photoOrganizationId = getPhotoOrganizationId(photo_url);
+        if (
+          photoOrganizationId !== null &&
+          photoOrganizationId !== organizationId
+        ) {
+          return error(res, "equipment_photo_organization_mismatch", 400);
+        }
+        if (photoOrganizationId !== null) {
+          storedPhotoReference = extractPathFromUrl(photo_url);
+        }
 
         const insertResult = await pool.query(
           `INSERT INTO equipment_items
@@ -461,7 +494,7 @@ module.exports = (pool) => {
             condition_note,
             mergedAttributes,
             item_value || null,
-            photo_url || null,
+            storedPhotoReference,
             normalizedAcquisitionDate,
             location_type || LOCATION_TYPES[0],
             location_details ?? "",
@@ -477,9 +510,10 @@ module.exports = (pool) => {
             req.body.share_with_local_group === false || sharedIdsProvided,
         });
 
+        const equipment = await resolveEquipmentPhoto(insertResult.rows[0]);
         return success(
           res,
-          { equipment: insertResult.rows[0] },
+          { equipment },
           "Equipment saved",
           201,
         );
@@ -539,9 +573,36 @@ module.exports = (pool) => {
           : [];
         const shareWithLocalGroupOverride = req.body.share_with_local_group;
 
+        // Verify organization has access to this equipment (owner or shared)
+        await verifyEquipmentAccess(equipmentId, organizationId);
+
+        const existingEquipment = await pool.query(
+          `SELECT * FROM equipment_items WHERE id = $1`,
+          [equipmentId],
+        );
+
+        if (existingEquipment.rows.length === 0) {
+          return error(res, "Equipment not found", 404);
+        }
+
+        const ownerOrganizationId = existingEquipment.rows[0].organization_id;
+
         // Handle acquisition_date normalization
         if (req.body.acquisition_date) {
           req.body.acquisition_date = parseDate(req.body.acquisition_date);
+        }
+
+        if (req.body.photo_url) {
+          const photoOrganizationId = getPhotoOrganizationId(req.body.photo_url);
+          if (
+            photoOrganizationId !== null &&
+            photoOrganizationId !== ownerOrganizationId
+          ) {
+            return error(res, "equipment_photo_organization_mismatch", 400);
+          }
+          if (photoOrganizationId !== null) {
+            req.body.photo_url = extractPathFromUrl(req.body.photo_url);
+          }
         }
 
         const fields = [
@@ -566,18 +627,6 @@ module.exports = (pool) => {
             values.push(req.body[field]);
           }
         });
-
-        // Verify organization has access to this equipment (owner or shared)
-        await verifyEquipmentAccess(equipmentId, organizationId);
-
-        const existingEquipment = await pool.query(
-          `SELECT * FROM equipment_items WHERE id = $1`,
-          [equipmentId],
-        );
-
-        if (existingEquipment.rows.length === 0) {
-          return error(res, "Equipment not found", 404);
-        }
 
         const currentAttributes =
           existingEquipment.rows[0].attributes && typeof existingEquipment.rows[0].attributes === "object"
@@ -628,9 +677,10 @@ module.exports = (pool) => {
               shareWithLocalGroupOverride === false || sharedIdsProvided,
           });
 
+          const equipment = await resolveEquipmentPhoto(existingEquipment.rows[0]);
           return success(
             res,
-            { equipment: existingEquipment.rows[0] },
+            { equipment },
             "Equipment updated",
           );
         }
@@ -660,12 +710,66 @@ module.exports = (pool) => {
             shareWithLocalGroupOverride === false || sharedIdsProvided,
         });
 
-        return success(res, { equipment: result.rows[0] }, "Equipment updated");
+        const equipment = await resolveEquipmentPhoto(result.rows[0]);
+        return success(res, { equipment }, "Equipment updated");
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
         return error(res, err.message || "Error updating equipment", err.statusCode || 500);
+      }
+    }),
+  );
+
+  /**
+   * Issue a fresh, short-lived browser URL for an accessible equipment photo.
+   * The JSON endpoint is intentionally not cached: clients call it after an
+   * image URL expires or immediately before opening a new preview.
+   */
+  router.get(
+    "/equipment/:id/photo",
+    authenticate,
+    requirePermission("inventory.view"),
+    [param("id").isInt({ min: 1 })],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const organizationId = await getOrganizationId(req, pool);
+        const equipmentId = parseInt(req.params.id, 10);
+        res.set("Cache-Control", "private, no-store, max-age=0");
+
+        await verifyEquipmentAccess(equipmentId, organizationId);
+
+        const result = await pool.query(
+          `SELECT id, organization_id, photo_url
+             FROM equipment_items
+            WHERE id = $1
+              AND is_active IS DISTINCT FROM false`,
+          [equipmentId],
+        );
+        const equipment = result.rows[0];
+        if (!equipment?.photo_url) {
+          return error(res, "equipment_photo_not_found", 404);
+        }
+
+        const photoUrl = await getSignedPhotoUrl(
+          equipment.photo_url,
+          equipment.organization_id,
+        );
+        if (!photoUrl) {
+          return error(res, "equipment_photo_not_found", 404);
+        }
+
+        return success(res, { photo_url: photoUrl });
+      } catch (err) {
+        if (handleOrganizationResolutionError(res, err)) {
+          return;
+        }
+        return error(
+          res,
+          err.message || "equipment_photo_refresh_error",
+          err.statusCode || 500,
+        );
       }
     }),
   );
@@ -754,7 +858,7 @@ module.exports = (pool) => {
         if (!isStorageConfigured()) {
           return error(
             res,
-            "Photo storage is not configured. Please set SUPABASE_URL, SUPABASE_SERVICE_KEY, and SUPABASE_STORAGE_BUCKET.",
+            "Photo storage is not configured. Connect the Railway bucket to this service and inject its S3 credentials.",
             503,
           );
         }
@@ -767,7 +871,7 @@ module.exports = (pool) => {
 
         // Get current photo URL
         const equipmentCheck = await pool.query(
-          "SELECT id, photo_url FROM equipment_items WHERE id = $1",
+          "SELECT id, organization_id, photo_url FROM equipment_items WHERE id = $1",
           [equipmentId],
         );
 
@@ -796,7 +900,7 @@ module.exports = (pool) => {
 
         // Generate file path and upload
         const filePath = generateFilePath(
-          organizationId,
+          equipmentCheck.rows[0].organization_id,
           equipmentId,
           req.file.originalname,
           WEBP_EXTENSION,
@@ -815,13 +919,14 @@ module.exports = (pool) => {
           );
         }
 
-        // Update equipment with new photo URL (any organization with access can update)
+        // Store the stable object key. Signed browser URLs are generated only
+        // when returning equipment through the API because they expire.
         const updateResult = await pool.query(
           `UPDATE equipment_items
            SET photo_url = $1, updated_at = CURRENT_TIMESTAMP
            WHERE id = $2
            RETURNING *`,
-          [uploadResult.url, equipmentId],
+          [uploadResult.path, equipmentId],
         );
 
         if (oldPhotoUrl) {
@@ -831,9 +936,10 @@ module.exports = (pool) => {
           }
         }
 
+        const equipment = await resolveEquipmentPhoto(updateResult.rows[0]);
         return success(
           res,
-          { equipment: updateResult.rows[0], photo_url: uploadResult.url },
+          { equipment, photo_url: equipment.photo_url },
           "Photo uploaded successfully",
         );
       } catch (err) {

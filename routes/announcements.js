@@ -26,6 +26,7 @@ const {
   UNSUBSCRIBE_PURPOSE
 } = require('../services/alumni');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
+const { resolveDatabaseConnectionString } = require('../config/database-url');
 
 const ALLOWED_ROLES = ['admin', 'animation', 'parent'];
 /** Who an announcement can address. The two are mutually exclusive by design. */
@@ -535,7 +536,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
     try {
       // Create dedicated client for LISTEN (cannot use pooled connection)
       listenClient = new Client({
-        connectionString: process.env.DATABASE_URL,
+        connectionString: resolveDatabaseConnectionString(),
       });
 
       await listenClient.connect();

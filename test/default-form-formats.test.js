@@ -1,8 +1,10 @@
 'use strict';
 
 const {
+  INSTALLED_DISPLAY_TYPE,
   defaultFormCatalog,
   getDefaultPermissionPolicy,
+  getInitialVersions,
 } = require('../services/defaultFormFormats');
 const english = require('../lang/en.json');
 const french = require('../lang/fr.json');
@@ -66,5 +68,24 @@ describe('standard form catalog', () => {
       expect(english).toHaveProperty(key);
       expect(french).toHaveProperty(key);
     }
+  });
+
+  test('new formats use the display type consumed by the public types API', () => {
+    expect(INSTALLED_DISPLAY_TYPE).toBe('public');
+  });
+
+  test('a preserved tenant structure becomes its own initial version', () => {
+    const catalogForm = defaultFormCatalog.forms.find(
+      (form) => form.form_type === 'fiche_sante',
+    );
+    const customizedStructure = {
+      fields: [{ name: 'tenant_specific_field', type: 'text' }],
+    };
+
+    const versions = getInitialVersions(catalogForm, customizedStructure, true);
+
+    expect(versions).toHaveLength(1);
+    expect(versions[0].form_structure).toEqual(customizedStructure);
+    expect(versions[0].form_structure).not.toEqual(catalogForm.form_structure);
   });
 });

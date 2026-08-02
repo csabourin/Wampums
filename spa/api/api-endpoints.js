@@ -341,6 +341,16 @@ export async function updateEquipmentItem(id, payload) {
 }
 
 /**
+ * Request a fresh signed URL for an equipment photo. This bypasses the SPA
+ * response cache because signed URLs are intentionally short-lived.
+ * @param {number} equipmentId - Equipment ID
+ * @returns {Promise<Object>} Fresh photo URL response
+ */
+export async function getEquipmentPhotoUrl(equipmentId) {
+    return API.getNoCache(`v1/resources/equipment/${equipmentId}/photo`);
+}
+
+/**
  * Upload photo for equipment item
  * @param {number} equipmentId - Equipment ID
  * @param {File} file - Image file to upload

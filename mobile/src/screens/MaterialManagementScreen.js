@@ -5,7 +5,7 @@
  * Bulk equipment reservation with conflict detection
  */
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
@@ -33,6 +33,7 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { canViewInventory } from '../utils/PermissionUtils';
 import API from '../api/api-core';
+import { getEquipmentPhotoUrl } from '../api/api-endpoints';
 import CONFIG from '../config';
 import StorageUtils from '../utils/StorageUtils';
 import { debugError } from '../utils/DebugUtils';
@@ -53,6 +54,8 @@ const MaterialManagementScreen = ({ navigation }) => {
   const [selectedItems, setSelectedItems] = useSafeState(new Map()); // equipmentId -> quantity
   const [photoModalVisible, setPhotoModalVisible] = useSafeState(false);
   const [selectedPhotoUrl, setSelectedPhotoUrl] = useSafeState(null);
+  const selectedPhotoEquipmentId = useRef(null);
+  const photoRenewals = useRef(new Map());
 
   const [formData, setFormData] = useSafeState({
     activity_id: '',
@@ -124,6 +127,52 @@ const MaterialManagementScreen = ({ navigation }) => {
   const onRefresh = async () => {
     setRefreshing(true);
     await loadData();
+  };
+
+  /**
+   * Renew a failed signed URL without consulting the mobile response cache.
+   * @param {Object} item
+   * @returns {Promise<string|null>}
+   */
+  const renewEquipmentPhoto = async (item) => {
+    const equipmentId = Number(item?.id);
+    if (!Number.isInteger(equipmentId) || !item?.photo_url) {
+      return item?.photo_url || null;
+    }
+
+    if (photoRenewals.current.has(equipmentId)) {
+      return photoRenewals.current.get(equipmentId);
+    }
+
+    const renewal = (async () => {
+      try {
+        const result = await getEquipmentPhotoUrl(equipmentId);
+        const refreshedUrl = result?.data?.photo_url;
+        if (!refreshedUrl) {
+          return null;
+        }
+
+        setEquipment((currentEquipment) =>
+          currentEquipment.map((currentItem) =>
+            Number(currentItem.id) === equipmentId
+              ? { ...currentItem, photo_url: refreshedUrl }
+              : currentItem
+          )
+        );
+        if (selectedPhotoEquipmentId.current === equipmentId) {
+          setSelectedPhotoUrl(refreshedUrl);
+        }
+        return refreshedUrl;
+      } catch (error) {
+        debugError('Unable to renew equipment photo URL:', error);
+        return null;
+      } finally {
+        photoRenewals.current.delete(equipmentId);
+      }
+    })();
+
+    photoRenewals.current.set(equipmentId, renewal);
+    return renewal;
   };
 
   // Get conflicting reservations for a specific equipment item and date range
@@ -247,17 +296,20 @@ const MaterialManagementScreen = ({ navigation }) => {
     }
   };
 
-  const openPhotoModal = (photoUrl) => {
-    if (!photoUrl) {
+  const openPhotoModal = async (item) => {
+    if (!item?.photo_url) {
       return;
     }
-    setSelectedPhotoUrl(photoUrl);
+    selectedPhotoEquipmentId.current = Number(item.id);
+    const refreshedUrl = await renewEquipmentPhoto(item);
+    setSelectedPhotoUrl(refreshedUrl || item.photo_url);
     setPhotoModalVisible(true);
   };
 
   const closePhotoModal = () => {
     setPhotoModalVisible(false);
     setSelectedPhotoUrl(null);
+    selectedPhotoEquipmentId.current = null;
   };
 
   const selectedItemsList = useMemo(() => {
@@ -432,16 +484,17 @@ const MaterialManagementScreen = ({ navigation }) => {
                     />
                     <TouchableOpacity
                       style={styles.equipmentImageWrapper}
-                      onPress={() => openPhotoModal(item.photo_url)}
+                      onPress={() => openPhotoModal(item)}
                       disabled={!item.photo_url}
                       activeOpacity={0.8}
                       accessibilityLabel={t('equipment_photo')}
                     >
                       {item.photo_url ? (
                         <Image
-                          source={{ uri: item.photo_url, cache: 'force-cache' }}
+                          source={{ uri: item.photo_url, cache: 'reload' }}
                           style={styles.equipmentImage}
                           resizeMode="cover"
+                          onError={() => renewEquipmentPhoto(item)}
                         />
                       ) : (
                         <View style={styles.equipmentImagePlaceholder}>
@@ -564,7 +617,7 @@ const MaterialManagementScreen = ({ navigation }) => {
         <View style={styles.photoModalBody}>
           {selectedPhotoUrl ? (
             <Image
-              source={{ uri: selectedPhotoUrl, cache: 'force-cache' }}
+              source={{ uri: selectedPhotoUrl, cache: 'reload' }}
               style={[
                 styles.photoModalImage,
                 {
@@ -579,6 +632,15 @@ const MaterialManagementScreen = ({ navigation }) => {
                 },
               ]}
               resizeMode="contain"
+              onError={() => {
+                const equipmentId = selectedPhotoEquipmentId.current;
+                const item = equipment.find(
+                  (equipmentItem) => Number(equipmentItem.id) === equipmentId
+                );
+                if (item) {
+                  renewEquipmentPhoto(item);
+                }
+              }}
             />
           ) : (
             <Text style={styles.photoModalEmptyText}>{t('no_data_available')}</Text>

@@ -15,21 +15,29 @@ jest.mock("../middleware/auth", () => {
   };
 });
 
-jest.mock("../utils/supabase-storage", () => ({
+jest.mock("../utils/railway-storage", () => ({
   MAX_FILE_SIZE: 1_000_000,
   OUTPUT_MIME_TYPE: "image/webp",
   validateFile: () => ({ isValid: true }),
   isAllowedImageType: () => true,
   convertImageToWebP: async (buffer) => buffer,
   generateFilePath: () => "path",
-  uploadFile: async () => ({ success: true, url: "http://example.com/photo.webp" }),
+  getPhotoOrganizationId: jest.fn((reference) => {
+    const match = /^org_(\d+)\/equipment_/.exec(reference || "");
+    return match ? Number.parseInt(match[1], 10) : null;
+  }),
+  getSignedPhotoUrl: jest.fn(
+    async (reference) => `https://signed.example/${reference}`,
+  ),
+  uploadFile: async () => ({ success: true, path: "path" }),
   deleteFile: async () => true,
-  extractPathFromUrl: () => "path",
+  extractPathFromUrl: (reference) => reference,
   isStorageConfigured: () => false,
   WEBP_EXTENSION: ".webp",
 }));
 
 const { getOrganizationId } = require("../middleware/auth");
+const { getSignedPhotoUrl } = require("../utils/railway-storage");
 
 describe("Equipment sharing and metadata", () => {
   let app;
@@ -302,6 +310,22 @@ describe("Equipment sharing and metadata", () => {
           return equipment ? { rows: [equipment] } : { rows: [] };
         }
 
+        if (
+          text.includes("SELECT id, organization_id, photo_url") &&
+          text.includes("FROM equipment_items")
+        ) {
+          const equipment = equipmentItems[params[0]];
+          return equipment && equipment.is_active !== false
+            ? {
+                rows: [{
+                  id: equipment.id,
+                  organization_id: equipment.organization_id,
+                  photo_url: equipment.photo_url,
+                }],
+              }
+            : { rows: [] };
+        }
+
         if (text.startsWith("SELECT COALESCE(SUM(reserved_quantity)")) {
           return { rows: [{ total_reserved: 0 }] };
         }
@@ -396,6 +420,7 @@ describe("Equipment sharing and metadata", () => {
       .send({
         name: "Camp stove",
         quantity_total: 2,
+        photo_url: "org_1/equipment_3_123.webp",
         location_type: "leader_home",
         location_details: "Call ahead for garage code",
       });
@@ -405,11 +430,35 @@ describe("Equipment sharing and metadata", () => {
     expect(response.body.data.equipment.location_details).toBe(
       "Call ahead for garage code",
     );
+    expect(response.body.data.equipment.photo_url).toBe(
+      "https://signed.example/org_1/equipment_3_123.webp",
+    );
     const newEquipmentId = response.body.data.equipment.id;
     expect(equipmentItemOrganizations[newEquipmentId].has(2)).toBe(true);
   });
 
+  test("rejects a photo key owned by another organization on create", async () => {
+    const response = await request(app)
+      .post("/api/v1/resources/equipment")
+      .send({
+        name: "Foreign photo item",
+        photo_url: "org_2/equipment_44_123.webp",
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe(
+      "equipment_photo_organization_mismatch",
+    );
+    expect(
+      Object.values(equipmentItems).some(
+        (equipment) => equipment.name === "Foreign photo item",
+      ),
+    ).toBe(false);
+  });
+
   test("updates equipment location fields", async () => {
+    equipmentItems[1].photo_url = "org_1/equipment_1_123.webp";
+
     const response = await request(app)
       .put("/api/v1/resources/equipment/1")
       .send({
@@ -420,6 +469,30 @@ describe("Equipment sharing and metadata", () => {
     expect(response.status).toBe(200);
     expect(response.body.data.equipment.location_type).toBe("warehouse");
     expect(response.body.data.equipment.location_details).toBe("Locker 12");
+    expect(response.body.data.equipment.photo_url).toBe(
+      "https://signed.example/org_1/equipment_1_123.webp",
+    );
+  });
+
+  test("rejects a photo key outside the equipment owner's organization on update", async () => {
+    const response = await request(app)
+      .put("/api/v1/resources/equipment/1")
+      .send({ photo_url: "org_2/equipment_44_123.webp" });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe(
+      "equipment_photo_organization_mismatch",
+    );
+    expect(equipmentItems[1].photo_url).toBeNull();
+  });
+
+  test("uses the owner organization when a shared equipment photo is updated", async () => {
+    const response = await request(app)
+      .put("/api/v1/resources/equipment/2")
+      .send({ photo_url: "org_2/equipment_2_456.webp" });
+
+    expect(response.status).toBe(200);
+    expect(equipmentItems[2].photo_url).toBe("org_2/equipment_2_456.webp");
   });
 
   test("returns reservation locations with audit context", async () => {
@@ -441,6 +514,78 @@ describe("Equipment sharing and metadata", () => {
     expect(response.status).toBe(200);
     const ids = response.body.data.equipment.map((item) => item.id);
     expect(ids).toContain(2);
+  });
+
+  test("returns signed Railway URLs for stored equipment photo keys", async () => {
+    equipmentItems[1].photo_url = "org_1/equipment_1_123.webp";
+
+    const response = await request(app).get("/api/v1/resources/equipment");
+
+    expect(response.status).toBe(200);
+    const equipment = response.body.data.equipment.find((item) => item.id === 1);
+    expect(equipment.photo_url).toBe(
+      "https://signed.example/org_1/equipment_1_123.webp",
+    );
+    expect(getSignedPhotoUrl).toHaveBeenCalledWith(
+      "org_1/equipment_1_123.webp",
+      1,
+    );
+  });
+
+  test("scopes shared equipment photo signing to the equipment owner", async () => {
+    equipmentItems[2].photo_url = "org_2/equipment_2_123.webp";
+
+    const response = await request(app).get("/api/v1/resources/equipment");
+
+    expect(response.status).toBe(200);
+    expect(getSignedPhotoUrl).toHaveBeenCalledWith(
+      "org_2/equipment_2_123.webp",
+      2,
+    );
+  });
+
+  test("issues a fresh non-cacheable photo URL for accessible equipment", async () => {
+    equipmentItems[1].photo_url = "org_1/equipment_1_123.webp";
+
+    const response = await request(app).get(
+      "/api/v1/resources/equipment/1/photo",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers["cache-control"]).toContain("no-store");
+    expect(response.body.data.photo_url).toBe(
+      "https://signed.example/org_1/equipment_1_123.webp",
+    );
+    expect(getSignedPhotoUrl).toHaveBeenCalledWith(
+      "org_1/equipment_1_123.webp",
+      1,
+    );
+  });
+
+  test("renews a shared photo using the equipment owner's tenant", async () => {
+    equipmentItems[2].photo_url = "org_2/equipment_2_123.webp";
+
+    const response = await request(app).get(
+      "/api/v1/resources/equipment/2/photo",
+    );
+
+    expect(response.status).toBe(200);
+    expect(getSignedPhotoUrl).toHaveBeenCalledWith(
+      "org_2/equipment_2_123.webp",
+      2,
+    );
+  });
+
+  test("does not renew a photo for an organization without equipment access", async () => {
+    equipmentItems[2].photo_url = "org_2/equipment_2_123.webp";
+    getOrganizationId.mockResolvedValueOnce(3);
+
+    const response = await request(app).get(
+      "/api/v1/resources/equipment/2/photo",
+    );
+
+    expect(response.status).toBe(403);
+    expect(getSignedPhotoUrl).not.toHaveBeenCalled();
   });
 
   test("blocks reservation when requester is outside the local group", async () => {
