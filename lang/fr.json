@@ -3057,5 +3057,16 @@
   "yearly_planner_unlink_activity": "Délier l'activité",
   "yearly_planner_open_prep": "Préparer cette réunion",
   "yearly_planner_not_prepared": "Non préparée",
-  "yearly_planner_error_saving": "Impossible d'enregistrer. Veuillez réessayer."
+  "yearly_planner_error_saving": "Impossible d'enregistrer. Veuillez réessayer.",
+  "yearly_planner_place_series": "Placer sur des dates",
+  "yearly_planner_series_mode": "Placement en série",
+  "yearly_planner_pick_activity": "Choisir une activité",
+  "yearly_planner_armed_hint": "Touchez maintenant les dates où placer cette activité, puis confirmez.",
+  "yearly_planner_place_here": "Placer",
+  "yearly_planner_numbered_series": "Numéroter les occurrences (1 de 4)",
+  "yearly_planner_date_selected": "sélectionnée",
+  "yearly_planner_date_deselected": "retirée",
+  "yearly_planner_series_placed": "Activité placée sur les dates sélectionnées.",
+  "yearly_planner_series_cancelled": "Placement en série annulé.",
+  "yearly_planner_series_removed": "Série retirée."
 }

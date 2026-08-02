@@ -489,6 +489,276 @@ describe('DELETE /api/v1/yearly-planner/meetings/:id/activity-event', () => {
 });
 
 // ==========================================
+// POST /plans/:planId/meetings/batch-activity
+// ==========================================
+
+describe('POST /api/v1/yearly-planner/plans/:planId/meetings/batch-activity', () => {
+  const MEETINGS = [
+    { id: 10, meeting_date: '2025-09-03', is_cancelled: false },
+    { id: 20, meeting_date: '2025-09-24', is_cancelled: false },
+    { id: 30, meeting_date: '2025-10-15', is_cancelled: false }
+  ];
+
+  /**
+   * @param {Array} rows - Rows the verification query returns
+   * @returns {void}
+   */
+  function stubBatch(rows = MEETINGS) {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      const stub = authStubs(query);
+      if (stub) { return stub; }
+      if (query.includes('FROM year_plan_meetings') && query.includes('ANY($1::int[])')) {
+        return Promise.resolve({ rows });
+      }
+      if (query.includes('INSERT INTO year_plan_meeting_activities')) {
+        return Promise.resolve({ rows: rows.map((r, i) => ({ id: 900 + i, meeting_id: r.id })) });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+  }
+
+  /** @returns {Array} The batch INSERT call */
+  function insertCall() {
+    const { __mClient } = require('pg');
+    return __mClient.query.mock.calls.find(call =>
+      String(call[0]).includes('INSERT INTO year_plan_meeting_activities')
+    );
+  }
+
+  test('numbers occurrences chronologically even when ids arrive shuffled', async () => {
+    // The highest-value assertion in this file: "1 of 4" must mean the first
+    // meeting that happens, not the first id the client typed.
+    //
+    // The verification rows are returned OUT of date order on purpose. With
+    // them pre-sorted, this test passes whether or not the route sorts at all.
+    stubBatch([MEETINGS[2], MEETINGS[0], MEETINGS[1]]);
+
+    const res = await request(app)
+      .post(`/api/v1/yearly-planner/plans/${PLAN_ID}/meetings/batch-activity`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({
+        meeting_ids: [30, 10, 20],
+        activity: { name: 'Preparation du camp' },
+        as_series: true
+      })
+      .expect(201);
+
+    const [, params] = insertCall();
+    // UNNEST pairs the id array with the occurrence array positionally.
+    expect(params).toContainEqual([10, 20, 30]);
+    expect(params).toContainEqual([1, 2, 3]);
+    expect(res.body.data.series_id).toBeTruthy();
+  });
+
+  test('runs as one transaction with a single insert', async () => {
+    stubBatch();
+
+    await request(app)
+      .post(`/api/v1/yearly-planner/plans/${PLAN_ID}/meetings/batch-activity`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ meeting_ids: [10, 20, 30], activity: { name: 'Jeu' } })
+      .expect(201);
+
+    const queries = clientQueries();
+    expect(queries).toContain('BEGIN');
+    expect(queries).toContain('COMMIT');
+    expect(queries.filter(q => q.includes('INSERT INTO year_plan_meeting_activities'))).toHaveLength(1);
+  });
+
+  test('omits the series id when numbering is off', async () => {
+    stubBatch([MEETINGS[0]]);
+
+    const res = await request(app)
+      .post(`/api/v1/yearly-planner/plans/${PLAN_ID}/meetings/batch-activity`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ meeting_ids: [10], activity: { name: 'Jeu' }, as_series: false })
+      .expect(201);
+
+    expect(res.body.data.series_id).toBeNull();
+  });
+
+  test('skips cancelled meetings instead of placing on them', async () => {
+    stubBatch([
+      { id: 10, meeting_date: '2025-09-03', is_cancelled: false },
+      { id: 20, meeting_date: '2025-09-24', is_cancelled: true }
+    ]);
+
+    const res = await request(app)
+      .post(`/api/v1/yearly-planner/plans/${PLAN_ID}/meetings/batch-activity`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ meeting_ids: [10, 20], activity: { name: 'Jeu' }, as_series: true })
+      .expect(201);
+
+    expect(res.body.data.skipped).toEqual([{ meeting_id: 20, reason: 'cancelled' }]);
+    const [, params] = insertCall();
+    expect(params).toContainEqual([10]);
+  });
+
+  test('404s when an id belongs to another plan or organization', async () => {
+    // The verification query is the org scope: a short result means a bad id.
+    stubBatch([MEETINGS[0]]);
+
+    const res = await request(app)
+      .post(`/api/v1/yearly-planner/plans/${PLAN_ID}/meetings/batch-activity`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ meeting_ids: [10, 999], activity: { name: 'Jeu' } })
+      .expect(404);
+
+    expect(res.body.message).toBe('some_meetings_not_found');
+    expect(insertCall()).toBeUndefined();
+  });
+
+  test('400s when every target was cancelled', async () => {
+    stubBatch([{ id: 10, meeting_date: '2025-09-03', is_cancelled: true }]);
+
+    await request(app)
+      .post(`/api/v1/yearly-planner/plans/${PLAN_ID}/meetings/batch-activity`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ meeting_ids: [10], activity: { name: 'Jeu' } })
+      .expect(400);
+  });
+
+  test('rolls back when the insert fails', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      const stub = authStubs(query);
+      if (stub) { return stub; }
+      if (query.includes('FROM year_plan_meetings') && query.includes('ANY($1::int[])')) {
+        return Promise.resolve({ rows: MEETINGS });
+      }
+      if (query.includes('INSERT INTO year_plan_meeting_activities')) {
+        return Promise.reject(new Error('constraint violation'));
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    await request(app)
+      .post(`/api/v1/yearly-planner/plans/${PLAN_ID}/meetings/batch-activity`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ meeting_ids: [10, 20, 30], activity: { name: 'Jeu' } })
+      .expect(500);
+
+    const queries = clientQueries();
+    expect(queries).toContain('ROLLBACK');
+    expect(queries).not.toContain('COMMIT');
+  });
+
+  test('bumps library usage once, by the number of dates', async () => {
+    stubBatch();
+
+    await request(app)
+      .post(`/api/v1/yearly-planner/plans/${PLAN_ID}/meetings/batch-activity`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ meeting_ids: [10, 20, 30], activity: { name: 'Jeu', activity_library_id: 5 } })
+      .expect(201);
+
+    const { __mClient } = require('pg');
+    const updates = __mClient.query.mock.calls.filter(call =>
+      String(call[0]).includes('UPDATE activity_library')
+    );
+    expect(updates).toHaveLength(1);
+    expect(updates[0][1]).toContain(3);
+  });
+
+  test('rejects an empty or oversized batch', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => authStubs(query) || Promise.resolve({ rows: [] }));
+
+    await request(app)
+      .post(`/api/v1/yearly-planner/plans/${PLAN_ID}/meetings/batch-activity`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ meeting_ids: [], activity: { name: 'Jeu' } })
+      .expect(400);
+
+    await request(app)
+      .post(`/api/v1/yearly-planner/plans/${PLAN_ID}/meetings/batch-activity`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ meeting_ids: Array.from({ length: 61 }, (_, i) => i + 1), activity: { name: 'Jeu' } })
+      .expect(400);
+  });
+
+  test('requires a name for the placed activity', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => authStubs(query) || Promise.resolve({ rows: [] }));
+
+    await request(app)
+      .post(`/api/v1/yearly-planner/plans/${PLAN_ID}/meetings/batch-activity`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ meeting_ids: [10], activity: { name: '  ' } })
+      .expect(400);
+  });
+});
+
+// ==========================================
+// DELETE /series/:seriesId
+// ==========================================
+
+describe('DELETE /api/v1/yearly-planner/series/:seriesId', () => {
+  test('removes every occurrence in one statement', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      const stub = authStubs(query);
+      if (stub) { return stub; }
+      if (query.includes('DELETE FROM year_plan_meeting_activities')) {
+        return Promise.resolve({ rows: [{ id: 1 }, { id: 2 }, { id: 3 }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .delete('/api/v1/yearly-planner/series/abc-123')
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .expect(200);
+
+    expect(res.body.data.deleted).toBe(3);
+  });
+
+  test('404s for an unknown series', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => authStubs(query) || Promise.resolve({ rows: [] }));
+
+    await request(app)
+      .delete('/api/v1/yearly-planner/series/abc-123')
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .expect(404);
+  });
+
+  test('is scoped to the organization', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      const stub = authStubs(query);
+      if (stub) { return stub; }
+      if (query.includes('DELETE FROM year_plan_meeting_activities')) {
+        return Promise.resolve({ rows: [{ id: 1 }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    await request(app)
+      .delete('/api/v1/yearly-planner/series/abc-123')
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .expect(200);
+
+    const call = __mPool.query.mock.calls.find(c =>
+      String(c[0]).includes('DELETE FROM year_plan_meeting_activities')
+    );
+    expect(String(call[0])).toContain('organization_id = $2');
+    expect(call[1]).toEqual(['abc-123', ORG_ID]);
+  });
+
+  test('rejects a malformed series id', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => authStubs(query) || Promise.resolve({ rows: [] }));
+
+    await request(app)
+      .delete('/api/v1/yearly-planner/series/not%20a%20series%3B%20DROP')
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .expect(400);
+  });
+});
+
+// ==========================================
 // PATCH /meetings/:id — regression guards
 // ==========================================
 

@@ -205,6 +205,35 @@ export async function deleteMeetingActivity(activityId) {
 }
 
 // ============================================================================
+// SERIES
+// ============================================================================
+
+/**
+ * Place one activity onto several dates at once, optionally as a numbered
+ * series threading through those meetings.
+ *
+ * @param {number} planId - Year plan ID
+ * @param {Object} data - { meeting_ids, activity, as_series, series_label }
+ * @returns {Promise<Object>} API response with { created, skipped, series_id }
+ */
+export async function batchPlaceActivity(planId, data) {
+  const response = await API.post(`v1/yearly-planner/plans/${planId}/meetings/batch-activity`, data);
+  await invalidatePlanner({ includeMeetingPrep: true });
+  return response;
+}
+
+/**
+ * Remove every occurrence of a series.
+ * @param {string} seriesId - Series identifier
+ * @returns {Promise<Object>} API response
+ */
+export async function deleteSeries(seriesId) {
+  const response = await API.delete(`v1/yearly-planner/series/${seriesId}`);
+  await invalidatePlanner({ includeMeetingPrep: true });
+  return response;
+}
+
+// ============================================================================
 // ACTIVITY LIBRARY
 // ============================================================================
 

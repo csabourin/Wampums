@@ -8,6 +8,7 @@
  * @module routes/yearlyPlanner
  */
 const express = require('express');
+const { randomUUID } = require('crypto');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { check } = require('express-validator');
@@ -21,6 +22,9 @@ const { getMeetingDefaults, computeEndTime, formatLocalDate } = require('../util
  * special = a one-off that is neither.
  */
 const MEETING_KINDS = ['regular', 'weekend', 'camp', 'special'];
+
+/** Upper bound on a single batch placement: a school year holds far fewer dates. */
+const MAX_BATCH_MEETINGS = 60;
 
 /** Kinds that get a linked activities row (consent + carpooling) by default. */
 const ACTIVITY_EVENT_KINDS = ['weekend', 'camp'];
@@ -1314,6 +1318,160 @@ module.exports = (pool, logger) => {
       }
 
       return success(res, null, 'Activity removed');
+    })
+  );
+
+  // =========================================================================
+  // SERIES
+  // =========================================================================
+
+  /**
+   * POST /v1/yearly-planner/plans/:planId/meetings/batch-activity
+   * Place one activity onto several dates at once, optionally as a numbered
+   * series ("Preparation du camp 1/4") that threads through those meetings
+   * without taking the whole evening.
+   */
+  router.post('/plans/:planId/meetings/batch-activity',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('meetings.manage'),
+    [
+      check('meeting_ids').isArray({ min: 1, max: MAX_BATCH_MEETINGS }),
+      check('meeting_ids.*').isInt(),
+      check('activity').isObject(),
+      check('activity.name').trim().notEmpty().isLength({ max: 255 }),
+      check('as_series').optional().isBoolean(),
+      check('series_label').optional({ nullable: true }).trim().isLength({ max: 255 }),
+      checkValidation
+    ],
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const planId = parseInt(req.params.planId);
+      const { activity, as_series: asSeries, series_label: seriesLabel } = req.body;
+      const meetingIds = req.body.meeting_ids.map(id => parseInt(id, 10));
+
+      // One query both verifies existence and scopes to the organization: ids
+      // from the client are never trusted.
+      const verified = await pool.query(
+        `SELECT id, meeting_date::text AS meeting_date, is_cancelled
+           FROM year_plan_meetings
+          WHERE id = ANY($1::int[]) AND organization_id = $2 AND year_plan_id = $3`,
+        [meetingIds, organizationId, planId]
+      );
+
+      if (verified.rows.length !== meetingIds.length) {
+        return error(res, 'some_meetings_not_found', 404);
+      }
+
+      const skipped = verified.rows
+        .filter(row => row.is_cancelled)
+        .map(row => ({ meeting_id: row.id, reason: 'cancelled' }));
+
+      // Occurrences are numbered chronologically, not in the order the client
+      // happened to send the ids: "1 of 4" has to mean the first one that happens.
+      const targets = verified.rows
+        .filter(row => !row.is_cancelled)
+        .sort((a, b) => a.meeting_date.localeCompare(b.meeting_date));
+
+      if (targets.length === 0) {
+        return error(res, 'no_eligible_meetings', 400);
+      }
+
+      const seriesId = asSeries === true ? randomUUID() : null;
+      const occurrences = targets.map((_, index) => index + 1);
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+
+        const inserted = await client.query(
+          `INSERT INTO year_plan_meeting_activities
+             (organization_id, meeting_id, activity_library_id, name, description,
+              duration_minutes, activity_type, responsable, material,
+              sort_order, objective_ids, series_id, series_occurrence, metadata)
+           SELECT $1, t.meeting_id, $2, $3, $4, $5, $6, $7, $8,
+                  COALESCE((SELECT MAX(a.sort_order) + 1
+                              FROM year_plan_meeting_activities a
+                             WHERE a.meeting_id = t.meeting_id AND a.day_offset = 0), 0),
+                  $9::jsonb, $10, t.occurrence, $11::jsonb
+             FROM UNNEST($12::int[], $13::int[]) AS t(meeting_id, occurrence)
+           RETURNING *`,
+          [
+            organizationId,
+            parseInt(activity.activity_library_id, 10) || null,
+            activity.name,
+            activity.description || null,
+            parseInt(activity.duration_minutes, 10) || null,
+            activity.activity_type || null,
+            activity.responsable || null,
+            activity.material || null,
+            JSON.stringify(activity.objective_ids || []),
+            seriesId,
+            // Carried so a chip can render "1/4" without a second query.
+            JSON.stringify(seriesId
+              ? { series_label: seriesLabel || activity.name, series_total: targets.length }
+              : {}),
+            targets.map(row => row.id),
+            occurrences
+          ]
+        );
+
+        if (activity.activity_library_id) {
+          // Once, by N: the library's usage stats should not need N statements.
+          await client.query(
+            `UPDATE activity_library
+                SET times_used = COALESCE(times_used, 0) + $1,
+                    last_used_date = CURRENT_DATE,
+                    updated_at = NOW()
+              WHERE id = $2 AND organization_id = $3`,
+            [targets.length, parseInt(activity.activity_library_id, 10), organizationId]
+          );
+        }
+
+        await client.query('COMMIT');
+
+        return success(
+          res,
+          { created: inserted.rows, skipped, series_id: seriesId },
+          'Activity placed',
+          201
+        );
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    })
+  );
+
+  /**
+   * DELETE /v1/yearly-planner/series/:seriesId
+   * Remove every occurrence of a series in one go.
+   */
+  router.delete('/series/:seriesId',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('meetings.manage'),
+    [
+      check('seriesId').trim().isLength({ min: 1, max: 100 }).matches(/^[A-Za-z0-9-]+$/),
+      checkValidation
+    ],
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+
+      const result = await pool.query(
+        `DELETE FROM year_plan_meeting_activities
+          WHERE series_id = $1 AND organization_id = $2
+          RETURNING id`,
+        [req.params.seriesId, organizationId]
+      );
+
+      if (result.rows.length === 0) {
+        return error(res, 'Series not found', 404);
+      }
+
+      return success(res, { deleted: result.rows.length }, 'Series removed');
     })
   );
 

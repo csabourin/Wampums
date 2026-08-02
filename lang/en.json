@@ -3057,5 +3057,16 @@
   "yearly_planner_unlink_activity": "Unlink outing",
   "yearly_planner_open_prep": "Prepare this meeting",
   "yearly_planner_not_prepared": "Not prepared",
-  "yearly_planner_error_saving": "Could not save. Please try again."
+  "yearly_planner_error_saving": "Could not save. Please try again.",
+  "yearly_planner_place_series": "Place across dates",
+  "yearly_planner_series_mode": "Series placement",
+  "yearly_planner_pick_activity": "Choose an activity",
+  "yearly_planner_armed_hint": "Now tap the dates where this activity should go, then confirm.",
+  "yearly_planner_place_here": "Place",
+  "yearly_planner_numbered_series": "Number the occurrences (1 of 4)",
+  "yearly_planner_date_selected": "selected",
+  "yearly_planner_date_deselected": "removed",
+  "yearly_planner_series_placed": "Activity placed on the selected dates.",
+  "yearly_planner_series_cancelled": "Series placement cancelled.",
+  "yearly_planner_series_removed": "Series removed."
 }

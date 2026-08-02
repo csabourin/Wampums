@@ -78,6 +78,8 @@ const MUTATIONS = [
   ['addMeetingActivity', [1, { name: 'A' }], { includeMeetingPrep: true }],
   ['updateMeetingActivity', [1, { name: 'A' }], { includeMeetingPrep: true }],
   ['deleteMeetingActivity', [1], { includeMeetingPrep: true }],
+  ['batchPlaceActivity', [1, { meeting_ids: [1], activity: { name: 'A' } }], { includeMeetingPrep: true }],
+  ['deleteSeries', ['ser-1'], { includeMeetingPrep: true }],
   ['createLibraryActivity', [{ name: 'A' }], {}],
   ['updateLibraryActivity', [1, { name: 'A' }], {}],
   ['deleteLibraryActivity', [1], {}],

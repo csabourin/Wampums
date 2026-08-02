@@ -11,10 +11,12 @@ import { hasPermission } from '../../utils/PermissionUtils.js';
 import { skeletonTable } from '../../utils/SkeletonUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { buildYearModel } from './PlannerModel.js';
-import { renderYearGrid, renderYearSummary } from './YearGridView.js';
+import { renderYearGrid, renderYearSummary, renderArmBar, renderLiveRegion } from './YearGridView.js';
 import { openMeetingSheet } from './MeetingSheet.js';
+import { ArmedPlacement } from './ArmedPlacement.js';
 import {
   getYearPlans,
+  batchPlaceActivity,
   createPlanMeeting,
   deletePlanMeeting,
   unlinkActivityEvent,
@@ -56,10 +58,21 @@ export class YearlyPlanner extends BaseModule {
     this.canManage = hasPermission('meetings.manage');
     this.canCreateActivities = hasPermission('activities.create');
     this.lang = localStorage.getItem('language') || 'en';
+    this.placement = new ArmedPlacement();
   }
 
   async init() {
     await loadStylesheet('/css/yearly-planner.css');
+
+    // Escape abandons a placement from anywhere. Registered through BaseModule
+    // so the router's destroy() takes it away with the module.
+    this.addEventListener(document, 'keydown', (event) => {
+      if (event.key === 'Escape' && this.placement.isArmed) {
+        event.preventDefault();
+        this.cancelPlacement();
+      }
+    });
+
     this.isLoading = true;
     this.render();
 
@@ -144,6 +157,186 @@ export class YearlyPlanner extends BaseModule {
       }
     }
     return null;
+  }
+
+  /**
+   * Announce something in the polite live region.
+   * @param {string} message - Plain text
+   * @returns {void}
+   */
+  announce(message) {
+    const region = document.getElementById('yp-live');
+    if (region) {
+      region.textContent = message;
+    }
+  }
+
+  /**
+   * Start a series placement: choose an activity, then tap dates.
+   * @returns {Promise<void>}
+   */
+  async startPlacement() {
+    this.placement.choose();
+    if (this.activityLibrary.length === 0) {
+      await this.loadLibrary();
+    }
+    this.showLibraryPicker();
+  }
+
+  /**
+   * Pick the activity to place. Deliberately a plain list of buttons: this is
+   * the step that replaces picking up a card and dragging it.
+   * @returns {void}
+   */
+  showLibraryPicker() {
+    const items = this.activityLibrary;
+    const modal = openModal({
+      id: 'yp-library-picker',
+      title: escapeHTML(translate('yearly_planner_pick_activity')),
+      body: `
+        <div class="yp-picker">
+          <label class="form-group">
+            <span class="visually-hidden">${escapeHTML(translate('search'))}</span>
+            <input type="search" id="yp-picker-search"
+                   placeholder="${escapeHTML(translate('search'))}">
+          </label>
+          <ul class="yp-picker__list" role="list">
+            ${items.length === 0 ? `
+              <li class="yp-picker__empty">${escapeHTML(translate('yearly_planner_library_empty'))}</li>
+            ` : items.map(item => `
+              <li>
+                <button type="button" class="yp-picker__item" data-library-id="${item.id}">
+                  <span class="yp-picker__name">${escapeHTML(item.name)}</span>
+                  ${item.category ? `<span class="yp-picker__cat">${escapeHTML(item.category)}</span>` : ''}
+                  ${item.estimated_duration_min
+                    ? `<span class="yp-picker__dur">${item.estimated_duration_min} min</span>`
+                    : ''}
+                </button>
+              </li>
+            `).join('')}
+          </ul>
+        </div>
+      `,
+      footer: `
+        <button type="button" class="button button--ghost" data-modal-close>
+          ${escapeHTML(translate('cancel'))}
+        </button>
+      `,
+      onClose: () => {
+        // Closing the picker without choosing must not leave the UI half-armed.
+        if (this.placement.state === 'choosing') {
+          this.placement.disarm();
+        }
+      }
+    });
+
+    const search = modal.overlay.querySelector('#yp-picker-search');
+    search?.addEventListener('input', () => {
+      const term = search.value.trim().toLowerCase();
+      modal.overlay.querySelectorAll('.yp-picker__item').forEach((button) => {
+        const name = button.querySelector('.yp-picker__name')?.textContent?.toLowerCase() || '';
+        button.closest('li').hidden = term.length > 0 && !name.includes(term);
+      });
+    });
+
+    modal.overlay.querySelectorAll('.yp-picker__item').forEach((button) => {
+      button.addEventListener('click', () => {
+        const libraryId = parseInt(button.dataset.libraryId, 10);
+        const item = this.activityLibrary.find(a => a.id === libraryId);
+        if (!item) {
+          return;
+        }
+        modal.close();
+        this.placement.arm({
+          activity_library_id: item.id,
+          name: item.name,
+          description: item.description || null,
+          duration_minutes: item.estimated_duration_min || null,
+          material: item.material || null,
+          objective_ids: item.objective_ids || []
+        });
+        this.render();
+        this.attachEventListeners();
+        this.announce(translate('yearly_planner_armed_hint'));
+      });
+    });
+  }
+
+  /**
+   * Toggle a date in the current placement.
+   *
+   * Mutates the one chip in place instead of re-rendering: a re-render would
+   * repaint the whole year and throw away keyboard focus on every tap.
+   *
+   * @param {Object} chip - Chip descriptor
+   * @param {HTMLElement} button - The chip's button element
+   * @returns {void}
+   */
+  toggleChipSelection(chip, button) {
+    const selected = this.placement.toggle(chip);
+    button.setAttribute('aria-pressed', String(selected));
+    button.classList.toggle('is-selected', selected);
+
+    const counter = document.querySelector('.yp-armbar__count');
+    if (counter) {
+      counter.textContent = String(this.placement.count);
+    }
+    const confirm = document.getElementById('yp-arm-confirm');
+    if (confirm) {
+      confirm.disabled = this.placement.count === 0;
+      confirm.textContent = `${translate('yearly_planner_place_here')} (${this.placement.count})`;
+    }
+
+    this.announce(
+      `${formatDate(chip.date, this.lang)} — ${selected
+        ? translate('yearly_planner_date_selected')
+        : translate('yearly_planner_date_deselected')}. ${this.placement.count}`
+    );
+  }
+
+  /**
+   * Send the placement.
+   * @returns {Promise<void>}
+   */
+  async confirmPlacement() {
+    const payload = this.placement.payload();
+    if (!payload) {
+      return;
+    }
+
+    this.placement.commit();
+    this.render();
+    this.attachEventListeners();
+
+    try {
+      const response = await batchPlaceActivity(this.currentPlanId, payload);
+      const created = response?.data?.created?.length || 0;
+      const skipped = response?.data?.skipped?.length || 0;
+      this.placement.disarm();
+      this.app.showMessage(translate('yearly_planner_series_placed'), 'success');
+      this.announce(`${translate('yearly_planner_series_placed')}. ${created}${skipped ? ` / ${skipped}` : ''}`);
+      await this.loadPlanDetail(this.currentPlanId, { forceRefresh: true });
+    } catch (err) {
+      debugError('Error placing series:', err);
+      this.placement.disarm();
+      this.app.showMessage(translate('yearly_planner_error_saving'), 'error');
+      this.render();
+      this.attachEventListeners();
+    }
+  }
+
+  /**
+   * Abandon the placement.
+   * @returns {void}
+   */
+  cancelPlacement() {
+    if (this.placement.state === 'idle') {
+      return;
+    }
+    this.placement.disarm();
+    this.render();
+    this.attachEventListeners();
+    this.announce(translate('yearly_planner_series_cancelled'));
   }
 
   /**
@@ -498,10 +691,20 @@ export class YearlyPlanner extends BaseModule {
                 <i class="fas fa-calendar-plus" aria-hidden="true"></i>
                 ${translate('yearly_planner_add_date')}
               </button>
+              <button class="button button--secondary" id="yp-place-series-btn">
+                <i class="fas fa-crosshairs" aria-hidden="true"></i>
+                ${translate('yearly_planner_place_series')}
+              </button>
             </div>
           ` : ''}
+          ${renderLiveRegion()}
+          ${renderArmBar(this.placement)}
           ${renderYearSummary(this.yearModel)}
-          ${renderYearGrid(this.yearModel, { lang: this.lang, canManage: this.canManage })}
+          ${renderYearGrid(this.yearModel, {
+            lang: this.lang,
+            canManage: this.canManage,
+            placement: this.placement
+          })}
         </div>
 
         <!-- Periods Tab -->
@@ -1419,11 +1622,37 @@ export class YearlyPlanner extends BaseModule {
       this.showAddDateModal();
     }, { signal: this.signal });
 
+    document.getElementById('yp-place-series-btn')?.addEventListener('click', () => {
+      this.startPlacement();
+    }, { signal: this.signal });
+
+    document.getElementById('yp-arm-cancel')?.addEventListener('click', () => {
+      this.cancelPlacement();
+    }, { signal: this.signal });
+
+    document.getElementById('yp-arm-confirm')?.addEventListener('click', () => {
+      this.confirmPlacement();
+    }, { signal: this.signal });
+
+    document.getElementById('yp-arm-series')?.addEventListener('change', (event) => {
+      this.placement.setSeries(event.target.checked);
+    }, { signal: this.signal });
+
     document.querySelector('.yp-year')?.addEventListener('click', (event) => {
       const button = event.target.closest('[data-date]');
-      if (button) {
-        this.handleChipClick(button.dataset.date);
+      if (!button) {
+        return;
       }
+      const chip = this.findChip(button.dataset.date);
+      if (!chip) {
+        return;
+      }
+      // While armed, a tap selects a date instead of opening its sheet.
+      if (this.placement.isArmed && chip.meetingId) {
+        this.toggleChipSelection(chip, button);
+        return;
+      }
+      this.handleChipClick(button.dataset.date);
     }, { signal: this.signal });
 
     // Meeting detail view

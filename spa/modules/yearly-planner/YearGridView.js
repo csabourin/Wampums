@@ -116,6 +116,13 @@ export function renderDateChip(chip, options = {}) {
   if (chip.isToday) { classes.push('is-today'); }
   if (chip.isEvent) { classes.push('yp-chip--event'); }
 
+  // aria-pressed exists only while a placement is armed. Outside that, these are
+  // navigation buttons, and a permanent aria-pressed="false" would misdescribe them.
+  const placement = options.placement;
+  const armed = placement?.isArmed === true && Boolean(chip.meetingId);
+  const selected = armed && placement.isSelected(chip.meetingId);
+  if (selected) { classes.push('is-selected'); }
+
   const weekday = chip.date
     ? formatDate(chip.date, lang, { weekday: 'short' })
     : '';
@@ -131,6 +138,7 @@ export function renderDateChip(chip, options = {}) {
               data-meeting-id="${chip.meetingId ?? ''}"
               data-activity-id="${chip.activityId ?? ''}"
               data-date="${escapeHTML(chip.date)}"
+              ${armed ? `aria-pressed="${selected}"` : ''}
               aria-describedby="${metaId}">
         <span class="yp-chip__head">
           <i class="fas ${icon}" aria-hidden="true"></i>
@@ -215,6 +223,54 @@ export function describeChip(chip, lang = 'fr') {
   }
 
   return parts.join('. ');
+}
+
+/**
+ * The sticky bar shown while a placement is armed.
+ *
+ * Carries the only affordance for finishing or abandoning the placement, so it
+ * is a labelled region rather than a decorative strip.
+ *
+ * @param {Object} placement - ArmedPlacement instance
+ * @returns {string} HTML
+ */
+export function renderArmBar(placement) {
+  if (!placement?.isArmed) {
+    return '';
+  }
+
+  const busy = placement.state === 'committing';
+
+  return `
+    <div class="yp-armbar" role="region" aria-label="${escapeHTML(translate('yearly_planner_series_mode'))}">
+      <div class="yp-armbar__what">
+        <i class="fas fa-crosshairs" aria-hidden="true"></i>
+        <strong>${escapeHTML(placement.activity?.name || '')}</strong>
+        <span class="yp-armbar__count">${placement.count}</span>
+      </div>
+      <label class="yp-armbar__series">
+        <input type="checkbox" id="yp-arm-series" ${placement.asSeries ? 'checked' : ''} ${busy ? 'disabled' : ''}>
+        <span>${escapeHTML(translate('yearly_planner_numbered_series'))}</span>
+      </label>
+      <div class="yp-armbar__actions">
+        <button type="button" class="button button--ghost" id="yp-arm-cancel" ${busy ? 'disabled' : ''}>
+          ${escapeHTML(translate('cancel'))}
+        </button>
+        <button type="button" class="button button--primary" id="yp-arm-confirm"
+                ${placement.count === 0 || busy ? 'disabled' : ''}>
+          ${escapeHTML(translate('yearly_planner_place_here'))} (${placement.count})
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * The polite live region the module announces placement changes through.
+ * @returns {string} HTML
+ */
+export function renderLiveRegion() {
+  return '<p id="yp-live" class="visually-hidden" role="status" aria-live="polite"></p>';
 }
 
 /**
