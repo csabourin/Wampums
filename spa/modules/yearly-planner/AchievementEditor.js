@@ -31,6 +31,11 @@ export class AchievementEditor extends BaseModule {
       `,
       onClose: () => this.destroy()
     });
+    this.addEventListener(
+      this.modal.overlay.querySelector('#yp-achievement-save'),
+      'click',
+      () => this.save()
+    );
     try {
       const [participantsResponse, achievementsResponse] = await Promise.all([
         getParticipants(),
@@ -72,7 +77,6 @@ export class AchievementEditor extends BaseModule {
         `}
       </div>
     `);
-    this.modal.overlay.querySelector('#yp-achievement-save')?.addEventListener('click', () => this.save());
   }
 
   async save() {
