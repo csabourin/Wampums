@@ -113,15 +113,6 @@ export const DASHBOARD_TILES = [
     gate: { any: ["activities.view", "activities.create"] },
   },
   {
-    featureKey: "medication_planning",
-    href: "/medication-planning",
-    icon: "fa-pills",
-    label: "tile_medication_planning",
-    aliases: "tile_medication_planning_aliases",
-    moment: "week",
-    domain: "safety",
-  },
-  {
     featureKey: "yearly_planner",
     href: "/yearly-planner",
     icon: "fa-calendar-alt",
@@ -216,19 +207,9 @@ export const DASHBOARD_TILES = [
     domain: "people",
   },
   {
-    featureKey: "communications",
-    href: "/communications",
-    icon: "fa-comments",
-    label: "tile_communications",
-    aliases: "tile_communications_aliases",
-    moment: "tools",
-    domain: "people",
-    gate: { permission: "communications.send" },
-  },
-  {
     featureKey: "mailing_list",
     href: "/mailing-list",
-    icon: "fa-envelope-open-text",
+    icon: "fa-comments",
     label: "tile_mailing_list",
     aliases: "tile_mailing_list_aliases",
     moment: "tools",
@@ -239,6 +220,15 @@ export const DASHBOARD_TILES = [
   // ---------------------------------------------------------------
   // SANTÉ ET SÉCURITÉ
   // ---------------------------------------------------------------
+  {
+    featureKey: "medication_planning",
+    href: "/medication-planning",
+    icon: "fa-pills",
+    label: "tile_medication_planning",
+    aliases: "tile_medication_planning_aliases",
+    moment: "tools",
+    domain: "safety",
+  },
   {
     featureKey: "medication_dispensing",
     href: "/medication-dispensing",
@@ -256,6 +246,16 @@ export const DASHBOARD_TILES = [
     aliases: "tile_medication_reception_aliases",
     moment: "tools",
     domain: "safety",
+  },
+  {
+    featureKey: "incident_reports",
+    href: "/incident-reports/new",
+    icon: "fa-triangle-exclamation",
+    label: "tile_report_incident",
+    aliases: "tile_report_incident_aliases",
+    moment: "tools",
+    domain: "safety",
+    gate: { permission: "incidents.manage" },
   },
 
   // ---------------------------------------------------------------

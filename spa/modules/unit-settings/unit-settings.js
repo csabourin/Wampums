@@ -423,7 +423,7 @@ export class UnitSettings extends BaseModule {
       (canSendCommunications() || canAccessAdminPanel()) && {
         href: "/communications",
         icon: "fa-comments",
-        label: translate("communications_title") || "Communications & Chat",
+        label: translate("communications_title") || "Communication settings",
         description: translate("unit_settings_link_communications") || "Configure WhatsApp, Google Chat, and messaging.",
       },
       canViewRoles() && {

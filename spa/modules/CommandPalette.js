@@ -1,7 +1,7 @@
 /**
  * CommandPalette
  *
- * Dual-form launcher used as Cmd/Ctrl+K on desktop and as a bottom-sheet
+ * Dual-form launcher used as Cmd/Ctrl+K on desktop and as a top sheet
  * triggered by the header search icon or the FAB on mobile. Filters the
  * passed list of tiles by translated label, navigates on selection.
  *
