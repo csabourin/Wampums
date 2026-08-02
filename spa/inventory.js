@@ -5,6 +5,7 @@ import { setContent } from "./utils/DOMUtils.js";
 import { CONFIG } from "./config.js";
 import {
   getEquipmentInventory,
+  getEquipmentPhotoUrl,
   saveEquipmentItem,
   updateEquipmentItem,
   uploadEquipmentPhoto,
@@ -116,6 +117,7 @@ export class Inventory {
     this.modalSelectedPhotoFile = null;
     this.lastFocusedElement = null;
     this.heicConverterPromise = null;
+    this.photoRenewals = new Map();
     this.handleImagePreviewKeydown = this.handleImagePreviewKeydown.bind(this);
   }
 
@@ -961,7 +963,7 @@ export class Inventory {
           <div class="equipment-card" data-equipment-id="${item.id}">
             <div class="equipment-card-image">
               ${item.photo_url
-                ? `<img src="${escapeHTML(item.photo_url)}" alt="${escapeHTML(item.name)}" loading="lazy" class="previewable-image" role="button" tabindex="0" data-photo-url="${escapeHTML(item.photo_url)}" data-photo-alt="${escapeHTML(item.name)}" />`
+                ? `<img src="${escapeHTML(item.photo_url)}" alt="${escapeHTML(item.name)}" loading="lazy" class="previewable-image" role="button" tabindex="0" data-equipment-id="${escapeHTML(String(item.id))}" data-photo-url="${escapeHTML(item.photo_url)}" data-photo-alt="${escapeHTML(item.name)}" />`
                 : `<span class="no-photo">📦</span>`
               }
             </div>
@@ -1044,7 +1046,7 @@ export class Inventory {
               <tr>
                 <td>
                   ${item.photo_url
-                    ? `<img src="${escapeHTML(item.photo_url)}" alt="${escapeHTML(item.name)}" class="table-photo previewable-image" loading="lazy" role="button" tabindex="0" data-photo-url="${escapeHTML(item.photo_url)}" data-photo-alt="${escapeHTML(item.name)}" />`
+                    ? `<img src="${escapeHTML(item.photo_url)}" alt="${escapeHTML(item.name)}" class="table-photo previewable-image" loading="lazy" role="button" tabindex="0" data-equipment-id="${escapeHTML(String(item.id))}" data-photo-url="${escapeHTML(item.photo_url)}" data-photo-alt="${escapeHTML(item.name)}" />`
                     : `<div class="table-no-photo">📦</div>`
                   }
                 </td>
@@ -1646,19 +1648,104 @@ export class Inventory {
     }
   }
 
+  /**
+   * Replace an expired signed URL in component state and, optionally, on an
+   * image element. The refresh endpoint bypasses the offline/API response cache.
+   * @param {number|string} equipmentId
+   * @param {HTMLImageElement|null} image
+   * @returns {Promise<string|null>}
+   */
+  async renewEquipmentPhoto(equipmentId, image = null) {
+    const parsedEquipmentId = Number.parseInt(equipmentId, 10);
+    if (!Number.isInteger(parsedEquipmentId)) {
+      return null;
+    }
+
+    let renewal = this.photoRenewals.get(parsedEquipmentId);
+    if (!renewal) {
+      renewal = (async () => {
+        const response = await getEquipmentPhotoUrl(parsedEquipmentId);
+        const refreshedUrl = this.getSafeImageSrc(response?.data?.photo_url);
+        if (!refreshedUrl) {
+          return null;
+        }
+
+        const equipment = this.equipment.find(
+          (item) => Number(item.id) === parsedEquipmentId,
+        );
+        if (equipment) {
+          equipment.photo_url = refreshedUrl;
+        }
+        return refreshedUrl;
+      })();
+      this.photoRenewals.set(parsedEquipmentId, renewal);
+    }
+
+    try {
+      const refreshedUrl = await renewal;
+      if (!refreshedUrl) {
+        return null;
+      }
+      if (image) {
+        image.setAttribute("src", refreshedUrl);
+        image.setAttribute("data-photo-url", refreshedUrl);
+      }
+      return refreshedUrl;
+    } catch (refreshError) {
+      debugWarn("Unable to renew equipment photo URL", refreshError);
+      return null;
+    } finally {
+      if (this.photoRenewals.get(parsedEquipmentId) === renewal) {
+        this.photoRenewals.delete(parsedEquipmentId);
+      }
+    }
+  }
+
+  /**
+   * Retry a failed equipment image once for each distinct signed URL.
+   * @param {HTMLImageElement} image
+   */
+  async handleEquipmentPhotoError(image) {
+    const equipmentId = image?.getAttribute("data-equipment-id");
+    const failedUrl = image?.getAttribute("src") || "";
+    if (
+      !equipmentId ||
+      image.dataset.photoRefreshPending === "true" ||
+      image.dataset.photoRefreshAttempted === failedUrl
+    ) {
+      return;
+    }
+
+    image.dataset.photoRefreshPending = "true";
+    image.dataset.photoRefreshAttempted = failedUrl;
+    try {
+      await this.renewEquipmentPhoto(equipmentId, image);
+    } finally {
+      delete image.dataset.photoRefreshPending;
+    }
+  }
+
   setupImagePreviewHandlers() {
     const previewableImages = document.querySelectorAll(".previewable-image");
     const overlay = document.getElementById("image-preview-modal");
+    const overlayImage = document.getElementById("image-preview-img");
     const closeBtn = document.getElementById("image-preview-close-btn");
 
     previewableImages.forEach((img) => {
-      const openHandler = () => {
+      const openHandler = async () => {
+        const equipmentId = img.getAttribute("data-equipment-id");
         const photoUrl = img.getAttribute("data-photo-url");
         const altText = img.getAttribute("data-photo-alt") || "";
-        this.openImagePreview(photoUrl, altText);
+        const refreshedUrl = await this.renewEquipmentPhoto(equipmentId, img);
+        this.openImagePreview(
+          refreshedUrl || photoUrl,
+          altText,
+          equipmentId,
+        );
       };
 
       img.addEventListener("click", openHandler);
+      img.addEventListener("error", () => this.handleEquipmentPhotoError(img));
       img.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -1666,6 +1753,12 @@ export class Inventory {
         }
       });
     });
+
+    if (overlayImage) {
+      overlayImage.addEventListener("error", () =>
+        this.handleEquipmentPhotoError(overlayImage),
+      );
+    }
 
     if (overlay) {
       overlay.addEventListener("click", (event) => {
@@ -1680,7 +1773,7 @@ export class Inventory {
     }
   }
 
-  openImagePreview(imageUrl, altText = "") {
+  openImagePreview(imageUrl, altText = "", equipmentId = null) {
     const overlay = document.getElementById("image-preview-modal");
     const image = document.getElementById("image-preview-img");
     const closeBtn = document.getElementById("image-preview-close-btn");
@@ -1693,6 +1786,10 @@ export class Inventory {
     this.lastFocusedElement = document.activeElement;
     image.setAttribute("src", safeSrc);
     image.setAttribute("alt", altText || translate("inventory_image_preview_alt_fallback"));
+    image.setAttribute("data-photo-url", safeSrc);
+    if (equipmentId !== null) {
+      image.setAttribute("data-equipment-id", String(equipmentId));
+    }
 
     overlay.classList.remove("hidden");
     overlay.setAttribute("aria-hidden", "false");
@@ -1714,6 +1811,10 @@ export class Inventory {
     if (image) {
       image.removeAttribute("src");
       image.setAttribute("alt", "");
+      image.removeAttribute("data-equipment-id");
+      image.removeAttribute("data-photo-url");
+      delete image.dataset.photoRefreshAttempted;
+      delete image.dataset.photoRefreshPending;
     }
 
     this.updateBodyScrollLock();
@@ -1826,9 +1927,13 @@ export class Inventory {
     this.modalPhotoPreview = null;
   }
 
-  openEditModal(equipmentId) {
+  async openEditModal(equipmentId) {
     const equipment = this.equipment.find(e => e.id === equipmentId);
     if (!equipment) return;
+
+    if (equipment.photo_url) {
+      await this.renewEquipmentPhoto(equipment.id);
+    }
 
     this.editingEquipment = equipment;
 

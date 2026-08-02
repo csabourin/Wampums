@@ -721,6 +721,59 @@ module.exports = (pool) => {
     }),
   );
 
+  /**
+   * Issue a fresh, short-lived browser URL for an accessible equipment photo.
+   * The JSON endpoint is intentionally not cached: clients call it after an
+   * image URL expires or immediately before opening a new preview.
+   */
+  router.get(
+    "/equipment/:id/photo",
+    authenticate,
+    requirePermission("inventory.view"),
+    [param("id").isInt({ min: 1 })],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const organizationId = await getOrganizationId(req, pool);
+        const equipmentId = parseInt(req.params.id, 10);
+        res.set("Cache-Control", "private, no-store, max-age=0");
+
+        await verifyEquipmentAccess(equipmentId, organizationId);
+
+        const result = await pool.query(
+          `SELECT id, organization_id, photo_url
+             FROM equipment_items
+            WHERE id = $1
+              AND is_active IS DISTINCT FROM false`,
+          [equipmentId],
+        );
+        const equipment = result.rows[0];
+        if (!equipment?.photo_url) {
+          return error(res, "equipment_photo_not_found", 404);
+        }
+
+        const photoUrl = await getSignedPhotoUrl(
+          equipment.photo_url,
+          equipment.organization_id,
+        );
+        if (!photoUrl) {
+          return error(res, "equipment_photo_not_found", 404);
+        }
+
+        return success(res, { photo_url: photoUrl });
+      } catch (err) {
+        if (handleOrganizationResolutionError(res, err)) {
+          return;
+        }
+        return error(
+          res,
+          err.message || "equipment_photo_refresh_error",
+          err.statusCode || 500,
+        );
+      }
+    }),
+  );
+
   // Delete equipment (soft delete by setting is_active = false)
   router.delete(
     "/equipment/:id",

@@ -310,6 +310,22 @@ describe("Equipment sharing and metadata", () => {
           return equipment ? { rows: [equipment] } : { rows: [] };
         }
 
+        if (
+          text.includes("SELECT id, organization_id, photo_url") &&
+          text.includes("FROM equipment_items")
+        ) {
+          const equipment = equipmentItems[params[0]];
+          return equipment && equipment.is_active !== false
+            ? {
+                rows: [{
+                  id: equipment.id,
+                  organization_id: equipment.organization_id,
+                  photo_url: equipment.photo_url,
+                }],
+              }
+            : { rows: [] };
+        }
+
         if (text.startsWith("SELECT COALESCE(SUM(reserved_quantity)")) {
           return { rows: [{ total_reserved: 0 }] };
         }
@@ -526,6 +542,50 @@ describe("Equipment sharing and metadata", () => {
       "org_2/equipment_2_123.webp",
       2,
     );
+  });
+
+  test("issues a fresh non-cacheable photo URL for accessible equipment", async () => {
+    equipmentItems[1].photo_url = "org_1/equipment_1_123.webp";
+
+    const response = await request(app).get(
+      "/api/v1/resources/equipment/1/photo",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers["cache-control"]).toContain("no-store");
+    expect(response.body.data.photo_url).toBe(
+      "https://signed.example/org_1/equipment_1_123.webp",
+    );
+    expect(getSignedPhotoUrl).toHaveBeenCalledWith(
+      "org_1/equipment_1_123.webp",
+      1,
+    );
+  });
+
+  test("renews a shared photo using the equipment owner's tenant", async () => {
+    equipmentItems[2].photo_url = "org_2/equipment_2_123.webp";
+
+    const response = await request(app).get(
+      "/api/v1/resources/equipment/2/photo",
+    );
+
+    expect(response.status).toBe(200);
+    expect(getSignedPhotoUrl).toHaveBeenCalledWith(
+      "org_2/equipment_2_123.webp",
+      2,
+    );
+  });
+
+  test("does not renew a photo for an organization without equipment access", async () => {
+    equipmentItems[2].photo_url = "org_2/equipment_2_123.webp";
+    getOrganizationId.mockResolvedValueOnce(3);
+
+    const response = await request(app).get(
+      "/api/v1/resources/equipment/2/photo",
+    );
+
+    expect(response.status).toBe(403);
+    expect(getSignedPhotoUrl).not.toHaveBeenCalled();
   });
 
   test("blocks reservation when requester is outside the local group", async () => {

@@ -5,7 +5,7 @@
  * Equipment inventory management with photo upload, gallery/table views
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
@@ -35,7 +35,7 @@ import {
   useToast,
 } from '../components';
 import { canViewInventory, canManageInventory } from '../utils/PermissionUtils';
-import { getEquipment } from '../api/api-endpoints';
+import { getEquipment, getEquipmentPhotoUrl } from '../api/api-endpoints';
 import CONFIG from '../config';
 import StorageUtils from '../utils/StorageUtils';
 import { debugLog, debugError } from '../utils/DebugUtils';
@@ -74,6 +74,7 @@ const InventoryScreen = ({ navigation }) => {
     photo_url: '',
   });
   const [selectedImage, setSelectedImage] = useSafeState(null); // Local image before upload
+  const photoRenewals = useRef(new Map());
 
   const [submitting, setSubmitting] = useSafeState(false);
   const toast = useToast();
@@ -137,6 +138,48 @@ const InventoryScreen = ({ navigation }) => {
   const onRefresh = async () => {
     setRefreshing(true);
     await loadData();
+  };
+
+  /**
+   * Request a new signed URL after an image expires. Concurrent failures for
+   * the same equipment share one request and the refreshed value replaces the
+   * stale URL held in component state.
+   */
+  const renewEquipmentPhoto = async (item) => {
+    const equipmentId = Number(item?.id);
+    if (!Number.isInteger(equipmentId) || !item?.photo_url) {
+      return item?.photo_url || null;
+    }
+
+    if (photoRenewals.current.has(equipmentId)) {
+      return photoRenewals.current.get(equipmentId);
+    }
+
+    const renewal = (async () => {
+      try {
+        const response = await getEquipmentPhotoUrl(equipmentId);
+        const refreshedUrl = response?.data?.photo_url;
+        if (!refreshedUrl) {
+          return null;
+        }
+        setEquipment((currentEquipment) =>
+          currentEquipment.map((currentItem) =>
+            Number(currentItem.id) === equipmentId
+              ? { ...currentItem, photo_url: refreshedUrl }
+              : currentItem
+          )
+        );
+        return refreshedUrl;
+      } catch (error) {
+        debugError('Unable to renew equipment photo URL:', error);
+        return null;
+      } finally {
+        photoRenewals.current.delete(equipmentId);
+      }
+    })();
+
+    photoRenewals.current.set(equipmentId, renewal);
+    return renewal;
   };
 
   const resetForm = () => {
@@ -351,23 +394,30 @@ const InventoryScreen = ({ navigation }) => {
     );
   };
 
-  const openEditModal = (item) => {
-    setEditingItem(item);
+  const openEditModal = async (item) => {
+    const refreshedPhotoUrl = item.photo_url
+      ? await renewEquipmentPhoto(item)
+      : null;
+    const currentItem = refreshedPhotoUrl
+      ? { ...item, photo_url: refreshedPhotoUrl }
+      : item;
+
+    setEditingItem(currentItem);
     setFormData({
-      name: item.name || '',
-      category: item.category || '',
-      description: item.description || '',
-      quantity_total: String(item.quantity_total || 1),
-      quantity_available: item.quantity_available ? String(item.quantity_available) : '',
-      condition_note: item.condition_note || '',
-      item_value: item.item_value ? String(item.item_value) : '',
-      acquisition_date: item.acquisition_date ? item.acquisition_date.slice(0, 10) : '',
-      location_type: item.location_type || 'local_scout_hall',
-      location_details: item.location_details || '',
-      share_with_local_group: item.share_with_local_group ?? true,
-      photo_url: item.photo_url || '',
+      name: currentItem.name || '',
+      category: currentItem.category || '',
+      description: currentItem.description || '',
+      quantity_total: String(currentItem.quantity_total || 1),
+      quantity_available: currentItem.quantity_available ? String(currentItem.quantity_available) : '',
+      condition_note: currentItem.condition_note || '',
+      item_value: currentItem.item_value ? String(currentItem.item_value) : '',
+      acquisition_date: currentItem.acquisition_date ? currentItem.acquisition_date.slice(0, 10) : '',
+      location_type: currentItem.location_type || 'local_scout_hall',
+      location_details: currentItem.location_details || '',
+      share_with_local_group: currentItem.share_with_local_group ?? true,
+      photo_url: currentItem.photo_url || '',
     });
-    setSelectedImage(item.photo_url || null);
+    setSelectedImage(currentItem.photo_url || null);
     setShowEditModal(true);
   };
 
@@ -406,11 +456,20 @@ const InventoryScreen = ({ navigation }) => {
           <Image
           source={{
             uri: selectedImage,
-            cache: 'force-cache',
+            cache: 'reload',
           }}
           style={styles.imagePreview}
           resizeMode="cover"
-          onError={(e) => debugError('Preview error:', e.nativeEvent.error)}
+          onError={async (e) => {
+            debugError('Preview error:', e.nativeEvent.error);
+            if (editingItem?.id && selectedImage === editingItem.photo_url) {
+              const refreshedUrl = await renewEquipmentPhoto(editingItem);
+              if (refreshedUrl) {
+                setSelectedImage(refreshedUrl);
+                setEditingItem({ ...editingItem, photo_url: refreshedUrl });
+              }
+            }
+          }}
           />
           <TouchableOpacity
           style={styles.changePhotoButton}
@@ -561,10 +620,13 @@ const InventoryScreen = ({ navigation }) => {
                 {/* Large Image */}
                 {item.photo_url ? (
                   <Image
-                    source={{ uri: item.photo_url, cache: 'force-cache' }}
+                    source={{ uri: item.photo_url, cache: 'reload' }}
                     style={styles.galleryImage}
                     resizeMode="cover"
-                    onError={(e) => debugError('Gallery image error:', e.nativeEvent.error)}
+                    onError={(e) => {
+                      debugError('Gallery image error:', e.nativeEvent.error);
+                      renewEquipmentPhoto(item);
+                    }}
                   />
                 ) : (
                   <View style={styles.galleryImagePlaceholder}>
@@ -656,10 +718,13 @@ const InventoryScreen = ({ navigation }) => {
                 {/* Square Thumbnail */}
                 {item.photo_url ? (
                   <Image
-                    source={{ uri: item.photo_url, cache: 'force-cache' }}
+                    source={{ uri: item.photo_url, cache: 'reload' }}
                     style={styles.tableThumbnail}
                     resizeMode="cover"
-                    onError={(e) => debugError('Table thumbnail error:', e.nativeEvent.error)}
+                    onError={(e) => {
+                      debugError('Table thumbnail error:', e.nativeEvent.error);
+                      renewEquipmentPhoto(item);
+                    }}
                   />
                 ) : (
                   <View style={styles.tableThumbnailPlaceholder}>

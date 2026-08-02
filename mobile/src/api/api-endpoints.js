@@ -1098,6 +1098,17 @@ export const getEquipment = async () => {
 };
 
 /**
+ * Get a fresh signed equipment photo URL without using the mobile API cache.
+ */
+export const getEquipmentPhotoUrl = async (equipmentId) => {
+  return API.get(
+    `${CONFIG.ENDPOINTS.RESOURCES}/equipment/${equipmentId}/photo`,
+    null,
+    { useCache: false, forceRefresh: true }
+  );
+};
+
+/**
  * Get equipment reservations
  */
 export const getEquipmentReservations = async () => {
@@ -1983,6 +1994,7 @@ export default {
   getMailingList,
   // Resources
   getEquipment,
+  getEquipmentPhotoUrl,
   getEquipmentReservations,
   createEquipmentReservation,
   getPermissionSlips,

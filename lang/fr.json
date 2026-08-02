@@ -2000,6 +2000,8 @@
   "equipment_photo_remove": "Supprimer la photo",
   "equipment_photo_too_large": "La photo est trop volumineuse. Taille maximale : 30 Mo.",
   "equipment_photo_invalid_type": "Type de fichier invalide. Veuillez téléverser une image JPEG, PNG, GIF, HEIC, HEIF ou WebP.",
+  "equipment_photo_not_found": "La photo du matériel est introuvable.",
+  "equipment_photo_refresh_error": "La photo du matériel n’a pas pu être actualisée.",
   "equipment_photo_organization_mismatch": "Cette photo n’appartient pas à l’organisation propriétaire du matériel.",
   "equipment_photo_upload_error": "Échec du téléversement de la photo, mais le matériel a été enregistré.",
   "equipment_photo_processing": "Optimisation de la photo… {percent}%",
