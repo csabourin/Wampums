@@ -158,7 +158,10 @@ export class IncidentReport {
     const html = `
       <section class="page incident-reports-page">
         <header class="page__header">
-          <h1>${translate('incident_reports_title')}</h1>
+          <div>
+            <a href="/dashboard" class="button button--ghost">&larr; ${translate('back')}</a>
+            <h1>${translate('incident_reports_title')}</h1>
+          </div>
           <div class="page__actions">
             ${this.canManage ? `
               <button class="btn btn--secondary" id="incident-escalation-btn">

@@ -62,7 +62,38 @@ jest.mock('../../spa/api/api-activities.js', () => ({
   getActivities: jest.fn()
 }));
 
-import { getIncidentFormStructure } from '../../spa/modules/incident-report/incident-report.js';
+import { setContent } from '../../spa/utils/DOMUtils.js';
+import {
+  IncidentReport,
+  getIncidentFormStructure
+} from '../../spa/modules/incident-report/incident-report.js';
+
+describe('incident report list navigation', () => {
+  test('provides a return link to the dashboard', () => {
+    const report = new IncidentReport({ router: {}, showMessage: jest.fn() });
+    report.renderList();
+
+    expect(setContent).toHaveBeenCalledWith(
+      null,
+      expect.stringContaining('href="/dashboard"')
+    );
+  });
+});
+
+describe('incident report translations', () => {
+  const translationBundles = [
+    ['English', require('../../lang/en.json')],
+    ['French', require('../../lang/fr.json')]
+  ];
+
+  test.each(translationBundles)('%s includes the complete incident interface and form vocabulary', (_language, bundle) => {
+    const incidentKeys = Object.keys(bundle).filter((key) => key.startsWith('incident_'));
+
+    // 37 interface strings plus the 108 labels in the standard incident form.
+    expect(incidentKeys).toHaveLength(145);
+    expect(incidentKeys.every((key) => bundle[key] && bundle[key] !== key)).toBe(true);
+  });
+});
 
 describe('getIncidentFormStructure', () => {
   const structure = {
