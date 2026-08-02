@@ -461,7 +461,7 @@ describe('Security Headers', () => {
     expect(res.headers['content-security-policy']).toBeDefined();
   });
 
-  test('CSP allows only the configured Railway bucket image origin', () => {
+  test('CSP includes the configured Railway bucket image origin (no wildcard)', () => {
     const { getContentSecurityImageSources } = require('../middleware/global');
     const originalEndpoint = process.env.AWS_ENDPOINT_URL;
     const originalBucket = process.env.AWS_S3_BUCKET_NAME;
