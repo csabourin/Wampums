@@ -66,7 +66,7 @@ export function periodColor(period, index = 0) {
  * Fallback band colours. Deliberately desaturated: a band sits behind chips and
  * must never compete with the text on top of it.
  */
-const PERIOD_FALLBACK_COLORS = [
+export const PERIOD_FALLBACK_COLORS = [
   '#0f7a5a', '#0f6da3', '#8a5a2b', '#6d4c9f', '#a34343', '#3f7a2b'
 ];
 
@@ -149,7 +149,13 @@ function buildChip(meeting, event, today) {
     isCancelled: meeting.is_cancelled === true,
     isPrepared: meeting.is_prepared === true,
     activityCount: Number(meeting.activity_count) || 0,
-    seriesIds: Array.isArray(meeting.series_ids) ? meeting.series_ids.filter(Boolean) : [],
+    objectiveIds: Array.isArray(meeting.objective_ids)
+      ? meeting.objective_ids.map(Number).filter(Number.isInteger)
+      : [],
+    series: Array.isArray(meeting.series) ? meeting.series.filter(item => item?.id) : [],
+    seriesIds: Array.isArray(meeting.series)
+      ? meeting.series.map(item => item?.id).filter(Boolean)
+      : (Array.isArray(meeting.series_ids) ? meeting.series_ids.filter(Boolean) : []),
     spanDays,
     spanEndDate: spanDays > 1 ? spanEnd : null,
     activityId: meeting.activity_id || null,
@@ -184,7 +190,9 @@ function buildEventOnlyChip(event, today) {
     isCancelled: false,
     isPrepared: false,
     activityCount: 0,
+    objectiveIds: [],
     seriesIds: [],
+    series: [],
     spanDays,
     spanEndDate: spanDays > 1 ? String(event.end_date).slice(0, 10) : null,
     location: event.location || null,

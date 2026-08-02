@@ -1,12 +1,19 @@
-# Yearly Planner — what is left
+# Yearly Planner — completion record
 
-Status as of 2026-08-01, branch `fix/yearly-planner-cache-invalidation` (8 commits on top of `main`).
+Completed 2026-08-01 on branch `fix/yearly-planner-cache-invalidation`.
 
-Shipped so far: cache invalidation fix, `meeting_kind` + camp-day migrations, one-off/weekend/camp dates,
-delete + unlink, the year-at-a-glance view, the meeting sheet, series placement, and the fix that stopped a
-preparation save from destroying planner data. 1105 tests, 6 lints, production build clean.
+All work described below is implemented. The two original migrations and the scout-year ownership migration
+were applied to both the local development database and Railway production. The production backfill found no
+existing planner rows linked to outings, so its post-migration histogram is 151 `regular` rows; new and edited
+rows now persist their explicit meeting kind.
 
-Nothing below is started. Items 1–3 are blocking; everything after is feature work.
+Final verification: 1116 Jest tests passed (69 suites; 5 suites/84 tests intentionally skipped), all eight
+repository lint checks passed, the production Vite/PWA build passed, and authenticated real-PostgreSQL API
+checks covered plan detail plus camp schedule copying and reopening. Desktop and mobile browser captures are
+stored beside this document, and the keyboard-only placement flow completed without page errors or viewport
+overflow. Temporary `[Planner QA]` records used for that acceptance pass were removed from the local database.
+
+The original implementation brief is preserved below as the feature and acceptance history.
 
 ---
 

@@ -34,7 +34,10 @@ export function renderYearGrid(model, options = {}) {
 
   return `
     <div class="yp-year">
-      ${model.months.map(month => renderMonthRow(month, options)).join('')}
+      ${model.months.map(month => renderMonthRow(month, {
+        ...options,
+        periodsById: model.periodsById
+      })).join('')}
     </div>
   `;
 }
@@ -130,10 +133,15 @@ export function renderDateChip(chip, options = {}) {
   const dayLabel = chip.spanDays > 1 && chip.spanEndDate
     ? `${chip.dayNum}–${Number(String(chip.spanEndDate).slice(8, 10))}`
     : String(chip.dayNum ?? '');
+  const periodColor = options.periodsById?.[chip.periodId]?.color;
+  const chipStyles = [
+    chip.spanDays > 1 ? '--span-cols:2' : '',
+    periodColor ? `--chip-band-color:${escapeHTML(periodColor)}` : ''
+  ].filter(Boolean).join(';');
 
   return `
     <li class="yp-chip-slot${chip.spanDays > 1 ? ' yp-chip-slot--span' : ''}"
-        style="${chip.spanDays > 1 ? '--span-cols:2;' : ''}">
+        style="${chipStyles}">
       <button type="button" class="${classes.join(' ')}"
               data-meeting-id="${chip.meetingId ?? ''}"
               data-activity-id="${chip.activityId ?? ''}"
@@ -177,6 +185,11 @@ function renderChipBadges(chip) {
   }
   if (chip.seriesIds.length > 0) {
     badges.push(`<span class="yp-badge yp-badge--series"><i class="fas fa-link" aria-hidden="true"></i></span>`);
+  }
+  if (chip.objectiveIds?.length > 0) {
+    badges.push(`<span class="yp-badge yp-badge--objectives">
+      <i class="fas fa-bullseye" aria-hidden="true"></i>${chip.objectiveIds.length}
+    </span>`);
   }
   if (chip.isPrepared) {
     badges.push(`<span class="yp-badge yp-badge--prepared"><i class="fas fa-check" aria-hidden="true"></i></span>`);

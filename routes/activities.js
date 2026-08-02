@@ -138,6 +138,9 @@ module.exports = (pool) => {
       `SELECT
         a.*,
         u.full_name as created_by_name,
+        ypm.id AS linked_year_plan_meeting_id,
+        ypm.meeting_date::text AS linked_year_plan_meeting_date,
+        ypm.year_plan_id AS linked_year_plan_id,
         COUNT(DISTINCT co.id) as carpool_offer_count,
         COUNT(DISTINCT ca.participant_id) as assigned_participant_count,
         COUNT(DISTINCT ps.id) FILTER (WHERE ps.status = 'pending') as pending_slip_count,
@@ -145,11 +148,13 @@ module.exports = (pool) => {
         COUNT(DISTINCT ps.id) FILTER (WHERE ps.status = 'declined') as declined_slip_count
        FROM activities a
        LEFT JOIN users u ON a.created_by = u.id
+       LEFT JOIN year_plan_meetings ypm
+              ON ypm.activity_id = a.id AND ypm.organization_id = a.organization_id
        LEFT JOIN carpool_offers co ON a.id = co.activity_id AND co.is_active = TRUE
        LEFT JOIN carpool_assignments ca ON co.id = ca.carpool_offer_id
        LEFT JOIN permission_slips ps ON a.id = ps.activity_id AND ps.status IN ('pending', 'signed', 'declined')
        WHERE a.organization_id = $1 AND a.is_active = TRUE
-       GROUP BY a.id, u.full_name
+       GROUP BY a.id, u.full_name, ypm.id
        ORDER BY COALESCE(a.activity_start_date, a.activity_date) ASC, a.activity_start_time ASC, a.departure_time_going ASC`,
       [organizationId]
     );

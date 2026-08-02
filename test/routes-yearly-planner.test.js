@@ -41,7 +41,10 @@ const USER_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const PLAN_ID = 7;
 const MEETING_ID = 42;
 
-const ALL_PERMISSIONS = ['meetings.view', 'meetings.manage', 'activities.create'];
+const ALL_PERMISSIONS = [
+  'meetings.view', 'meetings.manage', 'meetings.create', 'meetings.edit',
+  'meetings.delete', 'activities.create'
+];
 
 function generateToken(overrides = {}) {
   return jwt.sign({
@@ -271,7 +274,7 @@ describe('POST /api/v1/yearly-planner/plans/:planId/meetings', () => {
 
   test('creates the date but reports the skip when activities.create is missing', async () => {
     const { __mClient, __mPool } = require('pg');
-    const permissions = ['meetings.view', 'meetings.manage'];
+    const permissions = ['meetings.view', 'meetings.manage', 'meetings.create'];
 
     mockQueryImplementation(__mClient, __mPool, (query) => {
       const stub = authStubs(query, permissions);
@@ -755,6 +758,142 @@ describe('DELETE /api/v1/yearly-planner/series/:seriesId', () => {
       .delete('/api/v1/yearly-planner/series/not%20a%20series%3B%20DROP')
       .set('Authorization', `Bearer ${generateToken()}`)
       .expect(400);
+  });
+});
+
+describe('PATCH /api/v1/yearly-planner/series/:seriesId', () => {
+  test('updates all editable occurrences without touching occurrence order', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      const stub = authStubs(query);
+      if (stub) { return stub; }
+      if (query.includes('UPDATE year_plan_meeting_activities')) {
+        return Promise.resolve({ rows: [{ id: 1 }, { id: 2 }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    await request(app)
+      .patch('/api/v1/yearly-planner/series/abc-123')
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ name: 'Camp skills', duration_minutes: 30, series_occurrence: 99 })
+      .expect(200);
+
+    const call = __mPool.query.mock.calls.find(c =>
+      String(c[0]).includes('UPDATE year_plan_meeting_activities')
+    );
+    const setClause = String(call[0]).slice(String(call[0]).indexOf('SET'), String(call[0]).indexOf('WHERE'));
+    expect(setClause).toContain('name =');
+    expect(setClause).toContain('duration_minutes =');
+    expect(setClause).not.toContain('series_occurrence');
+    expect(call[1]).toEqual(expect.arrayContaining(['abc-123', ORG_ID]));
+  });
+});
+
+// ==========================================
+// CAMP SCHEDULES
+// ==========================================
+
+describe('camp schedule routes', () => {
+  test('groups every timed line under its resolved camp day', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      const stub = authStubs(query);
+      if (stub) { return stub; }
+      if (query.includes('GREATEST(') && query.includes('FROM year_plan_meetings m')) {
+        return Promise.resolve({ rows: [meetingRow({ meeting_kind: 'camp', span_days: 3 })] });
+      }
+      if (query.includes('CROSS JOIN GENERATE_SERIES')) {
+        return Promise.resolve({ rows: [
+          { day_offset: 0, date: '2025-10-17', title: 'Arrival', notes: null },
+          { day_offset: 1, date: '2025-10-18', title: 'Skills', notes: null },
+          { day_offset: 2, date: '2025-10-19', title: 'Closing', notes: null }
+        ] });
+      }
+      if (query.includes('SELECT * FROM year_plan_meeting_activities')) {
+        return Promise.resolve({ rows: [
+          { id: 1, day_offset: 1, name: 'Pioneering' },
+          { id: 2, day_offset: 2, name: 'Pack' }
+        ] });
+      }
+      if (query.includes('SELECT source.id')) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .get(`/api/v1/yearly-planner/meetings/${MEETING_ID}/schedule`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .expect(200);
+
+    expect(res.body.data.days).toHaveLength(3);
+    expect(res.body.data.days[1].activities[0].name).toBe('Pioneering');
+    expect(res.body.data.days[2].date).toBe('2025-10-19');
+  });
+
+  test('refuses a day heading outside the linked outing span', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      const stub = authStubs(query);
+      if (stub) { return stub; }
+      if (query.includes('GREATEST(')) {
+        return Promise.resolve({ rows: [meetingRow({ meeting_kind: 'camp', span_days: 3 })] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    await request(app)
+      .put(`/api/v1/yearly-planner/meetings/${MEETING_ID}/days/7`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ title: 'Impossible day' })
+      .expect(400);
+
+    expect(__mPool.query.mock.calls.some(c => String(c[0]).includes('INSERT INTO year_plan_meeting_days'))).toBe(false);
+  });
+
+  test('rejects an activity day offset outside the camp span', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      const stub = authStubs(query);
+      if (stub) { return stub; }
+      if (query.includes('GREATEST(')) {
+        return Promise.resolve({ rows: [meetingRow({ meeting_kind: 'camp', span_days: 2 })] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    await request(app)
+      .post(`/api/v1/yearly-planner/meetings/${MEETING_ID}/activities`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ name: 'Too late', day_offset: 2 })
+      .expect(400);
+  });
+
+  test('reports dropped day offsets when the copy target is shorter', async () => {
+    const { __mClient, __mPool } = require('pg');
+    let contextCall = 0;
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      const stub = authStubs(query);
+      if (stub) { return stub; }
+      if (query.includes('GREATEST(')) {
+        contextCall++;
+        return Promise.resolve({ rows: [meetingRow({
+          id: contextCall === 1 ? MEETING_ID : 99,
+          meeting_kind: 'camp',
+          span_days: contextCall === 1 ? 3 : 5
+        })] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/yearly-planner/meetings/${MEETING_ID}/schedule/copy-from/99`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({})
+      .expect(409);
+
+    expect(res.body.errors[0].dropped_days).toEqual([3, 4]);
   });
 });
 

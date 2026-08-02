@@ -22,6 +22,9 @@ import { openModal } from '../../utils/ModalUtils.js';
  * @param {Function} options.onDelete - async () => void
  * @param {Function} options.onOpenPrep - (date) => void
  * @param {Function} [options.onUnlinkActivity] - async () => void
+ * @param {Function} [options.onRemoveSeries] - async (series) => void
+ * @param {Function} [options.onEditSeries] - (series) => void
+ * @param {Function} [options.onOpenSchedule] - (chip) => void
  * @returns {{overlay: HTMLElement, close: Function}} Modal handle
  */
 export function openMeetingSheet(options) {
@@ -101,8 +104,45 @@ function renderSheetBody(chip, plan, lang, canManage) {
         <span>${escapeHTML(translate('yearly_planner_cancelled'))}</span>
       </label>
 
+      ${renderSeries(chip, canManage)}
       ${renderSheetStatus(chip)}
     </div>
+  `;
+}
+
+/**
+ * Render every series occurrence placed on this date.
+ * @param {Object} chip - Chip descriptor
+ * @param {boolean} canManage - Whether removal controls are shown
+ * @returns {string} HTML
+ */
+function renderSeries(chip, canManage) {
+  if (!Array.isArray(chip.series) || chip.series.length === 0) {
+    return '';
+  }
+
+  return `
+    <section class="yp-sheet__series">
+      <h4>${escapeHTML(translate('yearly_planner_series'))}</h4>
+      <ul>
+        ${chip.series.map(series => `
+          <li>
+            <span>
+              ${escapeHTML(series.label || translate('yearly_planner_series'))}
+              <strong>${Number(series.occurrence) || 1} / ${Number(series.total) || 1}</strong>
+            </span>
+            ${canManage ? `
+              <span>
+                <button type="button" class="button button--small button--secondary yp-sheet-series-edit"
+                        data-series-id="${escapeHTML(series.id)}">${escapeHTML(translate('edit'))}</button>
+                <button type="button" class="button button--small button--danger yp-sheet-series-remove"
+                        data-series-id="${escapeHTML(series.id)}">${escapeHTML(translate('remove'))}</button>
+              </span>
+            ` : ''}
+          </li>
+        `).join('')}
+      </ul>
+    </section>
   `;
 }
 
@@ -165,6 +205,14 @@ function renderSheetFooter(chip, canManage) {
       </button>
     `);
   }
+  if (chip.meetingId && chip.spanDays > 1) {
+    buttons.push(`
+      <button type="button" class="button button--secondary" id="yp-sheet-schedule">
+        <i class="fas fa-calendar-days" aria-hidden="true"></i>
+        ${escapeHTML(translate('yearly_planner_camp_schedule'))}
+      </button>
+    `);
+  }
   if (canManage && chip.meetingId) {
     buttons.push(`
       <button type="button" class="button button--secondary" id="yp-sheet-save">
@@ -195,12 +243,41 @@ function renderSheetFooter(chip, canManage) {
  * @returns {void}
  */
 function wireSheet(modal, options) {
-  const { chip, onSave, onDelete, onOpenPrep, onUnlinkActivity } = options;
+  const {
+    chip, onSave, onDelete, onOpenPrep, onUnlinkActivity,
+    onRemoveSeries, onEditSeries, onOpenSchedule
+  } = options;
   const root = modal.overlay;
 
   root.querySelector('#yp-sheet-prep')?.addEventListener('click', () => {
     modal.close();
     onOpenPrep?.(chip.date);
+  });
+
+  root.querySelector('#yp-sheet-schedule')?.addEventListener('click', () => {
+    modal.close();
+    onOpenSchedule?.(chip);
+  });
+
+  root.querySelectorAll('.yp-sheet-series-remove').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const series = chip.series.find(item => item.id === button.dataset.seriesId);
+      if (!series) {
+        return;
+      }
+      modal.close();
+      await onRemoveSeries?.(series);
+    });
+  });
+  root.querySelectorAll('.yp-sheet-series-edit').forEach((button) => {
+    button.addEventListener('click', () => {
+      const series = chip.series.find(item => item.id === button.dataset.seriesId);
+      if (!series) {
+        return;
+      }
+      modal.close();
+      onEditSeries?.(series);
+    });
   });
 
   root.querySelector('#yp-sheet-save')?.addEventListener('click', async () => {
