@@ -3,6 +3,13 @@
 **Statut :** phases 1 à 5 implémentées, plus les tanières annuelles, la lecture seule visuelle et le droit à l'effacement — restent les frais, l'alumni, le transfert et la conservation
 **Date :** 2026-08-01
 
+> **Archives de migration :** le 2026-08-01, les 28 migrations SQL ont été
+> vérifiées sur PostgreSQL de production Railway, les trois éléments partiels
+> ont été complétés, puis les fichiers ont été retirés du dépôt. Les noms de
+> migrations cités dans ce document décrivent désormais l'historique de
+> livraison; ils ne correspondent plus à des fichiers exécutables du dépôt.
+> Pour un instantané du schéma, voir `attached_assets/Full_Database_schema.sql`.
+
 > **Décisions prises :** vue de compatibilité (§4.2) ; parents sans enfant passés à
 > `inactive` par défaut (§4.5) ; formulaires conservés avec un drapeau
 > « à réviser » plutôt que remis à zéro (§10) ; **annulation possible tant que la
