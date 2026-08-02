@@ -14,6 +14,7 @@ const { success, error, paginated, asyncHandler } = require('../middleware/respo
 const { check } = require('express-validator');
 const { checkValidation } = require('../middleware/validation');
 const { getMeetingDefaults, computeEndTime, formatLocalDate } = require('../utils/meeting-defaults');
+const { ensureActiveScoutYear } = require('../services/scoutYear');
 
 /**
  * Kinds of dated block on the planner calendar.
@@ -125,6 +126,40 @@ async function insertActivityEventForMeeting(client, { organizationId, userId, m
   return activityResult.rows[0];
 }
 
+/**
+ * Resolve a meeting and the editable day range of its linked multi-day event.
+ * A regular meeting has a one-day span, so the same guard safely serves both
+ * the preparation timeline and camp schedules.
+ *
+ * @param {Object} queryable - pg Pool or transaction client
+ * @param {number} meetingId - Year-plan meeting ID
+ * @param {number} organizationId - Authenticated organization ID
+ * @returns {Promise<Object|null>} Meeting schedule context
+ */
+async function getScheduleContext(queryable, meetingId, organizationId) {
+  const result = await queryable.query(
+    `SELECT m.id, m.meeting_date::text AS meeting_date, m.meeting_kind,
+            GREATEST(
+              1,
+              COALESCE(act.activity_end_date, act.activity_start_date, act.activity_date, m.meeting_date)
+                - m.meeting_date + 1
+            )::integer AS span_days
+       FROM year_plan_meetings m
+       LEFT JOIN activities act
+              ON act.id = m.activity_id
+             AND act.organization_id = m.organization_id
+             AND act.is_active = TRUE
+      WHERE m.id = $1 AND m.organization_id = $2`,
+    [meetingId, organizationId]
+  );
+  return result.rows[0] || null;
+}
+
+/** @returns {boolean} Whether a day offset belongs to a meeting's span. */
+function isDayInSpan(dayOffset, context) {
+  return Number.isInteger(dayOffset) && dayOffset >= 0 && dayOffset < Number(context?.span_days || 1);
+}
+
 module.exports = (pool, logger) => {
   const router = express.Router();
 
@@ -177,14 +212,29 @@ module.exports = (pool, logger) => {
           [planId, organizationId]
         ),
         pool.query(
-          `SELECT * FROM year_plan_periods
-           WHERE year_plan_id = $1 AND organization_id = $2
-           ORDER BY sort_order, start_date`,
+          `SELECT p.*,
+                  (SELECT COUNT(*) FROM year_plan_objectives o
+                    WHERE o.period_id = p.id AND o.organization_id = p.organization_id) AS objective_count,
+                  (SELECT COUNT(*) FROM year_plan_meetings m
+                    WHERE m.period_id = p.id AND m.organization_id = p.organization_id
+                      AND NOT m.is_cancelled) AS meeting_count
+             FROM year_plan_periods p
+            WHERE p.year_plan_id = $1 AND p.organization_id = $2
+            ORDER BY p.sort_order, p.start_date`,
           [planId, organizationId]
         ),
         pool.query(
           `SELECT o.*, p.title as period_title,
-                  parent.title as parent_title
+                  parent.title as parent_title,
+                  (SELECT COUNT(DISTINCT a.meeting_id)
+                     FROM year_plan_meeting_activities a
+                     JOIN year_plan_meetings m ON m.id = a.meeting_id
+                    WHERE a.organization_id = o.organization_id
+                      AND m.year_plan_id = o.year_plan_id
+                      AND a.objective_ids @> JSONB_BUILD_ARRAY(o.id)) AS meeting_count,
+                  (SELECT COUNT(*) FROM objective_achievements achievement
+                    WHERE achievement.objective_id = o.id
+                      AND achievement.organization_id = o.organization_id) AS achievement_count
            FROM year_plan_objectives o
            LEFT JOIN year_plan_periods p ON o.period_id = p.id
            LEFT JOIN year_plan_objectives parent ON o.parent_id = parent.id
@@ -200,11 +250,30 @@ module.exports = (pool, logger) => {
                     SELECT 1 FROM year_plan_meeting_activities a WHERE a.meeting_id = m.id
                   )) as is_prepared,
                   COALESCE(
-                    (SELECT ARRAY_AGG(DISTINCT a.series_id)
-                       FROM year_plan_meeting_activities a
-                      WHERE a.meeting_id = m.id AND a.series_id IS NOT NULL),
-                    ARRAY[]::varchar[]
-                  ) as series_ids,
+                    (SELECT JSONB_AGG(series_row ORDER BY series_row->>'label')
+                       FROM (
+                         SELECT DISTINCT JSONB_BUILD_OBJECT(
+                           'id', a.series_id,
+                           'occurrence', a.series_occurrence,
+                           'total', COALESCE((a.metadata->>'series_total')::integer, 1),
+                           'label', COALESCE(a.metadata->>'series_label', a.name),
+                           'name', a.name,
+                           'description', a.description,
+                           'duration_minutes', a.duration_minutes
+                         ) AS series_row
+                           FROM year_plan_meeting_activities a
+                          WHERE a.meeting_id = m.id AND a.series_id IS NOT NULL
+                       ) meeting_series),
+                    '[]'::jsonb
+                  ) as series,
+                  COALESCE(
+                    (SELECT JSONB_AGG(DISTINCT objective.value::integer)
+                       FROM year_plan_meeting_activities objective_activity
+                       CROSS JOIN LATERAL JSONB_ARRAY_ELEMENTS_TEXT(objective_activity.objective_ids) objective(value)
+                      WHERE objective_activity.meeting_id = m.id
+                        AND objective_activity.organization_id = m.organization_id),
+                    '[]'::jsonb
+                  ) AS objective_ids,
                   -- Span of the linked outing: what makes a camp render as a
                   -- multi-day block instead of a single chip.
                   (act.activity_end_date - act.activity_start_date + 1) as span_days,
@@ -290,6 +359,15 @@ module.exports = (pool, logger) => {
       const meetingDay = defaults.meetingDay;
       const meetingTime = defaults.meetingTime;
       const meetingDuration = defaults.durationMinutes;
+      const matchingScoutYear = await pool.query(
+        `SELECT id FROM scout_years
+          WHERE organization_id = $1 AND $2::date BETWEEN start_date AND end_date
+          ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'planning' THEN 1 ELSE 2 END
+          LIMIT 1`,
+        [organizationId, start_date]
+      );
+      const planScoutYear = matchingScoutYear.rows[0]
+        || await ensureActiveScoutYear(pool, organizationId);
 
       const client = await pool.connect();
       try {
@@ -298,12 +376,12 @@ module.exports = (pool, logger) => {
         // Create year plan
         const planResult = await client.query(
           `INSERT INTO year_plans
-           (organization_id, title, start_date, end_date, default_location,
+           (organization_id, scout_year_id, title, start_date, end_date, default_location,
             recurrence_pattern, blackout_dates, anchors, settings, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            RETURNING *`,
           [
-            organizationId, title, start_date, end_date,
+            organizationId, planScoutYear.id, title, start_date, end_date,
             default_location || '', recurrence_pattern || 'weekly',
             JSON.stringify(blackout_dates || []),
             JSON.stringify(anchors || []),
@@ -384,40 +462,130 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.manage'),
+    [
+      check('blackout_dates').optional().isArray(),
+      check('anchors').optional().isArray(),
+      check('regenerate_meetings').optional().isBoolean(),
+      checkValidation
+    ],
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const planId = parseInt(req.params.id);
-      const { title, default_location, blackout_dates, anchors, settings } = req.body;
+      const { title, default_location, blackout_dates, anchors, settings, regenerate_meetings: regenerate } = req.body;
 
       const check_result = await pool.query(
-        'SELECT id FROM year_plans WHERE id = $1 AND organization_id = $2 AND is_active = TRUE',
+        'SELECT * FROM year_plans WHERE id = $1 AND organization_id = $2 AND is_active = TRUE',
         [planId, organizationId]
       );
       if (check_result.rows.length === 0) {
         return error(res, 'Year plan not found', 404);
       }
+      if ((blackout_dates || anchors) && regenerate !== true) {
+        return error(res, 'regenerate_meetings must be true when calendar rules change', 400);
+      }
 
-      const result = await pool.query(
-        `UPDATE year_plans SET
-          title = COALESCE($1, title),
-          default_location = COALESCE($2, default_location),
-          blackout_dates = COALESCE($3, blackout_dates),
-          anchors = COALESCE($4, anchors),
-          settings = COALESCE($5, settings),
-          updated_at = NOW()
-         WHERE id = $6 AND organization_id = $7
-         RETURNING *`,
-        [
-          title || null,
-          default_location || null,
-          blackout_dates ? JSON.stringify(blackout_dates) : null,
-          anchors ? JSON.stringify(anchors) : null,
-          settings ? JSON.stringify(settings) : null,
-          planId, organizationId
-        ]
-      );
+      const previous = check_result.rows[0];
+      const nextBlackouts = blackout_dates || previous.blackout_dates || [];
+      const nextAnchors = anchors || previous.anchors || [];
+      const defaults = regenerate === true ? await getMeetingDefaults(pool, organizationId) : null;
+      const generated = regenerate === true
+        ? generateMeetingDates(
+          String(previous.start_date).slice(0, 10),
+          String(previous.end_date).slice(0, 10),
+          defaults.meetingDay,
+          previous.recurrence_pattern,
+          nextBlackouts,
+          nextAnchors
+        )
+        : [];
 
-      return success(res, result.rows[0], 'Year plan updated');
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const result = await client.query(
+          `UPDATE year_plans SET
+            title = COALESCE($1, title),
+            default_location = COALESCE($2, default_location),
+            blackout_dates = COALESCE($3, blackout_dates),
+            anchors = COALESCE($4, anchors),
+            settings = COALESCE($5, settings),
+            updated_at = NOW()
+           WHERE id = $6 AND organization_id = $7
+           RETURNING *`,
+          [
+            title || null,
+            default_location || null,
+            blackout_dates ? JSON.stringify(blackout_dates) : null,
+            anchors ? JSON.stringify(anchors) : null,
+            settings ? JSON.stringify(settings) : null,
+            planId, organizationId
+          ]
+        );
+
+        if (regenerate === true) {
+          const generatedDates = generated.map(meeting => meeting.date);
+          await client.query(
+            `DELETE FROM year_plan_meetings m
+              WHERE m.year_plan_id = $1 AND m.organization_id = $2
+                AND m.meeting_date >= CURRENT_DATE
+                AND m.meeting_kind = 'regular'
+                AND m.activity_id IS NULL
+                AND m.animateur_responsable IS NULL
+                AND m.theme IS NULL AND m.notes IS NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM year_plan_meeting_activities a
+                   WHERE a.meeting_id = m.id AND a.organization_id = m.organization_id
+                )
+                AND NOT (m.meeting_date = ANY($3::date[]))`,
+            [planId, organizationId, generatedDates]
+          );
+
+          const endTime = computeEndTime(defaults.meetingTime, defaults.durationMinutes);
+          for (const meeting of generated) {
+            // eslint-disable-next-line no-await-in-loop -- regeneration is atomic and ordered
+            await client.query(
+              `INSERT INTO year_plan_meetings
+                 (organization_id, year_plan_id, meeting_date, start_time, end_time,
+                  duration_minutes, location, is_cancelled, anchor_id, theme, metadata,
+                  meeting_kind)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+               ON CONFLICT (organization_id, meeting_date) DO UPDATE SET
+                 year_plan_id = EXCLUDED.year_plan_id,
+                 is_cancelled = CASE
+                   WHEN year_plan_meetings.animateur_responsable IS NULL
+                    AND year_plan_meetings.activity_id IS NULL
+                    AND NOT EXISTS (
+                      SELECT 1 FROM year_plan_meeting_activities a
+                       WHERE a.meeting_id = year_plan_meetings.id
+                         AND a.organization_id = year_plan_meetings.organization_id
+                    )
+                   THEN EXCLUDED.is_cancelled ELSE year_plan_meetings.is_cancelled END,
+                 anchor_id = COALESCE(EXCLUDED.anchor_id, year_plan_meetings.anchor_id),
+                 theme = COALESCE(year_plan_meetings.theme, EXCLUDED.theme),
+                 metadata = year_plan_meetings.metadata || EXCLUDED.metadata,
+                 updated_at = NOW()`,
+              [
+                organizationId, planId, meeting.date, defaults.meetingTime, endTime,
+                defaults.durationMinutes, meeting.location || previous.default_location || '',
+                meeting.is_cancelled === true, meeting.anchor_id || null, meeting.theme || null,
+                JSON.stringify(meeting.metadata || {}),
+                meeting.metadata?.special_date ? 'special' : 'regular'
+              ]
+            );
+          }
+        }
+
+        await client.query('COMMIT');
+        return success(res, {
+          ...result.rows[0],
+          regenerated_meeting_count: regenerate === true ? generated.length : undefined
+        }, 'Year plan updated');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
     })
   );
 
@@ -639,7 +807,15 @@ module.exports = (pool, logger) => {
         `SELECT o.*,
                 p.title as period_title,
                 parent.title as parent_title,
-                (SELECT COUNT(*) FROM objective_achievements WHERE objective_id = o.id) as achievement_count
+                (SELECT COUNT(*) FROM objective_achievements achievement
+                  WHERE achievement.objective_id = o.id
+                    AND achievement.organization_id = o.organization_id) as achievement_count,
+                (SELECT COUNT(DISTINCT a.meeting_id)
+                   FROM year_plan_meeting_activities a
+                   JOIN year_plan_meetings m ON m.id = a.meeting_id
+                  WHERE a.organization_id = o.organization_id
+                    AND m.year_plan_id = o.year_plan_id
+                    AND a.objective_ids @> JSONB_BUILD_ARRAY(o.id)) AS meeting_count
          FROM year_plan_objectives o
          LEFT JOIN year_plan_periods p ON o.period_id = p.id
          LEFT JOIN year_plan_objectives parent ON o.parent_id = parent.id
@@ -756,7 +932,7 @@ module.exports = (pool, logger) => {
   router.patch('/meetings/:id',
     authenticate,
     blockDemoRoles,
-    requirePermission('meetings.manage'),
+    requirePermission('meetings.edit'),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const meetingId = parseInt(req.params.id);
@@ -976,7 +1152,7 @@ module.exports = (pool, logger) => {
   router.post('/plans/:planId/meetings',
     authenticate,
     blockDemoRoles,
-    requirePermission('meetings.manage'),
+    requirePermission('meetings.create'),
     [
       check('meeting_date').isISO8601(),
       check('end_date').optional({ nullable: true }).isISO8601(),
@@ -1125,7 +1301,7 @@ module.exports = (pool, logger) => {
   router.delete('/meetings/:id',
     authenticate,
     blockDemoRoles,
-    requirePermission('meetings.manage'),
+    requirePermission('meetings.delete'),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const meetingId = parseInt(req.params.id);
@@ -1198,6 +1374,236 @@ module.exports = (pool, logger) => {
   // =========================================================================
 
   /**
+   * GET /v1/yearly-planner/meetings/:id/schedule
+   * Return every real day in a meeting span with its heading and timed lines.
+   */
+  router.get('/meetings/:id/schedule',
+    authenticate,
+    requirePermission('meetings.view'),
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const meetingId = parseInt(req.params.id, 10);
+      const context = await getScheduleContext(pool, meetingId, organizationId);
+
+      if (!context) {
+        return error(res, 'Meeting not found', 404);
+      }
+
+      const [daysResult, activitiesResult, sourcesResult] = await Promise.all([
+        pool.query(
+          `SELECT offsets.day_offset,
+                  (m.meeting_date + offsets.day_offset)::text AS date,
+                  d.id, d.title, d.notes
+             FROM year_plan_meetings m
+             CROSS JOIN GENERATE_SERIES(0, $3::integer - 1) AS offsets(day_offset)
+             LEFT JOIN year_plan_meeting_days d
+                    ON d.meeting_id = m.id
+                   AND d.organization_id = m.organization_id
+                   AND d.day_offset = offsets.day_offset
+            WHERE m.id = $1 AND m.organization_id = $2
+            ORDER BY offsets.day_offset`,
+          [meetingId, organizationId, Number(context.span_days)]
+        ),
+        pool.query(
+          `SELECT * FROM year_plan_meeting_activities
+            WHERE meeting_id = $1 AND organization_id = $2
+            ORDER BY day_offset, start_time NULLS LAST, sort_order, id`,
+          [meetingId, organizationId]
+        ),
+        pool.query(
+          `SELECT source.id, source.meeting_date::text AS meeting_date, source.theme,
+                  GREATEST(
+                    1,
+                    COALESCE(act.activity_end_date, act.activity_start_date, act.activity_date, source.meeting_date)
+                      - source.meeting_date + 1
+                  )::integer AS span_days
+             FROM year_plan_meetings source
+             LEFT JOIN activities act
+                    ON act.id = source.activity_id
+                   AND act.organization_id = source.organization_id
+                   AND act.is_active = TRUE
+            WHERE source.organization_id = $1
+              AND source.id <> $2
+              AND source.meeting_kind = 'camp'
+              AND EXISTS (
+                SELECT 1 FROM year_plan_meeting_days d
+                 WHERE d.meeting_id = source.id AND d.organization_id = source.organization_id
+                UNION ALL
+                SELECT 1 FROM year_plan_meeting_activities a
+                 WHERE a.meeting_id = source.id AND a.organization_id = source.organization_id
+                   AND a.day_offset > 0
+              )
+              AND GREATEST(
+                    1,
+                    COALESCE(act.activity_end_date, act.activity_start_date, act.activity_date, source.meeting_date)
+                      - source.meeting_date + 1
+                  ) <= $3
+            ORDER BY source.meeting_date DESC
+            LIMIT 20`,
+          [organizationId, meetingId, Number(context.span_days)]
+        )
+      ]);
+
+      const activitiesByDay = new Map();
+      for (const activity of activitiesResult.rows) {
+        const offset = Number(activity.day_offset) || 0;
+        if (!activitiesByDay.has(offset)) {
+          activitiesByDay.set(offset, []);
+        }
+        activitiesByDay.get(offset).push(activity);
+      }
+
+      return success(res, {
+        meeting_id: meetingId,
+        meeting_date: context.meeting_date,
+        meeting_kind: context.meeting_kind,
+        span_days: Number(context.span_days),
+        copy_sources: sourcesResult.rows,
+        days: daysResult.rows.map(day => ({
+          ...day,
+          day_offset: Number(day.day_offset),
+          activities: activitiesByDay.get(Number(day.day_offset)) || []
+        }))
+      });
+    })
+  );
+
+  /** Upsert one camp day's heading. */
+  router.put('/meetings/:id/days/:dayOffset',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('meetings.manage'),
+    [
+      check('dayOffset').isInt({ min: 0, max: 59 }),
+      check('title').optional({ nullable: true }).trim().isLength({ max: 255 }),
+      check('notes').optional({ nullable: true }).isString().isLength({ max: 10000 }),
+      checkValidation
+    ],
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const meetingId = parseInt(req.params.id, 10);
+      const dayOffset = parseInt(req.params.dayOffset, 10);
+      const context = await getScheduleContext(pool, meetingId, organizationId);
+
+      if (!context) {
+        return error(res, 'Meeting not found', 404);
+      }
+      if (!isDayInSpan(dayOffset, context)) {
+        return error(res, 'day_offset is outside the meeting span', 400);
+      }
+
+      const result = await pool.query(
+        `INSERT INTO year_plan_meeting_days
+           (organization_id, meeting_id, day_offset, title, notes)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (meeting_id, day_offset) DO UPDATE SET
+           title = EXCLUDED.title,
+           notes = EXCLUDED.notes,
+           updated_at = NOW()
+         RETURNING *`,
+        [organizationId, meetingId, dayOffset, req.body.title || null, req.body.notes || null]
+      );
+
+      return success(res, result.rows[0], 'Meeting day updated');
+    })
+  );
+
+  /**
+   * Copy headings and later-day activities from another camp schedule.
+   * Day zero remains owned by the normal meeting-preparation flow.
+   */
+  router.post('/meetings/:id/schedule/copy-from/:sourceMeetingId',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('meetings.manage'),
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const targetMeetingId = parseInt(req.params.id, 10);
+      const sourceMeetingId = parseInt(req.params.sourceMeetingId, 10);
+      const [target, source] = await Promise.all([
+        getScheduleContext(pool, targetMeetingId, organizationId),
+        getScheduleContext(pool, sourceMeetingId, organizationId)
+      ]);
+
+      if (!target || !source) {
+        return error(res, 'Source or target meeting not found', 404);
+      }
+      if (targetMeetingId === sourceMeetingId) {
+        return error(res, 'Source and target meetings must differ', 400);
+      }
+      if (Number(target.span_days) < Number(source.span_days)) {
+        const droppedDays = Array.from(
+          { length: Number(source.span_days) - Number(target.span_days) },
+          (_, index) => Number(target.span_days) + index
+        );
+        return error(res, 'Target schedule is shorter than the source', 409, [{
+          field: 'day_offset',
+          dropped_days: droppedDays
+        }]);
+      }
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const occupied = await client.query(
+          `SELECT
+             (SELECT COUNT(*) FROM year_plan_meeting_days
+               WHERE meeting_id = $1 AND organization_id = $2)
+             +
+             (SELECT COUNT(*) FROM year_plan_meeting_activities
+               WHERE meeting_id = $1 AND organization_id = $2 AND day_offset > 0)
+             AS item_count`,
+          [targetMeetingId, organizationId]
+        );
+        if (Number(occupied.rows[0]?.item_count) > 0) {
+          await client.query('ROLLBACK');
+          return error(res, 'Target schedule is not empty', 409);
+        }
+
+        const copiedDays = await client.query(
+          `INSERT INTO year_plan_meeting_days
+             (organization_id, meeting_id, day_offset, title, notes)
+           SELECT organization_id, $1, day_offset, title, notes
+             FROM year_plan_meeting_days
+            WHERE meeting_id = $2 AND organization_id = $3
+            ORDER BY day_offset
+           RETURNING *`,
+          [targetMeetingId, sourceMeetingId, organizationId]
+        );
+        const copiedActivities = await client.query(
+          `INSERT INTO year_plan_meeting_activities
+             (organization_id, meeting_id, activity_library_id, name, description,
+              duration_minutes, sort_order, objective_ids, series_id, series_occurrence,
+              metadata, start_time, activity_type, responsable, material, is_default,
+              badge_template_id, processed, day_offset)
+           SELECT organization_id, $1, activity_library_id, name, description,
+                  duration_minutes, sort_order, objective_ids, series_id, series_occurrence,
+                  metadata, start_time, activity_type, responsable, material, is_default,
+                  badge_template_id, processed, day_offset
+             FROM year_plan_meeting_activities
+            WHERE meeting_id = $2 AND organization_id = $3 AND day_offset > 0
+            ORDER BY day_offset, sort_order, id
+           RETURNING *`,
+          [targetMeetingId, sourceMeetingId, organizationId]
+        );
+
+        await client.query('COMMIT');
+        return success(res, {
+          source_meeting_id: sourceMeetingId,
+          target_meeting_id: targetMeetingId,
+          copied_days: copiedDays.rows.length,
+          copied_activities: copiedActivities.rows.length
+        }, 'Camp schedule copied', 201);
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    })
+  );
+
+  /**
    * POST /v1/yearly-planner/meetings/:meetingId/activities
    */
   router.post('/meetings/:meetingId/activities',
@@ -1206,6 +1612,10 @@ module.exports = (pool, logger) => {
     requirePermission('meetings.manage'),
     [
       check('name').trim().notEmpty().isLength({ max: 255 }),
+      check('day_offset').optional().isInt({ min: 0, max: 59 }),
+      check('start_time').optional({ nullable: true }).matches(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
+      check('responsable').optional({ nullable: true }).trim().isLength({ max: 255 }),
+      check('material').optional({ nullable: true }).isString().isLength({ max: 10000 }),
       checkValidation
     ],
     asyncHandler(async (req, res) => {
@@ -1214,32 +1624,35 @@ module.exports = (pool, logger) => {
 
       // Verify meeting exists. Past dates are allowed: series placement spans
       // whole terms and must not fail on dates that have already gone by.
-      const meetingCheck = await pool.query(
-        'SELECT id, meeting_date FROM year_plan_meetings WHERE id = $1 AND organization_id = $2',
-        [meetingId, organizationId]
-      );
-
-      if (meetingCheck.rows.length === 0) {
+      const context = await getScheduleContext(pool, meetingId, organizationId);
+      if (!context) {
         return error(res, 'Meeting not found', 404);
       }
 
       const {
         activity_library_id, name, description, duration_minutes,
-        sort_order, objective_ids, series_id, series_occurrence, metadata
+        sort_order, objective_ids, series_id, series_occurrence, metadata,
+        day_offset, start_time, activity_type, responsable, material
       } = req.body;
+      const dayOffset = day_offset == null ? 0 : parseInt(day_offset, 10);
+      if (!isDayInSpan(dayOffset, context)) {
+        return error(res, 'day_offset is outside the meeting span', 400);
+      }
 
       const result = await pool.query(
         `INSERT INTO year_plan_meeting_activities
          (organization_id, meeting_id, activity_library_id, name, description,
-          duration_minutes, sort_order, objective_ids, series_id, series_occurrence, metadata)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          duration_minutes, sort_order, objective_ids, series_id, series_occurrence, metadata,
+          day_offset, start_time, activity_type, responsable, material)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          RETURNING *`,
         [
           organizationId, meetingId, activity_library_id || null,
           name, description || null, duration_minutes || null,
           sort_order || 0, JSON.stringify(objective_ids || []),
           series_id || null, series_occurrence || null,
-          JSON.stringify(metadata || {})
+          JSON.stringify(metadata || {}), dayOffset, start_time || null,
+          activity_type || null, responsable || null, material || null
         ]
       );
 
@@ -1264,34 +1677,62 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.manage'),
+    [
+      check('name').optional().trim().notEmpty().isLength({ max: 255 }),
+      check('day_offset').optional().isInt({ min: 0, max: 59 }),
+      check('start_time').optional({ nullable: true }).matches(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
+      check('responsable').optional({ nullable: true }).trim().isLength({ max: 255 }),
+      check('material').optional({ nullable: true }).isString().isLength({ max: 10000 }),
+      checkValidation
+    ],
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const activityId = parseInt(req.params.id);
-      const { name, description, duration_minutes, sort_order, objective_ids, metadata } = req.body;
-
-      const result = await pool.query(
-        `UPDATE year_plan_meeting_activities SET
-          name = COALESCE($1, name),
-          description = COALESCE($2, description),
-          duration_minutes = COALESCE($3, duration_minutes),
-          sort_order = COALESCE($4, sort_order),
-          objective_ids = COALESCE($5, objective_ids),
-          metadata = COALESCE($6, metadata),
-          updated_at = NOW()
-         WHERE id = $7 AND organization_id = $8
-         RETURNING *`,
-        [
-          name || null, description, duration_minutes,
-          sort_order != null ? sort_order : null,
-          objective_ids ? JSON.stringify(objective_ids) : null,
-          metadata ? JSON.stringify(metadata) : null,
-          activityId, organizationId
-        ]
+      const activityId = parseInt(req.params.id, 10);
+      const existing = await pool.query(
+        `SELECT id, meeting_id FROM year_plan_meeting_activities
+          WHERE id = $1 AND organization_id = $2`,
+        [activityId, organizationId]
       );
-
-      if (result.rows.length === 0) {
+      if (existing.rows.length === 0) {
         return error(res, 'Activity not found', 404);
       }
+
+      if (Object.prototype.hasOwnProperty.call(req.body, 'day_offset')) {
+        const context = await getScheduleContext(pool, existing.rows[0].meeting_id, organizationId);
+        if (!context || !isDayInSpan(parseInt(req.body.day_offset, 10), context)) {
+          return error(res, 'day_offset is outside the meeting span', 400);
+        }
+      }
+
+      const updates = [];
+      const values = [];
+      for (const field of [
+        'name', 'description', 'duration_minutes', 'sort_order', 'objective_ids',
+        'metadata', 'day_offset', 'start_time', 'activity_type', 'responsable', 'material'
+      ]) {
+        if (!Object.prototype.hasOwnProperty.call(req.body, field)) {
+          continue;
+        }
+        let value = req.body[field];
+        if (field === 'objective_ids' || field === 'metadata') {
+          value = JSON.stringify(value || (field === 'objective_ids' ? [] : {}));
+        }
+        values.push(value);
+        updates.push(`${field} = $${values.length}`);
+      }
+
+      if (updates.length === 0) {
+        return success(res, existing.rows[0], 'No changes detected');
+      }
+
+      values.push(activityId, organizationId);
+      const result = await pool.query(
+        `UPDATE year_plan_meeting_activities
+            SET ${updates.join(', ')}, updated_at = NOW()
+          WHERE id = $${values.length - 1} AND organization_id = $${values.length}
+          RETURNING *`,
+        values
+      );
 
       return success(res, result.rows[0], 'Activity updated');
     })
@@ -1472,6 +1913,61 @@ module.exports = (pool, logger) => {
       }
 
       return success(res, { deleted: result.rows.length }, 'Series removed');
+    })
+  );
+
+  /**
+   * PATCH /v1/yearly-planner/series/:seriesId
+   * Update the editable fields shared by every occurrence of a series.
+   * Occurrence numbers remain server-owned and are never accepted here.
+   */
+  router.patch('/series/:seriesId',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('meetings.manage'),
+    [
+      check('seriesId').trim().isLength({ min: 1, max: 100 }).matches(/^[A-Za-z0-9-]+$/),
+      check('name').optional().trim().notEmpty().isLength({ max: 255 }),
+      check('duration_minutes').optional({ nullable: true }).isInt({ min: 1, max: 1440 }),
+      check('description').optional({ nullable: true }).isString().isLength({ max: 10000 }),
+      checkValidation
+    ],
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const updates = [];
+      const values = [];
+
+      for (const field of ['name', 'duration_minutes', 'description']) {
+        if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+          values.push(req.body[field]);
+          updates.push(`${field} = $${values.length}`);
+        }
+      }
+
+      if (updates.length === 0) {
+        return error(res, 'At least one editable series field is required', 400);
+      }
+
+      if (Object.prototype.hasOwnProperty.call(req.body, 'name')) {
+        values.push(req.body.name);
+        updates.push(`metadata = JSONB_SET(COALESCE(metadata, '{}'::jsonb), '{series_label}', TO_JSONB($${values.length}::text))`);
+      }
+
+      values.push(req.params.seriesId, organizationId);
+      const result = await pool.query(
+        `UPDATE year_plan_meeting_activities
+            SET ${updates.join(', ')}, updated_at = NOW()
+          WHERE series_id = $${values.length - 1} AND organization_id = $${values.length}
+          RETURNING id, meeting_id, name, description, duration_minutes,
+                    series_id, series_occurrence, metadata`,
+        values
+      );
+
+      if (result.rows.length === 0) {
+        return error(res, 'Series not found', 404);
+      }
+
+      return success(res, result.rows, 'Series updated');
     })
   );
 
@@ -1801,6 +2297,7 @@ module.exports = (pool, logger) => {
       check('activity_name').trim().notEmpty().isLength({ max: 255 }),
       check('distribution_scope').isIn(['year', 'period', 'month']),
       check('placement_rule').isIn(['near_start', 'near_end', 'evenly_spaced', 'manual']),
+      check('occurrences_per_scope').optional().isInt({ min: 1, max: 60 }),
       checkValidation
     ],
     asyncHandler(async (req, res) => {
@@ -1811,20 +2308,123 @@ module.exports = (pool, logger) => {
         placement_rule, occurrences_per_scope, settings
       } = req.body;
 
-      const result = await pool.query(
-        `INSERT INTO activity_distribution_rules
-         (organization_id, year_plan_id, activity_library_id, activity_name,
-          distribution_scope, placement_rule, occurrences_per_scope, settings)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING *`,
-        [
-          organizationId, planId, activity_library_id || null,
-          activity_name, distribution_scope, placement_rule,
-          occurrences_per_scope || 1, JSON.stringify(settings || {})
-        ]
+      const planCheck = await pool.query(
+        'SELECT id FROM year_plans WHERE id = $1 AND organization_id = $2 AND is_active = TRUE',
+        [planId, organizationId]
       );
+      if (planCheck.rows.length === 0) {
+        return error(res, 'Year plan not found', 404);
+      }
 
-      return success(res, result.rows[0], 'Distribution rule created', 201);
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const result = await client.query(
+          `INSERT INTO activity_distribution_rules
+           (organization_id, year_plan_id, activity_library_id, activity_name,
+            distribution_scope, placement_rule, occurrences_per_scope, settings)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           RETURNING *`,
+          [
+            organizationId, planId, activity_library_id || null,
+            activity_name, distribution_scope, placement_rule,
+            occurrences_per_scope || 1, JSON.stringify(settings || {})
+          ]
+        );
+        const rule = result.rows[0];
+        let seriesId = null;
+        let created = [];
+
+        if (placement_rule !== 'manual') {
+          const meetings = await client.query(
+            `SELECT id, meeting_date::text AS meeting_date, period_id
+               FROM year_plan_meetings
+              WHERE year_plan_id = $1 AND organization_id = $2
+                AND meeting_kind = 'regular' AND NOT is_cancelled
+              ORDER BY meeting_date`,
+            [planId, organizationId]
+          );
+          const groups = new Map();
+          for (const meeting of meetings.rows) {
+            const key = distribution_scope === 'year'
+              ? 'year'
+              : distribution_scope === 'month'
+                ? meeting.meeting_date.slice(0, 7)
+                : meeting.period_id ? `period:${meeting.period_id}` : null;
+            if (!key) {
+              continue;
+            }
+            if (!groups.has(key)) {
+              groups.set(key, []);
+            }
+            groups.get(key).push(meeting);
+          }
+
+          const selected = [];
+          const count = Number(occurrences_per_scope) || 1;
+          for (const group of groups.values()) {
+            const take = Math.min(count, group.length);
+            if (placement_rule === 'near_start') {
+              selected.push(...group.slice(0, take));
+            } else if (placement_rule === 'near_end') {
+              selected.push(...group.slice(-take));
+            } else if (take === 1) {
+              selected.push(group[Math.floor((group.length - 1) / 2)]);
+            } else {
+              for (let index = 0; index < take; index++) {
+                selected.push(group[Math.round(index * (group.length - 1) / (take - 1))]);
+              }
+            }
+          }
+
+          const targets = [...new Map(selected.map(row => [row.id, row])).values()]
+            .sort((a, b) => a.meeting_date.localeCompare(b.meeting_date));
+          if (targets.length > 0) {
+            seriesId = randomUUID();
+            const inserted = await client.query(
+              `INSERT INTO year_plan_meeting_activities
+                 (organization_id, meeting_id, activity_library_id, name, description,
+                  duration_minutes, sort_order, objective_ids, series_id, series_occurrence, metadata)
+               SELECT $1, target.meeting_id, $2, $3, $4, $5,
+                      COALESCE((SELECT MAX(a.sort_order) + 1
+                                  FROM year_plan_meeting_activities a
+                                 WHERE a.meeting_id = target.meeting_id AND a.day_offset = 0), 0),
+                      $6::jsonb, $7, target.occurrence,
+                      JSONB_BUILD_OBJECT(
+                        'series_label', $3::text,
+                        'series_total', $8::integer,
+                        'distribution_rule_id', $9::integer
+                      )
+                 FROM UNNEST($10::int[], $11::int[]) AS target(meeting_id, occurrence)
+               RETURNING *`,
+              [
+                organizationId, activity_library_id || null, activity_name,
+                settings?.description || null, settings?.duration_minutes || null,
+                JSON.stringify(settings?.objective_ids || []), seriesId, targets.length,
+                rule.id, targets.map(row => row.id), targets.map((_, index) => index + 1)
+              ]
+            );
+            created = inserted.rows;
+            const updatedRule = await client.query(
+              `UPDATE activity_distribution_rules
+                  SET settings = settings || JSONB_BUILD_OBJECT('generated_series_id', $1::text),
+                      updated_at = NOW()
+                WHERE id = $2 AND organization_id = $3
+                RETURNING *`,
+              [seriesId, rule.id, organizationId]
+            );
+            Object.assign(rule, updatedRule.rows[0]);
+          }
+        }
+
+        await client.query('COMMIT');
+        return success(res, { rule, series_id: seriesId, created }, 'Distribution rule created', 201);
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
     })
   );
 
@@ -1863,25 +2463,63 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.manage'),
+    [
+      check('channel').optional().isIn(['email', 'whatsapp', 'google']),
+      check('scheduled_at').isISO8601(),
+      check('custom_message').optional({ nullable: true }).isString().isLength({ max: 5000 }),
+      check('is_recurring').optional().isBoolean(),
+      checkValidation
+    ],
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const meetingId = parseInt(req.params.meetingId);
-      const { channel, scheduled_at, custom_message } = req.body;
+      const { channel, scheduled_at, custom_message, is_recurring } = req.body;
+
+      const meeting = await pool.query(
+        'SELECT id FROM year_plan_meetings WHERE id = $1 AND organization_id = $2',
+        [meetingId, organizationId]
+      );
+      if (meeting.rows.length === 0) {
+        return error(res, 'Meeting not found', 404);
+      }
 
       const result = await pool.query(
         `INSERT INTO year_plan_reminders
-         (organization_id, meeting_id, channel, scheduled_at, custom_message)
-         VALUES ($1, $2, $3, $4, $5)
+         (organization_id, meeting_id, channel, scheduled_at, reminder_date,
+          custom_message, is_recurring)
+         VALUES ($1, $2, $3, $4, $4::timestamptz::date, $5, $6)
          RETURNING *`,
         [
           organizationId, meetingId,
           channel || 'email',
           scheduled_at,
-          custom_message || null
+          custom_message || null,
+          is_recurring === true
         ]
       );
 
       return success(res, result.rows[0], 'Reminder scheduled', 201);
+    })
+  );
+
+  /** GET the latest reminder owned by one meeting. */
+  router.get('/meetings/:meetingId/reminders',
+    authenticate,
+    requirePermission('meetings.view'),
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const meetingId = parseInt(req.params.meetingId, 10);
+      const result = await pool.query(
+        `SELECT id, meeting_id, channel, scheduled_at,
+                reminder_date::text AS reminder_date,
+                custom_message AS reminder_text, is_recurring, status
+           FROM year_plan_reminders
+          WHERE meeting_id = $1 AND organization_id = $2
+          ORDER BY created_at DESC
+          LIMIT 1`,
+        [meetingId, organizationId]
+      );
+      return success(res, result.rows[0] || null);
     })
   );
 

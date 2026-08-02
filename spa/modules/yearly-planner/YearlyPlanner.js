@@ -13,6 +13,11 @@ import { openModal } from '../../utils/ModalUtils.js';
 import { buildYearModel } from './PlannerModel.js';
 import { renderYearGrid, renderYearSummary, renderArmBar, renderLiveRegion } from './YearGridView.js';
 import { openMeetingSheet } from './MeetingSheet.js';
+import { CampSchedule } from './CampSchedule.js';
+import { PeriodEditor } from './PeriodEditor.js';
+import { AchievementEditor } from './AchievementEditor.js';
+import { PlanCalendarEditor } from './PlanCalendarEditor.js';
+import { DistributionRuleEditor } from './DistributionRuleEditor.js';
 import { ArmedPlacement } from './ArmedPlacement.js';
 import {
   getYearPlans,
@@ -28,19 +33,18 @@ import {
   createObjective,
   deleteObjective,
   updateYearPlanMeeting,
-  addMeetingActivity,
-  deleteMeetingActivity,
   getActivityLibrary,
   createLibraryActivity,
   deleteLibraryActivity,
-  createActivityEventFromMeeting,
-  getYearPlanMeeting
+  deleteSeries,
+  updateSeries,
+  getDistributionRules,
+  deleteDistributionRule
 } from '../../api/api-yearly-planner.js';
 
 const VIEW = {
   LIST: 'list',
   PLAN_DETAIL: 'plan_detail',
-  MEETING_DETAIL: 'meeting_detail',
   LIBRARY: 'library'
 };
 
@@ -49,19 +53,22 @@ export class YearlyPlanner extends BaseModule {
     super(app);
     this.plans = [];
     this.currentPlan = null;
-    this.currentMeeting = null;
     this.activityLibrary = [];
     this.view = VIEW.LIST;
     this.isLoading = true;
     this.loadError = null;
     this.libraryError = null;
     this.canManage = hasPermission('meetings.manage');
-    this.canCreateActivities = hasPermission('activities.create');
     this.lang = localStorage.getItem('language') || 'en';
     this.placement = new ArmedPlacement();
   }
 
-  async init() {
+  /**
+   * Initialize the planner, optionally opening a deep-linked plan directly.
+   * @param {number|null} planId - Plan to open from /yearly-planner/:planId
+   * @returns {Promise<void>}
+   */
+  async init(planId = null) {
     await loadStylesheet('/css/yearly-planner.css');
 
     // Escape abandons a placement from anywhere. Registered through BaseModule
@@ -77,7 +84,11 @@ export class YearlyPlanner extends BaseModule {
     this.render();
 
     try {
-      await this.loadPlans();
+      if (Number.isInteger(planId) && planId > 0) {
+        await this.loadPlanDetail(planId, { render: false });
+      } else {
+        await this.loadPlans();
+      }
     } catch (err) {
       debugError('Failed to init yearly planner:', err);
     }
@@ -103,27 +114,39 @@ export class YearlyPlanner extends BaseModule {
     }
   }
 
-  async loadPlanDetail(planId, { forceRefresh = false } = {}) {
+  async loadPlanDetail(planId, { forceRefresh = false, render = true } = {}) {
     try {
       this.currentPlanId = planId;
       this.isLoading = true;
       this.view = VIEW.PLAN_DETAIL;
-      this.render();
+      if (render) {
+        this.render();
+      }
 
-      const response = await getYearPlan(planId, { forceRefresh });
+      const [response, rulesResponse] = await Promise.all([
+        getYearPlan(planId, { forceRefresh }),
+        getDistributionRules(planId, { forceRefresh })
+      ]);
       this.currentPlan = response?.data || null;
+      if (this.currentPlan) {
+        this.currentPlan.distribution_rules = rulesResponse?.data || [];
+      }
       this.yearModel = this.currentPlan
         ? buildYearModel(this.currentPlan, { today: getTodayISO() })
         : null;
 
       this.isLoading = false;
-      this.render();
-      this.attachEventListeners();
+      if (render) {
+        this.render();
+        this.attachEventListeners();
+      }
     } catch (err) {
       debugError('Error loading plan detail:', err);
       this.isLoading = false;
       this.app.showMessage(translate('yearly_planner_error_loading'), 'error');
-      this.render();
+      if (render) {
+        this.render();
+      }
     }
   }
 
@@ -364,7 +387,10 @@ export class YearlyPlanner extends BaseModule {
       },
       onSave: (payload) => this.handleSheetSave(chip, payload),
       onDelete: () => this.handleSheetDelete(chip),
-      onUnlinkActivity: () => this.handleSheetUnlink(chip)
+      onUnlinkActivity: () => this.handleSheetUnlink(chip),
+      onRemoveSeries: (series) => this.handleRemoveSeries(series),
+      onEditSeries: (series) => this.openSeriesEditor(series),
+      onOpenSchedule: () => this.openCampSchedule(chip)
     });
   }
 
@@ -424,6 +450,79 @@ export class YearlyPlanner extends BaseModule {
       debugError('Error unlinking activity:', err);
       this.app.showMessage(translate('yearly_planner_error_saving'), 'error');
     }
+  }
+
+  /**
+   * Remove a series from every date after an explicit scope warning.
+   * @param {Object} series - Series descriptor from the selected chip
+   * @returns {Promise<void>}
+   */
+  async handleRemoveSeries(series) {
+    const confirmed = await confirmDestructive({
+      title: translate('yearly_planner_remove_series'),
+      message: translate('yearly_planner_remove_series_confirm')
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteSeries(series.id);
+      this.app.showMessage(translate('yearly_planner_series_removed'), 'success');
+      await this.loadPlanDetail(this.currentPlanId, { forceRefresh: true });
+    } catch (err) {
+      debugError('Error removing series:', err);
+      this.app.showMessage(translate('yearly_planner_error_deleting'), 'error');
+    }
+  }
+
+  /** Open the responsive editor for a multi-day block. */
+  openCampSchedule(chip) {
+    this.campSchedule?.destroy();
+    this.campSchedule = new CampSchedule(this.app, {
+      chip,
+      lang: this.lang,
+      canManage: this.canManage,
+      onChanged: () => this.loadPlanDetail(this.currentPlanId, { forceRefresh: true })
+    });
+    this.campSchedule.open();
+  }
+
+  /** Rename or retime every occurrence without changing server-owned ordering. */
+  openSeriesEditor(series) {
+    const modal = openModal({
+      id: 'yp-series-editor',
+      title: escapeHTML(translate('yearly_planner_edit_series')),
+      body: `
+        <label class="form-group"><span>${escapeHTML(translate('activity_label'))}</span><input type="text" id="yp-series-name" maxlength="255" value="${escapeHTML(series.name || series.label || '')}" required></label>
+        <label class="form-group"><span>${escapeHTML(translate('duration_minutes'))}</span><input type="number" id="yp-series-duration" min="1" max="1440" value="${series.duration_minutes || ''}"></label>
+        <label class="form-group"><span>${escapeHTML(translate('activity_description_label'))}</span><textarea id="yp-series-description" rows="3">${escapeHTML(series.description || '')}</textarea></label>
+      `,
+      footer: `
+        <button type="button" class="button button--secondary" data-modal-close>${escapeHTML(translate('cancel'))}</button>
+        <button type="button" class="button button--primary" id="yp-series-save">${escapeHTML(translate('save'))}</button>
+      `
+    });
+    modal.overlay.querySelector('#yp-series-save')?.addEventListener('click', async () => {
+      const name = modal.overlay.querySelector('#yp-series-name')?.value.trim();
+      if (!name) {
+        this.app.showMessage(translate('plan_fields_required'), 'error');
+        return;
+      }
+      try {
+        await updateSeries(series.id, {
+          name,
+          duration_minutes: parseInt(modal.overlay.querySelector('#yp-series-duration')?.value, 10) || null,
+          description: modal.overlay.querySelector('#yp-series-description')?.value.trim() || null
+        });
+        modal.close();
+        this.app.showMessage(translate('yearly_planner_series_updated'), 'success');
+        await this.loadPlanDetail(this.currentPlanId, { forceRefresh: true });
+      } catch (err) {
+        debugError('Error updating series:', err);
+        this.app.showMessage(translate('yearly_planner_error_saving'), 'error');
+      }
+    });
   }
 
   /**
@@ -548,9 +647,6 @@ export class YearlyPlanner extends BaseModule {
       case VIEW.PLAN_DETAIL:
         setContent(container, this.renderPlanDetail());
         break;
-      case VIEW.MEETING_DETAIL:
-        setContent(container, this.renderMeetingDetail());
-        break;
       case VIEW.LIBRARY:
         setContent(container, this.renderLibraryView());
         break;
@@ -668,6 +764,19 @@ export class YearlyPlanner extends BaseModule {
             <i class="fas fa-arrow-left"></i> ${translate('back')}
           </button>
           <h1>${safeName}</h1>
+          <div class="page__actions yp-print-actions">
+            ${this.canManage ? `
+              <button type="button" class="button button--secondary" id="yp-calendar-rules">
+                <i class="fas fa-calendar-xmark" aria-hidden="true"></i> ${translate('yearly_planner_calendar_rules')}
+              </button>
+            ` : ''}
+            <button type="button" class="button button--secondary" id="yp-print-plan">
+              <i class="fas fa-print" aria-hidden="true"></i> ${translate('print')}
+            </button>
+            <button type="button" class="button button--secondary" id="yp-export-plan">
+              <i class="fas fa-file-csv" aria-hidden="true"></i> ${translate('yearly_planner_export_csv')}
+            </button>
+          </div>
         </header>
 
         <div class="yp-plan-meta">
@@ -681,6 +790,7 @@ export class YearlyPlanner extends BaseModule {
           <button class="yp-tab yp-tab--active" data-tab="timeline" role="tab">${translate('yearly_planner_tab_timeline')}</button>
           <button class="yp-tab" data-tab="periods" role="tab">${translate('yearly_planner_tab_periods')}</button>
           <button class="yp-tab" data-tab="objectives" role="tab">${translate('yearly_planner_tab_objectives')}</button>
+          <button class="yp-tab" data-tab="distribution" role="tab">${translate('yearly_planner_distribution_rules')}</button>
         </div>
 
         <!-- Year at a glance -->
@@ -715,6 +825,10 @@ export class YearlyPlanner extends BaseModule {
         <!-- Objectives Tab -->
         <div class="yp-tab-content" id="yp-tab-objectives" style="display:none;">
           ${this.renderObjectivesTab(rootObjectives, subObjectiveMap, periods)}
+        </div>
+
+        <div class="yp-tab-content" id="yp-tab-distribution" style="display:none;">
+          ${this.renderDistributionRules(plan.distribution_rules || [])}
         </div>
       </section>
     `;
@@ -752,6 +866,37 @@ export class YearlyPlanner extends BaseModule {
     `;
   }
 
+  /** Download the current plan's date grid as a locale-neutral CSV file. */
+  exportPlanCsv() {
+    if (!this.currentPlan) {
+      return;
+    }
+    const quote = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const header = [
+      'date', 'kind', 'theme', 'location', 'period', 'cancelled',
+      'prepared', 'activity_count', 'objective_count'
+    ];
+    const rows = (this.currentPlan.meetings || []).map(meeting => [
+      String(meeting.meeting_date).slice(0, 10),
+      meeting.meeting_kind || 'regular',
+      meeting.theme || '',
+      meeting.location || '',
+      meeting.period_title || '',
+      meeting.is_cancelled === true,
+      meeting.is_prepared === true,
+      Number(meeting.activity_count) || 0,
+      Array.isArray(meeting.objective_ids) ? meeting.objective_ids.length : 0
+    ]);
+    const csv = [header, ...rows].map(row => row.map(quote).join(',')).join('\r\n');
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `year-plan-${this.currentPlan.id}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   renderObjectivesTab(rootObjectives, subObjectiveMap, periods) {
     return `
       <div class="yp-objectives">
@@ -768,8 +913,13 @@ export class YearlyPlanner extends BaseModule {
               <h4>${escapeHTML(obj.title)}</h4>
               <span class="badge">${obj.scope === 'participant' ? translate('yearly_planner_scope_participant') : translate('yearly_planner_scope_unit')}</span>
               ${obj.period_title ? `<span class="badge badge--info">${escapeHTML(obj.period_title)}</span>` : ''}
-              ${obj.achievement_count > 0 ? `<span class="badge badge--success">${obj.achievement_count} ✓</span>` : ''}
+              <span class="badge badge--info">${Number(obj.meeting_count) || 0} ${translate('yearly_planner_meetings')}</span>
+              <span class="badge badge--success">${Number(obj.achievement_count) || 0} ${translate('yearly_planner_participants_achieved')}</span>
               ${this.canManage ? `
+                <button class="button button--small yp-manage-achievements-btn" data-id="${obj.id}">
+                  <i class="fas fa-user-check" aria-hidden="true"></i>
+                  ${translate('yearly_planner_manage_achievements')}
+                </button>
                 <button class="button button--small button--danger yp-delete-obj-btn" data-id="${obj.id}"><i class="fas fa-trash"></i></button>
               ` : ''}
             </div>
@@ -779,8 +929,12 @@ export class YearlyPlanner extends BaseModule {
                 ${subObjectiveMap[obj.id].map(sub => `
                   <div class="yp-sub-objective">
                     <span>${escapeHTML(sub.title)}</span>
-                    ${sub.achievement_count > 0 ? `<span class="badge badge--success">${sub.achievement_count} ✓</span>` : ''}
+                    <span class="badge badge--info">${Number(sub.meeting_count) || 0} ${translate('yearly_planner_meetings')}</span>
+                    <span class="badge badge--success">${Number(sub.achievement_count) || 0} ${translate('yearly_planner_participants_achieved')}</span>
                     ${this.canManage ? `
+                      <button class="button button--tiny yp-manage-achievements-btn" data-id="${sub.id}">
+                        <i class="fas fa-user-check" aria-hidden="true"></i>
+                      </button>
                       <button class="button button--tiny button--danger yp-delete-obj-btn" data-id="${sub.id}"><i class="fas fa-times"></i></button>
                     ` : ''}
                   </div>
@@ -793,84 +947,34 @@ export class YearlyPlanner extends BaseModule {
     `;
   }
 
-  renderMeetingDetail() {
-    if (!this.currentMeeting) {
-      return `<p>${translate('meeting_not_found')}</p>`;
-    }
-
-    const m = this.currentMeeting;
-    const isLocked = m.is_locked;
-    const activities = m.activities || [];
-
+  renderDistributionRules(rules) {
     return `
-      <section class="page yearly-planner">
-        <header class="page__header">
-          <button class="button button--text" id="yp-back-to-plan">
-            <i class="fas fa-arrow-left"></i> ${translate('back')}
+      <div class="yp-distribution-rules">
+        ${this.canManage ? `
+          <button type="button" class="button button--primary" id="yp-add-distribution-rule">
+            <i class="fas fa-plus" aria-hidden="true"></i> ${translate('yearly_planner_add_distribution_rule')}
           </button>
-          <h1>${formatDate(m.meeting_date, this.lang)}</h1>
-          ${isLocked ? `<span class="badge badge--muted"><i class="fas fa-lock"></i> ${translate('yearly_planner_locked')}</span>` : ''}
-        </header>
-
-        <div class="yp-meeting-detail">
-          <div class="yp-meeting-detail__info">
-            ${m.theme ? `<p><strong>${translate('yearly_planner_theme')}:</strong> ${escapeHTML(m.theme)}</p>` : ''}
-            ${m.location ? `<p><strong>${translate('meeting_location')}:</strong> ${escapeHTML(m.location)}</p>` : ''}
-            ${m.start_time ? `<p><strong>${translate('meeting_time')}:</strong> ${m.start_time.substring(0, 5)} — ${m.end_time ? m.end_time.substring(0, 5) : ''}</p>` : ''}
-            ${m.notes ? `<p><strong>${translate('notes')}:</strong> ${escapeHTML(m.notes)}</p>` : ''}
-          </div>
-
-          <div class="yp-meeting-detail__links">
-            ${!m.is_cancelled && this.canManage ? `
-              <button class="button button--secondary" id="yp-prepare-meeting-btn" data-date="${m.meeting_date}">
-                <i class="fas fa-clipboard-list"></i> ${translate('yearly_planner_prepare')}
-              </button>
-            ` : ''}
-            ${m.activity_id ? `
-              <a href="/activities" class="button button--secondary">
-                <i class="fas fa-campground"></i> ${translate('yearly_planner_view_activity_event')}
-              </a>
-            ` : !m.is_cancelled && !m.is_locked && this.canCreateActivities ? `
-              <button class="button button--secondary" id="yp-create-event-btn" data-id="${m.id}">
-                <i class="fas fa-campground"></i> ${translate('yearly_planner_create_activity_event')}
-              </button>
-            ` : ''}
-          </div>
-
-          <h3>${translate('activities')} (${activities.length})</h3>
-
-          ${!isLocked && this.canManage ? `
-            <button class="button button--primary" id="yp-add-activity-btn">
-              <i class="fas fa-plus"></i> ${translate('add_activity')}
-            </button>
-          ` : ''}
-
-          ${activities.length === 0 ? `
-            <div class="empty-state"><p>${translate('no_activities_scheduled')}</p></div>
-          ` : `
-            <div class="yp-activity-list">
-              ${activities.map(a => `
-                <div class="yp-activity-item" data-activity-id="${a.id}">
-                  <div class="yp-activity-item__info">
-                    <strong>${escapeHTML(a.name)}</strong>
-                    ${a.duration_minutes ? `<span class="yp-activity-item__duration">${a.duration_minutes} min</span>` : ''}
-                    ${a.description ? `<p>${escapeHTML(a.description)}</p>` : ''}
-                    ${(a.objective_ids || []).length > 0 ? `
-                      <span class="badge badge--info"><i class="fas fa-bullseye"></i> ${a.objective_ids.length} ${translate('yearly_planner_objectives')}</span>
-                    ` : ''}
-                    ${a.series_id ? `<span class="badge"><i class="fas fa-link"></i> ${translate('yearly_planner_multi_meeting')}</span>` : ''}
-                  </div>
-                  ${!isLocked && this.canManage ? `
-                    <button class="button button--small button--danger yp-remove-activity-btn" data-id="${a.id}">
-                      <i class="fas fa-trash"></i>
-                    </button>
-                  ` : ''}
-                </div>
-              `).join('')}
+        ` : ''}
+        ${rules.length === 0 ? `
+          <p class="empty-state">${translate('yearly_planner_no_distribution_rules')}</p>
+        ` : rules.map(rule => `
+          <article class="yp-period-card">
+            <div class="yp-period-card__header">
+              <h4>${escapeHTML(rule.activity_name)}</h4>
+              ${this.canManage ? `
+                <button type="button" class="button button--small button--danger yp-delete-distribution-rule" data-id="${rule.id}">
+                  <i class="fas fa-trash" aria-hidden="true"></i>
+                </button>
+              ` : ''}
             </div>
-          `}
-        </div>
-      </section>
+            <p>
+              ${Number(rule.occurrences_per_scope) || 1} ×
+              ${escapeHTML(translate(`yearly_planner_scope_${rule.distribution_scope}`))} ·
+              ${escapeHTML(translate(`yearly_planner_rule_${rule.placement_rule}`))}
+            </p>
+          </article>
+        `).join('')}
+      </div>
     `;
   }
 
@@ -1085,102 +1189,6 @@ export class YearlyPlanner extends BaseModule {
     });
   }
 
-  showMeetingEditModal(meeting) {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'yp-modal';
-    setContent(modal, `
-      <div class="modal">
-        <div class="modal__header">
-          <h2>${translate('yearly_planner_edit_meeting')}</h2>
-          <button class="modal__close" id="yp-modal-close">&times;</button>
-        </div>
-        <div class="modal__body">
-          <div class="form-group">
-            <label>${translate('yearly_planner_theme')}</label>
-            <input type="text" id="yp-meeting-theme" class="input" value="${escapeHTML(meeting.theme || '')}" />
-          </div>
-          <div class="form-group">
-            <label>${translate('meeting_location')}</label>
-            <input type="text" id="yp-meeting-location" class="input" value="${escapeHTML(meeting.location || '')}" />
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>${translate('meeting_time')}</label>
-              <input type="time" id="yp-meeting-start" class="input" value="${meeting.start_time ? meeting.start_time.substring(0, 5) : ''}" />
-            </div>
-            <div class="form-group">
-              <label>${translate('yearly_planner_end_time')}</label>
-              <input type="time" id="yp-meeting-end" class="input" value="${meeting.end_time ? meeting.end_time.substring(0, 5) : ''}" />
-            </div>
-          </div>
-          <div class="form-group">
-            <label>${translate('notes')}</label>
-            <textarea id="yp-meeting-notes" class="input" rows="3">${escapeHTML(meeting.notes || '')}</textarea>
-          </div>
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input type="checkbox" id="yp-meeting-cancel" ${meeting.is_cancelled ? 'checked' : ''} />
-              ${translate('yearly_planner_cancel_meeting')}
-            </label>
-          </div>
-        </div>
-        <div class="modal__footer">
-          <button class="button button--secondary" id="yp-modal-cancel">${translate('cancel')}</button>
-          <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
-        </div>
-      </div>
-    `);
-    document.body.appendChild(modal);
-
-    modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-cancel').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleUpdateMeeting(modal, meeting.id));
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.remove();
-    });
-  }
-
-  showAddActivityModal(meetingId) {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'yp-modal';
-    setContent(modal, `
-      <div class="modal">
-        <div class="modal__header">
-          <h2>${translate('add_activity')}</h2>
-          <button class="modal__close" id="yp-modal-close">&times;</button>
-        </div>
-        <div class="modal__body">
-          <div class="form-group">
-            <label>${translate('activity_label')}</label>
-            <input type="text" id="yp-act-name" class="input" required />
-          </div>
-          <div class="form-group">
-            <label>${translate('activity_description_label')}</label>
-            <textarea id="yp-act-desc" class="input" rows="2"></textarea>
-          </div>
-          <div class="form-group">
-            <label>${translate('duration_minutes')}</label>
-            <input type="number" id="yp-act-duration" class="input" min="5" max="300" />
-          </div>
-        </div>
-        <div class="modal__footer">
-          <button class="button button--secondary" id="yp-modal-cancel">${translate('cancel')}</button>
-          <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
-        </div>
-      </div>
-    `);
-    document.body.appendChild(modal);
-
-    modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-cancel').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleAddActivity(modal, meetingId));
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.remove();
-    });
-  }
-
   showAddLibraryActivityModal() {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
@@ -1232,55 +1240,6 @@ export class YearlyPlanner extends BaseModule {
     modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleAddLibraryActivity(modal));
     modal.addEventListener('click', (e) => {
       if (e.target === modal) modal.remove();
-    });
-  }
-
-  /**
-   * Modal to create an outing (activities calendar entry) from a planned
-   * meeting — unlocks carpools, permission slips and the iCal feed.
-   * @param {Object} meeting - Year plan meeting
-   */
-  showCreateEventModal(meeting) {
-    const { overlay, close } = openModal({
-      id: 'yp-event-modal',
-      title: translate('yearly_planner_create_activity_event'),
-      body: `
-        <p class="section-description">${translate('yearly_planner_create_activity_event_help')}</p>
-        <div class="form-group">
-          <label>${translate('activity_name')}</label>
-          <input type="text" id="yp-event-name" class="input" value="${escapeHTML(meeting.theme || '')}" required />
-        </div>
-        <div class="form-group">
-          <label>${translate('meeting_location')}</label>
-          <input type="text" id="yp-event-location" class="input" value="${escapeHTML(meeting.location || '')}" />
-        </div>
-      `,
-      footer: `
-        <button class="button button--secondary" data-modal-close>${translate('cancel')}</button>
-        <button class="button button--primary" id="yp-event-save">${translate('save')}</button>
-      `
-    });
-
-    overlay.querySelector('#yp-event-save').addEventListener('click', async () => {
-      const name = overlay.querySelector('#yp-event-name').value.trim();
-      const location = overlay.querySelector('#yp-event-location').value.trim();
-      if (!name) {
-        this.app.showMessage(translate('plan_fields_required'), 'error');
-        return;
-      }
-      try {
-        await createActivityEventFromMeeting(meeting.id, { name, location });
-        close();
-        this.app.showMessage(translate('yearly_planner_activity_event_created'), 'success');
-        // Refresh the meeting detail so the link button appears
-        const response = await getYearPlanMeeting(meeting.id);
-        this.currentMeeting = response?.data || this.currentMeeting;
-        this.render();
-        this.attachEventListeners();
-      } catch (err) {
-        debugError('Error creating activity event:', err);
-        this.app.showMessage(translate('yearly_planner_error_creating'), 'error');
-      }
     });
   }
 
@@ -1358,58 +1317,6 @@ export class YearlyPlanner extends BaseModule {
       await this.loadPlanDetail(this.currentPlan.id);
     } catch (err) {
       debugError('Error creating objective:', err);
-      this.app.showMessage(translate('yearly_planner_error_creating'), 'error');
-    }
-  }
-
-  async handleUpdateMeeting(modal, meetingId) {
-    const theme = modal.querySelector('#yp-meeting-theme').value.trim();
-    const location = modal.querySelector('#yp-meeting-location').value.trim();
-    const start_time = modal.querySelector('#yp-meeting-start').value;
-    const end_time = modal.querySelector('#yp-meeting-end').value;
-    const notes = modal.querySelector('#yp-meeting-notes').value.trim();
-    const is_cancelled = modal.querySelector('#yp-meeting-cancel').checked;
-
-    try {
-      await updateYearPlanMeeting(meetingId, {
-        theme: theme || null,
-        location: location || null,
-        start_time: start_time || null,
-        end_time: end_time || null,
-        notes: notes || null,
-        is_cancelled
-      });
-      modal.remove();
-      this.app.showMessage(translate('yearly_planner_meeting_updated'), 'success');
-      await this.loadPlanDetail(this.currentPlan.id);
-    } catch (err) {
-      debugError('Error updating meeting:', err);
-      this.app.showMessage(translate('yearly_planner_error_updating'), 'error');
-    }
-  }
-
-  async handleAddActivity(modal, meetingId) {
-    const name = modal.querySelector('#yp-act-name').value.trim();
-    const description = modal.querySelector('#yp-act-desc').value.trim();
-    const duration_minutes = parseInt(modal.querySelector('#yp-act-duration').value) || null;
-
-    if (!name) {
-      this.app.showMessage(translate('plan_fields_required'), 'error');
-      return;
-    }
-
-    try {
-      await addMeetingActivity(meetingId, { name, description, duration_minutes });
-      modal.remove();
-      this.app.showMessage(translate('yearly_planner_activity_added'), 'success');
-
-      // Reload meeting detail
-      const response = await getYearPlanMeeting(meetingId);
-      this.currentMeeting = response?.data || this.currentMeeting;
-      this.render();
-      this.attachEventListeners();
-    } catch (err) {
-      debugError('Error adding activity:', err);
       this.app.showMessage(translate('yearly_planner_error_creating'), 'error');
     }
   }
@@ -1499,26 +1406,6 @@ export class YearlyPlanner extends BaseModule {
     }
   }
 
-  async handleRemoveActivity(activityId) {
-    if (!(await confirmDestructive(translate('yearly_planner_confirm_remove_activity')))) return;
-
-    try {
-      await deleteMeetingActivity(activityId);
-      this.app.showMessage(translate('yearly_planner_activity_removed'), 'success');
-
-      // Reload meeting
-      if (this.currentMeeting) {
-        const response = await getYearPlanMeeting(this.currentMeeting.id);
-        this.currentMeeting = response?.data || this.currentMeeting;
-        this.render();
-        this.attachEventListeners();
-      }
-    } catch (err) {
-      debugError('Error removing activity:', err);
-      this.app.showMessage(translate('yearly_planner_error_deleting'), 'error');
-    }
-  }
-
   // =========================================================================
   // EVENT LISTENERS
   // =========================================================================
@@ -1578,8 +1465,33 @@ export class YearlyPlanner extends BaseModule {
       }, { signal: this.signal });
     });
 
+    document.getElementById('yp-print-plan')?.addEventListener('click', () => window.print(), { signal: this.signal });
+    document.getElementById('yp-export-plan')?.addEventListener('click', () => this.exportPlanCsv(), { signal: this.signal });
+    document.getElementById('yp-calendar-rules')?.addEventListener('click', () => {
+      this.calendarEditor?.destroy();
+      this.calendarEditor = new PlanCalendarEditor(this.app, {
+        plan: this.currentPlan,
+        onSaved: () => this.loadPlanDetail(this.currentPlanId, { forceRefresh: true })
+      });
+      this.calendarEditor.open();
+    }, { signal: this.signal });
+
     // Period actions
     document.getElementById('yp-add-period-btn')?.addEventListener('click', () => this.showCreatePeriodModal(), { signal: this.signal });
+    document.querySelectorAll('.yp-edit-period-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const period = this.currentPlan?.periods?.find(item => item.id === parseInt(btn.dataset.id, 10));
+        if (!period) {
+          return;
+        }
+        this.periodEditor?.destroy();
+        this.periodEditor = new PeriodEditor(this.app, {
+          period,
+          onSaved: () => this.loadPlanDetail(this.currentPlanId, { forceRefresh: true })
+        });
+        this.periodEditor.open();
+      }, { signal: this.signal });
+    });
     document.querySelectorAll('.yp-delete-period-btn').forEach(btn => {
       btn.addEventListener('click', () => this.handleDeletePeriod(parseInt(btn.dataset.id)), { signal: this.signal });
     });
@@ -1589,13 +1501,43 @@ export class YearlyPlanner extends BaseModule {
     document.querySelectorAll('.yp-delete-obj-btn').forEach(btn => {
       btn.addEventListener('click', () => this.handleDeleteObjective(parseInt(btn.dataset.id)), { signal: this.signal });
     });
-
-    // Meeting actions
-    document.querySelectorAll('.yp-edit-meeting-btn').forEach(btn => {
+    document.querySelectorAll('.yp-manage-achievements-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const meetingId = parseInt(btn.dataset.id);
-        const meeting = this.currentPlan?.meetings?.find(m => m.id === meetingId);
-        if (meeting) this.showMeetingEditModal(meeting);
+        const objective = this.currentPlan?.objectives?.find(item => item.id === parseInt(btn.dataset.id, 10));
+        if (!objective) {
+          return;
+        }
+        this.achievementEditor?.destroy();
+        this.achievementEditor = new AchievementEditor(this.app, {
+          objective,
+          onSaved: () => this.loadPlanDetail(this.currentPlanId, { forceRefresh: true })
+        });
+        this.achievementEditor.open();
+      }, { signal: this.signal });
+    });
+    document.getElementById('yp-add-distribution-rule')?.addEventListener('click', () => {
+      this.distributionEditor?.destroy();
+      this.distributionEditor = new DistributionRuleEditor(this.app, {
+        planId: this.currentPlanId,
+        onSaved: () => this.loadPlanDetail(this.currentPlanId, { forceRefresh: true })
+      });
+      this.distributionEditor.open();
+    }, { signal: this.signal });
+    document.querySelectorAll('.yp-delete-distribution-rule').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!(await confirmDestructive({
+          title: translate('yearly_planner_delete_distribution_rule'),
+          message: translate('yearly_planner_delete_distribution_rule_confirm')
+        }))) {
+          return;
+        }
+        try {
+          await deleteDistributionRule(parseInt(btn.dataset.id, 10));
+          await this.loadPlanDetail(this.currentPlanId, { forceRefresh: true });
+        } catch (err) {
+          debugError('Error deleting distribution rule:', err);
+          this.app.showMessage(translate('yearly_planner_error_deleting'), 'error');
+        }
       }, { signal: this.signal });
     });
 
@@ -1606,16 +1548,6 @@ export class YearlyPlanner extends BaseModule {
         this.app.router.navigate(`/preparation-reunions/${btn.dataset.date}`);
       }, { signal: this.signal });
     });
-    document.getElementById('yp-prepare-meeting-btn')?.addEventListener('click', () => {
-      const date = document.getElementById('yp-prepare-meeting-btn').dataset.date;
-      this.app.router.navigate(`/preparation-reunions/${date}`);
-    }, { signal: this.signal });
-
-    // Convert a planned meeting into an outing in the activities calendar
-    document.getElementById('yp-create-event-btn')?.addEventListener('click', () => {
-      if (this.currentMeeting) this.showCreateEventModal(this.currentMeeting);
-    }, { signal: this.signal });
-
     // One delegated listener for the whole year rather than one per chip: a
     // plan holds ~40 dates and is re-rendered on every mutation.
     document.getElementById('yp-add-date-btn')?.addEventListener('click', () => {
@@ -1654,22 +1586,6 @@ export class YearlyPlanner extends BaseModule {
       }
       this.handleChipClick(button.dataset.date);
     }, { signal: this.signal });
-
-    // Meeting detail view
-    document.getElementById('yp-back-to-plan')?.addEventListener('click', () => {
-      this.view = VIEW.PLAN_DETAIL;
-      this.currentMeeting = null;
-      this.render();
-      this.attachEventListeners();
-    }, { signal: this.signal });
-
-    document.getElementById('yp-add-activity-btn')?.addEventListener('click', () => {
-      if (this.currentMeeting) this.showAddActivityModal(this.currentMeeting.id);
-    }, { signal: this.signal });
-
-    document.querySelectorAll('.yp-remove-activity-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.handleRemoveActivity(parseInt(btn.dataset.id)), { signal: this.signal });
-    });
 
     // Library view
     document.getElementById('yp-back-from-library')?.addEventListener('click', () => {

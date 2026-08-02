@@ -204,6 +204,28 @@ export async function deleteMeetingActivity(activityId) {
   return response;
 }
 
+/** Get a meeting's complete multi-day schedule. */
+export async function getMeetingSchedule(meetingId, options = {}) {
+  return API.get(`v1/yearly-planner/meetings/${meetingId}/schedule`, {}, readCacheOptions(options));
+}
+
+/** Upsert one day's heading and notes. */
+export async function updateMeetingDay(meetingId, dayOffset, data) {
+  const response = await API.put(`v1/yearly-planner/meetings/${meetingId}/days/${dayOffset}`, data);
+  await invalidatePlanner({ includeMeetingPrep: true });
+  return response;
+}
+
+/** Copy a prior camp's later-day schedule into an empty target camp. */
+export async function copyMeetingSchedule(meetingId, sourceMeetingId) {
+  const response = await API.post(
+    `v1/yearly-planner/meetings/${meetingId}/schedule/copy-from/${sourceMeetingId}`,
+    {}
+  );
+  await invalidatePlanner({ includeMeetingPrep: true });
+  return response;
+}
+
 // ============================================================================
 // SERIES
 // ============================================================================
@@ -229,6 +251,18 @@ export async function batchPlaceActivity(planId, data) {
  */
 export async function deleteSeries(seriesId) {
   const response = await API.delete(`v1/yearly-planner/series/${seriesId}`);
+  await invalidatePlanner({ includeMeetingPrep: true });
+  return response;
+}
+
+/**
+ * Update the editable fields on every occurrence of a series.
+ * @param {string} seriesId - Series identifier
+ * @param {Object} data - { name?, duration_minutes?, description? }
+ * @returns {Promise<Object>} API response
+ */
+export async function updateSeries(seriesId, data) {
+  const response = await API.patch(`v1/yearly-planner/series/${seriesId}`, data);
   await invalidatePlanner({ includeMeetingPrep: true });
   return response;
 }
@@ -305,6 +339,10 @@ export async function deleteDistributionRule(ruleId) {
 
 export async function getReminders(planId, options = {}) {
   return API.get(`v1/yearly-planner/plans/${planId}/reminders`, {}, readCacheOptions(options));
+}
+
+export async function getMeetingReminders(meetingId, options = {}) {
+  return API.get(`v1/yearly-planner/meetings/${meetingId}/reminders`, {}, readCacheOptions(options));
 }
 
 export async function createReminder(meetingId, data) {

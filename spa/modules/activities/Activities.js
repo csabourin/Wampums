@@ -172,6 +172,17 @@ export class Activities extends BaseModule {
           <p class="activity-card__description">${escapeHTML(activity.description)}</p>
         ` : ''}
 
+        ${activity.linked_year_plan_meeting_id && activity.linked_year_plan_id ? `
+          <p class="activity-card__planner-link">
+            ${escapeHTML(translate('yearly_planner_planned_on'))}
+            ${escapeHTML(formatActivityDateRange({
+              activity_start_date: activity.linked_year_plan_meeting_date,
+              activity_end_date: activity.linked_year_plan_meeting_date
+            }, this.app.lang || 'fr'))}
+            · <a href="/yearly-planner/${activity.linked_year_plan_id}">${escapeHTML(translate('yearly_planner_view_in_planner'))}</a>
+          </p>
+        ` : ''}
+
         <div class="activity-card__details">
           <div class="activity-detail">
             <strong>${translate('going')}:</strong>

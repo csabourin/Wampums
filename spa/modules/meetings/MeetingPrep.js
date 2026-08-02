@@ -39,6 +39,7 @@ import {
   getReminder,
   saveReminder
 } from '../../api/api-endpoints.js';
+import { createReminder, getMeetingReminders } from '../../api/api-yearly-planner.js';
 
 const DEFAULT_MEETING_LENGTH_MINUTES = 90;
 
@@ -62,6 +63,7 @@ export class MeetingPrep extends BaseModule {
     this.meetingSections = {};
     this.sectionConfig = null;
     this.reminder = null;
+    this.returnPlanId = null;
 
     this.activityManager = null;
     this.printManager = null;
@@ -72,6 +74,10 @@ export class MeetingPrep extends BaseModule {
    */
   async init(date = null) {
     try {
+      const source = new URLSearchParams(window.location.search).get('from');
+      const planMatch = source?.match(/^plan:(\d+)$/);
+      this.returnPlanId = planMatch ? parseInt(planMatch[1], 10) : null;
+
       await this.fetchData();
 
       this.activityManager = new ActivityManager(
@@ -215,6 +221,14 @@ export class MeetingPrep extends BaseModule {
         this.updateSectionConfig(payload.meetingSections);
       }
       this.meeting = payload.meeting || this.createDraftMeeting(normalizedDate);
+      if (this.meeting.id) {
+        const meetingReminder = await getMeetingReminders(this.meeting.id, { forceRefresh: true })
+          .catch(err => {
+            debugError('Error loading meeting reminder:', err);
+            return { data: null };
+          });
+        this.reminder = meetingReminder?.data || this.reminder;
+      }
 
       // Merge saved timeline with section placeholder templates
       const loaded = this.meeting.activities || [];
@@ -484,7 +498,8 @@ export class MeetingPrep extends BaseModule {
     return `
       <div class="alert alert--info meeting-plan-banner">
         <span>📅 ${parts.join(' · ')}</span>
-        <a href="/yearly-planner" class="button button--small button--ghost">${translate('open_yearly_planner')}</a>
+        <a href="${this.returnPlanId ? `/yearly-planner/${this.returnPlanId}` : '/yearly-planner'}"
+           class="button button--small button--ghost">${translate('open_yearly_planner')}</a>
       </div>
     `;
   }
@@ -724,7 +739,16 @@ export class MeetingPrep extends BaseModule {
     };
 
     try {
-      await saveReminder(reminderData);
+      if (this.meeting?.id) {
+        await createReminder(this.meeting.id, {
+          channel: 'email',
+          scheduled_at: `${reminderData.reminder_date}T09:00:00`,
+          custom_message: reminderData.reminder_text,
+          is_recurring: reminderData.is_recurring
+        });
+      } else {
+        await saveReminder(reminderData);
+      }
       this.reminder = { ...this.reminder, ...reminderData };
       this.app.showMessage(translate('reminder_saved_successfully'), 'success');
     } catch (err) {

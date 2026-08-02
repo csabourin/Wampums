@@ -78,8 +78,11 @@ const MUTATIONS = [
   ['addMeetingActivity', [1, { name: 'A' }], { includeMeetingPrep: true }],
   ['updateMeetingActivity', [1, { name: 'A' }], { includeMeetingPrep: true }],
   ['deleteMeetingActivity', [1], { includeMeetingPrep: true }],
+  ['updateMeetingDay', [1, 0, { title: 'Day' }], { includeMeetingPrep: true }],
+  ['copyMeetingSchedule', [1, 2], { includeMeetingPrep: true }],
   ['batchPlaceActivity', [1, { meeting_ids: [1], activity: { name: 'A' } }], { includeMeetingPrep: true }],
   ['deleteSeries', ['ser-1'], { includeMeetingPrep: true }],
+  ['updateSeries', ['ser-1', { name: 'Updated' }], { includeMeetingPrep: true }],
   ['createLibraryActivity', [{ name: 'A' }], {}],
   ['updateLibraryActivity', [1, { name: 'A' }], {}],
   ['deleteLibraryActivity', [1], {}],
@@ -110,8 +113,8 @@ describe('yearly planner cache invalidation', () => {
     // Exports that only read; everything else must appear in MUTATIONS.
     const readOnly = [
       'getYearPlans', 'getYearPlan', 'getPeriods', 'getObjectives',
-      'getYearPlanMeeting', 'getActivityLibrary', 'getAchievements',
-      'getDistributionRules', 'getReminders'
+      'getYearPlanMeeting', 'getMeetingSchedule', 'getActivityLibrary', 'getAchievements',
+      'getDistributionRules', 'getReminders', 'getMeetingReminders'
     ];
     const covered = new Set([...readOnly, ...MUTATIONS.map(([name]) => name)]);
     const uncovered = Object.keys(planner).filter((name) => !covered.has(name));

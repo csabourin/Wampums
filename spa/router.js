@@ -222,6 +222,7 @@ const routes = {
   "/incident-reports/:id": "incidentReportView",
   "/incident-reports/:id/edit": "incidentReportEdit",
   "/yearly-planner": "yearlyPlanner",
+  "/yearly-planner/:planId": "yearlyPlannerDetail",
   "/unit-settings": "unitSettings",
   "/scout-year": "scoutYear"
 
@@ -631,11 +632,12 @@ export class Router {
           await incidentEdit.init();
           break;
         case "yearlyPlanner":
+        case "yearlyPlannerDetail":
           if (!guard(canViewMeetings())) break;
           const YearlyPlanner = await this.loadModule('YearlyPlanner');
           const yearlyPlanner = new YearlyPlanner(this.app);
           this.currentModuleInstance = yearlyPlanner;
-          await yearlyPlanner.init();
+          await yearlyPlanner.init(routeName === 'yearlyPlannerDetail' ? parseInt(param, 10) : null);
           break;
         case "offlinePreparation":
           if (!guard(canViewActivities())) break;
