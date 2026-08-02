@@ -208,6 +208,56 @@ describe('MeetingAutosave', () => {
     expect(setup.controller.state).toBe(MEETING_SAVE_STATES.LOCAL);
   });
 
+  test('moves the local draft when the editable meeting date changes', async () => {
+    const setup = createController();
+    setup.setCurrent({ date: '2026-08-12', notes: 'Moved meeting' });
+
+    setup.controller.markDirty();
+    await jest.advanceTimersByTimeAsync(150);
+
+    expect(mockSetCachedData).toHaveBeenCalledWith(
+      'meeting_preparation_draft_2026-08-12',
+      expect.objectContaining({
+        date: '2026-08-12',
+        draftKey: 'meeting_preparation_draft_2026-08-12'
+      }),
+      30000
+    );
+    expect(mockDeleteCachedData).toHaveBeenCalledWith(
+      'meeting_preparation_draft_2026-08-05'
+    );
+
+    await setup.controller.flush();
+
+    expect(mockDeleteCachedData).toHaveBeenCalledWith(
+      'meeting_preparation_draft_2026-08-12'
+    );
+    expect(setup.controller.date).toBe('2026-08-12');
+  });
+
+  test('migrates a legacy draft stored under a different form date', async () => {
+    mockGetCachedData.mockResolvedValue({
+      version: 1,
+      revision: 2,
+      updatedAt: 1234,
+      formData: { date: '2026-08-12', notes: 'Legacy moved meeting' }
+    });
+    const setup = createController();
+
+    const draft = await setup.controller.restoreDraft();
+
+    expect(draft.draftKey).toBe('meeting_preparation_draft_2026-08-12');
+    expect(mockSetCachedData).toHaveBeenCalledWith(
+      'meeting_preparation_draft_2026-08-12',
+      expect.objectContaining({ date: '2026-08-12' }),
+      30000
+    );
+    expect(mockDeleteCachedData).toHaveBeenCalledWith(
+      'meeting_preparation_draft_2026-08-05'
+    );
+    expect(setup.controller.state).toBe(MEETING_SAVE_STATES.LOCAL);
+  });
+
   test('a network failure leaves the durable local draft available', async () => {
     const setup = createController({
       save: jest.fn(() => Promise.reject(new Error('Network unavailable')))

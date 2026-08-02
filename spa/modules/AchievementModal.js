@@ -22,6 +22,7 @@ export class AchievementModal {
         this.selectedType = "proie";
         this.selectedParticipantIds = [];
         this.activityIndex = null;
+        this.escapeHandler = null;
     }
 
     /**
@@ -38,7 +39,12 @@ export class AchievementModal {
         this.attachListeners();
     }
 
+    /** Remove the modal and its document-level listener. */
     close() {
+        if (this.escapeHandler) {
+            document.removeEventListener("keydown", this.escapeHandler);
+            this.escapeHandler = null;
+        }
         const modal = document.getElementById(this.modalId);
         if (modal) {
             modal.remove();
@@ -171,13 +177,12 @@ export class AchievementModal {
         });
 
         // Escape key to close
-        const handleEscape = (e) => {
+        this.escapeHandler = (e) => {
             if (e.key === "Escape") {
                 this.close();
-                document.removeEventListener("keydown", handleEscape);
             }
         };
-        document.addEventListener("keydown", handleEscape);
+        document.addEventListener("keydown", this.escapeHandler);
 
         // Type selection
         modal.querySelectorAll(".achievement-type-btn").forEach((btn) => {

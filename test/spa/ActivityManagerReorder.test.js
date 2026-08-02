@@ -180,4 +180,22 @@ describe('ActivityManager agenda reordering', () => {
     expect(document.getElementById('activities-list').classList.contains('is-touch-reordering')).toBe(true);
     expect(document.querySelector('.activity-row__drag-title').textContent).toBe('Game');
   });
+
+  test('destroy closes an open achievement modal and removes its Escape listener', () => {
+    const firstRow = document.querySelector('.activity-row-container');
+    manager.openAchievementModal(0, firstRow);
+    const modal = manager.achievementModal;
+    const close = jest.spyOn(modal, 'close');
+
+    expect(document.getElementById('achievement-modal')).not.toBeNull();
+    manager.destroy();
+
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(manager.achievementModal).toBeNull();
+    expect(document.getElementById('achievement-modal')).toBeNull();
+
+    close.mockClear();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(close).not.toHaveBeenCalled();
+  });
 });

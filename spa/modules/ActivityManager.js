@@ -976,12 +976,14 @@ export class ActivityManager {
         }
 
         /**
-         * Release reorder listeners when the meeting preparation module closes.
+         * Release reorder and modal resources when meeting preparation closes.
          */
         destroy() {
                 this.cancelReorder();
                 this.reorderAbortController?.abort();
                 this.reorderAbortController = null;
+                this.achievementModal?.close();
+                this.achievementModal = null;
         }
 
         /**
@@ -1095,6 +1097,7 @@ export class ActivityManager {
                 debugLog("Participants available:", this.participants);
 
                 // Create and open the modal
+                this.achievementModal?.close();
                 this.achievementModal = new AchievementModal(
                         this.badgeTemplates,
                         this.participants,
