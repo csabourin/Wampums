@@ -131,13 +131,13 @@ function getStorageImageOrigins(config = getStorageConfig()) {
     if (!['http:', 'https:'].includes(endpoint.protocol)) return [];
 
     const origins = new Set([endpoint.origin]);
+    const bucket = (config.bucket || '').trim();
     const isValidBucketName =
-      /^[a-z0-9](?:[a-z0-9.-]{0,61}[a-z0-9])?$/i.test(config.bucket || '') &&
-      !config.bucket.includes('..');
+      /^[a-z0-9](?:[a-z0-9.-]{0,61}[a-z0-9])?$/i.test(bucket) &&
+      !bucket.includes('..');
     const endpointAlreadyIncludesBucket =
-      endpoint.hostname === config.bucket ||
-      endpoint.hostname.startsWith(`${config.bucket}.`);
-
+      bucket &&
+      (endpoint.hostname === bucket || endpoint.hostname.startsWith(`${bucket}.`));
     if (
       !config.forcePathStyle &&
       isValidBucketName &&
