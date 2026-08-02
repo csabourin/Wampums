@@ -48,4 +48,17 @@ describe('unit customization validation', () => {
     });
     expect(invalid.errors).toHaveLength(2);
   });
+
+  test('recognizes current incident visibility and rejects retired communication tile keys', () => {
+    expect(validateDashboardConfiguration({
+      hidden_tile_keys: ['incident_reports', 'parent_preview']
+    })).toEqual({
+      value: { version: 1, hidden_tile_keys: ['incident_reports', 'parent_preview'] },
+      errors: []
+    });
+
+    expect(validateDashboardConfiguration({
+      hidden_tile_keys: ['communications']
+    }).errors).toHaveLength(1);
+  });
 });

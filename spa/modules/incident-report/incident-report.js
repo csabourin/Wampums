@@ -35,6 +35,33 @@ import {
 import { getParticipants, getUsers } from '../../api/api-endpoints.js';
 import { getActivities } from '../../api/api-activities.js';
 
+/**
+ * Normalize the form-structure response across the current REST envelope and
+ * the legacy wrapped response used by older clients.
+ *
+ * @param {Object|null} response - API response for a form structure
+ * @returns {Object|null} A renderable form structure, or null when malformed
+ */
+export function getIncidentFormStructure(response) {
+  let structure = response?.data?.form_structure
+    || response?.data
+    || response?.form_structure;
+
+  if (typeof structure === 'string') {
+    try {
+      structure = JSON.parse(structure);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!structure || typeof structure !== 'object' || !Array.isArray(structure.fields)) {
+    return null;
+  }
+
+  return structure;
+}
+
 export class IncidentReport {
   constructor(app, options = {}) {
     this.app = app;
@@ -211,7 +238,7 @@ export class IncidentReport {
   async initForm(incidentId = null) {
     // Load form structure
     const formStructureResponse = await API.get('v1/forms/structure/incident_report');
-    this.formStructure = formStructureResponse?.data?.form_structure || formStructureResponse?.form_structure;
+    this.formStructure = getIncidentFormStructure(formStructureResponse);
 
     if (!this.formStructure) {
       this.app.showMessage(translate('error_loading_data'), 'error');
@@ -631,7 +658,7 @@ export class IncidentReport {
 
     // Load form structure for field labels
     const formStructureResponse = await API.get('v1/forms/structure/incident_report');
-    this.formStructure = formStructureResponse?.data?.form_structure || formStructureResponse?.form_structure;
+    this.formStructure = getIncidentFormStructure(formStructureResponse);
 
     this.renderView();
     this.attachViewListeners();

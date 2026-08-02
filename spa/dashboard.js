@@ -25,8 +25,9 @@ import {
   hasPermission,
   hasAnyPermission,
   canAccessAdminPanel,
+  canAccessParentTools,
   canCreateOrganization,
-  canManageForms,
+  canViewCarpools,
   isParent,
 } from "./utils/PermissionUtils.js";
 import { DashboardCacheManager } from "./utils/DashboardCacheManager.js";
@@ -348,12 +349,12 @@ export class Dashboard extends BaseModule {
         (tile) => tile.domain === "money" && isVisible(tile),
       );
       const crossRoleTiles = FINANCE_WORKSPACE_EXTRA_TILES.filter(
-        (tile) => (!tile.parentOnly || isParent()) && (!isOffline || OFFLINE_AVAILABLE_ROUTES.has(tile.href)),
+        (tile) => (!tile.parentOnly || isParent()) && isVisible(tile),
       );
 
       const content = `
         <h1>${translate("dashboard_finance_section")}</h1>
-        <h2>${this.organizationName}</h2>
+        <h2>${escapeHTML(this.organizationName || "")}</h2>
         ${renderTileGroup("dashboard_finance_section", financeWorkspaceTiles)}
         ${renderTileGroup("main_actions", crossRoleTiles)}
         <p><a href="/logout" id="logout-link">${translate("logout")}</a></p>
@@ -472,8 +473,10 @@ export class Dashboard extends BaseModule {
     switch (gate.check) {
       case "adminPanel":
         return canAccessAdminPanel();
-      case "manageForms":
-        return canManageForms();
+      case "parentTools":
+        return canAccessParentTools();
+      case "carpool":
+        return isParent() || canViewCarpools();
       case "createOrganization":
         return canCreateOrganization();
       default:
