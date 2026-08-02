@@ -96,7 +96,12 @@ function toTimelineActivity(row) {
     badge_template_id: row.badge_template_id || null,
     processed: row.processed === true,
     objective_ids: row.objective_ids || [],
-    activity_library_id: row.activity_library_id || null
+    activity_library_id: row.activity_library_id || null,
+    // Round-tripped so a preparation save cannot drop a series the yearly
+    // planner placed across several meetings.
+    series_id: row.series_id || null,
+    series_occurrence: row.series_occurrence ?? null,
+    day_offset: row.day_offset ?? 0
   };
 }
 
@@ -270,7 +275,13 @@ module.exports = (pool, logger) => {
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, '{"standalone": true}'::jsonb)
            ON CONFLICT (organization_id, meeting_date)
            DO UPDATE SET
-             location = EXCLUDED.location,
+             -- location is also set from the yearly planner, so an empty field
+             -- here means "the preparation form had nothing to say", not
+             -- "clear it". theme is guarded the same way, and always was.
+             -- The remaining fields belong to this form alone, so they stay
+             -- authoritative: a user must be able to clear them.
+             location = CASE WHEN COALESCE(EXCLUDED.location, '') = ''
+                             THEN year_plan_meetings.location ELSE EXCLUDED.location END,
              notes = EXCLUDED.notes,
              theme = COALESCE(EXCLUDED.theme, year_plan_meetings.theme),
              youth_of_honor = EXCLUDED.youth_of_honor,
@@ -287,37 +298,82 @@ module.exports = (pool, logger) => {
         );
         const meeting = upsertResult.rows[0];
 
-        // Replace the preparation timeline with the submitted one
+        // Reconcile the timeline by id instead of deleting and reinserting it.
+        //
+        // Delete-and-reinsert dropped series_id and series_occurrence, so the
+        // first animator to save a night silently destroyed any series the
+        // yearly planner had placed across the term. It also churned primary
+        // keys that objective_achievements.meeting_id and equipment_reservations
+        // reference.
+        //
+        // Scoped to day_offset = 0: the preparation page edits one evening, and
+        // must never touch the later days of a multi-day camp schedule.
+        const submittedIds = timeline
+          .map(act => parseInt(act?.id, 10))
+          .filter(id => Number.isInteger(id));
+
         await client.query(
-          'DELETE FROM year_plan_meeting_activities WHERE meeting_id = $1 AND organization_id = $2',
-          [meeting.id, organizationId]
+          `DELETE FROM year_plan_meeting_activities
+            WHERE meeting_id = $1 AND organization_id = $2
+              AND day_offset = 0
+              AND NOT (id = ANY($3::int[]))`,
+          [meeting.id, organizationId, submittedIds]
         );
 
         for (let index = 0; index < timeline.length; index++) {
           const act = timeline[index] || {};
-          // eslint-disable-next-line no-await-in-loop -- ordered inserts inside one transaction
+          const activityValues = [
+            act.activity || act.name || 'Activity',
+            act.description || null,
+            /^\d{1,2}:\d{2}/.test(String(act.time || '')) ? act.time : null,
+            durationToMinutes(act.duration),
+            act.type || null,
+            act.responsable || null,
+            act.materiel || act.material || null,
+            act.isDefault === true,
+            parseInt(act.badge_template_id, 10) || null,
+            act.processed === true,
+            index,
+            JSON.stringify(act.objective_ids || []),
+            parseInt(act.activity_library_id, 10) || null,
+            JSON.stringify({ legacy: act })
+          ];
+          const existingId = parseInt(act?.id, 10);
+
+          if (Number.isInteger(existingId)) {
+            // series_id and series_occurrence are deliberately not in the SET
+            // list: a night's preparation never owns them.
+            // eslint-disable-next-line no-await-in-loop -- ordered writes inside one transaction
+            const updated = await client.query(
+              `UPDATE year_plan_meeting_activities SET
+                 name = $1, description = $2, start_time = $3, duration_minutes = $4,
+                 activity_type = $5, responsable = $6, material = $7, is_default = $8,
+                 badge_template_id = $9, processed = $10, sort_order = $11,
+                 objective_ids = $12, activity_library_id = $13, metadata = $14,
+                 updated_at = NOW()
+               WHERE id = $15 AND meeting_id = $16 AND organization_id = $17`,
+              [...activityValues, existingId, meeting.id, organizationId]
+            );
+            if (updated.rowCount > 0) {
+              continue;
+            }
+          }
+
+          // eslint-disable-next-line no-await-in-loop -- ordered writes inside one transaction
           await client.query(
             `INSERT INTO year_plan_meeting_activities
-               (organization_id, meeting_id, name, description, start_time, duration_minutes,
+               (name, description, start_time, duration_minutes,
                 activity_type, responsable, material, is_default, badge_template_id, processed,
-                sort_order, objective_ids, activity_library_id, metadata)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+                sort_order, objective_ids, activity_library_id, metadata,
+                organization_id, meeting_id, series_id, series_occurrence)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
             [
+              ...activityValues,
               organizationId, meeting.id,
-              act.activity || act.name || 'Activity',
-              act.description || null,
-              /^\d{1,2}:\d{2}/.test(String(act.time || '')) ? act.time : null,
-              durationToMinutes(act.duration),
-              act.type || null,
-              act.responsable || null,
-              act.materiel || act.material || null,
-              act.isDefault === true,
-              parseInt(act.badge_template_id, 10) || null,
-              act.processed === true,
-              index,
-              JSON.stringify(act.objective_ids || []),
-              parseInt(act.activity_library_id, 10) || null,
-              JSON.stringify({ legacy: act })
+              act.series_id || null,
+              Number.isInteger(parseInt(act.series_occurrence, 10))
+                ? parseInt(act.series_occurrence, 10)
+                : null
             ]
           );
         }
