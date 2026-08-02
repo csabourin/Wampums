@@ -535,7 +535,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
     try {
       // Create dedicated client for LISTEN (cannot use pooled connection)
       listenClient = new Client({
-        connectionString: process.env.DATABASE_URL || process.env.SB_URL,
+        connectionString: process.env.DATABASE_URL,
       });
 
       await listenClient.connect();

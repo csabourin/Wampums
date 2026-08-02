@@ -21,17 +21,24 @@ import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { getTodayISO } from "./utils/DateUtils.js";
 import { PointsStore } from "./modules/points/PointsStore.js";
+import { PointActionBar } from "./modules/points/PointActionBar.js";
 
 const POINTS_CACHE_KEY = "manage_points_data";
 
 export class ManagePoints {
   constructor(app) {
     this.app = app;
-    // Current selection as data, never as a DOM element reference
-    // (re-renders would otherwise leave a detached node selected)
-    this.selected = null; // { type: 'group'|'individual', id }
+    // Selection is data rather than DOM references so it survives sorting and
+    // list re-renders. Groups remain exclusive; individuals can be combined.
+    this.selected = null; // { type: 'group', id } | { type: 'individual', ids: Set }
     this.currentSort = { key: "group", order: "asc" };
     this.currentFilter = "";
+    this.eventController = null;
+    this.highlightTimers = new Set();
+    this.pendingActionKeys = new Set();
+    this.actionBar = new PointActionBar({
+      onAction: (points) => this.applyPointAction(points),
+    });
 
     // Single source of truth for totals; DOM only displays store values
     this.store = new PointsStore();
@@ -39,7 +46,7 @@ export class ManagePoints {
 
     // One batch in flight at a time so absolute server totals can never
     // arrive out of order; clicks made meanwhile accumulate in the queue
-    this.updateQueue = []; // [{ payload, txn }]
+    this.updateQueue = []; // [{ payloads, txn, resolve }]
     this.batchInFlight = false;
 
     this.participants = [];
@@ -63,6 +70,7 @@ export class ManagePoints {
       await this.preloadManagePointsData();
       this.render();
       this.attachEventListeners();
+      this.unsubscribeStore?.();
       this.unsubscribeStore = this.store.subscribe((changedIds) => this.onStoreChange(changedIds));
       debugLog("ManagePoints initialized");
       if (navigator.onLine) {
@@ -204,38 +212,39 @@ export class ManagePoints {
 
   render() {
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-      <h1>${translate("manage_points")}</h1>
-      <div class="controls-container">
-        <div class="sort-options">
-          <button class="sort-btn" data-sort="name" title="${translate("sort_by_name")}">👤</button>
-          <button class="sort-btn active" data-sort="group" title="${translate("sort_by_group")}">👥</button>
-          <button class="sort-btn" data-sort="points" title="${translate("sort_by_points")}">🏆</button>
-          <button class="filter-toggle-btn" id="filter-toggle" data-archive-safe title="${translate("filter_by_group")}">🔍</button>
+      <section class="manage-points-page">
+        <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+        <h1>${translate("manage_points")}</h1>
+        <div class="controls-container">
+          <div class="sort-options">
+            <button type="button" class="sort-btn" data-sort="name"
+              aria-label="${translate("sort_by_name")}">👤</button>
+            <button type="button" class="sort-btn active" data-sort="group"
+              aria-label="${translate("sort_by_group")}">👥</button>
+            <button type="button" class="sort-btn" data-sort="points"
+              aria-label="${translate("sort_by_points")}">🏆</button>
+            <button type="button" class="filter-toggle-btn" id="filter-toggle"
+              data-archive-safe aria-label="${translate("filter_by_group")}">🔍</button>
+          </div>
+          <div class="filter-options hidden" id="filter-container">
+            <label for="group-filter">${translate("filter_by_group")}:</label>
+            <select id="group-filter" data-archive-safe>
+              <option value="">${translate("all_groups")}</option>
+              ${this.groups
+          .map(
+            (group) => `<option value="${group.id}">${group.name}</option>`,
+          )
+          .join("")}
+            </select>
+          </div>
         </div>
-        <div class="filter-options hidden" id="filter-container">
-          <label for="group-filter">${translate("filter_by_group")}:</label>
-          <select id="group-filter" data-archive-safe>
-            <option value="">${translate("all_groups")}</option>
-            ${this.groups
-        .map(
-          (group) => `<option value="${group.id}">${group.name}</option>`,
-        )
-        .join("")}
-          </select>
-        </div>
-      </div>
-      <div id="points-list"></div>
-      <div class="fixed-bottom">
-        <button class="point-btn add" data-points="1">+1</button>
-        <button class="point-btn add" data-points="3">+3</button>
-        <button class="point-btn add" data-points="5">+5</button>
-        <button class="point-btn remove" data-points="-1">-1</button>
-        <button class="point-btn remove" data-points="-3">-3</button>
-        <button class="point-btn remove" data-points="-5">-5</button>
-      </div>
+        <div id="points-list"></div>
+      </section>
+      ${this.actionBar.render()}
     `;
-    setContent(document.getElementById("app"), content);
+    const appRoot = document.getElementById("app");
+    setContent(appRoot, content);
+    this.actionBar.mount(document.getElementById("points-action-bar"), appRoot);
     this.renderList();
   }
 
@@ -264,10 +273,11 @@ export class ManagePoints {
     return this.groups
       .map(
         (group) => `
-        <div class="group-header" data-group-id="${group.id}" data-type="group">
+        <button type="button" class="group-header" data-group-id="${group.id}"
+          data-type="group" aria-pressed="false">
           <span class="group-header__name">${group.name}</span>
           <span class="group-header__points">${translate("group_points")}: ${this.store.getGroupTotal(group.id)}</span>
-        </div>
+        </button>
         <div class="group-content">
           ${this.renderParticipantsForGroup(group.id)}
           <div class="group-points" id="group-points-${group.id}">
@@ -329,11 +339,12 @@ export class ManagePoints {
 
   renderParticipantItem(participant) {
     return `
-      <div class="list-item" data-participant-id="${participant.id}" data-type="individual"
-        data-group-id="${participant.group_id ?? "null"}">
+      <button type="button" class="list-item" data-participant-id="${participant.id}"
+        data-type="individual" data-group-id="${participant.group_id ?? "null"}"
+        aria-pressed="false">
         <span class="participant-name">${participant.first_name} ${participant.last_name}</span>
         <span class="participant-points" id="name-points-${participant.id}">${this.store.getParticipantTotal(participant.id)}</span>
-      </div>
+      </button>
     `;
   }
 
@@ -346,11 +357,13 @@ export class ManagePoints {
 
   // Event delegation for attaching listeners to dynamically added elements
   attachEventListeners() {
+    this.eventController?.abort();
+    this.eventController = new AbortController();
+    const { signal } = this.eventController;
     const sortContainer = document.querySelector(".sort-options");
     const pointsList = document.getElementById("points-list");
     const filterDropdown = document.getElementById("group-filter");
     const filterToggle = document.getElementById("filter-toggle");
-    const fixedBottom = document.querySelector(".fixed-bottom");
 
     if (sortContainer) {
       sortContainer.addEventListener("click", (event) => {
@@ -358,7 +371,7 @@ export class ManagePoints {
         if (target.tagName === "BUTTON" && target.dataset.sort) {
           this.sortItems(target.dataset.sort);
         }
-      });
+      }, { signal });
     }
 
     if (pointsList) {
@@ -367,29 +380,20 @@ export class ManagePoints {
         if (item) {
           this.handleItemClick(item);
         }
-      });
+      }, { signal });
     }
 
     if (filterDropdown) {
       filterDropdown.addEventListener("change", (event) => {
         this.currentFilter = event.target.value;
         this.applyFilter();
-      });
+      }, { signal });
     }
 
     if (filterToggle) {
       filterToggle.addEventListener("click", () => {
         this.toggleFilter();
-      });
-    }
-
-    if (fixedBottom) {
-      fixedBottom.addEventListener("click", (event) => {
-        const target = event.target;
-        if (target.classList.contains("point-btn")) {
-          this.applyPointAction(parseInt(target.dataset.points));
-        }
-      });
+      }, { signal });
     }
   }
 
@@ -397,10 +401,22 @@ export class ManagePoints {
     const type = item.dataset.type;
     const id = type === "group" ? item.dataset.groupId : item.dataset.participantId;
 
-    if (this.selected && this.selected.type === type && this.selected.id === id) {
-      this.selected = null; // toggle off
+    if (type === "group") {
+      if (this.selected?.type === "group" && this.selected.id === id) {
+        this.selected = null;
+      } else {
+        this.selected = { type: "group", id };
+      }
     } else {
-      this.selected = { type, id };
+      const ids = this.selected?.type === "individual"
+        ? new Set(this.selected.ids)
+        : new Set();
+      if (ids.has(id)) {
+        ids.delete(id);
+      } else {
+        ids.add(id);
+      }
+      this.selected = ids.size > 0 ? { type: "individual", ids } : null;
     }
     this.applySelection();
   }
@@ -411,14 +427,81 @@ export class ManagePoints {
   applySelection() {
     document.querySelectorAll(".list-item.selected, .group-header.selected").forEach((el) => {
       el.classList.remove("selected");
+      el.setAttribute("aria-pressed", "false");
     });
     if (!this.selected) {
+      this.actionBar.updateSelection(translate("points_selection_none"));
       return;
     }
-    const selector = this.selected.type === "group"
-      ? `.group-header[data-group-id="${this.selected.id}"]`
-      : `.list-item[data-participant-id="${this.selected.id}"]`;
-    document.querySelector(selector)?.classList.add("selected");
+
+    if (this.selected.type === "group") {
+      const selectedGroup = document.querySelector(
+        `.group-header[data-group-id="${this.selected.id}"]`
+      );
+      selectedGroup?.classList.add("selected");
+      selectedGroup?.setAttribute("aria-pressed", "true");
+    } else {
+      this.selected.ids.forEach((id) => {
+        const participant = document.querySelector(`.list-item[data-participant-id="${id}"]`);
+        participant?.classList.add("selected");
+        participant?.setAttribute("aria-pressed", "true");
+      });
+    }
+    this.actionBar.updateSelection(this.getSelectionSummary());
+  }
+
+  interpolate(key, values) {
+    return Object.entries(values).reduce(
+      (text, [name, value]) => text.replaceAll(`{{${name}}}`, String(value)),
+      translate(key),
+    );
+  }
+
+  getSelectionSummary() {
+    if (!this.selected) return translate("points_selection_none");
+    if (this.selected.type === "group") {
+      const group = this.groups.find((item) => String(item.id) === String(this.selected.id));
+      return this.interpolate("points_selection_group", {
+        name: group?.name || this.selected.id,
+      });
+    }
+
+    const ids = [...this.selected.ids];
+    if (ids.length === 1) {
+      const participant = this.participants.find((item) => String(item.id) === String(ids[0]));
+      const name = participant
+        ? `${participant.first_name} ${participant.last_name}`.trim()
+        : ids[0];
+      return this.interpolate("points_selection_individual", { name });
+    }
+    return this.interpolate("points_selection_multiple", { count: ids.length });
+  }
+
+  getSelectionAnnouncementTarget() {
+    if (!this.selected) return "";
+    if (this.selected.type === "group") {
+      const group = this.groups.find((item) => String(item.id) === String(this.selected.id));
+      return this.interpolate("points_target_group", {
+        name: group?.name || this.selected.id,
+      });
+    }
+
+    const ids = [...this.selected.ids];
+    if (ids.length > 1) {
+      return this.interpolate("points_target_multiple", { count: ids.length });
+    }
+    const participant = this.participants.find((item) => String(item.id) === String(ids[0]));
+    return participant
+      ? `${participant.first_name} ${participant.last_name}`.trim()
+      : ids[0];
+  }
+
+  getActionKey(points) {
+    if (this.selected?.type === "group") {
+      return `group:${this.selected.id}:${points}`;
+    }
+    const ids = [...(this.selected?.ids || [])].map(String).sort();
+    return `individual:${ids.join(",")}:${points}`;
   }
 
   /**
@@ -454,27 +537,32 @@ export class ManagePoints {
    */
   async applyPointAction(points) {
     if (!this.selected) {
+      const message = translate("please_select_group_or_individual");
       this.app.showMessage(
-        translate("please_select_group_or_individual"),
+        message,
         "error",
       );
-      return;
+      this.actionBar.announce(message);
+      return false;
     }
 
-    const { type, id } = this.selected;
+    const { type } = this.selected;
 
     if (type === "no-group") {
       this.app.showMessage(
         translate("cannot_assign_points_to_no_group"),
         "error",
       );
-      return;
+      return false;
     }
 
     const today = getTodayISO();
     let txn;
+    let payloads;
+    const announcementTarget = this.getSelectionAnnouncementTarget();
 
     if (type === "group") {
+      const { id } = this.selected;
       const { eligible, skipped } = this.getEligibleGroupMemberIds(id);
       if (skipped.length > 0) {
         this.app.showMessage(
@@ -486,39 +574,65 @@ export class ManagePoints {
         participantDeltas: Object.fromEntries(eligible.map((memberId) => [memberId, points])),
         groupDeltas: { [id]: points },
       };
-    } else {
-      txn = {
-        participantDeltas: { [id]: points },
-        groupDeltas: {},
-      };
-    }
-
-    this.store.applyOptimistic(txn);
-    this.showPointChangeAnimation(this.selectedElement(), points);
-
-    this.updateQueue.push({
-      payload: {
+      payloads = [{
         type,
         id,
         points,
         timestamp: new Date().toISOString(),
         // Backend filters group awards by attendance for this date
-        date: type === "group" ? today : undefined,
-      },
-      txn,
-    });
+        date: today,
+      }];
+    } else {
+      const ids = [...this.selected.ids];
+      txn = {
+        participantDeltas: Object.fromEntries(ids.map((id) => [id, points])),
+        groupDeltas: {},
+      };
+      const timestamp = new Date().toISOString();
+      payloads = ids.map((id) => ({
+        type: "individual",
+        id,
+        points,
+        timestamp,
+      }));
+    }
 
-    await this.flushQueue();
+    const actionKey = this.getActionKey(points);
+    if (this.pendingActionKeys.has(actionKey)) return false;
+    this.pendingActionKeys.add(actionKey);
+
+    try {
+      this.store.applyOptimistic(txn);
+      this.showPointChangeAnimation(points, announcementTarget);
+
+      let resolveCompletion;
+      const completion = new Promise((resolve) => {
+        resolveCompletion = resolve;
+      });
+      this.updateQueue.push({
+        payloads,
+        txn,
+        resolve: resolveCompletion,
+      });
+
+      void this.flushQueue();
+      await completion;
+      return true;
+    } finally {
+      this.pendingActionKeys.delete(actionKey);
+    }
   }
 
-  selectedElement() {
-    if (!this.selected) {
-      return null;
+  selectedElements() {
+    if (!this.selected) return [];
+    if (this.selected.type === "group") {
+      return [...document.querySelectorAll(
+        `.group-header[data-group-id="${this.selected.id}"]`
+      )];
     }
-    const selector = this.selected.type === "group"
-      ? `.group-header[data-group-id="${this.selected.id}"]`
-      : `.list-item[data-participant-id="${this.selected.id}"]`;
-    return document.querySelector(selector);
+    return [...this.selected.ids].flatMap((id) => [
+      ...document.querySelectorAll(`.list-item[data-participant-id="${id}"]`),
+    ]);
   }
 
   /**
@@ -532,7 +646,7 @@ export class ManagePoints {
     }
 
     const batch = this.updateQueue.splice(0);
-    const payloads = batch.map((entry) => entry.payload);
+    const payloads = batch.flatMap((entry) => entry.payloads);
     const txns = batch.map((entry) => entry.txn);
     this.batchInFlight = true;
     // Controls whether the finally block should start the next batch.
@@ -618,6 +732,7 @@ export class ManagePoints {
       }
     } finally {
       this.batchInFlight = false;
+      batch.forEach((entry) => entry.resolve());
       if (flushInFinally && this.updateQueue.length > 0) {
         await this.flushQueue();
       }
@@ -698,33 +813,26 @@ export class ManagePoints {
     }
   }
 
-  showPointChangeAnimation(element, points) {
-    if (!element) {
-      return;
-    }
-    const changeElement = document.createElement("span");
-    changeElement.textContent = points > 0 ? `+${points}` : points;
-    changeElement.className = "point-change";
-    changeElement.style.color = points > 0 ? "green" : "red";
-    element.appendChild(changeElement);
-
-    const ANIMATION_DURATION_MS = 2000;
-    setTimeout(() => {
-      changeElement.remove();
-    }, ANIMATION_DURATION_MS);
-
-    this.addHighlightEffect(element);
+  showPointChangeAnimation(points, target) {
+    const count = Math.abs(points);
+    const feedbackKey = points > 0
+      ? (count === 1 ? "points_feedback_added_one" : "points_feedback_added_many")
+      : (count === 1 ? "points_feedback_removed_one" : "points_feedback_removed_many");
+    const announcement = this.interpolate(feedbackKey, { count, target });
+    this.actionBar.showFeedback(points, announcement);
+    this.selectedElements().forEach((element) => this.addHighlightEffect(element));
   }
 
   addHighlightEffect(element) {
     if (!element) {
       return;
     }
-    const HIGHLIGHT_DURATION_MS = 500;
     element.classList.add("highlight");
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       element.classList.remove("highlight");
-    }, HIGHLIGHT_DURATION_MS);
+      this.highlightTimers.delete(timer);
+    }, CONFIG.UI.POINT_HIGHLIGHT_DURATION);
+    this.highlightTimers.add(timer);
   }
 
   sortItems(key) {
@@ -853,6 +961,17 @@ export class ManagePoints {
     this.unassignedParticipants.sort((a, b) =>
       a.first_name.localeCompare(b.first_name),
     );
+  }
+
+  destroy() {
+    this.eventController?.abort();
+    this.eventController = null;
+    this.unsubscribeStore?.();
+    this.unsubscribeStore = null;
+    this.actionBar.destroy();
+    this.highlightTimers.forEach((timer) => clearTimeout(timer));
+    this.highlightTimers.clear();
+    this.pendingActionKeys.clear();
   }
 
   renderError() {

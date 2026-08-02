@@ -25,6 +25,7 @@ const {
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { ensureProgramSectionsSeeded, getProgramSections } = require('../utils/programSections');
+const { installDefaultFormFormats } = require('../services/defaultFormFormats');
 
 // Validate JWT secret at startup
 requireJWTSecret();
@@ -767,14 +768,9 @@ module.exports = (pool, logger) => {
 
       const newOrganizationId = orgResult.rows[0].id;
 
-      // Copy organization form formats from template (organization_id = 0)
-      await client.query(
-        `INSERT INTO organization_form_formats (organization_id, form_type, form_structure, display_type)
-         SELECT $1, form_type, form_structure, 'public'
-         FROM organization_form_formats
-         WHERE organization_id = 0`,
-        [newOrganizationId]
-      );
+      // Install versioned formats and their safe role policy from the
+      // repository catalog. This works even when no template tenant exists.
+      await installDefaultFormFormats(client, newOrganizationId);
 
       // Insert organization settings
       const orgInfo = { name, ...otherData };

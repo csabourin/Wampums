@@ -1,10 +1,44 @@
 require("dotenv").config();
 const { Pool } = require("pg");
 
+const connectionString = process.env.DATABASE_URL;
+const configuredHost = process.env.DB_HOST;
+
+/**
+ * Determine whether a PostgreSQL connection targets the local machine. Local
+ * sockets and loopback connections must not be forced through TLS.
+ *
+ * @param {string|undefined} value PostgreSQL connection URL
+ * @returns {boolean} Whether the URL targets a local server
+ */
+function isLocalConnection(value) {
+    if (!value) {
+        return !configuredHost || ["localhost", "127.0.0.1", "::1"].includes(configuredHost);
+    }
+
+    try {
+        const parsed = new URL(value);
+        const socketHost = parsed.searchParams.get("host");
+        return !parsed.hostname
+            || Boolean(socketHost?.startsWith("/"))
+            || ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);
+    } catch {
+        return false;
+    }
+}
+
 // Database connection configuration
 // SSL is enabled by default. Only disable certificate validation in development if explicitly set.
 const poolConfig = {
-    connectionString: process.env.SB_URL || process.env.DATABASE_URL,
+    ...(connectionString
+        ? { connectionString }
+        : {
+            host: configuredHost,
+            port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : undefined,
+            database: process.env.DB_NAME,
+            user: process.env.DB_USER,
+            password: process.env.DB_PASSWORD,
+        }),
     // Optimize connection pool for performance
     max: parseInt(process.env.DB_POOL_MAX || '20', 10),  // Maximum pool size (default: 20)
     min: parseInt(process.env.DB_POOL_MIN || '5', 10),   // Minimum idle connections (default: 5)
@@ -22,11 +56,9 @@ const poolConfig = {
     allowExitOnIdle: false,
 };
 
-// Configure SSL based on environment
-// Supabase requires SSL but uses certificates that may need relaxed validation
-if (process.env.DATABASE_URL || process.env.SB_URL) {
-    // Supabase connections need rejectUnauthorized: false due to certificate chain
-    // SSL is still enabled - only certificate validation is relaxed
+// Remote managed PostgreSQL connections use TLS. Local sockets and loopback
+// connections remain unencrypted because traffic never leaves the machine.
+if (!isLocalConnection(connectionString) && process.env.DB_SSL_DISABLED !== "true") {
     poolConfig.ssl = { rejectUnauthorized: false };
 }
 

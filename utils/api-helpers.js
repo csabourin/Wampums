@@ -99,16 +99,18 @@ function handleOrganizationResolutionError(res, error, loggerInstance = logger) 
  * @param {Object} req - Express request object
  * @param {Object} pool - Database pool
  * @param {Object} logger - Winston logger instance
+ * @param {Object} [options] - Organization resolution options
+ * @param {boolean} [options.allowAuthentication=true] - Whether JWT claims may select the organization
  * @returns {Promise<number>} Organization ID
  *
  * @example
  * const organizationId = await getCurrentOrganizationId(req, pool, logger);
  */
-async function getCurrentOrganizationId(req, pool, logger) {
+async function getCurrentOrganizationId(req, pool, logger, { allowAuthentication = true } = {}) {
   // Authenticated users may select another organization only when their
   // membership is confirmed by the database.
   const bearerToken = req.headers.authorization?.split(' ')[1];
-  if (bearerToken) {
+  if (allowAuthentication && bearerToken) {
     try {
       const decoded = verifyJWTToken(bearerToken);
       const tokenOrganizationId = parseInt(decoded?.organizationId ?? decoded?.organization_id, 10);
@@ -131,9 +133,22 @@ async function getCurrentOrganizationId(req, pool, logger) {
     }
   }
 
-  // Unauthenticated (public) requests may identify the organization via header
-  if (req.headers['x-organization-id']) {
-    return parseInt(req.headers['x-organization-id'], 10);
+  // Unauthenticated requests may identify the organization via header, but a
+  // stale browser cache must not be allowed to select a tenant that no longer
+  // exists. This commonly happens after rebuilding a local database.
+  const rawHeaderOrganizationId = req.headers['x-organization-id'];
+  if (rawHeaderOrganizationId !== undefined) {
+    const headerOrganizationId = Number(rawHeaderOrganizationId);
+    if (Number.isSafeInteger(headerOrganizationId) && headerOrganizationId > 0) {
+      const organizationExists = await pool.query(
+        'SELECT 1 FROM organizations WHERE id = $1 LIMIT 1',
+        [headerOrganizationId],
+      );
+      if (organizationExists.rows.length > 0) {
+        return headerOrganizationId;
+      }
+    }
+    logger?.warn(`Ignoring invalid or stale public organization header: ${rawHeaderOrganizationId}`);
   }
 
   // Try to get from hostname/domain mapping

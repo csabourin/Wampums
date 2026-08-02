@@ -28,7 +28,11 @@ jest.mock('../../spa/config.js', () => ({
   CONFIG: {
     API_BASE_URL: 'http://localhost:3000',
     CACHE_DURATION: { SHORT: 60000, MEDIUM: 300000, LONG: 3600000, CAMP_MODE: 86400000 },
-    UI: { SYNC_TIMEOUT: 1 }
+    UI: {
+      SYNC_TIMEOUT: 1,
+      POINT_FEEDBACK_DURATION: 1800,
+      POINT_HIGHLIGHT_DURATION: 500
+    }
   },
   getStorageKey: (key) => key
 }));
@@ -60,7 +64,10 @@ jest.mock('../../spa/ajax-functions.js', () => ({
   getApiUrl: jest.fn((path) => `http://localhost:3000/api/${path}`),
   getAuthHeader: jest.fn(() => ({ Authorization: 'Bearer test' })),
   getCurrentOrganizationId: jest.fn(() => 1),
-  CONFIG: { CACHE_DURATION: { SHORT: 60000, MEDIUM: 300000 } },
+  CONFIG: {
+    CACHE_DURATION: { SHORT: 60000, MEDIUM: 300000 },
+    UI: { POINT_HIGHLIGHT_DURATION: 500 }
+  },
   API: { getNoCache: jest.fn() }
 }));
 

@@ -152,7 +152,14 @@ module.exports = (pool, logger) => {
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+        // Login is public. Ignore any stale session token left in the
+        // browser so it cannot select a deleted or unrelated organization.
+        const organizationId = await getCurrentOrganizationId(
+          req,
+          pool,
+          logger,
+          { allowAuthentication: false }
+        );
         const { email, password } = req.body;
         const normalizedEmail = normalizeEmailValue(email);
         const trimmedPassword = password.trim();
@@ -588,7 +595,14 @@ module.exports = (pool, logger) => {
     asyncHandler(async (req, res) => {
       const client = await pool.connect();
       try {
-        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+        // Registration is public. Ignore any stale session token left in the
+        // browser so it cannot select a deleted or unrelated organization.
+        const organizationId = await getCurrentOrganizationId(
+          req,
+          pool,
+          logger,
+          { allowAuthentication: false }
+        );
         const { email, password, full_name, user_type } = req.body;
         const normalizedEmail = normalizeEmailValue(email);
         const trimmedPassword = password.trim();
