@@ -4,6 +4,29 @@ const defaultFormCatalog = require('../config/default-form-formats.json');
 
 const APPROVER_ROLES = ['district', 'unitadmin', 'admin', 'administration'];
 const STAFF_EDITOR_ROLES = ['leader', 'animation'];
+const INSTALLED_DISPLAY_TYPE = 'public';
+
+/**
+ * Choose versions for a format that has no version history. Preserved tenant
+ * formats must begin from their own current structure, never the catalog copy.
+ *
+ * @param {Object} form - Catalog form definition
+ * @param {Object} installedStructure - Structure currently stored for the tenant
+ * @param {boolean} preservedExisting - Whether the format predates installation
+ * @returns {Array<Object>} Initial versions to insert
+ */
+function getInitialVersions(form, installedStructure, preservedExisting) {
+  if (!preservedExisting && form.versions.length > 0) return form.versions;
+  return [{
+    version_number: 1,
+    form_structure: installedStructure,
+    display_name: form.display_name || form.form_type,
+    change_description: preservedExisting
+      ? 'Initial version captured from existing tenant format'
+      : 'Initial standard form version',
+    is_active: true,
+  }];
+}
 
 /**
  * Return the safe baseline form permissions for a standard form.
@@ -90,6 +113,7 @@ async function installDefaultFormFormats(client, organizationId) {
     );
 
     let formFormatId;
+    const preservedExisting = Boolean(existing.rows[0]);
     let currentVersionId = existing.rows[0]?.current_version_id || null;
     let installedStructure = existing.rows[0]?.form_structure || form.form_structure;
 
@@ -109,7 +133,7 @@ async function installDefaultFormFormats(client, organizationId) {
           organizationId,
           form.form_type,
           JSON.stringify(form.form_structure),
-          form.display_type,
+          INSTALLED_DISPLAY_TYPE,
           form.display_name,
           form.description,
           form.instructions,
@@ -135,15 +159,11 @@ async function installDefaultFormFormats(client, organizationId) {
     );
 
     if (storedVersions.rows.length === 0) {
-      const sourceVersions = form.versions.length > 0
-        ? form.versions
-        : [{
-          version_number: 1,
-          form_structure: installedStructure,
-          display_name: form.display_name || form.form_type,
-          change_description: 'Initial standard form version',
-          is_active: true,
-        }];
+      const sourceVersions = getInitialVersions(
+        form,
+        installedStructure,
+        preservedExisting,
+      );
 
       for (const version of sourceVersions) {
         const insertedVersion = await client.query(
@@ -203,7 +223,9 @@ async function installDefaultFormFormats(client, organizationId) {
 }
 
 module.exports = {
+  INSTALLED_DISPLAY_TYPE,
   defaultFormCatalog,
   getDefaultPermissionPolicy,
+  getInitialVersions,
   installDefaultFormFormats,
 };
