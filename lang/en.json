@@ -1493,6 +1493,7 @@
   "meeting_autosave_saved": "Saved",
   "meeting_autosave_local": "Draft saved on this device",
   "meeting_autosave_failed": "Couldn’t save — use Save to retry",
+  "meeting_autosave_date_conflict": "Another unsaved draft already uses this date — choose a different date",
   "reunion_preparation_saved_success": "Reunion preparation saved successfully",
   "reunions_precendentes": "Previous meetings",
   "risk_acceptance_not_found": "Risk acceptance not found",

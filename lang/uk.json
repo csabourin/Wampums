@@ -1180,6 +1180,7 @@
   "meeting_autosave_saved": "Збережено",
   "meeting_autosave_local": "Чернетку збережено на цьому пристрої",
   "meeting_autosave_failed": "Не вдалося зберегти — скористайтеся кнопкою «Зберегти», щоб повторити",
+  "meeting_autosave_date_conflict": "Інша несинхронізована чернетка вже використовує цю дату — виберіть іншу дату",
   "reunion_preparation_saved_success": "Підготовку до об’єднання успішно збережено",
   "reunions_precendentes": "Попередні зустрічі",
   "risk_acceptance_not_found": "Прийняття ризику не знайдено",

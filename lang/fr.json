@@ -1484,6 +1484,7 @@
   "meeting_autosave_saved": "Enregistré",
   "meeting_autosave_local": "Brouillon enregistré sur cet appareil",
   "meeting_autosave_failed": "Échec de l’enregistrement — utilisez Enregistrer pour réessayer",
+  "meeting_autosave_date_conflict": "Un autre brouillon non synchronisé utilise déjà cette date — choisissez une autre date",
   "reunion_preparation_saved_success": "Préparation de la réunion enregistrée avec succès",
   "reunions_precendentes": "Réunions précédentes",
   "risk_acceptance_not_found": "Acceptation de risque non trouvée",
