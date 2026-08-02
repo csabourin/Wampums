@@ -25,12 +25,13 @@ const {
   isAllowedImageType,
   convertImageToWebP,
   generateFilePath,
+  getSignedPhotoUrl,
   uploadFile,
   deleteFile,
   extractPathFromUrl,
   isStorageConfigured,
   WEBP_EXTENSION,
-} = require("../utils/supabase-storage");
+} = require("../utils/railway-storage");
 
 // Configure multer for memory storage (30MB limit; client-side resize should reduce payloads)
 const upload = multer({
@@ -80,6 +81,20 @@ module.exports = (pool) => {
     "demoadmin",
     "equipment",
   ];
+
+  /**
+   * Replace an internal or legacy photo reference with a temporary Railway S3
+   * URL suitable for direct display in a browser.
+   * @param {Object} equipment
+   * @returns {Promise<Object>}
+   */
+  async function resolveEquipmentPhoto(equipment) {
+    if (!equipment?.photo_url) return equipment;
+    return {
+      ...equipment,
+      photo_url: await getSignedPhotoUrl(equipment.photo_url),
+    };
+  }
 
   /**
    * Determine whether equipment should be shared with the owner's local group.
@@ -347,7 +362,10 @@ module.exports = (pool) => {
           [organizationId],
         );
 
-        return success(res, { equipment: result.rows });
+        const equipment = await Promise.all(
+          result.rows.map(resolveEquipmentPhoto),
+        );
+        return success(res, { equipment });
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
@@ -754,7 +772,7 @@ module.exports = (pool) => {
         if (!isStorageConfigured()) {
           return error(
             res,
-            "Photo storage is not configured. Please set SUPABASE_URL, SUPABASE_SERVICE_KEY, and SUPABASE_STORAGE_BUCKET.",
+            "Photo storage is not configured. Connect the Railway bucket to this service and inject its S3 credentials.",
             503,
           );
         }
@@ -815,13 +833,14 @@ module.exports = (pool) => {
           );
         }
 
-        // Update equipment with new photo URL (any organization with access can update)
+        // Store the stable object key. Signed browser URLs are generated only
+        // when returning equipment through the API because they expire.
         const updateResult = await pool.query(
           `UPDATE equipment_items
            SET photo_url = $1, updated_at = CURRENT_TIMESTAMP
            WHERE id = $2
            RETURNING *`,
-          [uploadResult.url, equipmentId],
+          [uploadResult.path, equipmentId],
         );
 
         if (oldPhotoUrl) {
@@ -831,9 +850,10 @@ module.exports = (pool) => {
           }
         }
 
+        const equipment = await resolveEquipmentPhoto(updateResult.rows[0]);
         return success(
           res,
-          { equipment: updateResult.rows[0], photo_url: uploadResult.url },
+          { equipment, photo_url: equipment.photo_url },
           "Photo uploaded successfully",
         );
       } catch (err) {

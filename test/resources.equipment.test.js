@@ -15,14 +15,15 @@ jest.mock("../middleware/auth", () => {
   };
 });
 
-jest.mock("../utils/supabase-storage", () => ({
+jest.mock("../utils/railway-storage", () => ({
   MAX_FILE_SIZE: 1_000_000,
   OUTPUT_MIME_TYPE: "image/webp",
   validateFile: () => ({ isValid: true }),
   isAllowedImageType: () => true,
   convertImageToWebP: async (buffer) => buffer,
   generateFilePath: () => "path",
-  uploadFile: async () => ({ success: true, url: "http://example.com/photo.webp" }),
+  getSignedPhotoUrl: async (reference) => `https://signed.example/${reference}`,
+  uploadFile: async () => ({ success: true, path: "path" }),
   deleteFile: async () => true,
   extractPathFromUrl: () => "path",
   isStorageConfigured: () => false,
@@ -441,6 +442,18 @@ describe("Equipment sharing and metadata", () => {
     expect(response.status).toBe(200);
     const ids = response.body.data.equipment.map((item) => item.id);
     expect(ids).toContain(2);
+  });
+
+  test("returns signed Railway URLs for stored equipment photo keys", async () => {
+    equipmentItems[1].photo_url = "org_1/equipment_1_123.webp";
+
+    const response = await request(app).get("/api/v1/resources/equipment");
+
+    expect(response.status).toBe(200);
+    const equipment = response.body.data.equipment.find((item) => item.id === 1);
+    expect(equipment.photo_url).toBe(
+      "https://signed.example/org_1/equipment_1_123.webp",
+    );
   });
 
   test("blocks reservation when requester is outside the local group", async () => {

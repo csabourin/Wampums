@@ -176,11 +176,14 @@ registerRoute(
   ({ request }) => fetchAndCacheInIndexedDB(request)
 );
 
-// 4e. Images (CacheFirst, skip Supabase to avoid CORS issues)
+// 4e. Images (CacheFirst, except temporary signed Railway bucket URLs)
 registerRoute(
   ({ request, url }) => {
     if (request.destination !== 'image') return false;
-    if (url.hostname.includes('supabase.co')) return false;
+    if (
+      url.hostname === 'storage.railway.app' ||
+      url.hostname.endsWith('.storage.railway.app')
+    ) return false;
     return true;
   },
   new CacheFirst({
