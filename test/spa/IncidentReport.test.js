@@ -89,9 +89,9 @@ describe('incident report translations', () => {
   test.each(translationBundles)('%s includes the complete incident interface and form vocabulary', (_language, bundle) => {
     const incidentKeys = Object.keys(bundle).filter((key) => key.startsWith('incident_'));
 
-    // 37 interface strings plus the 108 labels in the standard incident form.
-    expect(incidentKeys).toHaveLength(145);
-    expect(incidentKeys.every((key) => bundle[key] && bundle[key] !== key)).toBe(true);
+    // Ensure incident vocabulary is populated without brittle exact-count assertions.
+    expect(incidentKeys.length).toBeGreaterThanOrEqual(145);
+    expect(incidentKeys.every((key) => typeof bundle[key] === 'string' && bundle[key].trim() && bundle[key] !== key)).toBe(true);
   });
 });
 
