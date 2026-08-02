@@ -68,7 +68,14 @@
   border-bottom: 2px solid var(--border-color, #e2e8f0);
   margin-bottom: 1.5rem;
   overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  overscroll-behavior-inline: contain;
   -webkit-overflow-scrolling: touch;
+}
+
+.yp-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .yp-tab {
@@ -773,6 +780,34 @@
 .page__actions {
   display: flex;
   gap: 0.5rem;
+}
+
+/* Keep every plan action reachable on narrow screens, then place the actions
+   beside the title when there is enough room. */
+.yearly-planner > .page__header {
+  align-items: flex-start;
+}
+
+.yearly-planner .yp-print-actions {
+  flex-basis: 100%;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 900px) {
+  .yearly-planner > .page__header {
+    display: grid;
+    grid-template-columns: auto minmax(12rem, 1fr) auto;
+  }
+
+  .yearly-planner > .page__header h1 {
+    text-align: center;
+  }
+
+  .yearly-planner .yp-print-actions {
+    grid-column: 3;
+    flex-basis: auto;
+    justify-content: flex-end;
+  }
 }
 
 /* Empty state */

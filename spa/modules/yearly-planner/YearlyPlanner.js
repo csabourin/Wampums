@@ -10,6 +10,7 @@ import { BaseModule } from '../../utils/BaseModule.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { skeletonTable } from '../../utils/SkeletonUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
+import { CONFIG } from '../../config.js';
 import { buildYearModel } from './PlannerModel.js';
 import { renderYearGrid, renderYearSummary, renderArmBar, renderLiveRegion } from './YearGridView.js';
 import { openMeetingSheet } from './MeetingSheet.js';
@@ -59,7 +60,14 @@ export class YearlyPlanner extends BaseModule {
     this.loadError = null;
     this.libraryError = null;
     this.canManage = hasPermission('meetings.manage');
-    this.lang = localStorage.getItem('language') || 'en';
+    const requestedLang = this.app?.lang
+      || this.app?.language
+      || localStorage.getItem('lang')
+      || localStorage.getItem('language')
+      || CONFIG.DEFAULT_LANG;
+    this.lang = CONFIG.SUPPORTED_LANGS.includes(requestedLang)
+      ? requestedLang
+      : CONFIG.DEFAULT_LANG;
     this.placement = new ArmedPlacement();
   }
 

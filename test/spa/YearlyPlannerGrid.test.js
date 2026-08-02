@@ -37,7 +37,8 @@ import {
   renderYearGrid,
   renderDateChip,
   renderPeriodBands,
-  describeChip
+  describeChip,
+  renderYearSummary
 } from '../../spa/modules/yearly-planner/YearGridView.js';
 
 /** Render HTML into a detached element for querying. */
@@ -251,6 +252,28 @@ describe('renderYearGrid', () => {
     const band = month.querySelector('.yp-band');
     expect(band.style.getPropertyValue('--band-start')).toBe('2');
     expect(band.style.getPropertyValue('--band-span')).toBe('2');
+  });
+});
+
+describe('renderYearSummary', () => {
+  test('uses singular labels only for a count of one', () => {
+    const host = mount(renderYearSummary({
+      counts: { meetings: 1, prepared: 1, camps: 1 }
+    }));
+
+    expect(host.textContent).toContain('yearly_planner_meeting_count_one');
+    expect(host.textContent).toContain('yearly_planner_prepared_count_one');
+    expect(host.textContent).toContain('yearly_planner_camp_count_one');
+  });
+
+  test('uses plural labels for zero and larger counts', () => {
+    const host = mount(renderYearSummary({
+      counts: { meetings: 40, prepared: 0, camps: 2 }
+    }));
+
+    expect(host.textContent).toContain('yearly_planner_meeting_count_other');
+    expect(host.textContent).toContain('yearly_planner_prepared_count_other');
+    expect(host.textContent).toContain('yearly_planner_camp_count_other');
   });
 });
 
