@@ -97,92 +97,266 @@
   font-weight: 600;
 }
 
-/* Timeline */
-.yp-timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.yp-timeline-group {
-  margin-bottom: 1.5rem;
-}
-
-.yp-timeline-group__title {
-  font-size: 1rem;
-  color: var(--primary-color, #3b82f6);
-  border-left: 3px solid var(--primary-color, #3b82f6);
-  padding-left: 0.75rem;
-  margin-bottom: 0.75rem;
-}
-
-.yp-meeting {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--border-color, #e2e8f0);
-  border-radius: 0.5rem;
-  margin-bottom: 0.5rem;
-  cursor: pointer;
-  transition: background 0.15s;
-  touch-action: manipulation;
-}
-
-.yp-meeting:hover {
-  background: var(--hover-bg, #f8fafc);
-}
-
-.yp-meeting--cancelled {
-  opacity: 0.5;
-  text-decoration: line-through;
-  border-style: dashed;
-}
-
-.yp-meeting--locked {
-  opacity: 0.7;
-  background: var(--locked-bg, #f1f5f9);
-}
-
-.yp-meeting__date {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 80px;
-}
-
-.yp-meeting__day {
-  font-weight: 600;
-  font-size: 0.85rem;
-}
-
-.yp-meeting__time {
-  font-size: 0.75rem;
-  color: var(--text-muted, #64748b);
-}
-
-.yp-meeting__info {
-  flex: 1;
+/* =========================================================================
+   Year at a glance
+   Mobile first: a vertical stack of dates per month. From 700px the month
+   becomes a grid and the period bands are laid over the same track as the
+   chips, so the two can never drift apart.
+   ========================================================================= */
+.yp-summary {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-md, 1rem);
+  margin-bottom: var(--space-lg, 1.5rem);
+  color: var(--color-text-light, #4b5563);
+  font-size: var(--font-size-sm, 0.875rem);
+}
+
+.yp-summary__item {
+  display: inline-flex;
   align-items: center;
-  font-size: 0.85rem;
+  gap: var(--space-xs, 0.25rem);
 }
 
-.yp-meeting__theme {
-  font-weight: 500;
+.yp-year {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl, 2rem);
 }
 
-.yp-meeting__location,
-.yp-meeting__activities {
-  color: var(--text-muted, #64748b);
-  font-size: 0.8rem;
+.yp-month__label {
+  margin: 0 0 var(--space-sm, 0.5rem);
+  font-size: var(--font-size-sm, 0.875rem);
+  font-weight: var(--font-weight-semibold, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted, #6b7280);
 }
 
-.yp-meeting__status {
-  flex-shrink: 0;
+.yp-month__track {
+  position: relative;
 }
+
+/* A horizontal band over a vertical stack means nothing, so on small screens
+   the period is carried by each chip's own edge instead. */
+.yp-month__bands {
+  display: none;
+}
+
+.yp-month__chips {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 0.5rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yp-chip-slot {
+  display: flex;
+  min-width: 0;
+}
+
+.yp-chip {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-xs, 0.25rem);
+  min-height: var(--touch-target-min, 44px);
+  padding: var(--space-sm, 0.5rem) var(--space-md, 1rem);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-inline-start: 4px solid var(--chip-band-color, transparent);
+  border-radius: var(--radius-md, 0.75rem);
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #111827);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--transition-fast, 0.15s), box-shadow var(--transition-fast, 0.15s);
+}
+
+.yp-chip:hover,
+.yp-chip:focus-visible {
+  border-color: var(--color-primary, #0f7a5a);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.08));
+}
+
+.yp-chip__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs, 0.25rem);
+}
+
+.yp-chip__head i {
+  color: var(--color-text-muted, #6b7280);
+  font-size: 0.8em;
+}
+
+.yp-chip__dow {
+  font-size: var(--font-size-xs, 0.75rem);
+  text-transform: uppercase;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.yp-chip__day {
+  font-size: var(--font-size-lg, 1.125rem);
+  font-weight: var(--font-weight-bold, 700);
+  line-height: 1;
+}
+
+.yp-chip__theme {
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--color-text-light, #4b5563);
+  overflow-wrap: anywhere;
+}
+
+.yp-chip__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs, 0.25rem);
+}
+
+/* State. Never colour alone: each state also changes an icon, the border
+   style, or the text. */
+.yp-chip.is-today {
+  border-color: var(--color-primary, #0f7a5a);
+  box-shadow: inset 0 0 0 1px var(--color-primary, #0f7a5a);
+}
+
+.yp-chip.is-past {
+  opacity: 0.7;
+}
+
+.yp-chip.is-cancelled {
+  border-style: dashed;
+  opacity: 0.6;
+}
+
+.yp-chip.is-cancelled .yp-chip__day,
+.yp-chip.is-cancelled .yp-chip__theme {
+  text-decoration: line-through;
+}
+
+.yp-chip--camp,
+.yp-chip--weekend {
+  background: var(--color-background, #f3f7f4);
+}
+
+.yp-chip--event {
+  border-style: dotted;
+}
+
+/* Armed mode: only present while a placement is in progress. */
+.yp-chip[aria-pressed='true'] {
+  border-color: var(--color-primary, #0f7a5a);
+  background: var(--color-selected, #e6f4ef);
+  color: var(--color-selected-text, #06301f);
+}
+
+.yp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2em;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-full, 999px);
+  background: var(--color-background, #f3f7f4);
+  color: var(--color-text-light, #4b5563);
+  font-size: var(--font-size-xs, 0.75rem);
+  white-space: nowrap;
+}
+
+.yp-badge--days {
+  background: var(--color-primary, #0f7a5a);
+  color: #fff;
+  font-weight: var(--font-weight-semibold, 600);
+}
+
+.yp-badge--consent.is-complete {
+  background: var(--color-success-light, #dcfce7);
+  color: var(--color-success, #15803d);
+}
+
+.yp-badge--prepared {
+  background: var(--color-success-light, #dcfce7);
+  color: var(--color-success, #15803d);
+}
+
+.yp-band {
+  display: none;
+}
+
+@media (min-width: 700px) {
+  /* One track definition shared by both layers. */
+  .yp-month__track {
+    --yp-track: repeat(var(--chip-count, 1), minmax(7rem, 1fr));
+  }
+
+  .yp-month__chips {
+    display: grid;
+    grid-template-columns: var(--yp-track);
+    align-items: stretch;
+    position: relative;
+    z-index: var(--z-base, 1);
+  }
+
+  .yp-month__bands {
+    display: grid;
+    grid-template-columns: var(--yp-track);
+    gap: var(--space-sm, 0.5rem);
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+
+  .yp-band {
+    display: flex;
+    align-items: flex-end;
+    grid-column: var(--band-start) / span var(--band-span);
+    grid-row: var(--band-row, 1);
+    padding: 0 var(--space-xs, 0.25rem) var(--space-xs, 0.25rem);
+    border-radius: var(--radius-md, 0.75rem);
+    background: color-mix(in srgb, var(--band-color, #0f7a5a) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--band-color, #0f7a5a) 30%, transparent);
+    overflow: hidden;
+  }
+
+  .yp-band__title {
+    font-size: var(--font-size-xs, 0.75rem);
+    font-weight: var(--font-weight-semibold, 600);
+    color: var(--band-color, #0f7a5a);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+  }
+
+  /* A camp is a wider chip labelled with a range, not a block proportional to
+     its length: the layout shows only real dates, so there is nothing for a
+     proportional span to measure against. */
+  .yp-chip-slot--span {
+    grid-column: span var(--span-cols, 2);
+  }
+
+  .yp-chip {
+    border-inline-start-width: 1px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yp-chip {
+    transition: none;
+  }
+}
+
+@media print {
+  .yp-chip {
+    break-inside: avoid;
+  }
+}
+
 
 /* Periods */
 .yp-periods {
@@ -511,16 +685,6 @@
     grid-template-columns: 1fr;
   }
 
-  .yp-meeting {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .yp-meeting__date {
-    flex-direction: row;
-    gap: 0.5rem;
-  }
-
   .yp-tabs {
     gap: 0;
   }
@@ -541,9 +705,130 @@
   }
 }
 
-/* Outings/events (activities calendar) interleaved on the timeline */
-.yp-event {
-  border-left: 4px solid #2e7d32;
-  background: #f2f8f2;
-  cursor: default;
+
+/* =========================================================================
+   Series placement (armed mode)
+   Replaces drag and drop: pick an activity, tap the dates, confirm.
+   ========================================================================= */
+.yp-chip.is-selected {
+  border-color: var(--color-primary, #0f7a5a);
+  background: var(--color-selected, #e6f4ef);
+  color: var(--color-selected-text, #06301f);
+}
+
+.yp-armbar {
+  position: sticky;
+  top: var(--space-sm, 0.5rem);
+  z-index: var(--z-sticky, 200);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm, 0.5rem);
+  margin-bottom: var(--space-md, 1rem);
+  padding: var(--space-sm, 0.5rem) var(--space-md, 1rem);
+  border: 1px solid var(--color-primary, #0f7a5a);
+  border-radius: var(--radius-md, 0.75rem);
+  background: var(--color-surface, #fff);
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.1));
+}
+
+.yp-armbar__what {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs, 0.25rem);
+  min-width: 0;
+}
+
+.yp-armbar__what strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yp-armbar__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 0.4rem;
+  border-radius: var(--radius-full, 999px);
+  background: var(--color-primary, #0f7a5a);
+  color: #fff;
+  font-weight: var(--font-weight-bold, 700);
+  font-size: var(--font-size-sm, 0.875rem);
+}
+
+.yp-armbar__series {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs, 0.25rem);
+  font-size: var(--font-size-sm, 0.875rem);
+}
+
+.yp-armbar__actions {
+  display: flex;
+  gap: var(--space-xs, 0.25rem);
+  margin-inline-start: auto;
+}
+
+.yp-picker__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.yp-picker__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-xs, 0.25rem);
+  width: 100%;
+  min-height: var(--touch-target-min, 44px);
+  padding: var(--space-sm, 0.5rem);
+  border: 0;
+  border-bottom: 1px solid var(--color-border-light, #eef2f7);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.yp-picker__item:hover,
+.yp-picker__item:focus-visible {
+  background: var(--color-background, #f3f7f4);
+}
+
+.yp-picker__name {
+  font-weight: var(--font-weight-semibold, 600);
+}
+
+.yp-picker__cat,
+.yp-picker__dur {
+  font-size: var(--font-size-xs, 0.75rem);
+  color: var(--color-text-muted, #6b7280);
+}
+
+.yp-picker__empty {
+  padding: var(--space-md, 1rem);
+  color: var(--color-text-muted, #6b7280);
+}
+
+.yp-sheet__hint {
+  margin: 0;
+  padding: var(--space-sm, 0.5rem);
+  border-radius: var(--radius-sm, 0.4rem);
+  background: var(--color-background, #f3f7f4);
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--color-text-light, #4b5563);
+}
+
+@media (min-width: 700px) {
+  .yp-armbar {
+    flex-wrap: nowrap;
+  }
 }

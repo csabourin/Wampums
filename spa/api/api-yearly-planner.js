@@ -2,81 +2,172 @@
 // API endpoint functions for the Yearly Meeting Planner module
 import { API } from './api-core.js';
 import { CONFIG } from '../config.js';
+import { clearYearlyPlannerCaches } from '../indexedDB.js';
+import { debugWarn } from '../utils/DebugUtils.js';
+
+/**
+ * Drop the cached planner reads after a mutation.
+ *
+ * Every read here goes through the IndexedDB API cache, so without this the SPA
+ * keeps rendering the state it captured before the write and the mutation looks
+ * like a no-op.
+ *
+ * @param {Object} [options] - Passed through to clearYearlyPlannerCaches
+ * @returns {Promise<void>}
+ */
+async function invalidatePlanner(options = {}) {
+  try {
+    await clearYearlyPlannerCaches(options);
+  } catch (error) {
+    // Cache invalidation is best-effort: the write already succeeded.
+    debugWarn('Failed to invalidate yearly planner caches', error);
+  }
+}
+
+/**
+ * Read options shared by every planner GET.
+ * @param {Object} options - { forceRefresh }
+ * @returns {Object} cacheOptions for API.get
+ */
+function readCacheOptions(options = {}) {
+  return {
+    forceRefresh: options.forceRefresh === true,
+    cacheDuration: CONFIG.CACHE_DURATION.SHORT
+  };
+}
 
 // ============================================================================
 // YEAR PLANS
 // ============================================================================
 
-export async function getYearPlans() {
-  return API.get('v1/yearly-planner/plans');
+export async function getYearPlans(options = {}) {
+  return API.get('v1/yearly-planner/plans', {}, readCacheOptions(options));
 }
 
-export async function getYearPlan(planId) {
-  return API.get(`v1/yearly-planner/plans/${planId}`);
+export async function getYearPlan(planId, options = {}) {
+  return API.get(`v1/yearly-planner/plans/${planId}`, {}, readCacheOptions(options));
 }
 
 export async function createYearPlan(data) {
-  return API.post('v1/yearly-planner/plans', data);
+  const response = await API.post('v1/yearly-planner/plans', data);
+  await invalidatePlanner({ includeMeetingPrep: true });
+  return response;
 }
 
 export async function updateYearPlan(planId, data) {
-  return API.patch(`v1/yearly-planner/plans/${planId}`, data);
+  const response = await API.patch(`v1/yearly-planner/plans/${planId}`, data);
+  await invalidatePlanner({ includeMeetingPrep: true });
+  return response;
 }
 
 export async function deleteYearPlan(planId) {
-  return API.delete(`v1/yearly-planner/plans/${planId}`);
+  const response = await API.delete(`v1/yearly-planner/plans/${planId}`);
+  await invalidatePlanner({ includeMeetingPrep: true });
+  return response;
 }
 
 // ============================================================================
 // PERIODS
 // ============================================================================
 
-export async function getPeriods(planId) {
-  return API.get(`v1/yearly-planner/plans/${planId}/periods`);
+export async function getPeriods(planId, options = {}) {
+  return API.get(`v1/yearly-planner/plans/${planId}/periods`, {}, readCacheOptions(options));
 }
 
 export async function createPeriod(planId, data) {
-  return API.post(`v1/yearly-planner/plans/${planId}/periods`, data);
+  const response = await API.post(`v1/yearly-planner/plans/${planId}/periods`, data);
+  await invalidatePlanner();
+  return response;
 }
 
 export async function updatePeriod(periodId, data) {
-  return API.patch(`v1/yearly-planner/periods/${periodId}`, data);
+  const response = await API.patch(`v1/yearly-planner/periods/${periodId}`, data);
+  await invalidatePlanner();
+  return response;
 }
 
 export async function deletePeriod(periodId) {
-  return API.delete(`v1/yearly-planner/periods/${periodId}`);
+  const response = await API.delete(`v1/yearly-planner/periods/${periodId}`);
+  await invalidatePlanner();
+  return response;
 }
 
 // ============================================================================
 // OBJECTIVES
 // ============================================================================
 
-export async function getObjectives(planId) {
-  return API.get(`v1/yearly-planner/plans/${planId}/objectives`);
+export async function getObjectives(planId, options = {}) {
+  return API.get(`v1/yearly-planner/plans/${planId}/objectives`, {}, readCacheOptions(options));
 }
 
 export async function createObjective(planId, data) {
-  return API.post(`v1/yearly-planner/plans/${planId}/objectives`, data);
+  const response = await API.post(`v1/yearly-planner/plans/${planId}/objectives`, data);
+  await invalidatePlanner();
+  return response;
 }
 
 export async function updateObjective(objectiveId, data) {
-  return API.patch(`v1/yearly-planner/objectives/${objectiveId}`, data);
+  const response = await API.patch(`v1/yearly-planner/objectives/${objectiveId}`, data);
+  await invalidatePlanner();
+  return response;
 }
 
 export async function deleteObjective(objectiveId) {
-  return API.delete(`v1/yearly-planner/objectives/${objectiveId}`);
+  const response = await API.delete(`v1/yearly-planner/objectives/${objectiveId}`);
+  await invalidatePlanner();
+  return response;
 }
 
 // ============================================================================
 // MEETINGS
 // ============================================================================
 
-export async function getYearPlanMeeting(meetingId) {
-  return API.get(`v1/yearly-planner/meetings/${meetingId}`);
+export async function getYearPlanMeeting(meetingId, options = {}) {
+  return API.get(`v1/yearly-planner/meetings/${meetingId}`, {}, readCacheOptions(options));
 }
 
 export async function updateYearPlanMeeting(meetingId, data) {
-  return API.patch(`v1/yearly-planner/meetings/${meetingId}`, data);
+  const response = await API.patch(`v1/yearly-planner/meetings/${meetingId}`, data);
+  await invalidatePlanner({ includeMeetingPrep: true });
+  return response;
+}
+
+/**
+ * Add a single date to a plan: a one-off meeting, a weekend outing, or a
+ * multi-day camp. Weekend and camp kinds also create the linked activity that
+ * unlocks consent forms and carpooling.
+ *
+ * @param {number} planId - Year plan ID
+ * @param {Object} data - { meeting_date, end_date?, kind?, theme?, location?, period_id? }
+ * @returns {Promise<Object>} API response
+ */
+export async function createPlanMeeting(planId, data) {
+  const response = await API.post(`v1/yearly-planner/plans/${planId}/meetings`, data);
+  await invalidatePlanner({ includeMeetingPrep: true, includeActivities: true });
+  return response;
+}
+
+/**
+ * Remove a date from the calendar. The linked outing, if any, is unlinked but
+ * never deleted.
+ * @param {number} meetingId - Year plan meeting ID
+ * @returns {Promise<Object>} API response
+ */
+export async function deletePlanMeeting(meetingId) {
+  const response = await API.delete(`v1/yearly-planner/meetings/${meetingId}`);
+  await invalidatePlanner({ includeMeetingPrep: true, includeActivities: true });
+  return response;
+}
+
+/**
+ * Detach a meeting from its outing without deleting the outing.
+ * @param {number} meetingId - Year plan meeting ID
+ * @returns {Promise<Object>} API response
+ */
+export async function unlinkActivityEvent(meetingId) {
+  const response = await API.delete(`v1/yearly-planner/meetings/${meetingId}/activity-event`);
+  await invalidatePlanner({ includeMeetingPrep: true, includeActivities: true });
+  return response;
 }
 
 /**
@@ -86,7 +177,9 @@ export async function updateYearPlanMeeting(meetingId, data) {
  * @param {Object} data - Optional overrides { name, description, location, meeting_time, departure_time, end_date, end_time }
  */
 export async function createActivityEventFromMeeting(meetingId, data = {}) {
-  return API.post(`v1/yearly-planner/meetings/${meetingId}/activity-event`, data);
+  const response = await API.post(`v1/yearly-planner/meetings/${meetingId}/activity-event`, data);
+  await invalidatePlanner({ includeMeetingPrep: true, includeActivities: true });
+  return response;
 }
 
 // ============================================================================
@@ -94,77 +187,128 @@ export async function createActivityEventFromMeeting(meetingId, data = {}) {
 // ============================================================================
 
 export async function addMeetingActivity(meetingId, data) {
-  return API.post(`v1/yearly-planner/meetings/${meetingId}/activities`, data);
+  const response = await API.post(`v1/yearly-planner/meetings/${meetingId}/activities`, data);
+  await invalidatePlanner({ includeMeetingPrep: true });
+  return response;
 }
 
 export async function updateMeetingActivity(activityId, data) {
-  return API.patch(`v1/yearly-planner/meeting-activities/${activityId}`, data);
+  const response = await API.patch(`v1/yearly-planner/meeting-activities/${activityId}`, data);
+  await invalidatePlanner({ includeMeetingPrep: true });
+  return response;
 }
 
 export async function deleteMeetingActivity(activityId) {
-  return API.delete(`v1/yearly-planner/meeting-activities/${activityId}`);
+  const response = await API.delete(`v1/yearly-planner/meeting-activities/${activityId}`);
+  await invalidatePlanner({ includeMeetingPrep: true });
+  return response;
+}
+
+// ============================================================================
+// SERIES
+// ============================================================================
+
+/**
+ * Place one activity onto several dates at once, optionally as a numbered
+ * series threading through those meetings.
+ *
+ * @param {number} planId - Year plan ID
+ * @param {Object} data - { meeting_ids, activity, as_series, series_label }
+ * @returns {Promise<Object>} API response with { created, skipped, series_id }
+ */
+export async function batchPlaceActivity(planId, data) {
+  const response = await API.post(`v1/yearly-planner/plans/${planId}/meetings/batch-activity`, data);
+  await invalidatePlanner({ includeMeetingPrep: true });
+  return response;
+}
+
+/**
+ * Remove every occurrence of a series.
+ * @param {string} seriesId - Series identifier
+ * @returns {Promise<Object>} API response
+ */
+export async function deleteSeries(seriesId) {
+  const response = await API.delete(`v1/yearly-planner/series/${seriesId}`);
+  await invalidatePlanner({ includeMeetingPrep: true });
+  return response;
 }
 
 // ============================================================================
 // ACTIVITY LIBRARY
 // ============================================================================
 
-export async function getActivityLibrary(params = {}) {
-  return API.get('v1/yearly-planner/activity-library', params);
+export async function getActivityLibrary(params = {}, options = {}) {
+  return API.get('v1/yearly-planner/activity-library', params, readCacheOptions(options));
 }
 
 export async function createLibraryActivity(data) {
-  return API.post('v1/yearly-planner/activity-library', data);
+  const response = await API.post('v1/yearly-planner/activity-library', data);
+  await invalidatePlanner();
+  return response;
 }
 
 export async function updateLibraryActivity(id, data) {
-  return API.patch(`v1/yearly-planner/activity-library/${id}`, data);
+  const response = await API.patch(`v1/yearly-planner/activity-library/${id}`, data);
+  await invalidatePlanner();
+  return response;
 }
 
 export async function deleteLibraryActivity(id) {
-  return API.delete(`v1/yearly-planner/activity-library/${id}`);
+  const response = await API.delete(`v1/yearly-planner/activity-library/${id}`);
+  await invalidatePlanner();
+  return response;
 }
 
 // ============================================================================
 // OBJECTIVE ACHIEVEMENTS
 // ============================================================================
 
-export async function getAchievements(params = {}) {
-  return API.get('v1/yearly-planner/achievements', params);
+export async function getAchievements(params = {}, options = {}) {
+  return API.get('v1/yearly-planner/achievements', params, readCacheOptions(options));
 }
 
 export async function grantAchievements(data) {
-  return API.post('v1/yearly-planner/achievements', data);
+  const response = await API.post('v1/yearly-planner/achievements', data);
+  await invalidatePlanner();
+  return response;
 }
 
 export async function removeAchievement(id) {
-  return API.delete(`v1/yearly-planner/achievements/${id}`);
+  const response = await API.delete(`v1/yearly-planner/achievements/${id}`);
+  await invalidatePlanner();
+  return response;
 }
 
 // ============================================================================
 // DISTRIBUTION RULES
 // ============================================================================
 
-export async function getDistributionRules(planId) {
-  return API.get(`v1/yearly-planner/plans/${planId}/distribution-rules`);
+export async function getDistributionRules(planId, options = {}) {
+  return API.get(`v1/yearly-planner/plans/${planId}/distribution-rules`, {}, readCacheOptions(options));
 }
 
 export async function createDistributionRule(planId, data) {
-  return API.post(`v1/yearly-planner/plans/${planId}/distribution-rules`, data);
+  const response = await API.post(`v1/yearly-planner/plans/${planId}/distribution-rules`, data);
+  await invalidatePlanner();
+  return response;
 }
 
 export async function deleteDistributionRule(ruleId) {
-  return API.delete(`v1/yearly-planner/distribution-rules/${ruleId}`);
+  const response = await API.delete(`v1/yearly-planner/distribution-rules/${ruleId}`);
+  await invalidatePlanner();
+  return response;
 }
 
 // ============================================================================
 // REMINDERS
 // ============================================================================
 
-export async function getReminders(planId) {
-  return API.get(`v1/yearly-planner/plans/${planId}/reminders`);
+export async function getReminders(planId, options = {}) {
+  return API.get(`v1/yearly-planner/plans/${planId}/reminders`, {}, readCacheOptions(options));
 }
 
 export async function createReminder(meetingId, data) {
-  return API.post(`v1/yearly-planner/meetings/${meetingId}/reminders`, data);
+  const response = await API.post(`v1/yearly-planner/meetings/${meetingId}/reminders`, data);
+  await invalidatePlanner({ includeMeetingPrep: true });
+  return response;
 }

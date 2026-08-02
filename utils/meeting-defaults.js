@@ -17,6 +17,40 @@ const DEFAULT_MEETING_TIME = '19:00';
 const DEFAULT_MEETING_DURATION_MINUTES = 90;
 
 /**
+ * Weekday aliases accepted in organization_info.meeting_day.
+ *
+ * Consumers index into an English day array, so a French value stored by a
+ * French-configured organization used to resolve to -1 and silently generate a
+ * year plan with zero meetings. Keys are lowercased and accent-stripped.
+ */
+const DAY_ALIASES = {
+  sunday: 'Sunday', dimanche: 'Sunday',
+  monday: 'Monday', lundi: 'Monday',
+  tuesday: 'Tuesday', mardi: 'Tuesday',
+  wednesday: 'Wednesday', mercredi: 'Wednesday',
+  thursday: 'Thursday', jeudi: 'Thursday',
+  friday: 'Friday', vendredi: 'Friday',
+  saturday: 'Saturday', samedi: 'Saturday'
+};
+
+/**
+ * Resolve a stored meeting day to its canonical English name.
+ * @param {string|null} rawDay - Value from organization_info.meeting_day
+ * @returns {string} Canonical English weekday, or the default when unrecognized
+ */
+function normalizeMeetingDay(rawDay) {
+  if (!rawDay) {
+    return DEFAULT_MEETING_DAY;
+  }
+  const key = String(rawDay)
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return DAY_ALIASES[key] || DEFAULT_MEETING_DAY;
+}
+
+/**
  * Parse a raw organization_settings.setting_value (jsonb or string) to object.
  * @param {object|string|null} rawValue - Raw column value
  * @returns {object} Parsed object (empty object on failure)
@@ -64,7 +98,7 @@ async function getMeetingDefaults(pool, organizationId) {
     DEFAULT_MEETING_DURATION_MINUTES;
 
   return {
-    meetingDay: orgInfo.meeting_day || DEFAULT_MEETING_DAY,
+    meetingDay: normalizeMeetingDay(orgInfo.meeting_day),
     meetingTime: orgInfo.meeting_time || DEFAULT_MEETING_TIME,
     durationMinutes,
     location: orgInfo.endroit || ''
