@@ -27,13 +27,13 @@ function fingerprint(formData) {
 }
 
 /**
- * Local-first, serialized autosave coordinator for one meeting date.
+ * Local-first, serialized autosave coordinator for one meeting editing context.
  * It stores only the newest local snapshot and never overlaps server writes.
  */
 export class MeetingAutosave {
   /**
    * @param {Object} options - Autosave dependencies and callbacks
-   * @param {string} options.date - Meeting date used for the scoped draft key
+   * @param {string} options.date - Initial meeting date used to find a recovery draft
    * @param {Function} options.capture - Return the latest full form payload
    * @param {Function} options.isValid - Whether a payload may be sent to the server
    * @param {Function} options.save - Persist a full payload to the server
@@ -72,11 +72,32 @@ export class MeetingAutosave {
     this.saveAgain = false;
     this.manualErrorRequested = false;
     this.destroyed = false;
+    this.activeDraftKey = this.draftKey;
   }
 
   /** @returns {string} Logical cache key; IndexedDB adds user/org/year scope. */
   get draftKey() {
-    return `meeting_preparation_draft_${this.date}`;
+    return this.getDraftKey(this.date);
+  }
+
+  /**
+   * Build the logical cache key for the date represented by a snapshot.
+   * @param {string} date - Meeting date in YYYY-MM-DD format
+   * @returns {string} Date-scoped logical cache key
+   */
+  getDraftKey(date) {
+    return `meeting_preparation_draft_${date}`;
+  }
+
+  /**
+   * Resolve a snapshot's immutable draft key, including legacy snapshots.
+   * @param {Object} snapshot - Local draft snapshot
+   * @returns {string} Logical cache key owned by the snapshot
+   */
+  getSnapshotDraftKey(snapshot) {
+    return snapshot?.draftKey || this.getDraftKey(
+      snapshot?.formData?.date || snapshot?.date || this.date
+    );
   }
 
   /**
@@ -96,19 +117,31 @@ export class MeetingAutosave {
    */
   async restoreDraft() {
     try {
-      const draft = await getCachedData(this.draftKey);
+      const storedDraftKey = this.draftKey;
+      const draft = await getCachedData(storedDraftKey);
       if (!draft || draft.version !== DRAFT_VERSION || !draft.formData) {
         return null;
       }
 
       this.revision = Math.max(1, Number(draft.revision) || 1);
+      const restoredDate = draft.formData.date || draft.date || this.date;
       this.latestSnapshot = {
         ...draft,
+        date: restoredDate,
+        draftKey: this.getDraftKey(restoredDate),
         revision: this.revision,
         fingerprint: draft.fingerprint || fingerprint(draft.formData)
       };
-      this.lastLocalRevision = this.revision;
-      this.localDraftSafe = true;
+      this.activeDraftKey = storedDraftKey;
+      if (storedDraftKey !== this.latestSnapshot.draftKey) {
+        this.lastLocalRevision = 0;
+        this.localDraftSafe = false;
+        await this.persistDraft(this.latestSnapshot);
+      } else {
+        this.lastLocalRevision = this.revision;
+        this.localDraftSafe = true;
+      }
+      if (!this.localDraftSafe) return this.latestSnapshot;
       this.setStatus(MEETING_SAVE_STATES.LOCAL);
       return this.latestSnapshot;
     } catch (error) {
@@ -139,9 +172,11 @@ export class MeetingAutosave {
     }
 
     this.revision += 1;
+    const snapshotDate = captured.date || this.latestSnapshot?.date || this.date;
     const snapshot = {
       version: DRAFT_VERSION,
-      date: this.date,
+      date: snapshotDate,
+      draftKey: this.getDraftKey(snapshotDate),
       revision: this.revision,
       updatedAt: Date.now(),
       fingerprint: nextFingerprint,
@@ -196,11 +231,17 @@ export class MeetingAutosave {
     this.localWritePromise = this.localWritePromise
       .catch(() => undefined)
       .then(async () => {
+        const draftKey = this.getSnapshotDraftKey(snapshot);
+        const previousDraftKey = this.activeDraftKey;
         await setCachedData(
-          this.draftKey,
+          draftKey,
           snapshot,
           CONFIG.UI.MEETING_DRAFT_EXPIRATION
         );
+        this.activeDraftKey = draftKey;
+        if (previousDraftKey && previousDraftKey !== draftKey) {
+          await this.removeDraft(previousDraftKey, 'obsolete date');
+        }
         if (this.latestSnapshot?.revision === snapshot.revision) {
           this.localDraftSafe = true;
           this.lastLocalRevision = snapshot.revision;
@@ -217,6 +258,29 @@ export class MeetingAutosave {
         return false;
       });
     return this.localWritePromise;
+  }
+
+  /**
+   * Remove a draft, replacing it with a non-restorable marker if deletion fails.
+   * @param {string} draftKey - Logical cache key to remove
+   * @param {string} reason - Diagnostic context for cleanup failures
+   * @returns {Promise<void>}
+   */
+  async removeDraft(draftKey, reason) {
+    try {
+      await deleteCachedData(draftKey);
+    } catch (error) {
+      debugError(`Unable to remove ${reason} meeting draft:`, error);
+      try {
+        await setCachedData(
+          draftKey,
+          { version: DRAFT_VERSION, synchronized: true },
+          CONFIG.UI.MEETING_DRAFT_EXPIRATION
+        );
+      } catch (markerError) {
+        debugError('Unable to mark meeting draft as synchronized:', markerError);
+      }
+    }
   }
 
   /**
@@ -276,20 +340,10 @@ export class MeetingAutosave {
 
         if (isLatest) {
           await this.localWritePromise;
-          try {
-            await deleteCachedData(this.draftKey);
-          } catch (error) {
-            debugError('Unable to remove synchronized meeting draft:', error);
-            try {
-              await setCachedData(
-                this.draftKey,
-                { version: DRAFT_VERSION, synchronized: true },
-                CONFIG.UI.MEETING_DRAFT_EXPIRATION
-              );
-            } catch (markerError) {
-              debugError('Unable to mark meeting draft as synchronized:', markerError);
-            }
-          }
+          const synchronizedDraftKey = this.getSnapshotDraftKey(snapshot);
+          await this.removeDraft(synchronizedDraftKey, 'synchronized');
+          this.date = snapshot.date;
+          this.activeDraftKey = synchronizedDraftKey;
           this.latestSnapshot = null;
           this.lastLocalRevision = 0;
           this.baselineFingerprint = snapshot.fingerprint;
@@ -329,7 +383,7 @@ export class MeetingAutosave {
     return Boolean(this.latestSnapshot) && !this.localDraftSafe;
   }
 
-  /** Persist the latest snapshot and release timers for this date. */
+  /** Persist the latest snapshot and release timers for this editing context. */
   async destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
