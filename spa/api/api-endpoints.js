@@ -245,12 +245,13 @@ export async function verify2FA(email, code, organization_id) {
  */
 export async function register(userData) {
     const url = new URL('/public/register', CONFIG.API_BASE_URL);
+    const organizationId = getCurrentOrganizationId();
 
     const response = await fetch(url.toString(), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            ...getAuthHeader()
+            ...(organizationId ? { 'x-organization-id': organizationId } : {})
         },
         body: JSON.stringify(userData)
     });

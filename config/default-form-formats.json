@@ -1,0 +1,2146 @@
+{
+  "schemaVersion": 1,
+  "source": "Railway Template organization",
+  "forms": [
+    {
+      "form_type": "acceptation_risque",
+      "form_structure": {
+        "fields": [
+          {
+            "name": "groupe_district",
+            "type": "text",
+            "label": "groupe_district_label"
+          },
+          {
+            "type": "infoText",
+            "infoText": "risques_inherents_activites_texte"
+          },
+          {
+            "type": "infoText",
+            "infoText": "responsabilite_groupe_district_texte"
+          },
+          {
+            "name": "accepte_risques",
+            "type": "checkbox",
+            "label": "accepte_risques_label",
+            "required": true
+          },
+          {
+            "type": "infoText",
+            "infoText": "risques_activites_dangers_texte"
+          },
+          {
+            "name": "accepte_covid19",
+            "type": "checkbox",
+            "label": "accepte_covid19_label",
+            "required": true
+          },
+          {
+            "type": "infoText",
+            "infoText": "covid19_maladies_infectieuses_texte"
+          },
+          {
+            "name": "participation_volontaire",
+            "type": "checkbox",
+            "label": "participation_volontaire_label",
+            "required": true
+          },
+          {
+            "type": "infoText",
+            "infoText": "volontaire_participation_texte"
+          },
+          {
+            "name": "declaration_sante",
+            "type": "checkbox",
+            "label": "declaration_sante_label",
+            "required": true
+          },
+          {
+            "type": "infoText",
+            "infoText": "sante_symptomes_texte"
+          },
+          {
+            "name": "declaration_voyage",
+            "type": "checkbox",
+            "label": "declaration_voyage_label",
+            "required": true
+          },
+          {
+            "type": "infoText",
+            "infoText": "voyage_exterieur_canada_texte"
+          },
+          {
+            "name": "nom_parent_tuteur",
+            "type": "text",
+            "label": "nom_parent_tuteur_label"
+          },
+          {
+            "name": "date_signature",
+            "type": "date",
+            "label": "date_signature_label"
+          },
+          {
+            "type": "infoText",
+            "infoText": "declaration_parent_tuteur_texte"
+          }
+        ]
+      },
+      "display_type": "template",
+      "display_name": null,
+      "description": null,
+      "instructions": null,
+      "category": null,
+      "status": "draft",
+      "is_required": false,
+      "display_order": 0,
+      "tags": null,
+      "display_context": [
+        "participant"
+      ],
+      "versions": [
+        {
+          "version_number": 1,
+          "form_structure": {
+            "fields": [
+              {
+                "name": "groupe_district",
+                "type": "text",
+                "label": "groupe_district_label"
+              },
+              {
+                "type": "infoText",
+                "infoText": "risques_inherents_activites_texte"
+              },
+              {
+                "type": "infoText",
+                "infoText": "responsabilite_groupe_district_texte"
+              },
+              {
+                "name": "accepte_risques",
+                "type": "checkbox",
+                "label": "accepte_risques_label",
+                "required": true
+              },
+              {
+                "type": "infoText",
+                "infoText": "risques_activites_dangers_texte"
+              },
+              {
+                "name": "accepte_covid19",
+                "type": "checkbox",
+                "label": "accepte_covid19_label",
+                "required": true
+              },
+              {
+                "type": "infoText",
+                "infoText": "covid19_maladies_infectieuses_texte"
+              },
+              {
+                "name": "participation_volontaire",
+                "type": "checkbox",
+                "label": "participation_volontaire_label",
+                "required": true
+              },
+              {
+                "type": "infoText",
+                "infoText": "volontaire_participation_texte"
+              },
+              {
+                "name": "declaration_sante",
+                "type": "checkbox",
+                "label": "declaration_sante_label",
+                "required": true
+              },
+              {
+                "type": "infoText",
+                "infoText": "sante_symptomes_texte"
+              },
+              {
+                "name": "declaration_voyage",
+                "type": "checkbox",
+                "label": "declaration_voyage_label",
+                "required": true
+              },
+              {
+                "type": "infoText",
+                "infoText": "voyage_exterieur_canada_texte"
+              },
+              {
+                "name": "nom_parent_tuteur",
+                "type": "text",
+                "label": "nom_parent_tuteur_label"
+              },
+              {
+                "name": "date_signature",
+                "type": "date",
+                "label": "date_signature_label"
+              },
+              {
+                "type": "infoText",
+                "infoText": "declaration_parent_tuteur_texte"
+              }
+            ]
+          },
+          "display_name": "acceptation_risque",
+          "change_description": "Initial version migrated from existing form",
+          "is_active": true
+        }
+      ],
+      "permissions": [
+        {
+          "role_name": "demoadmin",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": true
+        },
+        {
+          "role_name": "demoparent",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": false,
+          "can_approve": false
+        },
+        {
+          "role_name": "district",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": true
+        },
+        {
+          "role_name": "leader",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": false
+        },
+        {
+          "role_name": "parent",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": false,
+          "can_approve": false
+        },
+        {
+          "role_name": "unitadmin",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": true
+        }
+      ]
+    },
+    {
+      "form_type": "fiche_sante",
+      "form_structure": {
+        "fields": [
+          {
+            "name": "nom_fille_mere",
+            "type": "text",
+            "label": "nom_fille_mere_label"
+          },
+          {
+            "name": "medecin_famille",
+            "type": "radio",
+            "label": "medecin_famille_label",
+            "options": [
+              {
+                "label": "yes_label",
+                "value": "yes"
+              },
+              {
+                "label": "no_label",
+                "value": "no"
+              }
+            ],
+            "required": true
+          },
+          {
+            "name": "nom_medecin",
+            "type": "text",
+            "label": "nom_medecin_label",
+            "disabled": true,
+            "required": true,
+            "dependsOn": {
+              "field": "medecin_famille",
+              "value": "yes"
+            }
+          },
+          {
+            "name": "has_probleme_sante",
+            "type": "radio",
+            "label": "has_probleme_sante_label",
+            "options": [
+              {
+                "label": "yes_label",
+                "value": "yes"
+              },
+              {
+                "label": "no_label",
+                "value": "no"
+              }
+            ],
+            "required": true
+          },
+          {
+            "name": "probleme_sante",
+            "type": "textarea",
+            "label": "probleme_sante_label",
+            "disabled": true,
+            "required": true,
+            "dependsOn": {
+              "field": "has_probleme_sante",
+              "value": "yes"
+            }
+          },
+          {
+            "name": "has_allergies",
+            "type": "radio",
+            "label": "has_allergies_label",
+            "options": [
+              {
+                "label": "yes_label",
+                "value": "yes"
+              },
+              {
+                "label": "no_label",
+                "value": "no"
+              }
+            ],
+            "required": true
+          },
+          {
+            "name": "allergie",
+            "type": "textarea",
+            "label": "allergie_label",
+            "disabled": true,
+            "required": true,
+            "dependsOn": {
+              "field": "has_allergies",
+              "value": "yes"
+            }
+          },
+          {
+            "name": "epipen",
+            "type": "checkbox",
+            "label": "epipen_label"
+          },
+          {
+            "name": "has_medication",
+            "type": "radio",
+            "label": "has_medication_label",
+            "options": [
+              {
+                "label": "yes_label",
+                "value": "yes"
+              },
+              {
+                "label": "no_label",
+                "value": "no"
+              }
+            ],
+            "required": true
+          },
+          {
+            "name": "medicament",
+            "type": "textarea",
+            "label": "medicament_label",
+            "disabled": true,
+            "required": true,
+            "dependsOn": {
+              "field": "has_medication",
+              "value": "yes"
+            }
+          },
+          {
+            "name": "has_limitations",
+            "type": "radio",
+            "label": "has_limitations_label",
+            "options": [
+              {
+                "label": "yes_label",
+                "value": "yes"
+              },
+              {
+                "label": "no_label",
+                "value": "no"
+              }
+            ],
+            "required": true
+          },
+          {
+            "name": "limitation",
+            "type": "textarea",
+            "label": "limitation_label",
+            "disabled": true,
+            "required": true,
+            "dependsOn": {
+              "field": "has_limitations",
+              "value": "yes"
+            }
+          },
+          {
+            "name": "vaccins_a_jour",
+            "type": "checkbox",
+            "label": "vaccins_a_jour_label"
+          },
+          {
+            "name": "had_blessures_operations",
+            "type": "radio",
+            "label": "had_blessures_operations_label",
+            "options": [
+              {
+                "label": "yes_label",
+                "value": "yes"
+              },
+              {
+                "label": "no_label",
+                "value": "no"
+              }
+            ],
+            "required": true
+          },
+          {
+            "name": "blessures_operations",
+            "type": "textarea",
+            "label": "blessures_operations_label",
+            "disabled": true,
+            "required": true,
+            "dependsOn": {
+              "field": "had_blessures_operations",
+              "value": "yes"
+            }
+          },
+          {
+            "name": "niveau_natation",
+            "type": "select",
+            "label": "niveau_natation_label",
+            "options": [
+              {
+                "label": "ne_sait_pas_nager_label",
+                "value": "ne_sait_pas_nager"
+              },
+              {
+                "label": "eau_peu_profonde_label",
+                "value": "eau_peu_profonde"
+              },
+              {
+                "label": "eau_profonde_label",
+                "value": "eau_profonde"
+              }
+            ]
+          },
+          {
+            "name": "doit_porter_vfi",
+            "type": "checkbox",
+            "label": "doit_porter_vfi_label"
+          },
+          {
+            "name": "regles",
+            "type": "radio",
+            "label": "regles_label",
+            "options": [
+              {
+                "label": "yes_label",
+                "value": "yes"
+              },
+              {
+                "label": "no_label",
+                "value": "no"
+              }
+            ],
+            "required": true
+          },
+          {
+            "name": "renseignee",
+            "type": "checkbox",
+            "label": "renseignee_label",
+            "disabled": true,
+            "required": true,
+            "dependsOn": {
+              "field": "regles",
+              "value": "yes"
+            }
+          }
+        ]
+      },
+      "display_type": "template",
+      "display_name": null,
+      "description": null,
+      "instructions": null,
+      "category": null,
+      "status": "draft",
+      "is_required": false,
+      "display_order": 0,
+      "tags": null,
+      "display_context": [
+        "participant",
+        "admin_panel",
+        "form_builder"
+      ],
+      "versions": [
+        {
+          "version_number": 1,
+          "form_structure": {
+            "fields": [
+              {
+                "name": "nom_fille_mere",
+                "type": "text",
+                "label": "nom_fille_mere_label"
+              },
+              {
+                "name": "medecin_famille",
+                "type": "radio",
+                "label": "medecin_famille_label",
+                "options": [
+                  {
+                    "label": "yes_label",
+                    "value": "yes"
+                  },
+                  {
+                    "label": "no_label",
+                    "value": "no"
+                  }
+                ],
+                "required": true
+              },
+              {
+                "name": "nom_medecin",
+                "type": "text",
+                "label": "nom_medecin_label",
+                "disabled": true,
+                "required": true,
+                "dependsOn": {
+                  "field": "medecin_famille",
+                  "value": "yes"
+                }
+              },
+              {
+                "name": "has_probleme_sante",
+                "type": "radio",
+                "label": "has_probleme_sante_label",
+                "options": [
+                  {
+                    "label": "yes_label",
+                    "value": "yes"
+                  },
+                  {
+                    "label": "no_label",
+                    "value": "no"
+                  }
+                ],
+                "required": true
+              },
+              {
+                "name": "probleme_sante",
+                "type": "textarea",
+                "label": "probleme_sante_label",
+                "disabled": true,
+                "required": true,
+                "dependsOn": {
+                  "field": "has_probleme_sante",
+                  "value": "yes"
+                }
+              },
+              {
+                "name": "has_allergies",
+                "type": "radio",
+                "label": "has_allergies_label",
+                "options": [
+                  {
+                    "label": "yes_label",
+                    "value": "yes"
+                  },
+                  {
+                    "label": "no_label",
+                    "value": "no"
+                  }
+                ],
+                "required": true
+              },
+              {
+                "name": "allergie",
+                "type": "textarea",
+                "label": "allergie_label",
+                "disabled": true,
+                "required": true,
+                "dependsOn": {
+                  "field": "has_allergies",
+                  "value": "yes"
+                }
+              },
+              {
+                "name": "epipen",
+                "type": "checkbox",
+                "label": "epipen_label"
+              },
+              {
+                "name": "has_medication",
+                "type": "radio",
+                "label": "has_medication_label",
+                "options": [
+                  {
+                    "label": "yes_label",
+                    "value": "yes"
+                  },
+                  {
+                    "label": "no_label",
+                    "value": "no"
+                  }
+                ],
+                "required": true
+              },
+              {
+                "name": "medicament",
+                "type": "textarea",
+                "label": "medicament_label",
+                "disabled": true,
+                "required": true,
+                "dependsOn": {
+                  "field": "has_medication",
+                  "value": "yes"
+                }
+              },
+              {
+                "name": "has_limitations",
+                "type": "radio",
+                "label": "has_limitations_label",
+                "options": [
+                  {
+                    "label": "yes_label",
+                    "value": "yes"
+                  },
+                  {
+                    "label": "no_label",
+                    "value": "no"
+                  }
+                ],
+                "required": true
+              },
+              {
+                "name": "limitation",
+                "type": "textarea",
+                "label": "limitation_label",
+                "disabled": true,
+                "required": true,
+                "dependsOn": {
+                  "field": "has_limitations",
+                  "value": "yes"
+                }
+              },
+              {
+                "name": "vaccins_a_jour",
+                "type": "checkbox",
+                "label": "vaccins_a_jour_label"
+              },
+              {
+                "name": "had_blessures_operations",
+                "type": "radio",
+                "label": "had_blessures_operations_label",
+                "options": [
+                  {
+                    "label": "yes_label",
+                    "value": "yes"
+                  },
+                  {
+                    "label": "no_label",
+                    "value": "no"
+                  }
+                ],
+                "required": true
+              },
+              {
+                "name": "blessures_operations",
+                "type": "textarea",
+                "label": "blessures_operations_label",
+                "disabled": true,
+                "required": true,
+                "dependsOn": {
+                  "field": "had_blessures_operations",
+                  "value": "yes"
+                }
+              },
+              {
+                "name": "niveau_natation",
+                "type": "select",
+                "label": "niveau_natation_label",
+                "options": [
+                  {
+                    "label": "ne_sait_pas_nager_label",
+                    "value": "ne_sait_pas_nager"
+                  },
+                  {
+                    "label": "eau_peu_profonde_label",
+                    "value": "eau_peu_profonde"
+                  },
+                  {
+                    "label": "eau_profonde_label",
+                    "value": "eau_profonde"
+                  }
+                ]
+              },
+              {
+                "name": "doit_porter_vfi",
+                "type": "checkbox",
+                "label": "doit_porter_vfi_label"
+              },
+              {
+                "name": "regles",
+                "type": "radio",
+                "label": "regles_label",
+                "options": [
+                  {
+                    "label": "yes_label",
+                    "value": "yes"
+                  },
+                  {
+                    "label": "no_label",
+                    "value": "no"
+                  }
+                ],
+                "required": true
+              },
+              {
+                "name": "renseignee",
+                "type": "checkbox",
+                "label": "renseignee_label",
+                "disabled": true,
+                "required": true,
+                "dependsOn": {
+                  "field": "regles",
+                  "value": "yes"
+                }
+              }
+            ]
+          },
+          "display_name": "fiche_sante",
+          "change_description": "Initial version migrated from existing form",
+          "is_active": true
+        }
+      ],
+      "permissions": [
+        {
+          "role_name": "demoadmin",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": true
+        },
+        {
+          "role_name": "demoparent",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": false
+        },
+        {
+          "role_name": "district",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": true
+        },
+        {
+          "role_name": "leader",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": false
+        },
+        {
+          "role_name": "unitadmin",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": true
+        }
+      ]
+    },
+    {
+      "form_type": "incident_report",
+      "form_structure": {
+        "fields": [
+          {
+            "type": "infoText",
+            "infoText": "incident_section1_title"
+          },
+          {
+            "name": "victim_last_name",
+            "type": "text",
+            "label": "incident_victim_last_name",
+            "required": true
+          },
+          {
+            "name": "victim_first_name",
+            "type": "text",
+            "label": "incident_victim_first_name",
+            "required": true
+          },
+          {
+            "name": "victim_age",
+            "type": "text",
+            "label": "incident_victim_age",
+            "required": false
+          },
+          {
+            "name": "guardian_name",
+            "type": "text",
+            "label": "incident_guardian_name",
+            "infoText": "incident_guardian_info",
+            "required": false
+          },
+          {
+            "name": "victim_address_number",
+            "type": "text",
+            "label": "incident_address_number",
+            "required": false
+          },
+          {
+            "name": "victim_address_street",
+            "type": "text",
+            "label": "incident_address_street",
+            "required": false
+          },
+          {
+            "name": "victim_address_city",
+            "type": "text",
+            "label": "incident_address_city",
+            "required": false
+          },
+          {
+            "name": "victim_address_province",
+            "type": "text",
+            "label": "incident_address_province",
+            "required": false
+          },
+          {
+            "name": "victim_address_postal",
+            "type": "text",
+            "label": "incident_address_postal_code",
+            "required": false
+          },
+          {
+            "name": "victim_phone_home",
+            "type": "tel",
+            "label": "incident_phone_home",
+            "required": false
+          },
+          {
+            "name": "victim_phone_work",
+            "type": "tel",
+            "label": "incident_phone_work",
+            "required": false
+          },
+          {
+            "name": "victim_email",
+            "type": "email",
+            "label": "incident_victim_email",
+            "required": false
+          },
+          {
+            "type": "infoText",
+            "infoText": "incident_section2_title"
+          },
+          {
+            "name": "unit_name",
+            "type": "text",
+            "label": "incident_unit_name",
+            "required": true
+          },
+          {
+            "name": "unit_branch",
+            "type": "select",
+            "label": "incident_branch",
+            "options": [
+              {
+                "label": "incident_select_branch",
+                "value": ""
+              },
+              {
+                "label": "incident_branch_castors",
+                "value": "castors_hirondelles"
+              },
+              {
+                "label": "incident_branch_louveteaux",
+                "value": "louveteaux_exploratrices"
+              },
+              {
+                "label": "incident_branch_aventuriers",
+                "value": "aventuriers"
+              },
+              {
+                "label": "incident_branch_eclaireurs",
+                "value": "eclaireurs_intrepides"
+              },
+              {
+                "label": "incident_branch_pionniers",
+                "value": "pionniers"
+              },
+              {
+                "label": "incident_branch_routiers",
+                "value": "routiers"
+              }
+            ],
+            "required": false
+          },
+          {
+            "name": "district_name",
+            "type": "text",
+            "label": "incident_district",
+            "required": false
+          },
+          {
+            "name": "unit_leader_last_name",
+            "type": "text",
+            "label": "incident_unit_leader_last_name",
+            "required": false
+          },
+          {
+            "name": "unit_leader_first_name",
+            "type": "text",
+            "label": "incident_unit_leader_first_name",
+            "required": false
+          },
+          {
+            "name": "unit_leader_phone",
+            "type": "tel",
+            "label": "incident_unit_leader_phone",
+            "required": false
+          },
+          {
+            "name": "unit_leader_email",
+            "type": "email",
+            "label": "incident_unit_leader_email",
+            "required": false
+          },
+          {
+            "name": "animator_name",
+            "type": "text",
+            "label": "incident_animator_name",
+            "infoText": "incident_animator_if_different",
+            "required": false
+          },
+          {
+            "type": "infoText",
+            "infoText": "incident_section3_title"
+          },
+          {
+            "name": "incident_date",
+            "type": "date",
+            "label": "incident_event_date",
+            "required": true
+          },
+          {
+            "name": "incident_time",
+            "type": "text",
+            "label": "incident_event_time",
+            "required": true
+          },
+          {
+            "name": "weather_conditions",
+            "type": "text",
+            "label": "incident_weather",
+            "required": false
+          },
+          {
+            "name": "activity_nature",
+            "type": "text",
+            "label": "incident_activity_nature",
+            "required": true
+          },
+          {
+            "name": "activity_location",
+            "type": "text",
+            "label": "incident_activity_location",
+            "required": true
+          },
+          {
+            "name": "exact_incident_location",
+            "type": "text",
+            "label": "incident_exact_location",
+            "required": false
+          },
+          {
+            "name": "incident_description",
+            "type": "textarea",
+            "label": "incident_description",
+            "required": true
+          },
+          {
+            "type": "infoText",
+            "infoText": "incident_section4_title"
+          },
+          {
+            "name": "witness1_last_name",
+            "type": "text",
+            "label": "incident_witness_last_name",
+            "required": false
+          },
+          {
+            "name": "witness1_first_name",
+            "type": "text",
+            "label": "incident_witness_first_name",
+            "required": false
+          },
+          {
+            "name": "witness1_phone",
+            "type": "tel",
+            "label": "incident_witness_phone",
+            "required": false
+          },
+          {
+            "name": "witness1_email",
+            "type": "email",
+            "label": "incident_witness_email",
+            "required": false
+          },
+          {
+            "name": "witness2_last_name",
+            "type": "text",
+            "label": "incident_witness_last_name",
+            "required": false
+          },
+          {
+            "name": "witness2_first_name",
+            "type": "text",
+            "label": "incident_witness_first_name",
+            "required": false
+          },
+          {
+            "name": "witness2_phone",
+            "type": "tel",
+            "label": "incident_witness_phone",
+            "required": false
+          },
+          {
+            "name": "witness2_email",
+            "type": "email",
+            "label": "incident_witness_email",
+            "required": false
+          },
+          {
+            "type": "infoText",
+            "infoText": "incident_section5_title"
+          },
+          {
+            "name": "body_regions",
+            "type": "select",
+            "label": "incident_body_regions",
+            "options": [
+              {
+                "label": "incident_region_head",
+                "value": "head"
+              },
+              {
+                "label": "incident_region_face",
+                "value": "face"
+              },
+              {
+                "label": "incident_region_neck",
+                "value": "neck"
+              },
+              {
+                "label": "incident_region_left_shoulder",
+                "value": "left_shoulder"
+              },
+              {
+                "label": "incident_region_right_shoulder",
+                "value": "right_shoulder"
+              },
+              {
+                "label": "incident_region_left_arm",
+                "value": "left_arm"
+              },
+              {
+                "label": "incident_region_right_arm",
+                "value": "right_arm"
+              },
+              {
+                "label": "incident_region_left_hand",
+                "value": "left_hand"
+              },
+              {
+                "label": "incident_region_right_hand",
+                "value": "right_hand"
+              },
+              {
+                "label": "incident_region_chest",
+                "value": "chest"
+              },
+              {
+                "label": "incident_region_abdomen",
+                "value": "abdomen"
+              },
+              {
+                "label": "incident_region_upper_back",
+                "value": "upper_back"
+              },
+              {
+                "label": "incident_region_lower_back",
+                "value": "lower_back"
+              },
+              {
+                "label": "incident_region_left_hip",
+                "value": "left_hip"
+              },
+              {
+                "label": "incident_region_right_hip",
+                "value": "right_hip"
+              },
+              {
+                "label": "incident_region_left_leg",
+                "value": "left_leg"
+              },
+              {
+                "label": "incident_region_right_leg",
+                "value": "right_leg"
+              },
+              {
+                "label": "incident_region_left_foot",
+                "value": "left_foot"
+              },
+              {
+                "label": "incident_region_right_foot",
+                "value": "right_foot"
+              }
+            ],
+            "multiple": true,
+            "required": false
+          },
+          {
+            "name": "body_region_details",
+            "type": "textarea",
+            "label": "incident_body_region_details",
+            "required": false
+          },
+          {
+            "name": "injury_nature",
+            "type": "select",
+            "label": "incident_injury_nature",
+            "options": [
+              {
+                "label": "incident_nature_burn",
+                "value": "burn"
+              },
+              {
+                "label": "incident_nature_fall",
+                "value": "fall"
+              },
+              {
+                "label": "incident_nature_choking",
+                "value": "choking"
+              },
+              {
+                "label": "incident_nature_frostbite",
+                "value": "frostbite"
+              },
+              {
+                "label": "incident_nature_bleeding",
+                "value": "bleeding"
+              },
+              {
+                "label": "incident_nature_loss_consciousness",
+                "value": "loss_of_consciousness"
+              },
+              {
+                "label": "incident_nature_sprain",
+                "value": "sprain"
+              },
+              {
+                "label": "incident_nature_abrasion",
+                "value": "abrasion"
+              },
+              {
+                "label": "incident_nature_cut",
+                "value": "cut"
+              },
+              {
+                "label": "incident_nature_concussion",
+                "value": "concussion"
+              },
+              {
+                "label": "incident_nature_fracture",
+                "value": "fracture"
+              },
+              {
+                "label": "incident_nature_bruise",
+                "value": "bruise"
+              },
+              {
+                "label": "incident_nature_allergic_reaction",
+                "value": "allergic_reaction"
+              },
+              {
+                "label": "incident_nature_other",
+                "value": "other"
+              }
+            ],
+            "multiple": true,
+            "required": false
+          },
+          {
+            "name": "injury_nature_other",
+            "type": "text",
+            "label": "incident_nature_other_detail",
+            "required": false,
+            "dependsOn": {
+              "field": "injury_nature",
+              "value": "other"
+            }
+          },
+          {
+            "type": "infoText",
+            "infoText": "incident_section6_title"
+          },
+          {
+            "name": "first_aid_nature",
+            "type": "textarea",
+            "label": "incident_first_aid_nature",
+            "required": false
+          },
+          {
+            "name": "care_given_by_name",
+            "type": "text",
+            "label": "incident_care_given_by_name",
+            "required": false
+          },
+          {
+            "name": "care_given_by_function",
+            "type": "text",
+            "label": "incident_care_given_by_function",
+            "required": false
+          },
+          {
+            "name": "care_time",
+            "type": "text",
+            "label": "incident_care_time",
+            "required": false
+          },
+          {
+            "name": "care_respondent_name",
+            "type": "text",
+            "label": "incident_care_respondent_name",
+            "required": false
+          },
+          {
+            "name": "parents_notified",
+            "type": "radio",
+            "label": "incident_parents_notified",
+            "options": [
+              {
+                "label": "yes",
+                "value": "yes"
+              },
+              {
+                "label": "no",
+                "value": "no"
+              }
+            ],
+            "required": false
+          },
+          {
+            "name": "parents_notified_time",
+            "type": "text",
+            "label": "incident_parents_notified_time",
+            "required": false,
+            "dependsOn": {
+              "field": "parents_notified",
+              "value": "yes"
+            }
+          },
+          {
+            "name": "parents_notified_respondent",
+            "type": "text",
+            "label": "incident_parents_notified_respondent",
+            "required": false,
+            "dependsOn": {
+              "field": "parents_notified",
+              "value": "yes"
+            }
+          },
+          {
+            "name": "info_sante_contacted",
+            "type": "radio",
+            "label": "incident_info_sante_contacted",
+            "options": [
+              {
+                "label": "yes",
+                "value": "yes"
+              },
+              {
+                "label": "no",
+                "value": "no"
+              }
+            ],
+            "required": false
+          },
+          {
+            "name": "info_sante_time",
+            "type": "text",
+            "label": "incident_info_sante_time",
+            "required": false,
+            "dependsOn": {
+              "field": "info_sante_contacted",
+              "value": "yes"
+            }
+          },
+          {
+            "name": "ambulance_transport",
+            "type": "radio",
+            "label": "incident_ambulance_transport",
+            "options": [
+              {
+                "label": "yes",
+                "value": "yes"
+              },
+              {
+                "label": "no",
+                "value": "no"
+              }
+            ],
+            "required": false
+          },
+          {
+            "name": "doctor_referral",
+            "type": "radio",
+            "label": "incident_doctor_referral",
+            "options": [
+              {
+                "label": "yes",
+                "value": "yes"
+              },
+              {
+                "label": "no",
+                "value": "no"
+              }
+            ],
+            "required": false
+          },
+          {
+            "name": "hospital_doctor_name",
+            "type": "text",
+            "label": "incident_hospital_doctor_name",
+            "required": false
+          },
+          {
+            "name": "police_report",
+            "type": "radio",
+            "label": "incident_police_report",
+            "options": [
+              {
+                "label": "yes",
+                "value": "yes"
+              },
+              {
+                "label": "no",
+                "value": "no"
+              }
+            ],
+            "required": false
+          },
+          {
+            "name": "police_corps",
+            "type": "text",
+            "label": "incident_police_corps",
+            "required": false,
+            "dependsOn": {
+              "field": "police_report",
+              "value": "yes"
+            }
+          },
+          {
+            "name": "police_dossier_number",
+            "type": "text",
+            "label": "incident_police_dossier_number",
+            "required": false,
+            "dependsOn": {
+              "field": "police_report",
+              "value": "yes"
+            }
+          },
+          {
+            "name": "police_officer_name",
+            "type": "text",
+            "label": "incident_police_officer_name",
+            "required": false,
+            "dependsOn": {
+              "field": "police_report",
+              "value": "yes"
+            }
+          },
+          {
+            "name": "police_officer_phone",
+            "type": "tel",
+            "label": "incident_police_officer_phone",
+            "required": false,
+            "dependsOn": {
+              "field": "police_report",
+              "value": "yes"
+            }
+          },
+          {
+            "type": "infoText",
+            "infoText": "incident_section7_title"
+          },
+          {
+            "name": "author_last_name",
+            "type": "text",
+            "label": "incident_author_last_name",
+            "required": true
+          },
+          {
+            "name": "author_first_name",
+            "type": "text",
+            "label": "incident_author_first_name",
+            "required": true
+          },
+          {
+            "name": "author_function",
+            "type": "text",
+            "label": "incident_author_function",
+            "required": false
+          },
+          {
+            "name": "author_phone",
+            "type": "tel",
+            "label": "incident_author_phone",
+            "required": false
+          },
+          {
+            "name": "author_email",
+            "type": "email",
+            "label": "incident_author_email",
+            "required": false
+          },
+          {
+            "name": "report_date",
+            "type": "date",
+            "label": "incident_report_date",
+            "required": true
+          }
+        ]
+      },
+      "display_type": null,
+      "display_name": "Incident / Accident Report",
+      "description": "Standard incident/accident report form based on Association des Scouts du Canada template (Revised 2023)",
+      "instructions": null,
+      "category": "safety",
+      "status": "published",
+      "is_required": false,
+      "display_order": 0,
+      "tags": null,
+      "display_context": [
+        "admin_panel"
+      ],
+      "versions": [],
+      "permissions": []
+    },
+    {
+      "form_type": "parent_guardian",
+      "form_structure": {
+        "fields": [
+          {
+            "name": "nom",
+            "type": "text",
+            "label": "nom",
+            "required": true
+          },
+          {
+            "name": "prenom",
+            "type": "text",
+            "label": "prenom",
+            "required": true
+          },
+          {
+            "name": "lien",
+            "type": "text",
+            "label": "lien",
+            "required": true
+          },
+          {
+            "name": "courriel",
+            "type": "email",
+            "label": "courriel_label",
+            "required": true
+          },
+          {
+            "name": "telephone_residence",
+            "type": "tel",
+            "label": "telephone_residence"
+          },
+          {
+            "name": "telephone_travail",
+            "type": "tel",
+            "label": "telephone_travail"
+          },
+          {
+            "name": "telephone_cellulaire",
+            "type": "tel",
+            "label": "telephone_cellulaire"
+          },
+          {
+            "name": "is_primary",
+            "type": "checkbox",
+            "label": "is_primary"
+          },
+          {
+            "name": "is_emergency_contact",
+            "type": "checkbox",
+            "label": "is_emergency_contact"
+          }
+        ]
+      },
+      "display_type": "template",
+      "display_name": null,
+      "description": null,
+      "instructions": null,
+      "category": null,
+      "status": "draft",
+      "is_required": false,
+      "display_order": 0,
+      "tags": null,
+      "display_context": [
+        "public",
+        "participant",
+        "form_builder"
+      ],
+      "versions": [
+        {
+          "version_number": 1,
+          "form_structure": {
+            "fields": [
+              {
+                "name": "nom",
+                "type": "text",
+                "label": "nom",
+                "required": true
+              },
+              {
+                "name": "prenom",
+                "type": "text",
+                "label": "prenom",
+                "required": true
+              },
+              {
+                "name": "lien",
+                "type": "text",
+                "label": "lien",
+                "required": true
+              },
+              {
+                "name": "courriel",
+                "type": "email",
+                "label": "courriel_label",
+                "required": true
+              },
+              {
+                "name": "telephone_residence",
+                "type": "tel",
+                "label": "telephone_residence"
+              },
+              {
+                "name": "telephone_travail",
+                "type": "tel",
+                "label": "telephone_travail"
+              },
+              {
+                "name": "telephone_cellulaire",
+                "type": "tel",
+                "label": "telephone_cellulaire"
+              },
+              {
+                "name": "is_primary",
+                "type": "checkbox",
+                "label": "is_primary"
+              },
+              {
+                "name": "is_emergency_contact",
+                "type": "checkbox",
+                "label": "is_emergency_contact"
+              }
+            ]
+          },
+          "display_name": "parent_guardian",
+          "change_description": "Initial version migrated from existing form",
+          "is_active": true
+        }
+      ],
+      "permissions": [
+        {
+          "role_name": "demoadmin",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": true
+        },
+        {
+          "role_name": "demoparent",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": false
+        },
+        {
+          "role_name": "district",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": true
+        },
+        {
+          "role_name": "leader",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": false
+        },
+        {
+          "role_name": "unitadmin",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": true
+        }
+      ]
+    },
+    {
+      "form_type": "participant_registration",
+      "form_structure": {
+        "fields": [
+          {
+            "name": "first_name",
+            "type": "text",
+            "label": "prenom_label",
+            "required": true
+          },
+          {
+            "name": "last_name",
+            "type": "text",
+            "label": "nom_label",
+            "required": true
+          },
+          {
+            "name": "date_naissance",
+            "type": "date",
+            "label": "date_naissance_label",
+            "required": true
+          },
+          {
+            "name": "sexe",
+            "type": "select",
+            "label": "sexe_label",
+            "options": [
+              {
+                "label": "masculin_label",
+                "value": "M"
+              },
+              {
+                "label": "feminin_label",
+                "value": "F"
+              },
+              {
+                "label": "autre_label",
+                "value": "A"
+              }
+            ],
+            "required": true
+          },
+          {
+            "name": "adresse",
+            "type": "text",
+            "label": "adresse_label",
+            "required": true
+          },
+          {
+            "name": "ville",
+            "type": "text",
+            "label": "ville_label",
+            "required": true
+          },
+          {
+            "name": "province",
+            "type": "text",
+            "label": "province_label",
+            "required": true
+          },
+          {
+            "name": "code_postal",
+            "type": "text",
+            "label": "code_postal_label",
+            "required": true
+          },
+          {
+            "name": "courriel",
+            "type": "email",
+            "label": "courriel_label"
+          },
+          {
+            "name": "telephone",
+            "type": "tel",
+            "label": "telephone_label",
+            "required": true
+          },
+          {
+            "name": "district",
+            "type": "text",
+            "label": "district_label",
+            "required": true
+          },
+          {
+            "name": "unite",
+            "type": "text",
+            "label": "unite_label",
+            "required": true
+          },
+          {
+            "name": "demeure_chez",
+            "type": "select",
+            "label": "demeure_chez_label",
+            "options": [
+              {
+                "label": "parents_label",
+                "value": "parents"
+              },
+              {
+                "label": "mere_label",
+                "value": "mere"
+              },
+              {
+                "label": "pere_label",
+                "value": "pere"
+              },
+              {
+                "label": "garde_partagee_label",
+                "value": "garde_partagee"
+              },
+              {
+                "label": "autre_label",
+                "value": "autre"
+              }
+            ],
+            "required": true
+          },
+          {
+            "name": "peut_partir_seul",
+            "type": "checkbox",
+            "label": "peut_partir_seul_label"
+          },
+          {
+            "name": "langue_maison",
+            "type": "text",
+            "label": "langue_maison_label"
+          },
+          {
+            "name": "autres_langues",
+            "type": "text",
+            "label": "autres_langues_label"
+          },
+          {
+            "name": "particularites",
+            "type": "textarea",
+            "label": "particularites_label"
+          },
+          {
+            "type": "infoText",
+            "infoText": "consentement_soins_medicaux_texte"
+          },
+          {
+            "name": "consentement_soins_medicaux",
+            "type": "checkbox",
+            "label": "consentement_soins_medicaux_label",
+            "required": true
+          },
+          {
+            "type": "infoText",
+            "infoText": "consentement_photos_videos_texte"
+          },
+          {
+            "name": "consentement_photos_videos",
+            "type": "checkbox",
+            "label": "consentement_photos_videos_label",
+            "required": true
+          },
+          {
+            "type": "infoText",
+            "infoText": "protection_renseignements_personnels_texte"
+          },
+          {
+            "name": "protection_renseignements_personnels",
+            "type": "checkbox",
+            "label": "protection_renseignements_personnels_label",
+            "required": true
+          },
+          {
+            "name": "signature",
+            "type": "text",
+            "label": "signature_label",
+            "required": true
+          },
+          {
+            "name": "signature_date",
+            "type": "date",
+            "label": "date_signature_label",
+            "required": true
+          },
+          {
+            "name": "source_information",
+            "type": "select",
+            "label": "source_information_label",
+            "options": [
+              {
+                "label": "ecole_label",
+                "value": "ecole"
+              },
+              {
+                "label": "bouche_a_oreille_label",
+                "value": "bouche_a_oreille"
+              },
+              {
+                "label": "repertoire_loisir_label",
+                "value": "repertoire_loisir"
+              },
+              {
+                "label": "medias_label",
+                "value": "medias"
+              },
+              {
+                "label": "site_internet_label",
+                "value": "site_internet"
+              },
+              {
+                "label": "reseaux_sociaux_label",
+                "value": "reseaux_sociaux"
+              },
+              {
+                "label": "depliant_affiche_label",
+                "value": "depliant_affiche"
+              },
+              {
+                "label": "famille_mouvement_label",
+                "value": "famille_mouvement"
+              },
+              {
+                "label": "camp_jour_label",
+                "value": "camp_jour"
+              },
+              {
+                "label": "salons_label",
+                "value": "salons"
+              },
+              {
+                "label": "ami_enfant_label",
+                "value": "ami_enfant"
+              },
+              {
+                "label": "scout_un_jour_label",
+                "value": "scout_un_jour"
+              },
+              {
+                "label": "autre_label",
+                "value": "autre"
+              }
+            ]
+          }
+        ]
+      },
+      "display_type": "template",
+      "display_name": null,
+      "description": null,
+      "instructions": null,
+      "category": null,
+      "status": "draft",
+      "is_required": false,
+      "display_order": 0,
+      "tags": null,
+      "display_context": [
+        "public",
+        "participant",
+        "form_builder"
+      ],
+      "versions": [
+        {
+          "version_number": 1,
+          "form_structure": {
+            "fields": [
+              {
+                "name": "first_name",
+                "type": "text",
+                "label": "prenom_label",
+                "required": true
+              },
+              {
+                "name": "last_name",
+                "type": "text",
+                "label": "nom_label",
+                "required": true
+              },
+              {
+                "name": "date_naissance",
+                "type": "date",
+                "label": "date_naissance_label",
+                "required": true
+              },
+              {
+                "name": "sexe",
+                "type": "select",
+                "label": "sexe_label",
+                "options": [
+                  {
+                    "label": "masculin_label",
+                    "value": "M"
+                  },
+                  {
+                    "label": "feminin_label",
+                    "value": "F"
+                  },
+                  {
+                    "label": "autre_label",
+                    "value": "A"
+                  }
+                ],
+                "required": true
+              },
+              {
+                "name": "adresse",
+                "type": "text",
+                "label": "adresse_label",
+                "required": true
+              },
+              {
+                "name": "ville",
+                "type": "text",
+                "label": "ville_label",
+                "required": true
+              },
+              {
+                "name": "province",
+                "type": "text",
+                "label": "province_label",
+                "required": true
+              },
+              {
+                "name": "code_postal",
+                "type": "text",
+                "label": "code_postal_label",
+                "required": true
+              },
+              {
+                "name": "courriel",
+                "type": "email",
+                "label": "courriel_label"
+              },
+              {
+                "name": "telephone",
+                "type": "tel",
+                "label": "telephone_label",
+                "required": true
+              },
+              {
+                "name": "district",
+                "type": "text",
+                "label": "district_label",
+                "required": true
+              },
+              {
+                "name": "unite",
+                "type": "text",
+                "label": "unite_label",
+                "required": true
+              },
+              {
+                "name": "demeure_chez",
+                "type": "select",
+                "label": "demeure_chez_label",
+                "options": [
+                  {
+                    "label": "parents_label",
+                    "value": "parents"
+                  },
+                  {
+                    "label": "mere_label",
+                    "value": "mere"
+                  },
+                  {
+                    "label": "pere_label",
+                    "value": "pere"
+                  },
+                  {
+                    "label": "garde_partagee_label",
+                    "value": "garde_partagee"
+                  },
+                  {
+                    "label": "autre_label",
+                    "value": "autre"
+                  }
+                ],
+                "required": true
+              },
+              {
+                "name": "peut_partir_seul",
+                "type": "checkbox",
+                "label": "peut_partir_seul_label"
+              },
+              {
+                "name": "langue_maison",
+                "type": "text",
+                "label": "langue_maison_label"
+              },
+              {
+                "name": "autres_langues",
+                "type": "text",
+                "label": "autres_langues_label"
+              },
+              {
+                "name": "particularites",
+                "type": "textarea",
+                "label": "particularites_label"
+              },
+              {
+                "type": "infoText",
+                "infoText": "consentement_soins_medicaux_texte"
+              },
+              {
+                "name": "consentement_soins_medicaux",
+                "type": "checkbox",
+                "label": "consentement_soins_medicaux_label",
+                "required": true
+              },
+              {
+                "type": "infoText",
+                "infoText": "consentement_photos_videos_texte"
+              },
+              {
+                "name": "consentement_photos_videos",
+                "type": "checkbox",
+                "label": "consentement_photos_videos_label",
+                "required": true
+              },
+              {
+                "type": "infoText",
+                "infoText": "protection_renseignements_personnels_texte"
+              },
+              {
+                "name": "protection_renseignements_personnels",
+                "type": "checkbox",
+                "label": "protection_renseignements_personnels_label",
+                "required": true
+              },
+              {
+                "name": "signature",
+                "type": "text",
+                "label": "signature_label",
+                "required": true
+              },
+              {
+                "name": "signature_date",
+                "type": "date",
+                "label": "date_signature_label",
+                "required": true
+              },
+              {
+                "name": "source_information",
+                "type": "select",
+                "label": "source_information_label",
+                "options": [
+                  {
+                    "label": "ecole_label",
+                    "value": "ecole"
+                  },
+                  {
+                    "label": "bouche_a_oreille_label",
+                    "value": "bouche_a_oreille"
+                  },
+                  {
+                    "label": "repertoire_loisir_label",
+                    "value": "repertoire_loisir"
+                  },
+                  {
+                    "label": "medias_label",
+                    "value": "medias"
+                  },
+                  {
+                    "label": "site_internet_label",
+                    "value": "site_internet"
+                  },
+                  {
+                    "label": "reseaux_sociaux_label",
+                    "value": "reseaux_sociaux"
+                  },
+                  {
+                    "label": "depliant_affiche_label",
+                    "value": "depliant_affiche"
+                  },
+                  {
+                    "label": "famille_mouvement_label",
+                    "value": "famille_mouvement"
+                  },
+                  {
+                    "label": "camp_jour_label",
+                    "value": "camp_jour"
+                  },
+                  {
+                    "label": "salons_label",
+                    "value": "salons"
+                  },
+                  {
+                    "label": "ami_enfant_label",
+                    "value": "ami_enfant"
+                  },
+                  {
+                    "label": "scout_un_jour_label",
+                    "value": "scout_un_jour"
+                  },
+                  {
+                    "label": "autre_label",
+                    "value": "autre"
+                  }
+                ]
+              }
+            ]
+          },
+          "display_name": "participant_registration",
+          "change_description": "Initial version migrated from existing form",
+          "is_active": true
+        }
+      ],
+      "permissions": [
+        {
+          "role_name": "demoadmin",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": true
+        },
+        {
+          "role_name": "demoparent",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": false
+        },
+        {
+          "role_name": "district",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": true
+        },
+        {
+          "role_name": "leader",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": false
+        },
+        {
+          "role_name": "unitadmin",
+          "can_view": true,
+          "can_submit": true,
+          "can_edit": true,
+          "can_approve": true
+        }
+      ]
+    }
+  ]
+}

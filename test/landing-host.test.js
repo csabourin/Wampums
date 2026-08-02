@@ -31,6 +31,7 @@ beforeAll(() => {
   process.env.DB_NAME = 'testdb';
   process.env.DB_PASSWORD = 'test';
   process.env.DB_PORT = '5432';
+  process.env.DEV_WEB_ORIGIN = 'http://127.0.0.1:5173';
 
   app = require('../api');
 });
@@ -306,5 +307,17 @@ describe('Landing Host Routing - wampums.app', () => {
       expect(res.status).toBe(302);
       expect(res.header.location).toBe('/fr/');
     });
+  });
+});
+
+describe('Local development web routing', () => {
+  test('redirects HTML navigation from the API port to Vite', async () => {
+    const res = await request(app)
+      .get('/register?source=api-port')
+      .set('Host', '127.0.0.1:5000')
+      .set('Accept', 'text/html');
+
+    expect(res.status).toBe(307);
+    expect(res.header.location).toBe('http://127.0.0.1:5173/register?source=api-port');
   });
 });

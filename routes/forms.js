@@ -50,6 +50,37 @@ module.exports = (pool, logger) => {
     return required.some((perm) => granted.includes(perm));
   };
 
+  /**
+   * Resolve an enrolled participant for a form request while respecting the
+   * authenticated user's organization or participant-level data scope.
+   *
+   * @param {Object} req - Authenticated Express request
+   * @param {number} participantId - Participant identifier
+   * @returns {Promise<{organizationId: number, scoutYearId: number}|null>}
+   */
+  const resolveParticipantFormAccess = async (req, participantId) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const dataScope = await getUserDataScope(req, pool);
+    const hasOrganizationScope = dataScope === 'organization';
+    const result = await pool.query(
+      `SELECT pe.scout_year_id
+       FROM participant_enrollments pe
+       WHERE pe.participant_id = $1
+         AND pe.organization_id = $2
+         AND pe.status = 'active'
+         AND ($3::boolean OR EXISTS (
+           SELECT 1 FROM user_participants up
+           WHERE up.participant_id = pe.participant_id AND up.user_id = $4
+         ))
+       ORDER BY pe.created_at DESC
+       LIMIT 1`,
+      [participantId, organizationId, hasOrganizationScope, req.user.id],
+    );
+
+    if (!result.rows[0]) return null;
+    return { organizationId, scoutYearId: result.rows[0].scout_year_id };
+  };
+
   // Compatibility REST endpoints used by comprehensive API tests
   router.get('/', authenticate, asyncHandler(async (req, res) => {
     try {
@@ -957,34 +988,37 @@ module.exports = (pool, logger) => {
    */
   router.get('/risk-acceptance', authenticate, asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const { participant_id } = req.query;
-
-      if (!participant_id) {
+      const participantId = Number(req.query.participant_id);
+      if (!Number.isSafeInteger(participantId) || participantId <= 0) {
         return res.status(400).json({ success: false, message: 'Participant ID is required' });
       }
 
+      const access = await resolveParticipantFormAccess(req, participantId);
+      if (!access) return error(res, 'Risk acceptance not found', 404);
+
       const result = await pool.query(
-        `SELECT * FROM acceptation_risque WHERE participant_id = $1`,
-        [participant_id]
+        `SELECT submission_data
+         FROM form_submissions
+         WHERE participant_id = $1 AND organization_id = $2
+           AND form_type = 'acceptation_risque'
+         ORDER BY updated_at DESC
+         LIMIT 1`,
+        [participantId, access.organizationId]
       );
 
       if (result.rows.length === 0) {
         return res.status(404).json({ success: false, message: 'Risk acceptance not found' });
       }
 
-      res.json({ success: true, data: result.rows[0] });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
+      res.json({
+        success: true,
+        data: { participant_id: participantId, ...result.rows[0].submission_data }
+      });
+    } catch (err) {
+      if (handleOrganizationResolutionError(res, err, logger)) {
         return;
       }
-      logger.error('Error fetching risk acceptance:', error);
+      logger.error('Error fetching risk acceptance:', err);
       return error(res, 'internal_server_error', 500);
     }
   }));
@@ -1036,13 +1070,6 @@ module.exports = (pool, logger) => {
    */
   router.post('/risk-acceptance', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
       const {
         participant_id,
         groupe_district,
@@ -1055,38 +1082,51 @@ module.exports = (pool, logger) => {
         date_signature
       } = req.body;
 
-      if (!participant_id) {
+      const participantId = Number(participant_id);
+      if (!Number.isSafeInteger(participantId) || participantId <= 0) {
         return res.status(400).json({ success: false, message: 'Participant ID is required' });
       }
 
+      const access = await resolveParticipantFormAccess(req, participantId);
+      if (!access) return error(res, 'Risk acceptance not found', 404);
+
+      const submissionData = {
+        participant_id: participantId,
+        groupe_district,
+        accepte_risques: Boolean(accepte_risques),
+        accepte_covid19: Boolean(accepte_covid19),
+        participation_volontaire: Boolean(participation_volontaire),
+        declaration_sante: Boolean(declaration_sante),
+        declaration_voyage: Boolean(declaration_voyage),
+        nom_parent_tuteur,
+        date_signature
+      };
+
       const result = await pool.query(
-        `INSERT INTO acceptation_risque
-         (participant_id, groupe_district, accepte_risques, accepte_covid19,
-          participation_volontaire, declaration_sante, declaration_voyage,
-          nom_parent_tuteur, date_signature)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         ON CONFLICT (participant_id)
-         DO UPDATE SET
-           groupe_district = EXCLUDED.groupe_district,
-           accepte_risques = EXCLUDED.accepte_risques,
-           accepte_covid19 = EXCLUDED.accepte_covid19,
-           participation_volontaire = EXCLUDED.participation_volontaire,
-           declaration_sante = EXCLUDED.declaration_sante,
-           declaration_voyage = EXCLUDED.declaration_voyage,
-           nom_parent_tuteur = EXCLUDED.nom_parent_tuteur,
-           date_signature = EXCLUDED.date_signature
-         RETURNING *`,
-        [participant_id, groupe_district, accepte_risques, accepte_covid19,
-          participation_volontaire, declaration_sante, declaration_voyage,
-          nom_parent_tuteur, date_signature]
+        `INSERT INTO form_submissions
+           (participant_id, organization_id, form_type, submission_data,
+            user_id, scout_year_id, status, submitted_at)
+         VALUES ($1, $2, 'acceptation_risque', $3::jsonb, $4, $5, 'submitted', NOW())
+         ON CONFLICT (participant_id, form_type, organization_id)
+         DO UPDATE SET submission_data = EXCLUDED.submission_data,
+                       user_id = EXCLUDED.user_id,
+                       scout_year_id = EXCLUDED.scout_year_id,
+                       status = 'submitted',
+                       submitted_at = NOW(),
+                       updated_at = NOW(),
+                       review_state = 'current',
+                       flagged_for_review_at = NULL
+         RETURNING submission_data`,
+        [participantId, access.organizationId, JSON.stringify(submissionData),
+          req.user.id, access.scoutYearId]
       );
 
-      res.json({ success: true, data: result.rows[0] });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
+      res.json({ success: true, data: result.rows[0].submission_data });
+    } catch (err) {
+      if (handleOrganizationResolutionError(res, err, logger)) {
         return;
       }
-      logger.error('Error saving risk acceptance:', error);
+      logger.error('Error saving risk acceptance:', err);
       return error(res, 'internal_server_error', 500);
     }
   }));

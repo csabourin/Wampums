@@ -396,6 +396,34 @@ module.exports = (app) => {
         return landingStatic(req, res, next);
     });
 
+    // Browser modules must pass through Vite in development so bare imports
+    // and import.meta.env are transformed. Redirect only top-level HTML
+    // navigation; API, public, and module requests stay on Express.
+    if (!isProduction) {
+        const developmentWebOrigin = process.env.DEV_WEB_ORIGIN || "http://localhost:5173";
+        app.use((req, res, next) => {
+            const acceptsHtml = req.headers.accept?.includes("text/html");
+            const isApiPath = req.path.startsWith("/api")
+                || req.path.startsWith("/public")
+                || req.path.startsWith("/api-docs");
+
+            if (req.method !== "GET" || !acceptsHtml || isApiPath) {
+                return next();
+            }
+
+            try {
+                const target = new URL(developmentWebOrigin);
+                const requestedUrl = new URL(req.originalUrl, "http://wampums.local");
+                target.pathname = requestedUrl.pathname;
+                target.search = requestedUrl.search;
+                return res.redirect(307, target.toString());
+            } catch (error) {
+                logger.warn(`Invalid DEV_WEB_ORIGIN; serving through Express: ${error.message}`);
+                return next();
+            }
+        });
+    }
+
     app.use('/vendor/fontawesome', express.static(path.join(process.cwd(), 'node_modules/@fortawesome/fontawesome-free')));
 
     app.use(express.static(staticDir, {

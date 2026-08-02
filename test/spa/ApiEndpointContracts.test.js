@@ -5,6 +5,7 @@
 const mockApiGet = jest.fn();
 const mockApiPost = jest.fn();
 const mockApiPut = jest.fn();
+const mockHandleResponse = jest.fn();
 
 jest.mock('../../spa/api/api-core.js', () => ({
   API: {
@@ -15,7 +16,7 @@ jest.mock('../../spa/api/api-core.js', () => ({
     patch: jest.fn(),
     delete: jest.fn(),
   },
-  handleResponse: jest.fn(),
+  handleResponse: (...args) => mockHandleResponse(...args),
   makeApiRequest: jest.fn(),
   makeApiRequestWithCache: jest.fn(),
   buildApiUrl: jest.fn(),
@@ -31,7 +32,10 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
 }));
 
 jest.mock('../../spa/config.js', () => ({
-  CONFIG: { CACHE_DURATION: { SHORT: 1, MEDIUM: 2, LONG: 3 } },
+  CONFIG: {
+    API_BASE_URL: 'http://localhost:5173',
+    CACHE_DURATION: { SHORT: 1, MEDIUM: 2, LONG: 3 }
+  },
 }));
 
 jest.mock('../../spa/api/api-helpers.js', () => ({
@@ -65,6 +69,7 @@ import {
   getCalendarsForFundraiser,
   getFundraiser,
   getUserOrganizations,
+  register as registerAccount,
   updateCalendarEntry,
   updateFundraiser,
 } from '../../spa/ajax-functions.js';
@@ -111,4 +116,28 @@ test('District Management loads organizations from the current-user resource', a
       forceRefresh: true,
     })
   );
+});
+
+test('public registration does not send a stale authenticated session', async () => {
+  const response = { ok: true };
+  global.fetch = jest.fn().mockResolvedValue(response);
+  mockHandleResponse.mockResolvedValue({ success: true });
+
+  await registerAccount({
+    email: 'parent@example.com',
+    password: 'StrongPass1!',
+    full_name: 'Parent Example'
+  });
+
+  expect(global.fetch).toHaveBeenCalledWith(
+    'http://localhost:5173/public/register',
+    expect.objectContaining({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-organization-id': 3
+      }
+    })
+  );
+  expect(mockHandleResponse).toHaveBeenCalledWith(response);
 });

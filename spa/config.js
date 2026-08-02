@@ -216,6 +216,10 @@ export const CONFIG = {
         // Toast notification duration (in milliseconds)
         TOAST_DURATION: 3000,
 
+        // Brief confirmation displayed in the fixed points action bar.
+        POINT_FEEDBACK_DURATION: 1800,
+        POINT_HIGHLIGHT_DURATION: 500,
+
         // Optional client-side HEIC to WebP converter URL (lazy-loaded only when needed)
         HEIC_CONVERTER_URL:
             "https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js",

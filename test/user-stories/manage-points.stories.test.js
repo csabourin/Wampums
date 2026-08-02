@@ -24,7 +24,7 @@ jest.mock('../../spa/config.js', () => ({
   CONFIG: {
     API_BASE_URL: 'http://localhost:3000',
     CACHE_DURATION: { SHORT: 60000, MEDIUM: 300000, LONG: 3600000, CAMP_MODE: 86400000 },
-    UI: {}
+    UI: { POINT_FEEDBACK_DURATION: 1800, POINT_HIGHLIGHT_DURATION: 500 }
   },
   getStorageKey: (key) => key
 }));
@@ -48,7 +48,10 @@ jest.mock('../../spa/ajax-functions.js', () => ({
   getAuthHeader: jest.fn(() => ({ Authorization: 'Bearer test' })),
   getCurrentOrganizationId: jest.fn(() => 1),
   getApiUrl: jest.fn((path) => `http://localhost:3000/api/${path}`),
-  CONFIG: { CACHE_DURATION: { SHORT: 60000, MEDIUM: 300000 } },
+  CONFIG: {
+    CACHE_DURATION: { SHORT: 60000, MEDIUM: 300000 },
+    UI: { POINT_HIGHLIGHT_DURATION: 500 }
+  },
   API: { getNoCache: jest.fn() }
 }));
 
@@ -198,6 +201,8 @@ describe('US-PTS-003 — Group award skips kids who aren\'t here', () => {
 
     const { appStub } = await initPage();
     selectGroup(GROUP_ID);
+    expect(document.getElementById('points-selection-summary').textContent)
+      .toBe(tr('points_selection_group', { name: 'Wolves' }));
     clickPointButton(3);
 
     // Alex (present) gains, Sam (absent) does not, the group header gains
@@ -366,12 +371,185 @@ describe('US-PTS-019 — My selection survives re-renders', () => {
 
     selectParticipant(1);
     expect(document.querySelector('.list-item[data-participant-id="1"]').classList.contains('selected')).toBe(true);
+    expect(document.getElementById('points-selection-summary').textContent)
+      .toBe(tr('points_selection_individual', { name: 'Alex River' }));
 
     page.renderList();
     expect(document.querySelector('.list-item[data-participant-id="1"]').classList.contains('selected')).toBe(true);
 
     selectParticipant(1);
     expect(document.querySelector('.list-item[data-participant-id="1"]').classList.contains('selected')).toBe(false);
+  });
+});
+
+describe('Modern points action bar', () => {
+  it('applies the primary reward and correction immediately with one click each', async () => {
+    seedStandardData();
+    ajax.updatePoints
+      .mockResolvedValueOnce({
+        success: true,
+        data: { updates: [{ type: 'participant', id: 1, totalPoints: 11 }] }
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: { updates: [{ type: 'participant', id: 1, totalPoints: 10 }] }
+      });
+    await initPage();
+    selectParticipant(1);
+
+    document.querySelector('.point-split-action--reward .point-split-action__main').click();
+    expect(participantTotalText(1)).toBe('11');
+    await flushPromises();
+
+    document.querySelector('.point-split-action--correction .point-split-action__main').click();
+    expect(participantTotalText(1)).toBe('10');
+    await flushPromises();
+
+    expect(ajax.updatePoints).toHaveBeenCalledTimes(2);
+    expect(ajax.updatePoints.mock.calls[0][0][0].points).toBe(1);
+    expect(ajax.updatePoints.mock.calls[1][0][0].points).toBe(-1);
+  });
+
+  it('opens the complete reward menu, applies +5, and restores focus on Escape', async () => {
+    seedStandardData();
+    await initPage();
+    selectParticipant(1);
+
+    const toggle = document.querySelector('[data-point-menu-toggle="reward"]');
+    const menu = document.getElementById('reward-values-menu');
+    toggle.click();
+
+    expect(menu.hidden).toBe(false);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement).toBe(menu.querySelector('[data-points="1"]'));
+
+    document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true
+    }));
+    expect(menu.hidden).toBe(true);
+    expect(document.activeElement).toBe(toggle);
+
+    toggle.click();
+    menu.querySelector('[data-points="5"]').click();
+    expect(participantTotalText(1)).toBe('15');
+    await flushPromises();
+    expect(ajax.updatePoints.mock.calls[0][0][0].points).toBe(5);
+  });
+
+  it('offers every correction value and applies −5 from the menu', async () => {
+    seedStandardData();
+    await initPage();
+    selectParticipant(1);
+
+    document.querySelector('[data-point-menu-toggle="correction"]').click();
+    const menu = document.getElementById('correction-values-menu');
+    expect([...menu.querySelectorAll('[data-points]')].map((button) => Number(button.dataset.points)))
+      .toEqual([-1, -2, -3, -4, -5]);
+
+    menu.querySelector('[data-points="-5"]').click();
+    expect(participantTotalText(1)).toBe('5');
+    await flushPromises();
+    expect(ajax.updatePoints.mock.calls[0][0][0].points).toBe(-5);
+  });
+
+  it('awards the selected game placement and restores focus to its trigger', async () => {
+    seedStandardData();
+    await initPage();
+    selectParticipant(1);
+
+    const trigger = document.getElementById('points-game-result-trigger');
+    const dialog = document.getElementById('points-game-result-dialog');
+    trigger.click();
+
+    expect(dialog.hasAttribute('open')).toBe(true);
+    expect(document.activeElement).toBe(dialog.querySelector('[data-points="5"]'));
+
+    document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true
+    }));
+    expect(dialog.hasAttribute('open')).toBe(false);
+    expect(document.activeElement).toBe(trigger);
+
+    trigger.click();
+    dialog.querySelector('[data-points="4"]').click();
+
+    expect(dialog.hasAttribute('open')).toBe(false);
+    expect(document.activeElement).toBe(trigger);
+    expect(participantTotalText(1)).toBe('14');
+    await flushPromises();
+    expect(ajax.updatePoints.mock.calls[0][0][0].points).toBe(4);
+  });
+
+  it('keeps multiple participants selected across views and updates both in one action', async () => {
+    seedStandardData();
+    await initPage();
+    selectParticipant(1);
+    selectParticipant(2);
+
+    expect(document.getElementById('points-selection-summary').textContent)
+      .toBe(tr('points_selection_multiple', { count: 2 }));
+
+    document.querySelector('.sort-btn[data-sort="points"]').click();
+    expect(document.querySelectorAll('.list-item.selected')).toHaveLength(2);
+
+    document.querySelector('.point-split-action--reward .point-split-action__main').click();
+    expect(participantTotalText(1)).toBe('11');
+    expect(participantTotalText(2)).toBe('6');
+    await flushPromises();
+
+    expect(ajax.updatePoints.mock.calls[0][0]).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'individual', id: '1', points: 1 }),
+      expect.objectContaining({ type: 'individual', id: '2', points: 1 })
+    ]));
+  });
+
+  it('announces a missing selection and suppresses duplicate activation while a control is busy', async () => {
+    seedStandardData();
+    const pending = deferred();
+    ajax.updatePoints.mockReturnValue(pending.promise);
+    const { appStub } = await initPage();
+    const reward = document.querySelector('.point-split-action--reward .point-split-action__main');
+
+    reward.click();
+    expect(ajax.updatePoints).not.toHaveBeenCalled();
+    expect(document.querySelector('.points-action-feedback__announcement').textContent)
+      .toBe(tr('please_select_group_or_individual'));
+    expect(appStub.showMessage).toHaveBeenCalled();
+    await flushPromises();
+
+    selectParticipant(1);
+    reward.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    document.querySelector('#reward-values-menu [data-points="1"]')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(participantTotalText(1)).toBe('11');
+    expect(ajax.updatePoints).toHaveBeenCalledTimes(1);
+
+    pending.resolve({
+      success: true,
+      data: { updates: [{ type: 'participant', id: 1, totalPoints: 11 }] }
+    });
+    await flushPromises();
+  });
+
+  it('replaces listeners on remount and removes them on SPA teardown', async () => {
+    seedStandardData();
+    const { page } = await initPage();
+    selectParticipant(1);
+
+    page.render();
+    page.attachEventListeners();
+    document.querySelector('.point-split-action--reward .point-split-action__main').click();
+    await flushPromises();
+    expect(ajax.updatePoints).toHaveBeenCalledTimes(1);
+
+    const detachedAction = document.querySelector(
+      '.point-split-action--correction .point-split-action__main'
+    );
+    page.destroy();
+    detachedAction.click();
+    expect(ajax.updatePoints).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -396,7 +574,16 @@ describe('US-I18N-001 — manage-points strings exist in both languages', () => 
       'filter_by_group', 'all_groups', 'group_points', 'total_points',
       'please_select_group_or_individual', 'cannot_assign_points_to_no_group',
       'points_skipped_absent_participants', 'error_updating_points',
-      'error_loading_manage_points', 'error'
+      'error_loading_manage_points', 'error', 'points_reward', 'points_correction',
+      'points_game_result', 'points_other_reward_values',
+      'points_other_correction_values', 'points_game_first_place',
+      'points_game_second_place', 'points_game_third_place',
+      'points_game_fourth_place', 'points_selection_none',
+      'points_selection_individual', 'points_selection_group',
+      'points_selection_multiple', 'points_target_group',
+      'points_target_multiple', 'points_feedback_added_one',
+      'points_feedback_added_many', 'points_feedback_removed_one',
+      'points_feedback_removed_many', 'close'
     ];
     expect(i18nGaps(keys)).toEqual({ missingEn: [], missingFr: [] });
   });

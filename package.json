@@ -29,7 +29,10 @@
     "lint:api-contracts": "node scripts/modernization/check-spa-api-contracts.js",
     "test:quality": "jest --runInBand --testPathIgnorePatterns=\"/node_modules/|/mobile/|test/api.test.js|test/api-consistency.test.js|test/security.test.js|test/permission-slips.security.test.js|test/landing-host.test.js|test/local-groups.test.js|test/resources.equipment.test.js|tests/manual_budget_test.js\"",
     "catalog:load:oas": "node scripts/load-oas-catalog.js",
-    "catalog:load": "node scripts/load-oas-catalog.js"
+    "catalog:load": "node scripts/load-oas-catalog.js",
+    "db:local:setup": "node scripts/setup-local-database.js",
+    "db:install": "node scripts/setup-local-database.js",
+    "db:migrate:base": "node scripts/run-base-migrations.js"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.2.0",

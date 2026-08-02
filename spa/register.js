@@ -12,8 +12,8 @@ export class Register {
     const content = `
             <form id="register-form">
                 <h1>${translate("register")}</h1>
-                <div id="error-message" class="error hidden"></div>
-                <div id="success-message" class="success hidden"></div>
+                <div id="error-message" class="error hidden" role="alert" aria-live="assertive"></div>
+                <div id="success-message" class="message hidden" role="status" aria-live="polite"></div>
 
                 <label for="full_name">${translate("full_name")}:</label>
                 <input type="text" id="full_name" name="full_name" autocomplete="name" required>
@@ -62,7 +62,7 @@ export class Register {
     e.preventDefault();
     const submitButton = document.getElementById("register-submit");
     if (submitButton?.disabled) return;
-    if (submitButton) submitButton.disabled = true;
+    const defaultSubmitLabel = submitButton?.value || translate("register");
     const formData = new FormData(e.target);
     const registerData = Object.fromEntries(formData.entries());
 
@@ -71,29 +71,32 @@ export class Register {
 
     if (registerData.password !== registerData.confirm_password) {
       this.showError(translate("passwords_do_not_match"));
-      if (submitButton) submitButton.disabled = false;
       return;
     }
 
     const passwordError = this.validatePassword(registerData.password);
     if (passwordError) {
       this.showError(passwordError);
-      if (submitButton) submitButton.disabled = false;
       return;
+    }
+
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.value = translate("loading");
     }
 
     try {
       const result = await ajaxFunctions.register(registerData);
       if (result.success) {
         if (submitButton) submitButton.dataset.completed = "true";
-        this.showSuccess(result.message);
+        this.showSuccess(this.translateMessage(result.message, "registration_successful"));
         setTimeout(() => this.app.router.route("/login"), 3000);
       } else {
-        this.showError(result.message);
+        this.showError(this.translateMessage(result.message, "error_creating_account"));
       }
     } catch (error) {
       // Extract validation errors and display them
-      let errorMessage = translate(error.message) || translate("error_creating_account");
+      let errorMessage = this.translateMessage(error.message, "error_creating_account");
 
       // Specific handling for account_already_exists
       if (error.message === "account_already_exists") {
@@ -114,8 +117,25 @@ export class Register {
     } finally {
       if (submitButton && submitButton.dataset.completed !== "true") {
         submitButton.disabled = false;
+        submitButton.value = defaultSubmitLabel;
       }
     }
+  }
+
+  /**
+   * Translate API message keys while keeping a localized fallback for network
+   * errors and other messages that are not part of the language bundle.
+   *
+   * @param {string} message Message or translation key returned by the API
+   * @param {string} fallbackKey Translation key used when no translation exists
+   * @returns {string} Safe user-facing message
+   */
+  translateMessage(message, fallbackKey) {
+    if (!message) return translate(fallbackKey);
+    const translatedMessage = translate(message);
+    return translatedMessage && translatedMessage !== message
+      ? translatedMessage
+      : translate(fallbackKey);
   }
 
   validatePassword(password) {
@@ -131,16 +151,20 @@ export class Register {
   showError(message) {
     const errorElement = document.getElementById("error-message");
     const successElement = document.getElementById("success-message");
+    if (!errorElement || !successElement) return;
     errorElement.textContent = message;
-    errorElement.style.display = "block";
-    successElement.style.display = "none";
+    errorElement.classList.remove("hidden");
+    successElement.classList.add("hidden");
+    errorElement.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
   }
 
   showSuccess(message) {
     const successElement = document.getElementById("success-message");
     const errorElement = document.getElementById("error-message");
+    if (!successElement || !errorElement) return;
     successElement.textContent = message;
-    successElement.style.display = "block";
-    errorElement.style.display = "none";
+    successElement.classList.remove("hidden");
+    errorElement.classList.add("hidden");
+    successElement.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
   }
 }

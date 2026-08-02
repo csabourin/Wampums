@@ -32,7 +32,8 @@ cp .env.example .env
 Configure at least:
 
 - `JWT_SECRET_KEY`
-- `DATABASE_URL` or `SB_URL` with a PostgreSQL connection string
+- `DATABASE_URL` with a PostgreSQL connection string
+- `LOCAL_REGISTRATION_PASSWORD` when initializing a local development database
 - `PORT` if the API should not use its default port, `5000`
 
 The repository also supports the service-specific variables listed in `.env.example`. Do not commit populated environment files.
@@ -46,7 +47,33 @@ npm run dev
 
 The API defaults to `http://localhost:5000`; Vite defaults to `http://localhost:5173`.
 
-Database changes are plain SQL files in `migrations/`. This repository does not expose an npm migration runner; review and apply the required SQL through the deployment environment or PostgreSQL tooling.
+For a fresh local PostgreSQL database owned by your operating-system user, set
+`DATABASE_URL=postgresql:///wampums?host=/var/run/postgresql`, then run:
+
+```bash
+npm run db:local:setup
+```
+
+This imports the checked-in schema when the database is empty, applies tracked
+base migrations, and seeds the local organization, current scout year, roles,
+permission catalog, and five standard versioned form formats. The canonical
+form definitions live in `config/default-form-formats.json` and do not require
+access to Railway during installation.
+
+To apply only the base migrations to an existing configured database, run:
+
+```bash
+npm run db:migrate:base
+```
+
+Applied migrations are recorded in `schema_migrations`; re-running the command
+is safe. Existing tenant form customizations and permission overrides are not
+replaced.
+
+Database changes live in `migrations/` as SQL or JavaScript migrations. Use
+`scripts/run-migration.js <filename>` to apply a reviewed migration. JavaScript
+migrations must export `up(client, context)` and are useful for parameterized,
+data-driven catalog changes.
 
 ## Common commands
 
