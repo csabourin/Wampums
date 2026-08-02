@@ -293,10 +293,31 @@ export function renderLiveRegion() {
  */
 export function renderYearSummary(model) {
   const counts = model?.counts || {};
+  const meetingCount = counts.meetings || 0;
+  const preparedCount = counts.prepared || 0;
+  const campCount = counts.camps || 0;
   const items = [
-    { icon: 'fa-calendar-check', value: counts.meetings || 0, label: translate('yearly_planner_meetings') },
-    { icon: 'fa-clipboard-check', value: counts.prepared || 0, label: translate('yearly_planner_prepared') },
-    { icon: 'fa-tents', value: counts.camps || 0, label: translate('yearly_planner_kind_camp') }
+    {
+      icon: 'fa-calendar-check',
+      value: meetingCount,
+      label: meetingCount === 1
+        ? translate('yearly_planner_meeting_count_one')
+        : translate('yearly_planner_meeting_count_other')
+    },
+    {
+      icon: 'fa-clipboard-check',
+      value: preparedCount,
+      label: preparedCount === 1
+        ? translate('yearly_planner_prepared_count_one')
+        : translate('yearly_planner_prepared_count_other')
+    },
+    {
+      icon: 'fa-tents',
+      value: campCount,
+      label: campCount === 1
+        ? translate('yearly_planner_camp_count_one')
+        : translate('yearly_planner_camp_count_other')
+    }
   ];
 
   return `
