@@ -185,11 +185,15 @@
   border-radius: inherit;
 }
 
-.dashboard-v2__hero-card-link:hover {
+.dashboard-v2__hero-card-link:hover,
+.dashboard-v2__hero-card-link:active {
+  color: inherit;
   text-decoration: none;
 }
 
 .dashboard-v2__hero-card-link:focus-visible {
+  color: inherit;
+  text-decoration: none;
   outline: none;
 }
 
@@ -456,6 +460,34 @@
   color: var(--color-text, #1d2f2a);
   min-height: 48px;
   touch-action: manipulation;
+  box-shadow: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* Override the global button gradient, which otherwise pairs a dark green
+   hover background with the toggle's dark text. */
+@media (hover: hover) and (pointer: fine) {
+  .dashboard-v2__group-toggle:hover:not(:disabled) {
+    background: var(--color-secondary, #e7f2ee);
+    color: var(--color-primary-dark, #0b5b43);
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+.dashboard-v2__group-toggle:focus-visible {
+  background: var(--color-secondary, #e7f2ee);
+  color: var(--color-primary-dark, #0b5b43);
+  outline: 2px solid var(--color-primary, #0f7a5a);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+
+.dashboard-v2__group-toggle:active:not(:disabled) {
+  background: var(--color-primary-dark, #0b5b43);
+  color: #ffffff;
+  transform: none;
+  box-shadow: none;
 }
 
 .dashboard-v2__group-toggle .chev {
@@ -550,15 +582,16 @@
 }
 
 /* ============================================================================
-   COMMAND PALETTE — Cmd/Ctrl+K on desktop, bottom sheet on mobile
+   COMMAND PALETTE — Cmd/Ctrl+K on desktop, top sheet on mobile
    ============================================================================ */
 .cmd-palette {
   position: fixed;
   inset: 0;
   z-index: 1000;
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: center;
+  padding-block-start: var(--safe-area-top, 0px);
   pointer-events: none;
 }
 
@@ -577,18 +610,18 @@
   background: var(--color-surface, #fff);
   width: 100%;
   max-width: 640px;
-  border-radius: 18px 18px 0 0;
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.25);
+  border-radius: 0 0 18px 18px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
   max-height: 85vh;
-  animation: cmd-slide-up 0.22s ease;
-  padding-block-end: calc(var(--space-md) + var(--safe-area-bottom, 0px));
+  max-height: 85dvh;
+  animation: cmd-slide-down 0.22s ease;
+  padding-block-end: var(--space-md);
 }
 
 @media (min-width: 700px) {
   .cmd-palette {
-    align-items: flex-start;
     padding-top: 10vh;
   }
   .cmd-palette__panel {
@@ -897,6 +930,11 @@ body.dash-settings-open {
 
 @keyframes cmd-slide-up {
   from { transform: translateY(40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes cmd-slide-down {
+  from { transform: translateY(-40px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
 

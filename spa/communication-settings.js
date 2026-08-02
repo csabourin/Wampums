@@ -80,8 +80,8 @@ export class CommunicationSettings extends BaseModule {
       container,
       `
       <div class="page communications-page">
-        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
-        <h1>${translate("communications_title") || "Communications & Chat"}</h1>
+        <a href="/unit-settings" class="button button--ghost">← ${translate('back')}</a>
+        <h1>${translate("communications_title") || "Communication settings"}</h1>
         <p class="page-description">${translate("communications_description") || "Configure WhatsApp and Google Chat to send announcements."}</p>
 
         <div class="card-grid">
