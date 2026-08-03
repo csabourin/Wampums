@@ -115,7 +115,7 @@ export async function handleResponse(response) {
                 if (errorData.errors && Array.isArray(errorData.errors)) {
                     debugError('Validation errors:', errorData.errors);
                     // Create a detailed error message
-                    const errorDetails = errorData.errors.map(e => `${e.param || e.field}: ${e.msg}`).join(', ');
+                    const errorDetails = errorData.errors.map(e => `${e.path || e.param || e.field}: ${e.msg}`).join(', ');
                     errorMessage = `${errorMessage}: ${errorDetails}`;
                 }
             } else {

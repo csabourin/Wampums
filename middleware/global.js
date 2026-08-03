@@ -152,6 +152,7 @@ module.exports = (app) => {
                     objectSrc: ["'none'"],
                     mediaSrc: ["'self'"],
                     frameSrc: ["https://js.stripe.com"],
+                    workerSrc: ["'self'", "blob:"],
                 },
             },
             crossOriginResourcePolicy: { policy: "cross-origin" },

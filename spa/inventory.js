@@ -1500,7 +1500,7 @@ export class Inventory {
         }
         this.showPreviewUnavailableState(photoPreviewImg, photoPlaceholder);
         removePhotoBtn.classList.remove("hidden");
-        if (normalized?.error || optimized?.error) {
+        if (normalization?.error || optimized?.error) {
           this.app.showMessage(translate("equipment_photo_preview_unavailable"), "warning");
         }
       }
@@ -2009,7 +2009,7 @@ export class Inventory {
       item_value: formData.get('item_value') ? parseFloat(formData.get('item_value')) : null,
       acquisition_date: formData.get('acquisition_date')?.trim() || null,
       location_type: formData.get('location_type') || LOCATION_TYPES[0].value,
-      location_details: formData.get('location_details')?.trim() || null
+      location_details: formData.get('location_details')?.trim() || ''
     };
 
     const shareWithLocalGroup = (formData.get('equipment_visibility') || 'shared') !== 'unit';
@@ -2071,7 +2071,7 @@ export class Inventory {
       item_value: formData.get('item_value') ? parseFloat(formData.get('item_value')) : null,
       acquisition_date: formData.get('acquisition_date')?.trim() || null,
       location_type: formData.get('location_type') || LOCATION_TYPES[0].value,
-      location_details: formData.get('location_details')?.trim() || null
+      location_details: formData.get('location_details')?.trim() || ''
     };
 
     // Remove null/undefined values to avoid validation issues
