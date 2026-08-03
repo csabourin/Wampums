@@ -282,7 +282,7 @@ export class FormBuilder extends BaseModule {
 
                 <div class="form-group" id="field-name-group" ${field.type === 'infoText' ? 'style="display:none;"' : ''}>
                     <label for="field-name">${translate("field_name")} *</label>
-                    <input type="text" id="field-name" name="name" value="${escapeHTML(field.name || '')}" 
+                    <input type="text" id="field-name" name="field_name" value="${escapeHTML(field.name || '')}"
                            placeholder="field_name" pattern="[a-z_]+" required>
                     <small>${translate("field_name_hint")}</small>
                 </div>
@@ -795,7 +795,8 @@ export class FormBuilder extends BaseModule {
 
         const field = {
             type: formData.get("type"),
-            name: formData.get("name"),
+            // See field_name input: DOMPurify strips name="name" inside a form
+            name: formData.get("field_name"),
             label: formData.get("label"),
             required: document.getElementById("field-required").checked
         };

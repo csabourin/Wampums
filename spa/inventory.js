@@ -210,7 +210,7 @@ export class Inventory {
             <div class="grid grid-2">
               <label class="stacked">
                 <span>${escapeHTML(translate("equipment_name"))} *</span>
-                <input type="text" name="name" id="equipment_name" maxlength="150" required />
+                <input type="text" name="equipment_name" id="equipment_name" minlength="2" maxlength="150" required />
               </label>
               <label class="stacked">
                 <span>${escapeHTML(translate("equipment_category"))}</span>
@@ -277,8 +277,8 @@ export class Inventory {
 
             <!-- Photo Upload Section -->
             <div class="photo-upload-section">
-              <label class="stacked">
-                <span>${escapeHTML(translate("equipment_photo"))}</span>
+              <div class="stacked">
+                <span id="photo-label-main">${escapeHTML(translate("equipment_photo"))}</span>
                 <div class="photo-upload-container" id="photo-upload-container">
                     <div class="photo-preview" id="photo-preview">
                       <div class="photo-placeholder" id="photo-placeholder">
@@ -295,9 +295,9 @@ export class Inventory {
                       <img id="photo-preview-img" class="hidden" alt="" />
                       <button type="button" id="remove-photo-btn" class="remove-photo-btn hidden" aria-label="${escapeHTML(translate("equipment_photo_remove"))}">×</button>
                     </div>
-                    <input type="file" id="photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif" class="hidden" />
+                    <input type="file" id="photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif" class="hidden" aria-labelledby="photo-label-main" />
                   </div>
-              </label>
+              </div>
             </div>
 
             <div class="form-actions">
@@ -338,7 +338,7 @@ export class Inventory {
               <div class="grid grid-2">
                 <label class="stacked">
                   <span>${escapeHTML(translate("equipment_name"))} *</span>
-                  <input type="text" name="name" id="modal_equipment_name" maxlength="150" required />
+                  <input type="text" name="equipment_name" id="modal_equipment_name" minlength="2" maxlength="150" required />
                 </label>
                 <label class="stacked">
                   <span>${escapeHTML(translate("equipment_category"))}</span>
@@ -393,8 +393,8 @@ export class Inventory {
 
               <!-- Photo Upload Section in Modal -->
               <div class="photo-upload-section">
-                <label class="stacked">
-                  <span>${escapeHTML(translate("equipment_photo"))}</span>
+                <div class="stacked">
+                  <span id="photo-label-modal">${escapeHTML(translate("equipment_photo"))}</span>
                   <div class="photo-upload-container" id="modal-photo-upload-container">
                     <div class="photo-preview" id="modal-photo-preview">
                       <div class="photo-placeholder" id="modal-photo-placeholder">
@@ -411,9 +411,9 @@ export class Inventory {
                       <img id="modal-photo-preview-img" class="hidden" alt="" />
                       <button type="button" id="modal-remove-photo-btn" class="remove-photo-btn hidden" aria-label="${escapeHTML(translate("equipment_photo_remove"))}">×</button>
                     </div>
-                    <input type="file" id="modal-photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif" class="hidden" />
+                    <input type="file" id="modal-photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif" class="hidden" aria-labelledby="photo-label-modal" />
                   </div>
-                </label>
+                </div>
               </div>
 
               <div class="form-actions modal-actions">
@@ -2000,7 +2000,9 @@ export class Inventory {
     const formData = new FormData(form);
 
     const payload = {
-      name: formData.get('name')?.trim() || '',
+      // Field is named equipment_name: DOMPurify strips name="name" inside a form
+      // to prevent DOM clobbering of HTMLFormElement.name
+      name: formData.get('equipment_name')?.trim() || '',
       category: formData.get('category')?.trim() || null,
       description: formData.get('description')?.trim() || null,
       quantity_total: parseInt(formData.get('quantity_total'), 10) || 1,
@@ -2062,7 +2064,9 @@ export class Inventory {
     const equipmentId = formData.get('equipment_id');
 
     const payload = {
-      name: formData.get('name')?.trim() || '',
+      // Field is named equipment_name: DOMPurify strips name="name" inside a form
+      // to prevent DOM clobbering of HTMLFormElement.name
+      name: formData.get('equipment_name')?.trim() || '',
       category: formData.get('category')?.trim() || null,
       description: formData.get('description')?.trim() || null,
       quantity_total: parseInt(formData.get('quantity_total'), 10) || 1,

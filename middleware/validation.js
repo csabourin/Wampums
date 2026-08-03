@@ -20,7 +20,7 @@ const checkValidation = (req, res, next) => {
   if (!errors.isEmpty()) {
     return res.status(400).json({
       success: false,
-      message: errors.array().map(e => e.msg).join('; '),
+      message: errors.array().map(e => (e.path ? `${e.path}: ${e.msg}` : e.msg)).join('; '),
       errors: errors.array()
     });
   }
