@@ -93,8 +93,7 @@ export class UnitSettings extends BaseModule {
 
     this.canManageOrg = hasPermission("organization.manage");
     this.canEditOrg = hasPermission("org.edit");
-    this.canViewOrg = hasPermission("org.view") || this.canEditOrg;
-
+    this.canViewOrg = hasPermission("org.view");
     try {
       await this.loadSettings();
       await this.loadLeaders();
