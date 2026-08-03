@@ -28,6 +28,37 @@ function parseLocalGroupId(value) {
 
 module.exports = (pool) => {
   /**
+   * Fetch an organization's local group memberships along with the peer units
+   * that data is shared with, so callers can show the consequences of joining.
+   *
+   * @param {number} organizationId - Organization whose memberships are read.
+   * @returns {Promise<Array<{id: number, name: string, slug: string, peer_organizations: string[]}>>}
+   */
+  async function fetchMemberships(organizationId) {
+    const { rows } = await pool.query(
+      `SELECT lg.id, lg.name, lg.slug,
+              COALESCE(
+                ARRAY_AGG(DISTINCT peer_org.name ORDER BY peer_org.name)
+                  FILTER (WHERE peer_org.id IS NOT NULL AND peer_org.id <> $1),
+                '{}'::text[]
+              ) AS peer_organizations
+       FROM local_groups lg
+       INNER JOIN organization_local_groups olg
+         ON olg.local_group_id = lg.id
+       LEFT JOIN organization_local_groups peers
+         ON peers.local_group_id = lg.id
+       LEFT JOIN organizations peer_org
+         ON peer_org.id = peers.organization_id
+       WHERE olg.organization_id = $1
+       GROUP BY lg.id, lg.name, lg.slug
+       ORDER BY lg.name`,
+      [organizationId]
+    );
+
+    return rows;
+  }
+
+  /**
    * GET /api/v1/local-groups
    * List all available local groups.
    */
@@ -47,16 +78,7 @@ module.exports = (pool) => {
    */
   router.get('/memberships', authenticate, requirePermission('org.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-
-    const { rows } = await pool.query(
-      `SELECT lg.id, lg.name, lg.slug
-       FROM local_groups lg
-       INNER JOIN organization_local_groups olg
-         ON olg.local_group_id = lg.id
-       WHERE olg.organization_id = $1
-       ORDER BY lg.name`,
-      [organizationId]
-    );
+    const rows = await fetchMemberships(organizationId);
 
     return success(res, rows, 'Organization local group memberships retrieved successfully');
   }));
@@ -89,19 +111,11 @@ module.exports = (pool) => {
       [organizationId, parsedId]
     );
 
-    const membershipsResult = await pool.query(
-      `SELECT lg.id, lg.name, lg.slug
-       FROM local_groups lg
-       INNER JOIN organization_local_groups olg
-         ON olg.local_group_id = lg.id
-       WHERE olg.organization_id = $1
-       ORDER BY lg.name`,
-      [organizationId]
-    );
+    const memberships = await fetchMemberships(organizationId);
 
     return success(res, {
       added: groupResult.rows[0],
-      memberships: membershipsResult.rows
+      memberships
     }, 'Local group membership added successfully', 201);
   }));
 

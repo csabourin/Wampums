@@ -22,7 +22,9 @@ jest.mock('../../spa/utils/DOMUtils.js', () => ({
 }));
 
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
-  hasPermission: jest.fn((permission) => permission === 'org.edit'),
+  // A unit administrator reads and writes organization settings. The group tab
+  // follows the API and needs org.view for the membership read, org.edit to change it.
+  hasPermission: jest.fn((permission) => ['org.view', 'org.edit'].includes(permission)),
   canSendCommunications: jest.fn(() => false),
   canAccessAdminPanel: jest.fn(() => false),
   canViewRoles: jest.fn(() => false),
@@ -36,6 +38,10 @@ jest.mock('../../spa/utils/MeetingDateUtils.js', () => ({
 const mockUpdateOrganizationInfo = jest.fn();
 const mockUpdateUnitVocabulary = jest.fn();
 const mockUpdateDashboardConfiguration = jest.fn();
+const mockGetLocalGroups = jest.fn();
+const mockGetLocalGroupMemberships = jest.fn();
+const mockJoinLocalGroup = jest.fn();
+const mockLeaveLocalGroup = jest.fn();
 jest.mock('../../spa/api/api-endpoints.js', () => ({
   fetchEditableOrganizationSettings: jest.fn(() => Promise.resolve({
     data: {
@@ -50,15 +56,29 @@ jest.mock('../../spa/api/api-endpoints.js', () => ({
   getLeaders: jest.fn(() => Promise.resolve({ data: { users: [] } })),
   updateOrganizationInfo: (...args) => mockUpdateOrganizationInfo(...args),
   updateUnitVocabulary: (...args) => mockUpdateUnitVocabulary(...args),
-  updateDashboardConfiguration: (...args) => mockUpdateDashboardConfiguration(...args)
+  updateDashboardConfiguration: (...args) => mockUpdateDashboardConfiguration(...args),
+  getLocalGroups: (...args) => mockGetLocalGroups(...args),
+  getLocalGroupMemberships: (...args) => mockGetLocalGroupMemberships(...args),
+  joinLocalGroup: (...args) => mockJoinLocalGroup(...args),
+  leaveLocalGroup: (...args) => mockLeaveLocalGroup(...args)
 }));
 
 jest.mock('../../spa/api/api-core.js', () => ({
   makeApiRequest: jest.fn()
 }));
 
+const mockConfirmDestructive = jest.fn();
+jest.mock('../../spa/utils/DialogUtils.js', () => ({
+  confirmDestructive: (...args) => mockConfirmDestructive(...args)
+}));
+
 import { UnitSettings } from '../../spa/modules/unit-settings/unit-settings.js';
-import { canManageForms } from '../../spa/utils/PermissionUtils.js';
+import { canManageForms, hasPermission } from '../../spa/utils/PermissionUtils.js';
+
+const LOCAL_GROUP_CATALOG = [
+  { id: 1, name: 'Groupe 6 Aylmer', slug: 'groupe-6-aylmer' },
+  { id: 2, name: 'Hull', slug: 'hull' }
+];
 
 beforeEach(() => {
   document.body.innerHTML = '<div id="app"></div>';
@@ -69,6 +89,22 @@ beforeEach(() => {
   mockUpdateUnitVocabulary.mockResolvedValue({ data: {} });
   mockUpdateDashboardConfiguration.mockResolvedValue({ data: {} });
   canManageForms.mockReturnValue(false);
+  hasPermission.mockImplementation((permission) => ['org.view', 'org.edit'].includes(permission));
+  mockGetLocalGroups.mockResolvedValue({ data: LOCAL_GROUP_CATALOG });
+  mockGetLocalGroupMemberships.mockResolvedValue({
+    data: [{ id: 1, name: 'Groupe 6 Aylmer', slug: 'groupe-6-aylmer', peer_organizations: ['Meute 6B'] }]
+  });
+  mockJoinLocalGroup.mockResolvedValue({
+    data: {
+      added: { id: 2, name: 'Hull', slug: 'hull' },
+      memberships: [
+        { id: 1, name: 'Groupe 6 Aylmer', slug: 'groupe-6-aylmer', peer_organizations: ['Meute 6B'] },
+        { id: 2, name: 'Hull', slug: 'hull', peer_organizations: [] }
+      ]
+    }
+  });
+  mockLeaveLocalGroup.mockResolvedValue({ data: null });
+  mockConfirmDestructive.mockResolvedValue(true);
 });
 
 test('links authorized unit administrators to the form builder', async () => {
@@ -84,7 +120,7 @@ test('renders vocabulary and dashboard tabs with organization-level controls', a
   const module = new UnitSettings(app);
   await module.init();
 
-  expect(document.querySelectorAll('[data-settings-tab]')).toHaveLength(3);
+  expect(document.querySelectorAll('[data-settings-tab]')).toHaveLength(4);
   const generalTab = document.getElementById('unit-settings-tab-general');
   const vocabularyTab = document.getElementById('unit-settings-tab-vocabulary');
   const tabPanel = document.getElementById('unit-settings-tab-panel');
@@ -115,6 +151,119 @@ test('renders vocabulary and dashboard tabs with organization-level controls', a
   expect(mockUpdateDashboardConfiguration).toHaveBeenCalledWith(
     expect.objectContaining({ hidden_tile_keys: expect.arrayContaining(['points']) })
   );
+});
+
+test('loads group memberships only once the group tab is opened', async () => {
+  const app = { showMessage: jest.fn(), organizationSettings: {} };
+  const module = new UnitSettings(app);
+  await module.init();
+
+  expect(mockGetLocalGroups).not.toHaveBeenCalled();
+  expect(mockGetLocalGroupMemberships).not.toHaveBeenCalled();
+
+  document.getElementById('unit-settings-tab-group').click();
+  await module.ensureLocalGroupsLoaded();
+
+  expect(mockGetLocalGroups).toHaveBeenCalledTimes(1);
+  expect(mockGetLocalGroupMemberships).toHaveBeenCalledTimes(1);
+
+  const items = document.querySelectorAll('.unit-group-item');
+  expect(items).toHaveLength(1);
+  expect(items[0].textContent).toContain('Groupe 6 Aylmer');
+  expect(items[0].textContent).toContain('unit_group_shared_with');
+
+  // Only groups the unit has not joined can be selected.
+  const options = Array.from(document.querySelectorAll('#unit-group-select option'));
+  expect(options.map((option) => option.value)).toEqual(['2']);
+
+  // Reopening the tab reuses what was already fetched.
+  document.getElementById('unit-settings-tab-general').click();
+  document.getElementById('unit-settings-tab-group').click();
+  await module.ensureLocalGroupsLoaded();
+  expect(mockGetLocalGroups).toHaveBeenCalledTimes(1);
+});
+
+test('joins a group and shows the units it is now shared with', async () => {
+  const app = { showMessage: jest.fn(), organizationSettings: {} };
+  const module = new UnitSettings(app);
+  await module.init();
+  module.activeTab = 'group';
+  await module.ensureLocalGroupsLoaded();
+
+  document.getElementById('unit-group-select').value = '2';
+  await module.handleJoinGroup({ preventDefault: jest.fn() });
+
+  expect(mockJoinLocalGroup).toHaveBeenCalledWith(2);
+  expect(app.showMessage).toHaveBeenCalledWith('unit_group_joined', 'success');
+
+  const items = document.querySelectorAll('.unit-group-item');
+  expect(items).toHaveLength(2);
+  expect(items[1].textContent).toContain('Hull');
+  expect(items[1].textContent).toContain('unit_group_no_peers');
+  // Every catalog group is joined, so nothing is left to select.
+  expect(document.getElementById('unit-group-select')).toBeNull();
+});
+
+test('confirms before leaving a group and drops it from the list', async () => {
+  const app = { showMessage: jest.fn(), organizationSettings: {} };
+  const module = new UnitSettings(app);
+  await module.init();
+  module.activeTab = 'group';
+  await module.ensureLocalGroupsLoaded();
+
+  mockConfirmDestructive.mockResolvedValueOnce(false);
+  await module.handleLeaveGroup(1);
+  expect(mockLeaveLocalGroup).not.toHaveBeenCalled();
+  expect(document.querySelectorAll('.unit-group-item')).toHaveLength(1);
+
+  await module.handleLeaveGroup(1);
+  expect(mockLeaveLocalGroup).toHaveBeenCalledWith(1);
+  expect(app.showMessage).toHaveBeenCalledWith('unit_group_left', 'success');
+  expect(document.querySelectorAll('.unit-group-item')).toHaveLength(0);
+  expect(document.querySelector('.unit-group-status').textContent).toContain('unit_group_none');
+});
+
+test('hides the group tab from users without organization read access', async () => {
+  hasPermission.mockReturnValue(false);
+  const module = new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} });
+  await module.init();
+
+  expect(document.querySelectorAll('[data-settings-tab]')).toHaveLength(3);
+  expect(document.getElementById('unit-settings-tab-group')).toBeNull();
+});
+
+test('requires org.view for the group tab even when the unit is editable', async () => {
+  // The panel opens with a membership read, so it follows the read permission
+  // the API enforces rather than riding on org.edit.
+  hasPermission.mockImplementation((permission) => permission === 'org.edit');
+  const module = new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} });
+  await module.init();
+
+  expect(document.getElementById('unit-settings-tab-group')).toBeNull();
+  expect(document.getElementById('unit-details-form')).not.toBeNull();
+});
+
+test('shows group membership read-only when the unit cannot be edited', async () => {
+  hasPermission.mockImplementation((permission) => permission === 'org.view');
+  const module = new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} });
+  await module.init();
+  module.activeTab = 'group';
+  await module.ensureLocalGroupsLoaded();
+
+  expect(document.getElementById('unit-settings-tab-group')).not.toBeNull();
+  expect(document.querySelectorAll('.unit-group-item')).toHaveLength(1);
+  expect(document.querySelector('.unit-group-leave-btn')).toBeNull();
+  expect(document.getElementById('unit-group-join-form')).toBeNull();
+});
+
+test('reports a localized error when group membership cannot be loaded', async () => {
+  mockGetLocalGroupMemberships.mockRejectedValue(new Error('network down'));
+  const module = new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} });
+  await module.init();
+  module.activeTab = 'group';
+  await module.ensureLocalGroupsLoaded();
+
+  expect(document.querySelector('.error-message').textContent).toContain('error_loading_data');
 });
 
 test('reads every visible control when saving unit settings', async () => {
