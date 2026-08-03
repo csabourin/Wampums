@@ -22,7 +22,9 @@ jest.mock('../../spa/utils/DOMUtils.js', () => ({
 }));
 
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
-  hasPermission: jest.fn((permission) => permission === 'org.edit'),
+  // A unit administrator reads and writes organization settings. The group tab
+  // follows the API and needs org.view for the membership read, org.edit to change it.
+  hasPermission: jest.fn((permission) => ['org.view', 'org.edit'].includes(permission)),
   canSendCommunications: jest.fn(() => false),
   canAccessAdminPanel: jest.fn(() => false),
   canViewRoles: jest.fn(() => false),
@@ -87,7 +89,7 @@ beforeEach(() => {
   mockUpdateUnitVocabulary.mockResolvedValue({ data: {} });
   mockUpdateDashboardConfiguration.mockResolvedValue({ data: {} });
   canManageForms.mockReturnValue(false);
-  hasPermission.mockImplementation((permission) => permission === 'org.edit');
+  hasPermission.mockImplementation((permission) => ['org.view', 'org.edit'].includes(permission));
   mockGetLocalGroups.mockResolvedValue({ data: LOCAL_GROUP_CATALOG });
   mockGetLocalGroupMemberships.mockResolvedValue({
     data: [{ id: 1, name: 'Groupe 6 Aylmer', slug: 'groupe-6-aylmer', peer_organizations: ['Meute 6B'] }]
@@ -228,6 +230,17 @@ test('hides the group tab from users without organization read access', async ()
 
   expect(document.querySelectorAll('[data-settings-tab]')).toHaveLength(3);
   expect(document.getElementById('unit-settings-tab-group')).toBeNull();
+});
+
+test('requires org.view for the group tab even when the unit is editable', async () => {
+  // The panel opens with a membership read, so it follows the read permission
+  // the API enforces rather than riding on org.edit.
+  hasPermission.mockImplementation((permission) => permission === 'org.edit');
+  const module = new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} });
+  await module.init();
+
+  expect(document.getElementById('unit-settings-tab-group')).toBeNull();
+  expect(document.getElementById('unit-details-form')).not.toBeNull();
 });
 
 test('shows group membership read-only when the unit cannot be edited', async () => {
