@@ -2888,6 +2888,64 @@ export async function updateDashboardConfiguration(configuration) {
     return response;
 }
 
+// ============================================================================
+// LOCAL GROUPS (cross-unit sharing)
+// ============================================================================
+
+/**
+ * Local group membership drives cross-unit visibility (inventory today, more
+ * shared resources later), so any change has to drop the caches holding data
+ * that the membership widens or narrows.
+ */
+async function invalidateLocalGroupSharedCaches() {
+    const cacheKeys = [
+        buildApiCacheKey('v1/resources/equipment'),
+        buildApiCacheKey('v1/local-groups/memberships')
+    ];
+
+    await Promise.all(cacheKeys.map(async (cacheKey) => {
+        try {
+            await deleteCachedData(cacheKey);
+        } catch (cacheError) {
+            debugWarn('Failed to invalidate local group cache key', cacheKey, cacheError);
+        }
+    }));
+}
+
+/** List every local group this organization can join. */
+export async function getLocalGroups() {
+    return API.getNoCache('v1/local-groups');
+}
+
+/** Get the local groups this organization currently belongs to. */
+export async function getLocalGroupMemberships() {
+    return API.getNoCache('v1/local-groups/memberships');
+}
+
+/**
+ * Join a local group, opening shared resources between this unit and the other
+ * units of that group.
+ *
+ * @param {number} localGroupId - Identifier of the local group to join
+ */
+export async function joinLocalGroup(localGroupId) {
+    const response = await API.post('v1/local-groups/memberships', { local_group_id: localGroupId });
+    await invalidateLocalGroupSharedCaches();
+    return response;
+}
+
+/**
+ * Leave a local group, removing this unit's access to the group's shared
+ * resources and its own items from the other units' views.
+ *
+ * @param {number} localGroupId - Identifier of the local group to leave
+ */
+export async function leaveLocalGroup(localGroupId) {
+    const response = await API.delete(`v1/local-groups/memberships/${localGroupId}`);
+    await invalidateLocalGroupSharedCaches();
+    return response;
+}
+
 /**
  * Backward compatibility alias
  */

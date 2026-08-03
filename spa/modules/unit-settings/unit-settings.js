@@ -6,10 +6,15 @@ import { makeApiRequest } from "../../api/api-core.js";
 import {
   fetchEditableOrganizationSettings,
   getLeaders,
+  getLocalGroupMemberships,
+  getLocalGroups,
+  joinLocalGroup,
+  leaveLocalGroup,
   updateDashboardConfiguration,
   updateOrganizationInfo,
   updateUnitVocabulary,
 } from "../../api/api-endpoints.js";
+import { confirmDestructive } from "../../utils/DialogUtils.js";
 import { escapeHTML } from "../../utils/SecurityUtils.js";
 import { DAYS_OF_WEEK } from "../../utils/MeetingDateUtils.js";
 import {
@@ -42,7 +47,8 @@ const SHORT_TEXT_MAX_LENGTH = 255;
 const LOCATION_MAX_LENGTH = 500;
 const LOGO_URL_MAX_LENGTH = 2048;
 const VOCABULARY_TERM_MAX_LENGTH = 80;
-const SETTINGS_TABS = ["general", "vocabulary", "dashboard"];
+const BASE_SETTINGS_TABS = ["general", "vocabulary", "dashboard"];
+const GROUP_TAB = "group";
 
 export class UnitSettings extends BaseModule {
   constructor(app) {
@@ -56,9 +62,26 @@ export class UnitSettings extends BaseModule {
     this.twoFactorDisabled = false;
     this.canManageOrg = false;
     this.canEditOrg = false;
+    this.canViewOrg = false;
     this.activeTab = "general";
     this.vocabulary = createVocabularyFromProfile("cubs");
     this.dashboardConfiguration = { version: 1, hidden_tile_keys: [] };
+    this.localGroups = [];
+    this.localGroupMemberships = [];
+    this.localGroupsLoaded = false;
+    this.localGroupsLoading = false;
+    this.localGroupsError = false;
+    this.localGroupPending = false;
+  }
+
+  /**
+   * Tabs available to the current user. The group tab is hidden entirely when
+   * the user cannot read organization data, so it never renders an empty panel.
+   *
+   * @returns {string[]} Ordered tab identifiers
+   */
+  getSettingsTabs() {
+    return this.canViewOrg ? [...BASE_SETTINGS_TABS, GROUP_TAB] : [...BASE_SETTINGS_TABS];
   }
 
   async init() {
@@ -68,6 +91,7 @@ export class UnitSettings extends BaseModule {
 
     this.canManageOrg = hasPermission("organization.manage");
     this.canEditOrg = hasPermission("org.edit");
+    this.canViewOrg = hasPermission("org.view") || this.canEditOrg;
 
     try {
       await this.loadSettings();
@@ -168,6 +192,7 @@ export class UnitSettings extends BaseModule {
           ` : ""}
           ${this.activeTab === "vocabulary" ? this.renderVocabularySection() : ""}
           ${this.activeTab === "dashboard" ? this.renderDashboardSection() : ""}
+          ${this.activeTab === GROUP_TAB ? this.renderGroupSection() : ""}
         </div>
       </div>`
     );
@@ -176,7 +201,7 @@ export class UnitSettings extends BaseModule {
   renderTabs() {
     return `
       <nav class="unit-settings-tabs" role="tablist" aria-label="${escapeHTML(translate("unit_settings_title"))}">
-        ${SETTINGS_TABS.map((tab) => {
+        ${this.getSettingsTabs().map((tab) => {
           const active = this.activeTab === tab;
           return `<button type="button" role="tab" class="unit-settings-tab ${active ? "is-active" : ""}"
             id="unit-settings-tab-${tab}" data-settings-tab="${tab}"
@@ -374,6 +399,89 @@ export class UnitSettings extends BaseModule {
       </section>`;
   }
 
+  /**
+   * Render the local group membership panel. Membership is what opens shared
+   * resources (equipment inventory today) between units of the same group.
+   *
+   * @returns {string} Section markup
+   */
+  renderGroupSection() {
+    let body;
+    if (this.localGroupsLoading) {
+      body = `<p class="unit-group-status">${escapeHTML(translate("loading"))}</p>`;
+    } else if (this.localGroupsError) {
+      body = `<div class="error-message" role="alert">${escapeHTML(translate("error_loading_data"))}</div>`;
+    } else {
+      body = `${this.renderGroupMemberships()}${this.canEditOrg ? this.renderGroupJoinForm() : ""}`;
+    }
+
+    return `
+      <section class="account-section">
+        <h2>${escapeHTML(translate("unit_group_title"))}</h2>
+        <p class="section-description">${escapeHTML(translate("unit_group_description"))}</p>
+        <p class="unit-group-note">${escapeHTML(translate("unit_group_shared_note"))}</p>
+        ${!this.canEditOrg ? `<p class="unit-settings-read-only">${translate("unit_settings_read_only")}</p>` : ""}
+        ${body}
+      </section>`;
+  }
+
+  renderGroupMemberships() {
+    if (!this.localGroupMemberships.length) {
+      return `<p class="unit-group-status">${escapeHTML(translate("unit_group_none"))}</p>`;
+    }
+
+    const items = this.localGroupMemberships
+      .map((group) => {
+        const peers = Array.isArray(group.peer_organizations) ? group.peer_organizations : [];
+        const peerText = peers.length
+          ? translate("unit_group_shared_with").replace("{units}", peers.join(", "))
+          : translate("unit_group_no_peers");
+
+        return `
+          <li class="unit-group-item">
+            <div class="unit-group-item__info">
+              <strong>${escapeHTML(group.name)}</strong>
+              <span class="muted-text">${escapeHTML(peerText)}</span>
+            </div>
+            ${this.canEditOrg ? `
+              <button type="button" class="button button--danger unit-group-leave-btn"
+                data-local-group-id="${group.id}" ${this.localGroupPending ? "disabled" : ""}>
+                ${escapeHTML(translate("unit_group_leave"))}
+              </button>` : ""}
+          </li>`;
+      })
+      .join("");
+
+    return `<ul class="unit-group-list">${items}</ul>`;
+  }
+
+  renderGroupJoinForm() {
+    const joinedIds = new Set(this.localGroupMemberships.map((group) => group.id));
+    const available = this.localGroups.filter((group) => !joinedIds.has(group.id));
+
+    if (!available.length) {
+      return `<p class="unit-group-status">${escapeHTML(translate("unit_group_no_available"))}</p>`;
+    }
+
+    const options = available
+      .map((group) => `<option value="${group.id}">${escapeHTML(group.name)}</option>`)
+      .join("");
+
+    return `
+      <form id="unit-group-join-form" class="unit-settings-form unit-group-join">
+        <div class="form-group">
+          <label for="unit-group-select">${escapeHTML(translate("unit_group_join_label"))}</label>
+          <select id="unit-group-select" class="form-control" ${this.localGroupPending ? "disabled" : ""} required>
+            ${options}
+          </select>
+        </div>
+        <button type="submit" id="unit-group-join-btn" class="button button--primary"
+          ${this.localGroupPending ? "disabled" : ""}>
+          ${escapeHTML(translate("unit_group_join"))}
+        </button>
+      </form>`;
+  }
+
   renderLanguageSection() {
     const options = SUPPORTED_LANGUAGES.map(
       ({ code, label }) =>
@@ -477,13 +585,16 @@ export class UnitSettings extends BaseModule {
   attachEventListeners() {
     const tabButtons = Array.from(document.querySelectorAll("[data-settings-tab]"));
     const activateTab = (requestedTab, shouldFocus = false) => {
-      if (!SETTINGS_TABS.includes(requestedTab)) return;
+      if (!this.getSettingsTabs().includes(requestedTab)) return;
       if (requestedTab !== this.activeTab) {
         this.activeTab = requestedTab;
         this.render();
         this.attachEventListeners();
       }
       if (shouldFocus) document.getElementById(`unit-settings-tab-${requestedTab}`)?.focus();
+      // Group data is only fetched once the panel is opened so the other tabs
+      // are not slowed down by requests most visits never need.
+      if (requestedTab === GROUP_TAB) this.ensureLocalGroupsLoaded();
     };
 
     tabButtons.forEach((button, index) => {
@@ -537,6 +648,106 @@ export class UnitSettings extends BaseModule {
     const dashboardForm = document.getElementById("unit-dashboard-form");
     if (dashboardForm && this.canEditOrg) {
       this.addEventListener(dashboardForm, "submit", (event) => this.handleSaveDashboard(event));
+    }
+
+    const groupJoinForm = document.getElementById("unit-group-join-form");
+    if (groupJoinForm && this.canEditOrg) {
+      this.addEventListener(groupJoinForm, "submit", (event) => this.handleJoinGroup(event));
+    }
+
+    if (this.canEditOrg) {
+      document.querySelectorAll(".unit-group-leave-btn").forEach((button) => {
+        this.addEventListener(button, "click", () =>
+          this.handleLeaveGroup(Number(button.dataset.localGroupId)));
+      });
+    }
+  }
+
+  /**
+   * Fetch the local group catalog and this unit's memberships once per visit.
+   */
+  async ensureLocalGroupsLoaded() {
+    if (this.localGroupsLoaded || this.localGroupsLoading) return;
+
+    this.localGroupsLoading = true;
+    this.localGroupsError = false;
+    this.refreshGroupPanel();
+
+    try {
+      const [catalogResponse, membershipResponse] = await Promise.all([
+        getLocalGroups(),
+        getLocalGroupMemberships(),
+      ]);
+      this.localGroups = catalogResponse?.data || [];
+      this.localGroupMemberships = membershipResponse?.data || [];
+      this.localGroupsLoaded = true;
+    } catch (error) {
+      debugError("Failed to load local groups:", error);
+      this.localGroupsError = true;
+    } finally {
+      this.localGroupsLoading = false;
+      this.refreshGroupPanel();
+    }
+  }
+
+  /**
+   * Re-render only while the group tab is on screen, so background loads never
+   * yank the user out of another tab.
+   */
+  refreshGroupPanel() {
+    if (this.activeTab !== GROUP_TAB || this.isDestroyed) return;
+    this.render();
+    this.attachEventListeners();
+  }
+
+  async handleJoinGroup(event) {
+    event.preventDefault();
+    const select = document.getElementById("unit-group-select");
+    const localGroupId = Number(select?.value);
+    if (!Number.isInteger(localGroupId) || localGroupId <= 0) return;
+
+    this.localGroupPending = true;
+    this.refreshGroupPanel();
+
+    try {
+      const response = await joinLocalGroup(localGroupId);
+      this.localGroupMemberships = response?.data?.memberships || this.localGroupMemberships;
+      this.app?.showMessage?.(translate("unit_group_joined"), "success");
+    } catch (error) {
+      debugError("Failed to join local group:", error);
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), "error");
+    } finally {
+      this.localGroupPending = false;
+      this.refreshGroupPanel();
+    }
+  }
+
+  async handleLeaveGroup(localGroupId) {
+    if (!Number.isInteger(localGroupId) || localGroupId <= 0) return;
+
+    const group = this.localGroupMemberships.find((entry) => entry.id === localGroupId);
+    const confirmed = await confirmDestructive({
+      title: translate("unit_group_leave"),
+      message: translate("unit_group_leave_confirm").replace("{group}", group?.name || ""),
+      confirmLabel: translate("unit_group_leave"),
+      cancelLabel: translate("cancel"),
+    });
+    if (!confirmed) return;
+
+    this.localGroupPending = true;
+    this.refreshGroupPanel();
+
+    try {
+      await leaveLocalGroup(localGroupId);
+      this.localGroupMemberships = this.localGroupMemberships
+        .filter((entry) => entry.id !== localGroupId);
+      this.app?.showMessage?.(translate("unit_group_left"), "success");
+    } catch (error) {
+      debugError("Failed to leave local group:", error);
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), "error");
+    } finally {
+      this.localGroupPending = false;
+      this.refreshGroupPanel();
     }
   }
 
