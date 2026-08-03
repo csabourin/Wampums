@@ -72,6 +72,8 @@ export class UnitSettings extends BaseModule {
     this.localGroupsLoading = false;
     this.localGroupsError = false;
     this.localGroupPending = false;
+    /** @type {Promise<void>|null} In-flight group load shared by all callers */
+    this.localGroupsRequest = null;
   }
 
   /**
@@ -665,29 +667,39 @@ export class UnitSettings extends BaseModule {
 
   /**
    * Fetch the local group catalog and this unit's memberships once per visit.
+   * Concurrent callers share the in-flight request rather than starting a
+   * second one, and awaiting any of them waits for the same load to settle.
+   *
+   * @returns {Promise<void>} Resolves once the group panel has its data
    */
-  async ensureLocalGroupsLoaded() {
-    if (this.localGroupsLoaded || this.localGroupsLoading) return;
+  ensureLocalGroupsLoaded() {
+    if (this.localGroupsLoaded) return Promise.resolve();
+    if (this.localGroupsRequest) return this.localGroupsRequest;
 
     this.localGroupsLoading = true;
     this.localGroupsError = false;
     this.refreshGroupPanel();
 
-    try {
-      const [catalogResponse, membershipResponse] = await Promise.all([
-        getLocalGroups(),
-        getLocalGroupMemberships(),
-      ]);
-      this.localGroups = catalogResponse?.data || [];
-      this.localGroupMemberships = membershipResponse?.data || [];
-      this.localGroupsLoaded = true;
-    } catch (error) {
-      debugError("Failed to load local groups:", error);
-      this.localGroupsError = true;
-    } finally {
-      this.localGroupsLoading = false;
-      this.refreshGroupPanel();
-    }
+    this.localGroupsRequest = (async () => {
+      try {
+        const [catalogResponse, membershipResponse] = await Promise.all([
+          getLocalGroups(),
+          getLocalGroupMemberships(),
+        ]);
+        this.localGroups = catalogResponse?.data || [];
+        this.localGroupMemberships = membershipResponse?.data || [];
+        this.localGroupsLoaded = true;
+      } catch (error) {
+        debugError("Failed to load local groups:", error);
+        this.localGroupsError = true;
+      } finally {
+        this.localGroupsLoading = false;
+        this.localGroupsRequest = null;
+        this.refreshGroupPanel();
+      }
+    })();
+
+    return this.localGroupsRequest;
   }
 
   /**
