@@ -548,7 +548,7 @@ describe('databases where migration 004 has not been applied', () => {
         campaign_type: 'hours_worked',
       });
 
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('004_fundraiser_campaign_model'));
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('001_initial.sql'));
   });
 
   test('a campaign can still be edited', async () => {
