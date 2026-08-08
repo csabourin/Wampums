@@ -326,3 +326,102 @@ describe('finance terminology', () => {
     });
   });
 });
+
+describe('validation messages do not outlive the problem', () => {
+  /**
+   * The reported symptom: after a failed submit, the user corrects the field
+   * but "this field is required" stays under the now-filled input.
+   */
+  test('typing into a flagged field clears its message', async () => {
+    const { module } = setup();
+    fill({ name: '', campaign_type: 'container_deposit', start_date: '2026-08-09', end_date: '2026-08-10' });
+    await module.saveFundraiser();
+    expect(document.querySelector('[data-field-error="name"]').textContent).toBe('field_required');
+
+    const input = document.getElementById('fundraiser-name');
+    input.value = 'Test';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(document.querySelector('[data-field-error="name"]').textContent).toBe('');
+    expect(input.hasAttribute('aria-invalid')).toBe(false);
+  });
+
+  test('correcting a select clears its message too', async () => {
+    const { module } = setup();
+    fill({ name: 'Test', campaign_type: 'container_deposit', start_date: '2026-08-10', end_date: '2026-08-09' });
+    await module.saveFundraiser();
+    expect(document.querySelector('[data-field-error="end_date"]').textContent)
+      .toBe('end_date_before_start_date');
+
+    const endDate = document.getElementById('fundraiser-end-date');
+    endDate.value = '2026-08-11';
+    endDate.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(document.querySelector('[data-field-error="end_date"]').textContent).toBe('');
+  });
+
+  test('the summary disappears once nothing is flagged', async () => {
+    const { module } = setup();
+    fill({ name: '', campaign_type: 'container_deposit', start_date: '', end_date: '' });
+    await module.saveFundraiser();
+    const summary = document.getElementById('fundraiser-form-error');
+    expect(summary.hidden).toBe(false);
+
+    // Correct the fields one by one; the summary must survive until the last.
+    const name = document.getElementById('fundraiser-name');
+    name.value = 'Test';
+    name.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(summary.hidden).toBe(false);
+
+    const start = document.getElementById('fundraiser-start-date');
+    start.value = '2026-08-09';
+    start.dispatchEvent(new Event('change', { bubbles: true }));
+    const end = document.getElementById('fundraiser-end-date');
+    end.value = '2026-08-10';
+    end.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(summary.hidden).toBe(true);
+    expect(summary.textContent).toBe('');
+  });
+
+  test('editing one field leaves other fields still flagged', async () => {
+    const { module } = setup();
+    fill({ name: '', campaign_type: 'container_deposit', start_date: '', end_date: '2026-08-10' });
+    await module.saveFundraiser();
+
+    const name = document.getElementById('fundraiser-name');
+    name.value = 'Test';
+    name.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(document.querySelector('[data-field-error="name"]').textContent).toBe('');
+    // start_date is still empty, so its message must remain.
+    expect(document.querySelector('[data-field-error="start_date"]').textContent)
+      .toBe('field_required');
+  });
+
+  test('the exact reported payload submits without a validation error', async () => {
+    const { module } = setup();
+    fill({
+      name: 'Test',
+      campaign_type: 'container_deposit',
+      start_date: '2026-08-09',
+      end_date: '2026-08-10',
+      unit_price: '.10',
+      unit_label: 'Canette',
+    });
+    module.syncCampaignTypeFields();
+
+    await module.saveFundraiser();
+
+    expect(mockCreateFundraiser).toHaveBeenCalledTimes(1);
+    expect(mockCreateFundraiser.mock.calls[0][0]).toEqual({
+      name: 'Test',
+      campaign_type: 'container_deposit',
+      start_date: '2026-08-09',
+      end_date: '2026-08-10',
+      objective: null,
+      unit_price: 0.1,
+      unit_label: 'Canette',
+    });
+  });
+});
