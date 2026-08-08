@@ -317,14 +317,13 @@ export class Budgets {
   }
 
   renderSummaryCards() {
-    if (!this.summaryReport) {
-      return "";
-    }
-
-    const totals = this.summaryReport.totals || {};
-    const totalRevenue = totals.total_revenue || 0;
-    const totalExpense = totals.total_expense || 0;
-    const netAmount = totals.net_amount || totalRevenue - totalExpense;
+    const totals = this.summaryReport?.totals || {};
+    const totalRevenue = Number(totals.total_revenue) || 0;
+    const totalExpense = Number(totals.total_expense) || 0;
+    // A net of exactly 0 is a valid result; only fall back when it is absent.
+    const netAmount = totals.net_amount === undefined || totals.net_amount === null
+      ? totalRevenue - totalExpense
+      : Number(totals.net_amount) || 0;
 
     return `
       <div class="summary-cards">
@@ -374,42 +373,80 @@ export class Budgets {
     }
   }
 
+  /**
+   * Overview tab.
+   *
+   * The whole tab used to collapse to a greyed-out "no budget data" placeholder
+   * whenever the summary report was missing or carried no category rows — which
+   * also happens on a load failure and on a fiscal year with no movements yet.
+   * The table is now always rendered with its header, totals row and an inline
+   * empty message, so the tab reads as active whenever the user has access.
+   *
+   * @returns {string} HTML fragment
+   */
   renderOverview() {
-    if (!this.summaryReport || !this.summaryReport.categories) {
-      return `<p class="no-data">${translate("no_budget_data")}</p>`;
-    }
+    const categories = Array.isArray(this.summaryReport?.categories)
+      ? this.summaryReport.categories
+      : [];
+    const totals = this.summaryReport?.totals || {};
+    const summaryUnavailable = !this.summaryReport;
 
-    const categories = this.summaryReport.categories;
+    const totalRevenue = Number(totals.total_revenue) || 0;
+    const totalExpense = Number(totals.total_expense) || 0;
+    const totalNet = totals.net_amount === undefined || totals.net_amount === null
+      ? totalRevenue - totalExpense
+      : Number(totals.net_amount) || 0;
+
+    const emptyMessage = summaryUnavailable
+      ? translate("error_loading_data")
+      : translate("no_budget_data");
+
+    const bodyRows = categories.length > 0
+      ? categories.map((cat) => `
+          <tr>
+            <th scope="row">${escapeHTML(cat.category_name || translate("uncategorized"))}</th>
+            <td class="text-right amount revenue">${this.formatCurrency(cat.total_revenue)}</td>
+            <td class="text-right amount expense">${this.formatCurrency(cat.total_expense)}</td>
+            <td class="text-right amount ${Number(cat.net_amount) >= 0 ? "positive" : "negative"}">
+              ${this.formatCurrency(cat.net_amount)}
+            </td>
+          </tr>
+        `).join("")
+      : `
+          <tr class="empty-row">
+            <td colspan="4">${emptyMessage}</td>
+          </tr>
+        `;
 
     return `
       <div class="overview-content">
         <h2>${translate("category_breakdown")}</h2>
-        <table class="data-table budget-table">
-          <thead>
-            <tr>
-              <th>${translate("category")}</th>
-              <th class="text-right">${translate("revenue")}</th>
-              <th class="text-right">${translate("expenses")}</th>
-              <th class="text-right">${translate("net")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${categories
-              .map(
-                (cat) => `
+        <div class="table-scroll">
+          <table class="data-table budget-table">
+            <caption class="visually-hidden">${translate("category_breakdown")}</caption>
+            <thead>
               <tr>
-                <td><strong>${escapeHTML(cat.category_name || translate("uncategorized"))}</strong></td>
-                <td class="text-right amount revenue">${this.formatCurrency(cat.total_revenue)}</td>
-                <td class="text-right amount expense">${this.formatCurrency(cat.total_expense)}</td>
-                <td class="text-right amount ${cat.net_amount >= 0 ? "positive" : "negative"}">
-                  ${this.formatCurrency(cat.net_amount)}
+                <th scope="col">${translate("category")}</th>
+                <th scope="col" class="text-right">${translate("revenue")}</th>
+                <th scope="col" class="text-right">${translate("expenses")}</th>
+                <th scope="col" class="text-right">${translate("net")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${bodyRows}
+            </tbody>
+            <tfoot>
+              <tr class="totals-row">
+                <th scope="row">${translate("total")}</th>
+                <td class="text-right amount revenue">${this.formatCurrency(totalRevenue)}</td>
+                <td class="text-right amount expense">${this.formatCurrency(totalExpense)}</td>
+                <td class="text-right amount ${totalNet >= 0 ? "positive" : "negative"}">
+                  ${this.formatCurrency(totalNet)}
                 </td>
               </tr>
-            `,
-              )
-              .join("")}
-          </tbody>
-        </table>
+            </tfoot>
+          </table>
+        </div>
       </div>
     `;
   }
@@ -465,41 +502,43 @@ export class Budgets {
           </button>
         </div>
 
-        <table class="data-table budget-items-table">
-          <thead>
-            <tr>
-              <th>${translate("item_name")}</th>
-              <th>${translate("category")}</th>
-              <th>${translate("description")}</th>
-              <th>${translate("actions")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${
-              this.items.length === 0
-                ? `<tr><td colspan="4" class="text-center">${translate("no_budget_items_found")}</td></tr>`
-                : this.items
-                    .map(
-                      (item) => `
-                <tr data-item-id="${item.id}">
-                  <td><strong>${escapeHTML(item.name)}</strong></td>
-                  <td>${escapeHTML(item.category_name || translate("uncategorized"))}</td>
-                  <td class="item-description">${escapeHTML(item.description || "-")}</td>
-                  <td>
-                    <button class="btn btn-sm btn-secondary edit-budget-item-btn" data-id="${item.id}">
-                      ${translate("edit")}
-                    </button>
-                    <button class="btn btn-sm btn-danger delete-budget-item-btn" data-id="${item.id}">
-                      ${translate("delete")}
-                    </button>
-                  </td>
-                </tr>
-              `,
-                    )
-                    .join("")
-            }
-          </tbody>
-        </table>
+        <div class="table-scroll">
+          <table class="data-table budget-items-table">
+            <thead>
+              <tr>
+                <th>${translate("item_name")}</th>
+                <th>${translate("category")}</th>
+                <th>${translate("description")}</th>
+                <th>${translate("actions")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${
+                this.items.length === 0
+                  ? `<tr><td colspan="4" class="text-center">${translate("no_budget_items_found")}</td></tr>`
+                  : this.items
+                      .map(
+                        (item) => `
+                  <tr data-item-id="${item.id}">
+                    <td><strong>${escapeHTML(item.name)}</strong></td>
+                    <td>${escapeHTML(item.category_name || translate("uncategorized"))}</td>
+                    <td class="item-description">${escapeHTML(item.description || "-")}</td>
+                    <td>
+                      <button class="btn btn-sm btn-secondary edit-budget-item-btn" data-id="${item.id}">
+                        ${translate("edit")}
+                      </button>
+                      <button class="btn btn-sm btn-danger delete-budget-item-btn" data-id="${item.id}">
+                        ${translate("delete")}
+                      </button>
+                    </td>
+                  </tr>
+                `,
+                      )
+                      .join("")
+              }
+            </tbody>
+          </table>
+        </div>
       </div>
     `;
   }
@@ -514,43 +553,45 @@ export class Budgets {
           </button>
         </div>
 
-        <table class="data-table expenses-table">
-          <thead>
-            <tr>
-              <th>${translate("date")}</th>
-              <th>${translate("category")}</th>
-              <th>${translate("description")}</th>
-              <th class="text-right">${translate("amount")}</th>
-              <th>${translate("actions")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${
-              this.expenses.length === 0
-                ? `<tr><td colspan="5" class="text-center">${translate("no_expenses_found")}</td></tr>`
-                : this.expenses
-                    .map(
-                      (expense) => `
-                <tr data-expense-id="${expense.id}">
-                  <td>${formatDateShort(expense.expense_date)}</td>
-                  <td>${escapeHTML(expense.category_name || "-")}</td>
-                  <td>${escapeHTML(expense.description)}</td>
-                  <td class="text-right amount expense">${this.formatCurrency(expense.amount)}</td>
-                  <td>
-                    <button class="btn btn-sm btn-secondary edit-expense-btn" data-id="${expense.id}">
-                      ${translate("edit")}
-                    </button>
-                    <button class="btn btn-sm btn-danger delete-expense-btn" data-id="${expense.id}">
-                      ${translate("delete")}
-                    </button>
-                  </td>
-                </tr>
-              `,
-                    )
-                    .join("")
-            }
-          </tbody>
-        </table>
+        <div class="table-scroll">
+          <table class="data-table expenses-table">
+            <thead>
+              <tr>
+                <th>${translate("date")}</th>
+                <th>${translate("category")}</th>
+                <th>${translate("description")}</th>
+                <th class="text-right">${translate("amount")}</th>
+                <th>${translate("actions")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${
+                this.expenses.length === 0
+                  ? `<tr><td colspan="5" class="text-center">${translate("no_expenses_found")}</td></tr>`
+                  : this.expenses
+                      .map(
+                        (expense) => `
+                  <tr data-expense-id="${expense.id}">
+                    <td>${formatDateShort(expense.expense_date)}</td>
+                    <td>${escapeHTML(expense.category_name || "-")}</td>
+                    <td>${escapeHTML(expense.description)}</td>
+                    <td class="text-right amount expense">${this.formatCurrency(expense.amount)}</td>
+                    <td>
+                      <button class="btn btn-sm btn-secondary edit-expense-btn" data-id="${expense.id}">
+                        ${translate("edit")}
+                      </button>
+                      <button class="btn btn-sm btn-danger delete-expense-btn" data-id="${expense.id}">
+                        ${translate("delete")}
+                      </button>
+                    </td>
+                  </tr>
+                `,
+                      )
+                      .join("")
+              }
+            </tbody>
+          </table>
+        </div>
       </div>
     `;
   }
@@ -585,44 +626,55 @@ export class Budgets {
     }
 
     return `
-      <table class="data-table plans-table">
-        <thead>
-          <tr>
-            <th>${translate("budget_item")}</th>
-            <th>${translate("category")}</th>
-            <th class="text-right">${translate("budgeted_revenue")}</th>
-            <th class="text-right">${translate("budgeted_expense")}</th>
-            <th>${translate("notes")}</th>
-            <th>${translate("actions")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${this.budgetPlans
-            .map(
-              (plan) => `
-            <tr data-plan-id="${plan.id}">
-              <td>${escapeHTML(plan.item_name || "-")}</td>
-              <td>${escapeHTML(plan.category_name || "-")}</td>
-              <td class="text-right amount revenue">${this.formatCurrency(plan.budgeted_revenue)}</td>
-              <td class="text-right amount expense">${this.formatCurrency(plan.budgeted_expense)}</td>
-              <td class="notes-cell">${escapeHTML(plan.notes || "")}</td>
-              <td>
-                <button class="btn btn-sm btn-secondary edit-plan-btn" data-id="${plan.id}">
-                  ${translate("edit")}
-                </button>
-                <button class="btn btn-sm btn-danger delete-plan-btn" data-id="${plan.id}">
-                  ${translate("delete")}
-                </button>
-              </td>
+      <div class="table-scroll">
+        <table class="data-table plans-table">
+          <thead>
+            <tr>
+              <th>${translate("budget_item")}</th>
+              <th>${translate("category")}</th>
+              <th class="text-right">${translate("budgeted_revenue")}</th>
+              <th class="text-right">${translate("budgeted_expense")}</th>
+              <th>${translate("notes")}</th>
+              <th>${translate("actions")}</th>
             </tr>
-          `,
-            )
-            .join("")}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            ${this.budgetPlans
+              .map(
+                (plan) => `
+              <tr data-plan-id="${plan.id}">
+                <td>${escapeHTML(plan.item_name || "-")}</td>
+                <td>${escapeHTML(plan.category_name || "-")}</td>
+                <td class="text-right amount revenue">${this.formatCurrency(plan.budgeted_revenue)}</td>
+                <td class="text-right amount expense">${this.formatCurrency(plan.budgeted_expense)}</td>
+                <td class="notes-cell">${escapeHTML(plan.notes || "")}</td>
+                <td>
+                  <button class="btn btn-sm btn-secondary edit-plan-btn" data-id="${plan.id}">
+                    ${translate("edit")}
+                  </button>
+                  <button class="btn btn-sm btn-danger delete-plan-btn" data-id="${plan.id}">
+                    ${translate("delete")}
+                  </button>
+                </td>
+              </tr>
+            `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
     `;
   }
 
+  /**
+   * Budget vs actual comparison.
+   *
+   * Three series are shown, matching the three figures the rest of the budget
+   * screens report on: revenue, expenses and the resulting net position. The
+   * net row was missing, so a balanced budget could not be read off this table.
+   *
+   * @returns {string} HTML fragment
+   */
   renderBudgetVsActual() {
     if (
       !this.budgetPlans ||
@@ -633,8 +685,12 @@ export class Budgets {
     }
 
     const totals = this.summaryReport.totals || {};
-    const actualRevenue = totals.total_revenue || 0;
-    const actualExpense = totals.total_expense || 0;
+    const actualRevenue = Number(totals.total_revenue) || 0;
+    const actualExpense = Number(totals.total_expense) || 0;
+    // `net_amount` can legitimately be 0, so fall back only when it is absent.
+    const actualNet = totals.net_amount === undefined || totals.net_amount === null
+      ? actualRevenue - actualExpense
+      : Number(totals.net_amount) || 0;
 
     const plannedRevenue = this.budgetPlans.reduce(
       (sum, plan) => sum + (parseFloat(plan.budgeted_revenue) || 0),
@@ -644,52 +700,85 @@ export class Budgets {
       (sum, plan) => sum + (parseFloat(plan.budgeted_expense) || 0),
       0,
     );
+    const plannedNet = plannedRevenue - plannedExpense;
 
-    const revenueVariance = actualRevenue - plannedRevenue;
-    const expenseVariance = actualExpense - plannedExpense;
-    const revenueVariancePct =
-      plannedRevenue > 0 ? (revenueVariance / plannedRevenue) * 100 : 0;
-    const expenseVariancePct =
-      plannedExpense > 0 ? (expenseVariance / plannedExpense) * 100 : 0;
+    /**
+     * Build one comparison row.
+     *
+     * @param {Object} options - Row options
+     * @param {string} options.label - Row label
+     * @param {number} options.planned - Planned amount
+     * @param {number} options.actual - Actual amount
+     * @param {boolean} options.higherIsBetter - Whether a positive variance is good
+     * @param {string} [options.actualClass] - Extra class for the actual cell
+     * @returns {string} HTML table row
+     */
+    const comparisonRow = ({ label, planned, actual, higherIsBetter, actualClass = "" }) => {
+      const variance = actual - planned;
+      // A zero baseline has no meaningful percentage; render an em dash rather
+      // than dividing by zero or hiding the row.
+      const hasBaseline = planned !== 0;
+      const variancePct = hasBaseline ? (variance / Math.abs(planned)) * 100 : null;
+      const favourable = higherIsBetter ? variance >= 0 : variance <= 0;
+      const toneClass = favourable ? "positive" : "negative";
+      // Wording, not colour alone, carries the over/under budget meaning.
+      const toneLabel = favourable ? translate("under_budget") : translate("over_budget");
+
+      return `
+        <tr>
+          <th scope="row">${label}</th>
+          <td class="text-right amount">${this.formatCurrency(planned)}</td>
+          <td class="text-right amount ${actualClass}">${this.formatCurrency(actual)}</td>
+          <td class="text-right amount ${toneClass}">
+            ${this.formatCurrency(variance)}
+            <span class="variance-note">${higherIsBetter ? "" : toneLabel}</span>
+          </td>
+          <td class="text-right ${toneClass}">
+            ${variancePct === null ? "—" : `${variancePct.toFixed(1)}%`}
+          </td>
+        </tr>
+      `;
+    };
 
     return `
       <div class="budget-vs-actual">
         <h3>${translate("budget_vs_actual")}</h3>
-        <table class="data-table comparison-table">
-          <thead>
-            <tr>
-              <th></th>
-              <th class="text-right">${translate("planned_budget")}</th>
-              <th class="text-right">${translate("actual_amount")}</th>
-              <th class="text-right">${translate("variance")}</th>
-              <th class="text-right">${translate("variance_percentage")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>${translate("revenue")}</strong></td>
-              <td class="text-right amount">${this.formatCurrency(plannedRevenue)}</td>
-              <td class="text-right amount revenue">${this.formatCurrency(actualRevenue)}</td>
-              <td class="text-right amount ${revenueVariance >= 0 ? "positive" : "negative"}">
-                ${this.formatCurrency(revenueVariance)}
-              </td>
-              <td class="text-right ${revenueVariance >= 0 ? "positive" : "negative"}">
-                ${revenueVariancePct.toFixed(1)}%
-              </td>
-            </tr>
-            <tr>
-              <td><strong>${translate("expenses")}</strong></td>
-              <td class="text-right amount">${this.formatCurrency(plannedExpense)}</td>
-              <td class="text-right amount expense">${this.formatCurrency(actualExpense)}</td>
-              <td class="text-right amount ${expenseVariance <= 0 ? "positive" : "negative"}">
-                ${this.formatCurrency(Math.abs(expenseVariance))} ${expenseVariance > 0 ? translate("over_budget") : translate("under_budget")}
-              </td>
-              <td class="text-right ${expenseVariance <= 0 ? "positive" : "negative"}">
-                ${Math.abs(expenseVariancePct).toFixed(1)}%
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-scroll">
+          <table class="data-table comparison-table">
+            <caption class="visually-hidden">${translate("budget_vs_actual")}</caption>
+            <thead>
+              <tr>
+                <th scope="col">${translate("category")}</th>
+                <th scope="col" class="text-right">${translate("planned_budget")}</th>
+                <th scope="col" class="text-right">${translate("actual_amount")}</th>
+                <th scope="col" class="text-right">${translate("variance")}</th>
+                <th scope="col" class="text-right">${translate("variance_percentage")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${comparisonRow({
+                label: translate("revenue"),
+                planned: plannedRevenue,
+                actual: actualRevenue,
+                higherIsBetter: true,
+                actualClass: "revenue",
+              })}
+              ${comparisonRow({
+                label: translate("expenses"),
+                planned: plannedExpense,
+                actual: actualExpense,
+                higherIsBetter: false,
+                actualClass: "expense",
+              })}
+              ${comparisonRow({
+                label: translate("net_position"),
+                planned: plannedNet,
+                actual: actualNet,
+                higherIsBetter: true,
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     `;
   }
@@ -774,57 +863,63 @@ export class Budgets {
 
         <div class="statement-section">
           <h3 class="statement-section-title">${translate("revenue_by_source")}</h3>
-          <table class="data-table statement-table">
-            <tbody>
-              ${revenueCategories
-                .map(
-                  (cat) => `
-                <tr>
-                  <td>${escapeHTML(cat.category_name || translate("uncategorized"))}</td>
-                  <td class="text-right amount revenue">${this.formatCurrency(cat.total_revenue)}</td>
+          <div class="table-scroll">
+            <table class="data-table statement-table">
+              <tbody>
+                ${revenueCategories
+                  .map(
+                    (cat) => `
+                  <tr>
+                    <td>${escapeHTML(cat.category_name || translate("uncategorized"))}</td>
+                    <td class="text-right amount revenue">${this.formatCurrency(cat.total_revenue)}</td>
+                  </tr>
+                `,
+                  )
+                  .join("")}
+                <tr class="statement-total">
+                  <td><strong>${translate("gross_revenue")}</strong></td>
+                  <td class="text-right amount revenue"><strong>${this.formatCurrency(totalRevenue)}</strong></td>
                 </tr>
-              `,
-                )
-                .join("")}
-              <tr class="statement-total">
-                <td><strong>${translate("gross_revenue")}</strong></td>
-                <td class="text-right amount revenue"><strong>${this.formatCurrency(totalRevenue)}</strong></td>
-              </tr>
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div class="statement-section">
           <h3 class="statement-section-title">${translate("expense_by_category")}</h3>
-          <table class="data-table statement-table">
-            <tbody>
-              ${expenseCategories
-                .map(
-                  (cat) => `
-                <tr>
-                  <td>${escapeHTML(cat.category_name || translate("uncategorized"))}</td>
-                  <td class="text-right amount expense">${this.formatCurrency(cat.total_expense)}</td>
+          <div class="table-scroll">
+            <table class="data-table statement-table">
+              <tbody>
+                ${expenseCategories
+                  .map(
+                    (cat) => `
+                  <tr>
+                    <td>${escapeHTML(cat.category_name || translate("uncategorized"))}</td>
+                    <td class="text-right amount expense">${this.formatCurrency(cat.total_expense)}</td>
+                  </tr>
+                `,
+                  )
+                  .join("")}
+                <tr class="statement-total">
+                  <td><strong>${translate("gross_expenses")}</strong></td>
+                  <td class="text-right amount expense"><strong>${this.formatCurrency(totalExpense)}</strong></td>
                 </tr>
-              `,
-                )
-                .join("")}
-              <tr class="statement-total">
-                <td><strong>${translate("gross_expenses")}</strong></td>
-                <td class="text-right amount expense"><strong>${this.formatCurrency(totalExpense)}</strong></td>
-              </tr>
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div class="statement-section net-section">
-          <table class="data-table statement-table">
-            <tbody>
-              <tr class="statement-net ${netAmount >= 0 ? "positive" : "negative"}">
-                <td><strong>${netAmount >= 0 ? translate("net_income") : translate("net_loss")}</strong></td>
-                <td class="text-right amount"><strong>${this.formatCurrency(Math.abs(netAmount))}</strong></td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="table-scroll">
+            <table class="data-table statement-table">
+              <tbody>
+                <tr class="statement-net ${netAmount >= 0 ? "positive" : "negative"}">
+                  <td><strong>${netAmount >= 0 ? translate("net_income") : translate("net_loss")}</strong></td>
+                  <td class="text-right amount"><strong>${this.formatCurrency(Math.abs(netAmount))}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     `;
@@ -966,43 +1061,45 @@ export class Budgets {
             (source) => `
           <div class="breakdown-section">
             <h3>${sourceLabels[source] || source}</h3>
-            <table class="data-table breakdown-table">
-              <thead>
-                <tr>
-                  <th>${translate("category")}</th>
-                  <th class="text-right">${translate("transaction_count")}</th>
-                  <th class="text-right">${translate("amount")}</th>
-                  <th class="text-right">${translate("percentage_of_total")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${bySource[source].items
-                  .map((item) => {
-                    const percentage =
-                      this.revenueBreakdownSummary &&
-                      this.revenueBreakdownSummary.total_revenue > 0
-                        ? (item.total_amount /
-                            this.revenueBreakdownSummary.total_revenue) *
-                          100
-                        : 0;
-                    return `
-                    <tr>
-                      <td>${escapeHTML(item.category_name || translate("uncategorized"))}</td>
-                      <td class="text-right">${item.transaction_count}</td>
-                      <td class="text-right amount revenue">${this.formatCurrency(item.total_amount)}</td>
-                      <td class="text-right">${percentage.toFixed(1)}%</td>
-                    </tr>
-                  `;
-                  })
-                  .join("")}
-                <tr class="breakdown-total">
-                  <td><strong>${translate("total")}</strong></td>
-                  <td class="text-right"><strong>${bySource[source].count}</strong></td>
-                  <td class="text-right amount revenue"><strong>${this.formatCurrency(bySource[source].total)}</strong></td>
-                  <td class="text-right"><strong>${this.revenueBreakdownSummary && this.revenueBreakdownSummary.total_revenue > 0 ? ((bySource[source].total / this.revenueBreakdownSummary.total_revenue) * 100).toFixed(1) : 0}%</strong></td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="table-scroll">
+              <table class="data-table breakdown-table">
+                <thead>
+                  <tr>
+                    <th>${translate("category")}</th>
+                    <th class="text-right">${translate("transaction_count")}</th>
+                    <th class="text-right">${translate("amount")}</th>
+                    <th class="text-right">${translate("percentage_of_total")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${bySource[source].items
+                    .map((item) => {
+                      const percentage =
+                        this.revenueBreakdownSummary &&
+                        this.revenueBreakdownSummary.total_revenue > 0
+                          ? (item.total_amount /
+                              this.revenueBreakdownSummary.total_revenue) *
+                            100
+                          : 0;
+                      return `
+                      <tr>
+                        <td>${escapeHTML(item.category_name || translate("uncategorized"))}</td>
+                        <td class="text-right">${item.transaction_count}</td>
+                        <td class="text-right amount revenue">${this.formatCurrency(item.total_amount)}</td>
+                        <td class="text-right">${percentage.toFixed(1)}%</td>
+                      </tr>
+                    `;
+                    })
+                    .join("")}
+                  <tr class="breakdown-total">
+                    <td><strong>${translate("total")}</strong></td>
+                    <td class="text-right"><strong>${bySource[source].count}</strong></td>
+                    <td class="text-right amount revenue"><strong>${this.formatCurrency(bySource[source].total)}</strong></td>
+                    <td class="text-right"><strong>${this.revenueBreakdownSummary && this.revenueBreakdownSummary.total_revenue > 0 ? ((bySource[source].total / this.revenueBreakdownSummary.total_revenue) * 100).toFixed(1) : 0}%</strong></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         `,
           )
