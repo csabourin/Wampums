@@ -991,16 +991,23 @@ module.exports = (pool) => {
   router.get('/ages', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
+    // AGE() returns a full interval, so DATE_PART('year', ...) is the number of
+    // completed years: someone born 2010-12-31 is 15 on 2026-01-01, not 16.
+    // Participants without a birth date keep a NULL age and sort last rather
+    // than being dropped from the report.
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
-              DATE_PART('year', AGE(CURRENT_DATE, p.date_naissance)) as age,
+              CASE
+                WHEN p.date_naissance IS NULL THEN NULL
+                ELSE DATE_PART('year', AGE(CURRENT_DATE, p.date_naissance))::int
+              END as age,
               g.name as group_name
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
        LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
        LEFT JOIN groups g ON pg.group_id = g.id
        WHERE po.organization_id = $1
-       ORDER BY age DESC, p.first_name, p.last_name`,
+       ORDER BY age DESC NULLS LAST, p.last_name, p.first_name`,
       [organizationId]
     );
 
