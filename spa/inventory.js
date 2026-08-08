@@ -14,6 +14,10 @@ import {
 } from "./api/api-endpoints.js";
 import { deleteCachedData } from "./indexedDB.js";
 import { canViewInventory } from "./utils/PermissionUtils.js";
+import { lockBodyScroll, unlockBodyScroll } from "./utils/ScrollLockUtils.js";
+
+/** Owner key for the inventory overlays' body scroll lock. */
+const INVENTORY_SCROLL_LOCK = "inventory:overlay";
 
 // Maximum photo file size (original, before client-side optimization)
 const MAX_PHOTO_SIZE = CONFIG.PHOTO_UPLOAD.MAX_ORIGINAL_SIZE_BYTES;
@@ -1840,7 +1844,7 @@ export class Inventory {
    */
   destroy() {
     document.removeEventListener("keydown", this.handleImagePreviewKeydown);
-    document.body.style.overflow = "";
+    unlockBodyScroll(INVENTORY_SCROLL_LOCK);
     this.lastFocusedElement = null;
   }
 
@@ -1874,7 +1878,11 @@ export class Inventory {
 
   updateBodyScrollLock() {
     const activeOverlays = document.querySelectorAll(".modal-overlay:not(.hidden)");
-    document.body.style.overflow = activeOverlays.length > 0 ? "hidden" : "";
+    if (activeOverlays.length > 0) {
+      lockBodyScroll(INVENTORY_SCROLL_LOCK);
+    } else {
+      unlockBodyScroll(INVENTORY_SCROLL_LOCK);
+    }
   }
 
   clearPhotoPreview() {
