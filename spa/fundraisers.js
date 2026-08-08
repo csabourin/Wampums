@@ -386,6 +386,13 @@ export class Fundraisers {
 			this.syncCampaignTypeFields();
 		});
 
+		// A validation message must not outlive the problem it describes: without
+		// this, correcting a field left "this field is required" sitting under a
+		// filled input, and aria-invalid stuck at true for screen readers.
+		const clearOnEdit = (event) => this.clearFieldError(event.target);
+		form.addEventListener('input', clearOnEdit);
+		form.addEventListener('change', clearOnEdit);
+
 		form.addEventListener('submit', async (e) => {
 			e.preventDefault();
 			await this.saveFundraiser();
@@ -493,6 +500,39 @@ export class Fundraisers {
 		form.querySelectorAll('[aria-invalid="true"]').forEach((node) => {
 			node.removeAttribute('aria-invalid');
 		});
+	}
+
+	/**
+	 * Clear the validation message for a single control.
+	 *
+	 * Called as the user edits, so a corrected field stops claiming to be
+	 * invalid, and the error summary disappears once nothing is flagged.
+	 *
+	 * @param {EventTarget|null} control - The edited form control
+	 * @returns {void}
+	 */
+	clearFieldError(control) {
+		const form = document.getElementById('fundraiser-form');
+		const fieldName = control instanceof HTMLElement ? control.getAttribute('name') : null;
+		if (!form || !fieldName) {
+			return;
+		}
+
+		const target = form.querySelector(`[data-field-error="${fieldName}"]`);
+		if (target) {
+			target.textContent = '';
+		}
+		control.removeAttribute('aria-invalid');
+
+		const stillInvalid = Array.from(form.querySelectorAll('[data-field-error]'))
+			.some((node) => node.textContent.trim() !== '');
+		if (!stillInvalid) {
+			const summary = document.getElementById('fundraiser-form-error');
+			if (summary) {
+				summary.textContent = '';
+				summary.hidden = true;
+			}
+		}
 	}
 
 	/**
