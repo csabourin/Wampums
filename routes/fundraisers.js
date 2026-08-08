@@ -12,6 +12,120 @@ const express = require('express');
 // Import auth middleware
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { asyncHandler, success, error } = require('../middleware/response');
+const {
+  CAMPAIGN_TYPE_KEYS,
+  DEFAULT_CAMPAIGN_TYPE,
+  entryAmountSql,
+  isValidCampaignType,
+  toNullableNumber,
+} = require('../services/fundraiserCampaigns');
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_NAME_LENGTH = 255;
+
+/**
+ * Normalise a date-like request value to an ISO `YYYY-MM-DD` string.
+ * Accepts the `YYYY-MM-DDTHH:mm:ss...` shape a Date-serialising client sends.
+ *
+ * @param {*} value - Raw request value
+ * @returns {string|null} ISO date string, or null when unusable
+ */
+function toIsoDate(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const [datePart] = value.trim().split('T');
+  if (!ISO_DATE_PATTERN.test(datePart)) {
+    return null;
+  }
+  // Reject calendar-invalid dates such as 2026-02-31.
+  const parsed = new Date(`${datePart}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== datePart) {
+    return null;
+  }
+  return datePart;
+}
+
+/**
+ * Validate and normalise a campaign payload.
+ *
+ * Returns the field-level problems rather than a single opaque message so the
+ * client can tell the user which input is wrong.
+ *
+ * @param {Object} body - Request body
+ * @param {Object} [options] - Validation options
+ * @param {boolean} [options.partial=false] - Treat missing fields as "unchanged"
+ * @returns {{errors: Array<{field: string, message: string}>, values: Object}}
+ */
+function validateCampaignPayload(body, { partial = false } = {}) {
+  const errors = [];
+  const values = {};
+  const provided = (field) => Object.prototype.hasOwnProperty.call(body, field);
+
+  if (provided('name') || !partial) {
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    if (!name) {
+      errors.push({ field: 'name', message: 'Name is required' });
+    } else if (name.length > MAX_NAME_LENGTH) {
+      errors.push({ field: 'name', message: `Name must be at most ${MAX_NAME_LENGTH} characters` });
+    } else {
+      values.name = name;
+    }
+  }
+
+  ['start_date', 'end_date'].forEach((field) => {
+    if (!provided(field) && partial) {
+      return;
+    }
+    const isoDate = toIsoDate(body[field]);
+    if (!isoDate) {
+      errors.push({ field, message: `${field} is required and must be a valid YYYY-MM-DD date` });
+      return;
+    }
+    values[field] = isoDate;
+  });
+
+  if (values.start_date && values.end_date && values.end_date < values.start_date) {
+    errors.push({ field: 'end_date', message: 'end_date must be on or after start_date' });
+  }
+
+  ['objective', 'result', 'unit_price'].forEach((field) => {
+    if (!provided(field)) {
+      return;
+    }
+    if (body[field] === null || body[field] === '') {
+      values[field] = null;
+      return;
+    }
+    const parsed = toNullableNumber(body[field]);
+    if (parsed === null || parsed < 0) {
+      errors.push({ field, message: `${field} must be a number greater than or equal to 0` });
+      return;
+    }
+    values[field] = parsed;
+  });
+
+  if (provided('campaign_type')) {
+    const campaignType = typeof body.campaign_type === 'string' ? body.campaign_type.trim() : '';
+    if (!isValidCampaignType(campaignType)) {
+      errors.push({
+        field: 'campaign_type',
+        message: `campaign_type must be one of: ${CAMPAIGN_TYPE_KEYS.join(', ')}`,
+      });
+    } else {
+      values.campaign_type = campaignType;
+    }
+  } else if (!partial) {
+    values.campaign_type = DEFAULT_CAMPAIGN_TYPE;
+  }
+
+  if (provided('unit_label')) {
+    const unitLabel = typeof body.unit_label === 'string' ? body.unit_label.trim() : '';
+    values.unit_label = unitLabel || null;
+  }
+
+  return { errors, values };
+}
 
 /**
  * Export route factory function
@@ -58,8 +172,13 @@ module.exports = (pool, logger) => {
           f.result,
           f.archived,
           f.created_at,
+          f.campaign_type,
+          f.unit_price,
+          f.unit_label,
           COUNT(DISTINCT c.id) as participant_count,
-          COALESCE(SUM(c.amount), 0) as total_amount,
+          COALESCE(SUM(${entryAmountSql()}), 0) as total_amount,
+          COALESCE(SUM(c.quantity), 0) as total_quantity,
+          COALESCE(SUM(c.hours), 0) as total_hours,
           COALESCE(SUM(c.amount_paid), 0) as total_paid
         FROM fundraisers f
         LEFT JOIN fundraiser_entries c ON c.fundraiser = f.id
@@ -71,7 +190,8 @@ module.exports = (pool, logger) => {
       }
 
       query += `
-        GROUP BY f.id, f.name, f.start_date, f.end_date, f.objective, f.result, f.archived, f.created_at
+        GROUP BY f.id, f.name, f.start_date, f.end_date, f.objective, f.result, f.archived, f.created_at,
+                 f.campaign_type, f.unit_price, f.unit_label
         ORDER BY f.start_date DESC, f.created_at DESC
       `;
 
@@ -108,7 +228,9 @@ module.exports = (pool, logger) => {
       const result = await pool.query(
         `SELECT f.*,
                 COUNT(DISTINCT c.id) as participant_count,
-                COALESCE(SUM(c.amount), 0) as total_amount,
+                COALESCE(SUM(${entryAmountSql()}), 0) as total_amount,
+                COALESCE(SUM(c.quantity), 0) as total_quantity,
+                COALESCE(SUM(c.hours), 0) as total_hours,
                 COALESCE(SUM(c.amount_paid), 0) as total_paid
          FROM fundraisers f
          LEFT JOIN fundraiser_entries c ON c.fundraiser = f.id
@@ -160,10 +282,14 @@ module.exports = (pool, logger) => {
   router.post('/', authenticate, blockDemoRoles, requirePermission('fundraisers.create'), asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
 
-      const { name, start_date, end_date, objective } = req.body;
+      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+        return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+      }
 
-      if (!name || !start_date || !end_date) {
-        return error(res, 'Name, start_date, and end_date are required', 400);
+      const { errors: validationErrors, values } = validateCampaignPayload(req.body);
+
+      if (validationErrors.length > 0) {
+        return error(res, 'Invalid campaign data', 400, validationErrors);
       }
 
       // Start a transaction
@@ -173,10 +299,20 @@ module.exports = (pool, logger) => {
 
         // Create fundraiser
         const fundraiserResult = await client.query(
-          `INSERT INTO fundraisers (name, start_date, end_date, objective, organization, archived)
-           VALUES ($1, $2, $3, $4, $5, false)
+          `INSERT INTO fundraisers
+             (name, start_date, end_date, objective, organization, archived, campaign_type, unit_price, unit_label)
+           VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8)
            RETURNING *`,
-          [name, start_date, end_date, objective || null, organizationId]
+          [
+            values.name,
+            values.start_date,
+            values.end_date,
+            values.objective ?? null,
+            organizationId,
+            values.campaign_type,
+            values.unit_price ?? null,
+            values.unit_label ?? null,
+          ]
         );
 
         const fundraiser = fundraiserResult.rows[0];
@@ -273,7 +409,36 @@ module.exports = (pool, logger) => {
       const organizationId = await getOrganizationId(req, pool);
 
       const { id } = req.params;
-      const { name, start_date, end_date, objective, result } = req.body;
+
+      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+        return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+      }
+
+      const { errors: validationErrors, values } = validateCampaignPayload(req.body, { partial: true });
+
+      if (validationErrors.length > 0) {
+        return error(res, 'Invalid campaign data', 400, validationErrors);
+      }
+
+      // A partial update needs both start and end dates to compare them, so
+      // re-check the ordering against the stored row when only one was sent.
+      if ((values.start_date && !values.end_date) || (values.end_date && !values.start_date)) {
+        const currentResult = await pool.query(
+          'SELECT start_date, end_date FROM fundraisers WHERE id = $1 AND organization = $2',
+          [id, organizationId]
+        );
+        if (currentResult.rows.length > 0) {
+          const current = currentResult.rows[0];
+          const toIso = (value) => (value instanceof Date ? value.toISOString().slice(0, 10) : String(value ?? '').slice(0, 10));
+          const startDate = values.start_date || toIso(current.start_date);
+          const endDate = values.end_date || toIso(current.end_date);
+          if (startDate && endDate && endDate < startDate) {
+            return error(res, 'Invalid campaign data', 400, [
+              { field: 'end_date', message: 'end_date must be on or after start_date' },
+            ]);
+          }
+        }
+      }
 
       const updateResult = await pool.query(
         `UPDATE fundraisers
@@ -281,10 +446,24 @@ module.exports = (pool, logger) => {
              start_date = COALESCE($2, start_date),
              end_date = COALESCE($3, end_date),
              objective = COALESCE($4, objective),
-             result = COALESCE($5, result)
-         WHERE id = $6 AND organization = $7
+             result = COALESCE($5, result),
+             campaign_type = COALESCE($6, campaign_type),
+             unit_price = COALESCE($7, unit_price),
+             unit_label = COALESCE($8, unit_label)
+         WHERE id = $9 AND organization = $10
          RETURNING *`,
-        [name, start_date, end_date, objective, result, id, organizationId]
+        [
+          values.name ?? null,
+          values.start_date ?? null,
+          values.end_date ?? null,
+          values.objective ?? null,
+          values.result ?? null,
+          values.campaign_type ?? null,
+          values.unit_price ?? null,
+          values.unit_label ?? null,
+          id,
+          organizationId,
+        ]
       );
 
       if (updateResult.rows.length === 0) {

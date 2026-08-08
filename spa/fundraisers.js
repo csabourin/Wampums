@@ -8,6 +8,39 @@ import { escapeHTML } from "./utils/SecurityUtils.js";
 import { confirmDestructive } from "./utils/DialogUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import { formatCurrency } from "./utils/NumberUtils.js";
+import {
+	CAMPAIGN_TYPE_KEYS,
+	DEFAULT_CAMPAIGN_TYPE,
+	campaignTypeCapabilities,
+} from "./modules/fundraising/campaignModel.js";
+
+/**
+ * Read a named control out of a form.
+ *
+ * `form.<name>` cannot be used for every field: HTMLFormElement already defines
+ * properties such as `name`, `action` and `method`, and those shadow the named
+ * control lookup. `form.name` therefore returns the form's own name attribute
+ * (a string), which silently produced `undefined` payload values.
+ *
+ * @param {HTMLFormElement} form - Form to read from
+ * @param {string} fieldName - Control name
+ * @returns {HTMLElement|null} The control, or null when absent
+ */
+function formField(form, fieldName) {
+	return form?.elements?.namedItem(fieldName) || null;
+}
+
+/**
+ * Read the trimmed value of a named form control.
+ *
+ * @param {HTMLFormElement} form - Form to read from
+ * @param {string} fieldName - Control name
+ * @returns {string} Control value, or an empty string when absent
+ */
+function formValue(form, fieldName) {
+	const field = formField(form, fieldName);
+	return typeof field?.value === "string" ? field.value.trim() : "";
+}
 
 export class Fundraisers {
         constructor(app) {
@@ -108,34 +141,63 @@ export class Fundraisers {
 		return `
 			<article class="fundraiser-card" role="listitem">
 				<div class="fundraiser-card-header">
-					<h2>${fundraiser.name}</h2>
+					<h2>${escapeHTML(fundraiser.name)}</h2>
 					${statusBadge}
 				</div>
 				<div class="fundraiser-card-body">
 					<div class="fundraiser-info">
+						<p><strong>${translate("campaign_type")}:</strong> ${translate(`campaign_type_${fundraiser.campaign_type || DEFAULT_CAMPAIGN_TYPE}`)}</p>
 						<p><strong>${translate("start_date")}:</strong> ${startDate}</p>
 						<p><strong>${translate("end_date")}:</strong> ${endDate}</p>
 						<p><strong>${translate("participants")}:</strong> ${fundraiser.participant_count}</p>
-						<p><strong>${translate("total_sold")}:</strong> ${fundraiser.total_amount || 0}</p>
+						${this.renderCampaignMeasures(fundraiser, lang)}
+						<p><strong>${translate("total_raised")}:</strong> ${formatCurrency(fundraiser.total_amount, lang)}</p>
 						<p><strong>${translate("total_collected")}:</strong> ${formatCurrency(fundraiser.total_paid, lang)}</p>
 						${fundraiser.objective ? `<p><strong>${translate("objective")}:</strong> ${formatCurrency(fundraiser.objective, lang)}</p>` : ''}
 					</div>
 				</div>
 				<div class="fundraiser-card-footer">
-					<a href="/calendars/${fundraiser.id}" class="btn-link" aria-label="${translate("view_fundraiser_entries_for")} ${fundraiser.name}">
+					<a href="/calendars/${fundraiser.id}" class="btn-link" aria-label="${translate("view_fundraiser_entries_for")} ${escapeHTML(fundraiser.name)}">
 						${translate("view_fundraiser_entries")}
 					</a>
 					${canEdit ? `
-						<button class="btn-secondary edit-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate("edit")} ${fundraiser.name}">
+						<button class="btn-secondary edit-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate("edit")} ${escapeHTML(fundraiser.name)}">
 							${translate("edit")}
 						</button>
-						<button class="btn-danger archive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate("archive")} ${fundraiser.name}">
+						<button class="btn-danger archive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate("archive")} ${escapeHTML(fundraiser.name)}">
 							${translate("archive")}
 						</button>
 					` : ''}
 				</div>
 			</article>
 		`;
+	}
+
+	/**
+	 * Render the per-campaign measures that are actually meaningful for its type
+	 * (units sold, containers collected, hours worked). Campaigns that only
+	 * record a money amount render nothing here.
+	 *
+	 * @param {Object} fundraiser - Campaign row
+	 * @param {string} lang - Active language code
+	 * @returns {string} HTML fragment
+	 */
+	renderCampaignMeasures(fundraiser, lang) {
+		const capabilities = campaignTypeCapabilities(fundraiser.campaign_type || DEFAULT_CAMPAIGN_TYPE);
+		const parts = [];
+
+		if (capabilities.usesQuantity) {
+			const unitLabel = fundraiser.unit_label ? ` (${escapeHTML(fundraiser.unit_label)})` : '';
+			parts.push(`<p><strong>${translate("total_quantity")}${unitLabel}:</strong> ${Number(fundraiser.total_quantity) || 0}</p>`);
+		}
+		if (capabilities.usesHours) {
+			parts.push(`<p><strong>${translate("total_hours")}:</strong> ${Number(fundraiser.total_hours) || 0}</p>`);
+		}
+		if (capabilities.usesUnitPrice && fundraiser.unit_price !== null && fundraiser.unit_price !== undefined) {
+			parts.push(`<p><strong>${translate("campaign_unit_price")}:</strong> ${formatCurrency(fundraiser.unit_price, lang)}</p>`);
+		}
+
+		return parts.join('');
 	}
 
 	renderArchivedSection() {
@@ -164,24 +226,26 @@ export class Fundraisers {
 		return `
 			<article class="fundraiser-card archived" role="listitem">
 				<div class="fundraiser-card-header">
-					<h2>${fundraiser.name}</h2>
+					<h2>${escapeHTML(fundraiser.name)}</h2>
 					<span class="status-badge archived" aria-label="${translate("archived")}">${translate("archived")}</span>
 				</div>
 				<div class="fundraiser-card-body">
 					<div class="fundraiser-info">
+						<p><strong>${translate("campaign_type")}:</strong> ${translate(`campaign_type_${fundraiser.campaign_type || DEFAULT_CAMPAIGN_TYPE}`)}</p>
 						<p><strong>${translate("start_date")}:</strong> ${startDate}</p>
 						<p><strong>${translate("end_date")}:</strong> ${endDate}</p>
 						<p><strong>${translate("participants")}:</strong> ${fundraiser.participant_count}</p>
-						<p><strong>${translate("total_sold")}:</strong> ${fundraiser.total_amount || 0}</p>
+						${this.renderCampaignMeasures(fundraiser, lang)}
+						<p><strong>${translate("total_raised")}:</strong> ${formatCurrency(fundraiser.total_amount, lang)}</p>
 						<p><strong>${translate("total_collected")}:</strong> ${formatCurrency(fundraiser.total_paid, lang)}</p>
 					</div>
 				</div>
 				<div class="fundraiser-card-footer">
-					<a href="/calendars/${fundraiser.id}" class="btn-link" aria-label="${translate("view_fundraiser_entries_for")} ${fundraiser.name}">
+					<a href="/calendars/${fundraiser.id}" class="btn-link" aria-label="${translate("view_fundraiser_entries_for")} ${escapeHTML(fundraiser.name)}">
 						${translate("view_fundraiser_entries")}
 					</a>
 					${canEdit ? `
-						<button class="btn-secondary unarchive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate("unarchive")} ${fundraiser.name}">
+						<button class="btn-secondary unarchive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate("unarchive")} ${escapeHTML(fundraiser.name)}">
 							${translate("unarchive")}
 						</button>
 					` : ''}
@@ -198,22 +262,44 @@ export class Fundraisers {
 						<h2 id="modal-title">${translate("add_fundraiser")}</h2>
 						<button class="modal-close" aria-label="${translate("close")}">&times;</button>
 					</div>
-					<form id="fundraiser-form" class="modal-body">
+					<form id="fundraiser-form" class="modal-body" novalidate>
+						<p id="fundraiser-form-error" class="form-error-summary" role="alert" hidden></p>
 						<div class="form-group">
 							<label for="fundraiser-name">${translate("name")}*</label>
-							<input type="text" id="fundraiser-name" name="name" required aria-required="true">
+							<input type="text" id="fundraiser-name" name="name" required aria-required="true" aria-describedby="fundraiser-name-error">
+							<span class="field-error" id="fundraiser-name-error" data-field-error="name"></span>
+						</div>
+						<div class="form-group">
+							<label for="fundraiser-campaign-type">${translate("campaign_type")}*</label>
+							<select id="fundraiser-campaign-type" name="campaign_type" required aria-required="true" aria-describedby="fundraiser-campaign-type-hint fundraiser-campaign-type-error">
+								${CAMPAIGN_TYPE_KEYS.map((key) => `<option value="${key}">${translate(`campaign_type_${key}`)}</option>`).join("")}
+							</select>
+							<span class="field-hint" id="fundraiser-campaign-type-hint">${translate("campaign_type_hint")}</span>
+							<span class="field-error" id="fundraiser-campaign-type-error" data-field-error="campaign_type"></span>
 						</div>
 						<div class="form-group">
 							<label for="fundraiser-start-date">${translate("start_date")}*</label>
-							<input type="date" id="fundraiser-start-date" name="start_date" required aria-required="true">
+							<input type="date" id="fundraiser-start-date" name="start_date" required aria-required="true" aria-describedby="fundraiser-start-date-error">
+							<span class="field-error" id="fundraiser-start-date-error" data-field-error="start_date"></span>
 						</div>
 						<div class="form-group">
 							<label for="fundraiser-end-date">${translate("end_date")}*</label>
-							<input type="date" id="fundraiser-end-date" name="end_date" required aria-required="true">
+							<input type="date" id="fundraiser-end-date" name="end_date" required aria-required="true" aria-describedby="fundraiser-end-date-error">
+							<span class="field-error" id="fundraiser-end-date-error" data-field-error="end_date"></span>
+						</div>
+						<div class="form-group" data-campaign-field="unit_price" hidden>
+							<label for="fundraiser-unit-price">${translate("campaign_unit_price")}</label>
+							<input type="number" id="fundraiser-unit-price" name="unit_price" min="0" step="0.01" aria-describedby="fundraiser-unit-price-error">
+							<span class="field-error" id="fundraiser-unit-price-error" data-field-error="unit_price"></span>
+						</div>
+						<div class="form-group" data-campaign-field="unit_label" hidden>
+							<label for="fundraiser-unit-label">${translate("campaign_unit_label")}</label>
+							<input type="text" id="fundraiser-unit-label" name="unit_label" maxlength="60" placeholder="${translate("campaign_unit_label_placeholder")}">
 						</div>
 						<div class="form-group">
 							<label for="fundraiser-objective">${translate("objective")} ($)</label>
-							<input type="number" id="fundraiser-objective" name="objective" min="0" step="0.01">
+							<input type="number" id="fundraiser-objective" name="objective" min="0" step="0.01" aria-describedby="fundraiser-objective-error">
+							<span class="field-error" id="fundraiser-objective-error" data-field-error="objective"></span>
 						</div>
 						<div class="modal-footer">
 							<button type="button" class="btn-secondary modal-cancel">${translate("cancel")}</button>
@@ -289,6 +375,17 @@ export class Fundraisers {
 			}
 		});
 
+		modal.addEventListener('keydown', (e) => {
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				this.hideModal();
+			}
+		});
+
+		formField(form, 'campaign_type')?.addEventListener('change', () => {
+			this.syncCampaignTypeFields();
+		});
+
 		form.addEventListener('submit', async (e) => {
 			e.preventDefault();
 			await this.saveFundraiser();
@@ -301,25 +398,143 @@ export class Fundraisers {
 		const form = document.getElementById('fundraiser-form');
 
 		this.editingFundraiser = fundraiser;
+		// Remember the trigger so focus can be handed back when the modal closes.
+		this.modalReturnFocus = document.activeElement;
+		this.clearFormErrors();
 
-                if (fundraiser) {
-                        const formatDate = (dateString) => {
-                                if (!dateString) return '';
-                                return dateString.split('T')[0] || dateString;
-                        };
+		if (fundraiser) {
+			const formatDate = (dateString) => {
+				if (!dateString) {
+					return '';
+				}
+				return dateString.split('T')[0] || dateString;
+			};
 
-                        title.textContent = translate("edit_fundraiser");
-                        form.name.value = fundraiser.name;
-                        form.start_date.value = formatDate(fundraiser.start_date);
-                        form.end_date.value = formatDate(fundraiser.end_date);
-                        form.objective.value = fundraiser.objective || '';
-                } else {
-                        title.textContent = translate("add_fundraiser");
-                        form.reset();
-                }
+			title.textContent = translate("edit_fundraiser");
+			this.setFieldValue(form, 'name', fundraiser.name || '');
+			this.setFieldValue(form, 'campaign_type', fundraiser.campaign_type || DEFAULT_CAMPAIGN_TYPE);
+			this.setFieldValue(form, 'start_date', formatDate(fundraiser.start_date));
+			this.setFieldValue(form, 'end_date', formatDate(fundraiser.end_date));
+			this.setFieldValue(form, 'unit_price', fundraiser.unit_price ?? '');
+			this.setFieldValue(form, 'unit_label', fundraiser.unit_label || '');
+			this.setFieldValue(form, 'objective', fundraiser.objective ?? '');
+		} else {
+			title.textContent = translate("add_fundraiser");
+			form.reset();
+			this.setFieldValue(form, 'campaign_type', DEFAULT_CAMPAIGN_TYPE);
+		}
+
+		this.syncCampaignTypeFields();
 
 		modal.classList.add('show');
 		modal.setAttribute('aria-hidden', 'false');
+		formField(form, 'name')?.focus();
+	}
+
+	/**
+	 * Set the value of a named control without relying on `form.<name>`, which
+	 * collides with HTMLFormElement's own properties (notably `name`).
+	 *
+	 * @param {HTMLFormElement} form - Form containing the control
+	 * @param {string} fieldName - Control name
+	 * @param {string|number} value - Value to assign
+	 * @returns {void}
+	 */
+	setFieldValue(form, fieldName, value) {
+		const field = formField(form, fieldName);
+		if (field) {
+			field.value = value === null || value === undefined ? '' : String(value);
+		}
+	}
+
+	/**
+	 * Show only the inputs the selected campaign type actually uses.
+	 * @returns {void}
+	 */
+	syncCampaignTypeFields() {
+		const form = document.getElementById('fundraiser-form');
+		if (!form) {
+			return;
+		}
+
+		const capabilities = campaignTypeCapabilities(formValue(form, 'campaign_type'));
+		const visibility = {
+			unit_price: capabilities.usesUnitPrice,
+			unit_label: capabilities.usesQuantity,
+		};
+
+		Object.entries(visibility).forEach(([fieldName, visible]) => {
+			const group = form.querySelector(`[data-campaign-field="${fieldName}"]`);
+			if (group) {
+				group.hidden = !visible;
+			}
+		});
+	}
+
+	/**
+	 * Clear the summary and per-field validation messages.
+	 * @returns {void}
+	 */
+	clearFormErrors() {
+		const form = document.getElementById('fundraiser-form');
+		if (!form) {
+			return;
+		}
+
+		const summary = document.getElementById('fundraiser-form-error');
+		if (summary) {
+			summary.textContent = '';
+			summary.hidden = true;
+		}
+
+		form.querySelectorAll('[data-field-error]').forEach((node) => {
+			node.textContent = '';
+		});
+		form.querySelectorAll('[aria-invalid="true"]').forEach((node) => {
+			node.removeAttribute('aria-invalid');
+		});
+	}
+
+	/**
+	 * Display server-side validation problems next to the offending fields.
+	 *
+	 * @param {string} message - Summary message
+	 * @param {Array<{field?: string, message?: string, msg?: string, path?: string}>} [fieldErrors] - Field level errors
+	 * @returns {void}
+	 */
+	showFormErrors(message, fieldErrors = []) {
+		const form = document.getElementById('fundraiser-form');
+		if (!form) {
+			return;
+		}
+
+		this.clearFormErrors();
+
+		const summary = document.getElementById('fundraiser-form-error');
+		if (summary) {
+			summary.textContent = message;
+			summary.hidden = !message;
+		}
+
+		let firstInvalid = null;
+		(Array.isArray(fieldErrors) ? fieldErrors : []).forEach((fieldError) => {
+			const fieldName = fieldError?.field || fieldError?.path;
+			const text = fieldError?.message || fieldError?.msg || '';
+			if (!fieldName) {
+				return;
+			}
+			const target = form.querySelector(`[data-field-error="${fieldName}"]`);
+			if (target) {
+				target.textContent = text;
+			}
+			const control = formField(form, fieldName);
+			if (control) {
+				control.setAttribute('aria-invalid', 'true');
+				firstInvalid = firstInvalid || control;
+			}
+		});
+
+		(firstInvalid || summary)?.focus?.();
 	}
 
 	hideModal() {
@@ -327,43 +542,111 @@ export class Fundraisers {
 		modal.classList.remove('show');
 		modal.setAttribute('aria-hidden', 'true');
 		this.editingFundraiser = null;
+		this.clearFormErrors();
+
+		// Return focus to whatever opened the modal so keyboard users are not
+		// dropped back at the top of the document.
+		if (this.modalReturnFocus?.isConnected) {
+			this.modalReturnFocus.focus();
+		}
+		this.modalReturnFocus = null;
 	}
 
+	/**
+	 * Build the campaign payload from the form and persist it.
+	 *
+	 * Only the fields the selected campaign type uses are sent, and a failed
+	 * request is reported as a failure rather than being swallowed.
+	 *
+	 * @returns {Promise<void>}
+	 */
 	async saveFundraiser() {
 		const form = document.getElementById('fundraiser-form');
+		const campaignType = formValue(form, 'campaign_type') || DEFAULT_CAMPAIGN_TYPE;
+		const capabilities = campaignTypeCapabilities(campaignType);
+		const objective = formValue(form, 'objective');
+		const unitPrice = formValue(form, 'unit_price');
+
 		const data = {
-			name: form.name.value,
-			start_date: form.start_date.value,
-			end_date: form.end_date.value,
-			objective: form.objective.value ? parseFloat(form.objective.value) : null
+			name: formValue(form, 'name'),
+			campaign_type: campaignType,
+			start_date: formValue(form, 'start_date'),
+			end_date: formValue(form, 'end_date'),
+			objective: objective === '' ? null : Number(objective),
+			unit_price: capabilities.usesUnitPrice && unitPrice !== '' ? Number(unitPrice) : null,
+			unit_label: capabilities.usesQuantity ? formValue(form, 'unit_label') : null,
 		};
 
+		const clientErrors = this.validateCampaignForm(data);
+		if (clientErrors.length > 0) {
+			this.showFormErrors(translate('error_saving_fundraiser'), clientErrors);
+			return;
+		}
+
 		try {
-			let response;
-			if (this.editingFundraiser) {
-				response = await updateFundraiser(this.editingFundraiser.id, data);
-			} else {
-				response = await createFundraiser(data);
+			const response = this.editingFundraiser
+				? await updateFundraiser(this.editingFundraiser.id, data)
+				: await createFundraiser(data);
+
+			if (!response?.success) {
+				this.showFormErrors(
+					response?.message || translate('error_saving_fundraiser'),
+					response?.errors,
+				);
+				this.app.showMessage('error_saving_fundraiser', 'error');
+				return;
 			}
 
-			if (response.success) {
-				this.app.showMessage(
-					this.editingFundraiser ? 'fundraiser_updated' : 'fundraiser_created',
-					'success'
-				);
-				this.hideModal();
-				// Invalidate cache before refetching
-				await clearFundraiserRelatedCaches();
-				await this.fetchFundraisers();
-				this.render();
-				this.initEventListeners();
-			} else {
-				this.app.showMessage('error_saving_fundraiser', 'error');
-			}
+			this.app.showMessage(
+				this.editingFundraiser ? 'fundraiser_updated' : 'fundraiser_created',
+				'success'
+			);
+			this.hideModal();
+			// Invalidate cache before refetching
+			await clearFundraiserRelatedCaches();
+			await this.fetchFundraisers();
+			this.render();
+			this.initEventListeners();
 		} catch (error) {
 			debugError('Error saving fundraiser:', error);
+			this.showFormErrors(
+				error?.data?.message || error?.message || translate('error_saving_fundraiser'),
+				error?.data?.errors || error?.errors,
+			);
 			this.app.showMessage('error_saving_fundraiser', 'error');
 		}
+	}
+
+	/**
+	 * Validate the campaign payload before it reaches the API so obvious
+	 * problems are reported inline instead of as a bare HTTP 400.
+	 *
+	 * @param {Object} data - Campaign payload
+	 * @returns {Array<{field: string, message: string}>} Field level errors
+	 */
+	validateCampaignForm(data) {
+		const errors = [];
+
+		if (!data.name) {
+			errors.push({ field: 'name', message: translate('field_required') });
+		}
+		if (!data.start_date) {
+			errors.push({ field: 'start_date', message: translate('field_required') });
+		}
+		if (!data.end_date) {
+			errors.push({ field: 'end_date', message: translate('field_required') });
+		}
+		if (data.start_date && data.end_date && data.end_date < data.start_date) {
+			errors.push({ field: 'end_date', message: translate('end_date_before_start_date') });
+		}
+		if (data.objective !== null && !(Number.isFinite(data.objective) && data.objective >= 0)) {
+			errors.push({ field: 'objective', message: translate('must_be_positive_number') });
+		}
+		if (data.unit_price !== null && !(Number.isFinite(data.unit_price) && data.unit_price >= 0)) {
+			errors.push({ field: 'unit_price', message: translate('must_be_positive_number') });
+		}
+
+		return errors;
 	}
 
 	async archiveFundraiser(fundraiserId) {
