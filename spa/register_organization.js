@@ -23,8 +23,8 @@ export class RegisterOrganization {
 		const content = `
 			<h1>${translate("register_for_organization")}</h1>
 			<form id="register-organization-form">
-				<label for="role">${translate("select_role")}:</label>
-				<select id="role" name="role" required>
+				<label for="registration-role">${translate("select_role")}:</label>
+				<select id="registration-role" name="selected_role" required>
 					<option value="parent">${translate("parent")}</option>
 					<option value="leader">${translate("leader")}</option>
 					<option value="finance">${translate("finance")}</option>
@@ -61,7 +61,10 @@ export class RegisterOrganization {
 		e.preventDefault();
 		const formData = new FormData(e.target);
 		const registrationData = {
-			role: formData.get("role"),
+			// The control is id/name "registration-role"/"selected_role": DOMPurify
+			// strips both `id="role"` and `name="role"` because HTMLElement has a
+			// `role` property, which left this field unreadable and its label orphaned.
+			role: formData.get("selected_role"),
 			registration_password: formData.get("registration_password"),
 			link_children: formData.getAll("link_children")
 		};

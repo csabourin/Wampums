@@ -237,7 +237,7 @@ export class UnitSettings extends BaseModule {
           <div class="unit-settings-form__grid">
             <div class="form-group">
               <label for="unit-organization-name">${translate("organization_name")}</label>
-              <input type="text" id="unit-organization-name" name="name" class="form-control"
+              <input type="text" id="unit-organization-name" name="organization_name" class="form-control"
                 value="${escapeHTML(info.name || "")}" maxlength="${SHORT_TEXT_MAX_LENGTH}" required ${disabled}>
             </div>
 

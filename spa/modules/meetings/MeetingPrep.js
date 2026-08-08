@@ -1025,7 +1025,7 @@ export class MeetingPrep extends BaseModule {
         <form id="ai-focus-form">
           <div class="form-group">
             <label for="meeting-focus">${translate('meeting_focus_label')}</label>
-            <textarea id="meeting-focus" name="focus" rows="4" placeholder="${translate('meeting_focus_placeholder')}" required></textarea>
+            <textarea id="meeting-focus" name="meeting_focus" rows="4" placeholder="${translate('meeting_focus_placeholder')}" required></textarea>
             <small>${translate('meeting_focus_hint')}</small>
           </div>
           <div class="modal-actions">
