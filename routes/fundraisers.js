@@ -307,7 +307,7 @@ module.exports = (pool, logger) => {
         // downgrading it.
         logger?.warn?.(
           `Campaign type "${values.campaign_type}" stored as "${DEFAULT_CAMPAIGN_TYPE}": ` +
-          'migration 004_fundraiser_campaign_model.sql has not been applied to this database.'
+          'migration 001_initial.sql has not been applied to this database.'
         );
       }
 

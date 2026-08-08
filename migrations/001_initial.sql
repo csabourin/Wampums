@@ -1,4 +1,4 @@
--- 004_fundraiser_campaign_model.sql
+-- 001_initial.sql
 --
 -- Generalises fundraising campaigns beyond "unit count x fixed price".
 --
