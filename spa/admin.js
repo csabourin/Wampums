@@ -178,10 +178,10 @@ ${showNotifications ? `
 <h2>${this.app.translate("send_notification")}</h2>
 <form id="notification-form">
         <label for="notification-title">${this.app.translate("title")}</label>
-        <input type="text" id="notification-title" name="title" required><br><br>
+        <input type="text" id="notification-title" name="notification_title" required><br><br>
 
         <label for="notification-body">${this.app.translate("body")}</label>
-        <textarea id="notification-body" name="body" rows="4" cols="50" required></textarea><br><br>
+        <textarea id="notification-body" name="notification_body" rows="4" cols="50" required></textarea><br><br>
 
         <h3>${this.app.translate("select_recipients")}</h3>
         <div id="subscribers-list">
@@ -453,7 +453,7 @@ ${showNotifications ? `
                         const label = escapeHTML(role.display_name || translate(role.role_name) || role.role_name);
                         return `
                                 <label class="role-modal-checkbox">
-                                        <input type="checkbox" name="role" value="${role.id}" ${checked}>
+                                        <input type="checkbox" name="role_id" value="${role.id}" ${checked}>
                                         <span>${label}</span>
                                 </label>`;
                 }).join("");
@@ -492,8 +492,10 @@ ${showNotifications ? `
                 });
 
                 document.getElementById("role-modal-save")?.addEventListener("click", async () => {
+                        // Checkboxes are named role_id: DOMPurify strips name/id values that collide with a form or document property,
+                        // and HTMLElement has a `role` property.
                         const selected = Array.from(
-                                modal.querySelectorAll('input[name="role"]:checked'),
+                                modal.querySelectorAll('input[name="role_id"]:checked'),
                         ).map((cb) => parseInt(cb.value, 10));
 
                         if (selected.length === 0) {

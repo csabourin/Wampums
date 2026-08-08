@@ -102,7 +102,7 @@ export class ResourceDashboard {
             <div class="grid grid-2">
               <label class="stacked">
                 <span>${escapeHTML(translate("equipment_name"))}</span>
-                <input type="text" name="name" maxlength="150" required />
+                <input type="text" name="equipment_name" maxlength="150" required />
               </label>
               <label class="stacked">
                 <span>${escapeHTML(translate("equipment_category"))}</span>
@@ -251,6 +251,11 @@ export class ResourceDashboard {
         event.preventDefault();
         const formData = new FormData(equipmentForm);
         const payload = Object.fromEntries(formData.entries());
+        // Field is named equipment_name: DOMPurify strips name="name" inside a
+        // form to prevent DOM clobbering of HTMLFormElement.name. Same
+        // convention as inventory.js.
+        payload.name = payload.equipment_name?.trim() || '';
+        delete payload.equipment_name;
         payload.quantity_total = payload.quantity_total
           ? parseInt(payload.quantity_total, 10)
           : 1;

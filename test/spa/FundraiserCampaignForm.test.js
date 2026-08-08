@@ -34,9 +34,24 @@ jest.mock('../../spa/utils/NumberUtils.js', () => ({
   formatCurrency: (value) => `$${Number(value || 0).toFixed(2)}`,
 }));
 
-jest.mock('../../spa/utils/DOMUtils.js', () => ({
-  setContent: (element, html) => { element.innerHTML = html; },
-}));
+// setContent must sanitise exactly as production does. Mocking it to a raw
+// innerHTML assignment is what let a real bug through: DOMPurify runs with
+// SANITIZE_DOM enabled and strips a `name` attribute that collides with a
+// property of the enclosing form, so `name="name"` reached the browser with no
+// name at all and the field always read as empty.
+jest.mock('../../spa/utils/DOMUtils.js', () => {
+  const createDOMPurify = require('dompurify');
+  return {
+    setContent: (element, html) => {
+      const purify = createDOMPurify(globalThis);
+      element.innerHTML = purify.sanitize(html, {
+        ALLOW_DATA_ATTR: true,
+        USE_PROFILES: { html: true, svg: true, svgFilters: false },
+        SAFE_FOR_TEMPLATES: false,
+      });
+    },
+  };
+});
 
 jest.mock('../../spa/utils/DialogUtils.js', () => ({ confirmDestructive: jest.fn() }));
 jest.mock('../../spa/indexedDB.js', () => ({ clearFundraiserRelatedCaches: jest.fn() }));
@@ -74,16 +89,28 @@ function setup(campaign = null) {
   return { module, app };
 }
 
+/** Payload field -> form control name, mirroring the module. */
+const CONTROL_NAME_BY_FIELD = { name: 'campaign_name' };
+
 /**
- * Fill the campaign form.
- * @param {Object} values - Field name to value
+ * Fill the campaign form, addressing controls by their payload field name.
+ *
+ * Throws when a control cannot be found rather than skipping it: a silently
+ * missing control is exactly the failure this suite exists to catch, since
+ * DOMPurify can strip a `name` attribute and leave the field unreachable.
+ *
+ * @param {Object} values - Payload field name to value
  * @returns {void}
  */
 function fill(values) {
   const form = document.getElementById('fundraiser-form');
-  Object.entries(values).forEach(([name, value]) => {
-    const field = form.elements.namedItem(name);
-    if (field) { field.value = value; }
+  Object.entries(values).forEach(([field, value]) => {
+    const controlName = CONTROL_NAME_BY_FIELD[field] || field;
+    const control = form.elements.namedItem(controlName);
+    if (!control) {
+      throw new Error(`No form control named "${controlName}" — was its name attribute stripped?`);
+    }
+    control.value = value;
   });
 }
 
@@ -126,12 +153,12 @@ describe('campaign payload', () => {
   test('a form field named "name" is not shadowed by HTMLFormElement.name', () => {
     setup();
     const form = document.getElementById('fundraiser-form');
-    form.elements.namedItem('name').value = 'Vente de pains';
+    form.elements.namedItem('campaign_name').value = 'Vente de pains';
 
     // Documents the trap this bug came from.
     expect(typeof form.name).toBe('string');
     expect(form.name).not.toBe('Vente de pains');
-    expect(form.elements.namedItem('name').value).toBe('Vente de pains');
+    expect(form.elements.namedItem('campaign_name').value).toBe('Vente de pains');
   });
 
   test('populates every field when editing an existing campaign', () => {
@@ -147,7 +174,7 @@ describe('campaign payload', () => {
     });
 
     const form = document.getElementById('fundraiser-form');
-    expect(form.elements.namedItem('name').value).toBe('Collecte de canettes');
+    expect(form.elements.namedItem('campaign_name').value).toBe('Collecte de canettes');
     expect(form.elements.namedItem('campaign_type').value).toBe('container_deposit');
     expect(form.elements.namedItem('start_date').value).toBe('2026-03-01');
     expect(form.elements.namedItem('unit_price').value).toBe('0.1');
@@ -195,7 +222,7 @@ describe('validation feedback', () => {
     await module.saveFundraiser();
 
     expect(mockCreateFundraiser).not.toHaveBeenCalled();
-    expect(document.querySelector('[data-field-error="name"]').textContent).toBe('field_required');
+    expect(document.querySelector('[data-field-error="campaign_name"]').textContent).toBe('field_required');
     expect(document.querySelector('[data-field-error="end_date"]').textContent)
       .toBe('end_date_before_start_date');
   });
@@ -204,12 +231,12 @@ describe('validation feedback', () => {
     const { module } = setup();
     fill({ name: '', campaign_type: 'direct_amount', start_date: '2026-09-01', end_date: '2026-09-30' });
     await module.saveFundraiser();
-    expect(document.querySelector('[data-field-error="name"]').textContent).not.toBe('');
+    expect(document.querySelector('[data-field-error="campaign_name"]').textContent).not.toBe('');
 
     module.hideModal();
     module.showModal();
 
-    expect(document.querySelector('[data-field-error="name"]').textContent).toBe('');
+    expect(document.querySelector('[data-field-error="campaign_name"]').textContent).toBe('');
     expect(document.getElementById('fundraiser-form-error').hidden).toBe(true);
   });
 });
@@ -265,7 +292,7 @@ describe('accessibility of the campaign modal', () => {
     setup();
     const form = document.getElementById('fundraiser-form');
 
-    ['name', 'campaign_type', 'start_date', 'end_date', 'unit_price', 'objective'].forEach((fieldName) => {
+    ['campaign_name', 'campaign_type', 'start_date', 'end_date', 'unit_price', 'objective'].forEach((fieldName) => {
       const control = form.elements.namedItem(fieldName);
       expect(document.querySelector(`label[for="${control.id}"]`)).not.toBeNull();
       expect(control.getAttribute('aria-describedby')).toBeTruthy();
@@ -336,13 +363,13 @@ describe('validation messages do not outlive the problem', () => {
     const { module } = setup();
     fill({ name: '', campaign_type: 'container_deposit', start_date: '2026-08-09', end_date: '2026-08-10' });
     await module.saveFundraiser();
-    expect(document.querySelector('[data-field-error="name"]').textContent).toBe('field_required');
+    expect(document.querySelector('[data-field-error="campaign_name"]').textContent).toBe('field_required');
 
     const input = document.getElementById('fundraiser-name');
     input.value = 'Test';
     input.dispatchEvent(new Event('input', { bubbles: true }));
 
-    expect(document.querySelector('[data-field-error="name"]').textContent).toBe('');
+    expect(document.querySelector('[data-field-error="campaign_name"]').textContent).toBe('');
     expect(input.hasAttribute('aria-invalid')).toBe(false);
   });
 
@@ -393,7 +420,7 @@ describe('validation messages do not outlive the problem', () => {
     name.value = 'Test';
     name.dispatchEvent(new Event('input', { bubbles: true }));
 
-    expect(document.querySelector('[data-field-error="name"]').textContent).toBe('');
+    expect(document.querySelector('[data-field-error="campaign_name"]').textContent).toBe('');
     // start_date is still empty, so its message must remain.
     expect(document.querySelector('[data-field-error="start_date"]').textContent)
       .toBe('field_required');
