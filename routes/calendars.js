@@ -16,7 +16,13 @@ const {
   getOrganizationId,
 } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { entryAmountSql, toNullableNumber } = require('../services/fundraiserCampaigns');
+const {
+  campaignModelColumnsSql,
+  entryAmountSql,
+  entryMeasureColumnsSql,
+  hasCampaignModelColumns,
+  toNullableNumber,
+} = require('../services/fundraiserCampaigns');
 
 /**
  * Export route factory function
@@ -63,8 +69,10 @@ module.exports = (pool, logger) => {
         return error(res, 'fundraiser_id is required', 400);
       }
 
+      const extended = await hasCampaignModelColumns(pool);
+
       const fundraiserCheck = await pool.query(
-        `SELECT id, campaign_type, unit_price, unit_label
+        `SELECT id, ${campaignModelColumnsSql('fundraisers', extended)}
          FROM fundraisers WHERE id = $1 AND organization = $2`,
         [fundraiserId, organizationId]
       );
@@ -75,8 +83,8 @@ module.exports = (pool, logger) => {
 
       const result = await pool.query(
         `SELECT c.id, c.participant_id, c.amount as calendar_amount, c.amount_paid, c.paid, c.updated_at, c.fundraiser,
-                c.quantity, c.hours, c.amount_raised,
-                ${entryAmountSql()} as entry_amount,
+                ${entryMeasureColumnsSql('c', extended)},
+                ${entryAmountSql('c', 'f', extended)} as entry_amount,
                 p.first_name, p.last_name, g.name as group_name, pg.group_id
          FROM fundraiser_entries c
          JOIN fundraisers f ON c.fundraiser = f.id
@@ -154,6 +162,8 @@ module.exports = (pool, logger) => {
         return error(res, 'Invalid fundraiser entry data', 400, measureErrors);
       }
 
+      const extended = await hasCampaignModelColumns(pool);
+
       const verifyResult = await pool.query(
         `SELECT c.* FROM fundraiser_entries c
          JOIN fundraisers f ON c.fundraiser = f.id
@@ -176,28 +186,43 @@ module.exports = (pool, logger) => {
       // Each measure is guarded by its own "was it sent?" flag rather than
       // COALESCE, so clearing a field (sending null for an emptied input)
       // actually clears it instead of silently keeping the previous value.
-      const result = await pool.query(
-        `UPDATE fundraiser_entries
-         SET amount = CASE WHEN $1::boolean THEN $2::integer ELSE amount END,
-             amount_paid = CASE WHEN $3::boolean THEN $4::double precision ELSE amount_paid END,
-             paid = CASE WHEN $5::boolean THEN $6::boolean ELSE paid END,
-             quantity = CASE WHEN $7::boolean THEN $8::numeric ELSE quantity END,
-             hours = CASE WHEN $9::boolean THEN $10::numeric ELSE hours END,
-             amount_raised = CASE WHEN $11::boolean THEN $12::numeric ELSE amount_raised END,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $13
-         RETURNING *`,
-        [
-          // `amount` is NOT NULL, so it is only written when a value is known.
-          quantityProvided && legacyAmount !== null, legacyAmount,
-          amount_paid !== undefined, toNullableNumber(amount_paid),
-          paid !== undefined, paid === undefined ? null : Boolean(paid),
-          quantityProvided, nextQuantity,
-          hours !== undefined, toNullableNumber(hours),
-          amount_raised !== undefined, toNullableNumber(amount_raised),
-          id,
-        ]
-      );
+      // `amount` is NOT NULL, so it is only written when a value is known.
+      const legacyParams = [
+        quantityProvided && legacyAmount !== null, legacyAmount,
+        amount_paid !== undefined, toNullableNumber(amount_paid),
+        paid !== undefined, paid === undefined ? null : Boolean(paid),
+      ];
+
+      const result = extended
+        ? await pool.query(
+          `UPDATE fundraiser_entries
+           SET amount = CASE WHEN $1::boolean THEN $2::integer ELSE amount END,
+               amount_paid = CASE WHEN $3::boolean THEN $4::double precision ELSE amount_paid END,
+               paid = CASE WHEN $5::boolean THEN $6::boolean ELSE paid END,
+               quantity = CASE WHEN $7::boolean THEN $8::numeric ELSE quantity END,
+               hours = CASE WHEN $9::boolean THEN $10::numeric ELSE hours END,
+               amount_raised = CASE WHEN $11::boolean THEN $12::numeric ELSE amount_raised END,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $13
+           RETURNING *`,
+          [
+            ...legacyParams,
+            quantityProvided, nextQuantity,
+            hours !== undefined, toNullableNumber(hours),
+            amount_raised !== undefined, toNullableNumber(amount_raised),
+            id,
+          ]
+        )
+        : await pool.query(
+          `UPDATE fundraiser_entries
+           SET amount = CASE WHEN $1::boolean THEN $2::integer ELSE amount END,
+               amount_paid = CASE WHEN $3::boolean THEN $4::double precision ELSE amount_paid END,
+               paid = CASE WHEN $5::boolean THEN $6::boolean ELSE paid END,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $7
+           RETURNING *`,
+          [...legacyParams, id]
+        );
 
       return success(res, result.rows[0], 'Fundraiser entry updated');
     })
@@ -248,8 +273,10 @@ module.exports = (pool, logger) => {
         return error(res, 'Amount paid is required', 400);
       }
 
+      const extended = await hasCampaignModelColumns(pool);
+
       const currentResult = await pool.query(
-        `SELECT ${entryAmountSql()} as entry_amount
+        `SELECT ${entryAmountSql('c', 'f', extended)} as entry_amount
          FROM fundraiser_entries c
          JOIN fundraisers f ON c.fundraiser = f.id
          WHERE c.id = $1 AND f.organization = $2`,

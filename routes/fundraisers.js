@@ -15,7 +15,11 @@ const { asyncHandler, success, error } = require('../middleware/response');
 const {
   CAMPAIGN_TYPE_KEYS,
   DEFAULT_CAMPAIGN_TYPE,
+  campaignModelColumnsSql,
   entryAmountSql,
+  entryHoursSql,
+  entryQuantitySql,
+  hasCampaignModelColumns,
   isValidCampaignType,
   toNullableNumber,
 } = require('../services/fundraiserCampaigns');
@@ -161,6 +165,7 @@ module.exports = (pool, logger) => {
   router.get('/', authenticate, requirePermission('fundraisers.view'), asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const includeArchived = req.query.include_archived === 'true';
+      const extended = await hasCampaignModelColumns(pool);
 
       let query = `
         SELECT
@@ -172,13 +177,11 @@ module.exports = (pool, logger) => {
           f.result,
           f.archived,
           f.created_at,
-          f.campaign_type,
-          f.unit_price,
-          f.unit_label,
+          ${campaignModelColumnsSql('f', extended)},
           COUNT(DISTINCT c.id) as participant_count,
-          COALESCE(SUM(${entryAmountSql()}), 0) as total_amount,
-          COALESCE(SUM(c.quantity), 0) as total_quantity,
-          COALESCE(SUM(c.hours), 0) as total_hours,
+          COALESCE(SUM(${entryAmountSql('c', 'f', extended)}), 0) as total_amount,
+          COALESCE(SUM(${entryQuantitySql('c', extended)}), 0) as total_quantity,
+          COALESCE(SUM(${entryHoursSql('c', extended)}), 0) as total_hours,
           COALESCE(SUM(c.amount_paid), 0) as total_paid
         FROM fundraisers f
         LEFT JOIN fundraiser_entries c ON c.fundraiser = f.id
@@ -190,8 +193,8 @@ module.exports = (pool, logger) => {
       }
 
       query += `
-        GROUP BY f.id, f.name, f.start_date, f.end_date, f.objective, f.result, f.archived, f.created_at,
-                 f.campaign_type, f.unit_price, f.unit_label
+        GROUP BY f.id, f.name, f.start_date, f.end_date, f.objective, f.result, f.archived, f.created_at
+                 ${extended ? ', f.campaign_type, f.unit_price, f.unit_label' : ''}
         ORDER BY f.start_date DESC, f.created_at DESC
       `;
 
@@ -224,13 +227,17 @@ module.exports = (pool, logger) => {
   router.get('/:id', authenticate, requirePermission('fundraisers.view'), asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const { id } = req.params;
+      const extended = await hasCampaignModelColumns(pool);
 
       const result = await pool.query(
         `SELECT f.*,
+                ${extended ? '' : `'${DEFAULT_CAMPAIGN_TYPE}'::text AS campaign_type,
+                NULL::numeric AS unit_price,
+                NULL::text AS unit_label,`}
                 COUNT(DISTINCT c.id) as participant_count,
-                COALESCE(SUM(${entryAmountSql()}), 0) as total_amount,
-                COALESCE(SUM(c.quantity), 0) as total_quantity,
-                COALESCE(SUM(c.hours), 0) as total_hours,
+                COALESCE(SUM(${entryAmountSql('c', 'f', extended)}), 0) as total_amount,
+                COALESCE(SUM(${entryQuantitySql('c', extended)}), 0) as total_quantity,
+                COALESCE(SUM(${entryHoursSql('c', extended)}), 0) as total_hours,
                 COALESCE(SUM(c.amount_paid), 0) as total_paid
          FROM fundraisers f
          LEFT JOIN fundraiser_entries c ON c.fundraiser = f.id
@@ -292,28 +299,56 @@ module.exports = (pool, logger) => {
         return error(res, 'Invalid campaign data', 400, validationErrors);
       }
 
+      const extended = await hasCampaignModelColumns(pool);
+
+      if (!extended && values.campaign_type !== DEFAULT_CAMPAIGN_TYPE) {
+        // The campaign is still created and usable, but its type cannot be
+        // stored yet. Make that visible to operators instead of silently
+        // downgrading it.
+        logger?.warn?.(
+          `Campaign type "${values.campaign_type}" stored as "${DEFAULT_CAMPAIGN_TYPE}": ` +
+          'migration 004_fundraiser_campaign_model.sql has not been applied to this database.'
+        );
+      }
+
       // Start a transaction
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
 
-        // Create fundraiser
-        const fundraiserResult = await client.query(
-          `INSERT INTO fundraisers
-             (name, start_date, end_date, objective, organization, archived, campaign_type, unit_price, unit_label)
-           VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8)
-           RETURNING *`,
-          [
-            values.name,
-            values.start_date,
-            values.end_date,
-            values.objective ?? null,
-            organizationId,
-            values.campaign_type,
-            values.unit_price ?? null,
-            values.unit_label ?? null,
-          ]
-        );
+        // Create fundraiser. The generalised columns are only written when
+        // they exist, so campaign creation keeps working on a database where
+        // migration 004 has not been applied yet.
+        const fundraiserResult = extended
+          ? await client.query(
+            `INSERT INTO fundraisers
+               (name, start_date, end_date, objective, organization, archived, campaign_type, unit_price, unit_label)
+             VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8)
+             RETURNING *`,
+            [
+              values.name,
+              values.start_date,
+              values.end_date,
+              values.objective ?? null,
+              organizationId,
+              values.campaign_type,
+              values.unit_price ?? null,
+              values.unit_label ?? null,
+            ]
+          )
+          : await client.query(
+            `INSERT INTO fundraisers
+               (name, start_date, end_date, objective, organization, archived)
+             VALUES ($1, $2, $3, $4, $5, false)
+             RETURNING *`,
+            [
+              values.name,
+              values.start_date,
+              values.end_date,
+              values.objective ?? null,
+              organizationId,
+            ]
+          );
 
         const fundraiser = fundraiserResult.rows[0];
 
@@ -353,7 +388,15 @@ module.exports = (pool, logger) => {
 
         return success(
           res,
-          { fundraiser, participants_added: participantsResult.rows.length },
+          {
+            fundraiser: extended ? fundraiser : {
+              ...fundraiser,
+              campaign_type: DEFAULT_CAMPAIGN_TYPE,
+              unit_price: null,
+              unit_label: null,
+            },
+            participants_added: participantsResult.rows.length,
+          },
           'Fundraiser created',
           201
         );
@@ -420,6 +463,8 @@ module.exports = (pool, logger) => {
         return error(res, 'Invalid campaign data', 400, validationErrors);
       }
 
+      const extended = await hasCampaignModelColumns(pool);
+
       // A partial update needs both start and end dates to compare them, so
       // re-check the ordering against the stored row when only one was sent.
       if ((values.start_date && !values.end_date) || (values.end_date && !values.start_date)) {
@@ -440,31 +485,51 @@ module.exports = (pool, logger) => {
         }
       }
 
-      const updateResult = await pool.query(
-        `UPDATE fundraisers
-         SET name = COALESCE($1, name),
-             start_date = COALESCE($2, start_date),
-             end_date = COALESCE($3, end_date),
-             objective = COALESCE($4, objective),
-             result = COALESCE($5, result),
-             campaign_type = COALESCE($6, campaign_type),
-             unit_price = COALESCE($7, unit_price),
-             unit_label = COALESCE($8, unit_label)
-         WHERE id = $9 AND organization = $10
-         RETURNING *`,
-        [
-          values.name ?? null,
-          values.start_date ?? null,
-          values.end_date ?? null,
-          values.objective ?? null,
-          values.result ?? null,
-          values.campaign_type ?? null,
-          values.unit_price ?? null,
-          values.unit_label ?? null,
-          id,
-          organizationId,
-        ]
-      );
+      const updateResult = extended
+        ? await pool.query(
+          `UPDATE fundraisers
+           SET name = COALESCE($1, name),
+               start_date = COALESCE($2, start_date),
+               end_date = COALESCE($3, end_date),
+               objective = COALESCE($4, objective),
+               result = COALESCE($5, result),
+               campaign_type = COALESCE($6, campaign_type),
+               unit_price = COALESCE($7, unit_price),
+               unit_label = COALESCE($8, unit_label)
+           WHERE id = $9 AND organization = $10
+           RETURNING *`,
+          [
+            values.name ?? null,
+            values.start_date ?? null,
+            values.end_date ?? null,
+            values.objective ?? null,
+            values.result ?? null,
+            values.campaign_type ?? null,
+            values.unit_price ?? null,
+            values.unit_label ?? null,
+            id,
+            organizationId,
+          ]
+        )
+        : await pool.query(
+          `UPDATE fundraisers
+           SET name = COALESCE($1, name),
+               start_date = COALESCE($2, start_date),
+               end_date = COALESCE($3, end_date),
+               objective = COALESCE($4, objective),
+               result = COALESCE($5, result)
+           WHERE id = $6 AND organization = $7
+           RETURNING *`,
+          [
+            values.name ?? null,
+            values.start_date ?? null,
+            values.end_date ?? null,
+            values.objective ?? null,
+            values.result ?? null,
+            id,
+            organizationId,
+          ]
+        );
 
       if (updateResult.rows.length === 0) {
         return error(res, 'Fundraiser not found', 404);
