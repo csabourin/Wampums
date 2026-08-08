@@ -15,6 +15,30 @@ import {
 } from "./modules/fundraising/campaignModel.js";
 
 /**
+ * Payload field names that cannot be used verbatim as control names.
+ *
+ * DOMPurify runs with SANITIZE_DOM enabled (its default) and strips any
+ * `name`/`id` attribute whose value collides with a property of the enclosing
+ * form — and HTMLFormElement has a `name` property. An input written as
+ * `name="name"` therefore reaches the DOM with no name at all, so it cannot be
+ * read back and always looks empty. The same workaround is already used for
+ * `equipment_name` in inventory.js and `field_name` in formBuilder.js.
+ *
+ * @type {Object<string, string>}
+ */
+const CONTROL_NAME_BY_FIELD = Object.freeze({ name: 'campaign_name' });
+
+/**
+ * Map a payload/API field name to the control name used in the form.
+ *
+ * @param {string} field - Field name as used in the API payload
+ * @returns {string} Corresponding form control name
+ */
+function controlNameFor(field) {
+	return CONTROL_NAME_BY_FIELD[field] || field;
+}
+
+/**
  * Read a named control out of a form.
  *
  * `form.<name>` cannot be used for every field: HTMLFormElement already defines
@@ -266,8 +290,8 @@ export class Fundraisers {
 						<p id="fundraiser-form-error" class="form-error-summary" role="alert" hidden></p>
 						<div class="form-group">
 							<label for="fundraiser-name">${translate("name")}*</label>
-							<input type="text" id="fundraiser-name" name="name" required aria-required="true" aria-describedby="fundraiser-name-error">
-							<span class="field-error" id="fundraiser-name-error" data-field-error="name"></span>
+							<input type="text" id="fundraiser-name" name="campaign_name" required aria-required="true" aria-describedby="fundraiser-name-error">
+							<span class="field-error" id="fundraiser-name-error" data-field-error="campaign_name"></span>
 						</div>
 						<div class="form-group">
 							<label for="fundraiser-campaign-type">${translate("campaign_type")}*</label>
@@ -418,7 +442,7 @@ export class Fundraisers {
 			};
 
 			title.textContent = translate("edit_fundraiser");
-			this.setFieldValue(form, 'name', fundraiser.name || '');
+			this.setFieldValue(form, 'campaign_name', fundraiser.name || '');
 			this.setFieldValue(form, 'campaign_type', fundraiser.campaign_type || DEFAULT_CAMPAIGN_TYPE);
 			this.setFieldValue(form, 'start_date', formatDate(fundraiser.start_date));
 			this.setFieldValue(form, 'end_date', formatDate(fundraiser.end_date));
@@ -435,7 +459,7 @@ export class Fundraisers {
 
 		modal.classList.add('show');
 		modal.setAttribute('aria-hidden', 'false');
-		formField(form, 'name')?.focus();
+		formField(form, 'campaign_name')?.focus();
 	}
 
 	/**
@@ -558,7 +582,9 @@ export class Fundraisers {
 
 		let firstInvalid = null;
 		(Array.isArray(fieldErrors) ? fieldErrors : []).forEach((fieldError) => {
-			const fieldName = fieldError?.field || fieldError?.path;
+			// The API reports `name`; the control is `campaign_name` (see
+			// CONTROL_NAME_BY_FIELD), so translate before looking anything up.
+			const fieldName = controlNameFor(fieldError?.field || fieldError?.path);
 			const text = fieldError?.message || fieldError?.msg || '';
 			if (!fieldName) {
 				return;
@@ -608,7 +634,7 @@ export class Fundraisers {
 		const unitPrice = formValue(form, 'unit_price');
 
 		const data = {
-			name: formValue(form, 'name'),
+			name: formValue(form, 'campaign_name'),
 			campaign_type: campaignType,
 			start_date: formValue(form, 'start_date'),
 			end_date: formValue(form, 'end_date'),
@@ -668,7 +694,7 @@ export class Fundraisers {
 		const errors = [];
 
 		if (!data.name) {
-			errors.push({ field: 'name', message: translate('field_required') });
+			errors.push({ field: 'campaign_name', message: translate('field_required') });
 		}
 		if (!data.start_date) {
 			errors.push({ field: 'start_date', message: translate('field_required') });
