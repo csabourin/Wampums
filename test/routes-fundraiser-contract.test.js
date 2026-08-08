@@ -72,8 +72,17 @@ function createFixture() {
       fundraiser.archived = params[0];
       return { rows: [{ ...fundraiser }] };
     }
-    if (query.includes('SELECT id FROM fundraisers')) {
-      return { rows: [{ id: FUNDRAISER_ID }] };
+    // The entries endpoint also reads the campaign shape (type/unit price) so
+    // it can tell the client which measures the campaign records.
+    if (query.includes('FROM fundraisers WHERE id')) {
+      return {
+        rows: [{
+          id: FUNDRAISER_ID,
+          campaign_type: 'fixed_price_sale',
+          unit_price: null,
+          unit_label: null,
+        }],
+      };
     }
     if (query.includes('FROM fundraiser_entries c') && query.includes('JOIN participants')) {
       return { rows: [{ ...entry }] };
@@ -82,11 +91,19 @@ function createFixture() {
       return { rows: [{ ...entry }] };
     }
     if (query.includes('UPDATE fundraiser_entries')) {
-      Object.assign(entry, {
-        amount: params[0] ?? entry.amount,
-        amount_paid: params[1] ?? entry.amount_paid,
-        paid: params[2] ?? entry.paid,
-      });
+      // Measures are sent as (was it provided?, value) pairs so a field can be
+      // cleared, and so `false`/`0` are not mistaken for "not sent".
+      const applyMeasure = (key, pairIndex) => {
+        if (params[pairIndex * 2]) {
+          entry[key] = params[pairIndex * 2 + 1];
+        }
+      };
+      applyMeasure('amount', 0);
+      applyMeasure('amount_paid', 1);
+      applyMeasure('paid', 2);
+      applyMeasure('quantity', 3);
+      applyMeasure('hours', 4);
+      applyMeasure('amount_raised', 5);
       return { rows: [{ ...entry }] };
     }
 

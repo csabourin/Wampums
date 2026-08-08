@@ -33,6 +33,10 @@ import {
   getAttendanceDates,
 } from "./api/api-endpoints.js";
 import { getMountPoint, resolveMountOptions } from "./utils/PageMount.js";
+import { lockBodyScroll, unlockBodyScroll } from "./utils/ScrollLockUtils.js";
+
+/** Owner key for the badge tracker modal's body scroll lock. */
+const BADGE_TRACKER_SCROLL_LOCK = "badge-tracker:modal";
 
 export class BadgeTracker {
   constructor(app, options = {}) {
@@ -744,7 +748,7 @@ export class BadgeTracker {
     if (!this.isModalOpen) {
       modalContainer.classList.add("hidden");
       setContent(modalContainer, "");
-      document.body.style.overflow = "";
+      unlockBodyScroll(BADGE_TRACKER_SCROLL_LOCK);
       if (this.modalKeydownHandler) {
         document.removeEventListener("keydown", this.modalKeydownHandler);
         this.modalKeydownHandler = null;
@@ -752,7 +756,7 @@ export class BadgeTracker {
       return;
     }
 
-    document.body.style.overflow = "hidden";
+    lockBodyScroll(BADGE_TRACKER_SCROLL_LOCK);
     modalContainer.classList.remove("hidden");
     setContent(
       modalContainer,

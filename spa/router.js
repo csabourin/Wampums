@@ -9,6 +9,7 @@ import { setContent } from "./utils/DOMUtils.js";
 import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { checkSession } from "./utils/SessionUtils.js";
 import { dismissActiveDialog } from "./utils/DialogUtils.js";
+import { releaseAllScrollLocks } from "./utils/ScrollLockUtils.js";
 import { TABBED_PAGES, MERGED_ROUTE_REDIRECTS } from "./config/tabbed-pages.js";
 import {
   canApproveBadges,
@@ -259,9 +260,26 @@ export class Router {
    * settings overlays, confirm dialogs) must not survive navigation.
    * Persistent app chrome (command palette, sync panel, offline indicator,
    * PWA prompts) uses distinct class names and is left untouched.
+   *
+   * Removing the overlay DOM is not enough on its own: an overlay also locks
+   * body scrolling and may hold focus. Both are released here so the incoming
+   * screen is scrollable and keyboard-usable immediately, whichever way the
+   * user left the previous one.
    */
   dismissTransientOverlays() {
     dismissActiveDialog();
+
+    // Focus must leave the subtree before it is detached, otherwise it falls
+    // back to <body> and screen readers lose their place.
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement && activeElement !== document.body) {
+      const insideOverlay = activeElement.closest(
+        '.modal, .modal-container, .modal-screen, .modal-overlay, .dash-settings, .dialog-overlay',
+      );
+      if (insideOverlay) {
+        activeElement.blur();
+      }
+    }
 
     const appRoot = document.getElementById('app');
     const transientSelectors = '.modal, .modal-container, .modal-screen, .modal-overlay, .dash-settings, .dialog-overlay';
@@ -280,6 +298,11 @@ export class Router {
     });
 
     document.body.classList.remove('dash-settings-open');
+
+    // Release any body scroll lock the previous screen was holding. Without
+    // this a report modal left open during navigation freezes the destination
+    // page (the dashboard could not be scrolled after visiting a report).
+    releaseAllScrollLocks();
   }
 
   navigate(path) {

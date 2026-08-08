@@ -9178,6 +9178,252 @@ details p {
    BUDGET MANAGEMENT STYLES
    ============================================================================ */
 
+/* ---------------------------------------------------------------------------
+   Health record report
+
+   A health record carries far more fields than fit legibly in table columns on
+   a phone, so each participant is a card. The EpiPen marker uses a text label,
+   not colour alone, so it survives greyscale printing and colour blindness.
+--------------------------------------------------------------------------- */
+.health-records {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.health-record {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-base);
+}
+
+.health-record__header {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.health-record__header h3 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.health-record__group {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.badge-epipen {
+  display: inline-block;
+  padding: 0.1em 0.6em;
+  border: 2px solid var(--color-error);
+  border-radius: var(--radius-sm);
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.health-record__fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-sm) var(--space-lg);
+  margin: 0;
+}
+
+.health-record__field dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.health-record__field dd {
+  margin: 0 0 var(--space-xs);
+}
+
+.health-record__contacts {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border-light);
+}
+
+.health-record__contacts h4 {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--font-size-base);
+}
+
+.health-record__contacts ul {
+  margin: 0;
+  padding-left: var(--space-lg);
+}
+
+.health-record__contacts li {
+  margin-bottom: var(--space-xs);
+}
+
+.health-record__contacts .contact-relationship,
+.health-record__contacts .contact-phone,
+.health-record__contacts .contact-email {
+  margin-left: var(--space-sm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.health-record__no-contacts {
+  margin: var(--space-md) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+@media (min-width: 640px) {
+  .health-record__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Inline form validation
+
+   Error text is associated with its control through aria-describedby and is
+   never conveyed by colour alone: the message itself states the problem and
+   the control carries aria-invalid.
+--------------------------------------------------------------------------- */
+.form-error-summary {
+  margin: 0 0 var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border-left: 4px solid var(--color-error);
+  background: var(--color-surface);
+  color: var(--color-error);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-sm);
+}
+
+.form-error-summary[hidden] {
+  display: none;
+}
+
+.field-error {
+  display: block;
+  margin-top: var(--space-xs);
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+}
+
+.field-error:empty {
+  display: none;
+}
+
+.field-hint {
+  display: block;
+  margin-top: var(--space-xs);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+[aria-invalid="true"] {
+  border-color: var(--color-error);
+  outline-color: var(--color-error);
+}
+
+.report-meta {
+  margin: 0 0 var(--space-md);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* ---------------------------------------------------------------------------
+   Shared data tables
+
+   `.data-table` was used by every budget, report and finance table but had no
+   base rule, so those tables fell back to the browser default (auto width,
+   separated borders) and the `.text-right` class on numeric headers and cells
+   did nothing at all — headers and values ended up visually misaligned.
+   Column geometry now comes from one place for both <thead> and <tbody>.
+--------------------------------------------------------------------------- */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-base);
+}
+
+.data-table th,
+.data-table td {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--color-border-light);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.data-table thead th {
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.data-table tbody th {
+  font-weight: var(--font-weight-semibold);
+}
+
+.data-table tbody tr:last-child td,
+.data-table tbody tr:last-child th {
+  border-bottom: none;
+}
+
+.data-table tfoot th,
+.data-table tfoot td {
+  border-top: 2px solid var(--color-border);
+  border-bottom: none;
+  font-weight: var(--font-weight-bold);
+}
+
+.data-table .empty-row td {
+  text-align: center;
+  color: var(--color-text-muted);
+  padding: var(--space-xl) var(--space-md);
+}
+
+/* Alignment utilities shared by headers and cells so a column cannot be
+   right-aligned in one and left-aligned in the other. */
+.data-table th.text-right,
+.data-table td.text-right,
+.text-right {
+  text-align: right;
+}
+
+.data-table th.text-center,
+.data-table td.text-center,
+.text-center {
+  text-align: center;
+}
+
+/* Numbers line up digit for digit regardless of value length. */
+.data-table .amount,
+.data-table td.text-right {
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table .variance-note {
+  display: block;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-normal);
+}
+
 /* Budget Page Container */
 .budgets-page.page-container {
   padding: var(--space-lg);
@@ -10415,13 +10661,19 @@ details p {
     gap: var(--space-sm);
   }
 
-  /* Make tables horizontally scrollable on mobile */
+  /* Narrow screens scroll the wrapper, never the table itself: setting
+     `display: block` on a <table> drops the table layout algorithm, so header
+     cells stop sharing column widths with body cells and the columns visibly
+     drift apart. */
   .revenue-table,
   .expense-table,
   .data-table {
-    display: block;
-    overflow-x: auto;
     white-space: nowrap;
+  }
+
+  .table-scroll {
+    margin-inline: calc(var(--space-md) * -1);
+    padding-inline: var(--space-md);
   }
 
   /* Stack grid-2 layout on mobile for better readability */

@@ -44,6 +44,27 @@ const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handl
  * Both fragments expect `$1` = organization id, `$4`/`$5` = the selected
  * year's start/end dates, and attach to a participant table aliased `p`.
  */
+/**
+ * Interpret the many shapes a checkbox/radio answer takes across form versions.
+ * Submissions store `true`, `"true"`, `"on"`, `"1"` or `"yes"` depending on how
+ * and when the form was filled in.
+ *
+ * @param {*} value - Raw submission value
+ * @returns {boolean} True when the answer is affirmative
+ */
+function isAffirmative(value) {
+  if (value === true) {
+    return true;
+  }
+  if (typeof value === 'number') {
+    return value === 1;
+  }
+  if (typeof value !== 'string') {
+    return false;
+  }
+  return ['true', 'on', '1', 'yes', 'oui'].includes(value.trim().toLowerCase());
+}
+
 const HEALTH_FORM_AS_OF_YEAR = `
   LEFT JOIN LATERAL (
     SELECT sub.submission_data
@@ -221,7 +242,42 @@ module.exports = (pool, logger) => {
 
     const result = await pool.query(query, params);
 
-    // Process health data to extract key fields (using actual fiche_sante field names)
+    // Emergency contacts live on the guardian records, not in the health form,
+    // so a complete health record has to bring them in.
+    const participantIds = result.rows.map((row) => row.id);
+    const contactsByParticipant = new Map();
+
+    if (participantIds.length > 0) {
+      const contactsResult = await pool.query(
+        `SELECT pg.participant_id, pg.lien,
+                gu.prenom, gu.nom, gu.courriel,
+                gu.telephone_residence, gu.telephone_travail, gu.telephone_cellulaire,
+                gu.is_primary, gu.is_emergency_contact
+           FROM participant_guardians pg
+           JOIN parents_guardians gu ON gu.id = pg.guardian_id
+          WHERE pg.participant_id = ANY($1::int[])
+          ORDER BY gu.is_primary DESC NULLS LAST, gu.nom, gu.prenom`,
+        [participantIds]
+      );
+
+      contactsResult.rows.forEach((contact) => {
+        const list = contactsByParticipant.get(contact.participant_id) || [];
+        list.push({
+          name: [contact.prenom, contact.nom].filter(Boolean).join(' '),
+          relationship: contact.lien || null,
+          email: contact.courriel || null,
+          phone_home: contact.telephone_residence || null,
+          phone_work: contact.telephone_travail || null,
+          phone_mobile: contact.telephone_cellulaire || null,
+          is_primary: contact.is_primary === true,
+          is_emergency_contact: contact.is_emergency_contact === true,
+        });
+        contactsByParticipant.set(contact.participant_id, list);
+      });
+    }
+
+    // Complete health record: every field the fiche_sante form collects, plus
+    // the participant's emergency contacts.
     const healthReport = result.rows.map(row => {
       const healthData = row.health_data || {};
       return {
@@ -233,16 +289,24 @@ module.exports = (pool, logger) => {
         // Using actual field names from fiche_sante form
         has_allergies: healthData.has_allergies || null,
         allergies: healthData.allergie || null,
-        epipen: healthData.epipen || false,
+        epipen: isAffirmative(healthData.epipen),
         has_medication: healthData.has_medication || null,
         medications: healthData.medicament || null,
         has_probleme_sante: healthData.has_probleme_sante || null,
         probleme_sante: healthData.probleme_sante || null,
+        has_limitations: healthData.has_limitations || null,
+        limitations: healthData.limitation || null,
+        had_blessures_operations: healthData.had_blessures_operations || null,
+        blessures_operations: healthData.blessures_operations || null,
         medecin_famille: healthData.medecin_famille || null,
         nom_medecin: healthData.nom_medecin || null,
+        nom_fille_mere: healthData.nom_fille_mere || null,
         niveau_natation: healthData.niveau_natation || null,
-        doit_porter_vfi: healthData.doit_porter_vfi || false,
-        vaccins_a_jour: healthData.vaccins_a_jour || false,
+        doit_porter_vfi: isAffirmative(healthData.doit_porter_vfi),
+        vaccins_a_jour: isAffirmative(healthData.vaccins_a_jour),
+        regles: healthData.regles || null,
+        renseignee: isAffirmative(healthData.renseignee),
+        emergency_contacts: contactsByParticipant.get(row.id) || [],
         has_health_form: !!row.health_data
       };
     });
@@ -532,11 +596,19 @@ module.exports = (pool, logger) => {
   router.get('/allergies', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
+    // Everything a leader needs to act on an allergy, and nothing else: general
+    // medical conditions, swimming level or vaccination status belong to the
+    // full health record report, not here.
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
                 fs.submission_data->>'has_allergies' as has_allergies,
                 fs.submission_data->>'allergie' as allergies,
-                fs.submission_data->>'epipen' as epipen
+                fs.submission_data->>'epipen' as epipen,
+                fs.submission_data->>'has_medication' as has_medication,
+                fs.submission_data->>'medicament' as medication,
+                fs.submission_data->>'has_limitations' as has_limitations,
+                fs.submission_data->>'limitation' as limitations,
+                fs.submission_data as health_data
          FROM participants p
          JOIN participant_enrollments po ON p.id = po.participant_id
            AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
@@ -550,7 +622,32 @@ module.exports = (pool, logger) => {
         req.scoutYear.start_date, req.scoutYear.end_date]
     );
 
-    res.json({ success: true, data: result.rows });
+    const allergiesReport = result.rows.map((row) => {
+      const healthData = row.health_data || {};
+      const hasEpipen = isAffirmative(row.epipen);
+
+      return {
+        id: row.id,
+        first_name: row.first_name,
+        last_name: row.last_name,
+        group_name: row.group_name,
+        allergies: row.allergies || null,
+        epipen: hasEpipen,
+        // Emergency medication is part of an allergy response plan; unrelated
+        // medication is reported only when an EpiPen is carried.
+        emergency_medication: hasEpipen ? (row.medication || null) : null,
+        has_medication: isAffirmative(row.has_medication),
+        medication: row.medication || null,
+        limitations: isAffirmative(row.has_limitations) ? (row.limitations || null) : null,
+        // Free-text detail some organisations record alongside the allergy.
+        allergy_severity: healthData.allergie_gravite || healthData.severite_allergie || null,
+        allergy_reaction: healthData.allergie_reaction || healthData.reaction_allergie || null,
+        allergy_action: healthData.allergie_action || healthData.mesures_allergie || null,
+        notes: healthData.notes_allergies || healthData.allergie_notes || null,
+      };
+    });
+
+    res.json({ success: true, data: allergiesReport });
   }));
 
   /**

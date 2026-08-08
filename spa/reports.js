@@ -32,8 +32,12 @@ import { canViewReports, isParent } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { exportToCSV } from "./utils/ExportUtils.js";
 import { CONFIG } from "./config.js";
+import { lockBodyScroll, unlockBodyScroll } from "./utils/ScrollLockUtils.js";
 
 const REPORT_CURRENCY = "CAD";
+
+/** Owner key for the report modal's body scroll lock. */
+const REPORT_MODAL_SCROLL_LOCK = "reports:report-modal";
 
 export class Reports {
 	constructor(app) {
@@ -46,12 +50,18 @@ export class Reports {
 
 	/**
 	 * Called by the router before navigating away.
+	 *
+	 * Reports render inside a modal that locks body scrolling. Leaving the page
+	 * by any route other than the modal's own close button (SPA navigation, a
+	 * report that redirects to a full page) must still release that lock,
+	 * otherwise the destination page cannot be scrolled.
 	 */
 	destroy() {
 		if (this.escKeyHandler) {
 			document.removeEventListener("keydown", this.escKeyHandler);
 			this.escKeyHandler = null;
 		}
+		this.closeReportModal();
 	}
 
 	async init() {
@@ -313,21 +323,36 @@ export class Reports {
 			return;
 		}
 
+		// Remember the trigger so focus can be returned when the modal closes.
+		this.modalReturnFocus = document.activeElement;
+
 		modalTitle.textContent = title;
 		modal.classList.remove("hidden");
 		modal.setAttribute("aria-hidden", "false");
-		document.body.style.overflow = "hidden"; // Prevent background scrolling
+		lockBodyScroll(REPORT_MODAL_SCROLL_LOCK);
+
+		const closeButton = modal.querySelector(".modal-close, #close-report-modal");
+		(closeButton || modal).focus?.();
 	}
 
 	closeReportModal() {
+		// The lock is released even when the modal element is already gone (the
+		// SPA container may have been re-rendered underneath us).
+		unlockBodyScroll(REPORT_MODAL_SCROLL_LOCK);
+
 		const modal = document.getElementById("report-modal");
-		if (!modal) {
-			return;
+		if (modal) {
+			modal.classList.add("hidden");
+			modal.setAttribute("aria-hidden", "true");
 		}
 
-		modal.classList.add("hidden");
-		modal.setAttribute("aria-hidden", "true");
-		document.body.style.overflow = ""; // Restore scrolling
+		// Never leave focus inside a hidden or removed subtree.
+		if (this.modalReturnFocus?.isConnected) {
+			this.modalReturnFocus.focus();
+		} else if (document.activeElement && modal?.contains(document.activeElement)) {
+			document.activeElement.blur();
+		}
+		this.modalReturnFocus = null;
 	}
 
 	async loadFormTypes() {
@@ -383,6 +408,14 @@ export class Reports {
 				"missing-fields": translate("missing_fields_report"),
 			};
 
+
+			// The seniority report is a full page rather than a modal panel, so
+			// leave before a modal (and its body scroll lock) is ever created.
+			if (reportType === "time-since-registration") {
+				this.closeReportModal();
+				this.app.router.navigate("/time-since-registration");
+				return;
+			}
 
 			// Open modal with report title
 			this.openReportModal(reportTitles[reportType] || translate("report"));
@@ -446,11 +479,12 @@ export class Reports {
 					reportContent = this.renderHonorsReport(reportData.data);
 					break;
 				case "participant-age":
-					reportData = await getParticipantAgeReport(); // Fetch the report data
-					this.currentReportData = reportData.participants;
-					reportContent = this.renderParticipantAgeReport(
-						reportData.participants,
-					);
+					reportData = await getParticipantAgeReport();
+					// The endpoint answers with the standard { success, data } envelope.
+					// Reading `reportData.participants` always yielded undefined, which
+					// rendered the report as "no data available" even with participants.
+					this.currentReportData = reportData?.data || [];
+					reportContent = this.renderParticipantAgeReport(this.currentReportData);
 					break;
 				case "points":
 					reportData = await getPointsReport();
@@ -462,10 +496,6 @@ export class Reports {
 					this.currentReportData = reportData.data;
 					reportContent = this.renderFinancialReport(reportData.data);
 					break;
-				case "time-since-registration":
-					// Navigate to the dedicated time since registration page
-					this.app.router.navigate("/time-since-registration");
-					return; // Exit early since we're navigating away
 				case "participant-progress":
 					reportContent = await this.fetchAndRenderParticipantProgress();
 					break;
@@ -485,113 +515,163 @@ export class Reports {
 		}
 	}
 
+	/**
+	 * Fetch and render the complete health record report.
+	 *
+	 * The previous version read field names the API never returned
+	 * (`health_issues`, `injuries`, `leave_alone`, `media_consent`,
+	 * `swimming_level`), so all that survived was the allergy line and the report
+	 * amounted to a worse allergy list. It now reads the fields the fiche_sante
+	 * form actually stores, plus the participant's emergency contacts.
+	 *
+	 * @returns {Promise<string>} HTML report
+	 */
 	async fetchAndRenderHealthReport() {
 		try {
-			// Fetch the health report data
-			const reportData = await getHealthReport(); // Assuming getHealthReport is defined in ajax-functions.js
+			const reportData = await getHealthReport();
 
-			if (!reportData.success) {
-				throw new Error(reportData.error || "Failed to fetch health report");
+			if (!reportData?.success) {
+				throw new Error(reportData?.message || reportData?.error || "Failed to fetch health report");
 			}
 
-			// Filter out participants with all empty fields
-			const filteredParticipants = reportData.data.filter((participant) => {
-				return !(
-					!participant.epipen &&
-					!participant.allergies &&
-					!participant.health_issues &&
-					!participant.injuries &&
-					!participant.swimming_level &&
-					!participant.leave_alone &&
-					!participant.media_consent
-				);
-			});
+			const participants = Array.isArray(reportData.data) ? reportData.data : [];
 
-			// Sort participants by last name
-			const sortedParticipants = filteredParticipants.sort((a, b) =>
-				a.last_name.localeCompare(b.last_name),
-			);
+			// Keep every participant who has a health form on file, even a sparse
+			// one: "form submitted but empty" is itself information a leader needs.
+			const withRecords = participants.filter((participant) => (
+				participant.has_health_form || this.hasAnyHealthData(participant)
+			));
+
+			const sortedParticipants = withRecords.sort((a, b) => (
+				(a.last_name || "").localeCompare(b.last_name || "")
+			));
 
 			this.currentReportData = sortedParticipants;
 
-			// Render the report and return the content
-			const reportContent = this.renderHealthReport(sortedParticipants);
-			return reportContent; // Return the generated reportContent
+			return this.renderHealthReport(sortedParticipants);
 		} catch (error) {
 			debugError("Error fetching and rendering health report:", error);
 			return `<p class="error-message">${translate("error_loading_report")}: ${escapeHTML(error.message)}</p>`;
 		}
 	}
 
+	/**
+	 * @param {Object} participant - Health report row
+	 * @returns {boolean} True when the record carries at least one answer
+	 */
+	hasAnyHealthData(participant) {
+		return Boolean(
+			participant.allergies ||
+			participant.epipen ||
+			participant.medications ||
+			participant.probleme_sante ||
+			participant.limitations ||
+			participant.blessures_operations ||
+			participant.niveau_natation ||
+			participant.nom_medecin ||
+			(participant.emergency_contacts || []).length > 0,
+		);
+	}
+
+	/**
+	 * Render the complete health record report as one card per participant.
+	 *
+	 * A card layout is used rather than a wide table because a health record has
+	 * far more fields than fit legibly in columns on a phone.
+	 *
+	 * @param {Array<Object>} participants - Health report rows
+	 * @returns {string} HTML report
+	 */
 	renderHealthReport(participants) {
-		let tableContent = `
-					<table class="health-report-table">
-							<thead>
-									<tr>
-											<th>${translate("name")}</th>
-											<th>${translate("leave_alone")}</th>
-											<th>${translate("media_consent")}</th>
-											<th>${translate("health_information")}</th>
-									</tr>
-							</thead>
-							<tbody>
-			`;
+		if (!Array.isArray(participants) || participants.length === 0) {
+			return `<p class="no-data">${translate("no_health_records")}</p>`;
+		}
 
-		participants.forEach((participant) => {
-			const epipen =
-				participant.epipen === "1" ||
-					participant.epipen === "true" ||
-					participant.epipen === true
-					? "<strong> EPIPEN </strong>"
-					: "";
-			const leaveAlone =
-				participant.leave_alone === "1" ||
-					participant.leave_alone === "true" ||
-					participant.leave_alone === true
-					? "🗸"
-					: "";
-			const mediaConsent =
-				participant.media_consent === "1" ||
-					participant.media_consent === "true" ||
-					participant.media_consent === true
-					? ""
-					: "🚫"; // Show 🚫 if no media consent
+		const yesNo = (value) => (value ? translate("yes") : translate("no"));
 
-			// Health information fields, only showing the ones that are not empty
-			let healthInfo = "";
-			if (participant.health_issues)
-				healthInfo += `<strong>${translate("health_issues")}:</strong> ${participant.health_issues}<br>`;
-			if (participant.allergies)
-				healthInfo += `<strong>${translate("allergies")}:</strong> ${participant.allergies} ${epipen}<br>`;
-			if (participant.injuries)
-				healthInfo += `<strong>${translate("injuries")}:</strong> ${participant.injuries}<br>`;
+		return `
+			<h2>${translate("health_report_title")}</h2>
+			<p class="report-meta">${translate("participants")}: ${participants.length}</p>
+			<div class="health-records">
+				${participants.map((participant) => `
+					<article class="health-record">
+						<header class="health-record__header">
+							<h3>${escapeHTML(`${participant.first_name || ""} ${participant.last_name || ""}`.trim())}</h3>
+							<span class="health-record__group">${escapeHTML(participant.group_name || translate("no_group"))}</span>
+							${participant.epipen ? `<span class="badge-epipen">${translate("epipen")}</span>` : ""}
+						</header>
+						<dl class="health-record__fields">
+							${this.renderHealthField(translate("birthdate"), participant.date_naissance ? formatDateShort(participant.date_naissance, this.app.lang) : null)}
+							${this.renderHealthField(translate("allergies"), participant.allergies)}
+							${this.renderHealthField(translate("medication"), participant.medications)}
+							${this.renderHealthField(translate("health_issues"), participant.probleme_sante)}
+							${this.renderHealthField(translate("limitations"), participant.limitations)}
+							${this.renderHealthField(translate("injuries"), participant.blessures_operations)}
+							${this.renderHealthField(translate("swimming_level"), participant.niveau_natation ? translate(participant.niveau_natation) : null)}
+							${this.renderHealthField(translate("doit_porter_vfi"), participant.doit_porter_vfi ? translate("yes") : null)}
+							${this.renderHealthField(translate("vaccines_up_to_date"), yesNo(participant.vaccins_a_jour))}
+							${this.renderHealthField(translate("nom_medecin_label"), participant.nom_medecin)}
+							${this.renderHealthField(translate("health_form_on_file"), yesNo(participant.has_health_form))}
+						</dl>
+						${this.renderEmergencyContacts(participant.emergency_contacts)}
+					</article>
+				`).join("")}
+			</div>
+		`;
+	}
 
-			// Show swimming level, but life jacket note only for "ne_sait_pas_nager"
-			if (participant.swimming_level === "ne_sait_pas_nager") {
-				healthInfo += `<strong>${translate("swimming_level")}:</strong> ${translate("doit_porter_vfi")}<br>`;
-			} else if (participant.swimming_level === "eau_peu_profonde") {
-				healthInfo += `<strong>${translate("swimming_level")}:</strong> ${translate("eau_peu_profonde")}<br>`;
-			}
+	/**
+	 * Render one definition-list entry, omitting fields with no value so the card
+	 * shows what is known rather than a wall of blanks.
+	 *
+	 * @param {string} label - Field label
+	 * @param {string|null|undefined} value - Field value
+	 * @returns {string} HTML fragment
+	 */
+	renderHealthField(label, value) {
+		if (value === null || value === undefined || value === "") {
+			return "";
+		}
+		return `
+			<div class="health-record__field">
+				<dt>${escapeHTML(label)}</dt>
+				<dd>${escapeHTML(String(value))}</dd>
+			</div>
+		`;
+	}
 
-			// Only display rows where there's at least one relevant piece of info
-			if (leaveAlone || mediaConsent || healthInfo) {
-				tableContent += `
-									<tr>
-											<td><strong>${participant.first_name} ${participant.last_name}</strong></td>
-											<td>${leaveAlone}</td>
-											<td>${mediaConsent}</td>
-											<td>${healthInfo || ""}</td>
-									</tr>
-							`;
-			}
-		});
+	/**
+	 * Render a participant's emergency contacts.
+	 *
+	 * @param {Array<Object>} contacts - Emergency contacts
+	 * @returns {string} HTML fragment
+	 */
+	renderEmergencyContacts(contacts) {
+		if (!Array.isArray(contacts) || contacts.length === 0) {
+			return `<p class="health-record__no-contacts">${translate("no_emergency_contacts")}</p>`;
+		}
 
-		tableContent += `
-							</tbody>
-					</table>
-			`;
-
-		return tableContent;
+		return `
+			<div class="health-record__contacts">
+				<h4>${translate("emergency_contacts")}</h4>
+				<ul>
+					${contacts.map((contact) => {
+						const phones = [contact.phone_mobile, contact.phone_home, contact.phone_work]
+							.filter(Boolean)
+							.map((phone) => escapeHTML(phone))
+							.join(" / ");
+						return `
+							<li>
+								<strong>${escapeHTML(contact.name || "")}</strong>
+								${contact.relationship ? `<span class="contact-relationship">(${escapeHTML(contact.relationship)})</span>` : ""}
+								${phones ? `<span class="contact-phone">${phones}</span>` : ""}
+								${contact.email ? `<span class="contact-email">${escapeHTML(contact.email)}</span>` : ""}
+							</li>
+						`;
+					}).join("")}
+				</ul>
+			</div>
+		`;
 	}
 
 	async fetchAndRenderMissingFieldsReport(formType) {
@@ -656,13 +736,27 @@ export class Reports {
 					{ key: "first_name", label: translate("first_name") },
 					{ key: "last_name", label: translate("last_name") },
 					{ key: "group_name", label: translate("group") },
-					{ key: "leave_alone", label: translate("leave_alone"), format: (v) => (v === '1' || v === true || v === 'true') ? translate("yes") : translate("no") },
-					{ key: "media_consent", label: translate("media_consent"), format: (v) => (v === '1' || v === true || v === 'true') ? translate("yes") : translate("no") },
-					{ key: "health_issues", label: translate("health_issues") },
 					{ key: "allergies", label: translate("allergies") },
 					{ key: "epipen", label: translate("epipen"), format: (v) => (v === '1' || v === true || v === 'true') ? translate("yes") : translate("no") },
-					{ key: "injuries", label: translate("injuries") },
-					{ key: "swimming_level", label: translate("swimming_level") }
+					{ key: "medications", label: translate("medication") },
+					{ key: "probleme_sante", label: translate("health_issues") },
+					{ key: "limitations", label: translate("limitations") },
+					{ key: "blessures_operations", label: translate("injuries") },
+					{ key: "niveau_natation", label: translate("swimming_level") },
+					{ key: "doit_porter_vfi", label: translate("doit_porter_vfi"), format: (v) => (v === '1' || v === true || v === 'true') ? translate("yes") : translate("no") },
+					{ key: "vaccins_a_jour", label: translate("vaccines_up_to_date"), format: (v) => (v === '1' || v === true || v === 'true') ? translate("yes") : translate("no") },
+					{ key: "nom_medecin", label: translate("nom_medecin_label") },
+					{
+						key: "emergency_contacts",
+						label: translate("emergency_contacts"),
+						format: (contacts) => (Array.isArray(contacts) ? contacts : [])
+							.map((contact) => [
+								contact.name,
+								contact.relationship,
+								contact.phone_mobile || contact.phone_home || contact.phone_work,
+							].filter(Boolean).join(" "))
+							.join(" | "),
+					}
 				];
 				break;
 			case "allergies":
@@ -671,7 +765,12 @@ export class Reports {
 					{ key: "last_name", label: translate("last_name") },
 					{ key: "group_name", label: translate("group") },
 					{ key: "allergies", label: translate("allergies") },
-					{ key: "epipen", label: translate("epipen"), format: (v) => (v === '1' || v === true || v === 'true') ? translate("yes") : translate("no") }
+					{ key: "allergy_severity", label: translate("allergy_severity") },
+					{ key: "allergy_reaction", label: translate("allergy_reaction") },
+					{ key: "allergy_action", label: translate("allergy_action") },
+					{ key: "epipen", label: translate("epipen"), format: (v) => (v === '1' || v === true || v === 'true') ? translate("yes") : translate("no") },
+					{ key: "emergency_medication", label: translate("emergency_medication") },
+					{ key: "notes", label: translate("notes") }
 				];
 				break;
 			case "medication":
@@ -841,37 +940,64 @@ export class Reports {
 		return missingFields;
 	}
 
+	/**
+	 * Allergy report.
+	 *
+	 * Answers a single question for a leader on site: who is allergic, to what,
+	 * how serious is it, and what do I do. Unrelated medical data (swimming
+	 * level, vaccination status, general conditions) belongs to the health record
+	 * report and is deliberately left out.
+	 *
+	 * @param {Array<Object>} data - Allergy rows from the API
+	 * @returns {string} HTML report
+	 */
 	renderAllergiesReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return `<p>${translate("no_data_available")} for allergies report.</p>`;
+			return `<p class="no-data">${translate("no_allergies_recorded")}</p>`;
 		}
+
+		const epipenCount = data.filter((item) => item.epipen === true).length;
+		const cell = (value) => escapeHTML(value || "—");
 
 		return `
 			<h2>${translate("allergies_report")}</h2>
-			<table>
-				<thead>
-					<tr>
-						<th>${translate("name")}</th>
-						<th>${translate("group")}</th>
-						<th>${translate("allergies")}</th>
-						<th>${translate("epipen")}</th>
-					</tr>
-				</thead>
-				<tbody>
-					${data
-				.map(
-					(item) => `
+			<p class="report-meta">
+				${translate("participants")}: ${data.length} — ${translate("epipen")}: ${epipenCount}
+			</p>
+			<div class="table-scroll">
+				<table class="data-table">
+					<caption class="visually-hidden">${translate("allergies_report")}</caption>
+					<thead>
 						<tr>
-							<td>${item.first_name} ${item.last_name}</td>
-							<td>${item.group_name || translate("no_group")}</td>
-							<td>${item.allergies || "-"}</td>
-							<td>${item.epipen === "on" || item.epipen === "true" || item.epipen === true ? translate("yes") : translate("no")}</td>
+							<th scope="col">${translate("name")}</th>
+							<th scope="col">${translate("group")}</th>
+							<th scope="col">${translate("allergies")}</th>
+							<th scope="col">${translate("allergy_severity")}</th>
+							<th scope="col">${translate("allergy_reaction")}</th>
+							<th scope="col">${translate("allergy_action")}</th>
+							<th scope="col">${translate("emergency_medication")}</th>
+							<th scope="col">${translate("notes")}</th>
 						</tr>
-					`,
-				)
-				.join("")}
-				</tbody>
-			</table>
+					</thead>
+					<tbody>
+						${data.map((item) => `
+							<tr>
+								<th scope="row">${escapeHTML(`${item.first_name || ""} ${item.last_name || ""}`.trim())}</th>
+								<td>${escapeHTML(item.group_name || translate("no_group"))}</td>
+								<td>${cell(item.allergies)}</td>
+								<td>${cell(item.allergy_severity)}</td>
+								<td>${cell(item.allergy_reaction)}</td>
+								<td>${cell(item.allergy_action)}</td>
+								<td>
+									${item.epipen ? `<strong class="badge-epipen">${translate("epipen")}</strong>` : ""}
+									${cell(item.emergency_medication)}
+								</td>
+								<td>${cell(item.notes || item.limitations)}</td>
+							</tr>
+						`).join("")}
+					</tbody>
+				</table>
+			</div>
 		`;
 	}
 
@@ -939,35 +1065,51 @@ export class Reports {
 		`;
 	}
 
+	/**
+	 * Render the participant age report.
+	 *
+	 * Participants without a birth date are kept in the table with an explicit
+	 * "unknown" age rather than being silently dropped, so the roster count in
+	 * the report matches the roster the user sees elsewhere.
+	 *
+	 * @param {Array<Object>} data - Participant age rows from the API
+	 * @returns {string} HTML report
+	 */
 	renderParticipantAgeReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return `<p>${translate("no_data_available")}</p>`;
+			return `<p class="no-data">${translate("no_data_available")}</p>`;
 		}
+
+		const withBirthdate = data.filter((item) => Boolean(item.date_naissance));
 
 		return `
 			<h2>${translate("participant_age_report")}</h2>
-			<table>
-				<thead>
-					<tr>
-						<th>${translate("name")}</th>
-						<th>${translate("birthdate")}</th>
-						<th>${translate("age")}</th>
-					</tr>
-				</thead>
-				<tbody>
-					${data
-				.map(
-					(item) => `
+			<p class="report-meta">${translate("participants")}: ${data.length} — ${translate("birthdate")}: ${withBirthdate.length}</p>
+			<div class="table-scroll">
+				<table class="data-table">
+					<thead>
 						<tr>
-							<td>${item.first_name} ${item.last_name}</td>
-								<td>${item.date_naissance ? formatDateShort(item.date_naissance, this.app.lang) : translate("unknown")}</td>
-							<td>${item.age !== null ? item.age : translate("unknown")}</td>
+							<th scope="col">${translate("name")}</th>
+							<th scope="col">${translate("group")}</th>
+							<th scope="col">${translate("birthdate")}</th>
+							<th scope="col" class="text-right">${translate("age")}</th>
 						</tr>
-					`,
-				)
-				.join("")}
-				</tbody>
-			</table>
+					</thead>
+					<tbody>
+						${data.map((item) => {
+							const hasAge = item.age !== null && item.age !== undefined && item.age !== '';
+							return `
+								<tr>
+									<td>${escapeHTML(`${item.first_name || ''} ${item.last_name || ''}`.trim())}</td>
+									<td>${escapeHTML(item.group_name || translate("no_group"))}</td>
+									<td>${item.date_naissance ? formatDateShort(item.date_naissance, this.app.lang) : translate("unknown")}</td>
+									<td class="text-right">${hasAge ? Number(item.age) : translate("unknown")}</td>
+								</tr>
+							`;
+						}).join("")}
+					</tbody>
+				</table>
+			</div>
 		`;
 	}
 
