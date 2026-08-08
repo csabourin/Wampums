@@ -79,6 +79,25 @@ Database changes live in `migrations/` as SQL or JavaScript migrations. Use
 migrations must export `up(client, context)` and are useful for parameterized,
 data-driven catalog changes.
 
+### Migrations on deploy
+
+Deployments run migrations before the server starts. The deployment run command
+is `npm run deploy:start`, which is `npm run db:migrate:deploy` followed by
+`npm run start:prod`, so an instance never serves traffic against a schema older
+than the code it is running.
+
+`npm run db:migrate:deploy` is safe on the autoscale target, where the run
+command executes on every instance:
+
+* migrations are serialised by a transaction-scoped advisory lock, so instances
+  booting at the same time queue instead of racing each other;
+* the run is a single transaction, so a failing migration rolls back and leaves
+  the schema untouched;
+* a failure exits non-zero, which stops the instance from starting rather than
+  letting it serve requests against a half-migrated database.
+
+Re-running is a no-op once the schema is current.
+
 ## Common commands
 
 ```bash
