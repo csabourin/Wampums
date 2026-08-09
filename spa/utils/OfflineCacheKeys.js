@@ -47,6 +47,41 @@ export function normalizeApiPath(endpointOrUrl) {
 }
 
 /**
+ * Cache paths to drop for a mutated endpoint: the resource itself and each
+ * ancestor down to — but never above — its collection.
+ *
+ * Stopping at the collection matters. `clearCachedApiPaths` prefix-matches
+ * sub-paths, so including `/api/v1` would match every URL-derived cache key
+ * and turn each successful write into a full cache flush. Offline that is
+ * destructive rather than merely wasteful: a queued attendance update would
+ * erase the cached participants and groups that cannot be refetched until the
+ * connection returns.
+ *
+ * @param {string} path - Normalized API path, e.g. "/api/v1/fundraisers/7/archive"
+ * @returns {string[]} Paths to invalidate, widest last; empty when the path
+ *   does not identify a resource
+ */
+export function cachePathsForMutation(path) {
+    const segments = path.split('/').filter(Boolean);
+
+    // "/api/v1/fundraisers" -> keep api + v1 + collection.
+    // "/api/offline-sync"   -> keep api + collection.
+    const isVersioned = /^v\d+$/i.test(segments[1] || '');
+    const collectionDepth = isVersioned ? 3 : 2;
+
+    if (segments.length < collectionDepth) {
+        // Not a resource path (e.g. "/api/v1"); nothing safe to invalidate.
+        return [];
+    }
+
+    const paths = [];
+    for (let depth = segments.length; depth >= collectionDepth; depth -= 1) {
+        paths.push(`/${segments.slice(0, depth).join('/')}`);
+    }
+    return paths;
+}
+
+/**
  * Build a deterministic cache key for API responses.
  * Uses normalized path and sorted query parameters.
  *

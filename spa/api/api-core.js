@@ -10,7 +10,12 @@ import { CONFIG } from "../config.js";
 import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
 import { getCurrentOrganizationId, getAuthHeader } from "./api-helpers.js";
 import { PerformanceMonitor } from "../utils/PerformanceUtils.js";
-import { buildApiCacheKey, buildScopedCacheKey, normalizeApiPath } from "../utils/OfflineCacheKeys.js";
+import {
+    buildApiCacheKey,
+    buildScopedCacheKey,
+    cachePathsForMutation,
+    normalizeApiPath
+} from "../utils/OfflineCacheKeys.js";
 
 /**
  * Add cache buster parameter to URL
@@ -170,18 +175,11 @@ import { isArchiveMode } from "../modules/scout-year/ScoutYearContext.js";
  */
 async function invalidateCachedResource(endpoint) {
     try {
-        const path = normalizeApiPath(endpoint);
-        const paths = new Set([path]);
-
-        // Walk up one segment at a time so /api/v1/fundraisers/7/archive also
-        // clears /api/v1/fundraisers/7 and /api/v1/fundraisers.
-        let parent = path;
-        while (parent.lastIndexOf('/') > '/api'.length) {
-            parent = parent.slice(0, parent.lastIndexOf('/'));
-            paths.add(parent);
+        const paths = cachePathsForMutation(normalizeApiPath(endpoint));
+        if (paths.length === 0) {
+            return;
         }
-
-        await clearCachedApiPaths([...paths]);
+        await clearCachedApiPaths(paths);
     } catch (error) {
         // A failed invalidation must never fail the mutation the user just made.
         debugWarn('Cache invalidation after mutation failed:', error);

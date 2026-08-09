@@ -619,8 +619,8 @@ module.exports = (pool, logger) => {
    *         schema:
    *           type: integer
    *     responses:
-   *       200:
-   *         description: Campaign deleted
+   *       204:
+   *         description: Campaign deleted (no content)
    *       404:
    *         description: Campaign not found
    *       409:
@@ -678,7 +678,9 @@ module.exports = (pool, logger) => {
       await client.query('COMMIT');
 
       logger?.info?.(`Fundraiser deleted: ${id} for organization ${organizationId}`);
-      return success(res, null, 'Fundraiser deleted');
+      // 204 No Content is the contract for a successful DELETE; the SPA
+      // response handler already maps it to { success: true, data: null }.
+      return res.status(204).end();
     } catch (deleteError) {
       await client.query('ROLLBACK');
       throw deleteError;
