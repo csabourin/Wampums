@@ -39,7 +39,12 @@ import {
   clearCachedApiPaths,
   clearFundraiserRelatedCaches,
 } from '../../spa/indexedDB.js';
-import { buildApiCacheKey, buildScopedCacheKey, normalizeApiPath } from '../../spa/utils/OfflineCacheKeys.js';
+import {
+  buildApiCacheKey,
+  buildScopedCacheKey,
+  cachePathsForMutation,
+  normalizeApiPath,
+} from '../../spa/utils/OfflineCacheKeys.js';
 
 const ONE_HOUR = 60 * 60 * 1000;
 
@@ -150,5 +155,65 @@ describe('normalizeApiPath', () => {
     ['v1/fundraisers/', '/api/v1/fundraisers'],
   ])('%s -> %s', (input, expected) => {
     expect(normalizeApiPath(input)).toBe(expected);
+  });
+});
+
+describe('how far a mutation invalidates', () => {
+  test.each([
+    ['/api/v1/fundraisers', ['/api/v1/fundraisers']],
+    ['/api/v1/fundraisers/7', ['/api/v1/fundraisers/7', '/api/v1/fundraisers']],
+    [
+      '/api/v1/fundraisers/7/archive',
+      ['/api/v1/fundraisers/7/archive', '/api/v1/fundraisers/7', '/api/v1/fundraisers'],
+    ],
+    ['/api/offline-sync', ['/api/offline-sync']],
+  ])('%s invalidates %j', (path, expected) => {
+    expect(cachePathsForMutation(path)).toEqual(expected);
+  });
+
+  test('never reaches the version root, which would match every cached key', () => {
+    const everyPath = [
+      '/api/v1/fundraisers/7/archive',
+      '/api/v1/attendance',
+      '/api/v1/participants/9',
+    ].flatMap((path) => cachePathsForMutation(path));
+
+    expect(everyPath).not.toContain('/api/v1');
+    expect(everyPath).not.toContain('/api');
+  });
+
+  test('a path that identifies no resource invalidates nothing', () => {
+    expect(cachePathsForMutation('/api/v1')).toEqual([]);
+    expect(cachePathsForMutation('/api')).toEqual([]);
+  });
+
+  test('one resource write leaves every other resource cached', async () => {
+    const cached = {};
+    for (const endpoint of ['v1/participants', 'v1/groups', 'v1/attendance', 'v1/badges']) {
+      cached[endpoint] = await cacheAsApiGetWould(endpoint, {}, { success: true });
+    }
+    const target = await cacheAsApiGetWould('v1/fundraisers', { include_archived: true }, { success: true });
+
+    // Exactly what a successful write to the campaign resource clears.
+    await clearCachedApiPaths(cachePathsForMutation('/api/v1/fundraisers/7'));
+
+    expect(await getCachedData(target)).toBeNull();
+    for (const [endpoint, key] of Object.entries(cached)) {
+      expect(await getCachedData(key)).not.toBeNull();
+      expect(endpoint).toBeDefined();
+    }
+  });
+
+  test('an offline attendance write does not erase participants or groups', async () => {
+    // The destructive case: offline, these caches cannot be refetched.
+    const participants = await cacheAsApiGetWould('v1/participants', {}, { success: true });
+    const groups = await cacheAsApiGetWould('v1/groups', {}, { success: true });
+    const attendance = await cacheAsApiGetWould('v1/attendance', { date: '2026-08-09' }, { success: true });
+
+    await clearCachedApiPaths(cachePathsForMutation('/api/v1/attendance'));
+
+    expect(await getCachedData(attendance)).toBeNull();
+    expect(await getCachedData(participants)).not.toBeNull();
+    expect(await getCachedData(groups)).not.toBeNull();
   });
 });

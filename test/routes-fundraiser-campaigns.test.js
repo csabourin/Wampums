@@ -650,8 +650,10 @@ describe('DELETE /api/v1/fundraisers/:id', () => {
       .delete(`/api/v1/fundraisers/${FUNDRAISER_ID}`)
       .set('Authorization', `Bearer ${token()}`);
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
+    // The REST contract for a successful DELETE is 204 with no body.
+    expect(response.status).toBe(204);
+    expect(response.body).toEqual({});
+    expect(response.text).toBe('');
     // Entries go first so no orphans are left behind, and it commits.
     expect(statements).toEqual(expect.arrayContaining([
       expect.stringContaining('DELETE FROM fundraiser_entries'),
