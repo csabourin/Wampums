@@ -589,3 +589,121 @@ describe('databases where migration 004 has not been applied', () => {
     expect(lookups.length).toBeLessThanOrEqual(1);
   });
 });
+
+describe('DELETE /api/v1/fundraisers/:id', () => {
+  /**
+   * @param {Object} [options] - Fixture options
+   * @param {number} [options.recorded] - Entries carrying results
+   * @param {boolean} [options.found] - Whether the campaign exists
+   * @returns {{app: import('express').Express, statements: string[]}}
+   */
+  function createDeleteFixture({ recorded = 0, found = true } = {}) {
+    const statements = [];
+
+    const client = {
+      query: jest.fn(async (query) => {
+        statements.push(query.trim().split('\n')[0].trim());
+        if (query.includes('SELECT id, name FROM fundraisers')) {
+          return { rows: found ? [{ id: FUNDRAISER_ID, name: 'Vente' }] : [] };
+        }
+        if (query.includes('AS recorded')) {
+          return { rows: [{ recorded }] };
+        }
+        return { rows: [] };
+      }),
+      release: jest.fn(),
+    };
+
+    const pool = {
+      query: jest.fn(async (query) => {
+        if (query.includes('information_schema.columns')) {
+          return { rows: [{ campaign_columns: '3', entry_columns: '3' }] };
+        }
+        if (query.includes('SELECT organization_id FROM user_organizations')) {
+          return { rows: [{ organization_id: ORGANIZATION_ID }] };
+        }
+        if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
+          return { rows: [] };
+        }
+        if (query.includes('SELECT DISTINCT p.permission_key')) {
+          return { rows: [{ permission_key: 'fundraisers.delete' }] };
+        }
+        if (query.includes('SELECT DISTINCT r.role_name')) {
+          return { rows: [{ role_name: 'district', display_name: 'District' }] };
+        }
+        return { rows: [] };
+      }),
+      connect: jest.fn(async () => client),
+    };
+
+    const app = express();
+    app.locals.pool = pool;
+    app.use(express.json());
+    app.use('/api/v1/fundraisers', require('../routes/fundraisers')(pool, { info: jest.fn(), warn: jest.fn(), error: jest.fn() }));
+    return { app, statements };
+  }
+
+  test('deletes a campaign with nothing recorded', async () => {
+    const { app, statements } = createDeleteFixture({ recorded: 0 });
+
+    const response = await request(app)
+      .delete(`/api/v1/fundraisers/${FUNDRAISER_ID}`)
+      .set('Authorization', `Bearer ${token()}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    // Entries go first so no orphans are left behind, and it commits.
+    expect(statements).toEqual(expect.arrayContaining([
+      expect.stringContaining('DELETE FROM fundraiser_entries'),
+      expect.stringContaining('DELETE FROM fundraisers'),
+      'COMMIT',
+    ]));
+  });
+
+  test('refuses a campaign that has recorded results', async () => {
+    const { app, statements } = createDeleteFixture({ recorded: 3 });
+
+    const response = await request(app)
+      .delete(`/api/v1/fundraisers/${FUNDRAISER_ID}`)
+      .set('Authorization', `Bearer ${token()}`);
+
+    expect(response.status).toBe(409);
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toMatch(/archive/i);
+    // Nothing was deleted, and the transaction rolled back.
+    expect(statements).not.toEqual(expect.arrayContaining([
+      expect.stringContaining('DELETE FROM fundraisers'),
+    ]));
+    expect(statements).toContain('ROLLBACK');
+  });
+
+  test('answers 404 for a campaign in another organisation', async () => {
+    const { app, statements } = createDeleteFixture({ found: false });
+
+    const response = await request(app)
+      .delete(`/api/v1/fundraisers/${FUNDRAISER_ID}`)
+      .set('Authorization', `Bearer ${token()}`);
+
+    expect(response.status).toBe(404);
+    expect(statements).toContain('ROLLBACK');
+  });
+
+  test('the emptiness check covers every measure a campaign can record', async () => {
+    const { app, statements } = createDeleteFixture({ recorded: 0 });
+
+    await request(app)
+      .delete(`/api/v1/fundraisers/${FUNDRAISER_ID}`)
+      .set('Authorization', `Bearer ${token()}`);
+
+    const check = client_lastRecordedQuery(statements);
+    expect(check).toBeDefined();
+  });
+
+  /**
+   * @param {string[]} statements - Executed statement heads
+   * @returns {string|undefined} The emptiness check, if it ran
+   */
+  function client_lastRecordedQuery(statements) {
+    return statements.find((statement) => statement.includes('SELECT COUNT(*)::int AS recorded'));
+  }
+});

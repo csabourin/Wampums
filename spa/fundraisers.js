@@ -1,4 +1,4 @@
-import { getFundraisers, createFundraiser, updateFundraiser, archiveFundraiser } from './ajax-functions.js';
+import { getFundraisers, createFundraiser, updateFundraiser, archiveFundraiser, deleteFundraiser } from './ajax-functions.js';
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { clearFundraiserRelatedCaches } from './indexedDB.js';
@@ -191,6 +191,11 @@ export class Fundraisers {
 						<button class="btn-danger archive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate("archive")} ${escapeHTML(fundraiser.name)}">
 							${translate("archive")}
 						</button>
+						${this.isCampaignEmpty(fundraiser) ? `
+							<button class="btn-danger delete-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate("delete")} ${escapeHTML(fundraiser.name)}">
+								${translate("delete")}
+							</button>
+						` : ''}
 					` : ''}
 				</div>
 			</article>
@@ -222,6 +227,24 @@ export class Fundraisers {
 		}
 
 		return parts.join('');
+	}
+
+	/**
+	 * Whether a campaign has nothing recorded and may therefore be deleted.
+	 *
+	 * Entries are created for every participant when the campaign is created, so
+	 * the test is "nothing recorded", not "no entries". The API enforces the same
+	 * rule and answers 409 otherwise; this only decides whether to offer the
+	 * button.
+	 *
+	 * @param {Object} fundraiser - Campaign row
+	 * @returns {boolean} True when the campaign carries no results
+	 */
+	isCampaignEmpty(fundraiser) {
+		return (Number(fundraiser.total_amount) || 0) === 0
+			&& (Number(fundraiser.total_paid) || 0) === 0
+			&& (Number(fundraiser.total_quantity) || 0) === 0
+			&& (Number(fundraiser.total_hours) || 0) === 0;
 	}
 
 	renderArchivedSection() {
@@ -371,6 +394,14 @@ export class Fundraisers {
                                         const fundraiserId = parseInt(archiveBtn.dataset.id);
                                         if (await confirmDestructive(translate("confirm_archive_fundraiser"))) {
                                                 await this.archiveFundraiser(fundraiserId);
+                                        }
+                                        return;
+                                }
+
+                                const deleteBtn = event.target.closest('.delete-fundraiser-btn');
+                                if (deleteBtn) {
+                                        if (await confirmDestructive(translate("confirm_delete_fundraiser"))) {
+                                                await this.deleteFundraiser(deleteBtn.dataset.id);
                                         }
                                         return;
                                 }
@@ -731,6 +762,35 @@ export class Fundraisers {
 		} catch (error) {
 			debugError('Error archiving fundraiser:', error);
 			this.app.showMessage('error_archiving_fundraiser', 'error');
+		}
+	}
+
+	/**
+	 * Delete a campaign that has nothing recorded.
+	 *
+	 * @param {string|number} fundraiserId - Campaign identifier
+	 * @returns {Promise<void>}
+	 */
+	async deleteFundraiser(fundraiserId) {
+		try {
+			const response = await deleteFundraiser(fundraiserId);
+			if (!response?.success) {
+				// 409 means results were recorded between rendering and clicking.
+				this.app.showMessage(response?.message || translate('error_deleting_fundraiser'), 'error');
+				return;
+			}
+
+			this.app.showMessage('fundraiser_deleted', 'success');
+			await clearFundraiserRelatedCaches(fundraiserId);
+			await this.fetchFundraisers();
+			this.render();
+			this.initEventListeners();
+		} catch (error) {
+			debugError('Error deleting fundraiser:', error);
+			this.app.showMessage(
+				error?.data?.message || translate('error_deleting_fundraiser'),
+				'error',
+			);
 		}
 	}
 

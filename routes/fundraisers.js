@@ -599,5 +599,93 @@ module.exports = (pool, logger) => {
     return success(res, { fundraiser: result.rows[0] }, 'Fundraiser archive status updated');
   }));
 
+  /**
+   * @swagger
+   * /api/v1/fundraisers/{id}:
+   *   delete:
+   *     summary: Delete an empty campaign
+   *     description: >
+   *       Permanently delete a campaign that has no recorded results. A campaign
+   *       whose entries carry any quantity, hours, amount raised or payment is
+   *       refused with 409 so results cannot be destroyed by accident; archive
+   *       it instead.
+   *     tags: [Fundraisers]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Campaign deleted
+   *       404:
+   *         description: Campaign not found
+   *       409:
+   *         description: Campaign has recorded results
+   */
+  router.delete('/:id', authenticate, blockDemoRoles, requirePermission('fundraisers.delete'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { id } = req.params;
+    const extended = await hasCampaignModelColumns(pool);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const campaignResult = await client.query(
+        'SELECT id, name FROM fundraisers WHERE id = $1 AND organization = $2 FOR UPDATE',
+        [id, organizationId]
+      );
+
+      if (campaignResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return error(res, 'Fundraiser not found', 404);
+      }
+
+      // Entries are created for every participant when the campaign is created,
+      // so "has entries" is not the test — "has anything recorded" is.
+      const recordedResult = await client.query(
+        `SELECT COUNT(*)::int AS recorded
+           FROM fundraiser_entries c
+          WHERE c.fundraiser = $1
+            AND (
+              COALESCE(c.amount, 0) <> 0
+              OR COALESCE(c.amount_paid, 0) <> 0
+              OR c.paid = true
+              ${extended ? `OR COALESCE(c.quantity, 0) <> 0
+              OR COALESCE(c.hours, 0) <> 0
+              OR COALESCE(c.amount_raised, 0) <> 0` : ''}
+            )`,
+        [id]
+      );
+
+      const recorded = recordedResult.rows[0]?.recorded || 0;
+      if (recorded > 0) {
+        await client.query('ROLLBACK');
+        return error(
+          res,
+          'This campaign has recorded results and cannot be deleted. Archive it instead.',
+          409
+        );
+      }
+
+      await client.query('DELETE FROM fundraiser_entries WHERE fundraiser = $1', [id]);
+      await client.query('DELETE FROM fundraisers WHERE id = $1 AND organization = $2', [id, organizationId]);
+
+      await client.query('COMMIT');
+
+      logger?.info?.(`Fundraiser deleted: ${id} for organization ${organizationId}`);
+      return success(res, null, 'Fundraiser deleted');
+    } catch (deleteError) {
+      await client.query('ROLLBACK');
+      throw deleteError;
+    } finally {
+      client.release();
+    }
+  }));
+
   return router;
 };

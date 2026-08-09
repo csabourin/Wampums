@@ -257,6 +257,7 @@ export {
     saveFundraiser as createFundraiser,
     updateFundraiser,
     archiveFundraiser,
+    deleteFundraiser,
     getCalendarsForFundraiser,
     updateCalendarEntry,
     updateCalendarPayment,

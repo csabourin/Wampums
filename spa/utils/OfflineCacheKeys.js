@@ -17,6 +17,36 @@ export function normalizeCacheParams(params = {}) {
 }
 
 /**
+ * Normalize an endpoint or URL to the `/api/...` path used in cache keys.
+ *
+ * Mirrors the path handling in buildApiCacheKey so callers can match cached
+ * entries for a resource without reconstructing its query string:
+ *   "v1/fundraisers"                    -> "/api/v1/fundraisers"
+ *   "/api/v1/fundraisers/7"             -> "/api/v1/fundraisers/7"
+ *   "https://host/api/v1/fundraisers"   -> "/api/v1/fundraisers"
+ *
+ * @param {string} endpointOrUrl - API endpoint or full URL
+ * @returns {string} Normalized path, without query string
+ */
+export function normalizeApiPath(endpointOrUrl) {
+    const baseOrigin = typeof window !== 'undefined'
+        ? window.location.origin
+        : (typeof self !== 'undefined' ? self.location.origin : undefined);
+
+    let path = String(endpointOrUrl || '');
+    try {
+        path = new URL(path, baseOrigin).pathname;
+    } catch (error) {
+        path = path.split('?')[0];
+    }
+
+    if (!path.startsWith('/api/')) {
+        path = `/api/${path.replace(/^\/+/, '')}`;
+    }
+    return path.replace(/\/+$/, '');
+}
+
+/**
  * Build a deterministic cache key for API responses.
  * Uses normalized path and sorted query parameters.
  *
