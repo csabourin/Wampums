@@ -14,6 +14,66 @@ const { success, error, asyncHandler } = require('../middleware/response');
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership, getFormPermissionsForRoles, checkFormPermission } = require('../utils/api-helpers');
 const { hasStaffRole } = require('../config/role-constants');
+const { isAffirmative, isNegative } = require('../utils/health-form');
+
+/** Form type the health form is stored under in `form_submissions`. */
+const HEALTH_FORM_TYPE = 'fiche_sante';
+
+/** Free-text answers the legacy `/health-forms` body carries. */
+const LEGACY_HEALTH_TEXT_FIELDS = [
+  'nom_fille_mere', 'medecin_famille', 'nom_medecin', 'probleme_sante',
+  'allergie', 'medicament', 'limitation', 'blessures_operations',
+  'niveau_natation', 'regles', 'renseignee'
+];
+
+/** Yes/no answers of the legacy body, stored as real booleans. */
+const LEGACY_HEALTH_BOOLEAN_FIELDS = ['epipen', 'vaccins_a_jour', 'doit_porter_vfi'];
+
+/**
+ * Yes/no questions the current form asks alongside each free-text answer, and
+ * which the legacy body has no field for.
+ */
+const LEGACY_HEALTH_DERIVED_FLAGS = {
+  allergie: 'has_allergies',
+  medicament: 'has_medication',
+  probleme_sante: 'has_probleme_sante',
+  limitation: 'has_limitations',
+  blessures_operations: 'had_blessures_operations'
+};
+
+/**
+ * Fold a legacy `/health-forms` body into a `fiche_sante` submission document.
+ *
+ * Only the fields the caller actually sent are touched, so an old client cannot
+ * erase answers to questions it does not know about. Each free-text answer also
+ * sets the yes/no question the current form pairs it with: without it the saved
+ * record would carry an allergy with no `has_allergies`, which renders the
+ * allergy box greyed out on the fiche santé and reads as an unanswered question
+ * everywhere else.
+ *
+ * @param {Object|null} existingData - The participant's current submission_data
+ * @param {Object} body - Request body of the legacy endpoint
+ * @returns {Object} Complete document to store
+ */
+function mergeHealthFormBody(existingData, body) {
+  const submissionData = { ...(existingData && typeof existingData === 'object' ? existingData : {}) };
+  const sent = (field) => Object.prototype.hasOwnProperty.call(body, field) && body[field] !== undefined;
+
+  LEGACY_HEALTH_TEXT_FIELDS.filter(sent).forEach((field) => {
+    submissionData[field] = body[field];
+
+    const flag = LEGACY_HEALTH_DERIVED_FLAGS[field];
+    if (flag) {
+      submissionData[flag] = isNegative(body[field]) ? 'no' : 'yes';
+    }
+  });
+
+  LEGACY_HEALTH_BOOLEAN_FIELDS.filter(sent).forEach((field) => {
+    submissionData[field] = isAffirmative(body[field]);
+  });
+
+  return submissionData;
+}
 
 /**
  * Export route factory function
@@ -80,6 +140,100 @@ module.exports = (pool, logger) => {
     if (!result.rows[0]) return null;
     return { organizationId, scoutYearId: result.rows[0].scout_year_id };
   };
+
+  /**
+   * Create or replace a participant's submission for one form type.
+   *
+   * A participant has at most one submission per form type, so saving is an
+   * upsert rather than an append. Must run inside an open transaction — the
+   * caller owns BEGIN/COMMIT.
+   *
+   * @param {Object} client - Database client inside an open transaction
+   * @param {Object} params - Submission parameters
+   * @param {number} params.organizationId - Organization ID
+   * @param {number} params.participantId - Participant ID
+   * @param {string} params.formType - Form type, e.g. `fiche_sante`
+   * @param {Object} params.submissionData - Complete document to store
+   * @param {string} params.userId - UUID of the user saving the form
+   * @param {string} [params.status] - Workflow status, defaults to `submitted`
+   * @param {string|null} [params.ipAddress] - Client IP, for the audit trail
+   * @param {string|null} [params.userAgent] - Client user agent, for the audit trail
+   * @returns {Promise<Object>} The stored `form_submissions` row
+   */
+  const persistFormSubmission = async (client, {
+    organizationId,
+    participantId,
+    formType,
+    submissionData,
+    userId,
+    status = 'submitted',
+    ipAddress = null,
+    userAgent = null
+  }) => {
+    // Get the current active version for this form type
+    const versionResult = await client.query(
+      `SELECT ffv.id as version_id
+       FROM organization_form_formats off
+       JOIN form_format_versions ffv ON off.current_version_id = ffv.id
+       WHERE off.organization_id = $1 AND off.form_type = $2 AND ffv.is_active = true`,
+      [organizationId, formType]
+    );
+
+    const formVersionId = versionResult.rows.length > 0 ? versionResult.rows[0].version_id : null;
+
+    // Check if a submission already exists
+    const existingResult = await client.query(
+      `SELECT id FROM form_submissions
+       WHERE participant_id = $1 AND organization_id = $2 AND form_type = $3`,
+      [participantId, organizationId, formType]
+    );
+
+    if (existingResult.rows.length > 0) {
+      const updated = await client.query(
+        `UPDATE form_submissions
+         SET submission_data = $1::jsonb,
+             updated_at = NOW(),
+             user_id = $2::uuid,
+             form_version_id = COALESCE($3::integer, form_version_id),
+             status = $4::varchar,
+             submitted_at = CASE WHEN $4::varchar = 'submitted' AND submitted_at IS NULL THEN NOW() ELSE submitted_at END,
+             ip_address = $5,
+             user_agent = $6,
+             review_state = 'current',
+             flagged_for_review_at = NULL,
+             last_reviewed_at = NOW(),
+             last_reviewed_by = $2::uuid
+         WHERE participant_id = $7 AND organization_id = $8 AND form_type = $9
+         RETURNING *`,
+        [JSON.stringify(submissionData), userId, formVersionId, status,
+          ipAddress, userAgent, participantId, organizationId, formType]
+      );
+      return updated.rows[0];
+    }
+
+    const inserted = await client.query(
+      `INSERT INTO form_submissions
+       (participant_id, organization_id, form_type, submission_data, user_id,
+        form_version_id, status, submitted_at, ip_address, user_agent)
+       VALUES ($1, $2, $3, $4::jsonb, $5::uuid, $6::integer, $7::varchar,
+               CASE WHEN $7::varchar = 'submitted' THEN NOW() ELSE NULL END, $8, $9)
+       RETURNING *`,
+      [participantId, organizationId, formType, JSON.stringify(submissionData),
+        userId, formVersionId, status, ipAddress, userAgent]
+    );
+    return inserted.rows[0];
+  };
+
+  /**
+   * Audit-trail details of the caller, as stored on a submission.
+   *
+   * @param {Object} req - Express request
+   * @returns {{ipAddress: string|null, userAgent: string|null}} Audit fields
+   */
+  const requestOrigin = (req) => ({
+    ipAddress: req.headers['x-forwarded-for']?.split(',')[0] || req.connection?.remoteAddress || null,
+    userAgent: req.headers['user-agent'] || null
+  });
 
   // Compatibility REST endpoints used by comprehensive API tests
   router.get('/', authenticate, asyncHandler(async (req, res) => {
@@ -640,65 +794,16 @@ module.exports = (pool, logger) => {
       try {
         await client.query('BEGIN');
 
-        // Get the current active version for this form type
-        const versionResult = await client.query(
-          `SELECT ffv.id as version_id
-           FROM organization_form_formats off
-           JOIN form_format_versions ffv ON off.current_version_id = ffv.id
-           WHERE off.organization_id = $1 AND off.form_type = $2 AND ffv.is_active = true`,
-          [organizationId, form_type]
-        );
-
-        const formVersionId = versionResult.rows.length > 0 ? versionResult.rows[0].version_id : null;
-
-        // Get client IP and user agent for audit trail
-        const ipAddress = req.headers['x-forwarded-for']?.split(',')[0] || req.connection.remoteAddress || null;
-        const userAgent = req.headers['user-agent'] || null;
-
-        // Check if a submission already exists
-        const existingResult = await client.query(
-          `SELECT id FROM form_submissions
-           WHERE participant_id = $1 AND organization_id = $2 AND form_type = $3`,
-          [participant_id, organizationId, form_type]
-        );
-
-        let result;
         const submissionStatus = status || 'submitted';
-
-        if (existingResult.rows.length > 0) {
-          // Update existing submission
-          result = await client.query(
-            `UPDATE form_submissions
-             SET submission_data = $1::jsonb,
-                 updated_at = NOW(),
-                 user_id = $2::uuid,
-                 form_version_id = COALESCE($3::integer, form_version_id),
-                 status = $4::varchar,
-                 submitted_at = CASE WHEN $4::varchar = 'submitted' AND submitted_at IS NULL THEN NOW() ELSE submitted_at END,
-                 ip_address = $5,
-                 user_agent = $6,
-                 review_state = 'current',
-                 flagged_for_review_at = NULL,
-                 last_reviewed_at = NOW(),
-                 last_reviewed_by = $2::uuid
-             WHERE participant_id = $7 AND organization_id = $8 AND form_type = $9
-             RETURNING *`,
-            [JSON.stringify(submission_data), decoded.user_id, formVersionId, submissionStatus,
-              ipAddress, userAgent, participant_id, organizationId, form_type]
-          );
-        } else {
-          // Insert new submission
-          result = await client.query(
-            `INSERT INTO form_submissions
-             (participant_id, organization_id, form_type, submission_data, user_id,
-              form_version_id, status, submitted_at, ip_address, user_agent)
-             VALUES ($1, $2, $3, $4::jsonb, $5::uuid, $6::integer, $7::varchar,
-                     CASE WHEN $7::varchar = 'submitted' THEN NOW() ELSE NULL END, $8, $9)
-             RETURNING *`,
-            [participant_id, organizationId, form_type, JSON.stringify(submission_data),
-              decoded.user_id, formVersionId, submissionStatus, ipAddress, userAgent]
-          );
-        }
+        const storedSubmission = await persistFormSubmission(client, {
+          organizationId,
+          participantId: participant_id,
+          formType: form_type,
+          submissionData: submission_data,
+          userId: decoded.user_id,
+          status: submissionStatus,
+          ...requestOrigin(req)
+        });
 
         await client.query('COMMIT');
         logger.info(`Form ${form_type} saved for participant ${participant_id} (status: ${submissionStatus})`);
@@ -706,7 +811,7 @@ module.exports = (pool, logger) => {
         // Include cache invalidation hint in response
         res.json({
           success: true,
-          data: result.rows[0],
+          data: storedSubmission,
           message: 'Form saved successfully',
           cache: { invalidate: ['forms', 'form-submissions', form_type] }
         });
@@ -1136,7 +1241,11 @@ module.exports = (pool, logger) => {
    * /api/health-forms:
    *   post:
    *     summary: Save health form for a participant
-   *     description: Create or update health form information for a participant
+   *     description: >
+   *       Legacy flat-body entry point for the health form, kept for clients
+   *       that still post it. It writes the same `fiche_sante` submission the
+   *       current form endpoint does, merging the fields it carries into the
+   *       participant's existing submission rather than replacing it.
    *     tags: [Forms]
    *     security:
    *       - bearerAuth: []
@@ -1186,103 +1295,76 @@ module.exports = (pool, logger) => {
    *         description: Missing participant_id
    *       401:
    *         description: Unauthorized
+   *       403:
+   *         description: No access to this participant, or no permission on this form type
    */
   router.post('/health-forms', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+    // NaN and 0 are both falsy, so one check covers a missing and an unparsable id.
+    const participantId = parseInt(req.body.participant_id, 10);
+
+    if (!participantId) {
+      return error(res, 'Missing participant_id', 400);
+    }
+
+    // The flat body is the whole contract of this endpoint, so the organization
+    // is taken from the caller's own context and the participant is checked
+    // against it — a participant id in a request body is not authority over the
+    // organization it belongs to.
+    const access = await resolveParticipantFormAccess(req, participantId);
+    if (!access) {
+      return error(res, 'Access denied to this participant', 403);
+    }
+
+    const { organizationId } = access;
+    const membership = await verifyOrganizationMembership(pool, req.user.id, organizationId);
+    if (!membership.authorized) {
+      return error(res, membership.message, 403);
+    }
+
+    const userRoles = membership.roles || [];
+    const canSubmit = await checkFormPermission(pool, organizationId, userRoles, HEALTH_FORM_TYPE, 'submit');
+    const canEdit = await checkFormPermission(pool, organizationId, userRoles, HEALTH_FORM_TYPE, 'edit');
+
+    if (!canSubmit && !canEdit) {
+      return error(res, 'You do not have permission to submit or edit this form type', 403);
+    }
+
     const client = await pool.connect();
 
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.userId) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const {
-        participant_id,
-        nom_fille_mere,
-        medecin_famille,
-        nom_medecin,
-        probleme_sante,
-        allergie,
-        epipen,
-        medicament,
-        limitation,
-        vaccins_a_jour,
-        blessures_operations,
-        niveau_natation,
-        doit_porter_vfi,
-        regles,
-        renseignee
-      } = req.body;
-
-      if (!participant_id) {
-        return res.status(400).json({ success: false, message: 'Missing participant_id' });
-      }
-
       await client.query('BEGIN');
 
-      // Check if health form already exists
-      const checkResult = await client.query(
-        'SELECT id FROM fiche_sante WHERE participant_id = $1',
-        [participant_id]
+      // Merge rather than replace. This endpoint carries a fixed, older set of
+      // fields, so a caller that knows nothing about the questions added since
+      // would otherwise wipe them — including the emergency-contact and
+      // custom-form answers the current fiche santé collects.
+      const existing = await client.query(
+        `SELECT submission_data FROM form_submissions
+          WHERE participant_id = $1 AND organization_id = $2 AND form_type = $3`,
+        [participantId, organizationId, HEALTH_FORM_TYPE]
       );
 
-      const exists = checkResult.rows.length > 0;
+      const submissionData = mergeHealthFormBody(existing.rows[0]?.submission_data, req.body);
 
-      if (exists) {
-        // Update existing record
-        await client.query(
-          `UPDATE fiche_sante SET
-            nom_fille_mere = $1,
-            medecin_famille = $2,
-            nom_medecin = $3,
-            probleme_sante = $4,
-            allergie = $5,
-            epipen = $6,
-            medicament = $7,
-            limitation = $8,
-            vaccins_a_jour = $9,
-            blessures_operations = $10,
-            niveau_natation = $11,
-            doit_porter_vfi = $12,
-            regles = $13,
-            renseignee = $14,
-            updated_at = NOW()
-           WHERE participant_id = $15`,
-          [
-            nom_fille_mere, medecin_famille, nom_medecin, probleme_sante,
-            allergie, epipen, medicament, limitation, vaccins_a_jour,
-            blessures_operations, niveau_natation, doit_porter_vfi,
-            regles, renseignee, participant_id
-          ]
-        );
-      } else {
-        // Insert new record
-        await client.query(
-          `INSERT INTO fiche_sante
-           (nom_fille_mere, medecin_famille, nom_medecin, probleme_sante, allergie,
-            epipen, medicament, limitation, vaccins_a_jour, blessures_operations,
-            niveau_natation, doit_porter_vfi, regles, renseignee, participant_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
-          [
-            nom_fille_mere, medecin_famille, nom_medecin, probleme_sante,
-            allergie, epipen, medicament, limitation, vaccins_a_jour,
-            blessures_operations, niveau_natation, doit_porter_vfi,
-            regles, renseignee, participant_id
-          ]
-        );
-      }
+      const storedSubmission = await persistFormSubmission(client, {
+        organizationId,
+        participantId,
+        formType: HEALTH_FORM_TYPE,
+        submissionData,
+        userId: req.user.id,
+        ...requestOrigin(req)
+      });
 
       await client.query('COMMIT');
+      logger.info(`Health form saved for participant ${participantId} via the legacy endpoint`);
 
-      res.json({ success: true, message: 'Health form saved successfully' });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
+      return success(res, storedSubmission, 'Health form saved successfully');
+    } catch (err) {
       await client.query('ROLLBACK');
-      logger.error('Error saving health form:', error);
+      if (handleOrganizationResolutionError(res, err, logger)) {
+        return undefined;
+      }
+      logger.error('Error saving health form:', err);
       return error(res, 'internal_server_error', 500);
     } finally {
       client.release();
