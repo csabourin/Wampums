@@ -1,5 +1,5 @@
 import { debugLog, debugError, debugWarn } from "./utils/DebugUtils.js";
-import { buildScopedCacheKey } from "./utils/OfflineCacheKeys.js";
+import { buildScopedCacheKey, normalizeApiPath } from "./utils/OfflineCacheKeys.js";
 
 const DB_NAME = "WampumsAppDB";
 const DB_VERSION = 12;
@@ -438,6 +438,66 @@ export async function clearBadgeRelatedCaches() {
   }
 }
 
+/**
+ * Delete every cached API response belonging to the given resource paths.
+ *
+ * Cache keys written by `API.get` are derived from the request URL and then
+ * namespaced, e.g.
+ *   /api/v1/fundraisers?include_archived=true&organization_id=12|scope:user:...|org:12
+ *
+ * The per-domain helpers below match *logical* key names ("fundraisers"), which
+ * only exist for endpoints that pass an explicit `cacheKey`. Endpoints relying
+ * on the derived key were therefore never invalidated, and their screens kept
+ * serving a stale list for the full 30 minute cache lifetime. Matching on the
+ * path covers both shapes.
+ *
+ * A path also matches its sub-resources, so clearing `/api/v1/fundraisers`
+ * removes `/api/v1/fundraisers/7` too. Over-clearing only costs a refetch;
+ * under-clearing shows the user stale data.
+ *
+ * @param {string[]} paths - API paths or endpoints, e.g. ["v1/fundraisers"]
+ * @returns {Promise<number>} Number of cache entries removed
+ */
+export async function clearCachedApiPaths(paths = []) {
+  const normalized = paths.map((path) => normalizeApiPath(path));
+  if (normalized.length === 0) {
+    return 0;
+  }
+
+  const db = await openDB();
+  const transaction = db.transaction(STORE_NAME, "readonly");
+  const store = transaction.objectStore(STORE_NAME);
+  const allKeys = await new Promise((resolve, reject) => {
+    const request = store.getAllKeys();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+  const matches = allKeys.filter((key) => {
+    const value = String(key);
+    return normalized.some((path) => (
+      value === path
+      // A query string, sub-resource or the |scope: suffix may follow the path.
+      || value.startsWith(`${path}?`)
+      || value.startsWith(`${path}/`)
+      || value.startsWith(`${path}|`)
+    ));
+  });
+
+  for (const key of matches) {
+    try {
+      await deleteCachedData(key);
+    } catch (error) {
+      debugWarn(`Failed to delete cache for ${key}:`, error);
+    }
+  }
+
+  if (matches.length > 0) {
+    debugLog("Cleared cached API paths:", normalized, matches);
+  }
+  return matches.length;
+}
+
 export async function clearFundraiserRelatedCaches(fundraiserId = null) {
   const baseKeys = new Set(["fundraisers"]);
   if (fundraiserId) {
@@ -482,6 +542,10 @@ export async function clearFundraiserRelatedCaches(fundraiserId = null) {
       debugWarn(`Failed to delete cache for ${key}:`, error);
     }
   }
+
+  // The logical keys above only exist for endpoints that pass an explicit
+  // cacheKey. Campaign reads do not, so their entries are keyed by URL.
+  await clearCachedApiPaths(["/api/v1/fundraisers", "/api/v1/calendars"]);
 }
 
 export async function clearFinanceRelatedCaches(participantFeeId = null) {

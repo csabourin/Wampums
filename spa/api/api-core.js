@@ -3,13 +3,14 @@
 import {
     setCachedData,
     getCachedData,
-    getCachedDataIgnoreExpiration
+    getCachedDataIgnoreExpiration,
+    clearCachedApiPaths
 } from "../indexedDB.js";
 import { CONFIG } from "../config.js";
 import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
 import { getCurrentOrganizationId, getAuthHeader } from "./api-helpers.js";
 import { PerformanceMonitor } from "../utils/PerformanceUtils.js";
-import { buildApiCacheKey, buildScopedCacheKey } from "../utils/OfflineCacheKeys.js";
+import { buildApiCacheKey, buildScopedCacheKey, normalizeApiPath } from "../utils/OfflineCacheKeys.js";
 
 /**
  * Add cache buster parameter to URL
@@ -152,6 +153,41 @@ export async function handleResponse(response) {
 import { offlineManager } from "../modules/OfflineManager.js";
 import { isArchiveMode } from "../modules/scout-year/ScoutYearContext.js";
 
+/**
+ * Drop cached reads for the resource a mutation just changed.
+ *
+ * Screens cache GET responses for 30 minutes, so without this a create,
+ * update or delete stayed invisible until the entry expired or the user
+ * cleared storage. Invalidating here rather than in each caller means every
+ * resource is covered, including endpoints whose cache key is derived from
+ * the URL and therefore never matched the per-domain clear helpers.
+ *
+ * The collection is invalidated alongside the item: editing
+ * `v1/fundraisers/7` must also refresh the list that shows it.
+ *
+ * @param {string} endpoint - Endpoint that was mutated
+ * @returns {Promise<void>} Resolves once matching entries are removed
+ */
+async function invalidateCachedResource(endpoint) {
+    try {
+        const path = normalizeApiPath(endpoint);
+        const paths = new Set([path]);
+
+        // Walk up one segment at a time so /api/v1/fundraisers/7/archive also
+        // clears /api/v1/fundraisers/7 and /api/v1/fundraisers.
+        let parent = path;
+        while (parent.lastIndexOf('/') > '/api'.length) {
+            parent = parent.slice(0, parent.lastIndexOf('/'));
+            paths.add(parent);
+        }
+
+        await clearCachedApiPaths([...paths]);
+    } catch (error) {
+        // A failed invalidation must never fail the mutation the user just made.
+        debugWarn('Cache invalidation after mutation failed:', error);
+    }
+}
+
 export async function makeApiRequest(endpoint, options = {}) {
     const {
         method = 'GET',
@@ -213,6 +249,8 @@ export async function makeApiRequest(endpoint, options = {}) {
                 body: requestConfig.body
             });
 
+            await invalidateCachedResource(endpoint);
+
             return {
                 success: true,
                 queued: true,
@@ -247,6 +285,13 @@ export async function makeApiRequest(endpoint, options = {}) {
                 success: result?.success,
                 queued: result?.queued,
             });
+
+            // A write invalidates whatever the screens cached for this
+            // resource, so the next read reflects the change immediately.
+            if (method !== 'GET' && result?.success) {
+                await invalidateCachedResource(endpoint);
+            }
+
             return result;
 
         } catch (error) {

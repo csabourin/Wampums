@@ -3389,5 +3389,8 @@
   "allergy_action": "Action to take",
   "emergency_medication": "Emergency medication",
   "health_form_on_file": "Health form on file",
-  "no_emergency_contacts": "No emergency contact recorded"
+  "no_emergency_contacts": "No emergency contact recorded",
+  "confirm_delete_fundraiser": "Permanently delete this campaign? It has no recorded results.",
+  "fundraiser_deleted": "Campaign deleted",
+  "error_deleting_fundraiser": "Could not delete the campaign"
 }

@@ -1810,6 +1810,19 @@ export async function updateFundraiser(fundraiserId, fundraiserData) {
 }
 
 /**
+ * Delete a campaign that has no recorded results.
+ *
+ * The API refuses with 409 when anything has been recorded, so results can
+ * never be destroyed by accident.
+ *
+ * @param {string|number} fundraiserId - Campaign identifier
+ * @returns {Promise<Object>} API response
+ */
+export async function deleteFundraiser(fundraiserId) {
+    return API.delete(`v1/fundraisers/${fundraiserId}`);
+}
+
+/**
  * Archive/unarchive fundraiser
  */
 export async function archiveFundraiser(fundraiserId, archived) {

@@ -3389,5 +3389,8 @@
   "allergy_action": "Mesures à prendre",
   "emergency_medication": "Médicaments d’urgence",
   "health_form_on_file": "Fiche santé au dossier",
-  "no_emergency_contacts": "Aucun contact d’urgence enregistré"
+  "no_emergency_contacts": "Aucun contact d’urgence enregistré",
+  "confirm_delete_fundraiser": "Supprimer définitivement cette campagne? Elle ne contient aucun résultat.",
+  "fundraiser_deleted": "Campagne supprimée",
+  "error_deleting_fundraiser": "Impossible de supprimer la campagne"
 }
