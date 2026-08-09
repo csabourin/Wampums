@@ -16,6 +16,13 @@ const { asyncHandler } = require('../middleware/response');
 
 // Import utilities
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const {
+  isAffirmative,
+  allergyText,
+  medicationText,
+  declaresAllergy,
+  declaresMedication
+} = require('../utils/health-form');
 
 /*
  * Reading a form submission "as of" a scout year.
@@ -41,28 +48,42 @@ const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handl
  * shown, not the absence of version history — see §9 of
  * devdocs/GESTION_ANNEE_SCOUTE.md.
  *
- * Both fragments expect `$1` = organization id, `$4`/`$5` = the selected
- * year's start/end dates, and attach to a participant table aliased `p`.
+ * Both fragments expect `$1` = organization id, `$4`/`$5` = the window bounds
+ * from `formWindowFor()`, and attach to a participant table aliased `p`.
  */
+
 /**
- * Interpret the many shapes a checkbox/radio answer takes across form versions.
- * Submissions store `true`, `"true"`, `"on"`, `"1"` or `"yes"` depending on how
- * and when the form was filled in.
- *
- * @param {*} value - Raw submission value
- * @returns {boolean} True when the answer is affirmative
+ * A date no submission can be later than, used to open the window's far end.
+ * Postgres accepts dates well past it, so it is a bound, not a sentinel value
+ * anything is compared against for equality.
  */
-function isAffirmative(value) {
-  if (value === true) {
-    return true;
+const OPEN_ENDED_DATE = '9999-12-31';
+
+/**
+ * The `$4`/`$5` bounds of the "as of" window for a scout year.
+ *
+ * A *closed* year is bounded by its own dates: that is what makes an archived
+ * report show the form that was in force back then rather than today's.
+ *
+ * The year *in progress* has no upper bound, and clipping it at `end_date` was
+ * hiding live records. An organisation runs its year transition when it gets
+ * round to it, so the open year routinely outlives its nominal end date; every
+ * health form filled in during that overrun — new registrations, a family
+ * updating an allergy over the summer — fell outside the window and the child
+ * dropped out of every health report while their fiche santé still displayed
+ * perfectly. Same for a submission stamped with a year that starts later than
+ * the open one. On the open year the answer is simply the participant's current
+ * form, so the bounds are opened rather than the condition removed, which keeps
+ * one SQL fragment and one parameter layout for both cases.
+ *
+ * @param {Object} scoutYear - Row from `req.scoutYear`
+ * @returns {Array<string>} `[startBound, endBound]` for `$4` and `$5`
+ */
+function formWindowFor(scoutYear) {
+  if (!scoutYear || scoutYear.status === 'active') {
+    return [OPEN_ENDED_DATE, OPEN_ENDED_DATE];
   }
-  if (typeof value === 'number') {
-    return value === 1;
-  }
-  if (typeof value !== 'string') {
-    return false;
-  }
-  return ['true', 'on', '1', 'yes', 'oui'].includes(value.trim().toLowerCase());
+  return [scoutYear.start_date, scoutYear.end_date];
 }
 
 const HEALTH_FORM_AS_OF_YEAR = `
@@ -231,7 +252,7 @@ module.exports = (pool, logger) => {
       `;
 
     const params = [organizationId, req.scoutYear.id, req.rosterStatuses,
-      req.scoutYear.start_date, req.scoutYear.end_date];
+      ...formWindowFor(req.scoutYear)];
 
     if (groupId) {
       query += ` AND pg.group_id = $6`;
@@ -286,12 +307,14 @@ module.exports = (pool, logger) => {
         last_name: row.last_name,
         date_naissance: row.date_naissance,
         group_name: row.group_name,
-        // Using actual field names from fiche_sante form
+        // Using actual field names from fiche_sante form, with the older and
+        // customised field names read as fallbacks so a record that displays on
+        // the fiche santé never comes back blank here.
         has_allergies: healthData.has_allergies || null,
-        allergies: healthData.allergie || null,
+        allergies: allergyText(healthData),
         epipen: isAffirmative(healthData.epipen),
         has_medication: healthData.has_medication || null,
-        medications: healthData.medicament || null,
+        medications: medicationText(healthData),
         has_probleme_sante: healthData.has_probleme_sante || null,
         probleme_sante: healthData.probleme_sante || null,
         has_limitations: healthData.has_limitations || null,
@@ -507,7 +530,7 @@ module.exports = (pool, logger) => {
          GROUP BY p.id, p.first_name, p.last_name, g.name
          ORDER BY g.name, p.last_name, p.first_name`,
       [organizationId, req.scoutYear.id, req.rosterStatuses,
-        req.scoutYear.start_date, req.scoutYear.end_date]
+        ...formWindowFor(req.scoutYear)]
     );
 
     // Calculate missing forms for each participant
@@ -570,7 +593,7 @@ module.exports = (pool, logger) => {
          WHERE po.organization_id = $1
          ORDER BY p.first_name, p.last_name`,
       [organizationId, req.scoutYear.id, req.rosterStatuses,
-        req.scoutYear.start_date, req.scoutYear.end_date]
+        ...formWindowFor(req.scoutYear)]
     );
 
     res.json({ success: true, data: result.rows });
@@ -599,13 +622,19 @@ module.exports = (pool, logger) => {
     // Everything a leader needs to act on an allergy, and nothing else: general
     // medical conditions, swimming level or vaccination status belong to the
     // full health record report, not here.
+    //
+    // Who belongs on the report is decided in JavaScript rather than in the
+    // WHERE clause. The clause used to be `has_allergies = 'yes'`, and an exact
+    // string match on one field of a free-shaped document silently dropped
+    // children: submissions store that answer as `true`, `"on"`, `"1"` or
+    // `"oui"` too, and every submission predating the day the radio was added to
+    // the form carries the allergy in `allergie` with no `has_allergies` at all.
+    // Their fiche santé displayed the allergy the whole time — only the report
+    // could not see it. `declaresAllergy()` reads the record the way a leader
+    // reads it; see utils/health-form.js.
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
-                fs.submission_data->>'has_allergies' as has_allergies,
-                fs.submission_data->>'allergie' as allergies,
                 fs.submission_data->>'epipen' as epipen,
-                fs.submission_data->>'has_medication' as has_medication,
-                fs.submission_data->>'medicament' as medication,
                 fs.submission_data->>'has_limitations' as has_limitations,
                 fs.submission_data->>'limitation' as limitations,
                 fs.submission_data as health_data
@@ -616,36 +645,38 @@ module.exports = (pool, logger) => {
          LEFT JOIN groups g ON pg.group_id = g.id
          ${HEALTH_FORM_AS_OF_YEAR}
          WHERE po.organization_id = $1
-           AND fs.submission_data->>'has_allergies' = 'yes'
          ORDER BY g.name, p.last_name, p.first_name`,
       [organizationId, req.scoutYear.id, req.rosterStatuses,
-        req.scoutYear.start_date, req.scoutYear.end_date]
+        ...formWindowFor(req.scoutYear)]
     );
 
-    const allergiesReport = result.rows.map((row) => {
-      const healthData = row.health_data || {};
-      const hasEpipen = isAffirmative(row.epipen);
+    const allergiesReport = result.rows
+      .filter((row) => declaresAllergy(row.health_data))
+      .map((row) => {
+        const healthData = row.health_data || {};
+        const hasEpipen = isAffirmative(row.epipen);
+        const medication = medicationText(healthData);
 
-      return {
-        id: row.id,
-        first_name: row.first_name,
-        last_name: row.last_name,
-        group_name: row.group_name,
-        allergies: row.allergies || null,
-        epipen: hasEpipen,
-        // Emergency medication is part of an allergy response plan; unrelated
-        // medication is reported only when an EpiPen is carried.
-        emergency_medication: hasEpipen ? (row.medication || null) : null,
-        has_medication: isAffirmative(row.has_medication),
-        medication: row.medication || null,
-        limitations: isAffirmative(row.has_limitations) ? (row.limitations || null) : null,
-        // Free-text detail some organisations record alongside the allergy.
-        allergy_severity: healthData.allergie_gravite || healthData.severite_allergie || null,
-        allergy_reaction: healthData.allergie_reaction || healthData.reaction_allergie || null,
-        allergy_action: healthData.allergie_action || healthData.mesures_allergie || null,
-        notes: healthData.notes_allergies || healthData.allergie_notes || null,
-      };
-    });
+        return {
+          id: row.id,
+          first_name: row.first_name,
+          last_name: row.last_name,
+          group_name: row.group_name,
+          allergies: allergyText(healthData),
+          epipen: hasEpipen,
+          // Emergency medication is part of an allergy response plan; unrelated
+          // medication is reported only when an EpiPen is carried.
+          emergency_medication: hasEpipen ? medication : null,
+          has_medication: declaresMedication(healthData),
+          medication,
+          limitations: isAffirmative(row.has_limitations) ? (row.limitations || null) : null,
+          // Free-text detail some organisations record alongside the allergy.
+          allergy_severity: healthData.allergie_gravite || healthData.severite_allergie || null,
+          allergy_reaction: healthData.allergie_reaction || healthData.reaction_allergie || null,
+          allergy_action: healthData.allergie_action || healthData.mesures_allergie || null,
+          notes: healthData.notes_allergies || healthData.allergie_notes || null,
+        };
+      });
 
     res.json({ success: true, data: allergiesReport });
   }));
@@ -670,10 +701,13 @@ module.exports = (pool, logger) => {
   router.get('/medication', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
+    // Same reading as the allergy report, for the same reason: a medication a
+    // parent wrote down must reach the leader who hands it out, whatever shape
+    // the `has_medication` answer was stored in.
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
                 fs.submission_data->>'has_medication' as has_medication,
-                fs.submission_data->>'medicament' as medication
+                fs.submission_data as health_data
          FROM participants p
          JOIN participant_enrollments po ON p.id = po.participant_id
            AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
@@ -681,13 +715,23 @@ module.exports = (pool, logger) => {
          LEFT JOIN groups g ON pg.group_id = g.id
          ${HEALTH_FORM_AS_OF_YEAR}
          WHERE po.organization_id = $1
-           AND fs.submission_data->>'has_medication' = 'yes'
          ORDER BY g.name, p.last_name, p.first_name`,
       [organizationId, req.scoutYear.id, req.rosterStatuses,
-        req.scoutYear.start_date, req.scoutYear.end_date]
+        ...formWindowFor(req.scoutYear)]
     );
 
-    res.json({ success: true, data: result.rows });
+    const medicationReport = result.rows
+      .filter((row) => declaresMedication(row.health_data))
+      .map((row) => ({
+        id: row.id,
+        first_name: row.first_name,
+        last_name: row.last_name,
+        group_name: row.group_name,
+        has_medication: row.has_medication,
+        medication: medicationText(row.health_data)
+      }));
+
+    res.json({ success: true, data: medicationReport });
   }));
 
   /**
@@ -722,7 +766,7 @@ module.exports = (pool, logger) => {
          WHERE po.organization_id = $1
          ORDER BY g.name, p.last_name, p.first_name`,
       [organizationId, req.scoutYear.id, req.rosterStatuses,
-        req.scoutYear.start_date, req.scoutYear.end_date]
+        ...formWindowFor(req.scoutYear)]
     );
 
     res.json({ success: true, data: result.rows });
@@ -760,7 +804,7 @@ module.exports = (pool, logger) => {
          WHERE po.organization_id = $1
          ORDER BY g.name, p.last_name, p.first_name`,
       [organizationId, req.scoutYear.id, req.rosterStatuses,
-        req.scoutYear.start_date, req.scoutYear.end_date]
+        ...formWindowFor(req.scoutYear)]
     );
 
     res.json({ success: true, data: result.rows });
@@ -798,7 +842,7 @@ module.exports = (pool, logger) => {
          WHERE po.organization_id = $1
          ORDER BY g.name, p.last_name, p.first_name`,
       [organizationId, req.scoutYear.id, req.rosterStatuses,
-        req.scoutYear.start_date, req.scoutYear.end_date]
+        ...formWindowFor(req.scoutYear)]
     );
 
     res.json({ success: true, data: result.rows });
@@ -1133,3 +1177,8 @@ module.exports = (pool, logger) => {
 
   return router;
 };
+
+// Exposed for the report tests, which assert the year window directly rather
+// than through a query.
+module.exports.formWindowFor = formWindowFor;
+module.exports.OPEN_ENDED_DATE = OPEN_ENDED_DATE;

@@ -33,6 +33,35 @@ export class JSONFormRenderer {
 		return renderedFields.join('');
 	}
 
+	/**
+	 * Whether a `dependsOn` condition is already satisfied by the saved answers.
+	 *
+	 * The comparison is tolerant because the controlling answer is not always
+	 * stored the way the form format spells it: a radio saved as `"yes"`, a
+	 * checkbox saved as `true`, `"on"` or `"1"` and a French `"oui"` all mean the
+	 * same thing, and the fiche santé has been filled with every one of them over
+	 * the years.
+	 *
+	 * @param {Object} dependsOn - `{ field, value }` from the form format
+	 * @returns {boolean} True when the dependent field should be editable
+	 */
+	isDependencyMet(dependsOn) {
+		const current = this.formData ? this.formData[dependsOn.field] : undefined;
+		if (current === undefined || current === null) {
+			return false;
+		}
+
+		const normalize = (input) => String(input).trim().toLowerCase();
+		const affirmative = new Set(['yes', 'oui', 'true', 'on', '1', 'y']);
+		const currentValue = current === true ? 'true' : normalize(current);
+		const expectedValue = normalize(dependsOn.value);
+
+		if (currentValue === expectedValue) {
+			return true;
+		}
+		return affirmative.has(currentValue) && affirmative.has(expectedValue);
+	}
+
 	renderField(field, formOrigin, index) {
 			const { type = 'text', name, label, required, infoText, options, dependsOn } = field;
 			let value = this.formData[name] || '';
@@ -58,7 +87,13 @@ export class JSONFormRenderer {
 
 			// If the field has a dependsOn attribute, include it as a data-depends-on attribute in the HTML
 			const dependsOnAttr = dependsOn ? `data-depends-on='${JSON.stringify(dependsOn)}'` : '';
-			const disabled = dependsOn ? 'disabled' : '';
+			// A dependent field starts disabled only when its condition is not
+			// already met by the saved answers. Disabling it unconditionally made
+			// a filled-in fiche santé open with its allergy greyed out and
+			// uneditable, and — on the standalone form, which submits through
+			// FormData — dropped that allergy from the next save, because a
+			// disabled input is not submitted.
+			const disabled = dependsOn && !this.isDependencyMet(dependsOn) ? 'disabled' : '';
 
 			const fieldId = this.useUniqueIds ? `${name}-${this.formIndex}-${index}` : name;
 
