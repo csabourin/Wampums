@@ -5,7 +5,8 @@ require('dotenv').config();
 
 /**
  * Run the WhatsApp auth migration using the standard migration pipeline.
- * Leverages npm scripts so we stay aligned with node-pg-migrate conventions.
+ * Leverages the project's own SQL/JS migration runner (scripts/run-base-migrations.js),
+ * the same one used for deploys, rather than node-pg-migrate (not used in this repo).
  * @returns {Promise<void>}
  */
 async function runMigration() {
@@ -16,12 +17,12 @@ async function runMigration() {
     process.exit(1);
   }
 
-  console.log('🔄 Running WhatsApp database migration via node-pg-migrate...\n');
+  console.log('🔄 Running WhatsApp database migration...\n');
 
   await new Promise((resolve, reject) => {
     const migrateProcess = spawn(
       'npm',
-      ['run', 'migrate', '--', 'up'],
+      ['run', 'db:migrate:base'],
       {
         cwd: path.join(__dirname, '..'),
         stdio: 'inherit',
@@ -46,7 +47,7 @@ async function runMigration() {
     migrateProcess.on('error', reject);
   }).catch((error) => {
     console.error('\n❌ Migration failed:', error.message);
-    console.error('Please ensure node-pg-migrate is installed and try running `npm run migrate -- up` manually.');
+    console.error('Please try running `npm run db:migrate:base` manually.');
     process.exit(1);
   });
 }
