@@ -41,7 +41,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1101.0",
     "@fortawesome/fontawesome-free": "^7.2.0",
     "@googleapis/chat": "^44.6.0",
-    "@veryfi/veryfi-sdk": "^1.4.6",
+    "@veryfi/veryfi-sdk": "^1.4.8",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "bcryptjs": "^3.0.3",
     "body-parser": "^2.2.2",
