@@ -40,7 +40,7 @@
     "@aws-sdk/client-s3": "^3.1101.0",
     "@aws-sdk/s3-request-presigner": "^3.1101.0",
     "@fortawesome/fontawesome-free": "^7.2.0",
-    "@googleapis/chat": "^44.6.0",
+    "@googleapis/chat": "^46.0.0",
     "@veryfi/veryfi-sdk": "^1.4.8",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "bcryptjs": "^3.0.3",
