@@ -72,6 +72,34 @@ function mockScoutYearQuery(query) {
 }
 
 /**
+ * Answer the registration eligibility lookup with "no such account".
+ *
+ * Registration checks whether the address already exists before inserting, so
+ * that a deactivated member or a parent from a sister unit is sent to the
+ * reactivation flow instead of colliding with the unique index on
+ * `users.email`. The schema-based factory answers any recognisable SELECT with
+ * an invented row, which would make every address look taken and turn every
+ * registration test into a duplicate-address test.
+ *
+ * Registering a fresh address is the default the suite wants, so it is the
+ * default here. A test about an address that *does* exist stubs this shape
+ * itself, exactly as it would any other precondition.
+ *
+ * @param {string|Object} query - SQL being run
+ * @returns {Object|undefined} Empty result when this is the eligibility lookup
+ */
+function mockRegistrationStandingQuery(query) {
+  const queryText = typeof query === 'string' ? query : query?.text;
+  if (typeof queryText !== 'string') return undefined;
+
+  const normalized = queryText.replace(/\s+/g, ' ');
+  if (normalized.includes('FROM users u LEFT JOIN user_organizations uo')) {
+    return { rows: [] };
+  }
+  return undefined;
+}
+
+/**
  * Setup default mocks for all database queries
  * Uses schema-aware mock generation for all queries
  * 
@@ -88,7 +116,11 @@ function setupDefaultMocks(__mClient, __mPool) {
   const factory = getFactory();
   
   const handler = (query, params) => {
-    return Promise.resolve(mockScoutYearQuery(query) || factory.mockQuery(query, params));
+    return Promise.resolve(
+      mockScoutYearQuery(query)
+      || mockRegistrationStandingQuery(query)
+      || factory.mockQuery(query, params)
+    );
   };
 
   __mClient.query.mockImplementation(handler);
@@ -136,8 +168,11 @@ function mockQueryImplementation(
       return customResult;
     }
 
-    // Fall back to the scout year, then to the schema-based mock
-    return mockScoutYearQuery(query) || factory.mockQuery(query, params);
+    // Fall back to the scout year and registration standing, then to the
+    // schema-based mock
+    return mockScoutYearQuery(query)
+      || mockRegistrationStandingQuery(query)
+      || factory.mockQuery(query, params);
   };
   
   __mClient.query.mockImplementation(handler);

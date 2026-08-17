@@ -23,6 +23,17 @@ const {
   recordConsent,
   recordOptOut
 } = require('../services/alumni');
+const {
+  requestReactivation,
+  describeReactivationLink,
+  confirmReactivation
+} = require('../services/reactivation');
+const { resolveOrganizationBaseUrl } = require('../utils/public-url');
+const {
+  normalizeEmailValue,
+  validateEmail,
+  checkValidation
+} = require('../middleware/validation');
 
 const SUPPORTED_TRANSLATION_LANGS = ['en', 'fr', 'uk', 'it', 'id'];
 const DATE_LOCALES = {
@@ -486,6 +497,96 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
     alumniLinkLimiter,
     asyncHandler(async (req, res) => {
       const result = await recordOptOut(pool, req.body?.token);
+      return res.json({ success: true, data: result });
+    })
+  );
+
+  /**
+   * Membership reactivation
+   *
+   * Unauthenticated for the same reason the alumni links are: the people these
+   * endpoints serve are locked out by definition, so requiring a session would
+   * be asking them to open the door they came here to have opened.
+   *
+   * The request endpoint answers identically whatever it finds, because the
+   * question it is asked — "is this address a deactivated member here?" — is
+   * precisely what an enumeration probe wants to know. The link endpoints
+   * answer 200 with the outcome in `state` for the same reason the alumni ones
+   * do: a status code that distinguished "expired" from "no such membership"
+   * would be an oracle for probing tokens.
+   */
+  const reactivationRequestLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    message: { success: false, message: 'too_many_reactivation_requests' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const reactivationLinkLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 30,
+    message: { success: false, message: 'too_many_reactivation_requests' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  /**
+   * Ask for a reactivation link by email.
+   */
+  router.post('/reactivation/request',
+    reactivationRequestLimiter,
+    validateEmail,
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const organizationId = await getCurrentOrganizationId(
+          req,
+          pool,
+          logger,
+          { allowAuthentication: false }
+        );
+        const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
+
+        await requestReactivation(pool, {
+          email: normalizeEmailValue(req.body.email),
+          organizationId,
+          baseUrl,
+          logger,
+        });
+
+        return res.json({
+          success: true,
+          message: 'reactivation_link_sent_if_eligible'
+        });
+      } catch (err) {
+        if (handleOrganizationResolutionError(res, err, logger)) {
+          return;
+        }
+        throw err;
+      }
+    })
+  );
+
+  /**
+   * Describe a reactivation link without acting on it, so the landing page can
+   * name the unit and say whether the click restores access or asks an admin.
+   */
+  router.get('/reactivation/link',
+    reactivationLinkLimiter,
+    asyncHandler(async (req, res) => {
+      const result = await describeReactivationLink(pool, req.query.token);
+      return res.json({ success: true, data: result });
+    })
+  );
+
+  /**
+   * Act on a reactivation link. The click on "confirm" is what lands here.
+   */
+  router.post('/reactivation/confirm',
+    reactivationLinkLimiter,
+    asyncHandler(async (req, res) => {
+      const result = await confirmReactivation(pool, req.body?.token, logger);
       return res.json({ success: true, data: result });
     })
   );

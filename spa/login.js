@@ -112,6 +112,7 @@ export class Login {
           <button type="submit" class="btn-primary">${translate("submit_login")}</button>
         </form>
         <div id="login-message" class="status-message" role="status" aria-live="polite"></div>
+        <div id="login-recovery-cta"></div>
         <p><a href="/register">${translate("create_account")}</a></p>
         <p><a href="/reset-password">${translate("forgot_password")}</a></p>
       </div>
@@ -143,6 +144,9 @@ export class Login {
       }
       statusElement.textContent = message;
       statusElement.className = `status-message ${type}`;
+      // Any new attempt clears the reactivation offer; it only belongs under the
+      // one refusal it answers.
+      this.setRecoveryCta(false);
     };
 
     form.addEventListener("submit", async (e) => {
@@ -182,6 +186,11 @@ export class Login {
           debugWarn("Login failed:", result.message);
           const friendlyMessage = this.translateApiMessage(result.message);
           setStatus(friendlyMessage, "error");
+          // A closed membership is the one refusal with a way out of it, so it
+          // is the one refusal that offers the reader something to do next.
+          if (result.message === "membership_inactive") {
+            this.setRecoveryCta(true);
+          }
         }
       } catch (error) {
         debugError("Login error:", error);
@@ -457,12 +466,32 @@ export class Login {
     return messageMap[messageKey] || translate("verification_error") || "Verification failed. Please try again.";
   }
 
+  /**
+   * Show or hide the link to the reactivation page.
+   *
+   * @param {boolean} visible - Whether to offer it
+   * @returns {void}
+   */
+  setRecoveryCta(visible) {
+    const container = document.getElementById("login-recovery-cta");
+    if (!container) {
+      return;
+    }
+
+    setContent(container, visible ? `
+      <p><a href="/reactivate-account">${translate("membership_inactive_cta")}</a></p>
+    ` : "");
+  }
+
   translateApiMessage(message) {
     const messageKey = message || "invalid_email_or_password";
     const messageMap = {
       invalid_email_or_password: translate("invalid_email_or_password"),
       account_not_verified_login: translate("account_not_verified_login") || translate("invalid_email_or_password"),
       too_many_login_attempts: translate("too_many_login_attempts"),
+      // Without this the server's "your membership was closed" arrived as
+      // "wrong password", which sent people to reset a password that was fine.
+      membership_inactive: translate("membership_inactive"),
       internal_server_error: translate("internal_server_error")
     };
 
