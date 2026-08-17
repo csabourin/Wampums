@@ -702,7 +702,7 @@ async function rollbackTransition(client, { transition, userId }) {
   const reactivated = await client.query(
     `UPDATE user_organizations
         SET status = 'active', deactivated_at = NULL, deactivated_reason = NULL,
-            last_active_scout_year_id = NULL
+            last_active_scout_year_id = NULL, reactivation_requested_at = NULL
       WHERE organization_id = $1 AND id = ANY($2::int[]) AND status = 'inactive'
       RETURNING id`,
     [organizationId, membershipIds]

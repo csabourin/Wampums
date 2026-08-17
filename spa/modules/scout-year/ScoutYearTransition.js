@@ -27,6 +27,7 @@ import {
   executeTransition,
   setMembershipStatus,
   getTransitions,
+  getReactivationRequests,
   rollbackTransition
 } from '../../api/api-scout-years.js';
 import { sendAlumniInvitations } from '../../api/api-alumni.js';
@@ -54,6 +55,7 @@ export class ScoutYearTransition extends BaseModule {
     this.preview = null;
     this.years = [];
     this.transitions = [];
+    this.reactivationRequests = [];
     this.result = null;
     this.loadError = null;
 
@@ -98,6 +100,7 @@ export class ScoutYearTransition extends BaseModule {
       return;
     }
 
+    this.reactivationRequests = await getReactivationRequests();
     this.preview = await getTransitionPreview();
     this.dispositions = new Map(
       this.preview.participants.map(p => [p.id, p.disposition])
@@ -149,6 +152,7 @@ export class ScoutYearTransition extends BaseModule {
         <h1>${translate('scout_year_title')}</h1>
         <p class="page-description">${translate('scout_year_description')}</p>
         ${this.loadError ? this.renderError() : ''}
+        ${this.canManage && !this.loadError ? this.renderReactivationRequests() : ''}
         ${this.canManage && !this.loadError ? this.renderWizard() : ''}
         ${!this.canManage ? `<p class="muted-text">${translate('scout_year_view_only')}</p>` : ''}
         ${this.renderLastTransition()}
@@ -159,6 +163,50 @@ export class ScoutYearTransition extends BaseModule {
 
   renderError() {
     return `<div class="alert alert--error" role="alert">${escapeHTML(this.loadError)}</div>`;
+  }
+
+  /**
+   * People asking to come back, and the one button that lets them.
+   *
+   * Renders nothing at all when nobody is waiting. This section answers a
+   * question a leader only has when it has an answer, and an empty panel on
+   * every visit would train them to stop reading it — which is the one failure
+   * mode that matters for a queue whose whole job is to be noticed.
+   *
+   * @returns {string} Markup, or an empty string
+   */
+  renderReactivationRequests() {
+    if (this.reactivationRequests.length === 0) {
+      return '';
+    }
+
+    const rows = this.reactivationRequests.map((request) => {
+      const name = escapeHTML(request.full_name || request.email || '');
+      const email = escapeHTML(request.email || '');
+      const askedOn = translate('reactivation_requests_requested_on')
+        .replace('{date}', escapeHTML(
+          formatDate(request.reactivation_requested_at, this.app?.lang || 'fr', DATE_FORMAT)
+        ));
+
+      return `<li class="scout-year-request">
+          <div>
+            <strong>${name}</strong>
+            <span class="muted-text">${email}</span>
+            <span class="muted-text">${askedOn}</span>
+          </div>
+          <button type="button"
+                  class="button button--primary js-approve-reactivation"
+                  data-membership-id="${request.membership_id}">
+            ${translate('reactivation_requests_approve')}
+          </button>
+        </li>`;
+    }).join('');
+
+    return `<section class="card scout-year-requests">
+        <h2>${translate('reactivation_requests_title')}</h2>
+        <p class="page-description">${translate('reactivation_requests_description')}</p>
+        <ul class="scout-year-request-list">${rows}</ul>
+      </section>`;
   }
 
   renderWizard() {
@@ -669,6 +717,9 @@ export class ScoutYearTransition extends BaseModule {
         this.handleAcceptAll();
       } else if (event.target.closest('#alumni-invite-btn')) {
         this.handleAlumniInvitation();
+      } else if (event.target.closest('.js-approve-reactivation')) {
+        const approveButton = event.target.closest('.js-approve-reactivation');
+        this.handleReactivationApproval(parseInt(approveButton.dataset.membershipId, 10));
       } else {
         const rollbackButton = event.target.closest('#rollback-btn');
         if (rollbackButton) {
@@ -892,9 +943,32 @@ export class ScoutYearTransition extends BaseModule {
     try {
       await setMembershipStatus(membershipId, 'active');
       this.app?.showMessage?.(translate('scout_year_membership_reactivated'), 'success');
+      return true;
     } catch (error) {
       debugError('Failed to reactivate membership:', error);
       this.app?.showMessage?.(translate('scout_year_membership_failed'), 'error');
+      return false;
     }
+  }
+
+  /**
+   * Grant a pending request to come back.
+   *
+   * The server clears the request as part of restoring the membership, so a
+   * successful approval is also what removes the row from this list.
+   *
+   * @param {number} membershipId - Membership ID
+   * @returns {Promise<void>}
+   */
+  async handleReactivationApproval(membershipId) {
+    const restored = await this.reactivateMembership(membershipId);
+    if (!restored) {
+      return;
+    }
+
+    this.reactivationRequests = this.reactivationRequests.filter(
+      request => request.membership_id !== membershipId
+    );
+    this.rerender();
   }
 }

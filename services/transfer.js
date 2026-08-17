@@ -333,7 +333,8 @@ async function transferParticipant(client, {
         `UPDATE user_organizations
             SET status = 'active',
                 deactivated_at = NULL,
-                deactivated_reason = NULL
+                deactivated_reason = NULL,
+                reactivation_requested_at = NULL
           WHERE id = $1`,
         [existing.rows[0].id]
       );

@@ -98,9 +98,19 @@ export class Register {
       // Extract validation errors and display them
       let errorMessage = this.translateMessage(error.message, "error_creating_account");
 
-      // Specific handling for account_already_exists
+      // An address that is already active here belongs to someone who should be
+      // signing in, so the reset page is the right destination.
       if (error.message === "account_already_exists") {
         this.app.router.navigate("/reset-password?error=account_already_exists");
+        return;
+      }
+
+      // An address that exists but is deactivated here — or belongs to another
+      // unit — needs the reactivation page instead. Sending it to reset-password
+      // was the closed loop this flow used to fall into: the reset it asked for
+      // was refused just as silently.
+      if (error.message === "account_exists_reactivation_available") {
+        this.app.router.navigate("/reactivate-account");
         return;
       }
 

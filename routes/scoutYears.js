@@ -658,6 +658,48 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
+   * /api/v1/scout-years/memberships/reactivation-requests:
+   *   get:
+   *     summary: List deactivated members who have asked for their access back
+   *     description: >
+   *       Only memberships deactivated for a reason other than the year
+   *       transition appear here. A family the transition swept out restores
+   *       itself by confirming an emailed link and never reaches this list;
+   *       these were removed by a deliberate act, so their return is one too.
+   *       Approve by setting the membership status back to active.
+   *     tags: [Scout Years]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Pending reactivation requests
+   */
+  router.get('/memberships/reactivation-requests', authenticate, requirePermission('scout_year.manage'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+
+    const result = await pool.query(
+      `SELECT uo.id AS membership_id,
+              uo.user_id,
+              u.email,
+              u.full_name,
+              uo.status,
+              uo.deactivated_at,
+              uo.deactivated_reason,
+              uo.reactivation_requested_at
+         FROM user_organizations uo
+         JOIN users u ON u.id = uo.user_id
+        WHERE uo.organization_id = $1
+          AND uo.reactivation_requested_at IS NOT NULL
+          AND uo.status <> 'active'
+        ORDER BY uo.reactivation_requested_at ASC`,
+      [organizationId]
+    );
+
+    return success(res, result.rows);
+  }));
+
+  /**
+   * @swagger
    * /api/v1/scout-years/memberships/{membershipId}/status:
    *   patch:
    *     summary: Activate or deactivate a membership
@@ -690,6 +732,8 @@ module.exports = (pool, logger) => {
       return error(res, `status must be one of: ${allowedStatuses.join(', ')}`, 400);
     }
 
+    // Either way the admin has just decided, so any pending self-service
+    // reactivation request this membership had is answered and cleared below.
     const isDeactivation = status !== 'active';
     const scoutYear = await ensureActiveScoutYear(pool, organizationId);
 
@@ -698,7 +742,8 @@ module.exports = (pool, logger) => {
           SET status = $3,
               deactivated_at = CASE WHEN $4 THEN now() ELSE NULL END,
               deactivated_reason = CASE WHEN $4 THEN $5 ELSE NULL END,
-              last_active_scout_year_id = CASE WHEN $4 THEN $6 ELSE last_active_scout_year_id END
+              last_active_scout_year_id = CASE WHEN $4 THEN $6 ELSE last_active_scout_year_id END,
+              reactivation_requested_at = NULL
         WHERE id = $1 AND organization_id = $2
         RETURNING id, user_id, status, deactivated_at, deactivated_reason`,
       [membershipId, organizationId, status, isDeactivation, reason || null, scoutYear.id]

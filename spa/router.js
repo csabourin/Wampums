@@ -130,7 +130,8 @@ const lazyModules = {
   IncidentReport: () => import('./modules/incident-report/incident-report.js').then(m => m.IncidentReport),
   YearlyPlanner: () => import('./modules/yearly-planner/YearlyPlanner.js').then(m => m.YearlyPlanner),
   ScoutYearTransition: () => import('./modules/scout-year/ScoutYearTransition.js').then(m => m.ScoutYearTransition),
-  AlumniLink: () => import('./modules/alumni/AlumniLink.js').then(m => m.AlumniLink)
+  AlumniLink: () => import('./modules/alumni/AlumniLink.js').then(m => m.AlumniLink),
+  ReactivationLink: () => import('./modules/reactivation/ReactivationLink.js').then(m => m.ReactivationLink)
 };
 
 // Cache for loaded modules
@@ -180,6 +181,7 @@ const routes = {
   "/reset-password": "resetPassword",
   "/alumni-consent": "alumniConsent",
   "/alumni-unsubscribe": "alumniUnsubscribe",
+  "/reactivate-account": "reactivateAccount",
   "/reports": "reports",
   "/preparation-reunions": "preparation_reunions",
   "/preparation-reunions/:date": "preparation_reunions",
@@ -354,7 +356,7 @@ export class Router {
       // Allow access to login, register, permission slip signing, and index pages without being logged in
       // The alumni links are reached by people whose access was just withdrawn,
       // so requiring a session would make them unusable by design.
-      if (!this.app.isLoggedIn && !["login", "register", "resetPassword", "permissionSlipSign", "alumniConsent", "alumniUnsubscribe"].includes(routeName)) {
+      if (!this.app.isLoggedIn && !["login", "register", "resetPassword", "permissionSlipSign", "alumniConsent", "alumniUnsubscribe", "reactivateAccount"].includes(routeName)) {
         if (path !== "/login") {
           debugWarn('Redirecting to login from route:', routeName);
           history.pushState(null, "", "/login");
@@ -677,6 +679,9 @@ export class Router {
           break;
         case "alumniUnsubscribe":
           await this.loadAlumniLinkPage("unsubscribe");
+          break;
+        case "reactivateAccount":
+          await this.loadReactivationPage();
           break;
         case "attendance":
           if (!guard(canViewAttendance())) {
@@ -1176,6 +1181,13 @@ export class Router {
     const alumniLink = new AlumniLink(this.app, action);
     this.currentModuleInstance = alumniLink;
     await alumniLink.init();
+  }
+
+  async loadReactivationPage() {
+    const ReactivationLink = await this.loadModule('ReactivationLink');
+    const reactivationLink = new ReactivationLink(this.app);
+    this.currentModuleInstance = reactivationLink;
+    await reactivationLink.init();
   }
 
   async loadManageParticipants() {

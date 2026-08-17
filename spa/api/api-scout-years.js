@@ -90,6 +90,20 @@ export async function getMembershipsWithoutChild() {
 }
 
 /**
+ * List deactivated members who have asked for their access back.
+ *
+ * Only memberships a leader deactivated by hand appear here. A family the year
+ * transition swept out restores itself by confirming an emailed link and never
+ * reaches this list.
+ *
+ * @returns {Promise<Array<Object>>} Pending reactivation requests
+ */
+export async function getReactivationRequests() {
+  const response = await API.getNoCache('v1/scout-years/memberships/reactivation-requests');
+  return response.data || [];
+}
+
+/**
  * Change a membership status.
  *
  * Deactivating keeps the account, its links and its history; the user simply

@@ -33,6 +33,7 @@ const {
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { findMembershipStanding, classifyStanding } = require('../services/reactivation');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { sendEmail, sendAdminVerificationEmail, getTranslationsByCode, getUserEmailLanguage } = require('../utils/index');
 const {
@@ -55,6 +56,36 @@ const emailTranslations = {
 function getEmailTranslations(req) {
   const preferredLanguage = (req.headers['accept-language'] || '').split(',')[0]?.slice(0, 2);
   return emailTranslations[preferredLanguage] || emailTranslations.en;
+}
+
+/**
+ * Decide whether an address may register, and say why when it may not.
+ *
+ * `users.email` is globally unique, so registering an address that already
+ * exists used to reach the database and come back as a constraint violation —
+ * which reads as "pick another email" whoever you are. That is only the right
+ * answer for someone already active here. A parent whose membership was
+ * deactivated, and a parent who belongs to another unit, both have a real way
+ * forward, and it is the same one: confirm ownership of the address by email.
+ *
+ * @param {Object} client - Database pool or client
+ * @param {string} normalizedEmail - Lower-cased, trimmed address
+ * @param {number} organizationId - Unit being registered against
+ * @returns {Promise<{message: string}|null>} Refusal to send back, or null when
+ *   registration may proceed
+ */
+async function checkRegistrationEligibility(client, normalizedEmail, organizationId) {
+  const standing = await findMembershipStanding(client, normalizedEmail, organizationId);
+
+  switch (classifyStanding(standing)) {
+    case 'no_account':
+      return null;
+    case 'already_active':
+      return { message: 'account_already_exists' };
+    default:
+      // 'returning' (deactivated here) and 'joining' (account in another unit).
+      return { message: 'account_exists_reactivation_available' };
+  }
 }
 
 /**
@@ -608,6 +639,11 @@ module.exports = (pool, logger) => {
         const trimmedPassword = password.trim();
         const role = mapRequestedRole(user_type);
 
+        const refusal = await checkRegistrationEligibility(client, normalizedEmail, organizationId);
+        if (refusal) {
+          return res.status(400).json({ success: false, message: refusal.message });
+        }
+
         await client.query('BEGIN');
 
         // Hash password
@@ -737,6 +773,11 @@ module.exports = (pool, logger) => {
         const trimmedPassword = password.trim();
         const role = mapRequestedRole(user_type);
 
+        const refusal = await checkRegistrationEligibility(client, normalizedEmail, organizationId);
+        if (refusal) {
+          return res.status(400).json({ success: false, message: refusal.message });
+        }
+
         await client.query('BEGIN');
 
         // Hash password
@@ -836,14 +877,22 @@ module.exports = (pool, logger) => {
           email: normalizedEmail,
         });
 
-        // Check if user exists
+        // Check if user exists.
+        //
+        // Deliberately not filtered on membership status. A password is a fact
+        // about the account, not about any one unit's membership, and gating
+        // recovery on `status = 'active'` left deactivated parents unable to
+        // reset — silently, since the response below is constant. Membership
+        // still governs what a password opens: login checks it separately.
+        //
+        // An active membership is preferred only to pick the unit whose domain
+        // and branding the reset email should carry.
         const user = await pool.query(
           `SELECT u.id, uo.organization_id
              FROM users u
              JOIN user_organizations uo ON uo.user_id = u.id
             WHERE LOWER(u.email) = $1
-              AND uo.status = 'active'
-            ORDER BY uo.organization_id
+            ORDER BY (uo.status = 'active') DESC, uo.organization_id
             LIMIT 1`,
           [normalizedEmail]
         );

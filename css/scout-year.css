@@ -415,3 +415,47 @@
   cursor: not-allowed;
   opacity: 0.6;
 }
+
+/* -------------------------------------------------- requests to come back */
+
+/*
+ * The queue of people asking for their access back. It sits above the
+ * transition wizard because it is the one thing on this page with someone
+ * waiting on the other end of it, and it renders only when it has entries.
+ */
+.scout-year-requests {
+  border-left: 4px solid var(--primary-color, #2563eb);
+  margin-bottom: 1.5rem;
+}
+
+.scout-year-request-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.scout-year-request {
+  align-items: flex-start;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  padding: 0.875rem 1rem;
+}
+
+.scout-year-request > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+/* Wide enough for the name and the button to share a row. */
+@media (min-width: 40rem) {
+  .scout-year-request {
+    align-items: center;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+}

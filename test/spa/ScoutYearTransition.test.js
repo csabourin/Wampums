@@ -47,6 +47,7 @@ const mockGetTransitionPreview = jest.fn();
 const mockExecuteTransition = jest.fn();
 const mockSetMembershipStatus = jest.fn();
 const mockGetTransitions = jest.fn();
+const mockGetReactivationRequests = jest.fn(() => Promise.resolve([]));
 const mockRollbackTransition = jest.fn();
 jest.mock('../../spa/api/api-scout-years.js', () => ({
   getScoutYears: (...args) => mockGetScoutYears(...args),
@@ -54,6 +55,7 @@ jest.mock('../../spa/api/api-scout-years.js', () => ({
   executeTransition: (...args) => mockExecuteTransition(...args),
   setMembershipStatus: (...args) => mockSetMembershipStatus(...args),
   getTransitions: (...args) => mockGetTransitions(...args),
+  getReactivationRequests: (...args) => mockGetReactivationRequests(...args),
   rollbackTransition: (...args) => mockRollbackTransition(...args)
 }));
 
@@ -107,6 +109,7 @@ beforeEach(() => {
   mockConfirmDialog.mockResolvedValue(true);
   mockGetScoutYears.mockResolvedValue(YEARS);
   mockGetTransitions.mockResolvedValue([]);
+  mockGetReactivationRequests.mockResolvedValue([]);
   // A test that drops the manage permission must not decide it for the next one.
   require('../../spa/utils/PermissionUtils.js').hasPermission.mockReturnValue(true);
   app = { lang: 'fr', showMessage: jest.fn() };
