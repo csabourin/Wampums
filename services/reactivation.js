@@ -84,26 +84,45 @@ function issueReactivationToken(subject) {
 /**
  * Verify a reactivation token.
  *
+ * Every rejection is logged with the reason, because all of them reach the
+ * reader as the same sentence — "this link is no longer valid" — and without a
+ * line here there is no way to tell an expired link from one a mail client
+ * wrapped mid-token. The token's length is logged for exactly that: a truncated
+ * link is otherwise indistinguishable from a forged one. The token itself is
+ * never logged; it is a bearer credential.
+ *
  * @param {string} token - Token from the link
+ * @param {Object} [logger] - Logger
  * @returns {Object|null} Payload, or null when absent, malformed, expired or
  *   minted for another purpose
  */
-function verifyReactivationToken(token) {
+function verifyReactivationToken(token, logger) {
   if (!token || typeof token !== 'string') {
+    logger?.info('Reactivation token rejected', { reason: 'absent' });
     return null;
   }
 
   let payload;
   try {
     payload = verifyJWTToken(token);
-  } catch (_err) {
+  } catch (err) {
+    logger?.info('Reactivation token rejected', {
+      reason: err.name === 'TokenExpiredError' ? 'expired' : 'signature_or_format',
+      error: err.message,
+      tokenLength: token.length,
+    });
     return null;
   }
 
   if (payload?.purpose !== REACTIVATION_PURPOSE) {
+    logger?.info('Reactivation token rejected', {
+      reason: 'wrong_purpose',
+      purpose: payload?.purpose || null,
+    });
     return null;
   }
   if (!payload.user_id || !payload.organization_id) {
+    logger?.info('Reactivation token rejected', { reason: 'incomplete_payload' });
     return null;
   }
   return payload;
@@ -297,10 +316,11 @@ async function loadMembershipForToken(pool, payload) {
  *
  * @param {Object} pool - Database pool
  * @param {string} token - Token from the link
+ * @param {Object} [logger] - Logger
  * @returns {Promise<{state: string, organization_name?: string}>} Link state
  */
-async function describeReactivationLink(pool, token) {
-  const payload = verifyReactivationToken(token);
+async function describeReactivationLink(pool, token, logger) {
+  const payload = verifyReactivationToken(token, logger);
   if (!payload) {
     return { state: 'invalid' };
   }
@@ -310,6 +330,9 @@ async function describeReactivationLink(pool, token) {
     [payload.user_id]
   );
   if (userResult.rows.length === 0) {
+    logger?.info('Reactivation link names a user that no longer exists', {
+      userId: payload.user_id,
+    });
     return { state: 'invalid' };
   }
 
@@ -441,7 +464,7 @@ async function notifyAdminsOfReactivationRequest(pool, {
  * @returns {Promise<{state: string, organization_name?: string}>} Outcome
  */
 async function confirmReactivation(pool, token, logger) {
-  const payload = verifyReactivationToken(token);
+  const payload = verifyReactivationToken(token, logger);
   if (!payload) {
     return { state: 'invalid' };
   }
