@@ -575,7 +575,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
   router.get('/reactivation/link',
     reactivationLinkLimiter,
     asyncHandler(async (req, res) => {
-      const result = await describeReactivationLink(pool, req.query.token);
+      const result = await describeReactivationLink(pool, req.query.token, logger);
       return res.json({ success: true, data: result });
     })
   );

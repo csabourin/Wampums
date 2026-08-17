@@ -23,7 +23,13 @@ import { translate } from '../../app.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { getApiUrl, getCurrentOrganizationId } from '../../ajax-functions.js';
+// getApiUrl comes from config.js, not from ajax-functions.js. The same name is
+// exported by both, but ajax-functions aliases it to buildApiUrl, which appends
+// `?organization_id=…` of its own. Adding a query string to that result yields a
+// URL with two `?`, and every parameter after the first silently becomes part of
+// the previous value — which is how the token below went missing in transit.
+import { getApiUrl } from '../../config.js';
+import { getCurrentOrganizationId } from '../../ajax-functions.js';
 
 /**
  * What the page says once a link has been described but not yet used.
@@ -176,9 +182,13 @@ export class ReactivationLink {
   async renderConfirmation() {
     let state = 'invalid';
     try {
-      const response = await fetch(
-        `${getApiUrl('/api/v1/public/reactivation/link')}?token=${encodeURIComponent(this.token)}`
-      );
+      // Built through URL rather than string concatenation so that a base which
+      // already carries a query string appends to it instead of starting a
+      // second one.
+      const url = new URL(getApiUrl('/api/v1/public/reactivation/link'));
+      url.searchParams.set('token', this.token);
+
+      const response = await fetch(url);
       const body = await response.json();
       state = body?.data?.state || 'invalid';
       this.organizationName = body?.data?.organization_name || '';
