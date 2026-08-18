@@ -27,6 +27,27 @@ const LOCATION_TYPES = [
 /**
  * Material management page for reserving equipment for activities
  */
+/**
+ * Label a reservation status in the reader's language.
+ *
+ * The status arrives from the database as a bare English keyword. Printing it
+ * straight into the table put "reserved" in the middle of a French page, which
+ * the project's first rule forbids. An unrecognised value falls back to itself
+ * rather than to an empty cell -- a row with an odd label is still readable, a
+ * row with a blank status is not.
+ *
+ * @param {string} status - Stored status keyword
+ * @returns {string} Translated label
+ */
+function reservationStatusLabel(status) {
+  if (!status) {
+    return "";
+  }
+  const key = `reservation_status_${status}`;
+  const label = translate(key);
+  return label && label !== key ? label : status;
+}
+
 export class MaterialManagement {
   constructor(app) {
     this.app = app;
@@ -266,7 +287,7 @@ export class MaterialManagement {
                           <td>${escapeHTML(String(reservation.reserved_quantity || 0))}</td>
                           <td>${escapeHTML(reservation.reserved_for || '-')}</td>
                           <td>${escapeHTML(reservation.organization_name || '-')}</td>
-                          <td>${escapeHTML(reservation.status)}</td>
+                          <td>${escapeHTML(reservationStatusLabel(reservation.status))}</td>
                         </tr>
                       `;
                     }).join('')}

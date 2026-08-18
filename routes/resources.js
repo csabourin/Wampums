@@ -68,6 +68,76 @@ function parseDate(dateString) {
     : parsed.toISOString().slice(0, 10);
 }
 
+/**
+ * SQL predicate for a reservation that is still holding stock.
+ *
+ * Two things make a reservation a real claim on equipment: a status that has not
+ * been closed out, and an end date that has not passed. Leaving the date out is
+ * what let reservations from last December keep holding gear this year, so the
+ * two conditions are written together here rather than being restated -- and
+ * forgotten -- at each call site.
+ *
+ * `meeting_date` is the fallback because `date_to` is nullable on older rows.
+ *
+ * @param {string} [alias] - Table alias used by the calling query
+ * @returns {string} Predicate to AND into a WHERE clause
+ */
+function activeReservationPredicate(alias = "") {
+  const prefix = alias ? `${alias}.` : "";
+  return `${prefix}status IN ('reserved', 'confirmed')
+          AND COALESCE(${prefix}date_to, ${prefix}meeting_date) >= CURRENT_DATE`;
+}
+
+/**
+ * Close out reservations whose last day has passed without them being taken.
+ *
+ * Run before listing reservations or equipment rather than on a timer: the
+ * transition depends only on the date, so computing it when someone looks is
+ * both sufficient and self-correcting, and it spares the deployment a scheduler
+ * whose failure would be invisible.
+ *
+ * Only `reserved` lapses. `confirmed` means the equipment actually left the
+ * shelf, and whether it came back is a fact for whoever checks it in -- not one
+ * this sweep is entitled to invent.
+ *
+ * Best effort: a failure here must never take down the listing it precedes,
+ * because the queries that matter carry their own date predicate and are correct
+ * whether or not this ever runs.
+ *
+ * @param {Object} pool - Database pool
+ * @param {number} organizationId - Organization whose reservations to sweep
+ * @param {Object} [logger] - Logger
+ * @returns {Promise<number>} How many reservations were expired
+ */
+async function expireLapsedReservations(pool, organizationId, logger) {
+  try {
+    const result = await pool.query(
+      `UPDATE equipment_reservations
+          SET status = 'expired',
+              updated_at = CURRENT_TIMESTAMP
+        WHERE organization_id = $1
+          AND status = 'reserved'
+          AND COALESCE(date_to, meeting_date) < CURRENT_DATE
+        RETURNING id`,
+      [organizationId],
+    );
+
+    if (result.rows.length > 0) {
+      logger?.info?.("Expired lapsed equipment reservations", {
+        organizationId,
+        count: result.rows.length,
+      });
+    }
+    return result.rows.length;
+  } catch (err) {
+    logger?.warn?.("Could not expire lapsed reservations", {
+      organizationId,
+      error: err.message,
+    });
+    return 0;
+  }
+}
+
 module.exports = (pool) => {
   const parentRoles = ["parent", "demoparent"];
   const staffRoles = [
@@ -318,6 +388,9 @@ module.exports = (pool) => {
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
+        // Settle lapsed reservations first: their held quantity is what the
+        // availability sum below reports as unavailable.
+        await expireLapsedReservations(pool, organizationId, req.log || null);
         const result = await pool.query(
           `WITH requester_groups AS (
              SELECT local_group_id FROM organization_local_groups WHERE organization_id = $1
@@ -355,9 +428,10 @@ module.exports = (pool) => {
            )
            SELECT e.*,
                   COALESCE((
-                    SELECT SUM(CASE WHEN er.status IN ('reserved','confirmed') THEN er.reserved_quantity ELSE 0 END)
+                    SELECT SUM(er.reserved_quantity)
                     FROM equipment_reservations er
                     WHERE er.equipment_id = e.id
+                      AND ${activeReservationPredicate("er")}
                   ), 0) AS reserved_quantity,
                   COALESCE(shared_visibility.shared_organizations, '{}'::text[]) AS shared_organizations
              FROM accessible_equipment e
@@ -793,7 +867,8 @@ module.exports = (pool) => {
         // Check if equipment has active reservations
         const reservationCheck = await pool.query(
           `SELECT COUNT(*) as count FROM equipment_reservations
-           WHERE equipment_id = $1 AND status IN ('reserved', 'confirmed')`,
+           WHERE equipment_id = $1
+             AND ${activeReservationPredicate()}`,
           [equipmentId],
         );
 
@@ -1042,6 +1117,9 @@ module.exports = (pool) => {
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
+        // Settle lapsed reservations before reporting them, so the list never
+        // shows equipment as spoken for by a date that has already gone by.
+        await expireLapsedReservations(pool, organizationId, req.log || null);
         const activityId = req.query.activity_id ? parseInt(req.query.activity_id, 10) : null;
         const meetingDate = req.query.meeting_date
           ? parseDate(req.query.meeting_date)
@@ -1164,7 +1242,7 @@ module.exports = (pool) => {
       check("reserved_for").optional().isString().trim().isLength({ max: 200 }),
       check("status")
         .optional()
-        .isIn(["reserved", "confirmed", "returned", "cancelled"]),
+        .isIn(["reserved", "confirmed", "returned", "cancelled", "expired"]),
       check("notes").optional().isString().trim().isLength({ max: 2000 }),
     ],
     checkValidation,
@@ -1332,7 +1410,7 @@ module.exports = (pool) => {
       check("reserved_for").optional().isString().trim().isLength({ max: 200 }),
       check("status")
         .optional()
-        .isIn(["reserved", "confirmed", "returned", "cancelled"]),
+        .isIn(["reserved", "confirmed", "returned", "cancelled", "expired"]),
       check("notes").optional().isString().trim().isLength({ max: 2000 }),
     ],
     checkValidation,
