@@ -19,6 +19,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { translate as t } from '../i18n';
+import { reservationStatusLabel } from '../utils/ReservationStatusUtils';
 import theme, { commonStyles } from '../theme';
 import {
   LoadingSpinner,
@@ -596,7 +597,7 @@ const MaterialManagementScreen = ({ navigation }) => {
                         {t('organization')}: {reservation.organization_name || '-'}
                       </Text>
                       <Text style={styles.reservationDetail}>
-                        {t('reservation_status')}: {reservation.status}
+                        {t('reservation_status')}: {reservationStatusLabel(reservation.status)}
                       </Text>
                     </View>
                   </View>
