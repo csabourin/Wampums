@@ -82,6 +82,15 @@ function parseDate(dateString) {
  * @param {string} [alias] - Table alias used by the calling query
  * @returns {string} Predicate to AND into a WHERE clause
  */
+/**
+ * Statuses under which a reservation is still holding equipment.
+ *
+ * `reserved` means the gear is spoken for and `confirmed` means it has actually
+ * gone out; either way the units are not on the shelf. `returned`, `cancelled`
+ * and `expired` have all released them.
+ */
+const HOLDING_STATUSES = ["reserved", "confirmed"];
+
 function activeReservationPredicate(alias = "") {
   const prefix = alias ? `${alias}.` : "";
   return `${prefix}status IN ('reserved', 'confirmed')
@@ -1432,8 +1441,16 @@ module.exports = (pool) => {
           return success(res, null, "No changes detected");
         }
 
-        // If updating reserved_quantity, check for double-booking
-        if (req.body.reserved_quantity !== undefined) {
+        // Re-check availability when this update could take stock back off the
+        // shelf: either a bigger quantity, or a status moving from one that
+        // released the equipment (returned, cancelled, expired) to one that
+        // holds it again. Only the first case used to be checked, so correcting
+        // a return could re-acquire more than the unit owns.
+        const reacquiresStock =
+          req.body.status !== undefined &&
+          HOLDING_STATUSES.includes(req.body.status);
+
+        if (req.body.reserved_quantity !== undefined || reacquiresStock) {
           // Get current reservation details
           const currentReservation = await pool.query(
             `SELECT equipment_id, date_from, date_to, reserved_quantity, status
@@ -1448,11 +1465,10 @@ module.exports = (pool) => {
 
           const reservation = currentReservation.rows[0];
 
-          // Only check if reservation is active (not returned or cancelled)
-          if (
-            reservation.status === "reserved" ||
-            reservation.status === "confirmed"
-          ) {
+          // A row that already holds stock is checked because its quantity may
+          // grow; a row that released it is checked because it may be taking it
+          // back. Between them that is every case worth checking.
+          if (HOLDING_STATUSES.includes(reservation.status) || reacquiresStock) {
             // Get equipment details
             const equipmentResult = await pool.query(
               `SELECT name, quantity_total FROM equipment_items WHERE id = $1`,
@@ -1491,11 +1507,17 @@ module.exports = (pool) => {
             );
             const available = Math.max(0, quantityTotal - totalReserved);
 
-            // Check if the new quantity would exceed available
-            if (totalReserved + req.body.reserved_quantity > quantityTotal) {
+            // Check if the resulting quantity would exceed available. A
+            // status-only change keeps whatever the row already reserved.
+            const requestedQuantity =
+              req.body.reserved_quantity !== undefined
+                ? req.body.reserved_quantity
+                : reservation.reserved_quantity;
+
+            if (totalReserved + requestedQuantity > quantityTotal) {
               return error(
                 res,
-                `Not enough "${equipmentName}" available for these dates. ${available} of ${quantityTotal} remaining (you requested ${req.body.reserved_quantity}).`,
+                `Not enough "${equipmentName}" available for these dates. ${available} of ${quantityTotal} remaining (you requested ${requestedQuantity}).`,
                 400,
               );
             }
