@@ -11,11 +11,36 @@ import {
   getEquipmentInventory,
   getEquipmentReservations,
   saveBulkReservations,
+  updateEquipmentReservation,
   getActivities
 } from "./api/api-endpoints.js";
+import { confirmDestructive } from "./utils/DialogUtils.js";
+import { hasPermission } from "./utils/PermissionUtils.js";
+import { getCurrentOrganizationId } from "./ajax-functions.js";
 import { deleteCachedData } from "./indexedDB.js";
 import { CONFIG } from "./config.js";
 import { setContent } from "./utils/DOMUtils.js";
+
+/**
+ * What a leader can do to a reservation, given where it currently stands.
+ *
+ * The lifecycle is a line, not a free-for-all: gear is spoken for, then it goes
+ * out, then it comes back. Offering only the next step keeps the table honest —
+ * there is no button to return equipment that was never picked up.
+ *
+ * The terminal states (`returned`, `cancelled`, `expired`) are absent on
+ * purpose: a reservation that is over stays over, and a new one is the way to
+ * take the equipment out again.
+ */
+const RESERVATION_ACTIONS = {
+  reserved: [
+    { status: 'confirmed', labelKey: 'reservation_action_pick_up', variant: 'primary' },
+    { status: 'cancelled', labelKey: 'reservation_action_cancel', variant: 'danger' }
+  ],
+  confirmed: [
+    { status: 'returned', labelKey: 'reservation_action_return', variant: 'primary' }
+  ]
+};
 
 const LOCATION_TYPES = [
   { value: 'local_scout_hall', labelKey: 'location_type_local_scout_hall' },
@@ -56,6 +81,10 @@ export class MaterialManagement {
     this.activities = [];
     this.selectedItems = new Map(); // Map of equipment_id -> quantity
     this.selectedActivityId = null;
+    // Checking gear in and out is the same right as reserving it, and only the
+    // unit that owns a reservation may do either.
+    this.canReserve = hasPermission('inventory.reserve');
+    this.organizationId = getCurrentOrganizationId();
   }
 
   async init() {
@@ -124,6 +153,80 @@ export class MaterialManagement {
       return `${typeLabel} — ${cleanedDetails}`;
     }
     return typeLabel;
+  }
+
+  /**
+   * Buttons that move a reservation to its next state.
+   *
+   * Two things withhold them. A reservation belonging to another unit is shown
+   * here because the equipment is shared, but only its owner may check it in or
+   * out -- and the API would answer 404 anyway, so offering the button would
+   * only promise something that cannot happen. And a leader without
+   * `inventory.reserve` may read the table without changing it.
+   *
+   * @param {Object} reservation - Reservation row
+   * @returns {string} Markup for the actions cell
+   */
+  renderReservationActions(reservation) {
+    const isOwn =
+      String(reservation.reservation_organization_id ?? '') === String(this.organizationId ?? '');
+    const actions = RESERVATION_ACTIONS[reservation.status] || [];
+
+    if (!this.canReserve || !isOwn || actions.length === 0) {
+      return '<span class="muted-text">&mdash;</span>';
+    }
+
+    return actions
+      .map(
+        (action) => `
+          <button type="button"
+                  class="btn btn--small btn--${action.variant} js-reservation-action"
+                  data-reservation-id="${escapeHTML(String(reservation.id))}"
+                  data-next-status="${escapeHTML(action.status)}">
+            ${escapeHTML(translate(action.labelKey))}
+          </button>`
+      )
+      .join('');
+  }
+
+  /**
+   * Move one reservation to its next state.
+   *
+   * Cancelling asks first: it is the one action here that throws away a claim
+   * rather than advancing it, and nothing in this table can put it back.
+   *
+   * @param {string} reservationId - Reservation ID
+   * @param {string} nextStatus - Status to move to
+   * @returns {Promise<void>}
+   */
+  async handleReservationAction(reservationId, nextStatus) {
+    if (nextStatus === 'cancelled') {
+      const confirmed = await confirmDestructive({
+        message: translate('reservation_action_cancel_confirm'),
+        confirmLabel: translate('reservation_action_cancel')
+      });
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    try {
+      await updateEquipmentReservation(reservationId, { status: nextStatus });
+      // The equipment listing reports availability, and this just changed it.
+      await deleteCachedData('v1/resources/equipment');
+      await deleteCachedData('v1/resources/equipment/reservations');
+      await this.refreshData();
+      this.app.showMessage(translate('reservation_status_updated'), 'success');
+    } catch (error) {
+      debugError('Failed to update reservation status:', error);
+      this.app.showMessage(
+        error.message || translate('reservation_status_update_failed'),
+        'error'
+      );
+    }
+
+    this.render();
+    this.attachEventHandlers();
   }
 
   render() {
@@ -270,11 +373,12 @@ export class MaterialManagement {
                   <th>${escapeHTML(translate("reservation_for"))}</th>
                   <th>${escapeHTML(translate("organization"))}</th>
                   <th>${escapeHTML(translate("reservation_status"))}</th>
+                  <th>${escapeHTML(translate("reservation_actions"))}</th>
                 </tr>
               </thead>
               <tbody>
                 ${this.reservations.length === 0
-                  ? `<tr><td colspan="7">${escapeHTML(translate("no_data_available"))}</td></tr>`
+                  ? `<tr><td colspan="8">${escapeHTML(translate("no_data_available"))}</td></tr>`
                   : this.reservations.map((reservation) => {
                       const dateRange = reservation.date_from && reservation.date_to
                         ? `${formatDate(reservation.date_from, this.app.lang || 'en')} - ${formatDate(reservation.date_to, this.app.lang || 'en')}`
@@ -288,6 +392,7 @@ export class MaterialManagement {
                           <td>${escapeHTML(reservation.reserved_for || '-')}</td>
                           <td>${escapeHTML(reservation.organization_name || '-')}</td>
                           <td>${escapeHTML(reservationStatusLabel(reservation.status))}</td>
+                          <td class="reservation-actions">${this.renderReservationActions(reservation)}</td>
                         </tr>
                       `;
                     }).join('')}
@@ -300,6 +405,17 @@ export class MaterialManagement {
   }
 
   attachEventHandlers() {
+    document.querySelectorAll('.js-reservation-action').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        const target = event.currentTarget;
+        target.disabled = true;
+        this.handleReservationAction(
+          target.dataset.reservationId,
+          target.dataset.nextStatus
+        );
+      });
+    });
+
     // Handle activity selection
     const activitySelect = document.getElementById('activitySelect');
     if (activitySelect) {
