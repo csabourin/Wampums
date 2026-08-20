@@ -87,7 +87,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
-    "@babel/preset-env": "^7.29.0",
+    "@babel/preset-env": "^8.0.2",
     "babel-jest": "^30.2.0",
     "fake-indexeddb": "^6.2.5",
     "jest": "^30.2.0",
