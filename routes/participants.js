@@ -1040,24 +1040,36 @@ module.exports = (pool) => {
   }));
 
   /**
-   * GET /api/participants-with-documents
-   * Get participants with their document submission status
-   * Requires admin or animation role
+   * GET /api/v1/participants/with-documents
+   * Get participants with their document submission status for the selected scout year.
+   *
+   * Both halves are scoped to the year: the roster comes from that year's
+   * enrolments, and a form only counts as submitted if it was submitted in that
+   * same year. Without the second filter a fiche santé signed last season kept
+   * showing as complete after the year rollover, so a unit could not tell which
+   * families still owed paperwork.
    */
-  router.get('/with-documents', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
+  router.get('/with-documents', authenticate, requirePermission('participants.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name,
-              COUNT(DISTINCT fs.form_type) as forms_submitted,
-              array_agg(DISTINCT fs.form_type) as submitted_forms
+              COUNT(DISTINCT fs.form_type) AS forms_submitted,
+              COALESCE(
+                ARRAY_AGG(DISTINCT fs.form_type) FILTER (WHERE fs.form_type IS NOT NULL),
+                ARRAY[]::text[]
+              ) AS submitted_forms
        FROM participants p
-       JOIN participant_organizations po ON p.id = po.participant_id
-       LEFT JOIN form_submissions fs ON p.id = fs.participant_id
-       WHERE po.organization_id = $1
+       JOIN participant_enrollments pe ON pe.participant_id = p.id
+        AND pe.organization_id = $1
+        AND pe.scout_year_id = $2
+        AND pe.status = ANY($3::text[])
+       LEFT JOIN form_submissions fs ON fs.participant_id = p.id
+        AND fs.organization_id = $1
+        AND fs.scout_year_id = $2
        GROUP BY p.id, p.first_name, p.last_name
        ORDER BY p.first_name, p.last_name`,
-      [organizationId]
+      [organizationId, req.scoutYear.id, req.rosterStatuses]
     );
 
     return success(res, result.rows);

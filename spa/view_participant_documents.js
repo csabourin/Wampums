@@ -3,6 +3,8 @@ import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.j
 import { translate } from "./app.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
 import { canViewParticipants } from "./utils/PermissionUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
+import { formTypeLabel } from "./utils/FormLabelUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { BaseModule } from "./utils/BaseModule.js";
 
@@ -12,6 +14,7 @@ export class ViewParticipantDocuments extends BaseModule {
     this.participants = [];
     this.organizationSettings = null;
     this.formRenderers = {};
+    this.formMeta = {};
   }
 
   async init() {
@@ -33,8 +36,18 @@ export class ViewParticipantDocuments extends BaseModule {
 
   async fetchOrganizationData() {
       try {
-          // Call the function to fetch organization form formats
-          const formFormats = await getOrganizationFormFormats(); // Assuming this function is already set up correctly
+          // Only the forms a participant actually fills. Without the context
+          // filter this screen listed every row in organization_form_formats,
+          // including admin-only types (incident_report) and anything an
+          // organization had built by hand in the form builder.
+          const response = await getOrganizationFormFormats(null, 'participant', { includeMeta: true });
+
+          if (!response || typeof response !== 'object') {
+              throw new Error('Invalid form formats received');
+          }
+
+          const formFormats = response.formats;
+          this.formMeta = response.meta || {};
 
           if (!formFormats || typeof formFormats !== 'object') {
               throw new Error('Invalid form formats received');
@@ -100,7 +113,7 @@ export class ViewParticipantDocuments extends BaseModule {
   renderParticipantList() {
     return this.participants.map(participant => `
       <div class="participant-card">
-        <h2>${participant.first_name} ${participant.last_name}</h2>
+        <h2>${escapeHTML(participant.first_name || "")} ${escapeHTML(participant.last_name || "")}</h2>
         ${this.renderFormStatuses(participant)}
       </div>
     `).join('');
@@ -111,7 +124,7 @@ export class ViewParticipantDocuments extends BaseModule {
     const formTypes = Object.keys(this.formRenderers); // Dynamically use the fetched form types
     return formTypes.map(formType => `
       <div class="form-status">
-        <span>${translate(formType)}: </span>
+        <span>${escapeHTML(formTypeLabel(formType, this.formMeta[formType]?.display_name))}: </span>
         <span class="${participant[`has_${formType}`] ? 'filled' : 'missing'}">
           ${participant[`has_${formType}`] ? '✅' : '❌'}
         </span>

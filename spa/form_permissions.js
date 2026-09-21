@@ -10,6 +10,7 @@
 import { API } from './api/api-core.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { translate } from './app.js';
+import { formTypeLabel } from './utils/FormLabelUtils.js';
 import { isAdmin } from './utils/PermissionUtils.js';
 import { setContent } from './utils/DOMUtils.js';
 
@@ -222,7 +223,7 @@ export class FormPermissionsManager {
 
     return `
       <div class="form-section">
-        <h2 class="form-section__title">${translate(formType) || formDisplayName}</h2>
+        <h2 class="form-section__title">${formTypeLabel(formType, formDisplayName)}</h2>
 
         <!-- Display Context Section -->
         <div class="display-context-section">
