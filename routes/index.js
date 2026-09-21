@@ -52,6 +52,7 @@ module.exports = (app, pool) => {
     const authRoutes = require("./auth")(pool, logger);
     const organizationsRoutes = require("./organizations")(pool, logger);
     const usersRoutes = require("./users")(pool, logger);
+    const parentInvitationsRoutes = require("./parentInvitations")(pool, logger);
     const userProfileRoutes = require("./userProfile")(pool, logger);
     const rolesRoutes = require("./roles")(pool, logger);
     const meetingsRoutes = require("./meetings")(pool, logger);
@@ -109,6 +110,7 @@ module.exports = (app, pool) => {
     // User Management
     app.use("/api/v1/users/me", userProfileRoutes);
     app.use("/api/v1/users", usersRoutes);
+    app.use("/api/v1/parent-invitations", parentInvitationsRoutes);
     // rolesRoutes defines absolute /api/v1/* paths internally (same pattern as authRoutes)
     app.use("/", rolesRoutes);
 
