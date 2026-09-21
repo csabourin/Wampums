@@ -712,6 +712,54 @@ describe.skip('POST /api/v1/participants/:id/add-group', () => {
 // ORGANIZATION ISOLATION TESTS
 // ============================================
 
+describe('POST /api/v1/participants/link-organization', () => {
+  /**
+   * Drive the route with a controlled answer from the enrolment upsert.
+   *
+   * @param {Array} enrollmentRows - What RETURNING hands back
+   * @returns {Promise<boolean>} Whether required forms were flagged for review
+   */
+  async function linkAndReportFlagging(enrollmentRows) {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ permissions: ['participants.edit'], organizationId: ORG_ID });
+    let flagged = false;
+
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes('INSERT INTO participant_enrollments')) {
+        return Promise.resolve({ rows: enrollmentRows });
+      }
+      if (query.includes("review_state = 'needs_review'")) {
+        flagged = true;
+        return Promise.resolve({ rows: [] });
+      }
+      return undefined;
+    });
+
+    await request(app)
+      .post('/api/v1/participants/link-organization')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ participant_id: 50 });
+
+    return flagged;
+  }
+
+  test('flags required forms when the youth actually joins the roster', async () => {
+    expect(await linkAndReportFlagging([{ created: true }])).toBe(true);
+  });
+
+  test('flags required forms when a departed youth is revived', async () => {
+    expect(await linkAndReportFlagging([{ created: false }])).toBe(true);
+  });
+
+  test('leaves paperwork alone when the youth is already active', async () => {
+    // The registration screen calls this route after every save, immediately
+    // after submitting the registration form. Flagging on an idempotent re-link
+    // would send every required form back to needs_review on each edit —
+    // including the one just submitted.
+    expect(await linkAndReportFlagging([])).toBe(false);
+  });
+});
+
 describe('GET /api/v1/participants/with-documents', () => {
   test('judges a form by review_state, not by the year its row was created', async () => {
     // form_submissions is UNIQUE (participant_id, form_type, organization_id):
@@ -740,6 +788,31 @@ describe('GET /api/v1/participants/with-documents', () => {
     expect(documentsQuery).not.toContain('fs.scout_year_id');
     // The roster half stays year-scoped.
     expect(documentsQuery).toContain('pe.scout_year_id');
+  });
+
+  test('applies the review-state predicate only for the active year', async () => {
+    // review_state is a single mutable flag with no per-year history, so asking
+    // it about an archived year would let the next transition retroactively mark
+    // a finished season incomplete. An archived year reports what is on file.
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ permissions: ['participants.view'], organizationId: ORG_ID });
+    let documentsParams = null;
+
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('submitted_forms')) {
+        documentsParams = params;
+        return Promise.resolve({ rows: [] });
+      }
+      return undefined;
+    });
+
+    await request(app)
+      .get('/api/v1/participants/with-documents')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(documentsParams).not.toBeNull();
+    // The 4th parameter gates the predicate: true only when the year is active.
+    expect(typeof documentsParams[3]).toBe('boolean');
   });
 });
 

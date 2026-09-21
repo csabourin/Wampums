@@ -4,7 +4,7 @@ const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, getUserDataScope, withScoutYear } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
-const { ensureActiveScoutYear } = require('../services/scoutYear');
+const { ensureActiveScoutYear, flagRequiredFormsForReview } = require('../services/scoutYear');
 const { eraseParticipant } = require('../services/erasure');
 
 /**
@@ -849,14 +849,37 @@ module.exports = (pool) => {
     // Enroll in the active scout year with inscription_date (defaults to today).
     // On conflict, keep the existing inscription_date but revive an enrollment
     // that was closed at a previous transition.
+    // The conflict clause only fires when the enrolment actually needs changing.
+    // That keeps the statement idempotent while letting RETURNING say whether
+    // this request really put the youth on the roster: a row comes back for an
+    // insert or a revival, and nothing comes back when they were already active.
     const scoutYear = await ensureActiveScoutYear(pool, organizationId);
-    await pool.query(
+    const enrollment = await pool.query(
       `INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id, inscription_date)
        VALUES ($1, $2, $3, COALESCE($4::date, CURRENT_DATE))
        ON CONFLICT (participant_id, organization_id, scout_year_id)
-       DO UPDATE SET status = 'active', ended_on = NULL, exit_reason = NULL`,
+       DO UPDATE SET status = 'active', ended_on = NULL, exit_reason = NULL
+       WHERE participant_enrollments.status IS DISTINCT FROM 'active'
+          OR participant_enrollments.ended_on IS NOT NULL
+          OR participant_enrollments.exit_reason IS NOT NULL
+       RETURNING (xmax = 0) AS created`,
       [participant_id, organizationId, scoutYear.id, inscription_date]
     );
+
+    // A year transition flags the required paperwork of everyone it carries
+    // over, but a youth who joins the roster afterwards comes through here
+    // instead and was never flagged — so a health form from an earlier season
+    // stayed marked current for the new one.
+    //
+    // Only on joining, never on an idempotent re-link. The registration screen
+    // calls this route after every save, right after submitting the
+    // registration form (spa/formulaire_inscription.js), so flagging
+    // unconditionally would send every required form back to needs_review on
+    // each edit — including the one just submitted. It is also a no-op for an
+    // organization that marks no form as required.
+    if (enrollment.rows.length > 0) {
+      await flagRequiredFormsForReview(pool, organizationId, [parseInt(participant_id, 10)]);
+    }
 
     return success(res, null, 'Participant linked to organization');
   }));
@@ -1061,6 +1084,14 @@ module.exports = (pool) => {
    * renewal: a year transition flags required forms as `needs_review`
    * (services/scoutYear.js flagRequiredFormsForReview), and re-submitting or
    * confirming the review sets them back to `current`.
+   *
+   * That predicate applies to the active year only. `review_state` is a single
+   * mutable flag with no per-year history — form_submission_history records the
+   * content of each edit but not the review state — so for an archived year
+   * there is no stored answer to "was this paperwork in order back then", and
+   * consulting the live flag would let the next transition retroactively mark a
+   * past season incomplete. An archived year therefore reports what is on file,
+   * which is the strongest claim the data supports.
    */
   router.get('/with-documents', authenticate, requirePermission('participants.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
@@ -1079,10 +1110,10 @@ module.exports = (pool) => {
         AND pe.status = ANY($3::text[])
        LEFT JOIN form_submissions fs ON fs.participant_id = p.id
         AND fs.organization_id = $1
-        AND fs.review_state = 'current'
+        AND (NOT $4::boolean OR fs.review_state = 'current')
        GROUP BY p.id, p.first_name, p.last_name
        ORDER BY p.first_name, p.last_name`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses]
+      [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.status === 'active']
     );
 
     return success(res, result.rows);
