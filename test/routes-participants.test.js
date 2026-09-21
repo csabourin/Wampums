@@ -741,6 +741,31 @@ describe('GET /api/v1/participants/with-documents', () => {
     // The roster half stays year-scoped.
     expect(documentsQuery).toContain('pe.scout_year_id');
   });
+
+  test('applies the review-state predicate only for the active year', async () => {
+    // review_state is a single mutable flag with no per-year history, so asking
+    // it about an archived year would let the next transition retroactively mark
+    // a finished season incomplete. An archived year reports what is on file.
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ permissions: ['participants.view'], organizationId: ORG_ID });
+    let documentsParams = null;
+
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('submitted_forms')) {
+        documentsParams = params;
+        return Promise.resolve({ rows: [] });
+      }
+      return undefined;
+    });
+
+    await request(app)
+      .get('/api/v1/participants/with-documents')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(documentsParams).not.toBeNull();
+    // The 4th parameter gates the predicate: true only when the year is active.
+    expect(typeof documentsParams[3]).toBe('boolean');
+  });
 });
 
 describe('DELETE /api/v1/participants/:id/users/:userId', () => {

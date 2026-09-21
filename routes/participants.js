@@ -4,7 +4,7 @@ const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, getUserDataScope, withScoutYear } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
-const { ensureActiveScoutYear } = require('../services/scoutYear');
+const { ensureActiveScoutYear, flagRequiredFormsForReview } = require('../services/scoutYear');
 const { eraseParticipant } = require('../services/erasure');
 
 /**
@@ -858,6 +858,13 @@ module.exports = (pool) => {
       [participant_id, organizationId, scoutYear.id, inscription_date]
     );
 
+    // A year transition flags the required paperwork of everyone it carries
+    // over, but a youth who joins the roster afterwards went through this route
+    // instead and was never flagged — so a health form from an earlier season
+    // stayed marked current for the new one. Flagging here closes that gap.
+    // It is a no-op for an organization that marks no form as required.
+    await flagRequiredFormsForReview(pool, organizationId, [parseInt(participant_id, 10)]);
+
     return success(res, null, 'Participant linked to organization');
   }));
 
@@ -1061,6 +1068,14 @@ module.exports = (pool) => {
    * renewal: a year transition flags required forms as `needs_review`
    * (services/scoutYear.js flagRequiredFormsForReview), and re-submitting or
    * confirming the review sets them back to `current`.
+   *
+   * That predicate applies to the active year only. `review_state` is a single
+   * mutable flag with no per-year history — form_submission_history records the
+   * content of each edit but not the review state — so for an archived year
+   * there is no stored answer to "was this paperwork in order back then", and
+   * consulting the live flag would let the next transition retroactively mark a
+   * past season incomplete. An archived year therefore reports what is on file,
+   * which is the strongest claim the data supports.
    */
   router.get('/with-documents', authenticate, requirePermission('participants.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
@@ -1079,10 +1094,10 @@ module.exports = (pool) => {
         AND pe.status = ANY($3::text[])
        LEFT JOIN form_submissions fs ON fs.participant_id = p.id
         AND fs.organization_id = $1
-        AND fs.review_state = 'current'
+        AND (NOT $4::boolean OR fs.review_state = 'current')
        GROUP BY p.id, p.first_name, p.last_name
        ORDER BY p.first_name, p.last_name`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses]
+      [organizationId, req.scoutYear.id, req.rosterStatuses, req.scoutYear.status === 'active']
     );
 
     return success(res, result.rows);
