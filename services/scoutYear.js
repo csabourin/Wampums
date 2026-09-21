@@ -424,10 +424,16 @@ async function listMembershipsWithoutEnrolledChild(
  *
  * @param {Object} client - Database client inside an open transaction
  * @param {number} organizationId - Organization ID
- * @param {Array<number>} participantIds - Participants carried over to the new year
+ * @param {Array<number>} participantIds - Participants whose forms may need review
+ * @param {string|null} [renewalCutoffDate=null] - When set, preserve forms edited or reviewed on/after this date
  * @returns {Promise<Array<number>>} Ids of the submissions that were flagged
  */
-async function flagRequiredFormsForReview(client, organizationId, participantIds) {
+async function flagRequiredFormsForReview(
+  client,
+  organizationId,
+  participantIds,
+  renewalCutoffDate = null
+) {
   if (!Array.isArray(participantIds) || participantIds.length === 0) {
     return [];
   }
@@ -439,6 +445,13 @@ async function flagRequiredFormsForReview(client, organizationId, participantIds
       WHERE fs.organization_id = $1
         AND fs.participant_id = ANY($2::int[])
         AND fs.review_state <> 'needs_review'
+        AND (
+          $3::date IS NULL
+          OR (
+            COALESCE(fs.updated_at, fs.created_at, '-infinity'::timestamp)::date < $3::date
+            AND (fs.last_reviewed_at IS NULL OR fs.last_reviewed_at::date < $3::date)
+          )
+        )
         AND EXISTS (
           SELECT 1
             FROM organization_form_formats off
@@ -447,7 +460,7 @@ async function flagRequiredFormsForReview(client, organizationId, participantIds
              AND off.is_required = TRUE
         )
       RETURNING fs.id`,
-    [organizationId, participantIds]
+    [organizationId, participantIds, renewalCutoffDate]
   );
 
   return result.rows.map(row => row.id);

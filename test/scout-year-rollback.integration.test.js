@@ -475,6 +475,52 @@ describe.skipIf(!DATABASE_URL)('Scout year rollback', () => {
     )).toBe(1);
   });
 
+  test('mid-year re-enrollment flags old forms without invalidating current-season renewals', async () => {
+    await pool.query(
+      `UPDATE participant_enrollments
+          SET status = 'left', ended_on = '2026-01-15', exit_reason = 'temporary'
+        WHERE participant_id = $1 AND scout_year_id = $2`,
+      [ids.stayingId, ids.currentYearId]
+    );
+    await pool.query(
+      `UPDATE form_submissions
+          SET updated_at = '2025-08-31', last_reviewed_at = NULL
+        WHERE id = $1`,
+      [ids.requiredFormId]
+    );
+    await pool.query(
+      `INSERT INTO organization_form_formats
+              (organization_id, form_type, form_structure, is_required)
+       VALUES ($1, 'participant_registration', '{}'::jsonb, TRUE)`,
+      [ids.organizationId]
+    );
+    const renewedFormId = await one(
+      `INSERT INTO form_submissions
+              (organization_id, participant_id, form_type, submission_data,
+               scout_year_id, review_state, updated_at, last_reviewed_at)
+       VALUES ($1, $2, 'participant_registration', '{}'::jsonb,
+               $3, 'current', '2025-09-10', '2025-09-10')
+       RETURNING id`,
+      [ids.organizationId, ids.stayingId, ids.currentYearId]
+    );
+
+    const response = await request(app)
+      .post('/api/v1/participants/link-organization')
+      .send({ participant_id: ids.stayingId, inscription_date: '2025-09-10' });
+
+    expect(response.status).toBe(200);
+    expect(await one(
+      'SELECT status FROM participant_enrollments WHERE participant_id = $1 AND scout_year_id = $2',
+      [ids.stayingId, ids.currentYearId]
+    )).toBe('active');
+    expect(await one(
+      'SELECT review_state FROM form_submissions WHERE id = $1', [ids.requiredFormId]
+    )).toBe('needs_review');
+    expect(await one(
+      'SELECT review_state FROM form_submissions WHERE id = $1', [renewedFormId]
+    )).toBe('current');
+  });
+
   test('the same transition cannot be undone twice', async () => {
     const transitionId = (await runTransition()).body.data.transition_id;
 
