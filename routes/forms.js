@@ -1070,14 +1070,15 @@ module.exports = (pool, logger) => {
    */
   router.post('/risk-acceptance', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     try {
+      // The COVID-19, fourteen-day-symptom and travel-outside-Canada
+      // declarations were dropped when this form was aligned with the current
+      // ASC form, so they are no longer read or stored. Answers already recorded
+      // against them stay in the stored JSON of past submissions.
       const {
         participant_id,
         groupe_district,
         accepte_risques,
-        accepte_covid19,
         participation_volontaire,
-        declaration_sante,
-        declaration_voyage,
         nom_parent_tuteur,
         date_signature
       } = req.body;
@@ -1094,10 +1095,7 @@ module.exports = (pool, logger) => {
         participant_id: participantId,
         groupe_district,
         accepte_risques: Boolean(accepte_risques),
-        accepte_covid19: Boolean(accepte_covid19),
         participation_volontaire: Boolean(participation_volontaire),
-        declaration_sante: Boolean(declaration_sante),
-        declaration_voyage: Boolean(declaration_voyage),
         nom_parent_tuteur,
         date_signature
       };

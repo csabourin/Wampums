@@ -61,73 +61,29 @@ export class AcceptationRisque {
                 )}" required>
 
                 <h2>${translate("risques_inherents")}</h2>
-                <p>${translate("paragraphe_acceptation_risque")}</p>
-                <ul>
-                    <li>${translate("risque_blessures_chutes")}</li>
-                    <li>${translate("risque_blessures_objets")}</li>
-                    <li>${translate("risque_blessures_contact")}</li>
-                    <li>${translate("risque_hypothermie")}</li>
-                    <li>${translate("risque_brulures")}</li>
-                    <li>${translate("risque_allergies")}</li>
-                    <li>${translate("risque_animaux_plantes")}</li>
-                    <li>${translate("risque_vol_perte_objets")}</li>
-                    <li>${translate("risque_defaillance_equipements")}</li>
-                    <li>${translate("risque_comportements_negligents")}</li>
-                    <li>${translate("risque_deces")}</li>
-                </ul>
-                <label for="accepte_risques">
+
+                <div class="info-text">${translate("risques_inherents_activites_texte")}</div>
+                <div class="info-text">${translate("responsabilite_groupe_district_texte")}</div>
+                <div class="info-text">${translate("risques_activites_dangers_texte")}</div>
+
+                <div class="form-group form-group--checkbox">
                     <input type="checkbox" id="accepte_risques" name="accepte_risques" ${
                       this.acceptationRisque?.accepte_risques ? "checked" : ""
                     } required>
-                    ${translate("jaccepte_risques_activites")}
-                </label>
+                    <label class="label--checkbox" for="accepte_risques">${translate("accepte_risques_label")}</label>
+                </div>
 
-                <h2>${translate("covid19_et_autres_maladies")}</h2>
-                <p>${translate("texte_covid19")}</p>
+                <div class="info-text">${translate("volontaire_participation_texte")}</div>
 
-                <p>
-                    <label for="participation_volontaire">
-                        <input type="checkbox" id="participation_volontaire" name="participation_volontaire" ${
-                          this.acceptationRisque?.participation_volontaire
-                            ? "checked"
-                            : ""
-                        } required>
-                        ${translate("participation_volontaire")}
-                    </label>
-                </p>
-                <p>
-                    <label for="declaration_sante">
-                        <input type="checkbox" id="declaration_sante" name="declaration_sante" ${
-                          this.acceptationRisque?.declaration_sante
-                            ? "checked"
-                            : ""
-                        } required>
-                        ${translate("declaration_sante")}
-                    </label>
-                </p>
-                <p>
-                    <label for="declaration_voyage">
-                        <input type="checkbox" id="declaration_voyage" name="declaration_voyage" ${
-                          this.acceptationRisque?.declaration_voyage
-                            ? "checked"
-                            : ""
-                        } required>
-                        ${translate("declaration_voyage")}
-                    </label>
-                </p>
-                <p>
-                    <label for="accepte_covid19">
-                        <input type="checkbox" id="accepte_covid19" name="accepte_covid19" ${
-                          this.acceptationRisque?.accepte_covid19
-                            ? "checked"
-                            : ""
-                        } required>
-                        ${translate("jaccepte_risques_covid19")}
-                    </label>
-                </p>
+                <div class="form-group form-group--checkbox">
+                    <input type="checkbox" id="participation_volontaire" name="participation_volontaire" ${
+                      this.acceptationRisque?.participation_volontaire ? "checked" : ""
+                    } required>
+                    <label class="label--checkbox" for="participation_volontaire">${translate("participation_volontaire_label")}</label>
+                </div>
 
                 <h2>${translate("signature")}</h2>
-                <p>${translate("parent_tuteur_confirmation")}</p>
+                <div class="info-text">${translate("declaration_parent_tuteur_texte")}</div>
                 <label for="nom_parent_tuteur">${translate(
                   "nom_parent_tuteur"
                 )}:</label>
@@ -165,12 +121,7 @@ export class AcceptationRisque {
       participant_id: this.participantId,
       groupe_district: formData.get("groupe_district"),
       accepte_risques: formData.get("accepte_risques") ? 1 : 0,
-      accepte_covid19: formData.get("accepte_covid19") ? 1 : 0,
-      participation_volontaire: formData.get("participation_volontaire")
-        ? 1
-        : 0,
-      declaration_sante: formData.get("declaration_sante") ? 1 : 0,
-      declaration_voyage: formData.get("declaration_voyage") ? 1 : 0,
+      participation_volontaire: formData.get("participation_volontaire") ? 1 : 0,
       nom_parent_tuteur: formData.get("nom_parent_tuteur"),
       date_signature: formData.get("date_signature"),
     };
