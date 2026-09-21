@@ -205,10 +205,16 @@ module.exports = (pool, logger) => {
 
     // Participant emails captured on their own forms.
     //
-    // Scoped to the selected year and to youth still on the roster. This used to
-    // sweep every form_submissions row that had ever held a courriel for the
-    // organization, regardless of year and without even joining to participants,
-    // so it accumulated the addresses of everyone who had ever registered.
+    // Restricted to youth on the selected year's roster. This used to sweep
+    // every form_submissions row that had ever held a courriel for the
+    // organization, without even joining to participants, so it accumulated the
+    // address of everyone who had ever registered.
+    //
+    // The roster join is what scopes this to the year — not fs.scout_year_id.
+    // form_submissions is UNIQUE (participant_id, form_type, organization_id):
+    // one row per form type for all time, updated in place, with scout_year_id
+    // left at whatever year the row was created. Matching on it dropped every
+    // returning family's address.
     const participantEmailsResult = await pool.query(
       `SELECT DISTINCT LOWER(fs.submission_data->>'courriel') AS courriel
          FROM form_submissions fs
@@ -218,8 +224,7 @@ module.exports = (pool, logger) => {
           AND pe.status = ANY($3::text[])
          WHERE (fs.submission_data->>'courriel') IS NOT NULL
          AND (fs.submission_data->>'courriel') != ''
-         AND fs.organization_id = $1
-         AND fs.scout_year_id = $2`,
+         AND fs.organization_id = $1`,
       [organizationId, req.scoutYear.id, req.rosterStatuses]
     );
 

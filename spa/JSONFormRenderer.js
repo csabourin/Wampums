@@ -82,7 +82,10 @@ export class JSONFormRenderer {
 			// A dependent field whose condition is not met is hidden as well as
 			// disabled: the issue asked for the precision box to appear only when it
 			// is relevant. `disabled` stays, because it is also what makes the field
-			// required once the condition is met.
+			// required once the condition is met — and because hiding alone is not
+			// enough: a select is a successful form control even when invisible, so
+			// an unhidden-but-enabled one would submit its first option as an answer
+			// the user was never shown. Every branch below applies `disabled`.
 			const groupClasses = ['form-group'];
 			if (dependsOn) {
 					groupClasses.push('form-group--dependent');
@@ -107,13 +110,13 @@ export class JSONFormRenderer {
 									const cbId = this.useUniqueIds ? `${name}_${option.value}-${this.formIndex}-${index}` : `${name}_${option.value}`;
 									const isChecked = selectedValues.includes(option.value) ? 'checked' : '';
 									output += `<div class="checkbox-option">`;
-									output += `<input type="checkbox" id="${cbId}" name="${name}" value="${option.value}" ${isChecked} ${dependsOnAttr}>`;
+									output += `<input type="checkbox" id="${cbId}" name="${name}" value="${option.value}" ${isChecked} ${disabled} ${dependsOnAttr}>`;
 									output += `<label for="${cbId}">${translate(option.label)}</label>`;
 									output += `</div>`;
 								});
 								output += `</div>`;
 							} else {
-								output += `<select id="${fieldId}" name="${name}" ${requiredAttr} ${dependsOnAttr}>`;
+								output += `<select id="${fieldId}" name="${name}" ${requiredAttr} ${disabled} ${dependsOnAttr}>`;
 								options.forEach(option => {
 									const selected = value === option.value ? 'selected' : '';
 									output += `<option value="${option.value}" ${selected}>${translate(option.label)}</option>`;
