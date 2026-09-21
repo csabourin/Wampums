@@ -712,6 +712,37 @@ describe.skip('POST /api/v1/participants/:id/add-group', () => {
 // ORGANIZATION ISOLATION TESTS
 // ============================================
 
+describe('GET /api/v1/participants/with-documents', () => {
+  test('judges a form by review_state, not by the year its row was created', async () => {
+    // form_submissions is UNIQUE (participant_id, form_type, organization_id):
+    // one row per form type for all time, updated in place, with scout_year_id
+    // left at the year the row was first created. Matching the selected year
+    // against it reported every returning family as missing their paperwork
+    // forever, however many times they filled it in.
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ permissions: ['participants.view'], organizationId: ORG_ID });
+    let documentsQuery = null;
+
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes('submitted_forms')) {
+        documentsQuery = query;
+        return Promise.resolve({ rows: [] });
+      }
+      return undefined;
+    });
+
+    await request(app)
+      .get('/api/v1/participants/with-documents')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(documentsQuery).not.toBeNull();
+    expect(documentsQuery).toContain("fs.review_state = 'current'");
+    expect(documentsQuery).not.toContain('fs.scout_year_id');
+    // The roster half stays year-scoped.
+    expect(documentsQuery).toContain('pe.scout_year_id');
+  });
+});
+
 describe('DELETE /api/v1/participants/:id/users/:userId', () => {
   // There was no way to undo one wrong parent link: the only removal path was
   // POST /link-users with replace_all, which rewrites every link a user has.
@@ -722,8 +753,8 @@ describe('DELETE /api/v1/participants/:id/users/:userId', () => {
     let deleteParams = null;
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
-      if (query.includes('FROM participant_organizations')) {
-        return Promise.resolve({ rows: [{ '?column?': 1 }] });
+      if (query.includes('participant_in_org')) {
+        return Promise.resolve({ rows: [{ participant_in_org: true, user_in_org: true }] });
       }
       if (query.includes('DELETE FROM user_participants')) {
         deleteParams = params;
@@ -747,8 +778,35 @@ describe('DELETE /api/v1/participants/:id/users/:userId', () => {
     let deleteAttempted = false;
 
     mockQueryImplementation(__mClient, __mPool, (query) => {
-      if (query.includes('FROM participant_organizations')) {
+      if (query.includes('participant_in_org')) {
+        return Promise.resolve({ rows: [{ participant_in_org: false, user_in_org: true }] });
+      }
+      if (query.includes('DELETE FROM user_participants')) {
+        deleteAttempted = true;
         return Promise.resolve({ rows: [] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .delete('/api/v1/participants/50/users/11111111-2222-3333-4444-555555555555')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+    expect(deleteAttempted).toBe(false);
+  });
+
+  test('refuses a parent who belongs to a different organization', async () => {
+    // user_participants has no organization column and a youth can be enrolled
+    // in several organizations, so without checking the parent's tenant too an
+    // admin of A could sever a shared youth's link to a parent of B.
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ permissions: ['participants.edit'], organizationId: ORG_ID });
+    let deleteAttempted = false;
+
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes('participant_in_org')) {
+        return Promise.resolve({ rows: [{ participant_in_org: true, user_in_org: false }] });
       }
       if (query.includes('DELETE FROM user_participants')) {
         deleteAttempted = true;

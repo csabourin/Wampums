@@ -1049,11 +1049,18 @@ module.exports = (pool) => {
    * GET /api/v1/participants/with-documents
    * Get participants with their document submission status for the selected scout year.
    *
-   * Both halves are scoped to the year: the roster comes from that year's
-   * enrolments, and a form only counts as submitted if it was submitted in that
-   * same year. Without the second filter a fiche santé signed last season kept
-   * showing as complete after the year rollover, so a unit could not tell which
-   * families still owed paperwork.
+   * The roster comes from the selected year's enrolments. Whether a form counts
+   * as done is a different question, and `scout_year_id` cannot answer it:
+   * form_submissions is UNIQUE (participant_id, form_type, organization_id), so
+   * a youth has exactly one row per form type for all time, and re-submitting
+   * updates that row in place without touching scout_year_id. Filtering on the
+   * year therefore reported every returning family as missing their paperwork
+   * forever, however many times they filled it in.
+   *
+   * `review_state` is the mechanism the schema actually provides for annual
+   * renewal: a year transition flags required forms as `needs_review`
+   * (services/scoutYear.js flagRequiredFormsForReview), and re-submitting or
+   * confirming the review sets them back to `current`.
    */
   router.get('/with-documents', authenticate, requirePermission('participants.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
@@ -1072,7 +1079,7 @@ module.exports = (pool) => {
         AND pe.status = ANY($3::text[])
        LEFT JOIN form_submissions fs ON fs.participant_id = p.id
         AND fs.organization_id = $1
-        AND fs.scout_year_id = $2
+        AND fs.review_state = 'current'
        GROUP BY p.id, p.first_name, p.last_name
        ORDER BY p.first_name, p.last_name`,
       [organizationId, req.scoutYear.id, req.rosterStatuses]
@@ -1128,17 +1135,30 @@ module.exports = (pool) => {
       return error(res, 'Invalid participant ID', 400);
     }
 
-    // The link itself carries no organization, so confirm the youth belongs to
-    // this one before touching it.
-    const participantCheck = await pool.query(
-      `SELECT 1
-       FROM participant_organizations
-       WHERE participant_id = $1 AND organization_id = $2`,
-      [participantId, organizationId]
+    // user_participants carries no organization of its own, and a youth can be
+    // enrolled in more than one. Both ends must therefore be checked against the
+    // caller's organization, or an administrator of A could delete the link
+    // between a shared youth and a parent who belongs only to B.
+    //
+    // Enrolment is checked across every year, not through the
+    // participant_organizations view: that view is restricted to the active year,
+    // so a wrong link on a youth shown under an earlier year could never be
+    // removed.
+    const scopeCheck = await pool.query(
+      `SELECT
+         EXISTS (
+           SELECT 1 FROM participant_enrollments
+           WHERE participant_id = $1 AND organization_id = $2
+         ) AS participant_in_org,
+         EXISTS (
+           SELECT 1 FROM user_organizations
+           WHERE user_id = $3 AND organization_id = $2
+         ) AS user_in_org`,
+      [participantId, organizationId, userId]
     );
 
-    if (participantCheck.rows.length === 0) {
-      return error(res, 'Participant not found', 404);
+    if (!scopeCheck.rows[0].participant_in_org || !scopeCheck.rows[0].user_in_org) {
+      return error(res, 'Association not found', 404);
     }
 
     const result = await pool.query(
