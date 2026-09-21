@@ -86,6 +86,10 @@
                 "infoText": "responsabilite_groupe_district_texte"
               },
               {
+                "type": "infoText",
+                "infoText": "risques_activites_dangers_texte"
+              },
+              {
                 "name": "accepte_risques",
                 "type": "checkbox",
                 "label": "accepte_risques_label",
@@ -93,47 +97,13 @@
               },
               {
                 "type": "infoText",
-                "infoText": "risques_activites_dangers_texte"
-              },
-              {
-                "name": "accepte_covid19",
-                "type": "checkbox",
-                "label": "accepte_covid19_label",
-                "required": true
-              },
-              {
-                "type": "infoText",
-                "infoText": "covid19_maladies_infectieuses_texte"
+                "infoText": "volontaire_participation_texte"
               },
               {
                 "name": "participation_volontaire",
                 "type": "checkbox",
                 "label": "participation_volontaire_label",
                 "required": true
-              },
-              {
-                "type": "infoText",
-                "infoText": "volontaire_participation_texte"
-              },
-              {
-                "name": "declaration_sante",
-                "type": "checkbox",
-                "label": "declaration_sante_label",
-                "required": true
-              },
-              {
-                "type": "infoText",
-                "infoText": "sante_symptomes_texte"
-              },
-              {
-                "name": "declaration_voyage",
-                "type": "checkbox",
-                "label": "declaration_voyage_label",
-                "required": true
-              },
-              {
-                "type": "infoText",
-                "infoText": "voyage_exterieur_canada_texte"
               },
               {
                 "name": "nom_parent_tuteur",
@@ -690,31 +660,65 @@
                 "label": "doit_porter_vfi_label"
               },
               {
-                "name": "regles",
-                "type": "radio",
-                "label": "regles_label",
+                "name": "affections_particulieres",
+                "type": "select",
+                "label": "affections_particulieres_label",
+                "multiple": true,
+                "required": false,
                 "options": [
                   {
-                    "label": "yes_label",
-                    "value": "yes"
+                    "label": "affection_migraines",
+                    "value": "migraines"
                   },
                   {
-                    "label": "no_label",
-                    "value": "no"
+                    "label": "affection_epilepsie",
+                    "value": "epilepsie"
+                  },
+                  {
+                    "label": "affection_port_lunettes",
+                    "value": "port_lunettes"
+                  },
+                  {
+                    "label": "affection_somnambulisme",
+                    "value": "somnambulisme"
+                  },
+                  {
+                    "label": "affection_maladie_peau",
+                    "value": "maladie_peau"
+                  },
+                  {
+                    "label": "affection_perte_conscience",
+                    "value": "perte_conscience"
+                  },
+                  {
+                    "label": "affection_essoufflement",
+                    "value": "essoufflement"
+                  },
+                  {
+                    "label": "affection_enuresie",
+                    "value": "enuresie"
+                  },
+                  {
+                    "label": "affection_trouble_appetit",
+                    "value": "trouble_appetit"
                   }
-                ],
-                "required": true
+                ]
               },
               {
-                "name": "renseignee",
+                "name": "affections_autre",
+                "type": "text",
+                "label": "affections_autre_label",
+                "required": false
+              },
+              {
+                "type": "infoText",
+                "infoText": "protection_renseignements_texte"
+              },
+              {
+                "name": "declaration_exactitude",
                 "type": "checkbox",
-                "label": "renseignee_label",
-                "disabled": true,
-                "required": true,
-                "dependsOn": {
-                  "field": "regles",
-                  "value": "yes"
-                }
+                "label": "declaration_exactitude_label",
+                "required": true
               }
             ]
           },
