@@ -5,6 +5,7 @@ import { JSONFormRenderer } from "./JSONFormRenderer.js";
 import { canViewParticipants } from "./utils/PermissionUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formTypeLabel } from "./utils/FormLabelUtils.js";
+import { openModal } from "./utils/ModalUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { BaseModule } from "./utils/BaseModule.js";
 
@@ -15,6 +16,7 @@ export class ViewParticipantDocuments extends BaseModule {
     this.organizationSettings = null;
     this.formRenderers = {};
     this.formMeta = {};
+    this.activeModal = null;
   }
 
   async init() {
@@ -100,12 +102,6 @@ export class ViewParticipantDocuments extends BaseModule {
       <div class="participant-documents">
         ${this.renderParticipantList()}
       </div>
-      <div id="form-view-modal" class="modal">
-        <div class="modal-content">
-          <span class="close">&times;</span>
-          <div id="form-content"></div>
-        </div>
-      </div>
     `;
     setContent(document.getElementById("app"), content);
   }
@@ -141,26 +137,27 @@ export class ViewParticipantDocuments extends BaseModule {
     document.querySelectorAll('.view-form').forEach(button => {
       this.addEventListener(button, 'click', (e) => this.handleViewForm(e));
     });
+  }
 
-    const modal = document.getElementById('form-view-modal');
-    if (!modal) return;
-    const span = modal.querySelector('.close');
-    if (span) {
-      this.addEventListener(span, 'click', () => {
-        modal.style.display = "none";
-      });
-    }
-    // Close on backdrop click — scoped to this module, not global
-    this.addEventListener(modal, 'click', (event) => {
-      if (event.target === modal) {
-        modal.style.display = "none";
-      }
-    });
+  /**
+   * Close any open form dialog when the router tears this module down.
+   *
+   * BaseModule's AbortController only covers listeners registered through
+   * addEventListener(); openModal() registers its Escape handler on `document`
+   * directly, so it needs releasing here.
+   *
+   * @returns {void}
+   */
+  destroy() {
+    this.activeModal?.close();
+    this.activeModal = null;
+    super.destroy();
   }
 
   async handleViewForm(e) {
-    const participantId = e.target.dataset.participantId;
-    const formType = e.target.dataset.formType;
+    const trigger = e.currentTarget;
+    const participantId = trigger.dataset.participantId;
+    const formType = trigger.dataset.formType;
 
     debugLog(`Fetching form submission for participantId: ${participantId}, formType: ${formType}`);
 
@@ -178,10 +175,24 @@ export class ViewParticipantDocuments extends BaseModule {
       const submissionData = response.data?.submission_data || response.submission_data || {};
       debugLog("Extracted submission data:", submissionData);
 
-      // Pass submission_data to render
-      const formContent = this.formRenderers[formType].render(submissionData);
-      setContent(document.getElementById('form-content'), formContent);
-      document.getElementById('form-view-modal').style.display = "block";
+      // A fresh dialog per open, which is also what stops the previous form's
+      // scroll position carrying over into the next one.
+      const participantName = this.participants.find(
+        (p) => String(p.id) === String(participantId)
+      );
+      const heading = participantName
+        ? `${escapeHTML(`${participantName.first_name || ""} ${participantName.last_name || ""}`.trim())} — ${escapeHTML(formTypeLabel(formType, this.formMeta[formType]?.display_name))}`
+        : escapeHTML(formTypeLabel(formType, this.formMeta[formType]?.display_name));
+
+      this.activeModal = openModal({
+        id: "form-view-modal",
+        title: heading,
+        body: this.formRenderers[formType].render(submissionData),
+        onClose: () => {
+          this.activeModal = null;
+          trigger.focus();
+        },
+      });
     } catch (error) {
       debugError(`Error fetching form data for ${formType}:`, error);
       this.app.showMessage(translate("error_fetching_form_data"), "error");

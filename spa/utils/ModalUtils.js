@@ -2,6 +2,7 @@
 // Shared modal builder used by all SPA modules (single markup + behavior for
 // what used to be three hand-rolled modal implementations).
 import { setContent } from './DOMUtils.js';
+import { lockBodyScroll, unlockBodyScroll } from './ScrollLockUtils.js';
 
 /**
  * Open a modal dialog using the global .modal-overlay / .modal-dialog styles.
@@ -34,7 +35,13 @@ export function openModal({ id = 'app-modal', title = '', body = '', footer = ''
   `);
   document.body.appendChild(overlay);
 
+  // Without this the page behind the dialog still scrolls under the pointer.
+  // The lock is reference counted by owner key, so nested dialogs are safe, and
+  // the router's releaseAllScrollLocks() covers navigating away mid-dialog.
+  lockBodyScroll(`modal:${id}`);
+
   const close = () => {
+    unlockBodyScroll(`modal:${id}`);
     document.removeEventListener('keydown', handleEscape);
     overlay.remove();
     if (typeof onClose === 'function') {

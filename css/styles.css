@@ -138,6 +138,22 @@
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --safe-area-left: env(safe-area-inset-left, 0px);
   --safe-area-right: env(safe-area-inset-right, 0px);
+
+  /* How tall a modal panel may grow before it scrolls internally. One token so
+     every modal family (.modal, .modal-overlay, .modal-dialog, the nested
+     .modal-screen .modal) agrees on a single value. */
+  --modal-max-block-size: calc(100vh - 2 * var(--space-md) - var(--safe-area-top) - var(--safe-area-bottom));
+}
+
+/* dvh tracks the viewport that is actually visible when a mobile browser
+   collapses its URL bar; vh does not, which is what makes a "90vh" panel taller
+   than the screen on a phone. This needs @supports rather than the usual
+   two-declaration fallback: a custom property stores the token unresolved, so
+   the dvh version would always win and then fail at use time. */
+@supports (height: 100dvh) {
+  :root {
+    --modal-max-block-size: calc(100dvh - 2 * var(--space-md) - var(--safe-area-top) - var(--safe-area-bottom));
+  }
 }
 
 /* ============================================================================
@@ -1559,7 +1575,14 @@ tr:hover {
   position: fixed;
   z-index: var(--z-modal);
   inset: 0;
-  background-color: rgb(0 0 0 / 0.5);
+
+  /* Honoured by the consumers that force `display: flex` inline, and by
+     `.modal.show`. Centring does not depend on them: see `.modal > .modal-content`. */
+  align-items: center;
+  justify-content: center;
+
+  padding: var(--space-md);
+  background-color: rgb(29 47 42 / 0.75);
   backdrop-filter: blur(4px);
   animation: fadeIn var(--transition-base);
 }
@@ -1574,15 +1597,37 @@ tr:hover {
   }
 }
 
+/* Shared panel chrome. Deliberately no margin: `margin: 15% auto` resolved
+   against the viewport WIDTH, not its height, so on a 1400x800 screen the panel
+   started 210px down and was then allowed to be 90vh tall — 130px past the
+   bottom edge, with no scrollable ancestor able to reach it. */
 .modal-content {
   background-color: var(--color-surface);
-  margin: 15% auto;
   padding: var(--space-2xl);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-xl);
-  inline-size: 90%;
-  max-inline-size: 600px;
   animation: slideUp var(--transition-base);
+}
+
+/* The panel inside a bare `.modal` overlay. Absolute positioning plus auto
+   margins centres on both axes whatever `display` the consumer forces on the
+   overlay — and several force it inline (`style.display = "block"`, or a literal
+   style attribute), which no stylesheet can override. It avoids `transform`, so
+   the slideUp keyframe still animates. */
+.modal > .modal-content {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+
+  /* Required: with inset-block: 0 and an auto block-size, CSS resolves the auto
+     margins to zero and stretches the box instead of centring it. */
+  block-size: fit-content;
+
+  inline-size: min(100% - 2 * var(--space-md) - var(--safe-area-left) - var(--safe-area-right), 600px);
+  max-block-size: var(--modal-max-block-size);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 @keyframes slideUp {
@@ -1598,15 +1643,35 @@ tr:hover {
 }
 
 .close {
-  margin-top: calc(var(--space-lg) + var(--space-lg));
   color: var(--color-text-muted);
   float: inline-end;
   font-size: 28px;
   font-weight: var(--font-weight-bold);
+  line-height: 1;
   cursor: pointer;
   border: none;
   background: none;
   transition: color var(--transition-fast);
+}
+
+/* `.modal > .modal-content` is the scroll container now, so pin the legacy
+   close glyph to the top of its scrollport instead of letting it scroll away,
+   and give it a real touch target. The negative offset cancels the panel's own
+   padding. */
+.modal > .modal-content > .close {
+  position: sticky;
+  inset-block-start: calc(-1 * var(--space-2xl));
+  z-index: 1;
+  float: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-block: 0;
+  margin-inline-start: auto;
+  inline-size: var(--touch-target-min);
+  block-size: var(--touch-target-min);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
 }
 
 .close:hover,
@@ -1658,7 +1723,7 @@ tr:hover {
   /* Sizing */
   inline-size: 100%;
   max-inline-size: 600px;
-  max-block-size: 90vh;
+  max-block-size: var(--modal-max-block-size);
 
   /* Visual styling */
   background-color: var(--color-surface);
@@ -1700,9 +1765,16 @@ tr:hover {
 .modal-header h2,
 .modal-header h4 {
   margin: 0;
-  color: var(--color-text);
+  /* --color-primary, not --color-text: the duplicate block that currently wins
+     the cascade sets primary, and deleting it must not restyle these headers. */
+  color: var(--color-primary);
   font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   flex: 1;
+}
+
+.modal-header h2::before {
+  display: none;
 }
 
 /* Modal Body */
@@ -1793,9 +1865,11 @@ tr:hover {
     padding: var(--space-sm);
   }
 
-  .modal-overlay .modal-content {
+  .modal-overlay .modal-content,
+  .modal-dialog,
+  .modal > .modal-content {
     max-inline-size: 100%;
-    max-block-size: 95vh;
+    max-block-size: var(--modal-max-block-size);
   }
 
   .modal-content.modal-large {
@@ -4607,31 +4681,6 @@ body.online .pending-update {
   transform: translateY(-1px);
 }
 
-#form-content {
-  max-block-size: 70vh;
-  overflow-y: auto;
-  padding: var(--space-md);
-}
-
-#form-content label {
-  display: block;
-  margin-block-start: var(--space-md);
-}
-
-#form-content input[type="text"],
-#form-content input[type="email"],
-#form-content input[type="tel"],
-#form-content textarea,
-#form-content select {
-  inline-size: 100%;
-  padding: var(--space-sm);
-  margin-block-start: var(--space-xs);
-}
-
-#form-content input[type="checkbox"] {
-  margin-inline-end: var(--space-sm);
-}
-
 /* ----------------------------------------------------------------------------
    11.5 MEETING PREPARATION (PREPARATION REUNIONS)
    ---------------------------------------------------------------------------- */
@@ -5536,119 +5585,6 @@ body.online .pending-update {
   transition: all var(--transition-base);
 }
 
-/* Modal Dialog - Enhanced */
-.modal {
-  display: none;
-  position: fixed;
-  z-index: var(--z-modal);
-  inset: 0;
-  background-color: rgba(29, 47, 42, 0.75);
-  backdrop-filter: blur(4px);
-  padding: var(--space-md);
-  animation: fadeIn var(--transition-base);
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-.modal.show {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-content {
-  background: var(--color-surface);
-  padding: var(--space-xl) var(--space-lg);
-  border-radius: var(--radius-xl);
-  inline-size: 100%;
-  max-inline-size: 540px;
-  max-block-size: 90vh;
-  overflow-y: auto;
-  box-shadow: var(--shadow-xl);
-  border: 1px solid var(--color-border-light);
-  animation: slideUp var(--transition-base);
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-block-end: var(--space-lg);
-  padding-block-end: var(--space-md);
-  border-block-end: 2px solid var(--color-border-light);
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: var(--font-size-xl);
-  color: var(--color-primary);
-  font-weight: var(--font-weight-bold);
-}
-
-.modal-header h2::before {
-  display: none;
-}
-
-.modal-close {
-  background: var(--color-secondary);
-  border: 2px solid var(--color-border);
-  inline-size: var(--touch-target-min);
-  block-size: var(--touch-target-min);
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-xl);
-  cursor: pointer;
-  color: var(--color-text);
-  transition: all var(--transition-base);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.modal-close:hover {
-  background: var(--color-error);
-  color: white;
-  border-color: var(--color-error);
-  transform: rotate(90deg);
-}
-
-.modal-actions {
-  display: flex;
-  gap: var(--space-md);
-  margin-block-start: var(--space-xl);
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-.modal-actions button {
-  padding: var(--space-md) var(--space-xl);
-  min-block-size: var(--touch-target-min);
-  font-weight: var(--font-weight-semibold);
-  border-radius: var(--radius-md);
-  flex: 1;
-  min-inline-size: 120px;
-}
-
 /* Accessibility */
 .sr-only {
   position: absolute;
@@ -5743,8 +5679,9 @@ body.online .pending-update {
     flex: 1;
   }
 
-  .modal-content {
-    inline-size: 90%;
+  /* Scoped to the overlay family: `inline-size: 90%` fought the min() that
+     sizes `.modal > .modal-content`. */
+  .modal-overlay .modal-content {
     max-inline-size: 640px;
   }
 }
@@ -6501,28 +6438,21 @@ body.online .pending-update {
 }
 
 /* Honor Reason Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: var(--space-md);
-}
-
 .modal-dialog {
-  background-color: white;
+  /* A flex column with the scrolling confined to .modal-body, matching
+     .report-modal-*. This used to be `overflow-y: auto` on the dialog itself,
+     which scrolled the header — and with it the close button — off the top of
+     a long dialog. */
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  max-inline-size: 500px;
+  max-block-size: var(--modal-max-block-size);
+  overflow: hidden;
+
+  background-color: var(--color-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  max-width: 500px;
-  width: 100%;
-  max-height: 90vh;
-  overflow-y: auto;
   animation: modalSlideIn 0.3s ease-out;
 }
 
@@ -6536,40 +6466,6 @@ body.online .pending-update {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-lg);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-primary);
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  color: var(--color-text-light);
-  cursor: pointer;
-  padding: var(--space-xs);
-  line-height: 1;
-  transition: color var(--transition-base);
-}
-
-.modal-close:hover {
-  color: var(--color-primary);
-}
-
-.modal-body {
-  padding: var(--space-lg);
 }
 
 .modal-participant-name {
@@ -7306,19 +7202,25 @@ details p {
   background: rgba(0, 0, 0, 0.5);
 }
 
-/* Override for nested modal pattern (used in badge dashboard, modal-screen, and modal-container) */
+/* `.modal` used as the inner panel rather than as the overlay (badge dashboard,
+   modal-screen, modal-container, and the yearly planner's `.modal-overlay > .modal`).
+   `.modal-overlay > .modal` matched no rule at all, so those panels inherited
+   `display: none` from the base `.modal` and rendered as a bare backdrop. */
 .badge-dashboard__modal .modal,
 .modal-screen .modal,
-.modal-container .modal {
+.modal-container .modal,
+.modal-overlay > .modal {
   display: block;
   position: relative;
+  inset: auto;
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   padding: var(--space-lg);
   max-width: 720px;
   width: min(720px, 96vw);
-  max-height: 90vh;
+  max-block-size: var(--modal-max-block-size);
   overflow-y: auto;
+  overscroll-behavior: contain;
   box-shadow: var(--shadow-lg);
   z-index: var(--z-modal);
 }
@@ -7328,6 +7230,44 @@ details p {
   justify-content: space-between;
   gap: var(--space-md);
   align-items: flex-start;
+  margin-block-end: var(--space-md);
+  padding-block-end: var(--space-sm);
+  border-block-end: 1px solid var(--color-border-light);
+}
+
+/* The yearly planner's panels use the BEM names; only __header had a rule. */
+.modal__body {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.modal__footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-md);
+  margin-block-start: var(--space-lg);
+}
+
+.modal__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--touch-target-min);
+  min-block-size: var(--touch-target-min);
+  border: none;
+  border-radius: var(--radius-md);
+  background: none;
+  font-size: var(--font-size-xl);
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.modal__close:hover,
+.modal__close:focus {
+  color: var(--color-primary);
 }
 
 .modal__header-actions {
@@ -8402,10 +8342,14 @@ details p {
     padding-top: var(--space-xs);
   }
 
-  /* Mobile optimizations for modal */
-  .modal {
+  /* Mobile optimizations for the nested modal *panel*. Unscoped, this also hit
+     every full-screen overlay and left a 5vw strip of unpainted backdrop. */
+  .badge-dashboard__modal .modal,
+  .modal-screen .modal,
+  .modal-container .modal,
+  .modal-overlay > .modal {
     max-width: 95vw;
-    max-height: 90vh;
+    max-block-size: var(--modal-max-block-size);
   }
 
   .form-row {
@@ -11131,10 +11075,10 @@ details p {
     justify-content: flex-end;
   }
 
+  /* `margin: 2% auto` was the same percentage-margin bug as `margin: 15% auto`,
+     re-introduced for small screens. Centring is handled by `.modal > .modal-content`. */
   .modal-content {
-    width: 95%;
-    margin: 2% auto;
-    padding: 1rem;
+    padding: var(--space-lg);
   }
 
   .form-actions {
