@@ -83,14 +83,14 @@ export class ManageGroups {
     return this.groups
       .map((group) => {
         const memberCount = Number(group.member_count) || 0;
+        const formattedCount = new Intl.NumberFormat(this.app.lang || CONFIG.DEFAULT_LANG).format(memberCount);
         return `
             <tr data-group-row="${group.id}">
                 <td>${escapeHTML(group.name || "")}</td>
-                <td class="${memberCount > 0 ? "group-members group-members--occupied" : "group-members"}">${memberCount}</td>
+                <td class="${memberCount > 0 ? "group-members group-members--occupied" : "group-members"}">${formattedCount}</td>
                 <td>
                     <button class="remove-group button--danger"
                             data-group-id="${group.id}"
-                            data-group-name="${escapeHTML(group.name || "")}"
                             data-member-count="${memberCount}">
                         ${translate("remove_group")}
                     </button>
@@ -147,13 +147,14 @@ export class ManageGroups {
     const button = e.currentTarget;
     const groupId = button.getAttribute("data-group-id");
     const memberCount = Number(button.getAttribute("data-member-count")) || 0;
+    const formattedCount = new Intl.NumberFormat(this.app.lang || CONFIG.DEFAULT_LANG).format(memberCount);
 
     // Say how many youth are in it before deleting. The issue asked for the
     // count precisely so a den that still has youth in it is not deleted by
     // mistake; the assignments are for the selected year, and removing the row
     // strands every year's assignments, not just this one.
     const warning = memberCount > 0
-      ? ` ${translate("group_has_members_warning").replace("{{count}}", memberCount)}`
+      ? ` ${translate("group_has_members_warning").replace("{{count}}", formattedCount)}`
       : "";
 
     if (await confirmDestructive(`${translate("confirm_delete_group")}${warning}`)) {
