@@ -1,6 +1,7 @@
 // dynamicFormHandler.js
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
+import { isDependencySatisfied } from "./utils/FormDependencyUtils.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
 import {
     getOrganizationFormFormats,
@@ -255,18 +256,37 @@ export class DynamicFormHandler {
             }
     }
 
-    // Enable or disable dependent fields based on the controlling value
+    /**
+     * Show, enable and require a dependent field once its controlling question
+     * is answered the way the form format asks for — and hide it again otherwise.
+     *
+     * @param {Object} dependentField - The dependent field's definition
+     * @param {*} controllingValue - The controlling field's current answer
+     * @returns {void}
+     */
     toggleDependentFields(dependentField, controllingValue) {
-        const dependentElement = document.getElementsByName(dependentField.name)[0];
-        if (!dependentElement) return;
+        // getElementsByName(...)[0] only ever reached the first element, so a
+        // dependent field rendered as a group of radios was half-toggled.
+        const dependentElements = Array.from(document.getElementsByName(dependentField.name));
+        if (dependentElements.length === 0) {
+            return;
+        }
 
-        const expectedValue = dependentField.dependsOn.value;
-        if (controllingValue === expectedValue) {
-            dependentElement.disabled = false;
-            dependentElement.setAttribute("required", "true");
-        } else {
-            dependentElement.disabled = true;
-            dependentElement.removeAttribute("required");
+        const isMet = isDependencySatisfied(controllingValue, dependentField.dependsOn.value);
+
+        dependentElements.forEach((element) => {
+            element.disabled = !isMet;
+            if (isMet && dependentField.required) {
+                element.setAttribute("required", "true");
+            } else {
+                element.removeAttribute("required");
+            }
+        });
+
+        // Hide the whole group rather than leaving a greyed-out box on screen.
+        const group = dependentElements[0].closest(".form-group");
+        if (group) {
+            group.classList.toggle("form-group--hidden", !isMet);
         }
     }
     
