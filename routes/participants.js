@@ -865,22 +865,28 @@ module.exports = (pool) => {
    * GET /api/v1/participants/with-users
    * Get participants with their associated user information
    */
-  router.get('/with-users', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
+  router.get('/with-users', authenticate, requirePermission('participants.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
+    // Reads the selected year's enrolments rather than the active-year-only
+    // `participant_organizations` view, so the year selector in the banner
+    // actually changes this roster instead of sitting there doing nothing.
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name,
               pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
               u.id as user_id, u.email as user_email, u.full_name as user_full_name
        FROM participants p
-       JOIN participant_organizations po ON p.id = po.participant_id
-       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       JOIN participant_enrollments pe ON pe.participant_id = p.id
+        AND pe.organization_id = $1
+        AND pe.scout_year_id = $2
+        AND pe.status = ANY($3::text[])
+       LEFT JOIN participant_group_assignments pg ON pg.participant_id = p.id
+        AND pg.organization_id = $1 AND pg.scout_year_id = $2
        LEFT JOIN groups g ON pg.group_id = g.id
        LEFT JOIN user_participants up ON p.id = up.participant_id
        LEFT JOIN users u ON up.user_id = u.id
-       WHERE po.organization_id = $1
        ORDER BY p.first_name, p.last_name`,
-      [organizationId]
+      [organizationId, req.scoutYear.id, req.rosterStatuses]
     );
 
     return success(res, { participants: result.rows });
@@ -1101,6 +1107,50 @@ module.exports = (pool) => {
     );
 
     return success(res, null, 'User associated with participant successfully');
+  }));
+
+  /**
+   * DELETE /api/v1/participants/:id/users/:userId
+   * Detach one parent account from one youth.
+   *
+   * There was no way to undo a wrong link: the only removal path was
+   * POST /link-users with `replace_all`, which wipes every link the user has and
+   * rewrites them from the request. An admin who picked the wrong parent from
+   * the list had nothing to click.
+   */
+  router.delete('/:id/users/:userId', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const participantId = parseInt(req.params.id, 10);
+    // User ids are UUIDs; never parse them as integers.
+    const userId = req.params.userId;
+
+    if (!Number.isInteger(participantId)) {
+      return error(res, 'Invalid participant ID', 400);
+    }
+
+    // The link itself carries no organization, so confirm the youth belongs to
+    // this one before touching it.
+    const participantCheck = await pool.query(
+      `SELECT 1
+       FROM participant_organizations
+       WHERE participant_id = $1 AND organization_id = $2`,
+      [participantId, organizationId]
+    );
+
+    if (participantCheck.rows.length === 0) {
+      return error(res, 'Participant not found', 404);
+    }
+
+    const result = await pool.query(
+      'DELETE FROM user_participants WHERE participant_id = $1 AND user_id = $2 RETURNING user_id',
+      [participantId, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return error(res, 'Association not found', 404);
+    }
+
+    return success(res, null, 'Parent unlinked from participant');
   }));
 
   /**

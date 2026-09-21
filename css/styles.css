@@ -4920,6 +4920,60 @@ body.online .pending-update {
   user-select: none;
 }
 
+/* ---- Linked parents on the family-links screen ---- */
+
+.linked-users {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.linked-users__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding-inline-start: var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  font-size: var(--font-size-sm);
+}
+
+.linked-users__remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--touch-target-min);
+  min-block-size: var(--touch-target-min);
+  border: none;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.linked-users__remove:hover,
+.linked-users__remove:focus {
+  color: var(--color-error);
+}
+
+/* Says what a destructive button will actually do. "Retirer de l'organisation"
+   and "Effacer définitivement" were indistinguishable from their labels alone. */
+.action-help {
+  display: block;
+  max-inline-size: 40ch;
+  margin-block: 2px var(--space-sm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+}
+
 /* ---- Dynamic form fields (JSONFormRenderer) ---- */
 
 /* The question carries the weight; the answer labels beside it do not, so a

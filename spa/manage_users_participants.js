@@ -5,7 +5,7 @@ import {
   removeParticipantFromOrganization,
   associateUser
 } from "./ajax-functions.js";
-import { eraseParticipant } from "./api/api-endpoints.js";
+import { eraseParticipant, unlinkParticipantUser } from "./api/api-endpoints.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { canViewUsers, hasPermission } from "./utils/PermissionUtils.js";
@@ -107,6 +107,8 @@ export class ManageUsersParticipants {
         associatedUsers: []
       };
 
+      // The id matters as much as the name: it is what lets a single wrong
+      // association be removed without rewriting the whole set.
       if (
         !existingEntry.associatedUsers.length &&
         typeof participant.associated_users === "string"
@@ -115,12 +117,16 @@ export class ManageUsersParticipants {
           .split(",")
           .map((name) => name.trim())
           .filter(Boolean)
-          .forEach((name) => existingEntry.associatedUsers.push(name));
+          .forEach((name) => existingEntry.associatedUsers.push({ id: null, name }));
       }
 
       const associatedName = (participant.user_full_name || participant.user_email || "").trim();
-      if (associatedName && !existingEntry.associatedUsers.includes(associatedName)) {
-        existingEntry.associatedUsers.push(associatedName);
+      const associatedId = participant.user_id || null;
+      const alreadyListed = existingEntry.associatedUsers.some(
+        (user) => (associatedId && user.id === associatedId) || (!associatedId && user.name === associatedName)
+      );
+      if (associatedName && !alreadyListed) {
+        existingEntry.associatedUsers.push({ id: associatedId, name: associatedName });
       }
 
       participantMap.set(participantId, existingEntry);
@@ -128,7 +134,7 @@ export class ManageUsersParticipants {
 
     return Array.from(participantMap.values()).map((participant) => ({
       ...participant,
-      associated_users: participant.associatedUsers?.join(", ") || ""
+      associated_users: participant.associatedUsers?.map((user) => user.name).join(", ") || ""
     }));
   }
 
@@ -190,11 +196,14 @@ export class ManageUsersParticipants {
         (participant) => `
           <tr>
             <td>${escapeHTML(participant.first_name || "")} ${escapeHTML(participant.last_name || "")}</td>
-            <td>${escapeHTML(participant.associated_users || translate("no_associated_users"))}</td>
+            <td>${this.renderAssociatedUsers(participant)}</td>
             <td>
-              <button class="remove-from-organization" data-participant-id="${participant.id}">
+              <button class="remove-from-organization"
+                      data-participant-id="${participant.id}"
+                      title="${translate("remove_from_organization_help")}">
                 ${translate("remove_from_organization")}
               </button>
+              <small class="action-help">${translate("remove_from_organization_help")}</small>
               <select class="user-select" data-participant-id="${participant.id}">
                 <option value="">${translate("select_parent")}</option>
                 ${this.renderParentUserOptions()}
@@ -203,16 +212,55 @@ export class ManageUsersParticipants {
                 ${translate("associate_user")}
               </button>
               ${this.canErase ? `
-                <button class="erase-participant"
+                <button class="erase-participant button--danger"
                         data-participant-id="${participant.id}"
-                        data-participant-name="${escapeHTML(`${participant.first_name || ""} ${participant.last_name || ""}`.trim())}">
+                        data-participant-name="${escapeHTML(`${participant.first_name || ""} ${participant.last_name || ""}`.trim())}"
+                        title="${translate("erase_participant_help")}">
                   ${translate("erase_participant")}
-                </button>` : ""}
+                </button>
+                <small class="action-help">${translate("erase_participant_help")}</small>` : ""}
             </td>
           </tr>
         `
       )
       .join("");
+  }
+
+  /**
+   * List the parents linked to a youth, each with a control to detach it.
+   *
+   * @param {Object} participant - Normalized participant record
+   * @returns {string} HTML for the associated-users cell
+   */
+  renderAssociatedUsers(participant) {
+    const users = Array.isArray(participant.associatedUsers) ? participant.associatedUsers : [];
+
+    if (users.length === 0) {
+      return `<span class="muted">${translate("no_associated_users")}</span>`;
+    }
+
+    return `
+      <ul class="linked-users">
+        ${users
+          .map(
+            (user) => `
+          <li class="linked-users__item">
+            <span>${escapeHTML(user.name)}</span>
+            ${user.id ? `
+              <button type="button"
+                      class="linked-users__remove unlink-user"
+                      data-participant-id="${participant.id}"
+                      data-user-id="${escapeHTML(user.id)}"
+                      data-user-name="${escapeHTML(user.name)}"
+                      title="${translate("unlink_parent")}"
+                      aria-label="${translate("unlink_parent")} — ${escapeHTML(user.name)}">&times;</button>
+            ` : ""}
+          </li>
+        `
+          )
+          .join("")}
+      </ul>
+    `;
   }
 
   renderParentUserOptions() {
@@ -244,6 +292,10 @@ export class ManageUsersParticipants {
 
     document.querySelectorAll(".erase-participant").forEach((button) => {
       button.addEventListener("click", (event) => this.handleErase(event));
+    });
+
+    document.querySelectorAll(".unlink-user").forEach((button) => {
+      button.addEventListener("click", (event) => this.handleUnlinkUser(event));
     });
   }
 
@@ -334,6 +386,50 @@ export class ManageUsersParticipants {
         debugError("Error:", error);
         this.showError(translate("error_removing_participant_from_organization"));
       }
+    }
+  }
+
+  /**
+   * Detach one parent from one youth.
+   *
+   * Confirmed because the link carries real consequences — a detached parent
+   * loses sight of that child's forms, attendance and permission slips — but
+   * not gated behind typing a name: unlike erasure this is trivially undone by
+   * associating the parent again.
+   *
+   * @param {Event} event - Click on a chip's remove control
+   * @returns {Promise<void>}
+   */
+  async handleUnlinkUser(event) {
+    const button = event.currentTarget;
+    const participantId = button.getAttribute("data-participant-id");
+    const userId = button.getAttribute("data-user-id");
+    const userName = button.getAttribute("data-user-name");
+
+    if (!participantId || !userId) {
+      return;
+    }
+
+    const confirmed = await confirmDestructive(
+      `${translate("confirm_unlink_parent")} ${userName}`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const result = await unlinkParticipantUser(participantId, userId);
+      if (result?.success) {
+        this.showMessage(translate("parent_unlinked_successfully"));
+        await this.fetchData(true);
+        this.render();
+        this.attachEventListeners();
+      } else {
+        this.showError(result?.message || translate("error_unlinking_parent"));
+      }
+    } catch (error) {
+      debugError("Error unlinking parent:", error);
+      this.showError(translate("error_unlinking_parent"));
     }
   }
 

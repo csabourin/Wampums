@@ -920,6 +920,27 @@ export async function associateUser(participantId, userId) {
 }
 
 /**
+ * Detach one parent account from one youth.
+ *
+ * The only removal path used to be `linkUserParticipants` with `replace_all`,
+ * which rewrites every link the user has; there was no way to undo a single
+ * wrong association.
+ *
+ * @param {number} participantId - Integer participant id
+ * @param {string} userId - UUID of the parent account
+ * @returns {Promise<Object>} API response
+ */
+export async function unlinkParticipantUser(participantId, userId) {
+    const response = await API.delete(`v1/participants/${participantId}/users/${userId}`);
+
+    if (response?.success) {
+        await invalidateUserAssociationCaches();
+    }
+
+    return response;
+}
+
+/**
  * Link user to participants
  */
 export async function linkUserToParticipants(participantIds, userId = null) {
