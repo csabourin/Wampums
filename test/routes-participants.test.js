@@ -717,38 +717,52 @@ describe('POST /api/v1/participants/link-organization', () => {
    * Drive the route with a controlled answer from the enrolment upsert.
    *
    * @param {Array} enrollmentRows - What RETURNING hands back
-   * @returns {Promise<boolean>} Whether required forms were flagged for review
+   * @param {Object} [options] - Failure and payload controls
+   * @returns {Promise<Object>} Response and captured flagging query
    */
-  async function linkAndReportFlagging(enrollmentRows) {
+  async function linkWithMocks(enrollmentRows, options = {}) {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({ permissions: ['participants.edit'], organizationId: ORG_ID });
-    let flagged = false;
+    let enrollmentParams = null;
+    let flagQuery = null;
+    let flagParams = null;
 
-    mockQueryImplementation(__mClient, __mPool, (query) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('INSERT INTO participant_enrollments')) {
+        enrollmentParams = params;
         return Promise.resolve({ rows: enrollmentRows });
       }
       if (query.includes("review_state = 'needs_review'")) {
-        flagged = true;
+        flagQuery = query;
+        flagParams = params;
+        if (options.failFlagging) {
+          return Promise.reject(new Error('paperwork flagging failed'));
+        }
         return Promise.resolve({ rows: [] });
       }
       return undefined;
     });
 
-    await request(app)
+    const response = await request(app)
       .post('/api/v1/participants/link-organization')
       .set('Authorization', `Bearer ${token}`)
-      .send({ participant_id: 50 });
+      .send({ participant_id: options.participantId ?? 50 });
 
-    return flagged;
+    return { response, enrollmentParams, flagQuery, flagParams, client: __mClient };
   }
 
   test('flags required forms when the youth actually joins the roster', async () => {
-    expect(await linkAndReportFlagging([{ created: true }])).toBe(true);
+    const result = await linkWithMocks([{ created: true }]);
+
+    expect(result.response.status).toBe(200);
+    expect(result.flagQuery).not.toBeNull();
   });
 
   test('flags required forms when a departed youth is revived', async () => {
-    expect(await linkAndReportFlagging([{ created: false }])).toBe(true);
+    const result = await linkWithMocks([{ created: false }]);
+
+    expect(result.response.status).toBe(200);
+    expect(result.flagQuery).not.toBeNull();
   });
 
   test('leaves paperwork alone when the youth is already active', async () => {
@@ -756,7 +770,59 @@ describe('POST /api/v1/participants/link-organization', () => {
     // after submitting the registration form. Flagging on an idempotent re-link
     // would send every required form back to needs_review on each edit —
     // including the one just submitted.
-    expect(await linkAndReportFlagging([])).toBe(false);
+    const result = await linkWithMocks([]);
+
+    expect(result.response.status).toBe(200);
+    expect(result.flagQuery).toBeNull();
+  });
+
+  test('preserves forms renewed during the active season', async () => {
+    const result = await linkWithMocks([{ created: false }]);
+
+    expect(result.flagParams).toEqual([ORG_ID, [50], '2025-09-01']);
+    expect(result.flagQuery).toContain('fs.updated_at');
+    expect(result.flagQuery).toContain('fs.last_reviewed_at');
+    expect(result.flagQuery).toContain('$3::date');
+  });
+
+  test('parses the participant ID once and reuses the validated integer', async () => {
+    const result = await linkWithMocks([{ created: true }], { participantId: '50' });
+
+    expect(result.enrollmentParams[0]).toBe(50);
+    expect(result.flagParams[1]).toEqual([50]);
+  });
+
+  test.each(['not-a-number', '50x', true, { id: 50 }])(
+    'rejects invalid participant ID %p before opening a transaction',
+    async (participantId) => {
+      const { __mPool } = require('pg');
+      const result = await linkWithMocks([], { participantId });
+
+      expect(result.response.status).toBe(400);
+      expect(result.response.body.message).toBe('Invalid participant identifier');
+      expect(__mPool.connect).not.toHaveBeenCalled();
+    }
+  );
+
+  test('rolls enrollment back when paperwork flagging fails', async () => {
+    const result = await linkWithMocks([{ created: true }], { failFlagging: true });
+    const transactionCommands = result.client.query.mock.calls
+      .map(([query]) => query)
+      .filter(query => ['BEGIN', 'COMMIT', 'ROLLBACK'].includes(query));
+
+    expect(result.response.status).toBe(500);
+    expect(transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
+    expect(result.client.release).toHaveBeenCalledTimes(1);
+  });
+
+  test('commits enrollment and paperwork flagging together', async () => {
+    const result = await linkWithMocks([{ created: true }]);
+    const transactionCommands = result.client.query.mock.calls
+      .map(([query]) => query)
+      .filter(query => ['BEGIN', 'COMMIT', 'ROLLBACK'].includes(query));
+
+    expect(transactionCommands).toEqual(['BEGIN', 'COMMIT']);
+    expect(result.client.release).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -790,17 +856,29 @@ describe('GET /api/v1/participants/with-documents', () => {
     expect(documentsQuery).toContain('pe.scout_year_id');
   });
 
-  test('applies the review-state predicate only for the active year', async () => {
+  test('enables the review-state predicate for active years and disables it for archives', async () => {
     // review_state is a single mutable flag with no per-year history, so asking
     // it about an archived year would let the next transition retroactively mark
     // a finished season incomplete. An archived year reports what is on file.
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({ permissions: ['participants.view'], organizationId: ORG_ID });
-    let documentsParams = null;
+    const reviewStateGates = [];
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('FROM scout_years') && params?.[0] === 2) {
+        return Promise.resolve({
+          rows: [{
+            id: 2,
+            organization_id: ORG_ID,
+            label: '2024-2025',
+            start_date: '2024-09-01',
+            end_date: '2025-08-31',
+            status: 'archived'
+          }]
+        });
+      }
       if (query.includes('submitted_forms')) {
-        documentsParams = params;
+        reviewStateGates.push(params[3]);
         return Promise.resolve({ rows: [] });
       }
       return undefined;
@@ -810,9 +888,12 @@ describe('GET /api/v1/participants/with-documents', () => {
       .get('/api/v1/participants/with-documents')
       .set('Authorization', `Bearer ${token}`);
 
-    expect(documentsParams).not.toBeNull();
+    await request(app)
+      .get('/api/v1/participants/with-documents?scout_year_id=2')
+      .set('Authorization', `Bearer ${token}`);
+
     // The 4th parameter gates the predicate: true only when the year is active.
-    expect(typeof documentsParams[3]).toBe('boolean');
+    expect(reviewStateGates).toEqual([true, false]);
   });
 });
 

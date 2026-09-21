@@ -838,13 +838,20 @@ module.exports = (pool) => {
       return error(res, 'Invalid request body. Expected JSON object payload.', 400);
     }
 
-    const organizationId = await getOrganizationId(req, pool);
-
     const { participant_id, inscription_date } = req.body;
 
-    if (!participant_id) {
+    if (participant_id === undefined || participant_id === null || participant_id === '') {
       return error(res, 'Participant ID is required', 400);
     }
+
+    const participantId = typeof participant_id === 'string' && /^\d+$/.test(participant_id.trim())
+      ? Number(participant_id.trim())
+      : participant_id;
+    if (!Number.isSafeInteger(participantId) || participantId <= 0) {
+      return error(res, 'Invalid participant identifier', 400);
+    }
+
+    const organizationId = await getOrganizationId(req, pool);
 
     // Enroll in the active scout year with inscription_date (defaults to today).
     // On conflict, keep the existing inscription_date but revive an enrollment
@@ -853,32 +860,44 @@ module.exports = (pool) => {
     // That keeps the statement idempotent while letting RETURNING say whether
     // this request really put the youth on the roster: a row comes back for an
     // insert or a revival, and nothing comes back when they were already active.
-    const scoutYear = await ensureActiveScoutYear(pool, organizationId);
-    const enrollment = await pool.query(
-      `INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id, inscription_date)
-       VALUES ($1, $2, $3, COALESCE($4::date, CURRENT_DATE))
-       ON CONFLICT (participant_id, organization_id, scout_year_id)
-       DO UPDATE SET status = 'active', ended_on = NULL, exit_reason = NULL
-       WHERE participant_enrollments.status IS DISTINCT FROM 'active'
-          OR participant_enrollments.ended_on IS NOT NULL
-          OR participant_enrollments.exit_reason IS NOT NULL
-       RETURNING (xmax = 0) AS created`,
-      [participant_id, organizationId, scoutYear.id, inscription_date]
-    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    // A year transition flags the required paperwork of everyone it carries
-    // over, but a youth who joins the roster afterwards comes through here
-    // instead and was never flagged — so a health form from an earlier season
-    // stayed marked current for the new one.
-    //
-    // Only on joining, never on an idempotent re-link. The registration screen
-    // calls this route after every save, right after submitting the
-    // registration form (spa/formulaire_inscription.js), so flagging
-    // unconditionally would send every required form back to needs_review on
-    // each edit — including the one just submitted. It is also a no-op for an
-    // organization that marks no form as required.
-    if (enrollment.rows.length > 0) {
-      await flagRequiredFormsForReview(pool, organizationId, [parseInt(participant_id, 10)]);
+      const scoutYear = await ensureActiveScoutYear(client, organizationId);
+      const enrollment = await client.query(
+        `INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id, inscription_date)
+         VALUES ($1, $2, $3, COALESCE($4::date, CURRENT_DATE))
+         ON CONFLICT (participant_id, organization_id, scout_year_id)
+         DO UPDATE SET status = 'active', ended_on = NULL, exit_reason = NULL
+         WHERE participant_enrollments.status IS DISTINCT FROM 'active'
+            OR participant_enrollments.ended_on IS NOT NULL
+            OR participant_enrollments.exit_reason IS NOT NULL
+         RETURNING (xmax = 0) AS created`,
+        [participantId, organizationId, scoutYear.id, inscription_date]
+      );
+
+      // A year transition flags the required paperwork of everyone it carries
+      // over, but a youth who joins the roster afterwards comes through here
+      // instead. Only older forms need review: the registration flow saves its
+      // form before linking the youth, and flagging current-season work would
+      // immediately undo that renewal. An idempotent re-link returns no row and
+      // leaves every form alone.
+      if (enrollment.rows.length > 0) {
+        await flagRequiredFormsForReview(
+          client,
+          organizationId,
+          [participantId],
+          scoutYear.start_date
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
 
     return success(res, null, 'Participant linked to organization');
