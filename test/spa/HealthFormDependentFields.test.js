@@ -27,7 +27,18 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugInfo: jest.fn()
 }));
 
+// dynamicFormHandler pulls in ajax-functions -> config.js, which uses
+// import.meta and cannot be parsed by Jest's CommonJS transform. The network
+// layer is irrelevant here: the toggle under test only reads the document.
+jest.mock('../../spa/ajax-functions.js', () => ({
+  getOrganizationFormFormats: jest.fn(),
+  getFormSubmission: jest.fn(),
+  saveFormSubmission: jest.fn()
+}));
+
 import { JSONFormRenderer } from '../../spa/JSONFormRenderer.js';
+import { isDependencySatisfied } from '../../spa/utils/FormDependencyUtils.js';
+import { DynamicFormHandler } from '../../spa/dynamicFormHandler.js';
 
 const FICHE_SANTE_FIELDS = {
   fields: [
@@ -102,5 +113,90 @@ describe('Dependent field state on a saved form', () => {
     const form = renderWith({});
 
     expect(form.querySelector('[name="allergie"]').disabled).toBe(true);
+  });
+
+  it('hides the allergy box until an allergy is declared', () => {
+    // Greying the box out still left an irrelevant field on screen. The whole
+    // group is hidden instead, and comes back the moment the answer is yes.
+    const unanswered = renderWith({});
+    const answered = renderWith({ has_allergies: 'yes', allergie: 'Arachides' });
+
+    expect(
+      unanswered.querySelector('[name="allergie"]').closest('.form-group').className
+    ).toContain('form-group--hidden');
+    expect(
+      answered.querySelector('[name="allergie"]').closest('.form-group').className
+    ).not.toContain('form-group--hidden');
+  });
+});
+
+describe('Radio option markup', () => {
+  it('wraps the options so they can sit beside the question', () => {
+    // `.form-group` is a column flex container, so bare input/label pairs put
+    // every option on a line of its own under the question.
+    const form = renderWith({});
+    const group = form.querySelector('.radio-group[data-field-name="has_allergies"]');
+
+    expect(group).not.toBeNull();
+    expect(group.querySelectorAll('.radio-option')).toHaveLength(2);
+    expect(group.querySelectorAll('.radio-option input[type="radio"]')).toHaveLength(2);
+  });
+});
+
+describe('Toggling a dependency live', () => {
+  /**
+   * Drive the real handler's toggle against a rendered form.
+   *
+   * `toggleDependentFields` reads only its arguments and the document, so it is
+   * invoked off the prototype rather than standing up a whole handler — the
+   * point is to exercise the shipped implementation, not a copy of it.
+   *
+   * @param {string} answer - The answer given to the controlling question
+   * @returns {HTMLElement} The form after the toggle
+   */
+  function answerWith(answer) {
+    const form = renderWith({});
+    document.body.appendChild(form);
+
+    DynamicFormHandler.prototype.toggleDependentFields.call(
+      null,
+      FICHE_SANTE_FIELDS.fields[1],
+      answer
+    );
+
+    return form;
+  }
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('reveals and requires the allergy box when the answer is yes', () => {
+    const form = answerWith('yes');
+    const box = form.querySelector('[name="allergie"]');
+
+    expect(box.disabled).toBe(false);
+    expect(box.hasAttribute('required')).toBe(true);
+    expect(box.closest('.form-group').className).not.toContain('form-group--hidden');
+  });
+
+  it('accepts the checkbox spelling of yes that the handler produces', () => {
+    // getFieldValue() normalises a checkbox to 'yes'/'no' while the format says
+    // 'yes'; a strict === between the two never matched, so answering the
+    // question left the field it controlled disabled.
+    expect(isDependencySatisfied('yes', 'yes')).toBe(true);
+    expect(isDependencySatisfied(true, 'yes')).toBe(true);
+    expect(isDependencySatisfied('oui', 'yes')).toBe(true);
+    expect(isDependencySatisfied('no', 'yes')).toBe(false);
+    expect(isDependencySatisfied('', 'yes')).toBe(false);
+  });
+
+  it('hides the allergy box again when the answer changes to no', () => {
+    const form = answerWith('no');
+    const box = form.querySelector('[name="allergie"]');
+
+    expect(box.disabled).toBe(true);
+    expect(box.hasAttribute('required')).toBe(false);
+    expect(box.closest('.form-group').className).toContain('form-group--hidden');
   });
 });

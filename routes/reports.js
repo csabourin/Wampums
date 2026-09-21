@@ -130,23 +130,36 @@ module.exports = (pool, logger) => {
   router.get('/mailing-list', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
-    // Build email list by user role (admin/animation/etc.)
+    // Email list by role, for the people who staff the unit.
+    //
+    // `uo.status = 'active'` is what keeps this list current: without it every
+    // account that ever joined the organization stayed in it, including ones
+    // deactivated or moved to alumni, so the addresses drifted further from
+    // reality every year. The join to `roles` is inner rather than outer on
+    // purpose too — a role_ids entry pointing at a deleted role used to yield a
+    // NULL role_name, which became a section literally headed "null".
     const usersEmailsResult = await pool.query(
-      `SELECT LOWER(u.email) AS email, r.role_name as role
+      `SELECT LOWER(u.email) AS email, r.role_name AS role, r.display_name AS role_display_name
          FROM user_organizations uo
          JOIN users u ON u.id = uo.user_id
          CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
-         LEFT JOIN roles r ON r.id = role_id_text::integer
+         JOIN roles r ON r.id = role_id_text::integer
          WHERE uo.organization_id = $1
+         AND uo.status = 'active'
          AND u.email IS NOT NULL
          AND u.email != ''`,
       [organizationId]
     );
 
+    const roleDisplayNames = {};
     const emailsByRole = usersEmailsResult.rows.reduce((acc, user) => {
+      if (!user.role) {
+        return acc;
+      }
       if (!acc[user.role]) {
         acc[user.role] = [];
       }
+      roleDisplayNames[user.role] = user.role_display_name || null;
       if (!acc[user.role].includes(user.email)) {
         acc[user.role].push(user.email);
       }
@@ -174,19 +187,40 @@ module.exports = (pool, logger) => {
       [organizationId, req.scoutYear.id, req.rosterStatuses]
     );
 
-    emailsByRole.parent = guardianEmailsResult.rows.map((parent) => ({
+    // Merge, do not assign. This used to be a plain `emailsByRole.parent = ...`,
+    // which threw away the parent bucket built from user accounts a few lines
+    // above — so a parent who has a login but no parents_guardians row was
+    // silently absent from the list.
+    const guardianEntries = guardianEmailsResult.rows.map((parent) => ({
       email: parent.email,
       participants: parent.participants,
     }));
+    const guardianAddresses = new Set(guardianEntries.map((entry) => entry.email));
+    const accountOnlyParents = (emailsByRole.parent || [])
+      .map((entry) => (typeof entry === 'string' ? entry : entry.email))
+      .filter((email) => email && !guardianAddresses.has(email))
+      .map((email) => ({ email, participants: null }));
 
-    // Participant emails captured on their own forms
+    emailsByRole.parent = [...guardianEntries, ...accountOnlyParents];
+
+    // Participant emails captured on their own forms.
+    //
+    // Scoped to the selected year and to youth still on the roster. This used to
+    // sweep every form_submissions row that had ever held a courriel for the
+    // organization, regardless of year and without even joining to participants,
+    // so it accumulated the addresses of everyone who had ever registered.
     const participantEmailsResult = await pool.query(
-      `SELECT LOWER(fs.submission_data->>'courriel') AS courriel
+      `SELECT DISTINCT LOWER(fs.submission_data->>'courriel') AS courriel
          FROM form_submissions fs
+         JOIN participant_enrollments pe ON pe.participant_id = fs.participant_id
+          AND pe.organization_id = $1
+          AND pe.scout_year_id = $2
+          AND pe.status = ANY($3::text[])
          WHERE (fs.submission_data->>'courriel') IS NOT NULL
          AND (fs.submission_data->>'courriel') != ''
-         AND fs.organization_id = $1`,
-      [organizationId]
+         AND fs.organization_id = $1
+         AND fs.scout_year_id = $2`,
+      [organizationId, req.scoutYear.id, req.rosterStatuses]
     );
 
     const participantEmails = participantEmailsResult.rows.map(row => row.courriel);
@@ -200,6 +234,7 @@ module.exports = (pool, logger) => {
     res.json({
       success: true,
       emails_by_role: emailsByRole,
+      role_display_names: roleDisplayNames,
       participant_emails: participantEmails,
       unique_emails: uniqueEmails,
     });

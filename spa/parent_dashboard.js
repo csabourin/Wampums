@@ -14,6 +14,7 @@ import {
         signPermissionSlip,
 } from "./api/api-endpoints.js";
 import { getActivities } from "./api/api-activities.js";
+import { formTypeLabel } from "./utils/FormLabelUtils.js";
 import {
         getFormsNeedingReview,
         confirmFormReview,
@@ -350,10 +351,13 @@ export class ParentDashboard {
         async fetchFormFormats() {
                 try {
                         // Request only participant-context forms (excludes organization_info, etc.)
-                        const response = await getOrganizationFormFormats(
+                        const result = await getOrganizationFormFormats(
                                 null,
                                 "participant",
+                                { includeMeta: true },
                         );
+                        const response = result?.formats || null;
+                        this.formMeta = result?.meta || {};
                         debugLog("Form formats response:", response);
                         debugLog(
                                 "Form formats response type:",
@@ -795,7 +799,10 @@ export class ParentDashboard {
                 // We no longer need to hardcode exclusions here
                 const formButtons = Object.keys(this.formFormats)
                         .map((formType) => {
-                                const formLabel = translate(formType);
+                                const formLabel = formTypeLabel(
+                                        formType,
+                                        this.formMeta?.[formType]?.display_name
+                                );
                                 const isCompleted =
                                         participant[`has_${formType}`] === 1 ||
                                         participant[`has_${formType}`] === true;

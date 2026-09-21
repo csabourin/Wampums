@@ -171,12 +171,17 @@ module.exports = (pool, logger) => {
   router.get('/parents', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
+    // Active members only. Without the status filter this returned every parent
+    // account ever attached to the organization, including ones deactivated or
+    // moved to alumni years ago, which made the picker unusable.
     const result = await pool.query(
-      `SELECT u.id, u.email, u.full_name
+      `SELECT DISTINCT u.id, u.email, u.full_name
        FROM users u
        JOIN user_organizations uo ON u.id = uo.user_id
        JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
-       WHERE uo.organization_id = $1 AND r.role_name IN ('parent', 'demoparent')
+       WHERE uo.organization_id = $1
+         AND uo.status = 'active'
+         AND r.role_name IN ('parent', 'demoparent')
        ORDER BY u.full_name`,
       [organizationId]
     );

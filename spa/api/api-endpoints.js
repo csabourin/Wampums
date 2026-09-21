@@ -920,6 +920,27 @@ export async function associateUser(participantId, userId) {
 }
 
 /**
+ * Detach one parent account from one youth.
+ *
+ * The only removal path used to be `linkUserParticipants` with `replace_all`,
+ * which rewrites every link the user has; there was no way to undo a single
+ * wrong association.
+ *
+ * @param {number} participantId - Integer participant id
+ * @param {string} userId - UUID of the parent account
+ * @returns {Promise<Object>} API response
+ */
+export async function unlinkParticipantUser(participantId, userId) {
+    const response = await API.delete(`v1/participants/${participantId}/users/${userId}`);
+
+    if (response?.success) {
+        await invalidateUserAssociationCaches();
+    }
+
+    return response;
+}
+
+/**
  * Link user to participants
  */
 export async function linkUserToParticipants(participantIds, userId = null) {
@@ -1291,9 +1312,15 @@ export async function saveFormSubmission(formTypeOrData, participantId, submissi
  *
  * @param {number|null} organizationId - Optional organization ID
  * @param {string|null} context - Optional display context filter (participant, organization, admin_panel, public, form_builder)
- * @returns {Promise<Object>} Form formats object
+ * @param {Object} [options] - Extra options
+ * @param {boolean} [options.includeMeta=false] - Also return the per-form metadata
+ *   (`display_name`, `display_context`, `permissions`). Off by default because most
+ *   callers destructure the returned object as `{ [formType]: formStructure }`.
+ * @returns {Promise<Object>} Form formats keyed by form type, or, with `includeMeta`,
+ *   `{ formats, meta }`
  */
-export async function getOrganizationFormFormats(organizationId = null, context = null) {
+export async function getOrganizationFormFormats(organizationId = null, context = null, options = {}) {
+    const { includeMeta = false } = options;
     const params = {};
 
     if (organizationId) {
@@ -1316,22 +1343,36 @@ export async function getOrganizationFormFormats(organizationId = null, context 
     }
 
     const formFormats = {};
+    const formMeta = {};
+
+    // Keep the row's own display_name alongside the structure. Screens that label a
+    // form need it: translate() echoes an unknown key verbatim, so a form type with
+    // no translation (any type built in the form builder) would otherwise render as
+    // a raw key like `test_form`.
+    const collect = (formType, formatData) => {
+        formFormats[formType] = formatData?.form_structure || formatData;
+        formMeta[formType] = {
+            display_name: formatData?.display_name || null,
+            display_context: formatData?.display_context || [],
+            permissions: formatData?.permissions || null
+        };
+    };
 
     // Check if response.data is an array
     if (Array.isArray(response.data)) {
         // Transform array format to object format
         for (const format of response.data) {
-            formFormats[format.form_type] = format.form_structure;
+            collect(format.form_type, format);
         }
     } else {
         // response.data is an object, extract form_structure from each form type
         for (const [formType, formatData] of Object.entries(response.data)) {
             // If formatData has a form_structure property, use it; otherwise use formatData directly
-            formFormats[formType] = formatData.form_structure || formatData;
+            collect(formType, formatData);
         }
     }
 
-    return formFormats;
+    return includeMeta ? { formats: formFormats, meta: formMeta } : formFormats;
 }
 
 /**
@@ -1386,31 +1427,34 @@ export async function saveAcceptationRisque(data) {
 }
 
 /**
- * Get participants with documents info
+ * Get participants with their document submission status for the selected scout year.
+ *
+ * Reads `submitted_forms` straight from the server rather than deriving form types
+ * from `organization_settings` keys ending in `_structure`, which was a different,
+ * legacy source: it meant every form type other than the two hard-coded in
+ * `/participants/details` (`fiche_sante`, `acceptation_risque`) always reported as
+ * missing.
+ *
+ * @returns {Promise<Object>} `{ participants }`, each with `has_<form_type>` flags
  */
 export async function getParticipantsWithDocuments() {
-    const response = await API.get('v1/participants/details');
-    const settingsResponse = await getOrganizationSettings();
+    const response = await API.get('v1/participants/with-documents');
 
-    const settings = settingsResponse?.data || {};
-    const formTypes = Object.keys(settings)
-        .filter(key => key.endsWith('_structure'))
-        .map(key => key.replace('_structure', ''));
-
-    const participants = (response?.data?.participants || response?.participants || []).map(participant => {
-        formTypes.forEach(formType => {
-            participant[`has_${formType}`] = Boolean(participant[`has_${formType}`]);
+    const participants = (Array.isArray(response?.data) ? response.data : []).map(participant => {
+        const submitted = Array.isArray(participant.submitted_forms) ? participant.submitted_forms : [];
+        const flags = {};
+        submitted.forEach(formType => {
+            if (formType) {
+                flags[`has_${formType}`] = true;
+            }
         });
-        return participant;
+        return { ...participant, ...flags };
     });
 
     return {
         ...response,
         participants,
-        data: {
-            ...(response?.data || {}),
-            participants
-        }
+        data: { participants }
     };
 }
 

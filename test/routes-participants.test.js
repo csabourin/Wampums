@@ -712,6 +712,60 @@ describe.skip('POST /api/v1/participants/:id/add-group', () => {
 // ORGANIZATION ISOLATION TESTS
 // ============================================
 
+describe('DELETE /api/v1/participants/:id/users/:userId', () => {
+  // There was no way to undo one wrong parent link: the only removal path was
+  // POST /link-users with replace_all, which rewrites every link a user has.
+  test('removes a single link and scopes it to the caller organization', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ permissions: ['participants.edit'], organizationId: ORG_ID });
+    const userId = '11111111-2222-3333-4444-555555555555';
+    let deleteParams = null;
+
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('FROM participant_organizations')) {
+        return Promise.resolve({ rows: [{ '?column?': 1 }] });
+      }
+      if (query.includes('DELETE FROM user_participants')) {
+        deleteParams = params;
+        return Promise.resolve({ rows: [{ user_id: userId }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .delete(`/api/v1/participants/50/users/${userId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    // The UUID must survive intact — user ids are not integers.
+    expect(deleteParams).toEqual([50, userId]);
+  });
+
+  test('refuses a participant belonging to another organization', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ permissions: ['participants.edit'], organizationId: ORG_ID });
+    let deleteAttempted = false;
+
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes('FROM participant_organizations')) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('DELETE FROM user_participants')) {
+        deleteAttempted = true;
+        return Promise.resolve({ rows: [] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .delete('/api/v1/participants/50/users/11111111-2222-3333-4444-555555555555')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+    expect(deleteAttempted).toBe(false);
+  });
+});
+
 describe('Multi-organization participant isolation', () => {
   test('prevents participant from being linked to non-existent user in same org', async () => {
     const { __mClient, __mPool } = require('pg');
