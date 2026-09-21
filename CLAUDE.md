@@ -474,8 +474,42 @@ npm run start    # Expo dev server
 
 ### Migrations
 
-Schema changes are plain SQL files in `migrations/`. There is no npm migration runner in this
-repository; review and apply the required files through the deployment environment or PostgreSQL tooling.
+Schema changes are `.sql` or `.js` files in `migrations/`, applied automatically by
+`scripts/deploy-migrate.js`. **Do not apply migration SQL to production by hand** — the runner is
+part of the deploy.
+
+| Command | What it does |
+|---|---|
+| `npm run db:migrate:deploy` | Applies every pending migration. Runs before the server starts via `deploy:start`. |
+| `npm run db:migrate:base` | Same application step, without the deploy wrapper. |
+| `node scripts/run-migration.js <file>` | Applies one named migration. |
+
+How the runner behaves, and what it demands of a migration file:
+
+- ✅ Files are applied in **filename order** and recorded in `schema_migrations`, so each runs once.
+  Prefix new files with the next number (`007_`, `008_`, …).
+- ✅ The **whole run is one transaction**, serialized across instances by an advisory lock. A single
+  failing statement rolls back every migration in that run and exits non-zero, so the server does
+  not boot. One bad migration blocks the deploy — it does not merely skip itself.
+- ✅ Migrations must **not** contain `BEGIN`/`COMMIT`; the runner owns the transaction.
+- ✅ Write every statement to be **re-runnable**: `CREATE TABLE IF NOT EXISTS`,
+  `CREATE INDEX IF NOT EXISTS`, `INSERT … ON CONFLICT DO NOTHING`. Note that `ALTER TABLE … ADD
+  CONSTRAINT` has **no** `IF NOT EXISTS` — declare foreign keys and checks inside `CREATE TABLE`.
+- ⚠️ **Inserting into a table seeded with explicit ids** (notably `permissions`, whose catalog was
+  loaded with ids 1–86 while its sequence still sits at 1) will collide on the primary key. Advance
+  the sequence first:
+  ```sql
+  SELECT setval(
+    pg_get_serial_sequence('public.permissions', 'id'),
+    COALESCE((SELECT MAX(id) FROM public.permissions), 0) + 1,
+    false
+  );
+  ```
+- ✅ A `.js` migration exports `up(client, context)` and may set a `description`.
+
+Validate a migration against a disposable database before committing it, rather than reading it and
+hoping — load `attached_assets/Full_Database_schema.sql` into a scratch database, apply the file,
+then apply it a second time to prove it is re-runnable.
 
 ---
 
