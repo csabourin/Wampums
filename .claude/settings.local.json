@@ -28,7 +28,9 @@
       "Bash(cd \"//wsl.localhost/Ubuntu/home/csabourin/wampums\" && grep -rn \"UNIQUE\" attached_assets/Full_Database_schema.sql | grep -iE \"reunion|rappel|participant_fees\" ; echo \"---migrations---\"; grep -rniE \"unique|on conflict\" migrations/ 2>/dev/null | grep -iE \"reunion|rappel|participant_fee\" | head; echo \"---js migrations---\"; ls migrations/*.js 2>/dev/null | head)",
       "Bash(railway --version)",
       "Bash(railway whoami *)",
-      "Bash(railway status *)"
+      "Bash(railway status *)",
+      "Bash(git checkout *)",
+      "Bash(git pull *)"
     ]
   }
 }
