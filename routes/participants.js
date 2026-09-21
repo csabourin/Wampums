@@ -847,7 +847,8 @@ module.exports = (pool) => {
     const participantId = typeof participant_id === 'string' && /^\d+$/.test(participant_id.trim())
       ? Number(participant_id.trim())
       : participant_id;
-    if (!Number.isSafeInteger(participantId) || participantId <= 0) {
+    const maxParticipantId = 2147483647;
+    if (!Number.isSafeInteger(participantId) || participantId <= 0 || participantId > maxParticipantId) {
       return error(res, 'Invalid participant identifier', 400);
     }
 
