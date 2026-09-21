@@ -321,21 +321,41 @@ export class MailingList {
                 // Render other groups (e.g., leaders, administrators, finance)
                 Object.entries(emailsByRole).forEach(([role, emails]) => {
                         if (role !== 'parent') {
+                                const roleLabel = escapeHTML(this.roleLabel(role));
                                 html += `
                                         <div class="group">
-                                                <div class="group-header">${translate(role)}</div>
+                                                <div class="group-header">${roleLabel}</div>
                                                 <div class="group-content compact">
                                                         ${this.renderEmails(emails)}
                                                 </div>
-                                                <button class="copy-role-emails" data-role="${role}">${translate(
+                                                <button class="copy-role-emails" data-role="${escapeHTML(role)}">${translate(
                                         "copy_emails_for"
-                                )} ${translate(role)}</button>
+                                )} ${roleLabel}</button>
                                         </div>
                                 `;
                         }
                 });
 
                 return html;
+        }
+
+        /**
+         * Section heading for a role.
+         *
+         * translate() echoes an unknown key back verbatim, so a role with no
+         * entry in lang/*.json — any role an organization adds itself — showed as
+         * its raw role_name. The roles table's own display_name is the fallback.
+         *
+         * @param {string} role - The raw role_name
+         * @returns {string} A label fit for a section heading
+         */
+        roleLabel(role) {
+                const translated = translate(role);
+                if (translated && translated !== role) {
+                        return translated;
+                }
+                const displayNames = this.mailingList?.role_display_names || {};
+                return displayNames[role] || role.replace(/_/g, " ");
         }
 
         renderEmails(data) {
