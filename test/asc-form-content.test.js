@@ -25,8 +25,11 @@ const key = (field) => (field.name ? `name:${field.name}` : `text:${field.infoTe
  * @param {string} formType - Form type to read from the catalog
  * @returns {Array<Object>} Its corrected fields
  */
-const catalogFields = (formType) =>
-  catalog.forms.find((form) => form.form_type === formType).form_structure.fields;
+const catalogFields = (formType) => {
+  const form = catalog.forms.find((entry) => entry.form_type === formType);
+  const activeVersion = form?.versions?.find((version) => version.is_active);
+  return (activeVersion?.form_structure?.fields || form?.form_structure?.fields || []);
+};
 
 describe('Risk acceptance form', () => {
   const fields = catalogFields('acceptation_risque');
