@@ -28,6 +28,10 @@ const {
   describeReactivationLink,
   confirmReactivation
 } = require('../services/reactivation');
+const {
+  describeInvitation,
+  acceptInvitation
+} = require('../services/parentInvitations');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const {
   normalizeEmailValue,
@@ -587,6 +591,95 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
     reactivationLinkLimiter,
     asyncHandler(async (req, res) => {
       const result = await confirmReactivation(pool, req.body?.token, logger);
+      return res.json({ success: true, data: result });
+    })
+  );
+
+  /**
+   * Parent invitations
+   *
+   * Unauthenticated because the whole point is that the reader has no account
+   * yet. The address they will sign in with is the one an admin typed, and they
+   * are here to prove they can read mail sent to it.
+   *
+   * The split between the two endpoints is load-bearing. Mail clients, link
+   * scanners and corporate security gateways fetch URLs before a human ever
+   * sees them; a GET that created an account would hand accounts to software.
+   * So describing is a GET that writes nothing, and spending the invitation
+   * takes a POST that a person had to submit.
+   *
+   * Both answer 200 with the outcome in `state`, for the reason the alumni and
+   * reactivation links do: a status code that distinguished "expired" from "no
+   * such invitation" would be an oracle for probing tokens.
+   */
+  const invitationLinkLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 30,
+    message: { success: false, message: 'too_many_invitation_requests' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  /**
+   * Describe an invitation link without spending it, so the completion page can
+   * name the unit, lock the address and decide whether to ask for a password.
+   */
+  router.get('/parent-invitations/describe',
+    invitationLinkLimiter,
+    asyncHandler(async (req, res) => {
+      const result = await describeInvitation(pool, req.query.token, { logger });
+      return res.json({ success: true, data: result });
+    })
+  );
+
+  /**
+   * Spend an invitation: create or attach the account, and join the unit.
+   *
+   * A password is required only when there is no account yet, which the service
+   * decides from the database rather than from the request — a client that
+   * omits the field cannot talk its way past a password by doing so. When one is
+   * supplied it must meet the same strength rules as registration, because it
+   * becomes a real login credential.
+   */
+  router.post('/parent-invitations/accept',
+    invitationLinkLimiter,
+    check('password')
+      .optional({ nullable: true, checkFalsy: true })
+      .isLength({ min: 8, max: 255 })
+      .withMessage('Password must be between 8 and 255 characters')
+      .matches(/[A-Z]/)
+      .withMessage('Password must contain at least one uppercase letter')
+      .matches(/[a-z]/)
+      .withMessage('Password must contain at least one lowercase letter')
+      .matches(/[0-9]/)
+      .withMessage('Password must contain at least one number')
+      .matches(/[^A-Za-z0-9]/)
+      .withMessage('Password must contain at least one special character'),
+    check('first_name').optional({ nullable: true }).isString().trim().isLength({ max: 255 }),
+    check('last_name').optional({ nullable: true }).isString().trim().isLength({ max: 255 }),
+    check('telephone_residence').optional({ nullable: true }).isString().trim().isLength({ max: 20 }),
+    check('telephone_cellulaire').optional({ nullable: true }).isString().trim().isLength({ max: 20 }),
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const result = await acceptInvitation(
+        pool,
+        {
+          token: req.body?.token,
+          password: req.body?.password || null,
+          firstName: sanitizeInput(req.body?.first_name) || null,
+          lastName: sanitizeInput(req.body?.last_name) || null,
+          telephoneResidence: sanitizeInput(req.body?.telephone_residence) || null,
+          telephoneCellulaire: sanitizeInput(req.body?.telephone_cellulaire) || null,
+        },
+        { logger }
+      );
+
+      // The one refusal that is the caller's to fix, so it gets a 4xx rather
+      // than a state the page would have to special-case anyway.
+      if (result.error === 'password_required' || result.error === 'name_required') {
+        return res.status(400).json({ success: false, message: result.error, data: result });
+      }
+
       return res.json({ success: true, data: result });
     })
   );

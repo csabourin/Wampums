@@ -37,10 +37,15 @@ const {
   invitationExpiresAt,
   isInvitationExpired,
 } = require('../utils/invitation-tokens');
+const bcrypt = require('bcryptjs');
 const { sendEmail, getTranslationsByCode } = require('../utils/index');
 const { escapeHtml } = require('../utils/api-helpers');
 const { getOrganizationName } = require('./alumni');
-const { findMembershipStanding, classifyStanding } = require('./reactivation');
+const {
+  findMembershipStanding,
+  classifyStanding,
+  ROUTINE_DEACTIVATION_REASON,
+} = require('./reactivation');
 
 /**
  * What a landing page can be looking at.
@@ -585,8 +590,389 @@ async function deliverInvitation(pool, { invitation, token, baseUrl, logger }) {
   return sent;
 }
 
+/**
+ * What acceptance did.
+ *
+ * Distinct from {@link INVITATION_STATE}, which describes a link before anyone
+ * acts on it. These say what happened, because the page that follows differs:
+ * a new account is already signed in conceptually and goes to onboarding, an
+ * existing one goes to the login form, and a membership an admin deactivated by
+ * hand goes nowhere until a human looks at it.
+ */
+const ACCEPTANCE_RESULT = {
+  ACCOUNT_CREATED: 'account_created',
+  MEMBERSHIP_ADDED: 'membership_added',
+  ALREADY_MEMBER: 'already_member',
+  PENDING_APPROVAL: 'pending_approval',
+};
+
+/** Cost factor for password hashing, matching the registration route. */
+const PASSWORD_HASH_ROUNDS = 10;
+
+/**
+ * Give the invited person a parent membership in the unit.
+ *
+ * @param {Object} client - Client inside the acceptance transaction
+ * @param {string} userId - User UUID
+ * @param {number} organizationId - Unit
+ * @returns {Promise<void>} Resolves once the membership exists
+ */
+async function insertParentMembership(client, userId, organizationId) {
+  const roleResult = await client.query(
+    'SELECT id FROM roles WHERE role_name = $1',
+    ['parent']
+  );
+
+  if (roleResult.rows.length === 0) {
+    throw new Error("Role 'parent' not found in roles table");
+  }
+
+  await client.query(
+    `INSERT INTO user_organizations (user_id, organization_id, role_ids, status)
+     VALUES ($1, $2, $3, 'active')`,
+    [userId, organizationId, JSON.stringify([roleResult.rows[0].id])]
+  );
+}
+
+/**
+ * Split a display name into the two columns `parents_guardians` insists on.
+ *
+ * Both are NOT NULL, and someone who has had an account for years may have
+ * nothing but a single-word `full_name` behind it. This never invents a person
+ * — it only finds something non-empty to put in a column that cannot be empty,
+ * and it is used exclusively when creating a contact record that does not yet
+ * exist.
+ *
+ * @param {string|null} fullName - The account's display name
+ * @param {string} email - The address, used when there is no name at all
+ * @returns {{prenom: string, nom: string}} Given name and surname
+ */
+function splitFullName(fullName, email) {
+  const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return { prenom: parts[0], nom: parts.slice(1).join(' ') };
+  }
+  const single = parts[0] || String(email).split('@')[0];
+  return { prenom: single, nom: single };
+}
+
+/**
+ * Make sure the unit can reach this person, and that the contact record knows
+ * which account it belongs to.
+ *
+ * `parents_guardians` is keyed by address, so a row may already exist — an
+ * import, or another unit's registration, will have put one there. That is why
+ * this updates before it inserts rather than leaning on one upsert: the two
+ * cases want opposite things from the same values.
+ *
+ * When a record exists, a supplied value wins and a missing one changes
+ * nothing, so a parent correcting the spelling of their own name makes it
+ * stick while an acceptance that supplies nothing leaves an imported record
+ * exactly as it was. When no record exists, one is created, falling back to the
+ * account's own name for the two columns that may not be null.
+ *
+ * `user_uuid` is the exception in both directions: an existing link is never
+ * reassigned, because the record already belongs to somebody.
+ *
+ * @param {Object} client - Client inside the acceptance transaction
+ * @param {Object} params - Contact details
+ * @returns {Promise<number>} Guardian ID
+ */
+async function upsertGuardianContact(client, {
+  userId,
+  email,
+  firstName = null,
+  lastName = null,
+  telephoneResidence = null,
+  telephoneCellulaire = null,
+  accountFullName = null,
+}) {
+  const updated = await client.query(
+    `UPDATE parents_guardians
+        SET nom = COALESCE($2, nom),
+            prenom = COALESCE($3, prenom),
+            telephone_residence = COALESCE($4, telephone_residence),
+            telephone_cellulaire = COALESCE($5, telephone_cellulaire),
+            user_uuid = COALESCE(user_uuid, $6)
+      WHERE courriel = $1
+      RETURNING id`,
+    [email, lastName, firstName, telephoneResidence, telephoneCellulaire, userId]
+  );
+
+  let guardianId = updated.rows[0]?.id;
+
+  if (!guardianId) {
+    const fallback = splitFullName(accountFullName, email);
+    const inserted = await client.query(
+      `INSERT INTO parents_guardians
+         (nom, prenom, courriel, telephone_residence, telephone_cellulaire, user_uuid)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (courriel) DO UPDATE SET
+         user_uuid = COALESCE(parents_guardians.user_uuid, EXCLUDED.user_uuid)
+       RETURNING id`,
+      [
+        lastName || fallback.nom,
+        firstName || fallback.prenom,
+        email,
+        telephoneResidence,
+        telephoneCellulaire,
+        userId,
+      ]
+    );
+    guardianId = inserted.rows[0].id;
+  }
+
+  // guardian_users is the older of the two mappings and is still what several
+  // read paths join through, so both are written. Dropping it here would make a
+  // freshly invited parent invisible to code that has not migrated to user_uuid.
+  await client.query(
+    'INSERT INTO guardian_users (guardian_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+    [guardianId, userId]
+  );
+
+  return guardianId;
+}
+
+/**
+ * Bring an existing account into the unit.
+ *
+ * Three situations, and the difference between the last two is the whole reason
+ * this is not one UPDATE:
+ *
+ * - **No membership.** They have an account elsewhere and are joining. Add it.
+ * - **Deactivated by the year transition.** Routine: the household simply had
+ *   no child enrolled. Restore it.
+ * - **Deactivated by an administrator by hand.** That may have been done for
+ *   cause, and the admin who sent this invitation may not know it happened. The
+ *   acceptance is recorded, but access is not granted; the existing approval
+ *   queue gets the request, and a human decides. Overriding here would let an
+ *   invitation quietly undo a removal.
+ *
+ * @param {Object} client - Client inside the acceptance transaction
+ * @param {string} userId - User UUID
+ * @param {number} organizationId - Unit
+ * @returns {Promise<string>} One of {@link ACCEPTANCE_RESULT}
+ */
+async function attachExistingAccount(client, userId, organizationId) {
+  const membership = await client.query(
+    `SELECT id, status, deactivated_reason
+       FROM user_organizations
+      WHERE user_id = $1 AND organization_id = $2
+      FOR UPDATE`,
+    [userId, organizationId]
+  );
+
+  if (membership.rows.length === 0) {
+    await insertParentMembership(client, userId, organizationId);
+    return ACCEPTANCE_RESULT.MEMBERSHIP_ADDED;
+  }
+
+  const existing = membership.rows[0];
+
+  if (existing.status === 'active') {
+    return ACCEPTANCE_RESULT.ALREADY_MEMBER;
+  }
+
+  if (existing.deactivated_reason === ROUTINE_DEACTIVATION_REASON) {
+    await client.query(
+      `UPDATE user_organizations
+          SET status = 'active',
+              deactivated_at = NULL,
+              deactivated_reason = NULL,
+              reactivation_requested_at = NULL
+        WHERE id = $1`,
+      [existing.id]
+    );
+    return ACCEPTANCE_RESULT.MEMBERSHIP_ADDED;
+  }
+
+  await client.query(
+    `UPDATE user_organizations
+        SET reactivation_requested_at = COALESCE(reactivation_requested_at, now())
+      WHERE id = $1`,
+    [existing.id]
+  );
+  return ACCEPTANCE_RESULT.PENDING_APPROVAL;
+}
+
+/**
+ * Spend an invitation.
+ *
+ * One transaction, opened by locking the invitation row. That lock is what makes
+ * a double submission — two tabs, an impatient click, a retried request — settle
+ * into one account instead of two: the second transaction waits, then reads a
+ * row whose status is no longer `pending` and stops.
+ *
+ * Everything the invitation claimed about the person is treated as a suggestion
+ * except the address. The address is the invitation's identity and the one thing
+ * the form cannot change, and it is read from the row rather than the request,
+ * because a disabled input is a courtesy to the reader and not a security
+ * boundary.
+ *
+ * The new account is created verified. Possession of the token is proof of
+ * control of the address, which is the same thing an activation email asks for;
+ * sending a second one would be asking the same question twice.
+ *
+ * @param {Object} pool - Database pool
+ * @param {Object} params - Acceptance inputs, already validated by the route
+ * @param {string} params.token - Raw token from the link
+ * @param {string} [params.password] - Required only for a new account
+ * @param {Object} [options] - Options
+ * @param {Date} [options.now] - Clock reading, for tests
+ * @param {Object} [options.logger] - Logger
+ * @returns {Promise<Object>} `{ state }` and, when the link was spent,
+ *   `{ result, organization_name, email }`
+ */
+async function acceptInvitation(pool, params, { now = new Date(), logger } = {}) {
+  const {
+    token,
+    password = null,
+    firstName = null,
+    lastName = null,
+    telephoneResidence = null,
+    telephoneCellulaire = null,
+  } = params;
+
+  const digest = digestInvitationToken(token);
+  if (!digest) {
+    return { state: INVITATION_STATE.INVALID };
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const locked = await client.query(
+      `SELECT pi.*,
+              (u.id IS NOT NULL) AS account_exists,
+              u.id AS existing_user_id,
+              u.full_name AS existing_full_name
+         FROM parent_invitations pi
+         LEFT JOIN users u ON LOWER(u.email) = pi.email
+        WHERE pi.token_digest = $1
+        FOR UPDATE OF pi`,
+      [digest]
+    );
+
+    const invitation = locked.rows[0] || null;
+    const state = classifyInvitation(invitation, {
+      accountExists: invitation ? invitation.account_exists === true : false,
+      now,
+    });
+
+    if (!isActionableState(state)) {
+      // Nothing was written, but the transaction is closed cleanly so the lock
+      // is released rather than held until the pool reaps the connection.
+      await client.query('ROLLBACK');
+      return { state };
+    }
+
+    let userId = invitation.existing_user_id;
+    let result;
+
+    if (state === INVITATION_STATE.READY_NEW_ACCOUNT) {
+      if (!password) {
+        await client.query('ROLLBACK');
+        return { state, error: 'password_required' };
+      }
+
+      // What the person typed wins over what the admin guessed at.
+      const resolvedFirstName = firstName || invitation.first_name;
+      const resolvedLastName = lastName || invitation.last_name;
+
+      // Both names are required to create an account: they become the guardian
+      // contact record, whose columns may not be null, and an admin's optional
+      // prefill is not a substitute for the person confirming their own name.
+      if (!resolvedFirstName || !resolvedLastName) {
+        await client.query('ROLLBACK');
+        return { state, error: 'name_required' };
+      }
+
+      const fullName = [resolvedFirstName, resolvedLastName].join(' ').trim();
+
+      const created = await client.query(
+        `INSERT INTO users (email, password, full_name, is_verified, language_preference)
+         VALUES ($1, $2, $3, true, $4)
+         RETURNING id`,
+        [
+          invitation.email,
+          await bcrypt.hash(password, PASSWORD_HASH_ROUNDS),
+          fullName || null,
+          invitation.language,
+        ]
+      );
+
+      userId = created.rows[0].id;
+      await insertParentMembership(client, userId, invitation.organization_id);
+      result = ACCEPTANCE_RESULT.ACCOUNT_CREATED;
+
+      await upsertGuardianContact(client, {
+        userId,
+        email: invitation.email,
+        firstName: resolvedFirstName,
+        lastName: resolvedLastName,
+        telephoneResidence: telephoneResidence || invitation.telephone_residence,
+        telephoneCellulaire: telephoneCellulaire || invitation.telephone_cellulaire,
+      });
+    } else {
+      // An account already exists. Its password and its profile are its owner's,
+      // not an invitation's, and nothing here touches either.
+      result = await attachExistingAccount(client, userId, invitation.organization_id);
+
+      if (result !== ACCEPTANCE_RESULT.PENDING_APPROVAL) {
+        await upsertGuardianContact(client, {
+          userId,
+          email: invitation.email,
+          accountFullName: invitation.existing_full_name,
+        });
+      }
+    }
+
+    await client.query(
+      `UPDATE parent_invitations
+          SET status = 'accepted',
+              accepted_user_id = $1,
+              accepted_at = now(),
+              updated_at = now()
+        WHERE id = $2`,
+      [userId, invitation.id]
+    );
+
+    await client.query('COMMIT');
+
+    logger?.info('Parent invitation accepted', {
+      organizationId: invitation.organization_id,
+      invitationId: invitation.id,
+      result,
+    });
+
+    return {
+      state,
+      result,
+      email: invitation.email,
+      organization_name: await getOrganizationName(pool, invitation.organization_id),
+    };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+
+    // A registration that landed between the describe and the accept. The
+    // invitation is untouched, so the reader can simply try again and will be
+    // shown the existing-account form the second time.
+    if (err.code === '23505' && err.constraint === 'users_email_key') {
+      logger?.info('Parent invitation acceptance raced an account creation', { reason: 'email_taken' });
+      return { state: INVITATION_STATE.READY_EXISTING_ACCOUNT, error: 'account_just_created' };
+    }
+
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   INVITATION_STATE,
+  ACCEPTANCE_RESULT,
+  acceptInvitation,
   classifyInvitation,
   isActionableState,
   invitationAdminState,

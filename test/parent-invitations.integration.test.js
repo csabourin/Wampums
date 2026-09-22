@@ -16,6 +16,7 @@
 const express = require('express');
 const request = require('supertest');
 const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
 
 require('./jest-conditional-helpers');
 
@@ -70,7 +71,11 @@ jest.mock('../middleware/auth', () => {
   };
 });
 
-const { describeInvitation, INVITATION_STATE } = require('../services/parentInvitations');
+const {
+  describeInvitation,
+  INVITATION_STATE,
+  ACCEPTANCE_RESULT,
+} = require('../services/parentInvitations');
 
 describe.skipIf(!DATABASE_URL)('Parent invitations', () => {
   let pool;
@@ -169,6 +174,7 @@ describe.skipIf(!DATABASE_URL)('Parent invitations', () => {
     app = express();
     app.use(express.json());
     app.use('/api/v1/parent-invitations', require('../routes/parentInvitations')(pool, console));
+    app.use('/api/v1/public', require('../routes/public')(pool, console));
   });
 
   afterAll(async () => {
@@ -190,6 +196,11 @@ describe.skipIf(!DATABASE_URL)('Parent invitations', () => {
       `DELETE FROM user_organizations
         WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@example.org')`
     );
+    await pool.query(
+      `DELETE FROM guardian_users
+        WHERE guardian_id IN (SELECT id FROM parents_guardians WHERE courriel LIKE '%@example.org')`
+    );
+    await pool.query("DELETE FROM parents_guardians WHERE courriel LIKE '%@example.org'");
     await pool.query("DELETE FROM users WHERE email LIKE '%@example.org'");
   });
 
@@ -434,5 +445,286 @@ describe.skipIf(!DATABASE_URL)('Parent invitations', () => {
     expect(sentEmails[0].html).not.toContain('<script>');
     expect(sentEmails[0].html).not.toContain('<img src=x');
     expect(sentEmails[0].html).toContain('&lt;script&gt;');
+  });
+
+  describe('completing an invitation', () => {
+    const GOOD_PASSWORD = 'Tresor2026!';
+
+    /**
+     * Follow a link the way the completion page does.
+     *
+     * @param {string} token - Raw token from the email
+     * @param {Object} [body] - What the parent filled in
+     * @returns {Promise<Object>} Supertest response
+     */
+    function accept(token, body = {}) {
+      return request(app).post('/api/v1/public/parent-invitations/accept').send({ token, ...body });
+    }
+
+    /**
+     * Invite an address and return the token that was mailed to it.
+     *
+     * @param {string} email - Address to invite
+     * @param {Object} [extra] - Extra invitation fields
+     * @returns {Promise<string>} Raw token
+     */
+    async function inviteAndGetToken(email, extra = {}) {
+      await invite({ email, ...extra });
+      return tokenFromLastEmail();
+    }
+
+    test('describing a link over HTTP writes nothing', async () => {
+      const token = await inviteAndGetToken('describe.me@example.org');
+
+      const response = await request(app)
+        .get('/api/v1/public/parent-invitations/describe')
+        .query({ token });
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.state).toBe(INVITATION_STATE.READY_NEW_ACCOUNT);
+      expect(response.body.data.email).toBe('describe.me@example.org');
+
+      // A scanner opening the mail must not have spent the invitation.
+      expect(await one('SELECT status FROM parent_invitations WHERE email = $1', ['describe.me@example.org']))
+        .toBe('pending');
+      expect(await one('SELECT count(*) FROM users WHERE email = $1', ['describe.me@example.org'])).toBe('0');
+    });
+
+    test('creates the account, the membership and the guardian record together', async () => {
+      const token = await inviteAndGetToken('complete@example.org', {
+        first_name: 'Ada',
+        last_name: 'Lovelace',
+      });
+
+      const response = await accept(token, {
+        first_name: 'Ada',
+        last_name: 'Lovelace-Byron',
+        telephone_cellulaire: '819-555-0199',
+        password: GOOD_PASSWORD,
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.result).toBe(ACCEPTANCE_RESULT.ACCOUNT_CREATED);
+
+      const userId = await one('SELECT id FROM users WHERE email = $1', ['complete@example.org']);
+      expect(userId).toBeDefined();
+
+      // Verified on the strength of the token: reading the mail proved the address.
+      expect(await one('SELECT is_verified FROM users WHERE id = $1', [userId])).toBe(true);
+      // What the parent typed beats what the admin guessed.
+      expect(await one('SELECT full_name FROM users WHERE id = $1', [userId])).toBe('Ada Lovelace-Byron');
+
+      const membership = await pool.query(
+        'SELECT status, role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+        [userId, ids.organizationId]
+      );
+      expect(membership.rows[0].status).toBe('active');
+      const parentRoleId = await one("SELECT id FROM roles WHERE role_name = 'parent'");
+      expect(membership.rows[0].role_ids).toContain(parentRoleId);
+
+      const guardianId = await one('SELECT id FROM parents_guardians WHERE courriel = $1', ['complete@example.org']);
+      expect(guardianId).toBeDefined();
+      expect(await one('SELECT user_uuid FROM parents_guardians WHERE id = $1', [guardianId])).toBe(userId);
+      expect(await one('SELECT prenom FROM parents_guardians WHERE id = $1', [guardianId])).toBe('Ada');
+      // Both mappings, because read paths still join through the older one.
+      expect(await one('SELECT count(*) FROM guardian_users WHERE guardian_id = $1 AND user_id = $2', [guardianId, userId]))
+        .toBe('1');
+    });
+
+    test('the password becomes a real, working credential', async () => {
+      const token = await inviteAndGetToken('hashed@example.org');
+      await accept(token, { first_name: 'Rosa', last_name: 'Parks', password: GOOD_PASSWORD });
+
+      const stored = await one('SELECT password FROM users WHERE email = $1', ['hashed@example.org']);
+
+      expect(stored).not.toBe(GOOD_PASSWORD);
+      expect(await bcrypt.compare(GOOD_PASSWORD, stored)).toBe(true);
+    });
+
+    test('the address comes from the invitation, not from the form', async () => {
+      const token = await inviteAndGetToken('locked@example.org');
+
+      await accept(token, {
+        email: 'attacker@example.org',
+        first_name: 'Mallory',
+        last_name: 'Smith',
+        password: GOOD_PASSWORD,
+      });
+
+      expect(await one('SELECT count(*) FROM users WHERE email = $1', ['attacker@example.org'])).toBe('0');
+      expect(await one('SELECT count(*) FROM users WHERE email = $1', ['locked@example.org'])).toBe('1');
+    });
+
+    test('spends the invitation once, so a second click creates nothing', async () => {
+      const token = await inviteAndGetToken('once@example.org');
+
+      const first = await accept(token, { first_name: 'Grace', last_name: 'Hopper', password: GOOD_PASSWORD });
+      const second = await accept(token, { first_name: 'Grace', last_name: 'Hopper', password: GOOD_PASSWORD });
+
+      expect(first.body.data.result).toBe(ACCEPTANCE_RESULT.ACCOUNT_CREATED);
+      expect(second.body.data.state).toBe(INVITATION_STATE.ACCEPTED);
+      expect(second.body.data.result).toBeUndefined();
+      expect(await one('SELECT count(*) FROM users WHERE email = $1', ['once@example.org'])).toBe('1');
+    });
+
+    test('two simultaneous submissions settle into one account', async () => {
+      const token = await inviteAndGetToken('race@example.org');
+
+      const [a, b] = await Promise.all([
+        accept(token, { first_name: 'Ada', last_name: 'Lovelace', password: GOOD_PASSWORD }),
+        accept(token, { first_name: 'Ada', last_name: 'Lovelace', password: GOOD_PASSWORD }),
+      ]);
+
+      const outcomes = [a.body.data, b.body.data];
+      expect(outcomes.filter((o) => o.result === ACCEPTANCE_RESULT.ACCOUNT_CREATED)).toHaveLength(1);
+      expect(await one('SELECT count(*) FROM users WHERE email = $1', ['race@example.org'])).toBe('1');
+      expect(await one('SELECT count(*) FROM user_organizations uo JOIN users u ON u.id = uo.user_id WHERE u.email = $1', ['race@example.org']))
+        .toBe('1');
+    });
+
+    test('refuses a new account without a password, and a weak one', async () => {
+      const token = await inviteAndGetToken('nopassword@example.org');
+
+      const missing = await accept(token, { first_name: 'Ada', last_name: 'Lovelace' });
+      expect(missing.status).toBe(400);
+      expect(missing.body.message).toBe('password_required');
+
+      const weak = await accept(token, { first_name: 'Ada', last_name: 'Lovelace', password: 'short' });
+      expect(weak.status).toBe(400);
+      expect(weak.body.errors).toBeDefined();
+
+      expect(await one('SELECT count(*) FROM users WHERE email = $1', ['nopassword@example.org'])).toBe('0');
+      expect(await one('SELECT status FROM parent_invitations WHERE email = $1', ['nopassword@example.org']))
+        .toBe('pending');
+    });
+
+    test('an existing account joins the unit without its password being touched', async () => {
+      const originalHash = await bcrypt.hash('TheirOwnPassword1!', 4);
+      const existingId = await one(
+        'INSERT INTO users (email, password, full_name) VALUES ($1, $2, $3) RETURNING id',
+        ['veteran@example.org', originalHash, 'Existing Person']
+      );
+
+      const token = await inviteAndGetToken('veteran@example.org', { first_name: 'Wrong', last_name: 'Guess' });
+      const described = await describeInvitation(pool, token);
+      expect(described.state).toBe(INVITATION_STATE.READY_EXISTING_ACCOUNT);
+
+      const response = await accept(token, { password: GOOD_PASSWORD, first_name: 'Wrong' });
+
+      expect(response.body.data.result).toBe(ACCEPTANCE_RESULT.MEMBERSHIP_ADDED);
+      // Neither the credential nor the profile is an invitation's to rewrite.
+      expect(await one('SELECT password FROM users WHERE id = $1', [existingId])).toBe(originalHash);
+      expect(await one('SELECT full_name FROM users WHERE id = $1', [existingId])).toBe('Existing Person');
+      expect(await one(
+        'SELECT status FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+        [existingId, ids.organizationId]
+      )).toBe('active');
+    });
+
+    test('a routine year-transition deactivation is simply restored', async () => {
+      const existingId = await one(
+        "INSERT INTO users (email, password, full_name) VALUES ('returning@example.org', 'x', 'Returning') RETURNING id"
+      );
+      await pool.query(
+        `INSERT INTO user_organizations (user_id, organization_id, role_ids, status, deactivated_at, deactivated_reason)
+         VALUES ($1, $2, '[]'::jsonb, 'inactive', now(), 'no_enrolled_child')`,
+        [existingId, ids.organizationId]
+      );
+
+      const token = await inviteAndGetToken('returning@example.org');
+      const response = await accept(token, {});
+
+      expect(response.body.data.result).toBe(ACCEPTANCE_RESULT.MEMBERSHIP_ADDED);
+      const membership = await pool.query(
+        'SELECT status, deactivated_reason FROM user_organizations WHERE user_id = $1',
+        [existingId]
+      );
+      expect(membership.rows[0].status).toBe('active');
+      expect(membership.rows[0].deactivated_reason).toBeNull();
+    });
+
+    test('a deliberate removal is not undone by an invitation — it queues for a human', async () => {
+      const existingId = await one(
+        "INSERT INTO users (email, password, full_name) VALUES ('removed@example.org', 'x', 'Removed') RETURNING id"
+      );
+      await pool.query(
+        `INSERT INTO user_organizations (user_id, organization_id, role_ids, status, deactivated_at, deactivated_reason)
+         VALUES ($1, $2, '[]'::jsonb, 'inactive', now(), 'removed_by_admin')`,
+        [existingId, ids.organizationId]
+      );
+
+      const token = await inviteAndGetToken('removed@example.org');
+      const response = await accept(token, {});
+
+      expect(response.body.data.result).toBe(ACCEPTANCE_RESULT.PENDING_APPROVAL);
+      const membership = await pool.query(
+        'SELECT status, reactivation_requested_at FROM user_organizations WHERE user_id = $1',
+        [existingId]
+      );
+      // Still shut out; an admin now has a request to look at.
+      expect(membership.rows[0].status).toBe('inactive');
+      expect(membership.rows[0].reactivation_requested_at).not.toBeNull();
+    });
+
+    test('an expired or revoked link creates nothing', async () => {
+      const expiredToken = await inviteAndGetToken('lapsed@example.org');
+      await pool.query(
+        "UPDATE parent_invitations SET expires_at = now() - interval '1 day' WHERE email = $1",
+        ['lapsed@example.org']
+      );
+      const expired = await accept(expiredToken, { first_name: 'Ada', password: GOOD_PASSWORD });
+
+      const revokedToken = await inviteAndGetToken('withdrawn@example.org');
+      const revokedId = await one('SELECT id FROM parent_invitations WHERE email = $1', ['withdrawn@example.org']);
+      await request(app).post(`/api/v1/parent-invitations/${revokedId}/revoke`).send({});
+      const revoked = await accept(revokedToken, { first_name: 'Ada', password: GOOD_PASSWORD });
+
+      expect(expired.body.data.state).toBe(INVITATION_STATE.EXPIRED);
+      expect(revoked.body.data.state).toBe(INVITATION_STATE.REVOKED);
+      expect(await one("SELECT count(*) FROM users WHERE email IN ('lapsed@example.org','withdrawn@example.org')"))
+        .toBe('0');
+    });
+
+    test('a garbled or absent token is refused the same way as an unknown one', async () => {
+      for (const token of ['', 'nonsense', null, undefined]) {
+        const response = await accept(token, { first_name: 'Ada', last_name: 'Lovelace', password: GOOD_PASSWORD });
+        expect(response.status).toBe(200);
+        expect(response.body.data).toEqual({ state: INVITATION_STATE.INVALID });
+      }
+    });
+
+    test('an old link cannot be replayed after a resend', async () => {
+      const firstToken = await inviteAndGetToken('replayed@example.org');
+      const invitationId = await one('SELECT id FROM parent_invitations WHERE email = $1', ['replayed@example.org']);
+      await request(app).post(`/api/v1/parent-invitations/${invitationId}/resend`).send({});
+
+      const response = await accept(firstToken, { first_name: 'Ada', password: GOOD_PASSWORD });
+
+      expect(response.body.data.state).toBe(INVITATION_STATE.INVALID);
+      expect(await one('SELECT count(*) FROM users WHERE email = $1', ['replayed@example.org'])).toBe('0');
+    });
+
+    test('links the guardian record without overwriting what was already known', async () => {
+      await pool.query(
+        `INSERT INTO parents_guardians (nom, prenom, courriel, telephone_residence)
+         VALUES ('Imported', 'Name', 'imported@example.org', '819-555-0001')`
+      );
+      const existingId = await one(
+        "INSERT INTO users (email, password, full_name) VALUES ('imported@example.org', 'x', 'Imported Name') RETURNING id"
+      );
+
+      const token = await inviteAndGetToken('imported@example.org');
+      await accept(token, {});
+
+      const guardian = await pool.query(
+        'SELECT nom, prenom, telephone_residence, user_uuid FROM parents_guardians WHERE courriel = $1',
+        ['imported@example.org']
+      );
+      expect(guardian.rows[0].nom).toBe('Imported');
+      expect(guardian.rows[0].telephone_residence).toBe('819-555-0001');
+      expect(guardian.rows[0].user_uuid).toBe(existingId);
+      expect(await one('SELECT count(*) FROM parents_guardians WHERE courriel = $1', ['imported@example.org']))
+        .toBe('1');
+    });
   });
 });
