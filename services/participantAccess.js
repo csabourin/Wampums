@@ -74,7 +74,134 @@ async function grantParticipantAccess(client, {
   );
 }
 
+/**
+ * Drop `user_participants` rows whose last reason just went away.
+ *
+ * Called after any revocation, for exactly the pairs it touched. A pair that
+ * still holds another live grant keeps its row; that survival is the whole
+ * reason grants carry a source.
+ *
+ * @param {Object} client - Client inside the caller's transaction
+ * @param {Array<{participant_id: number, user_id: string}>} pairs - Pairs whose
+ *   grants changed
+ * @returns {Promise<number>} How many pairs lost access entirely
+ */
+async function pruneUnbackedAccess(client, pairs) {
+  if (pairs.length === 0) {
+    return 0;
+  }
+
+  const result = await client.query(
+    `DELETE FROM user_participants up
+      USING unnest($1::int[], $2::uuid[]) AS touched(participant_id, user_id)
+      WHERE up.participant_id = touched.participant_id
+        AND up.user_id = touched.user_id
+        AND NOT EXISTS (
+          SELECT 1 FROM participant_access_grants g
+           WHERE g.participant_id = up.participant_id
+             AND g.user_id = up.user_id
+             AND g.revoked_at IS NULL
+        )`,
+    [pairs.map((pair) => pair.participant_id), pairs.map((pair) => pair.user_id)]
+  );
+  return result.rowCount;
+}
+
+/**
+ * Withdraw every grant that came from one source — one family link, say.
+ *
+ * Access the same people hold for any other reason is untouched: only the
+ * grants this source made are revoked, and a `user_participants` row goes only
+ * if nothing else still backs it.
+ *
+ * @param {Object} client - Client inside the caller's transaction
+ * @param {Object} source - What is being withdrawn
+ * @param {string} source.sourceType - One of {@link ACCESS_SOURCE}
+ * @param {string|number} source.sourceId - The link, guardian or admin
+ * @returns {Promise<{revoked: number, removed: number}>} Grants revoked, and
+ *   pairs that lost access altogether
+ */
+async function revokeGrantsFromSource(client, { sourceType, sourceId }) {
+  const revoked = await client.query(
+    `UPDATE participant_access_grants
+        SET revoked_at = now()
+      WHERE source_type = $1
+        AND source_id = $2
+        AND revoked_at IS NULL
+      RETURNING participant_id, user_id`,
+    [sourceType, String(sourceId)]
+  );
+
+  const removed = await pruneUnbackedAccess(client, revoked.rows);
+  return { revoked: revoked.rowCount, removed };
+}
+
+/**
+ * Take one person's access to one child away completely, whatever it rested on.
+ *
+ * This is the administrator's "this person should not see this child", and it
+ * means exactly that: every live grant for the pair is revoked, family links
+ * included, so the access cannot quietly survive through a reason the admin
+ * never saw.
+ *
+ * @param {Object} client - Client inside the caller's transaction
+ * @param {Object} pair - Who and which child
+ * @param {number} pair.participantId - Child
+ * @param {string} pair.userId - Person
+ * @returns {Promise<boolean>} Whether the person had any access to remove
+ */
+async function revokeAllAccessForPair(client, { participantId, userId }) {
+  await client.query(
+    `UPDATE participant_access_grants
+        SET revoked_at = now()
+      WHERE participant_id = $1 AND user_id = $2 AND revoked_at IS NULL`,
+    [participantId, userId]
+  );
+
+  const removed = await client.query(
+    'DELETE FROM user_participants WHERE participant_id = $1 AND user_id = $2 RETURNING user_id',
+    [participantId, userId]
+  );
+  return removed.rowCount > 0;
+}
+
+/**
+ * The children in a unit that a person holds for a reason of their own.
+ *
+ * "Of their own" excludes family-link grants. When two people link, each
+ * shares the children *they* hold — not children a third parent shared with
+ * them through another link. Without this, access would travel along a chain
+ * of links to people the first parent never agreed to.
+ *
+ * Enrollment in any year counts. In September many returning children are not
+ * yet on the new roster, and they are still this family's children.
+ *
+ * @param {Object} client - Database client
+ * @param {string} userId - Person
+ * @param {number} organizationId - Unit
+ * @returns {Promise<Array<number>>} Participant IDs
+ */
+async function listOwnChildrenInUnit(client, userId, organizationId) {
+  const result = await client.query(
+    `SELECT DISTINCT g.participant_id
+       FROM participant_access_grants g
+      WHERE g.user_id = $1
+        AND g.revoked_at IS NULL
+        AND g.source_type <> 'family_link'
+        AND EXISTS (
+          SELECT 1 FROM participant_enrollments pe
+           WHERE pe.participant_id = g.participant_id
+             AND pe.organization_id = $2
+        )`,
+    [userId, organizationId]
+  );
+  return result.rows.map((row) => row.participant_id);
+}
+
 module.exports = {
   ACCESS_SOURCE,
   grantParticipantAccess,
+  revokeGrantsFromSource,
+  revokeAllAccessForPair,
+  listOwnChildrenInUnit,
 };

@@ -262,10 +262,11 @@ describe.skipIf(!DATABASE_URL)('Parent onboarding', () => {
       'SELECT count(*) FROM user_participants WHERE participant_id = $1 AND user_id = $2',
       [childId, ids.coParentId]
     )).toBe('1');
+    // Access, not guardianship: the partner is not added to the guardians list.
     expect(await one(
       'SELECT count(*) FROM participant_guardians WHERE participant_id = $1 AND guardian_id = $2',
       [childId, ids.coParentGuardianId]
-    )).toBe('1');
+    )).toBe('0');
   });
 
   test('an unrelated family may register an identically named child, and sees only its own', async () => {

@@ -32,6 +32,11 @@ const {
   describeInvitation,
   acceptInvitation
 } = require('../services/parentInvitations');
+const {
+  describeFamilyLinkRequest,
+  acceptFamilyLinkRequest,
+  declineFamilyLinkRequest
+} = require('../services/familyLinks');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const {
   normalizeEmailValue,
@@ -680,6 +685,72 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
         return res.status(400).json({ success: false, message: result.error, data: result });
       }
 
+      return res.json({ success: true, data: result });
+    })
+  );
+
+  /**
+   * Family link requests
+   *
+   * One parent asked to share a family with the reader of this link. Public
+   * for the same reason invitations are — the reader may have no account — and
+   * split the same way: describing is a GET that writes nothing, and only a
+   * POST the reader submitted can link or decline. A mail scanner opening the
+   * link must never be taken as consent.
+   */
+  router.get('/family-links/describe',
+    invitationLinkLimiter,
+    asyncHandler(async (req, res) => {
+      const result = await describeFamilyLinkRequest(pool, req.query.token, { logger });
+      return res.json({ success: true, data: result });
+    })
+  );
+
+  router.post('/family-links/accept',
+    invitationLinkLimiter,
+    check('password')
+      .optional({ nullable: true, checkFalsy: true })
+      .isLength({ min: 8, max: 255 })
+      .withMessage('Password must be between 8 and 255 characters')
+      .matches(/[A-Z]/)
+      .withMessage('Password must contain at least one uppercase letter')
+      .matches(/[a-z]/)
+      .withMessage('Password must contain at least one lowercase letter')
+      .matches(/[0-9]/)
+      .withMessage('Password must contain at least one number')
+      .matches(/[^A-Za-z0-9]/)
+      .withMessage('Password must contain at least one special character'),
+    check('first_name').optional({ nullable: true }).isString().trim().isLength({ max: 255 }),
+    check('last_name').optional({ nullable: true }).isString().trim().isLength({ max: 255 }),
+    check('telephone_residence').optional({ nullable: true }).isString().trim().isLength({ max: 20 }),
+    check('telephone_cellulaire').optional({ nullable: true }).isString().trim().isLength({ max: 20 }),
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const result = await acceptFamilyLinkRequest(
+        pool,
+        {
+          token: req.body?.token,
+          password: req.body?.password || null,
+          firstName: sanitizeInput(req.body?.first_name) || null,
+          lastName: sanitizeInput(req.body?.last_name) || null,
+          telephoneResidence: sanitizeInput(req.body?.telephone_residence) || null,
+          telephoneCellulaire: sanitizeInput(req.body?.telephone_cellulaire) || null,
+        },
+        { logger }
+      );
+
+      if (result.error === 'password_required' || result.error === 'name_required') {
+        return res.status(400).json({ success: false, message: result.error, data: result });
+      }
+
+      return res.json({ success: true, data: result });
+    })
+  );
+
+  router.post('/family-links/decline',
+    invitationLinkLimiter,
+    asyncHandler(async (req, res) => {
+      const result = await declineFamilyLinkRequest(pool, req.body?.token);
       return res.json({ success: true, data: result });
     })
   );

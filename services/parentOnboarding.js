@@ -240,9 +240,15 @@ async function enrollInYear(client, participantId, organizationId, scoutYearId) 
  * The requesting parent's access is `direct`: they created the child. A
  * partner's is `family_link`, pointing at the link it rests on.
  *
+ * Only the requesting parent becomes a guardian contact of the child. A family
+ * link is consent to share access, not a statement of guardianship — a new
+ * partner can see a child's file without being that child's guardian, and the
+ * guardians list is what the unit calls in an emergency. The registration form
+ * that follows is where guardians are named.
+ *
  * `participant_guardians.lien` is left empty. Whether this person is the
- * child's mother, father or tutor is asked by the registration form that
- * follows, and a guess recorded here would outlive the answer.
+ * child's mother, father or tutor is asked by that same form, and a guess
+ * recorded here would outlive the answer.
  *
  * @param {Object} client - Client inside the caller's transaction
  * @param {number} participantId - Child
@@ -268,9 +274,9 @@ async function linkChildToFamily(client, participantId, family, requesterId) {
     `INSERT INTO participant_guardians (guardian_id, participant_id)
      SELECT pg.id, $1
        FROM parents_guardians pg
-      WHERE pg.user_uuid = ANY($2::uuid[])
+      WHERE pg.user_uuid = $2
      ON CONFLICT (guardian_id, participant_id) DO NOTHING`,
-    [participantId, family.map((member) => member.userId)]
+    [participantId, requesterId]
   );
 }
 
