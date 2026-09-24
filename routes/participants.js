@@ -5,6 +5,13 @@ const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, getU
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
 const { ensureActiveScoutYear, flagRequiredFormsForReview } = require('../services/scoutYear');
+const {
+  ACCESS_SOURCE,
+  grantParticipantAccess,
+  revokeAllAccessForPair,
+  revokeAllAccessInUnit,
+  isAssociationInUnit,
+} = require('../services/participantAccess');
 const { eraseParticipant } = require('../services/erasure');
 
 /**
@@ -991,12 +998,13 @@ module.exports = (pool) => {
 
       // Only remove existing links if replace_all is true (admin replacing all links)
       // For self-linking (adding children), we just add to existing links
+      //
+      // Limited to this unit's children. It used to delete every link the user
+      // had, in every unit, so an administrator of one unit could silently cut
+      // a parent off from their children in another.
       const replaceAll = req.body.replace_all === true;
       if (replaceAll && user_id !== req.user.id) {
-        await client.query(
-          `DELETE FROM user_participants WHERE user_id = $1`,
-          [user_id]
-        );
+        await revokeAllAccessInUnit(client, { userId: user_id, organizationId });
       }
 
       // Verify all participants belong to this organization in a single query
@@ -1009,18 +1017,19 @@ module.exports = (pool) => {
 
       const validParticipantIds = participantCheck.rows.map(row => row.id);
 
-      // Batch insert all links at once
-      if (validParticipantIds.length > 0) {
-        const values = validParticipantIds.map((_, idx) =>
-          `($1, $${idx + 2})`
-        ).join(', ');
-
-        await client.query(
-          `INSERT INTO user_participants (user_id, participant_id)
-           VALUES ${values}
-           ON CONFLICT (user_id, participant_id) DO NOTHING`,
-          [user_id, ...validParticipantIds]
-        );
+      // A staff member linking themselves holds the access directly; linking
+      // someone else is an administrator's grant, recorded as theirs.
+      const linkingSelf = user_id === req.user.id;
+      for (const participantId of validParticipantIds) {
+        // Sequential: one transaction, one connection.
+        // eslint-disable-next-line no-await-in-loop
+        await grantParticipantAccess(client, {
+          participantId,
+          userId: user_id,
+          sourceType: linkingSelf ? ACCESS_SOURCE.DIRECT : ACCESS_SOURCE.ADMIN,
+          sourceId: linkingSelf ? null : req.user.id,
+          grantedBy: req.user.id,
+        });
       }
 
       await client.query('COMMIT');
@@ -1157,12 +1166,20 @@ module.exports = (pool) => {
       return error(res, 'User ID and participant ID are required', 400);
     }
 
-    await pool.query(
-      `INSERT INTO user_participants (user_id, participant_id)
-       VALUES ($1, $2)
-       ON CONFLICT (user_id, participant_id) DO NOTHING`,
-      [user_id, participant_id]
-    );
+    // Both ends must belong to the caller's unit. This route used to check
+    // neither, so an administrator of one unit could attach any account to any
+    // child in any other.
+    if (!await isAssociationInUnit(pool, { organizationId, participantId: participant_id, userId: user_id })) {
+      return error(res, 'Participant or user not found in this organization', 404);
+    }
+
+    await grantParticipantAccess(pool, {
+      participantId: participant_id,
+      userId: user_id,
+      sourceType: ACCESS_SOURCE.ADMIN,
+      sourceId: req.user.id,
+      grantedBy: req.user.id,
+    });
 
     return success(res, null, 'User associated with participant successfully');
   }));
@@ -1212,12 +1229,11 @@ module.exports = (pool) => {
       return error(res, 'Association not found', 404);
     }
 
-    const result = await pool.query(
-      'DELETE FROM user_participants WHERE participant_id = $1 AND user_id = $2 RETURNING user_id',
-      [participantId, userId]
-    );
+    // Every reason this person had to see this child goes, family links
+    // included: an administrator saying "not this parent" means exactly that.
+    const removed = await revokeAllAccessForPair(pool, { participantId, userId });
 
-    if (result.rows.length === 0) {
+    if (!removed) {
       return error(res, 'Association not found', 404);
     }
 

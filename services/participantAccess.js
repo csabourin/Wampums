@@ -56,21 +56,21 @@ async function grantParticipantAccess(client, {
     throw new Error(`Unknown participant access source: ${sourceType}`);
   }
 
+  // One statement, so the grant and the cache row it backs are written together
+  // even by a caller that holds no transaction.
   await client.query(
-    `INSERT INTO participant_access_grants
-       (participant_id, user_id, source_type, source_id, granted_by)
-     VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (participant_id, user_id, source_type, COALESCE(source_id, ''))
-       WHERE revoked_at IS NULL
-     DO NOTHING`,
-    [participantId, userId, sourceType, sourceId === null ? null : String(sourceId), grantedBy]
-  );
-
-  await client.query(
-    `INSERT INTO user_participants (participant_id, user_id)
+    `WITH grant_row AS (
+       INSERT INTO participant_access_grants
+         (participant_id, user_id, source_type, source_id, granted_by)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (participant_id, user_id, source_type, COALESCE(source_id, ''))
+         WHERE revoked_at IS NULL
+       DO NOTHING
+     )
+     INSERT INTO user_participants (participant_id, user_id)
      VALUES ($1, $2)
      ON CONFLICT (participant_id, user_id) DO NOTHING`,
-    [participantId, userId]
+    [participantId, userId, sourceType, sourceId === null ? null : String(sourceId), grantedBy]
   );
 }
 
@@ -151,18 +151,55 @@ async function revokeGrantsFromSource(client, { sourceType, sourceId }) {
  * @returns {Promise<boolean>} Whether the person had any access to remove
  */
 async function revokeAllAccessForPair(client, { participantId, userId }) {
-  await client.query(
-    `UPDATE participant_access_grants
-        SET revoked_at = now()
-      WHERE participant_id = $1 AND user_id = $2 AND revoked_at IS NULL`,
-    [participantId, userId]
-  );
-
   const removed = await client.query(
-    'DELETE FROM user_participants WHERE participant_id = $1 AND user_id = $2 RETURNING user_id',
+    `WITH revoked AS (
+       UPDATE participant_access_grants
+          SET revoked_at = now()
+        WHERE participant_id = $1 AND user_id = $2 AND revoked_at IS NULL
+     )
+     DELETE FROM user_participants
+      WHERE participant_id = $1 AND user_id = $2
+      RETURNING user_id`,
     [participantId, userId]
   );
-  return removed.rowCount > 0;
+  return removed.rows.length > 0;
+}
+
+/**
+ * Take a person's access to every child of one unit away, for "replace all of
+ * this person's links" in that unit.
+ *
+ * Limited to children enrolled in the unit, in any year. A youth can belong to
+ * more than one unit, and an administrator here has no say over this person's
+ * access to children elsewhere.
+ *
+ * @param {Object} client - Client inside the caller's transaction
+ * @param {Object} scope - Who, and which unit
+ * @param {string} scope.userId - Person
+ * @param {number} scope.organizationId - Unit
+ * @returns {Promise<number>} Children the person lost access to
+ */
+async function revokeAllAccessInUnit(client, { userId, organizationId }) {
+  const removed = await client.query(
+    `WITH in_unit AS (
+       SELECT DISTINCT participant_id
+         FROM participant_enrollments
+        WHERE organization_id = $2
+     ),
+     revoked AS (
+       UPDATE participant_access_grants g
+          SET revoked_at = now()
+        WHERE g.user_id = $1
+          AND g.revoked_at IS NULL
+          AND g.participant_id IN (SELECT participant_id FROM in_unit)
+     )
+     DELETE FROM user_participants up
+      WHERE up.user_id = $1
+        AND up.participant_id IN (SELECT participant_id FROM in_unit)
+      RETURNING up.participant_id`,
+    [userId, organizationId]
+  );
+  return removed.rows.length;
 }
 
 /**
@@ -198,10 +235,42 @@ async function listOwnChildrenInUnit(client, userId, organizationId) {
   return result.rows.map((row) => row.participant_id);
 }
 
+/**
+ * Whether a child and an account both belong to a unit, so that linking them is
+ * that unit's business.
+ *
+ * Enrollment is checked across every year, not through the
+ * `participant_organizations` view, which only shows the active one.
+ *
+ * @param {Object} client - Database client
+ * @param {Object} scope - What to check
+ * @param {number} scope.organizationId - The caller's unit
+ * @param {number|string} scope.participantId - Child
+ * @param {string} scope.userId - Account
+ * @returns {Promise<boolean>} True when both ends are in the unit
+ */
+async function isAssociationInUnit(client, { organizationId, participantId, userId }) {
+  const scope = await client.query(
+    `SELECT
+       EXISTS (
+         SELECT 1 FROM participant_enrollments
+          WHERE participant_id = $1 AND organization_id = $2
+       ) AS participant_in_org,
+       EXISTS (
+         SELECT 1 FROM user_organizations
+          WHERE user_id = $3 AND organization_id = $2
+       ) AS user_in_org`,
+    [participantId, organizationId, userId]
+  );
+  return scope.rows[0].participant_in_org && scope.rows[0].user_in_org;
+}
+
 module.exports = {
   ACCESS_SOURCE,
   grantParticipantAccess,
   revokeGrantsFromSource,
   revokeAllAccessForPair,
+  revokeAllAccessInUnit,
   listOwnChildrenInUnit,
+  isAssociationInUnit,
 };

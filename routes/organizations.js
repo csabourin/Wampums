@@ -26,6 +26,7 @@ const {
 const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { ensureProgramSectionsSeeded, getProgramSections } = require('../utils/programSections');
 const { installDefaultFormFormats } = require('../services/defaultFormFormats');
+const { ACCESS_SOURCE, grantParticipantAccess } = require('../services/participantAccess');
 
 // Validate JWT secret at startup
 requireJWTSecret();
@@ -884,15 +885,22 @@ module.exports = (pool, logger) => {
         [req.user.id, organizationId, JSON.stringify([roleId])]
       );
 
-      // Link children if provided
+      // Link children if provided -- only children of this unit. Any id used to
+      // be accepted, including a child enrolled somewhere else entirely.
       if (link_children && Array.isArray(link_children)) {
-        for (const participantId of link_children) {
-          await client.query(
-            `INSERT INTO user_participants (user_id, participant_id)
-               VALUES ($1, $2)
-               ON CONFLICT (user_id, participant_id) DO NOTHING`,
-            [req.user.id, participantId]
-          );
+        const inUnit = await client.query(
+          `SELECT DISTINCT participant_id
+             FROM participant_enrollments
+            WHERE organization_id = $1 AND participant_id = ANY($2::int[])`,
+          [organizationId, link_children.map((id) => parseInt(id, 10)).filter(Number.isInteger)]
+        );
+        for (const { participant_id: participantId } of inUnit.rows) {
+          await grantParticipantAccess(client, {
+            participantId,
+            userId: req.user.id,
+            sourceType: ACCESS_SOURCE.DIRECT,
+            grantedBy: req.user.id,
+          });
         }
       }
 
