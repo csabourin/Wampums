@@ -129,8 +129,10 @@ const REQUEST_BY_DIGEST = `
          (target.id IS NOT NULL) AS account_exists,
          target.id AS target_user_id,
          target.full_name AS target_full_name,
+         o.default_language AS organization_language,
          COALESCE(uo.status = 'active', false) AS requester_active
     FROM family_link_requests r
+    JOIN organizations o ON o.id = r.organization_id
     JOIN users requester ON requester.id = r.requester_user_id
     LEFT JOIN users target ON LOWER(target.email) = r.target_email
     LEFT JOIN user_organizations uo
@@ -418,6 +420,8 @@ async function describeFamilyLinkRequest(pool, token, { now = new Date(), logger
     requester_name: request.requester_name,
     email: request.target_email,
     shared_children_count: sharedChildren.length,
+    // The language the email was written in, so the page can open in it.
+    language: request.requester_language || request.organization_language || null,
   };
 }
 

@@ -31,7 +31,7 @@ jest.mock('../../spa/app.js', () => ({
 // reactivation page -- so a URL built by concatenation would visibly fail here.
 jest.mock('../../spa/config.js', () => ({
   getApiUrl: (endpoint) => `https://unit.example.org${endpoint}?organization_id=1`,
-  CONFIG: { API_BASE_URL: 'https://unit.example.org' },
+  CONFIG: { API_BASE_URL: 'https://unit.example.org', SUPPORTED_LANGS: ['en', 'fr'] },
 }));
 
 jest.mock('../../spa/utils/DOMUtils.js', () => {
@@ -384,5 +384,58 @@ describe('password rules', () => {
     expect(passwordProblem('NOLOWERCASE1!')).toBe('password_needs_lowercase');
     expect(passwordProblem('NoDigitsHere!')).toBe('password_needs_number');
     expect(passwordProblem('NoSpecial2026')).toBe('password_needs_special');
+  });
+});
+
+describe('opening in the email\'s language', () => {
+  beforeEach(() => {
+    window.history.replaceState({}, '', `/complete-registration?token=${encodeURIComponent(TOKEN)}`);
+  });
+
+  test('switches to the invitation\'s language before showing anything else', async () => {
+    respondWith([{ data: { state: 'ready_new_account', email: 'ada@example.org', language: 'fr' } }]);
+    const app = { lang: 'en', setLanguage: jest.fn(async function set(lang) { this.lang = lang; }) };
+
+    await new CompleteRegistration(app).init();
+
+    expect(app.setLanguage).toHaveBeenCalledWith('fr');
+    // The app was still starting, so no reload follows: this pass renders the form.
+    expect(document.getElementById('complete-registration-form')).not.toBeNull();
+  });
+
+  test('once the app is running, lets the reload render instead of racing it', async () => {
+    respondWith([{ data: { state: 'ready_new_account', email: 'ada@example.org', language: 'fr' } }]);
+    const app = {
+      lang: 'en',
+      initCompleted: true,
+      router: {},
+      setLanguage: jest.fn(async () => {}),
+    };
+
+    await new CompleteRegistration(app).init();
+
+    expect(app.setLanguage).toHaveBeenCalledWith('fr');
+    expect(document.getElementById('complete-registration-form')).toBeNull();
+  });
+
+  test('leaves the language alone when it already matches, or is not offered', async () => {
+    const app = { lang: 'fr', setLanguage: jest.fn() };
+
+    respondWith([{ data: { state: 'ready_new_account', email: 'ada@example.org', language: 'fr' } }]);
+    await new CompleteRegistration(app).init();
+    respondWith([{ data: { state: 'ready_new_account', email: 'ada@example.org', language: 'it' } }]);
+    await new CompleteRegistration(app).init();
+
+    expect(app.setLanguage).not.toHaveBeenCalled();
+  });
+
+  test('the family-link page follows its email\'s language too', async () => {
+    window.history.replaceState({}, '', `/family-link?token=${encodeURIComponent(TOKEN)}`);
+    respondWith([{ data: { state: 'ready_existing_account', email: 'c@example.org', language: 'en' } }]);
+    const app = { lang: 'fr', setLanguage: jest.fn(async function set(lang) { this.lang = lang; }) };
+
+    await new FamilyLinkReview(app).init();
+
+    expect(app.setLanguage).toHaveBeenCalledWith('en');
   });
 });

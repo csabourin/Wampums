@@ -1,6 +1,6 @@
 # CLAUDE.md - Development Guidelines for Wampums Scout Management System
 
-**Last Updated:** 2026-07-31
+**Last Updated:** 2026-09-24
 **Project:** Wampums Scout Management System
 **Tech Stack:** Node.js + Express, PostgreSQL, Vite (SPA), Vanilla JavaScript (ES modules), Expo/React Native (mobile)
 
@@ -137,6 +137,27 @@ const result = await pool.query(
   [organizationId]
 );
 ```
+
+#### Access to Children (`user_participants`)
+- ✅ **Never write `user_participants` directly.** Grant and revoke through `services/participantAccess.js`
+  (`grantParticipantAccess`, `revokeAllAccessForPair`, `revokeAllAccessInUnit`, `revokeGrantsFromSource`).
+  Every grant records *why* it exists in `participant_access_grants` (`direct`, `guardian`, `admin`,
+  `family_link`); `user_participants` is only the cache the rest of the app reads. A direct write creates
+  access nothing can explain or selectively revoke — ending a family link removes exactly the grants that
+  link made, and relies on every other grant being recorded.
+- ✅ Linking an account to a child must check that **both** belong to the caller's unit
+  (`isAssociationInUnit`). A child can be enrolled in several units, and `user_participants` has no
+  organization column of its own.
+- ✅ Parents register children through `participants.create_own` (`/api/v1/parent-onboarding`), which links
+  the child to the family in the same transaction. `participants.create` is unscoped; do not grant it more
+  widely to make a parent feature work.
+
+#### Emailed Links
+- ✅ Links that act for whoever holds them (invitations, family-link requests) use opaque tokens from
+  `utils/invitation-tokens.js`. Store only the SHA-256 digest; never log, persist, or return the raw token.
+- ✅ A `GET` on such a link only **describes** it. Acting on it takes a `POST` the person submitted — mail
+  scanners open links before people do.
+- ✅ Build link URLs from `resolveOrganizationBaseUrl` (`utils/public-url.js`), never from request headers.
 
 ### 4) Database Conventions
 

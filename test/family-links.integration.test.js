@@ -342,6 +342,8 @@ describe.skipIf(!DATABASE_URL)('Family links', () => {
       requester_name: 'Alice',
       organization_name: '6A Family Links',
       shared_children_count: 1,
+      // Alice set no preference, so the unit's default -- the email's language.
+      language: 'fr',
     });
     // A count, never names: the link may have reached the wrong inbox.
     expect(JSON.stringify(described.body)).not.toContain('Léa');

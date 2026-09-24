@@ -18,6 +18,7 @@ import { loadFamilyAccessStyles } from './styles.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { renderAccountFields, readAccountFields, accountProblem } from './AccountFields.js';
 import { describeLink, postLink } from './publicLinks.js';
+import { adoptLinkLanguage } from './linkLanguage.js';
 
 const DESCRIBE_PATH = '/api/v1/public/family-links/describe';
 const ACCEPT_PATH = '/api/v1/public/family-links/accept';
@@ -59,6 +60,12 @@ export class FamilyLinkReview {
     loadFamilyAccessStyles();
     this.renderLoading();
     this.link = this.token ? await describeLink(DESCRIBE_PATH, this.token) : { state: 'invalid' };
+
+    // Speak the email's language. If switching reloads the route, the reload
+    // renders this page afresh and this pass must not render over it.
+    if (await adoptLinkLanguage(this.app, this.link.language)) {
+      return;
+    }
 
     if (this.link.state === 'ready_new_account' || this.link.state === 'ready_existing_account') {
       this.renderReview();
