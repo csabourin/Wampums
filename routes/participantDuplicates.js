@@ -45,7 +45,7 @@ module.exports = (pool) => {
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const candidates = await listDuplicateCandidates(pool, organizationId, {
-        includeResolved: req.query.all === 'true',
+        includeResolved: req.query.all === 'true' || req.query.all === '1',
       });
       return success(res, candidates);
     })
