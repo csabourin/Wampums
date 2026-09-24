@@ -65,6 +65,15 @@ const VOCABULARY_TEMPLATE_KEYS = Object.freeze({
   honor_deleted_successfully: 'vocabulary_honor_deleted_successfully',
   changing_date_warning: 'vocabulary_changing_honor_date_warning',
   select_individuals: 'vocabulary_select_youth',
+  manage_groups: 'vocabulary_manage_groups',
+  tile_manage_groups: 'vocabulary_tile_manage_groups',
+  add_group: 'vocabulary_add_group',
+  group_name: 'vocabulary_group_name',
+  existing_groups: 'vocabulary_existing_groups',
+  confirm_delete_group: 'vocabulary_confirm_delete_group',
+  group_has_members_warning: 'vocabulary_group_has_members_warning',
+  no_groups_found: 'vocabulary_no_groups_found',
+  remove_group: 'vocabulary_remove_group',
 });
 
 /**

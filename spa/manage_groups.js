@@ -2,7 +2,6 @@ import {
   getGroups,
   addGroup,
   removeGroup,
-  updateGroupName,
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { CONFIG } from "./config.js";
@@ -60,6 +59,7 @@ export class ManageGroups {
                 <thead>
                   <tr>
                       <th>${translate("group_name")}</th>
+                      <th>${translate("group_member_count")}</th>
                       <th>${translate("action")}</th>
                   </tr>
                 </thead>
@@ -72,23 +72,32 @@ export class ManageGroups {
   }
 
   renderGroupRows() {
+    if (this.groups.length === 0) {
+      return `
+            <tr>
+                <td colspan="3">${translate("no_groups_found")}</td>
+            </tr>
+        `;
+    }
+
     return this.groups
-      .map(
-        (group) => `
+      .map((group) => {
+        const memberCount = Number(group.member_count) || 0;
+        const formattedCount = new Intl.NumberFormat(this.app.lang || CONFIG.DEFAULT_LANG).format(memberCount);
+        return `
             <tr data-group-row="${group.id}">
+                <td>${escapeHTML(group.name || "")}</td>
+                <td class="${memberCount > 0 ? "group-members group-members--occupied" : "group-members"}">${formattedCount}</td>
                 <td>
-                    <span class="editable-group" contenteditable="true" data-group-id="${group.id}">${escapeHTML(group.name || "")}</span>
-                </td>
-                <td>
-                    <button class="remove-group" data-group-id="${
-                      group.id
-                    }" style="background-color: #f44336;">
+                    <button class="remove-group button--danger"
+                            data-group-id="${group.id}"
+                            data-member-count="${memberCount}">
                         ${translate("remove_group")}
                     </button>
                 </td>
             </tr>
-        `
-      )
+        `;
+      })
       .join("");
   }
 
@@ -98,13 +107,6 @@ export class ManageGroups {
     if (addGroupForm) {
       addGroupForm.addEventListener("submit", (e) => this.handleAddGroup(e));
     }
-
-    document.querySelectorAll(".editable-group").forEach((span) => {
-      span.addEventListener("blur", (event) => {
-        const groupId = event.target.getAttribute("data-group-id");
-        this.handleUpdateGroup(groupId);
-      });
-    });
 
     document.querySelectorAll(".remove-group").forEach((button) => {
       button.addEventListener("click", (e) => this.handleRemoveGroup(e));
@@ -141,43 +143,21 @@ export class ManageGroups {
     }
   }
 
-  async handleUpdateGroup(groupId) {
-    const row = document.querySelector(`[data-group-row="${groupId}"]`);
-
-    if (!row) {
-      return;
-    }
-
-    const nameElement = row.querySelector(".editable-group");
-    const newName = nameElement?.textContent.trim() || "";
-
-    if (!newName) {
-      this.showMessage(translate("group_name_required"));
-      return;
-    }
-
-    try {
-      const result = await updateGroupName(groupId, newName);
-
-      if (result.success) {
-        // Clear all group-related caches
-        await clearGroupRelatedCaches();
-        await this.fetchGroups();
-        this.render();
-        this.attachEventListeners();
-        this.showMessage(translate("group_updated_successfully"));
-      } else {
-        this.showMessage(result.message || translate("error_updating_group_name"));
-      }
-    } catch (error) {
-      debugError("Error:", error);
-      this.showMessage(translate("error_updating_group_name"));
-    }
-  }
-
   async handleRemoveGroup(e) {
-    const groupId = e.target.getAttribute("data-group-id");
-    if (await confirmDestructive(translate("confirm_delete_group"))) {
+    const button = e.currentTarget;
+    const groupId = button.getAttribute("data-group-id");
+    const memberCount = Number(button.getAttribute("data-member-count")) || 0;
+    const formattedCount = new Intl.NumberFormat(this.app.lang || CONFIG.DEFAULT_LANG).format(memberCount);
+
+    // Say how many youth are in it before deleting. The issue asked for the
+    // count precisely so a den that still has youth in it is not deleted by
+    // mistake; the assignments are for the selected year, and removing the row
+    // strands every year's assignments, not just this one.
+    const warning = memberCount > 0
+      ? ` ${translate("group_has_members_warning").replace("{{count}}", formattedCount)}`
+      : "";
+
+    if (await confirmDestructive(`${translate("confirm_delete_group")}${warning}`)) {
       try {
         const result = await removeGroup(groupId);
         if (result.success) {

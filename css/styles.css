@@ -4920,6 +4920,20 @@ body.online .pending-update {
   user-select: none;
 }
 
+/* ---- Den/group management ---- */
+
+.group-members {
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+/* A den that still has youth assigned to it this year. The count is there so
+   one is not deleted by mistake, so it should read as a caution, not decoration. */
+.group-members--occupied {
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+}
+
 /* ---- Linked parents on the family-links screen ---- */
 
 .linked-users {
