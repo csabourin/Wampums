@@ -18,6 +18,13 @@
  * may each have a Léa Tremblay born the same day, and neither should be told
  * the other exists.
  *
+ * A child is one `participants` row however many units they belong to. A
+ * youth can be a cub in 6A and a beaver helper in 6H, and that is two
+ * enrollments of one person, not two people. So when a parent registers a
+ * child they already have in another unit, that child is enrolled here rather
+ * than created again — and their forms, medical record and history stay
+ * attached to one person.
+ *
  * @module services/parentOnboarding
  */
 
@@ -46,6 +53,7 @@ const MAX_NAME_LENGTH = 255;
 const CHILD_RESULT = {
   CREATED: 'created',
   REENROLLED: 'reenrolled',
+  ENROLLED_EXISTING: 'enrolled_existing',
   DUPLICATE: 'duplicate_child',
   SIMILAR: 'similar_child_exists',
   INVALID: 'invalid',
@@ -142,37 +150,63 @@ async function getFamilyMembers(client, userId, organizationId) {
 }
 
 /**
- * The children a family can already see in this unit, with whether each is on
- * this year's roster.
+ * The children this parent's registration has to be checked against.
+ *
+ * Two sources, deliberately unequal:
+ *
+ * - **Children in this unit that anyone in the family can see.** The family
+ *   link was made in this unit, and consenting to it means sharing this unit's
+ *   children.
+ * - **Children in any unit that the requesting parent can see themselves.**
+ *   Their own child in 6B is the same person when they register them in 6A,
+ *   and must be recognised as such rather than created a second time.
+ *
+ * What is not included is a partner's children in *other* units. A co-parent
+ * link made in 6A is not consent to show 6A the children that partner has
+ * elsewhere, and matching against them would reveal them to this parent.
  *
  * @param {Object} client - Database client
- * @param {Array<string>} familyUserIds - Family members
- * @param {number} organizationId - Unit
- * @param {number} scoutYearId - The active scout year
- * @returns {Promise<Array<Object>>} Children
+ * @param {Object} scope - Who is asking, and where
+ * @param {string} scope.requesterId - The parent acting
+ * @param {Array<string>} scope.familyUserIds - Family members in this unit
+ * @param {number} scope.organizationId - Unit
+ * @param {number} scope.scoutYearId - The unit's active scout year
+ * @returns {Promise<Array<Object>>} Children, each flagged with whether they
+ *   already belong to this unit and are on this year's roster
  */
-async function listFamilyChildren(client, familyUserIds, organizationId, scoutYearId) {
+async function listFamilyChildren(client, { requesterId, familyUserIds, organizationId, scoutYearId }) {
   const result = await client.query(
-    `SELECT DISTINCT p.id,
+    `SELECT p.id,
             p.first_name,
             p.last_name,
             p.date_naissance::text AS date_naissance,
             EXISTS (
+              SELECT 1 FROM participant_enrollments pe
+               WHERE pe.participant_id = p.id AND pe.organization_id = $3
+            ) AS in_this_unit,
+            EXISTS (
               SELECT 1 FROM participant_enrollments cur
                WHERE cur.participant_id = p.id
-                 AND cur.organization_id = $2
-                 AND cur.scout_year_id = $3
+                 AND cur.organization_id = $3
+                 AND cur.scout_year_id = $4
                  AND cur.status = 'active'
             ) AS enrolled_this_year
        FROM participants p
-       JOIN user_participants up ON up.participant_id = p.id
-      WHERE up.user_id = ANY($1::uuid[])
-        AND EXISTS (
-          SELECT 1 FROM participant_enrollments pe
-           WHERE pe.participant_id = p.id AND pe.organization_id = $2
-        )
+      WHERE p.id IN (
+              SELECT up.participant_id
+                FROM user_participants up
+               WHERE up.user_id = ANY($2::uuid[])
+                 AND EXISTS (
+                   SELECT 1 FROM participant_enrollments pe
+                    WHERE pe.participant_id = up.participant_id AND pe.organization_id = $3
+                 )
+              UNION
+              SELECT up.participant_id
+                FROM user_participants up
+               WHERE up.user_id = $1
+            )
       ORDER BY p.first_name, p.last_name`,
-    [familyUserIds, organizationId, scoutYearId]
+    [requesterId, familyUserIds, organizationId, scoutYearId]
   );
   return result.rows;
 }
@@ -246,15 +280,19 @@ async function linkChildToFamily(client, participantId, family, requesterId) {
  * One transaction. It opens by taking an advisory lock on the unit and the
  * child's normalized name, which is what stops two co-parents submitting the
  * same child at the same moment from both seeing "no duplicate" and both
- * inserting. The lock is keyed on the name rather than the family because the
- * family is exactly what two concurrent requests might disagree about.
+ * inserting. The lock is keyed on the name alone — not the family, which is
+ * exactly what two concurrent requests might disagree about, and not the unit,
+ * because the same child registered into two units at once is still one child.
  *
- * Against the family's existing children in this unit:
+ * Against the children this parent's registration is checked against (see
+ * {@link listFamilyChildren}):
  *
- * - **Same name and birth date, already on this year's roster** — refused. It
- *   is the same child.
- * - **Same name and birth date, not on this year's roster** — a returning
- *   child. Re-enrolled, not duplicated; the family already has access to them.
+ * - **Same name and birth date, already on this unit's roster this year** —
+ *   refused. It is the same child.
+ * - **Same name and birth date, known to this unit but not this year** — a
+ *   returning child. Re-enrolled, not duplicated.
+ * - **Same name and birth date, only in another unit** — the parent's own
+ *   child joining a second unit. Enrolled here as the same person.
  * - **Same name, different birth date** — paused. Siblings can share a name
  *   and a mistyped birth date looks exactly like this, so the parent is shown
  *   the match and asked, and a resubmission with `confirmSimilar` goes through.
@@ -296,13 +334,18 @@ async function createChild(pool, params, { now = new Date() } = {}) {
 
     await client.query(
       'SELECT pg_advisory_xact_lock($1, hashtext($2))',
-      [CHILD_CREATION_LOCK_NAMESPACE, `${organizationId}:${normalizeName(first)}|${normalizeName(last)}`]
+      [CHILD_CREATION_LOCK_NAMESPACE, `${normalizeName(first)}|${normalizeName(last)}`]
     );
 
     const scoutYear = await ensureActiveScoutYear(client, organizationId);
     const family = await getFamilyMembers(client, userId, organizationId);
     const familyUserIds = family.map((member) => member.userId);
-    const existing = await listFamilyChildren(client, familyUserIds, organizationId, scoutYear.id);
+    const existing = await listFamilyChildren(client, {
+      requesterId: userId,
+      familyUserIds,
+      organizationId,
+      scoutYearId: scoutYear.id,
+    });
 
     const sameName = existing.filter((child) => normalizeName(child.first_name) === normalizeName(first)
       && normalizeName(child.last_name) === normalizeName(last));
@@ -317,7 +360,10 @@ async function createChild(pool, params, { now = new Date() } = {}) {
       await enrollInYear(client, exact.id, organizationId, scoutYear.id);
       await linkChildToFamily(client, exact.id, family, userId);
       await client.query('COMMIT');
-      return { result: CHILD_RESULT.REENROLLED, participant_id: exact.id };
+      return {
+        result: exact.in_this_unit ? CHILD_RESULT.REENROLLED : CHILD_RESULT.ENROLLED_EXISTING,
+        participant_id: exact.id,
+      };
     }
 
     if (sameName.length > 0 && !confirmSimilar) {
@@ -366,12 +412,12 @@ async function createChild(pool, params, { now = new Date() } = {}) {
 async function getOnboardingContext(pool, userId, organizationId) {
   const scoutYear = await ensureActiveScoutYear(pool, organizationId);
   const family = await getFamilyMembers(pool, userId, organizationId);
-  const children = await listFamilyChildren(
-    pool,
-    family.map((member) => member.userId),
+  const children = await listFamilyChildren(pool, {
+    requesterId: userId,
+    familyUserIds: family.map((member) => member.userId),
     organizationId,
-    scoutYear.id
-  );
+    scoutYearId: scoutYear.id,
+  });
 
   const invitation = await pool.query(
     `SELECT id, support_contact_name, support_contact_email, onboarding_completed_at, accepted_at

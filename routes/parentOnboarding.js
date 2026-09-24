@@ -64,6 +64,8 @@ module.exports = (pool, logger) => {
    * Answers:
    * - 201 `created` — a new child, enrolled this year and shared with the family
    * - 200 `reenrolled` — a child the family already had, back on this year's roster
+   * - 200 `enrolled_existing` — the parent's child from another unit, enrolled
+   *   here as the same person rather than created again
    * - 409 `duplicate_child` — already registered this year
    * - 409 `similar_child_exists` — a child of the same name with another birth
    *   date; resubmit with `confirm_similar: true` if this is a different child
@@ -99,6 +101,8 @@ module.exports = (pool, logger) => {
           return success(res, outcome, 'Child registered', 201);
         case CHILD_RESULT.REENROLLED:
           return success(res, outcome, 'Child re-enrolled for this year');
+        case CHILD_RESULT.ENROLLED_EXISTING:
+          return success(res, outcome, 'Child already known from another unit, now enrolled in this one');
         case CHILD_RESULT.DUPLICATE:
           return res.status(409).json({
             success: false,

@@ -331,6 +331,93 @@ describe.skipIf(!DATABASE_URL)('Parent onboarding', () => {
     expect(await one("SELECT count(*) FROM participants WHERE first_name = 'Léa' AND id >= $1", [childId])).toBe('1');
   });
 
+  /**
+   * A child already enrolled in the other test unit, visible to one user.
+   *
+   * @param {string} userId - Who can see the child
+   * @param {Object} [child] - Name and birth date
+   * @returns {Promise<number>} Participant ID
+   */
+  async function childInOtherUnit(userId, child = LEA) {
+    const childId = await one(
+      'INSERT INTO participants (first_name, last_name, date_naissance) VALUES ($1, $2, $3) RETURNING id',
+      [child.first_name, child.last_name, child.date_naissance]
+    );
+    const otherYearId = await one(
+      "SELECT id FROM scout_years WHERE organization_id = $1 AND status = 'active'",
+      [ids.otherOrganizationId]
+    );
+    await pool.query(
+      'INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id) VALUES ($1, $2, $3)',
+      [childId, ids.otherOrganizationId, otherYearId]
+    );
+    await pool.query('INSERT INTO user_participants (participant_id, user_id) VALUES ($1, $2)', [childId, userId]);
+    return childId;
+  }
+
+  test('a parent\'s child from another unit is enrolled here as the same person, not created again', async () => {
+    const childId = await childInOtherUnit(ids.parentId);
+
+    const response = await registerChild(ids.parentId, LEA);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({ result: CHILD_RESULT.ENROLLED_EXISTING, participant_id: childId });
+    expect(await one(
+      "SELECT count(*) FROM participants WHERE first_name = 'Léa' AND last_name = 'Tremblay' AND id >= $1",
+      [childId]
+    )).toBe('1');
+
+    // One person, two units.
+    const units = await pool.query(
+      "SELECT organization_id FROM participant_enrollments WHERE participant_id = $1 AND status = 'active' ORDER BY organization_id",
+      [childId]
+    );
+    expect(units.rows.map((row) => row.organization_id)).toEqual([ids.organizationId, ids.otherOrganizationId]);
+
+    // Now a child of this unit, so shared with the family made here.
+    expect(await one(
+      'SELECT count(*) FROM user_participants WHERE participant_id = $1 AND user_id = $2',
+      [childId, ids.coParentId]
+    )).toBe('1');
+  });
+
+  test('the same child registered into this unit twice is still refused after joining from another', async () => {
+    await childInOtherUnit(ids.parentId);
+    await registerChild(ids.parentId, LEA);
+
+    const again = await registerChild(ids.parentId, LEA);
+
+    expect(again.status).toBe(409);
+    expect(again.body.code).toBe(CHILD_RESULT.DUPLICATE);
+  });
+
+  test('a same-name child in another unit pauses for confirmation too', async () => {
+    await childInOtherUnit(ids.parentId);
+
+    const response = await registerChild(ids.parentId, { ...LEA, date_naissance: '2019-02-14' });
+
+    expect(response.status).toBe(409);
+    expect(response.body.code).toBe(CHILD_RESULT.SIMILAR);
+  });
+
+  test('a partner\'s children in other units are not revealed by a link made in this one', async () => {
+    const partnersChild = await childInOtherUnit(ids.coParentId, {
+      first_name: 'Noé', last_name: 'Gagnon', date_naissance: '2015-03-03',
+    });
+
+    mockContext.userId = ids.parentId;
+    mockContext.organizationId = ids.organizationId;
+    const context = await request(app).get('/api/v1/parent-onboarding/context');
+    expect(context.body.data.children.map((child) => child.id)).not.toContain(partnersChild);
+
+    // Nor does a same-name registration surface them as a "similar" match.
+    const similar = await registerChild(ids.parentId, {
+      first_name: 'Noé', last_name: 'Gagnon', date_naissance: '2018-08-08',
+    });
+    expect(similar.status).toBe(201);
+    expect(JSON.stringify(similar.body)).not.toContain(String(partnersChild));
+  });
+
   test('same name with another birth date pauses for confirmation, then goes through', async () => {
     await registerChild(ids.parentId, LEA);
 
