@@ -132,7 +132,11 @@ const lazyModules = {
   YearlyPlanner: () => import('./modules/yearly-planner/YearlyPlanner.js').then(m => m.YearlyPlanner),
   ScoutYearTransition: () => import('./modules/scout-year/ScoutYearTransition.js').then(m => m.ScoutYearTransition),
   AlumniLink: () => import('./modules/alumni/AlumniLink.js').then(m => m.AlumniLink),
-  ReactivationLink: () => import('./modules/reactivation/ReactivationLink.js').then(m => m.ReactivationLink)
+  ReactivationLink: () => import('./modules/reactivation/ReactivationLink.js').then(m => m.ReactivationLink),
+  CompleteRegistration: () => import('./modules/family-access/CompleteRegistration.js').then(m => m.CompleteRegistration),
+  FamilyLinkReview: () => import('./modules/family-access/FamilyLinkReview.js').then(m => m.FamilyLinkReview),
+  ParentInvitations: () => import('./modules/parent-invitations/ParentInvitations.js').then(m => m.ParentInvitations),
+  ParticipantDuplicates: () => import('./modules/participant-duplicates/ParticipantDuplicates.js').then(m => m.ParticipantDuplicates)
 };
 
 // Cache for loaded modules
@@ -183,6 +187,10 @@ const routes = {
   "/alumni-consent": "alumniConsent",
   "/alumni-unsubscribe": "alumniUnsubscribe",
   "/reactivate-account": "reactivateAccount",
+  "/complete-registration": "completeRegistration",
+  "/family-link": "familyLink",
+  "/parent-invitations": "parentInvitations",
+  "/participant-duplicates": "participantDuplicates",
   "/reports": "reports",
   "/preparation-reunions": "preparation_reunions",
   "/preparation-reunions/:date": "preparation_reunions",
@@ -378,8 +386,10 @@ export class Router {
       };
       // Allow access to login, register, permission slip signing, and index pages without being logged in
       // The alumni links are reached by people whose access was just withdrawn,
-      // so requiring a session would make them unusable by design.
-      if (!this.app.isLoggedIn && !["login", "register", "resetPassword", "permissionSlipSign", "alumniConsent", "alumniUnsubscribe", "reactivateAccount"].includes(routeName)) {
+      // so requiring a session would make them unusable by design. The
+      // invitation and family-link pages are reached by people who may have no
+      // account at all yet -- creating one is what those pages are for.
+      if (!this.app.isLoggedIn && !["login", "register", "resetPassword", "permissionSlipSign", "alumniConsent", "alumniUnsubscribe", "reactivateAccount", "completeRegistration", "familyLink"].includes(routeName)) {
         if (path !== "/login") {
           debugWarn('Redirecting to login from route:', routeName);
           history.pushState(null, "", "/login");
@@ -705,6 +715,24 @@ export class Router {
           break;
         case "reactivateAccount":
           await this.loadReactivationPage();
+          break;
+        case "completeRegistration":
+          await this.loadModuleInstance('CompleteRegistration');
+          break;
+        case "familyLink":
+          await this.loadModuleInstance('FamilyLinkReview');
+          break;
+        case "parentInvitations":
+          if (!guard(hasPermission('users.invite'))) {
+            break;
+          }
+          await this.loadModuleInstance('ParentInvitations');
+          break;
+        case "participantDuplicates":
+          if (!guard(hasPermission('participants.edit'))) {
+            break;
+          }
+          await this.loadModuleInstance('ParticipantDuplicates');
           break;
         case "attendance":
           if (!guard(canViewAttendance())) {
@@ -1204,6 +1232,19 @@ export class Router {
     const alumniLink = new AlumniLink(this.app, action);
     this.currentModuleInstance = alumniLink;
     await alumniLink.init();
+  }
+
+  /**
+   * Load a page module whose constructor takes the app and whose init() renders.
+   *
+   * @param {string} moduleName - Key in the module registry
+   * @returns {Promise<void>}
+   */
+  async loadModuleInstance(moduleName) {
+    const PageModule = await this.loadModule(moduleName);
+    const instance = new PageModule(this.app);
+    this.currentModuleInstance = instance;
+    await instance.init();
   }
 
   async loadReactivationPage() {

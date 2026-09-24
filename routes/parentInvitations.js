@@ -210,13 +210,16 @@ module.exports = (pool, logger) => {
       }
 
       if (!created.ok) {
-        return error(
-          res,
-          created.reason === 'already_member'
+        // The reason travels as a code as well as prose, so the screen can say
+        // it in the admin's own language.
+        return res.status(409).json({
+          success: false,
+          code: created.reason,
+          message: created.reason === 'already_member'
             ? 'This address already belongs to an active member of this unit'
             : 'This address already has a pending invitation',
-          409
-        );
+          timestamp: new Date().toISOString(),
+        });
       }
 
       const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
