@@ -603,6 +603,53 @@ module.exports = (pool) => {
       return error(res, 'First name and last name are required', 400);
     }
 
+    // participants.create is what the parent registration form runs under, so
+    // this route is reachable by parents as well as staff. Staff are the ones
+    // who also hold participants.edit; everything below that could touch a
+    // child the caller has no business with is decided by that difference.
+    const canEditAnyParticipant = authCheck.permissions.includes('participants.edit');
+
+    // Choosing a child's den is the unit's decision, not a family's. No parent
+    // screen sends one, and a crafted request must not be able to.
+    if (group_id !== undefined && !canEditAnyParticipant) {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions',
+        required: ['participants.edit'],
+        missing: ['participants.edit'],
+      });
+    }
+
+    if (id && !/^\d+$/.test(String(id))) {
+      return error(res, 'Invalid participant ID', 400);
+    }
+
+    if (id) {
+      // An update names a child by id, and ids are sequential. Without this
+      // check the route renamed -- and re-dated -- any child in any unit for
+      // whoever guessed a number. The child must belong to this unit, and the
+      // caller must be staff here or already linked to that child.
+      const scope = await pool.query(
+        `SELECT
+           EXISTS (
+             SELECT 1 FROM participant_enrollments
+              WHERE participant_id = $1 AND organization_id = $2
+           ) AS in_unit,
+           EXISTS (
+             SELECT 1 FROM user_participants
+              WHERE participant_id = $1 AND user_id = $3
+           ) AS linked`,
+        [id, organizationId, req.user.id]
+      );
+      const { in_unit: inUnit, linked } = scope.rows[0];
+
+      // One answer for "not in your unit" and "not your child", so the route
+      // cannot be used to learn which ids exist.
+      if (!inUnit || (!canEditAnyParticipant && !linked)) {
+        return error(res, 'Participant not found', 404);
+      }
+    }
+
     let groupContext = null;
 
     if (group_id) {

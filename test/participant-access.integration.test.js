@@ -373,4 +373,151 @@ describe.skipIf(!DATABASE_URL)('Participant access routes', () => {
     expect(await liveGrants(newcomer, here)).toEqual([{ source_type: 'direct', source_id: null }]);
     expect(await sees(newcomer, elsewhere)).toBe(false);
   });
+
+  describe('POST /participants/save', () => {
+    // Roles as the registration form meets them: parents hold
+    // participants.create (the form cannot save without it), staff also hold
+    // participants.edit.
+    beforeAll(async () => {
+      ids.saveParentRoleId = await one(
+        `INSERT INTO roles (role_name, display_name) VALUES ('save_test_parent', 'Save Test Parent')
+         ON CONFLICT (role_name) DO UPDATE SET display_name = EXCLUDED.display_name RETURNING id`
+      );
+      ids.saveStaffRoleId = await one(
+        `INSERT INTO roles (role_name, display_name) VALUES ('save_test_staff', 'Save Test Staff')
+         ON CONFLICT (role_name) DO UPDATE SET display_name = EXCLUDED.display_name RETURNING id`
+      );
+      await pool.query(
+        `INSERT INTO role_permissions (role_id, permission_id)
+         SELECT r.id, p.id FROM roles r CROSS JOIN permissions p
+          WHERE (r.id = $1 AND p.permission_key = 'participants.create')
+             OR (r.id = $2 AND p.permission_key IN ('participants.create', 'participants.edit'))
+         ON CONFLICT DO NOTHING`,
+        [ids.saveParentRoleId, ids.saveStaffRoleId]
+      );
+      ids.saveParent = await member('Save Parent', ids.unitA, ids.saveParentRoleId);
+      ids.saveStaff = await member('Save Staff', ids.unitA, ids.saveStaffRoleId);
+      ids.denA = await one(
+        "INSERT INTO groups (name, organization_id) VALUES ('Tanière rouge', $1) RETURNING id",
+        [ids.unitA]
+      );
+    });
+
+    /**
+     * Save through the route as a given account.
+     *
+     * @param {string} userId - Acting account
+     * @param {Object} body - Request body
+     * @param {number} [organizationId] - Unit on the token
+     * @returns {Promise<Object>} Supertest response
+     */
+    function save(userId, body, organizationId = ids.unitA) {
+      return as(userId, organizationId).post('/api/v1/participants/save').send(body);
+    }
+
+    /**
+     * A child's current name.
+     *
+     * @param {number} participantId - Child
+     * @returns {Promise<string>} First name
+     */
+    function nameOf(participantId) {
+      return one('SELECT first_name FROM participants WHERE id = $1', [participantId]);
+    }
+
+    test('a parent can correct their own child', async () => {
+      const mine = await child('Mine', ids.unitA);
+      await grantParticipantAccess(pool, { participantId: mine, userId: ids.saveParent, sourceType: ACCESS_SOURCE.DIRECT });
+
+      const response = await save(ids.saveParent, { id: mine, first_name: 'Corrected', last_name: 'Access' });
+
+      expect(response.status).toBe(200);
+      expect(await nameOf(mine)).toBe('Corrected');
+    });
+
+    test('a parent cannot rename another family\'s child in the same unit', async () => {
+      const theirs = await child('Theirs', ids.unitA);
+
+      const response = await save(ids.saveParent, { id: theirs, first_name: 'Hijacked', last_name: 'Access' });
+
+      expect(response.status).toBe(404);
+      expect(await nameOf(theirs)).toBe('Theirs');
+    });
+
+    test('nobody can rename a child in another unit by guessing its id', async () => {
+      const elsewhere = await child('Elsewhere', ids.unitB);
+
+      const asParent = await save(ids.saveParent, { id: elsewhere, first_name: 'Hijacked', last_name: 'Access' });
+      const asStaff = await save(ids.saveStaff, { id: elsewhere, first_name: 'Hijacked', last_name: 'Access' });
+
+      expect(asParent.status).toBe(404);
+      expect(asStaff.status).toBe(404);
+      expect(await nameOf(elsewhere)).toBe('Elsewhere');
+    });
+
+    test('a parent linked to a child in another unit still cannot edit it from this one', async () => {
+      const elsewhere = await child('Elsewhere', ids.unitB);
+      await grantParticipantAccess(pool, { participantId: elsewhere, userId: ids.saveParent, sourceType: ACCESS_SOURCE.DIRECT });
+
+      const response = await save(ids.saveParent, { id: elsewhere, first_name: 'Changed', last_name: 'Access' });
+
+      expect(response.status).toBe(404);
+      expect(await nameOf(elsewhere)).toBe('Elsewhere');
+    });
+
+    test('an unknown id and someone else\'s child get the same answer', async () => {
+      const theirs = await child('Theirs', ids.unitA);
+
+      const someoneElse = await save(ids.saveParent, { id: theirs, first_name: 'X', last_name: 'Y' });
+      const nobody = await save(ids.saveParent, { id: 999999999, first_name: 'X', last_name: 'Y' });
+
+      expect([someoneElse.status, someoneElse.body.message]).toEqual([nobody.status, nobody.body.message]);
+    });
+
+    test('staff can correct any child of their unit, and place them in a den', async () => {
+      const anyChild = await child('Any', ids.unitA);
+
+      const response = await save(ids.saveStaff, {
+        id: anyChild, first_name: 'Fixed', last_name: 'Access', group_id: ids.denA,
+      });
+
+      expect(response.status).toBe(200);
+      expect(await nameOf(anyChild)).toBe('Fixed');
+      expect(await one(
+        'SELECT group_id FROM participant_group_assignments WHERE participant_id = $1',
+        [anyChild]
+      )).toBe(ids.denA);
+    });
+
+    test('a parent cannot choose a den, even for their own child', async () => {
+      const mine = await child('Mine', ids.unitA);
+      await grantParticipantAccess(pool, { participantId: mine, userId: ids.saveParent, sourceType: ACCESS_SOURCE.DIRECT });
+
+      const response = await save(ids.saveParent, {
+        id: mine, first_name: 'Mine', last_name: 'Access', group_id: ids.denA,
+      });
+
+      expect(response.status).toBe(403);
+      expect(response.body.required).toEqual(['participants.edit']);
+      expect(response.body.missing).toEqual(['participants.edit']);
+      expect(await one('SELECT count(*) FROM participant_group_assignments WHERE participant_id = $1', [mine]))
+        .toBe('0');
+    });
+
+    test('the registration form\'s own request -- a new child, no den -- still works for a parent', async () => {
+      const response = await save(ids.saveParent, {
+        first_name: 'Newborn', last_name: 'Access', date_naissance: '2019-01-01',
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.participant_id).toEqual(expect.any(Number));
+    });
+
+    test('a malformed id is refused before it reaches the database', async () => {
+      const response = await save(ids.saveStaff, { id: '1; DROP TABLE participants', first_name: 'X', last_name: 'Y' });
+
+      expect(response.status).toBe(400);
+    });
+  });
+
 });
