@@ -1056,9 +1056,9 @@ module.exports = (pool) => {
 
       // Verify all participants belong to this organization in a single query
       const participantCheck = await client.query(
-        `SELECT p.id FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         WHERE p.id = ANY($1::int[]) AND po.organization_id = $2`,
+        `SELECT DISTINCT pe.participant_id AS id
+         FROM participant_enrollments pe
+         WHERE pe.participant_id = ANY($1::int[]) AND pe.organization_id = $2`,
         [participant_ids, organizationId]
       );
 

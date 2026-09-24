@@ -639,9 +639,10 @@ module.exports = (pool, logger) => {
       for (const participantId of participant_ids) {
         // Verify participant belongs to this organization
         const participantCheck = await client.query(
-          `SELECT id FROM participants p
-           JOIN participant_organizations po ON p.id = po.participant_id
-           WHERE p.id = $1 AND po.organization_id = $2`,
+          `SELECT 1
+           FROM participant_enrollments pe
+           WHERE pe.participant_id = $1 AND pe.organization_id = $2
+           LIMIT 1`,
           [participantId, organizationId]
         );
 
