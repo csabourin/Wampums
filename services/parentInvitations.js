@@ -270,6 +270,8 @@ async function listInvitations(pool, organizationId, { now = new Date() } = {}) 
             pi.accepted_at,
             pi.revoked_at,
             pi.onboarding_completed_at,
+            pi.deactivation_override_reason,
+            pi.deactivation_override_at,
             pi.created_at,
             inviter.full_name AS invited_by_name
        FROM parent_invitations pi
@@ -280,6 +282,22 @@ async function listInvitations(pool, organizationId, { now = new Date() } = {}) 
   );
 
   return result.rows.map((row) => ({ ...row, state: invitationAdminState(row, now) }));
+}
+
+/**
+ * Whether a membership was closed by a person rather than by the calendar.
+ *
+ * Mirrors the rule the reactivation flow applies: only the year transition's
+ * own reason counts as routine. Everything else — an admin's click, a transfer,
+ * a reason nobody recorded — was somebody's decision.
+ *
+ * @param {Object|null} standing - Row from `findMembershipStanding`
+ * @returns {boolean} True when the membership is inactive for a non-routine reason
+ */
+function isHandDeactivated(standing) {
+  return Boolean(standing?.membership_id)
+    && standing.status !== 'active'
+    && standing.deactivated_reason !== ROUTINE_DEACTIVATION_REASON;
 }
 
 /**
@@ -298,12 +316,25 @@ async function listInvitations(pool, organizationId, { now = new Date() } = {}) 
  *   refusal, because a race that produced two live links would mean the first
  *   one silently stopped working.
  *
+ * And it pauses on a third: **an address whose membership an administrator
+ * deactivated by hand.** That removal may have been for cause, and the admin
+ * sending this invitation may never have heard of it. So the first attempt
+ * comes back with the date and recorded reason instead of an invitation, and
+ * the admin has to say — in words, which are kept — that they mean it. Once
+ * they do, the invitation carries that decision and acceptance honours it.
+ * The routine year-transition deactivation needs no such pause: the family
+ * simply had no child enrolled, and coming back is the expected thing.
+ *
  * The token is returned, never stored. Only its digest reaches the database.
  *
  * @param {Object} pool - Database pool
  * @param {Object} params - Invitation details, already validated by the route
+ * @param {string} [params.deactivationOverrideReason] - The admin's confirmation
+ *   that a hand-deactivated member should be let back in, and why
  * @returns {Promise<Object>} `{ ok: true, invitation, token }`, or
- *   `{ ok: false, reason }` where reason is `already_member` or `already_invited`
+ *   `{ ok: false, reason }` where reason is `already_member`, `already_invited`
+ *   or `manually_deactivated` (the last with `deactivated_at` and
+ *   `deactivated_reason` so the admin can see what they are overriding)
  */
 async function createInvitation(pool, params) {
   const {
@@ -317,12 +348,33 @@ async function createInvitation(pool, params) {
     supportContactEmail = null,
     language = null,
     invitedBy = null,
+    deactivationOverrideReason = null,
     now = new Date(),
   } = params;
 
   const standing = await findMembershipStanding(pool, email, organizationId);
   if (classifyStanding(standing) === 'already_active') {
     return { ok: false, reason: 'already_member' };
+  }
+
+  // Recorded only when it is overriding something. A reason typed against a
+  // membership that turns out not to need one would otherwise make acceptance
+  // restore access nobody asked about.
+  let overrideReason = null;
+  if (isHandDeactivated(standing)) {
+    if (!deactivationOverrideReason) {
+      const deactivation = await pool.query(
+        'SELECT deactivated_at FROM user_organizations WHERE id = $1',
+        [standing.membership_id]
+      );
+      return {
+        ok: false,
+        reason: 'manually_deactivated',
+        deactivated_at: deactivation.rows[0]?.deactivated_at || null,
+        deactivated_reason: standing.deactivated_reason || null,
+      };
+    }
+    overrideReason = deactivationOverrideReason;
   }
 
   const { token, digest } = generateInvitationToken();
@@ -333,15 +385,18 @@ async function createInvitation(pool, params) {
          organization_id, email, first_name, last_name,
          telephone_residence, telephone_cellulaire,
          support_contact_name, support_contact_email,
-         language, token_digest, expires_at, invited_by
+         language, token_digest, expires_at, invited_by,
+         deactivation_override_reason, deactivation_override_at
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+               CASE WHEN $13::text IS NULL THEN NULL ELSE now() END)
        RETURNING *`,
       [
         organizationId, email, firstName, lastName,
         telephoneResidence, telephoneCellulaire,
         supportContactName, supportContactEmail,
         language, digest, invitationExpiresAt({ from: now }), invitedBy,
+        overrideReason,
       ]
     );
 
@@ -742,18 +797,22 @@ async function upsertGuardianContact(client, {
  * - **No membership.** They have an account elsewhere and are joining. Add it.
  * - **Deactivated by the year transition.** Routine: the household simply had
  *   no child enrolled. Restore it.
- * - **Deactivated by an administrator by hand.** That may have been done for
- *   cause, and the admin who sent this invitation may not know it happened. The
- *   acceptance is recorded, but access is not granted; the existing approval
- *   queue gets the request, and a human decides. Overriding here would let an
- *   invitation quietly undo a removal.
+ * - **Deactivated by an administrator by hand.** Restored only if the inviting
+ *   admin was shown that removal and confirmed it, which the invitation records.
+ *   Without that confirmation — the usual cause being a removal that happened
+ *   after the invitation went out — the acceptance is recorded but access is
+ *   not granted, and the existing approval queue gets the request. Nothing
+ *   quietly undoes a removal nobody looked at.
  *
  * @param {Object} client - Client inside the acceptance transaction
  * @param {string} userId - User UUID
  * @param {number} organizationId - Unit
+ * @param {Object} [options] - Options
+ * @param {boolean} [options.overrideDeactivation] - The inviting admin confirmed
+ *   a hand deactivation should be undone
  * @returns {Promise<string>} One of {@link ACCEPTANCE_RESULT}
  */
-async function attachExistingAccount(client, userId, organizationId) {
+async function attachExistingAccount(client, userId, organizationId, { overrideDeactivation = false } = {}) {
   const membership = await client.query(
     `SELECT id, status, deactivated_reason
        FROM user_organizations
@@ -773,7 +832,7 @@ async function attachExistingAccount(client, userId, organizationId) {
     return ACCEPTANCE_RESULT.ALREADY_MEMBER;
   }
 
-  if (existing.deactivated_reason === ROUTINE_DEACTIVATION_REASON) {
+  if (existing.deactivated_reason === ROUTINE_DEACTIVATION_REASON || overrideDeactivation) {
     await client.query(
       `UPDATE user_organizations
           SET status = 'active',
@@ -917,7 +976,9 @@ async function acceptInvitation(pool, params, { now = new Date(), logger } = {})
     } else {
       // An account already exists. Its password and its profile are its owner's,
       // not an invitation's, and nothing here touches either.
-      result = await attachExistingAccount(client, userId, invitation.organization_id);
+      result = await attachExistingAccount(client, userId, invitation.organization_id, {
+        overrideDeactivation: Boolean(invitation.deactivation_override_at),
+      });
 
       if (result !== ACCEPTANCE_RESULT.PENDING_APPROVAL) {
         await upsertGuardianContact(client, {

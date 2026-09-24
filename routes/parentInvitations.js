@@ -50,6 +50,9 @@ const MAX_NAME_LENGTH = 255;
 /** Longest a phone number may be, matching the column width. */
 const MAX_PHONE_LENGTH = 20;
 
+/** Longest an admin's explanation for overriding a deactivation may be. */
+const MAX_OVERRIDE_REASON_LENGTH = 1000;
+
 /**
  * Sending mail costs money and lands in someone else's inbox, so the write
  * endpoints are capped per admin session even though the caller is trusted. A
@@ -98,6 +101,16 @@ function optionalText(value) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+/**
+ * Read a boolean that may arrive as JSON `true` or as a form string.
+ *
+ * @param {*} value - Raw body value
+ * @returns {boolean} True only for an explicit yes
+ */
+function isConfirmed(value) {
+  return value === true || value === 'true';
+}
+
 module.exports = (pool, logger) => {
   const router = express.Router();
 
@@ -108,6 +121,15 @@ module.exports = (pool, logger) => {
     body('telephone_cellulaire').optional({ nullable: true }).isString().trim().isLength({ max: MAX_PHONE_LENGTH }),
     body('support_contact_name').optional({ nullable: true }).isString().trim().isLength({ max: MAX_NAME_LENGTH }),
     body('support_contact_email').optional({ nullable: true }).isEmail().isLength({ max: MAX_NAME_LENGTH }),
+    body('confirm_reactivation').optional({ nullable: true }).isBoolean(),
+    // Confirming without saying why is not confirming. The reason is required
+    // exactly when the confirmation is given, and kept on the invitation.
+    body('reactivation_reason')
+      .if(body('confirm_reactivation').custom((value) => value === true || value === 'true'))
+      .isString()
+      .trim()
+      .isLength({ min: 1, max: MAX_OVERRIDE_REASON_LENGTH })
+      .withMessage('A reason is required to reinstate a member who was deactivated by hand'),
   ];
 
   /**
@@ -132,6 +154,12 @@ module.exports = (pool, logger) => {
    * not heard anything and the admin should resend rather than wait. Returning
    * an error instead would suggest nothing was created, and the next attempt
    * would collide with the invitation this one left behind.
+   *
+   * An address whose membership an admin deactivated by hand is answered with
+   * a 409 carrying `code: 'manually_deactivated'` and the date and reason of
+   * that deactivation. The client shows it, asks whether the admin is sure and
+   * why, and resubmits with `confirm_reactivation: true` and a
+   * `reactivation_reason`. Nothing is created or sent until then.
    */
   router.post('/',
     authenticate,
@@ -163,7 +191,23 @@ module.exports = (pool, logger) => {
           organization.rows[0]?.default_language
         ),
         invitedBy: req.user.id,
+        deactivationOverrideReason: isConfirmed(req.body.confirm_reactivation)
+          ? optionalText(req.body.reactivation_reason)
+          : null,
       });
+
+      if (!created.ok && created.reason === 'manually_deactivated') {
+        return res.status(409).json({
+          success: false,
+          code: 'manually_deactivated',
+          message: 'This address belongs to a member who was deactivated by hand. Confirm, with a reason, to reinstate them.',
+          data: {
+            deactivated_at: created.deactivated_at,
+            deactivated_reason: created.deactivated_reason,
+          },
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       if (!created.ok) {
         return error(

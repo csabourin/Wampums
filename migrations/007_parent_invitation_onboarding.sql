@@ -60,6 +60,14 @@ CREATE TABLE IF NOT EXISTS public.parent_invitations (
     accepted_at timestamp with time zone,
     revoked_at timestamp with time zone,
     revoked_by uuid,
+    -- Set when the invited address belonged to a membership an administrator
+    -- had deactivated by hand, and the inviting admin was shown that and chose
+    -- to proceed anyway. Acceptance restores such a membership only when this is
+    -- set; without it a hand deactivation queues for approval instead. The
+    -- reason is the admin's own words, kept because "why was this family let
+    -- back in?" is a question someone will eventually ask.
+    deactivation_override_reason text,
+    deactivation_override_at timestamp with time zone,
     -- Acceptance makes an account; completing the child wizard finishes the
     -- job. The gap between the two is what lets a parent who closed the tab be
     -- put back where they were after they log in.

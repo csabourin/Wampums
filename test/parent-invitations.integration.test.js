@@ -643,25 +643,111 @@ describe.skipIf(!DATABASE_URL)('Parent invitations', () => {
       expect(membership.rows[0].deactivated_reason).toBeNull();
     });
 
-    test('a deliberate removal is not undone by an invitation — it queues for a human', async () => {
-      const existingId = await one(
-        "INSERT INTO users (email, password, full_name) VALUES ('removed@example.org', 'x', 'Removed') RETURNING id"
+    /**
+     * An account whose membership in the test unit was closed by hand.
+     *
+     * @param {string} email - Address
+     * @returns {Promise<string>} User UUID
+     */
+    async function handDeactivatedMember(email) {
+      const userId = await one(
+        "INSERT INTO users (email, password, full_name) VALUES ($1, 'x', 'Removed Person') RETURNING id",
+        [email]
       );
       await pool.query(
         `INSERT INTO user_organizations (user_id, organization_id, role_ids, status, deactivated_at, deactivated_reason)
+         VALUES ($1, $2, '[]'::jsonb, 'inactive', '2026-03-01T12:00:00Z', 'removed_by_admin')`,
+        [userId, ids.organizationId]
+      );
+      return userId;
+    }
+
+    test('inviting a hand-deactivated member stops and shows the admin what they would undo', async () => {
+      await handDeactivatedMember('removed@example.org');
+
+      const response = await invite({ email: 'removed@example.org' });
+
+      expect(response.status).toBe(409);
+      expect(response.body.code).toBe('manually_deactivated');
+      expect(response.body.data.deactivated_reason).toBe('removed_by_admin');
+      expect(new Date(response.body.data.deactivated_at).toISOString()).toBe('2026-03-01T12:00:00.000Z');
+      expect(sentEmails).toHaveLength(0);
+      expect(await one('SELECT count(*) FROM parent_invitations WHERE email = $1', ['removed@example.org'])).toBe('0');
+    });
+
+    test('confirming without a reason is refused', async () => {
+      await handDeactivatedMember('noreason@example.org');
+
+      const response = await invite({ email: 'noreason@example.org', confirm_reactivation: true });
+      const blank = await invite({ email: 'noreason@example.org', confirm_reactivation: true, reactivation_reason: '   ' });
+
+      expect(response.status).toBe(400);
+      expect(blank.status).toBe(400);
+      expect(await one('SELECT count(*) FROM parent_invitations WHERE email = $1', ['noreason@example.org'])).toBe('0');
+    });
+
+    test('once confirmed with a reason, the invitation wins and restores the membership', async () => {
+      const userId = await handDeactivatedMember('forgiven@example.org');
+
+      const created = await invite({
+        email: 'forgiven@example.org',
+        confirm_reactivation: true,
+        reactivation_reason: 'Spoke with the family; the dispute is resolved.',
+      });
+
+      expect(created.status).toBe(201);
+      expect(created.body.data.deactivation_override_reason)
+        .toBe('Spoke with the family; the dispute is resolved.');
+      expect(created.body.data.deactivation_override_at).not.toBeNull();
+
+      const response = await accept(tokenFromLastEmail(), {});
+
+      expect(response.body.data.result).toBe(ACCEPTANCE_RESULT.MEMBERSHIP_ADDED);
+      const membership = await pool.query(
+        `SELECT status, deactivated_at, deactivated_reason, reactivation_requested_at
+           FROM user_organizations WHERE user_id = $1`,
+        [userId]
+      );
+      expect(membership.rows[0].status).toBe('active');
+      expect(membership.rows[0].deactivated_at).toBeNull();
+      expect(membership.rows[0].deactivated_reason).toBeNull();
+      expect(membership.rows[0].reactivation_requested_at).toBeNull();
+    });
+
+    test('a reason given for a member who was never removed restores nothing extra', async () => {
+      const created = await invite({
+        email: 'fresh@example.org',
+        confirm_reactivation: true,
+        reactivation_reason: 'Just in case',
+      });
+
+      // Recorded only when it overrides something; otherwise it would sit on the
+      // invitation waiting to restore a removal that happens later.
+      expect(created.status).toBe(201);
+      expect(created.body.data.deactivation_override_reason).toBeNull();
+      expect(created.body.data.deactivation_override_at).toBeNull();
+    });
+
+    test('a removal made after the invitation went out still queues for a human', async () => {
+      const userId = await one(
+        "INSERT INTO users (email, password, full_name) VALUES ('later@example.org', 'x', 'Later') RETURNING id"
+      );
+      const token = await inviteAndGetToken('later@example.org');
+
+      // Nobody confirmed anything about this removal: it did not exist yet.
+      await pool.query(
+        `INSERT INTO user_organizations (user_id, organization_id, role_ids, status, deactivated_at, deactivated_reason)
          VALUES ($1, $2, '[]'::jsonb, 'inactive', now(), 'removed_by_admin')`,
-        [existingId, ids.organizationId]
+        [userId, ids.organizationId]
       );
 
-      const token = await inviteAndGetToken('removed@example.org');
       const response = await accept(token, {});
 
       expect(response.body.data.result).toBe(ACCEPTANCE_RESULT.PENDING_APPROVAL);
       const membership = await pool.query(
         'SELECT status, reactivation_requested_at FROM user_organizations WHERE user_id = $1',
-        [existingId]
+        [userId]
       );
-      // Still shut out; an admin now has a request to look at.
       expect(membership.rows[0].status).toBe('inactive');
       expect(membership.rows[0].reactivation_requested_at).not.toBeNull();
     });
