@@ -2,6 +2,7 @@ const express = require('express');
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { asyncHandler, error: errorResponse } = require('../middleware/response');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
+const { ACCESS_SOURCE, grantParticipantAccess } = require('../services/participantAccess');
 
 module.exports = function (pool, logger) {
   const router = express.Router();
@@ -448,14 +449,20 @@ module.exports = function (pool, logger) {
                 [userId, guardianId]
               );
 
-              // Link user to participant so parent can see child in dashboard
-              const linkResult = await client.query(
-                `INSERT INTO user_participants (user_id, participant_id)
-                 VALUES ($1, $2) ON CONFLICT DO NOTHING
-                 RETURNING user_id`,
+              // Link user to participant so parent can see child in dashboard.
+              // The access rests on the guardian record the import matched, so
+              // it is recorded as that guardian's.
+              const alreadyLinked = await client.query(
+                'SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2',
                 [userId, participantId]
               );
-              if (linkResult.rows.length > 0) {
+              await grantParticipantAccess(client, {
+                participantId,
+                userId,
+                sourceType: ACCESS_SOURCE.GUARDIAN,
+                sourceId: guardianId,
+              });
+              if (alreadyLinked.rows.length === 0) {
                 stats.userParticipantLinksCreated++;
               }
             }

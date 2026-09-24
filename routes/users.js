@@ -12,6 +12,12 @@ const express = require('express');
 // Import auth middleware
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { asyncHandler, success, error } = require('../middleware/response');
+const {
+  ACCESS_SOURCE,
+  grantParticipantAccess,
+  revokeAllAccessInUnit,
+  isAssociationInUnit,
+} = require('../services/participantAccess');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership } = require('../utils/api-helpers');
@@ -622,31 +628,33 @@ module.exports = (pool, logger) => {
 
       // Only remove existing links if replace_all is true (admin replacing all links)
       // For self-linking (adding children), we just add to existing links
+      // Limited to this unit's children: it used to delete every link the user
+      // had in every unit.
       const replaceAll = req.body.replace_all === true;
       if (replaceAll && user_id !== req.user.id) {
-        await client.query(
-          `DELETE FROM user_participants WHERE user_id = $1`,
-          [user_id]
-        );
+        await revokeAllAccessInUnit(client, { userId: user_id, organizationId });
       }
 
       // Add new links for each participant (verify they belong to org)
       for (const participantId of participant_ids) {
         // Verify participant belongs to this organization
         const participantCheck = await client.query(
-          `SELECT id FROM participants p
-           JOIN participant_organizations po ON p.id = po.participant_id
-           WHERE p.id = $1 AND po.organization_id = $2`,
+          `SELECT 1
+           FROM participant_enrollments pe
+           WHERE pe.participant_id = $1 AND pe.organization_id = $2
+           LIMIT 1`,
           [participantId, organizationId]
         );
 
         if (participantCheck.rows.length > 0) {
-          await client.query(
-            `INSERT INTO user_participants (user_id, participant_id)
-             VALUES ($1, $2)
-             ON CONFLICT (user_id, participant_id) DO NOTHING`,
-            [user_id, participantId]
-          );
+          const linkingSelf = user_id === req.user.id;
+          await grantParticipantAccess(client, {
+            participantId,
+            userId: user_id,
+            sourceType: linkingSelf ? ACCESS_SOURCE.DIRECT : ACCESS_SOURCE.ADMIN,
+            sourceId: linkingSelf ? null : req.user.id,
+            grantedBy: req.user.id,
+          });
         }
       }
 
@@ -689,18 +697,25 @@ module.exports = (pool, logger) => {
    *         description: Association created
    */
   router.post('/associate-participant', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
     const { user_id, participant_id } = req.body;
 
     if (!user_id || !participant_id) {
       return error(res, 'User ID and participant ID are required', 400);
     }
 
-    await pool.query(
-      `INSERT INTO user_participants (user_id, participant_id)
-       VALUES ($1, $2)
-       ON CONFLICT (user_id, participant_id) DO NOTHING`,
-      [user_id, participant_id]
-    );
+    // Both ends must belong to the caller's unit; this route used to check neither.
+    if (!await isAssociationInUnit(pool, { organizationId, participantId: participant_id, userId: user_id })) {
+      return error(res, 'Participant or user not found in this organization', 404);
+    }
+
+    await grantParticipantAccess(pool, {
+      participantId: participant_id,
+      userId: user_id,
+      sourceType: ACCESS_SOURCE.ADMIN,
+      sourceId: req.user.id,
+      grantedBy: req.user.id,
+    });
 
     return success(res, null, 'User associated with participant successfully');
   }));

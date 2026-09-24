@@ -52,6 +52,10 @@ module.exports = (app, pool) => {
     const authRoutes = require("./auth")(pool, logger);
     const organizationsRoutes = require("./organizations")(pool, logger);
     const usersRoutes = require("./users")(pool, logger);
+    const parentInvitationsRoutes = require("./parentInvitations")(pool, logger);
+    const parentOnboardingRoutes = require("./parentOnboarding")(pool, logger);
+    const familyLinksRoutes = require("./familyLinks")(pool, logger);
+    const participantDuplicatesRoutes = require("./participantDuplicates")(pool);
     const userProfileRoutes = require("./userProfile")(pool, logger);
     const rolesRoutes = require("./roles")(pool, logger);
     const meetingsRoutes = require("./meetings")(pool, logger);
@@ -109,6 +113,11 @@ module.exports = (app, pool) => {
     // User Management
     app.use("/api/v1/users/me", userProfileRoutes);
     app.use("/api/v1/users", usersRoutes);
+    app.use("/api/v1/parent-invitations", parentInvitationsRoutes);
+    app.use("/api/v1/parent-onboarding", parentOnboardingRoutes);
+    // Defines /family-links and /family-link-requests, two resources that belong together.
+    app.use("/api/v1", familyLinksRoutes);
+    app.use("/api/v1/participant-duplicates", participantDuplicatesRoutes);
     // rolesRoutes defines absolute /api/v1/* paths internally (same pattern as authRoutes)
     app.use("/", rolesRoutes);
 

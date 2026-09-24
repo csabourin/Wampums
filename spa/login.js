@@ -3,7 +3,8 @@ import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.j
 import { login, verify2FA, getApiUrl, getCurrentOrganizationId, fetchOrganizationId } from "./ajax-functions.js";
 import { setStorage, getStorage, removeStorage, setStorageMultiple } from "./utils/StorageUtils.js";
 import { clearAllClientData } from "./utils/ClientCleanupUtils.js";
-import { isParent } from "./utils/PermissionUtils.js";
+import { isParent, hasPermission } from "./utils/PermissionUtils.js";
+import { getOnboardingContext } from "./api/api-family.js";
 import { setContent } from "./utils/DOMUtils.js";
 
 export class Login {
@@ -302,8 +303,35 @@ export class Login {
     debugLog("currentOrganizationId:", getStorage("currentOrganizationId"));
     debugLog("organizationId:", getStorage("organizationId"));
 
-    // Redirect based on user role
-    const targetPath = isParent() ? "/parent-dashboard" : "/dashboard";
+    this.redirectAfterLogin();
+  }
+
+  /**
+   * Send the user to where they should land.
+   *
+   * A parent who accepted an invitation but has not finished registering their
+   * children is sent back to that step. Whether they have is read from the
+   * server, not from anything this browser remembered: the invitation may have
+   * been accepted on a phone and this sign-in be on a laptop. If the check
+   * fails for any reason, the parent lands on their dashboard as before --
+   * resuming onboarding is a convenience and must never block signing in.
+   *
+   * @returns {Promise<void>}
+   */
+  async redirectAfterLogin() {
+    let targetPath = isParent() ? "/parent-dashboard" : "/dashboard";
+
+    if (isParent() && hasPermission("participants.create_own")) {
+      try {
+        const context = await getOnboardingContext();
+        if (context?.data?.onboarding_pending) {
+          targetPath = "/parent-onboarding";
+        }
+      } catch (error) {
+        debugWarn("Could not check for pending onboarding:", error);
+      }
+    }
+
     debugLog(`Redirecting to ${targetPath}`);
 
     // Update the URL in browser history and navigate immediately

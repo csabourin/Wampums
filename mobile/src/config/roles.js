@@ -167,7 +167,7 @@ export const ROLE_BUNDLES = {
     displayName: "Parent",
     description:
       "Guardian-level access scoped to linked participants and household communications.",
-    permissions: ["participants.view"],
+    permissions: ["participants.view", "participants.create_own"],
     level: 0,
     scope: "self",
     conflictsWith: ["demoparent"],
