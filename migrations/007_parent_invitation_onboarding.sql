@@ -294,6 +294,69 @@ SELECT up.participant_id, up.user_id, 'direct', NULL
  );
 
 -- ---------------------------------------------------------------------------
+-- Children who may be the same person
+-- ---------------------------------------------------------------------------
+
+-- When two parents link, or a parent registers a child, two participant
+-- records can turn out to describe one child: same name, same birth date, one
+-- created by each parent before they were linked, or one in each unit. Nothing
+-- merges them automatically. A name and a birth date are not proof, and
+-- merging the wrong two children would put one child's medical record in
+-- another's file. So the pair is written here, and an administrator of the
+-- unit where it surfaced decides.
+CREATE SEQUENCE IF NOT EXISTS public.participant_duplicate_candidates_id_seq
+  AS integer
+  START WITH 1
+  INCREMENT BY 1
+  NO MINVALUE
+  NO MAXVALUE
+  CACHE 1;
+
+CREATE TABLE IF NOT EXISTS public.participant_duplicate_candidates (
+    id integer DEFAULT nextval('public.participant_duplicate_candidates_id_seq'::regclass) NOT NULL,
+    -- The unit whose administrators review the pair: where it surfaced.
+    organization_id integer NOT NULL,
+    participant_id_low integer NOT NULL,
+    participant_id_high integer NOT NULL,
+    detected_via text NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    detected_at timestamp with time zone DEFAULT now() NOT NULL,
+    resolved_at timestamp with time zone,
+    resolved_by uuid,
+    resolution_note text,
+    CONSTRAINT participant_duplicate_candidates_pkey PRIMARY KEY (id),
+    CONSTRAINT participant_duplicate_candidates_ordered_pair
+        CHECK ((participant_id_low < participant_id_high)),
+    CONSTRAINT participant_duplicate_candidates_detected_via_check
+        CHECK ((detected_via = ANY (ARRAY['family_link'::text, 'onboarding'::text]))),
+    -- same_person is a decision, not a merge: combining two records across
+    -- every table that references a participant is a separate, deliberate act.
+    CONSTRAINT participant_duplicate_candidates_status_check
+        CHECK ((status = ANY (ARRAY['pending'::text, 'same_person'::text, 'different'::text]))),
+    CONSTRAINT participant_duplicate_candidates_organization_id_fkey
+        FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE,
+    CONSTRAINT participant_duplicate_candidates_low_fkey
+        FOREIGN KEY (participant_id_low) REFERENCES public.participants(id) ON DELETE CASCADE,
+    CONSTRAINT participant_duplicate_candidates_high_fkey
+        FOREIGN KEY (participant_id_high) REFERENCES public.participants(id) ON DELETE CASCADE,
+    CONSTRAINT participant_duplicate_candidates_resolved_by_fkey
+        FOREIGN KEY (resolved_by) REFERENCES public.users(id) ON DELETE SET NULL
+);
+
+ALTER SEQUENCE public.participant_duplicate_candidates_id_seq
+  OWNED BY public.participant_duplicate_candidates.id;
+
+-- One row per pair per unit, whatever its status. A pair an administrator
+-- judged to be two different children must not come back every time the
+-- family's links change.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_participant_duplicate_candidates_pair
+  ON public.participant_duplicate_candidates (organization_id, participant_id_low, participant_id_high);
+
+CREATE INDEX IF NOT EXISTS idx_participant_duplicate_candidates_pending
+  ON public.participant_duplicate_candidates (organization_id, detected_at DESC)
+  WHERE status = 'pending';
+
+-- ---------------------------------------------------------------------------
 -- The permission a parent needs to register their own child
 -- ---------------------------------------------------------------------------
 

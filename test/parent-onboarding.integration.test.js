@@ -329,7 +329,12 @@ describe.skipIf(!DATABASE_URL)('Parent onboarding', () => {
       'SELECT status FROM participant_enrollments WHERE participant_id = $1 AND scout_year_id = $2',
       [childId, ids.activeYearId]
     )).toBe('active');
-    expect(await one("SELECT count(*) FROM participants WHERE first_name = 'Léa' AND id >= $1", [childId])).toBe('1');
+    // Counted within this suite's units: other suites share the database and
+    // create their own Léas at the same time.
+    expect(await one(
+      'SELECT count(DISTINCT participant_id) FROM participant_enrollments WHERE organization_id = ANY($1::int[])',
+      [[ids.organizationId, ids.otherOrganizationId]]
+    )).toBe('1');
   });
 
   /**
@@ -364,8 +369,8 @@ describe.skipIf(!DATABASE_URL)('Parent onboarding', () => {
     expect(response.status).toBe(200);
     expect(response.body.data).toMatchObject({ result: CHILD_RESULT.ENROLLED_EXISTING, participant_id: childId });
     expect(await one(
-      "SELECT count(*) FROM participants WHERE first_name = 'Léa' AND last_name = 'Tremblay' AND id >= $1",
-      [childId]
+      'SELECT count(DISTINCT participant_id) FROM participant_enrollments WHERE organization_id = ANY($1::int[])',
+      [[ids.organizationId, ids.otherOrganizationId]]
     )).toBe('1');
 
     // One person, two units.

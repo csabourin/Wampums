@@ -50,6 +50,7 @@ const {
   revokeGrantsFromSource,
   listOwnChildrenInUnit,
 } = require('./participantAccess');
+const { DETECTED_VIA, flagDuplicatesAmong } = require('./duplicateCandidates');
 
 /** What a family-link landing page can be looking at. */
 const FAMILY_LINK_STATE = {
@@ -574,6 +575,22 @@ async function acceptFamilyLinkRequest(pool, params, { now = new Date(), logger 
         a: request.requester_user_id,
         b: recipientId,
       });
+
+      // Each parent may have registered the same child before they were linked,
+      // here or in another unit. Neither parent is told; the unit's
+      // administrators are, and decide.
+      const flagged = await flagDuplicatesAmong(client, {
+        organizationId,
+        userIds: [request.requester_user_id, recipientId],
+        detectedVia: DETECTED_VIA.FAMILY_LINK,
+      });
+      if (flagged.length > 0) {
+        logger?.info('Possible duplicate children flagged for review', {
+          organizationId,
+          linkId,
+          candidates: flagged.length,
+        });
+      }
     }
 
     await client.query(

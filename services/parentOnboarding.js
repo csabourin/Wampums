@@ -31,6 +31,7 @@
 const { ensureActiveScoutYear } = require('./scoutYear');
 const { ACCESS_SOURCE, grantParticipantAccess } = require('./participantAccess');
 const { getOrganizationName } = require('./alumni');
+const { DETECTED_VIA, flagDuplicatesAmong } = require('./duplicateCandidates');
 
 /**
  * Advisory-lock namespace for child creation, so it cannot collide with the
@@ -392,6 +393,15 @@ async function createChild(pool, params, { now = new Date() } = {}) {
 
     await enrollInYear(client, participantId, organizationId, scoutYear.id);
     await linkChildToFamily(client, participantId, family, userId);
+
+    // The check above never looks at a partner's children in other units, so
+    // it cannot notice when this is one of them. This can, without telling the
+    // parent anything: the pair goes to the unit's administrators.
+    await flagDuplicatesAmong(client, {
+      organizationId,
+      userIds: familyUserIds,
+      detectedVia: DETECTED_VIA.ONBOARDING,
+    });
 
     await client.query('COMMIT');
     return { result: CHILD_RESULT.CREATED, participant_id: participantId };
