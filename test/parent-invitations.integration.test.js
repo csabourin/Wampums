@@ -80,7 +80,21 @@ const {
 describe.skipIf(!DATABASE_URL)('Parent invitations', () => {
   let pool;
   let app;
-  const ids = {};
+  // Other integration suites share this database and may run at the same time,
+  // so everything this suite deletes or counts is limited to units it made.
+  const ids = { ownOrganizationIds: [] };
+
+  /**
+   * Count this suite's invitations, ignoring any another suite is holding.
+   *
+   * @returns {Promise<string>} Count, as pg returns it
+   */
+  function countOwnInvitations() {
+    return one(
+      'SELECT count(*) FROM parent_invitations WHERE organization_id = ANY($1::int[])',
+      [ids.ownOrganizationIds]
+    );
+  }
 
   /**
    * Read a single value.
@@ -118,6 +132,7 @@ describe.skipIf(!DATABASE_URL)('Parent invitations', () => {
         [organizationId]
       );
       await client.query('COMMIT');
+      ids.ownOrganizationIds.push(organizationId);
       return organizationId;
     } catch (err) {
       await client.query('ROLLBACK');
@@ -188,7 +203,10 @@ describe.skipIf(!DATABASE_URL)('Parent invitations', () => {
     mockContext.permitted = true;
     mockContext.demo = false;
     mockContext.organizationId = ids.organizationId;
-    await pool.query('DELETE FROM parent_invitations');
+    await pool.query(
+      'DELETE FROM parent_invitations WHERE organization_id = ANY($1::int[])',
+      [ids.ownOrganizationIds]
+    );
     // Test addresses all end in example.org; the seeded admin is example.test,
     // so this clears what a previous test (or a previous failed run) left behind
     // without touching the fixtures built in beforeAll.
@@ -400,7 +418,7 @@ describe.skipIf(!DATABASE_URL)('Parent invitations', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.errors).toBeDefined();
-    expect(await one('SELECT count(*) FROM parent_invitations')).toBe('0');
+    expect(await countOwnInvitations()).toBe('0');
     expect(sentEmails).toHaveLength(0);
   });
 
@@ -418,7 +436,7 @@ describe.skipIf(!DATABASE_URL)('Parent invitations', () => {
     expect(forbidden.body.missing).toContain('users.invite');
 
     expect(sentEmails).toHaveLength(0);
-    expect(await one('SELECT count(*) FROM parent_invitations')).toBe('0');
+    expect(await countOwnInvitations()).toBe('0');
   });
 
   test('the email is written in the language the admin chose', async () => {
@@ -426,7 +444,7 @@ describe.skipIf(!DATABASE_URL)('Parent invitations', () => {
     expect(sentEmails[0].subject).toContain('Complétez votre inscription');
     expect(sentEmails[0].message).toContain('Bonjour Ada,');
 
-    await pool.query('DELETE FROM parent_invitations');
+    await pool.query('DELETE FROM parent_invitations WHERE organization_id = ANY($1::int[])', [ids.ownOrganizationIds]);
     await invite({ email: 'english@example.org', language: 'en' });
     expect(sentEmails[1].subject).toContain('Complete your registration');
   });
