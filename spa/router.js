@@ -136,7 +136,9 @@ const lazyModules = {
   CompleteRegistration: () => import('./modules/family-access/CompleteRegistration.js').then(m => m.CompleteRegistration),
   FamilyLinkReview: () => import('./modules/family-access/FamilyLinkReview.js').then(m => m.FamilyLinkReview),
   ParentInvitations: () => import('./modules/parent-invitations/ParentInvitations.js').then(m => m.ParentInvitations),
-  ParticipantDuplicates: () => import('./modules/participant-duplicates/ParticipantDuplicates.js').then(m => m.ParticipantDuplicates)
+  ParticipantDuplicates: () => import('./modules/participant-duplicates/ParticipantDuplicates.js').then(m => m.ParticipantDuplicates),
+  ParentOnboarding: () => import('./modules/parent-onboarding/ParentOnboarding.js').then(m => m.ParentOnboarding),
+  FamilyAccess: () => import('./modules/family-access/FamilyAccess.js').then(m => m.FamilyAccess)
 };
 
 // Cache for loaded modules
@@ -191,6 +193,8 @@ const routes = {
   "/family-link": "familyLink",
   "/parent-invitations": "parentInvitations",
   "/participant-duplicates": "participantDuplicates",
+  "/parent-onboarding": "parentOnboarding",
+  "/family-access": "familyAccess",
   "/reports": "reports",
   "/preparation-reunions": "preparation_reunions",
   "/preparation-reunions/:date": "preparation_reunions",
@@ -733,6 +737,18 @@ export class Router {
             break;
           }
           await this.loadModuleInstance('ParticipantDuplicates');
+          break;
+        case "parentOnboarding":
+          if (!guard(hasPermission('participants.create_own'))) {
+            break;
+          }
+          await this.loadModuleInstance('ParentOnboarding');
+          break;
+        case "familyAccess":
+          if (!guard(hasPermission('participants.create_own'))) {
+            break;
+          }
+          await this.loadModuleInstance('FamilyAccess');
           break;
         case "attendance":
           if (!guard(canViewAttendance())) {

@@ -59,3 +59,14 @@ test('the links in the emails point at these routes', () => {
   expect(invitations).toContain('/complete-registration?token=');
   expect(familyLinks).toContain('/family-link?token=');
 });
+
+test('the parent pages need a session and the permission to register one\'s own children', () => {
+  expect(loggedOutRoutes()).not.toContain('parentOnboarding');
+  expect(loggedOutRoutes()).not.toContain('familyAccess');
+  expect(routerSource).toMatch(
+    /case "parentOnboarding":\s*if \(!guard\(hasPermission\('participants\.create_own'\)\)\)/
+  );
+  expect(routerSource).toMatch(
+    /case "familyAccess":\s*if \(!guard\(hasPermission\('participants\.create_own'\)\)\)/
+  );
+});
