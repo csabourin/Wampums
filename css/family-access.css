@@ -101,6 +101,71 @@
   background: #fff9e8;
 }
 
+/* Buttons ----------------------------------------------------------------- */
+
+/*
+ * The app's base button is the green primary. These screens also need a quiet
+ * variant and a destructive one, and scope them here the way the carpool and
+ * scout-year screens scope theirs. A destructive action that looks exactly
+ * like "resend" is one tap from a mistake.
+ */
+:is(.complete-registration, .family-link-review, .parent-invitations, .participant-duplicates, .parent-onboarding, .family-access, #parent-invitation-modal) .button--secondary {
+  background: var(--color-surface);
+  background-image: none;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  box-shadow: none;
+}
+
+:is(.complete-registration, .family-link-review, .parent-invitations, .participant-duplicates, .parent-onboarding, .family-access, #parent-invitation-modal) .button--secondary:hover:not(:disabled) {
+  background: var(--color-secondary);
+  background-image: none;
+  border-color: var(--color-primary-light);
+}
+
+:is(.complete-registration, .family-link-review, .parent-invitations, .participant-duplicates, .parent-onboarding, .family-access, #parent-invitation-modal) .button--danger {
+  background: var(--color-surface);
+  background-image: none;
+  color: var(--color-error-dark);
+  border: 1px solid var(--color-error-light);
+  box-shadow: none;
+}
+
+:is(.complete-registration, .family-link-review, .parent-invitations, .participant-duplicates, .parent-onboarding, .family-access, #parent-invitation-modal) .button--danger:hover:not(:disabled) {
+  background: #fbeceb;
+  background-image: none;
+  border-color: var(--color-error);
+}
+
+/* The global warning colour is a fill colour; as text on white it is barely
+   legible, and "the email was not sent" is the one line that must be read. */
+:is(.complete-registration, .family-link-review, .parent-invitations, .participant-duplicates, .parent-onboarding, .family-access, #parent-invitation-modal) .text-warning {
+  color: #7a5200;
+}
+
+:is(.complete-registration, .family-link-review, .parent-invitations, .participant-duplicates, .parent-onboarding, .family-access, #parent-invitation-modal) .info-card ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+/* An address is often longer than a phone is wide. */
+:is(.complete-registration, .family-link-review, .parent-invitations, .participant-duplicates, .parent-onboarding, .family-access, #parent-invitation-modal) :is(.invitation-card__main strong, .family-access-item strong) {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.family-access .family-access-item > div:first-child {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+/* The support address is the one thing a stuck parent needs to tap. */
+:is(.complete-registration, .parent-onboarding) .info-card a[href^="mailto:"] {
+  display: inline-block;
+  padding-block: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
 /* Invitation list ---------------------------------------------------------- */
 
 .parent-invitations .page__header {
@@ -226,19 +291,39 @@
   margin-bottom: var(--family-access-gap);
 }
 
+.participant-duplicates .duplicate-side {
+  padding: 0.75rem;
+  border: 1px solid var(--color-border-light);
+  border-radius: 6px;
+  background: var(--color-background);
+}
+
+/* Two records that match are, by definition, hard to tell apart. The record
+   number is what the administrator will need when they come to merge them. */
+.participant-duplicates .duplicate-side__label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.participant-duplicates .duplicate-card__actions button {
+  flex: 1 1 100%;
+}
+
+/* Label above value: side by side, a long label leaves the value one word per
+   line on a phone, and names are exactly what is being compared. */
 .participant-duplicates .duplicate-side dl {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.25rem 0.75rem;
   margin: 0.5rem 0 0;
 }
 
 .participant-duplicates .duplicate-side dt {
+  font-size: 0.8rem;
   color: var(--color-text-muted);
 }
 
 .participant-duplicates .duplicate-side dd {
-  margin: 0;
+  margin: 0 0 0.5rem;
   overflow-wrap: anywhere;
 }
 
@@ -250,6 +335,10 @@
 @media (min-width: 640px) {
   .participant-duplicates .duplicate-card__sides {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .participant-duplicates .duplicate-card__actions button {
+    flex: 0 1 auto;
   }
 
   .family-link-review .form-actions {

@@ -128,6 +128,7 @@ export class ParticipantDuplicates {
 
     return `
       <div class="duplicate-side">
+        <span class="duplicate-side__label">${translate('participant_duplicates_record').split('{id}').join(escapeHTML(String(side.id)))}</span>
         <strong>${escapeHTML(`${side.first_name || ''} ${side.last_name || ''}`.trim())}</strong>
         <dl>
           <dt>${translate('date_naissance')}</dt>
@@ -162,7 +163,7 @@ export class ParticipantDuplicates {
             <button type="button" class="button button--primary" data-id="${id}" data-decision="same_person">
               ${translate('participant_duplicates_same')}
             </button>
-            <button type="button" class="button" data-id="${id}" data-decision="different">
+            <button type="button" class="button button--secondary" data-id="${id}" data-decision="different">
               ${translate('participant_duplicates_different')}
             </button>
           </div>

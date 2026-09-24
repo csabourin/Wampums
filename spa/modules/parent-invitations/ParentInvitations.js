@@ -190,7 +190,7 @@ export class ParentInvitations {
         ` : ''}
         ${canAct ? `
           <div class="invitation-card__actions">
-            <button type="button" class="button button--small" data-action="resend" data-id="${escapeHTML(invitation.id)}">
+            <button type="button" class="button button--small button--secondary" data-action="resend" data-id="${escapeHTML(invitation.id)}">
               ${translate('parent_invitations_resend')}
             </button>
             <button type="button" class="button button--small button--danger" data-action="revoke" data-id="${escapeHTML(invitation.id)}">
@@ -264,7 +264,7 @@ export class ParentInvitations {
         </form>
       `,
       footer: `
-        <button type="button" class="button" data-modal-close>${translate('cancel')}</button>
+        <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
         <button type="button" id="parent-invitation-submit" class="button button--primary">
           ${translate('parent_invitations_send')}
         </button>

@@ -168,7 +168,7 @@ export class ParentOnboarding {
         </div>
         ${child.enrolled_this_year ? `
           <span class="badge badge--accepted">${translate('onboarding_enrolled_this_year')}</span>
-          <a class="button button--small" href="/formulaire-inscription/${id}">${translate('onboarding_complete_forms')}</a>
+          <a class="btn btn--secondary" href="/formulaire-inscription/${id}">${translate('onboarding_complete_forms')}</a>
         ` : `
           <button type="button" class="button button--small button--primary" data-reenroll="${id}">
             ${translate('onboarding_register_this_year')}
@@ -218,7 +218,7 @@ export class ParentOnboarding {
         </form>
 
         <div class="onboarding-footer">
-          <a class="button" href="/family-access">${translate('onboarding_share_family')}</a>
+          <a class="btn btn--secondary" href="/family-access">${translate('onboarding_share_family')}</a>
           <button type="button" id="onboarding-done" class="button button--primary">${translate('onboarding_done')}</button>
         </div>
 

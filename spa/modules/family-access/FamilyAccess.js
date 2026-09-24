@@ -149,8 +149,8 @@ export class FamilyAccess {
         </div>
         ${OPEN_STATES.has(request.state) ? `
           <div class="family-access-item__actions">
-            <button type="button" class="button button--small" data-resend="${id}">${translate('parent_invitations_resend')}</button>
-            <button type="button" class="button button--small" data-withdraw="${id}">${translate('parent_invitations_revoke')}</button>
+            <button type="button" class="button button--small button--secondary" data-resend="${id}">${translate('parent_invitations_resend')}</button>
+            <button type="button" class="button button--small button--secondary" data-withdraw="${id}">${translate('parent_invitations_revoke')}</button>
           </div>
         ` : ''}
       </li>
@@ -172,7 +172,7 @@ export class FamilyAccess {
 
         <h2>${translate('family_access_invite')}</h2>
         <div class="info-card">
-          <p><strong>${translate('family_link_what_accepting_means')}</strong></p>
+          <p><strong>${translate('family_access_what_sharing_means')}</strong></p>
           <ul>
             <li>${translate('family_access_means_both_ways')}</li>
             <li>${translate('family_link_shares_future')}</li>

@@ -143,9 +143,11 @@ export class CompleteRegistration {
         <form id="complete-registration-form" novalidate>
           ${renderAccountFields({ email: this.link.email, prefill: this.link })}
           <p id="complete-registration-error" class="status-message error" role="alert" hidden></p>
-          <button type="submit" id="complete-registration-submit" class="button button--primary">
-            ${translate('complete_registration_submit')}
-          </button>
+          <div class="form-actions">
+            <button type="submit" id="complete-registration-submit" class="button button--primary">
+              ${translate('complete_registration_submit')}
+            </button>
+          </div>
         </form>
         ${this.supportBlock()}
       </section>
