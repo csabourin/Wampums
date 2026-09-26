@@ -339,7 +339,7 @@ module.exports = (pool) => {
     const offer = offerCheck.rows[0];
 
     // Whoever manages carpools may assign any child; others only their own
-    const isStaff = (req.user.permissions || []).includes('carpools.manage');
+    const isStaff = (req.userPermissions || []).includes('carpools.manage');
     if (!isStaff) {
       const guardianCheck = await pool.query(
         'SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2',
@@ -431,7 +431,7 @@ module.exports = (pool) => {
     const assignment = assignmentCheck.rows[0];
 
     // Whoever manages carpools may remove any child; others only their own
-    const isStaff = (req.user.permissions || []).includes('carpools.manage');
+    const isStaff = (req.userPermissions || []).includes('carpools.manage');
     if (!isStaff) {
       const guardianCheck = await pool.query(
         'SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2',

@@ -338,6 +338,11 @@ module.exports = (pool, logger) => {
         return res.status(400).json({ success: false, message: 'Participant ID and form_type are required' });
       }
 
+      // Require a forms permission before returning any submission data.
+      if (!hasAnyPermission(req, ['forms.view', 'forms.manage', 'forms.submit'])) {
+        return res.status(403).json({ success: false, message: 'You do not have permission to view form submissions' });
+      }
+
       // A role scoped to the whole unit reaches every participant in it;
       // a 'linked' role (parents) only the children linked to the account.
       const hasStaffAccess = (await getUserDataScope(req, pool)) === 'organization';
@@ -750,7 +755,7 @@ module.exports = (pool, logger) => {
       const userRoles = authCheck.roles || [];
       const canManage = await checkFormPermission(pool, organizationId, userRoles, form_type, 'edit');
 
-      if (!canManage && (await getUserDataScope(req, pool)) !== 'organization') {
+      if (!canManage) {
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to delete this form type'
