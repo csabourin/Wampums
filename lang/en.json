@@ -94,6 +94,7 @@
   "onboarding_similar_title": "A child with this name is already in your family",
   "onboarding_title": "Register your children",
   "onboarding_your_children": "Your children",
+  "parent_invitation_email_intro_child": "{organization} has started a registration for your child. Complete your profile to create your account; your child's file will be waiting for you.",
   "parent_invitation_state_accepted": "Accepted",
   "parent_invitation_state_expired": "Expired",
   "parent_invitation_state_invalid": "Unknown",

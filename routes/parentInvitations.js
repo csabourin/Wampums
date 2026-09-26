@@ -39,10 +39,8 @@ const {
   resendInvitation,
   revokeInvitation,
   deliverInvitation,
+  resolveInvitationLanguage,
 } = require('../services/parentInvitations');
-
-/** Languages the email bundles cover. Anything else falls back to the unit's own. */
-const SUPPORTED_EMAIL_LANGUAGES = ['en', 'fr', 'uk', 'it', 'id'];
 
 /** Longest a name or contact field may be, matching the column widths. */
 const MAX_NAME_LENGTH = 255;
@@ -66,25 +64,6 @@ const invitationWriteLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-
-/**
- * Pick the language the invitation will be written in.
- *
- * There is no user row to read a preference from — that is the whole point of
- * an invitation — so the admin's own interface language is used when the client
- * sends it, and the unit's default when it does not.
- *
- * @param {*} requested - `language` from the request body
- * @param {string} organizationDefault - The unit's `default_language`
- * @returns {string} A language code with a translation bundle behind it
- */
-function resolveInvitationLanguage(requested, organizationDefault) {
-  const normalized = typeof requested === 'string' ? requested.slice(0, 2).toLowerCase() : null;
-  if (normalized && SUPPORTED_EMAIL_LANGUAGES.includes(normalized)) {
-    return normalized;
-  }
-  return organizationDefault || 'fr';
-}
 
 /**
  * Trim a value to null when it carries nothing.

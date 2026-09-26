@@ -94,6 +94,7 @@
   "onboarding_similar_title": "Un enfant portant ce nom fait déjà partie de votre famille",
   "onboarding_title": "Inscrire vos enfants",
   "onboarding_your_children": "Vos enfants",
+  "parent_invitation_email_intro_child": "{organization} a commencé l’inscription de votre enfant. Complétez votre profil pour créer votre compte; le dossier de votre enfant vous y attendra.",
   "parent_invitation_state_accepted": "Acceptée",
   "parent_invitation_state_expired": "Expirée",
   "parent_invitation_state_invalid": "Inconnue",

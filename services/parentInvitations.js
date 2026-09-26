@@ -52,6 +52,30 @@ const {
   createVerifiedAccount,
   isHandDeactivatedMembership,
 } = require('./accountProvisioning');
+const { ACCESS_SOURCE, grantParticipantAccess } = require('./participantAccess');
+const { DETECTED_VIA, flagDuplicatesAmong } = require('./duplicateCandidates');
+
+/** Languages the email bundles cover. Anything else falls back to the unit's own. */
+const SUPPORTED_EMAIL_LANGUAGES = ['en', 'fr', 'uk', 'it', 'id'];
+
+/**
+ * Pick the language the invitation will be written in.
+ *
+ * There is no user row to read a preference from — that is the whole point of
+ * an invitation — so the admin's own interface language is used when the client
+ * sends it, and the unit's default when it does not.
+ *
+ * @param {*} requested - `language` from the request body
+ * @param {string} organizationDefault - The unit's `default_language`
+ * @returns {string} A language code with a translation bundle behind it
+ */
+function resolveInvitationLanguage(requested, organizationDefault) {
+  const normalized = typeof requested === 'string' ? requested.slice(0, 2).toLowerCase() : null;
+  if (normalized && SUPPORTED_EMAIL_LANGUAGES.includes(normalized)) {
+    return normalized;
+  }
+  return organizationDefault || 'fr';
+}
 
 /**
  * What a landing page can be looking at.
@@ -279,7 +303,14 @@ async function listInvitations(pool, organizationId, { now = new Date() } = {}) 
             pi.deactivation_override_reason,
             pi.deactivation_override_at,
             pi.created_at,
-            inviter.full_name AS invited_by_name
+            inviter.full_name AS invited_by_name,
+            COALESCE((
+              SELECT json_agg(json_build_object('id', p.id, 'first_name', p.first_name, 'last_name', p.last_name)
+                              ORDER BY p.first_name)
+                FROM parent_invitation_participants pip
+                JOIN participants p ON p.id = pip.participant_id
+               WHERE pip.invitation_id = pi.id
+            ), '[]'::json) AS children
        FROM parent_invitations pi
        LEFT JOIN users inviter ON inviter.id = pi.invited_by
       WHERE pi.organization_id = $1
@@ -530,6 +561,7 @@ function buildInvitationMessage({
   firstName = null,
   supportContactName = null,
   supportContactEmail = null,
+  forChild = false,
 }) {
   const t = getTranslationsByCode(language);
   const fallback = getTranslationsByCode('en');
@@ -541,10 +573,18 @@ function buildInvitationMessage({
     ? pick('parent_invitation_email_greeting', 'Hello {name},').replace('{name}', firstName)
     : pick('parent_invitation_email_greeting_anonymous', 'Hello,');
   const heading = pick('parent_invitation_email_heading', 'Complete your registration');
-  const intro = pick(
-    'parent_invitation_email_intro',
-    '{organization} has started a file for you. Complete your profile to create your account, then add your children — it takes a few minutes.'
-  ).replace('{organization}', organizationName);
+  // An invitation sent for a child says so -- but never names the child. The
+  // address was often typed in a hurry at a meeting, and a typo must not tell a
+  // stranger a child's name and where they spend their Tuesday evenings.
+  const intro = (forChild
+    ? pick(
+      'parent_invitation_email_intro_child',
+      '{organization} has started a registration for your child. Complete your profile to create your account; your child\'s file will be waiting for you.'
+    )
+    : pick(
+      'parent_invitation_email_intro',
+      '{organization} has started a file for you. Complete your profile to create your account, then add your children — it takes a few minutes.'
+    )).replace('{organization}', organizationName);
   const button = pick('parent_invitation_email_button', 'Complete my profile');
   const copyHint = pick('parent_invitation_email_copy_hint', 'Or copy this link:');
   const expiry = pick('parent_invitation_email_expiry', 'This link will expire in 7 days.');
@@ -606,8 +646,13 @@ function buildInvitationMessage({
 async function deliverInvitation(pool, { invitation, token, baseUrl, logger }) {
   const organizationName = await getOrganizationName(pool, invitation.organization_id);
   const completeLink = `${baseUrl}/complete-registration?token=${encodeURIComponent(token)}`;
+  const children = await pool.query(
+    'SELECT count(*)::int AS n FROM parent_invitation_participants WHERE invitation_id = $1',
+    [invitation.id]
+  );
 
   const { subject, text, html } = buildInvitationMessage({
+    forChild: children.rows[0].n > 0,
     language: invitation.language,
     organizationName,
     completeLink,
@@ -633,6 +678,67 @@ async function deliverInvitation(pool, { invitation, token, baseUrl, logger }) {
   }
 
   return sent;
+}
+
+/**
+ * Link the accepting parent to the children the invitation was sent for.
+ *
+ * An administrator entered these children -- often on the evening they first
+ * showed up -- and named this address as their parent. Accepting is the parent
+ * confirming the address is theirs, so the link is made here, in the same
+ * transaction, and recorded as that administrator's grant. Without it the
+ * parent would arrive to an empty "register your children" screen and enter
+ * the same child a second time.
+ *
+ * The parent's guardian contact record is attached too: an administrator named
+ * them as this child's parent, not merely as someone who may see the file.
+ *
+ * Any duplicate this creates -- the parent already had the child in another
+ * unit -- goes to the unit's administrators rather than being merged.
+ *
+ * @param {Object} client - Client inside the acceptance transaction
+ * @param {Object} params - The invitation and the account accepting it
+ * @returns {Promise<Array<number>>} Participant ids linked
+ */
+async function linkInvitationChildren(client, { invitation, userId }) {
+  const children = await client.query(
+    'SELECT participant_id FROM parent_invitation_participants WHERE invitation_id = $1',
+    [invitation.id]
+  );
+  const participantIds = children.rows.map((row) => row.participant_id);
+  if (participantIds.length === 0) {
+    return participantIds;
+  }
+
+  for (const participantId of participantIds) {
+    // Sequential: one transaction, one connection.
+    // eslint-disable-next-line no-await-in-loop
+    await grantParticipantAccess(client, {
+      participantId,
+      userId,
+      sourceType: ACCESS_SOURCE.ADMIN,
+      sourceId: invitation.invited_by,
+      grantedBy: invitation.invited_by,
+    });
+  }
+
+  await client.query(
+    `INSERT INTO participant_guardians (guardian_id, participant_id)
+     SELECT pg.id, child.id
+       FROM parents_guardians pg
+       CROSS JOIN unnest($2::int[]) AS child(id)
+      WHERE pg.user_uuid = $1
+     ON CONFLICT (guardian_id, participant_id) DO NOTHING`,
+    [userId, participantIds]
+  );
+
+  await flagDuplicatesAmong(client, {
+    organizationId: invitation.organization_id,
+    userIds: [userId],
+    detectedVia: DETECTED_VIA.ONBOARDING,
+  });
+
+  return participantIds;
 }
 
 /**
@@ -763,6 +869,8 @@ async function acceptInvitation(pool, params, { now = new Date(), logger } = {})
       }
     }
 
+    await linkInvitationChildren(client, { invitation, userId });
+
     await client.query(
       `UPDATE parent_invitations
           SET status = 'accepted',
@@ -805,6 +913,7 @@ async function acceptInvitation(pool, params, { now = new Date(), logger } = {})
 }
 
 module.exports = {
+  resolveInvitationLanguage,
   INVITATION_STATE,
   ACCEPTANCE_RESULT,
   acceptInvitation,

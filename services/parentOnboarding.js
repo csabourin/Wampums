@@ -481,9 +481,11 @@ async function completeOnboarding(pool, userId, organizationId) {
 }
 
 module.exports = {
+  CHILD_CREATION_LOCK_NAMESPACE,
   CHILD_RESULT,
   MAX_PARTICIPANT_AGE_YEARS,
   normalizeName,
+  tidyName,
   validateChild,
   getFamilyMembers,
   createChild,
