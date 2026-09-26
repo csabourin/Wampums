@@ -31,8 +31,8 @@ module.exports = (pool, logger) => {
     requirePermission('roles.view'),
     asyncHandler(async (req, res) => {
       try {
-        // Unitadmin cannot see district role
-        const excludeDistrict = req.userRoles && !req.userRoles.includes('district');
+        // Only someone who may hand out the district role sees it
+        const excludeDistrict = !(req.userPermissions || []).includes('users.assign_district');
 
         const query = excludeDistrict
           ? `SELECT id, role_name, display_name, description, is_system_role, created_at

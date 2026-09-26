@@ -104,12 +104,13 @@ router.post('/budgets', authenticate, requirePermission('budget.manage'), handle
 router.get('/reports', authenticate, requirePermission('reports.view'), handler);
 ```
 
-**DEPRECATED (Role-Based) ⚠️ AVOID:**
-```javascript
-// ❌ DON'T USE - deprecated, will be removed
-const { authorize } = require('../middleware/auth');
-router.get('/admin', authenticate, authorize('admin'), handler);
-```
+**Never check a role's name** (`roleNames.includes('unitadmin')`, `hasRole('district')`). A custom
+or renamed role holding the right permissions would be refused. The role-based `authorize()` and
+`hasAnyRole()` helpers have been removed.
+- ✅ What someone may **do**: a permission (`requirePermission`, `req.user.permissions`, `hasPermission()` in the SPA).
+- ✅ Whether someone sees the **whole unit or only their own children**: the role's `data_scope`
+  (`getUserDataScope(req, pool)` → `'organization'` or `'linked'`).
+- ⚠️ Role names are only for describing the kind of account (demo, parent dashboard) and display.
 
 **Permission Naming Convention:**
 - Format: `{resource}.{action}`

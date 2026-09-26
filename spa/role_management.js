@@ -8,7 +8,7 @@
 
 import { app, translate } from './app.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
-import { hasPermission, isDistrictAdmin } from './utils/PermissionUtils.js';
+import { hasPermission } from './utils/PermissionUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { deleteCachedData } from './indexedDB.js';
@@ -126,7 +126,6 @@ export class RoleManagement {
 
   render() {
     const canAssignRoles = hasPermission('users.assign_roles');
-    const isDistrict = isDistrictAdmin();
 
     const content = `
       <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>

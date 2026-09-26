@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const winston = require('winston');
-const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { requireJWTSecret, verifyJWTToken } = require('../utils/jwt-config');
 // Configure logger for non-v1 endpoints

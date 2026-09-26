@@ -5,7 +5,7 @@ import {
         getCurrentOrganizationId,
         getOrganizationFormFormats,
 } from "./ajax-functions.js";
-import { canCreateOrganization, hasRole } from "./utils/PermissionUtils.js";
+import { canCreateOrganization } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 
 export class CreateOrganization {
@@ -15,7 +15,7 @@ export class CreateOrganization {
 		}
 
                 async init() {
-                                if (!canCreateOrganization() && !hasRole('district')) {
+                                if (!canCreateOrganization()) {
                                                 this.app.router.navigate("/dashboard");
                                                 return;
                                 }

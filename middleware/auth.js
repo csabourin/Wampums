@@ -84,53 +84,6 @@ exports.authenticate = async (req, res, next) => {
 };
 
 /**
- * @deprecated Use requirePermission() instead
- *
- * Check if user has required role(s)
- *
- * **DEPRECATED:** This middleware is deprecated and will be removed in a future version.
- * Use the permission-based `requirePermission()` middleware instead.
- *
- * **Why deprecated:**
- * - Only checks `req.user.role` (single role), doesn't support multi-role users
- * - Role-based checks are less flexible than permission-based checks
- * - Hardcodes authorization logic instead of using database-driven permissions
- *
- * **Migration guide:**
- * - `authorize('admin')` → `requirePermission('forms.manage')` or appropriate permission
- * - See config/roles.js for permission mappings
- *
- * @param {Array|String} roles - Required role(s)
- * @returns {Function} Express middleware
- */
-exports.authorize = (...roles) => {
-  return (req, res, next) => {
-    // Log deprecation warning
-    logger.warn(`DEPRECATED: authorize() middleware used in ${req.method} ${req.path}. Migrate to requirePermission().`);
-
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    const allowedRoles = Array.isArray(roles[0]) ? roles[0] : roles;
-
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Insufficient permissions',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    next();
-  };
-};
-
-/**
  * Optional authentication - attaches user if token exists but doesn't require it
  */
 exports.optionalAuth = (req, res, next) => {
@@ -677,20 +630,6 @@ exports.hasAllPermissions = (req, ...permissions) => {
     return false;
   }
   return permissions.every(perm => req.userPermissions.includes(perm));
-};
-
-/**
- * Helper function to check if user has a specific role
- *
- * @param {Object} req - Express request object (must have userRoles attached)
- * @param {...string} roles - Role name(s) to check
- * @returns {boolean} True if user has at least one of the roles
- */
-exports.hasAnyRole = (req, ...roles) => {
-  if (!req.userRoles) {
-    return false;
-  }
-  return roles.some(role => req.userRoles.includes(role));
 };
 
 /**

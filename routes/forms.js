@@ -8,12 +8,11 @@
  */
 
 const express = require('express');
-const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope, requireAnyPermission } = require('../middleware/auth');
+const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope, requireAnyPermission, requirePermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership, getFormPermissionsForRoles, checkFormPermission } = require('../utils/api-helpers');
-const { hasStaffRole } = require('../config/role-constants');
 
 /**
  * Export route factory function
@@ -339,21 +338,9 @@ module.exports = (pool, logger) => {
         return res.status(400).json({ success: false, message: 'Participant ID and form_type are required' });
       }
 
-      // Get user's roles for access control
-      const rolesQuery = `
-        SELECT DISTINCT r.role_name
-        FROM user_organizations uo
-        CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
-        JOIN roles r ON r.id = role_id_text::integer
-        WHERE uo.user_id = $1 AND uo.organization_id = $2
-      `;
-      const rolesResult = await pool.query(rolesQuery, [decoded.user_id, organizationId]);
-      const userRoles = rolesResult.rows.map(row => row.role_name);
-
-      // Staff roles can access all participants in their organization
-      // Parent roles can only access participants they're linked to
-      // Use centralized role constants instead of hardcoded arrays
-      const hasStaffAccess = hasStaffRole(userRoles);
+      // A role scoped to the whole unit reaches every participant in it;
+      // a 'linked' role (parents) only the children linked to the account.
+      const hasStaffAccess = (await getUserDataScope(req, pool)) === 'organization';
 
       // Only restrict access for non-staff users (parents)
       if (!hasStaffAccess) {
@@ -763,7 +750,7 @@ module.exports = (pool, logger) => {
       const userRoles = authCheck.roles || [];
       const canManage = await checkFormPermission(pool, organizationId, userRoles, form_type, 'edit');
 
-      if (!canManage && !hasStaffRole(userRoles)) {
+      if (!canManage && (await getUserDataScope(req, pool)) !== 'organization') {
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to delete this form type'
@@ -1391,9 +1378,9 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    *       403:
-   *         description: Insufficient permissions (requires district or unitadmin role)
+   *         description: Insufficient permissions (requires forms.manage)
    */
-  router.get('/form-permissions', authenticate, asyncHandler(async (req, res) => {
+  router.get('/form-permissions', authenticate, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -1408,15 +1395,6 @@ module.exports = (pool, logger) => {
       const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
-      }
-
-      // Only district and unitadmin can manage form permissions
-      const userRoles = authCheck.roles || [];
-      if (!userRoles.includes('district') && !userRoles.includes('unitadmin')) {
-        return res.status(403).json({
-          success: false,
-          message: 'Only district and unit administrators can manage form permissions'
-        });
       }
 
       // Get all form permissions for this organization (including display_context)
@@ -1486,7 +1464,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.put('/form-display-context', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.put('/form-display-context', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -1501,15 +1479,6 @@ module.exports = (pool, logger) => {
       const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
-      }
-
-      // Only district and unitadmin can manage form display contexts
-      const userRoles = authCheck.roles || [];
-      if (!userRoles.includes('district') && !userRoles.includes('unitadmin')) {
-        return res.status(403).json({
-          success: false,
-          message: 'Only district and unit administrators can manage form display contexts'
-        });
       }
 
       const { form_format_id, display_context } = req.body;
@@ -1609,7 +1578,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.put('/form-permissions', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.put('/form-permissions', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -1624,15 +1593,6 @@ module.exports = (pool, logger) => {
       const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
-      }
-
-      // Only district and unitadmin can manage form permissions
-      const userRoles = authCheck.roles || [];
-      if (!userRoles.includes('district') && !userRoles.includes('unitadmin')) {
-        return res.status(403).json({
-          success: false,
-          message: 'Only district and unit administrators can manage form permissions'
-        });
       }
 
       const { form_format_id, role_id, can_view, can_submit, can_edit, can_approve } = req.body;
@@ -1752,8 +1712,8 @@ module.exports = (pool, logger) => {
         return error(res, `Missing required fields: ${missing.join(', ')}`, 400);
       }
 
-      const isParent = Array.isArray(req.user?.roleNames) && req.user.roleNames.includes('parent');
-      if (isParent) {
+      // Without a unit-wide role, only a child linked to the account
+      if ((await getUserDataScope(req, pool)) !== 'organization') {
         const childAccess = await pool.query(
           'SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2',
           [req.user.id, participant_id]
