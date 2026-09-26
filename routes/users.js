@@ -699,19 +699,30 @@ module.exports = (pool, logger) => {
   router.post('/associate-participant', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { user_id, participant_id } = req.body;
+    const participantId = Number(participant_id);
+    const userId = typeof user_id === 'string' ? user_id.trim() : '';
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
     if (!user_id || !participant_id) {
       return error(res, 'User ID and participant ID are required', 400);
     }
 
+    if (!uuidPattern.test(userId)) {
+      return error(res, 'Invalid user ID', 400);
+    }
+
+    if (!Number.isInteger(participantId) || participantId <= 0) {
+      return error(res, 'Invalid participant ID', 400);
+    }
+
     // Both ends must belong to the caller's unit; this route used to check neither.
-    if (!await isAssociationInUnit(pool, { organizationId, participantId: participant_id, userId: user_id })) {
+    if (!await isAssociationInUnit(pool, { organizationId, participantId, userId })) {
       return error(res, 'Participant or user not found in this organization', 404);
     }
 
     await grantParticipantAccess(pool, {
-      participantId: participant_id,
-      userId: user_id,
+      participantId,
+      userId,
       sourceType: ACCESS_SOURCE.ADMIN,
       sourceId: req.user.id,
       grantedBy: req.user.id,

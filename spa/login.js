@@ -303,7 +303,9 @@ export class Login {
     debugLog("currentOrganizationId:", getStorage("currentOrganizationId"));
     debugLog("organizationId:", getStorage("organizationId"));
 
-    this.redirectAfterLogin();
+    this.redirectAfterLogin().catch((redirectError) => {
+      debugError('Failed to redirect after login:', redirectError);
+    });
   }
 
   /**
