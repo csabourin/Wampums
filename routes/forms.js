@@ -315,7 +315,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Access denied
    */
-  router.get('/submissions', authenticate, asyncHandler(async (req, res) => {
+  router.get('/submissions', authenticate, requireAnyPermission('forms.view', 'forms.submit', 'forms.manage'), asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -336,11 +336,6 @@ module.exports = (pool, logger) => {
 
       if (!participant_id || !form_type) {
         return res.status(400).json({ success: false, message: 'Participant ID and form_type are required' });
-      }
-
-      // Require a forms permission before returning any submission data.
-      if (!hasAnyPermission(req, ['forms.view', 'forms.manage', 'forms.submit'])) {
-        return res.status(403).json({ success: false, message: 'You do not have permission to view form submissions' });
       }
 
       // A role scoped to the whole unit reaches every participant in it;
