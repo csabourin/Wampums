@@ -3,9 +3,10 @@
  * Seed a disposable database with one unit you can sign in to.
  *
  *   admin@run.test   -- holds every permission in the unit
+ *   leader@run.test  -- leader: participants, attendance, points, walk-ins
  *   parent@run.test  -- parent role, one child (Léa) enrolled this year
  *
- * Both use the password printed at the end. Two-factor sign-in is switched off
+ * All three use the password printed at the end. Two-factor sign-in is switched off
  * for this unit only, through the unit's own `security` setting, so the login
  * form lands straight on the dashboard instead of waiting for an emailed code.
  *
@@ -68,6 +69,21 @@ try {
     `INSERT INTO roles (role_name, display_name, data_scope) VALUES ('run_admin', 'Run Admin', 'organization')
      ON CONFLICT (role_name) DO UPDATE SET display_name = EXCLUDED.display_name RETURNING id`
   );
+  const leaderRole = await one(
+    `INSERT INTO roles (role_name, display_name, data_scope) VALUES ('run_leader', 'Run Leader', 'organization')
+     ON CONFLICT (role_name) DO UPDATE SET display_name = EXCLUDED.display_name RETURNING id`
+  );
+  // What a leader holds: no users.invite, so the walk-in screen is their only
+  // way to invite a parent.
+  await pool.query(
+    `INSERT INTO role_permissions (role_id, permission_id)
+     SELECT $1, id FROM permissions
+      WHERE permission_key IN ('participants.view', 'participants.create', 'participants.edit', 'participants.walk_in',
+                               'attendance.view', 'attendance.manage', 'points.view', 'points.manage', 'activities.view',
+                               'groups.view', 'badges.view', 'badges.manage')
+     ON CONFLICT DO NOTHING`,
+    [leaderRole]
+  );
   // 'linked' is what keeps a parent to their own children; the column defaults
   // to 'organization', which would show every child in the unit.
   const parentRole = await one(
@@ -101,6 +117,7 @@ try {
     return userId;
   };
   await member('admin@run.test', 'Akela Admin', adminRole);
+  await member('leader@run.test', 'Baloo Leader', leaderRole);
   const parentId = await member('parent@run.test', 'Marie Parent', parentRole);
 
   await pool.query(
@@ -122,7 +139,7 @@ try {
   const seed = {
     organizationId,
     database: `postgresql:///${DB}?host=/var/run/postgresql`,
-    accounts: { admin: 'admin@run.test', parent: 'parent@run.test' },
+    accounts: { admin: 'admin@run.test', leader: 'leader@run.test', parent: 'parent@run.test' },
     password: PASSWORD,
   };
   mkdirSync(CACHE, { recursive: true });

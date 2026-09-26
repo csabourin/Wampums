@@ -16,7 +16,11 @@ mkdir -p "$CACHE/logs"
 # .env carries a stale production DATABASE_URL. dotenv never overwrites a
 # variable that is already set, so these win. On localhost the API resolves the
 # unit from ORGANIZATION_ID rather than from organization_domains.
+# .env also holds live email-provider keys. Blank them so a local run can never
+# mail a real address: sendEmail then reports failure, and invitations show as
+# "not sent" -- which is the truth. Mint tokens directly to test link pages.
 DATABASE_URL="$DB_URL" \
+BREVO_KEY="" BREVO_API_KEY="" BREVO_SMTP_KEY="" \
 JWT_SECRET_KEY="wampums-run-local-secret" \
 ORGANIZATION_ID="$ORG_ID" \
 PORT=5000 NODE_ENV=development \

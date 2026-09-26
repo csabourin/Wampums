@@ -43,6 +43,7 @@ every migration through the project's own runner. `seed.mjs` adds one unit with:
 | account | password | what it is |
 |---|---|---|
 | `admin@run.test` | `Wampums2026!` | every permission in the unit |
+| `leader@run.test` | `Wampums2026!` | leader: participants, attendance, points, badges, walk-ins; no `users.invite` |
 | `parent@run.test` | `Wampums2026!` | parent role (`linked` scope), one child enrolled this year |
 
 Two-factor sign-in is off for this unit only. `seed.json` is written to the
@@ -114,6 +115,17 @@ They confine cleanup to what they create and may run in parallel with the
 seeded unit present.
 
 ## Gotchas
+
+- **No email ever leaves a local run.** `.env` holds live Brevo keys;
+  `start.sh` blanks `BREVO_KEY`, `BREVO_API_KEY` and `BREVO_SMTP_KEY` so the
+  API has no mail transport. Every invitation therefore reports "not sent" --
+  that is expected here, not a bug. Take the link from the database or from
+  `createInvitation` (see "Pages opened from emails") instead.
+- **A roster change made outside the SPA's own screens is invisible until the
+  cache expires.** Attendance, points and badges read the roster from
+  IndexedDB. A screen that adds a child must clear those caches (see
+  `addWalkInChild` in `spa/api/api-walk-in.js`); a row inserted with `psql`
+  needs a fresh browser context to show.
 
 - **Login stops on "Vérification en deux étapes".** Two-factor sign-in emails a
   code. `seed.mjs` switches it off for the seeded unit through the unit's
