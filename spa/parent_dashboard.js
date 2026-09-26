@@ -32,7 +32,7 @@ import { hexStringToUint8Array, base64UrlEncode } from "./functions.js";
 import { CONFIG } from "./config.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
-import { isParent, canViewFinance, canManageFinance, canViewBudget, canManageBudget } from "./utils/PermissionUtils.js";
+import { isParent, hasPermission, canViewFinance, canManageFinance, canViewBudget, canManageBudget } from "./utils/PermissionUtils.js";
 import { formatDateShort, parseDate } from "./utils/DateUtils.js";
 import {
         formatActivityDateRange,
@@ -470,6 +470,14 @@ export class ParentDashboard {
                         ? ``
                         : `<a href="/dashboard" class="back-link">${translate("back_to_dashboard")}</a>`;
 
+                // Parents who can register their own children go through the
+                // short step that links the child to their family, then on to
+                // the paperwork. It is the only path that guarantees the link.
+                const managesOwnFamily = hasPermission("participants.create_own");
+                const addChildHref = managesOwnFamily ? "/parent-onboarding" : "/formulaire-inscription";
+                const familySharingLink = managesOwnFamily
+                        ? `<a href="/family-access" class="dashboard-button dashboard-button--secondary">${translate("family_access_title")}</a>`
+                        : "";
                 const financeWorkspaceLink = this.canAccessFinanceWorkspace()
                         ? `<a href="/main-dashboard" class="dashboard-button dashboard-button--secondary">${translate("dashboard_finance_section")}</a>`
                         : "";
@@ -493,13 +501,14 @@ export class ParentDashboard {
                                 <section class="parent-dashboard__actions">
                                         <h2 class="visually-hidden">${translate("main_actions")}</h2>
                                         <div class="parent-dashboard__actions-grid">
-                                                <a href="/formulaire-inscription" class="dashboard-button dashboard-button--primary">
+                                                <a href="${addChildHref}" class="dashboard-button dashboard-button--primary">
                                                         ${translate("ajouter_participant")}
                                                 </a>
                                                 <a href="/parent-finance" class="dashboard-button dashboard-button--primary">
                                                         ${translate("my_finances")}
                                                 </a>
                                                 ${financeWorkspaceLink}
+                                                ${familySharingLink}
                                                 <a href="/account-info" class="dashboard-button dashboard-button--secondary">
                                                         ${translate("account_settings")}
                                                 </a>

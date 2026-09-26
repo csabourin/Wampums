@@ -112,11 +112,18 @@ export async function handleResponse(response) {
         }
 
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        // A refusal can carry a machine-readable reason and the facts behind it
+        // (a 409 that names what it conflicts with). Kept so a screen can act on
+        // the reason instead of parsing the message.
+        let errorCode = null;
+        let errorDetails = null;
 
         try {
             if (contentType && contentType.includes("application/json")) {
                 const errorData = await response.json();
                 errorMessage = errorData.message || errorMessage;
+                errorCode = errorData.code || null;
+                errorDetails = errorData.data || null;
                 // Log detailed validation errors if present
                 if (errorData.errors && Array.isArray(errorData.errors)) {
                     debugError('Validation errors:', errorData.errors);
@@ -134,6 +141,8 @@ export async function handleResponse(response) {
 
         const httpError = new Error(errorMessage);
         httpError.status = response.status;
+        httpError.code = errorCode;
+        httpError.data = errorDetails;
         httpError.isNetworkError = getHeader('X-Network-Error') === 'true';
         throw httpError;
     }
@@ -336,6 +345,8 @@ export async function makeApiRequest(endpoint, options = {}) {
         cause: lastError
     });
     finalError.status = lastError.status;
+    finalError.code = lastError.code ?? null;
+    finalError.data = lastError.data ?? null;
     finalError.isNetworkError = isNetworkError;
     throw finalError;
 }

@@ -7,6 +7,7 @@ This directory contains durable material that is not better expressed by code, t
 - [`../CLAUDE.md`](../CLAUDE.md) — engineering conventions, architecture rules, security requirements, and review checklist
 - [`../AGENTS.md`](../AGENTS.md) — concise coding-agent instructions
 - [`../readme.md`](../readme.md) — setup, commands, project map, and source-of-truth order
+- [`FAMILY_ACCESS.md`](./FAMILY_ACCESS.md) — invitations, parent onboarding, family links, and who can see which child
 - [`oas-catalog-pipeline.md`](./oas-catalog-pipeline.md) — versioned bilingual program catalog workflow
 - [`go-to-market/pilot-playbook.md`](./go-to-market/pilot-playbook.md) — pilot operating guide
 - [`go-to-market/positioning-en.md`](./go-to-market/positioning-en.md) — English positioning

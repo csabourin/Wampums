@@ -103,6 +103,7 @@
   },
   "dashboardFeatureKeys": [
     "attendance",
+    "walk_in_children",
     "points",
     "honors",
     "meetings",
@@ -114,6 +115,8 @@
     "parent_contacts",
     "participants",
     "groups",
+    "parent_invitations",
+    "participant_duplicates",
     "family_links",
     "participant_documents",
     "den_report",
