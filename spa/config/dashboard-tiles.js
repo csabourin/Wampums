@@ -46,6 +46,18 @@ export const DASHBOARD_TILES = [
     gate: { any: ["attendance.view", "attendance.manage"] },
   },
   {
+    // A child who turns up before their family has registered: on the roster in
+    // four fields, so attendance and points work from the first evening.
+    featureKey: "walk_in_children",
+    href: "/walk-in-children",
+    icon: "fa-user-plus",
+    label: "tile_walk_in_children",
+    moment: "now",
+    domain: "attendance",
+    priority: 0.5,
+    gate: { permission: "participants.walk_in" },
+  },
+  {
     featureKey: "points",
     href: "/managePoints",
     icon: "fa-coins",

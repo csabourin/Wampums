@@ -138,7 +138,8 @@ const lazyModules = {
   ParentInvitations: () => import('./modules/parent-invitations/ParentInvitations.js').then(m => m.ParentInvitations),
   ParticipantDuplicates: () => import('./modules/participant-duplicates/ParticipantDuplicates.js').then(m => m.ParticipantDuplicates),
   ParentOnboarding: () => import('./modules/parent-onboarding/ParentOnboarding.js').then(m => m.ParentOnboarding),
-  FamilyAccess: () => import('./modules/family-access/FamilyAccess.js').then(m => m.FamilyAccess)
+  FamilyAccess: () => import('./modules/family-access/FamilyAccess.js').then(m => m.FamilyAccess),
+  WalkInChildren: () => import('./modules/walk-in/WalkInChildren.js').then(m => m.WalkInChildren)
 };
 
 // Cache for loaded modules
@@ -195,6 +196,7 @@ const routes = {
   "/participant-duplicates": "participantDuplicates",
   "/parent-onboarding": "parentOnboarding",
   "/family-access": "familyAccess",
+  "/walk-in-children": "walkInChildren",
   "/reports": "reports",
   "/preparation-reunions": "preparation_reunions",
   "/preparation-reunions/:date": "preparation_reunions",
@@ -749,6 +751,12 @@ export class Router {
             break;
           }
           await this.loadModuleInstance('FamilyAccess');
+          break;
+        case "walkInChildren":
+          if (!guard(hasPermission('participants.walk_in'))) {
+            break;
+          }
+          await this.loadModuleInstance('WalkInChildren');
           break;
         case "attendance":
           if (!guard(canViewAttendance())) {

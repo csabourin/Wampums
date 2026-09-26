@@ -183,6 +183,12 @@ export class ParentInvitations {
         </div>
         ${name ? `<div class="invitation-card__email">${escapeHTML(invitation.email)}</div>` : ''}
         <div class="invitation-card__meta">${delivery}</div>
+        ${Array.isArray(invitation.children) && invitation.children.length > 0 ? `
+          <div class="invitation-card__meta">
+            ${translate('parent_invitations_for_children')}
+            ${invitation.children.map((child) => escapeHTML(`${child.first_name} ${child.last_name}`)).join(', ')}
+          </div>
+        ` : ''}
         ${invitation.deactivation_override_reason ? `
           <div class="invitation-card__meta">
             ${translate('parent_invitations_reinstating')}: ${escapeHTML(invitation.deactivation_override_reason)}

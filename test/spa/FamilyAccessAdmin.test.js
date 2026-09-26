@@ -126,6 +126,22 @@ describe('inviting parents', () => {
     expect(document.querySelectorAll('[data-action="resend"]')).toHaveLength(1);
   });
 
+  test('an invitation sent for walk-in children says who it is for', async () => {
+    api.getParentInvitations.mockResolvedValue({
+      data: [{
+        id: 'a', email: 'maman@example.org', state: 'pending', sent_at: '2026-09-25T19:00:00Z',
+        children: [{ id: 7, first_name: 'Noah', last_name: 'Walker' }, { id: 9, first_name: '<b>Emma</b>', last_name: 'Walker' }],
+      }],
+    });
+
+    await new ParentInvitations({ lang: 'fr' }).init();
+
+    const text = document.getElementById('app').textContent;
+    expect(text).toContain('parent_invitations_for_children');
+    expect(text).toContain('Noah Walker');
+    expect(document.querySelector('.invitation-card b')).toBeNull();
+  });
+
   test('without users.invite there is no way to invite', async () => {
     mockPermissions.clear();
     api.getParentInvitations.mockResolvedValue({ data: [{ id: 'a', email: 'x@example.org', state: 'pending' }] });

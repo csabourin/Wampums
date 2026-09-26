@@ -55,7 +55,7 @@ const RESULT_MESSAGES = {
  * @param {Date} [now] - Clock reading, for tests
  * @returns {{today: string, earliest: string}} Date bounds
  */
-function birthDateBounds(now = new Date()) {
+export function birthDateBounds(now = new Date()) {
   const iso = (date) => [
     date.getFullYear(),
     String(date.getMonth() + 1).padStart(2, '0'),

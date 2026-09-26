@@ -70,3 +70,10 @@ test('the parent pages need a session and the permission to register one\'s own 
     /case "familyAccess":\s*if \(!guard\(hasPermission\('participants\.create_own'\)\)\)/
   );
 });
+
+test('the walk-in page needs a session and participants.walk_in -- not participants.create', () => {
+  expect(loggedOutRoutes()).not.toContain('walkInChildren');
+  expect(routerSource).toMatch(
+    /case "walkInChildren":\s*if \(!guard\(hasPermission\('participants\.walk_in'\)\)\)/
+  );
+});

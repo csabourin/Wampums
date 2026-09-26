@@ -103,6 +103,7 @@
   },
   "dashboardFeatureKeys": [
     "attendance",
+    "walk_in_children",
     "points",
     "honors",
     "meetings",

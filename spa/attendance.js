@@ -788,7 +788,9 @@ export class Attendance {
       let groupHeader = document.createElement("h3");
       groupHeader.classList.add("group-header"); // Make sure this class is added
       groupHeader.dataset.groupId = group.id;
-      groupHeader.textContent = group.name;
+      // Children without a den -- walk-ins, until a leader places them -- share a
+      // group with no name; say so rather than show an empty bar.
+      groupHeader.textContent = group.name || translate("unassigned_participants");
       groupDiv.appendChild(groupHeader);
 
 
