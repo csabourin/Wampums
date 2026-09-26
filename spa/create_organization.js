@@ -30,10 +30,10 @@ export class CreateOrganization {
 
 		async render() {
 				const content = `
+						<a href="/district?tab=outils" class="button button--ghost">← ${translate("back")}</a>
 						<h1>${translate("create_new_unit")}</h1>
 						<div id="organization-form-container"></div>
 						<button id="submit-organization">${translate("create_unit")}</button>
-						<p><a href="/district?tab=outils">${translate("back_to_admin")}</a></p>
 				`;
 				setContent(document.getElementById("app"), content);
 		}

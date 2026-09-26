@@ -104,9 +104,9 @@ export class TabbedPage extends BaseModule {
     setContent(
       document.getElementById("app"),
       `
+      <a href="/dashboard" class="button button--ghost">← ${escapeHTML(translate("back"))}</a>
       <section class="tabbed-page">
         <header class="tabbed-page__header">
-          <a href="/dashboard" class="button button--ghost">← ${escapeHTML(translate("back"))}</a>
           <h1>${escapeHTML(translate(this.config.titleKey))}</h1>
         </header>
         <div class="tabbed-page__tabs" role="tablist" aria-label="${escapeHTML(translate(this.config.titleKey))}">
@@ -122,9 +122,9 @@ export class TabbedPage extends BaseModule {
     setContent(
       document.getElementById("app"),
       `
+      <a href="/dashboard" class="button button--ghost">← ${escapeHTML(translate("back"))}</a>
       <section class="tabbed-page">
         <header class="tabbed-page__header">
-          <a href="/dashboard" class="button button--ghost">← ${escapeHTML(translate("back"))}</a>
           <h1>${escapeHTML(translate(this.config.titleKey))}</h1>
         </header>
         <p class="empty-state">${escapeHTML(translate("no_access"))}</p>

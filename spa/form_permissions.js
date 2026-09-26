@@ -179,10 +179,10 @@ export class FormPermissionsManager {
   render() {
     const content = `
       <div class="form-permissions-manager">
+        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
         <header class="page-header">
           <h1>${translate('form_permissions_management')}</h1>
           <p class="page-subtitle">${translate('form_permissions_description')}</p>
-          <a href="/dashboard" class="back-link">${translate('back_to_dashboard')}</a>
         </header>
 
         <div class="permissions-container">

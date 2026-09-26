@@ -23,6 +23,7 @@ import {
   getParticipantDuplicates,
   resolveParticipantDuplicate,
 } from '../../api/api-parent-invitations.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 /** Birth dates in full: telling two children apart may hinge on them. */
 const BIRTH_DATE = { year: 'numeric', month: 'long', day: 'numeric' };
@@ -70,6 +71,7 @@ export class ParticipantDuplicates {
   renderLoading() {
     setContent(this.root(), `
       <section class="page participant-duplicates" aria-busy="true">
+        ${renderBackLink()}
         <h1>${translate('participant_duplicates_title')}</h1>
         <p role="status">${translate('loading')}</p>
       </section>
@@ -80,6 +82,7 @@ export class ParticipantDuplicates {
   renderError() {
     setContent(this.root(), `
       <section class="page participant-duplicates">
+        ${renderBackLink()}
         <h1>${translate('participant_duplicates_title')}</h1>
         <p class="status-message error" role="alert">${translate('error_loading_data')}</p>
         <button type="button" class="button" id="participant-duplicates-retry">${translate('parent_invitations_retry')}</button>
@@ -92,6 +95,7 @@ export class ParticipantDuplicates {
   render() {
     setContent(this.root(), `
       <section class="page participant-duplicates">
+        ${renderBackLink()}
         <h1>${translate('participant_duplicates_title')}</h1>
         <p>${translate('participant_duplicates_intro')}</p>
         <label class="checkbox-label">

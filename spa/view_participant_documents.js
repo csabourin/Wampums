@@ -97,8 +97,8 @@ export class ViewParticipantDocuments extends BaseModule {
 
   render() {
     const content = `
+      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <h1>${translate("view_participant_documents")}</h1>
-      <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
       <div class="participant-documents">
         ${this.renderParticipantList()}
       </div>
@@ -201,9 +201,9 @@ export class ViewParticipantDocuments extends BaseModule {
 
   renderError(message) {
     const errorMessage = `
+      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <h1>${translate("error")}</h1>
       <p>${message || translate("error_loading_participant_documents")}</p>
-      <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
     `;
     setContent(document.getElementById("app"), errorMessage);
   }

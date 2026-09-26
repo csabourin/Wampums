@@ -29,6 +29,7 @@ import {
   withdrawFamilyLinkRequest,
   endFamilyLink,
 } from '../../api/api-family.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 /** Request states that can still be resent or withdrawn. */
 const OPEN_STATES = new Set(['pending', 'expired']);
@@ -87,6 +88,7 @@ export class FamilyAccess {
   renderLoading() {
     setContent(this.root(), `
       <section class="page family-access" aria-busy="true">
+        ${renderBackLink()}
         <h1>${translate('family_access_title')}</h1>
         <p role="status">${translate('loading')}</p>
       </section>
@@ -97,6 +99,7 @@ export class FamilyAccess {
   renderError() {
     setContent(this.root(), `
       <section class="page family-access">
+        ${renderBackLink()}
         <h1>${translate('family_access_title')}</h1>
         <p class="status-message error" role="alert">${translate('error_loading_data')}</p>
         <button type="button" class="button" id="family-access-retry">${translate('parent_invitations_retry')}</button>
@@ -161,6 +164,7 @@ export class FamilyAccess {
   render() {
     setContent(this.root(), `
       <section class="page family-access">
+        ${renderBackLink()}
         <h1>${translate('family_access_title')}</h1>
         <p>${translate('family_access_intro')}</p>
         <p id="family-access-status" class="status-message" role="status" hidden></p>

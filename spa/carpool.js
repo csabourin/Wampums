@@ -40,12 +40,10 @@ export class CarpoolLanding {
     }
 
     setContent(container, `
+      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <section class="page carpool-page carpool-landing">
         <header class="page__header">
           <div class="page__header-top">
-            <a href="/dashboard" class="button button--ghost">
-              ← ${translate("back")}
-            </a>
             <h1>${translate("carpool_coordination")}</h1>
           </div>
           <p class="page__subtitle">${translate("carpool_landing_intro")}</p>
