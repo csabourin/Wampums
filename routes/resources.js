@@ -10,7 +10,7 @@ const {
   getOrganizationId,
   requirePermission,
   blockDemoRoles,
-  hasAnyRole,
+  getUserDataScope,
 } = require("../middleware/auth");
 const { success, error, asyncHandler } = require("../middleware/response");
 const { checkValidation } = require("../middleware/validation");
@@ -148,20 +148,6 @@ async function expireLapsedReservations(pool, organizationId, logger) {
 }
 
 module.exports = (pool) => {
-  const parentRoles = ["parent", "demoparent"];
-  const staffRoles = [
-    "district",
-    "unitadmin",
-    "leader",
-    "admin",
-    "animation",
-    "animator",
-    "finance",
-    "administration",
-    "demoadmin",
-    "equipment",
-  ];
-
   /**
    * Replace an internal or legacy photo reference with a temporary Railway S3
    * URL suitable for direct display in a browser.
@@ -326,19 +312,7 @@ module.exports = (pool) => {
    * @returns {Promise<boolean>} Whether the user may access the slip.
    */
   async function canAccessPermissionSlip(req, organizationId, participantId) {
-    let userRoles = req.userRoles;
-    if (!Array.isArray(userRoles)) {
-      const rolesResult = await pool.query(
-        `SELECT DISTINCT r.role_name
-           FROM user_organizations uo
-           CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
-           JOIN roles r ON r.id = role_id_text::integer
-          WHERE uo.user_id = $1 AND uo.organization_id = $2`,
-        [req.user.id, organizationId],
-      );
-      userRoles = rolesResult.rows.map((row) => row.role_name);
-    }
-    const isStaff = userRoles.some((role) => staffRoles.includes(role));
+    const isStaff = (await getUserDataScope(req, pool)) === "organization";
 
     if (isStaff) return true;
 
@@ -1735,8 +1709,7 @@ module.exports = (pool) => {
         const params = [organizationId];
         let filter = "";
 
-        const isParentOnly =
-          hasAnyRole(req, ...parentRoles) && !hasAnyRole(req, ...staffRoles);
+        const isParentOnly = (await getUserDataScope(req, pool)) !== "organization";
         if (isParentOnly) {
           const allowedParticipantIds = await getParentParticipantIds(
             req.user.id,

@@ -224,12 +224,12 @@ export class ParentFinance {
 
   renderLoading() {
     const backLink = isParent()
-      ? `<a href="/parent-dashboard" class="back-link">${translate("back_to_dashboard")}</a>`
-      : `<a href="/dashboard" class="back-link">${translate("back_to_dashboard")}</a>`;
+      ? `<a href="/parent-dashboard" class="button button--ghost">← ${translate("back")}</a>`
+      : `<a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>`;
 
     const content = `
+      ${backLink}
       <div class="parent-finance-page">
-        ${backLink}
         <h1>${translate("participant_finance_statements")}</h1>
         <div class="loading-container">
           <div class="loading-spinner"></div>
@@ -247,9 +247,9 @@ export class ParentFinance {
       : `<a href="/dashboard" class="back-link">${translate("back_to_dashboard")}</a>`;
 
     const content = `
+      <a href="/parent-dashboard" class="button button--ghost">← ${translate("back")}</a>
       <section class="parent-finance-page">
         <header class="finance-header">
-          <a href="/parent-dashboard" class="button button--ghost">← ${translate("back")}</a>
           <div>
             <h1>${translate("my_finances")}</h1>
             <p class="finance-subtitle">${translate("view_your_financial_summary")}</p>

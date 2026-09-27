@@ -8440,6 +8440,14 @@ details p {
   min-width: auto;
   font-size: var(--font-size-xl);
   line-height: 1;
+  /* The back link on every screen is an <a>, which the base button rule does
+     not reach: give it a finger-sized target of its own. */
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--touch-target-min);
+  text-decoration: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .button--ghost:hover,
@@ -11363,12 +11371,6 @@ details p {
   margin: 0.5rem 0 0;
   color: var(--color-text-muted, #666);
   font-weight: 600;
-}
-
-.not-found-state__actions {
-  margin-top: 1.25rem;
-  display: flex;
-  justify-content: center;
 }
 
 /* Finance page payment buttons */

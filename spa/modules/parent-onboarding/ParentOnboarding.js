@@ -32,6 +32,7 @@ import {
   registerChild,
   completeOnboarding,
 } from '../../api/api-family.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 /**
  * The oldest a participant can plausibly be at registration, matching the
@@ -133,6 +134,7 @@ export class ParentOnboarding {
   renderLoading() {
     setContent(this.root(), `
       <section class="page parent-onboarding" aria-busy="true">
+        ${renderBackLink()}
         <h1>${translate('onboarding_title')}</h1>
         <p role="status">${translate('loading')}</p>
       </section>
@@ -143,6 +145,7 @@ export class ParentOnboarding {
   renderError() {
     setContent(this.root(), `
       <section class="page parent-onboarding">
+        ${renderBackLink()}
         <h1>${translate('onboarding_title')}</h1>
         <p class="status-message error" role="alert">${translate('error_loading_data')}</p>
         <button type="button" class="button" id="onboarding-retry">${translate('parent_invitations_retry')}</button>
@@ -187,6 +190,7 @@ export class ParentOnboarding {
 
     setContent(this.root(), `
       <section class="page parent-onboarding">
+        ${renderBackLink()}
         <h1>${translate('onboarding_title')}</h1>
         <p>${translate('onboarding_intro')}</p>
         ${this.context.organization_name ? `

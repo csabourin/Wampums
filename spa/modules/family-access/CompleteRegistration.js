@@ -22,6 +22,7 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { renderAccountFields, readAccountFields, accountProblem } from './AccountFields.js';
 import { describeLink, postLink } from './publicLinks.js';
 import { adoptLinkLanguage } from './linkLanguage.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 const DESCRIBE_PATH = '/api/v1/public/parent-invitations/describe';
 const ACCEPT_PATH = '/api/v1/public/parent-invitations/accept';
@@ -56,6 +57,16 @@ export class CompleteRegistration {
     this.app = app;
     this.token = new URLSearchParams(window.location.search).get('token') || '';
     this.link = null;
+  }
+
+  /**
+   * The back link, for someone already signed in. A visitor arriving from
+   * the email without a session has no dashboard to go back to.
+   *
+   * @returns {string} HTML, or '' when signed out
+   */
+  backLink() {
+    return this.app?.isLoggedIn ? renderBackLink() : '';
   }
 
   /**
@@ -124,6 +135,7 @@ export class CompleteRegistration {
   renderLoading() {
     setContent(this.root(), `
       <section class="page complete-registration" aria-busy="true">
+        ${this.backLink()}
         <h1>${translate('complete_registration_title')}</h1>
         <p role="status">${translate('loading')}</p>
       </section>
@@ -138,6 +150,7 @@ export class CompleteRegistration {
   renderNewAccountForm() {
     setContent(this.root(), `
       <section class="page complete-registration">
+        ${this.backLink()}
         <h1>${this.heading()}</h1>
         <p>${translate('complete_registration_intro')}</p>
         <form id="complete-registration-form" novalidate>
@@ -189,6 +202,7 @@ export class CompleteRegistration {
   renderExistingAccountConfirmation() {
     setContent(this.root(), `
       <section class="page complete-registration">
+        ${this.backLink()}
         <h1>${this.heading()}</h1>
         <p>${translate('complete_registration_existing_intro')}</p>
         <p><strong>${escapeHTML(this.link.email || '')}</strong></p>
@@ -269,6 +283,7 @@ export class CompleteRegistration {
   renderMessage(key, { showLogin = false } = {}) {
     setContent(this.root(), `
       <section class="page complete-registration">
+        ${this.backLink()}
         <h1>${this.heading()}</h1>
         <p role="status">${translate(key)}</p>
         ${showLogin ? `<a class="button button--primary" href="/login">${translate('login')}</a>` : ''}

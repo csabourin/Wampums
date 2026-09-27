@@ -11,7 +11,7 @@ import { API } from './api/api-core.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { translate } from './app.js';
 import { formTypeLabel } from './utils/FormLabelUtils.js';
-import { isAdmin } from './utils/PermissionUtils.js';
+import { hasPermission } from './utils/PermissionUtils.js';
 import { setContent } from './utils/DOMUtils.js';
 
 export class FormPermissionsManager {
@@ -28,8 +28,7 @@ export class FormPermissionsManager {
   async init() {
     debugLog('Initializing FormPermissionsManager');
 
-    // Check if user has permission to manage form permissions
-    if (!isAdmin()) {
+    if (!hasPermission('forms.manage')) {
       this.app.renderError(translate('access_denied'));
       return;
     }
@@ -178,11 +177,11 @@ export class FormPermissionsManager {
    */
   render() {
     const content = `
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <div class="form-permissions-manager">
         <header class="page-header">
           <h1>${translate('form_permissions_management')}</h1>
           <p class="page-subtitle">${translate('form_permissions_description')}</p>
-          <a href="/dashboard" class="back-link">${translate('back_to_dashboard')}</a>
         </header>
 
         <div class="permissions-container">

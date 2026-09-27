@@ -1379,9 +1379,7 @@ export class Router {
   loadNotAuthorizedPage() {
     setContent(document.getElementById("app"), buildNotFoundMarkup({
       titleKey: 'error_403_not_authorized',
-      messageKey: 'error_403_not_authorized_message',
-      backHref: '/',
-      backLabelKey: 'back_to_home'
+      messageKey: 'error_403_not_authorized_message'
     }));
   }
 

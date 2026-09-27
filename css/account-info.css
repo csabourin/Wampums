@@ -151,19 +151,6 @@
   text-decoration: underline;
 }
 
-/* Home icon (from other pages) */
-.home-icon {
-  display: inline-block;
-  font-size: 2rem;
-  text-decoration: none;
-  margin-bottom: 16px;
-  transition: transform 0.2s ease;
-}
-
-.home-icon:hover {
-  transform: scale(1.1);
-}
-
 /* Page title */
 h1 {
   font-size: 1.75rem;

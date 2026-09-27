@@ -108,8 +108,8 @@ export class Fundraisers {
 
 	render() {
 		const content = `
+			<a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
 			<div class="fundraisers-header">
-				<a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
 				<h1>${translate("fundraisers")}</h1>
 			</div>
 

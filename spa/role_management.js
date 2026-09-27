@@ -8,7 +8,7 @@
 
 import { app, translate } from './app.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
-import { hasPermission, isDistrictAdmin } from './utils/PermissionUtils.js';
+import { hasPermission } from './utils/PermissionUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { deleteCachedData } from './indexedDB.js';
@@ -105,10 +105,10 @@ export class RoleManagement {
   renderAccessDenied() {
     const appContainer = document.getElementById('app');
     setContent(appContainer, `
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <div class="role-management-container">
         <h1>${translate('access_denied') || 'Access Denied'}</h1>
         <p>${translate('no_permission_role_management') || 'You do not have permission to manage roles.'}</p>
-        <a href="/dashboard" class="btn-primary">${translate('back_to_dashboard') || 'Back to Dashboard'}</a>
       </div>
     `);
   }
@@ -116,23 +116,22 @@ export class RoleManagement {
   renderError(message) {
     const appContainer = document.getElementById('app');
     setContent(appContainer, `
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <div class="role-management-container">
         <h1>${translate('error') || 'Error'}</h1>
         <p class="error-message">${message}</p>
-        <a href="/dashboard" class="btn-primary">${translate('back_to_dashboard') || 'Back to Dashboard'}</a>
       </div>
     `);
   }
 
   render() {
     const canAssignRoles = hasPermission('users.assign_roles');
-    const isDistrict = isDistrictAdmin();
 
     const content = `
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <div class="role-management-container">
         <div class="page-header">
           <h1>${translate('role_management') || 'Role & Permission Management'}</h1>
-          <a href="/dashboard" class="back-link">${translate('back_to_dashboard') || 'Back to Dashboard'}</a>
         </div>
 
         <!-- Tab Navigation -->

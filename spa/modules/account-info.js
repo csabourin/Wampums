@@ -188,9 +188,9 @@ export class AccountInfoModule {
     const hasParticipantLinks = Array.isArray(this.guardianProfile?.participantIds) && this.guardianProfile.participantIds.length > 0;
 
     const content = `
+      <a href="${homeLink}" class="button button--ghost">← ${translate("back")}</a>
       <div class="settings-page">
         <header class="settings-header">
-          <a href="${homeLink}" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
           <h1>${translate("settings") || translate("account_settings") || translate("account_info_title")}</h1>
         </header>
 
@@ -481,11 +481,10 @@ export class AccountInfoModule {
    */
   renderError(message) {
     const content = `
-      <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <div class="error-container">
         <h1>${translate("error")}</h1>
         <p>${escapeHTML(message)}</p>
-        <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
       </div>
     `;
 

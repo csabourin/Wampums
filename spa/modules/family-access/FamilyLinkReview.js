@@ -19,6 +19,7 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { renderAccountFields, readAccountFields, accountProblem } from './AccountFields.js';
 import { describeLink, postLink } from './publicLinks.js';
 import { adoptLinkLanguage } from './linkLanguage.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 const DESCRIBE_PATH = '/api/v1/public/family-links/describe';
 const ACCEPT_PATH = '/api/v1/public/family-links/accept';
@@ -49,6 +50,16 @@ export class FamilyLinkReview {
     this.app = app;
     this.token = new URLSearchParams(window.location.search).get('token') || '';
     this.link = null;
+  }
+
+  /**
+   * The back link, for someone already signed in. A visitor arriving from
+   * the email without a session has no dashboard to go back to.
+   *
+   * @returns {string} HTML, or '' when signed out
+   */
+  backLink() {
+    return this.app?.isLoggedIn ? renderBackLink() : '';
   }
 
   /**
@@ -85,6 +96,7 @@ export class FamilyLinkReview {
   renderLoading() {
     setContent(this.root(), `
       <section class="page family-link-review" aria-busy="true">
+        ${this.backLink()}
         <h1>${translate('family_link_title')}</h1>
         <p role="status">${translate('loading')}</p>
       </section>
@@ -117,6 +129,7 @@ export class FamilyLinkReview {
 
     setContent(this.root(), `
       <section class="page family-link-review">
+        ${this.backLink()}
         <h1>${translate('family_link_title')}</h1>
         <p>${this.fill('family_link_intro', {
           requester: this.link.requester_name || '',
@@ -261,6 +274,7 @@ export class FamilyLinkReview {
   renderMessage(key, { showLogin = false } = {}) {
     setContent(this.root(), `
       <section class="page family-link-review">
+        ${this.backLink()}
         <h1>${translate('family_link_title')}</h1>
         <p role="status">${translate(key)}</p>
         ${showLogin ? `<a class="button button--primary" href="/login">${translate('login')}</a>` : ''}

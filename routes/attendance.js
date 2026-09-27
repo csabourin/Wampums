@@ -1,7 +1,7 @@
 // RESTful routes for attendance
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdBody, validateDate, validateAttendanceStatus, checkValidation, validateIdQuery, validateDateOptional } = require('../middleware/validation');
 const { getPointSystemRules } = require('../utils');

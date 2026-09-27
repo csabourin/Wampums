@@ -194,8 +194,8 @@ export class ManageHonors {
     ).join('');
 
     const content = `
+        <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
         <div class="page-header page-header--compact">
-            <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
             <h1>${translate("manage_honors")}</h1>
         </div>
         <div class="date-navigation date-navigation--inline">

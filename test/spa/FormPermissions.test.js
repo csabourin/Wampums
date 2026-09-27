@@ -21,8 +21,9 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn()
 }));
 
+const mockPermissions = new Set(['forms.manage']);
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
-  isAdmin: jest.fn(() => true)
+  hasPermission: jest.fn((key) => mockPermissions.has(key))
 }));
 
 jest.mock('../../spa/utils/DOMUtils.js', () => ({
@@ -59,6 +60,26 @@ beforeEach(() => {
     renderError: jest.fn()
   };
   manager = new FormPermissionsManager(app);
+  mockPermissions.clear();
+  mockPermissions.add('forms.manage');
+});
+
+test('opens for forms.manage, whatever the role is called', async () => {
+  mockApiGet.mockResolvedValue({ success: true, data: [] });
+
+  await manager.init();
+
+  expect(app.renderError).not.toHaveBeenCalled();
+  expect(mockApiGet).toHaveBeenCalled();
+});
+
+test('without forms.manage the screen refuses and asks the server for nothing', async () => {
+  mockPermissions.clear();
+
+  await manager.init();
+
+  expect(app.renderError).toHaveBeenCalledWith('access_denied');
+  expect(mockApiGet).not.toHaveBeenCalled();
 });
 
 test('always refreshes the mutable permissions matrix and replaces stale dimensions', async () => {

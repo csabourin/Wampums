@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { ROLE_GROUPS } = require('../config/role-constants');
 
 function toNumeric(value) {
   const numeric = Number(value);
@@ -734,10 +733,7 @@ module.exports = (pool, logger) => {
     // Staff claims and organization scope come from the same signed JWT.
     // getOrganizationId ignores client-side organization overrides for
     // authenticated requests.
-    const roleNames = req.user.roleNames || [];
-    const permissions = req.user.permissions || [];
-    const isStaff = permissions.includes('finance.view')
-      || ROLE_GROUPS.FINANCE_ACCESS.some((role) => roleNames.includes(role));
+    const isStaff = (req.user.permissions || []).includes('finance.view');
 
     if (!isStaff) {
       const guardianLink = await pool.query(
