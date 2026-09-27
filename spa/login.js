@@ -294,6 +294,11 @@ export class Login {
     // Save all user data at once
     setStorageMultiple(userData);
 
+    // The app booted signed out, so live sync did not start with it.
+    import("./modules/live-sync/LiveDataSync.js")
+      .then(({ liveDataSync }) => liveDataSync.start())
+      .catch((error) => debugError("Failed to start live sync:", error));
+
     debugLog("=== FINAL LOCALSTORAGE CHECK ===");
     debugLog("jwtToken:", getStorage("jwtToken") ? "STORED" : "MISSING");
     debugLog("userId:", getStorage("userId"));

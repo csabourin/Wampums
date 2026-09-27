@@ -16,6 +16,8 @@ import {
     cachePathsForMutation,
     normalizeApiPath
 } from "../utils/OfflineCacheKeys.js";
+import { invalidateForWrite } from "../utils/CacheInvalidation.js";
+import { getLiveSyncClientId, notePageRequestPath } from "../modules/live-sync/LiveSyncState.js";
 
 /**
  * Add cache buster parameter to URL
@@ -166,6 +168,10 @@ export async function handleResponse(response) {
  */
 import { offlineManager } from "../modules/OfflineManager.js";
 import { isArchiveMode } from "../modules/scout-year/ScoutYearContext.js";
+import { isLiveSyncActive } from "../modules/live-sync/LiveDataSync.js";
+
+/** Header naming the live-sync connection that made a write, so it is not echoed back. */
+const LIVE_SYNC_CLIENT_HEADER = 'X-Live-Sync-Client';
 
 /**
  * Drop cached reads for the resource a mutation just changed.
@@ -179,11 +185,20 @@ import { isArchiveMode } from "../modules/scout-year/ScoutYearContext.js";
  * The collection is invalidated alongside the item: editing
  * `v1/fundraisers/7` must also refresh the list that shows it.
  *
+ * Connected and outside camp mode, the screens derived from the resource go
+ * too (deleting a child must drop them from points and attendance). Offline
+ * or in camp mode only the resource itself is dropped, because the cache is
+ * then the only copy of everything else.
+ *
  * @param {string} endpoint - Endpoint that was mutated
  * @returns {Promise<void>} Resolves once matching entries are removed
  */
 async function invalidateCachedResource(endpoint) {
     try {
+        if (isLiveSyncActive()) {
+            await invalidateForWrite(endpoint);
+            return;
+        }
         const paths = cachePathsForMutation(normalizeApiPath(endpoint));
         if (paths.length === 0) {
             return;
@@ -225,12 +240,18 @@ export async function makeApiRequest(endpoint, options = {}) {
         throw archiveError;
     }
 
+    if (method === 'GET') {
+        notePageRequestPath(normalizeApiPath(endpoint));
+    }
+
+    const liveSyncClientId = getLiveSyncClientId();
     const isFormData = body instanceof FormData;
     const requestConfig = {
         method,
         headers: {
             'Accept': 'application/json',
             ...getAuthHeader(),
+            ...(liveSyncClientId && method !== 'GET' ? { [LIVE_SYNC_CLIENT_HEADER]: liveSyncClientId } : {}),
             ...headers
         },
         signal
@@ -400,7 +421,9 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
             // Cache successful results
             if (result.success) {
                 try {
-                    await setCachedData(cacheKey, result, cacheDuration);
+                    await setCachedData(cacheKey, result, cacheDuration, {
+                        sources: [normalizeApiPath(endpoint)]
+                    });
                     debugLog('Data cached for:', cacheKey);
                 } catch (cacheError) {
                     debugError('Failed to cache data:', cacheError);

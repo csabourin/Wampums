@@ -57,6 +57,17 @@ function isPlainBodyObject(payload) {
   return payload && typeof payload === 'object' && !Array.isArray(payload);
 }
 
+/**
+ * Birth date from a participant payload. The column is `date_naissance`, which
+ * the mobile app sends; `date_of_birth` is accepted as the documented alias.
+ * @param {Object} body - Request body
+ * @returns {string|null} Date to store, or null when none was given
+ */
+function birthDateFromBody(body) {
+  const value = body.date_naissance ?? body.date_of_birth;
+  return value === '' || value === undefined ? null : value;
+}
+
 module.exports = (pool) => {
   /**
    * @swagger
@@ -263,9 +274,13 @@ module.exports = (pool) => {
    *                 type: string
    *               last_name:
    *                 type: string
+   *               date_naissance:
+   *                 type: string
+   *                 format: date
    *               date_of_birth:
    *                 type: string
    *                 format: date
+   *                 description: Accepted alias of date_naissance
    *               group_id:
    *                 type: integer
    *     responses:
@@ -277,7 +292,8 @@ module.exports = (pool) => {
       return error(res, 'Invalid request body. Expected JSON object payload.', 400);
     }
 
-    const { first_name, last_name, date_of_birth, group_id } = req.body;
+    const { first_name, last_name, group_id } = req.body;
+    const birthDate = birthDateFromBody(req.body);
     const organizationId = await getOrganizationId(req, pool);
 
     // Validate required fields
@@ -301,9 +317,9 @@ module.exports = (pool) => {
 
       // Create participant
       const participantResult = await client.query(
-        `INSERT INTO participants (first_name, last_name, date_of_birth)
+        `INSERT INTO participants (first_name, last_name, date_naissance)
          VALUES ($1, $2, $3) RETURNING *`,
-        [first_name, last_name, date_of_birth]
+        [first_name, last_name, birthDate]
       );
 
       // Verify participant was created
@@ -1598,7 +1614,8 @@ module.exports = (pool) => {
     }
 
     const { id } = req.params;
-    const { first_name, last_name, date_of_birth, group_id } = req.body;
+    const { first_name, last_name, group_id } = req.body;
+    const birthDate = birthDateFromBody(req.body);
     const organizationId = await getOrganizationId(req, pool);
 
     let groupContext = null;
@@ -1620,14 +1637,14 @@ module.exports = (pool) => {
         `UPDATE participants
          SET first_name = COALESCE($1, first_name),
              last_name = COALESCE($2, last_name),
-             date_of_birth = COALESCE($3, date_of_birth)
+             date_naissance = COALESCE($3, date_naissance)
          WHERE id = $4
            AND EXISTS (
              SELECT 1 FROM participant_organizations po
              WHERE po.participant_id = $4 AND po.organization_id = $5
            )
          RETURNING *`,
-        [first_name, last_name, date_of_birth, id, organizationId]
+        [first_name, last_name, birthDate, id, organizationId]
       );
 
       if (result.rows.length === 0) {

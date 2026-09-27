@@ -6,6 +6,7 @@ const { generalLimiter } = require("./rate-limit");
 const initGlobalMiddleware = require("../middleware/global");
 const initRoutes = require("../routes/index");
 const socketService = require("../services/socket");
+const { liveSyncBroadcaster } = require("../middleware/live-sync");
 
 /**
  * Create and configure the Express application
@@ -41,10 +42,13 @@ function createApp() {
         logger.info("Skipping service initialization in test environment");
     }
 
-    // 5. Initialize Routes
+    // 5. Announce successful writes to the unit's other open sessions
+    app.use(liveSyncBroadcaster);
+
+    // 6. Initialize Routes
     initRoutes(app, pool);
 
-    // 5. Global Error Handler
+    // 7. Global Error Handler
     app.use((err, req, res, next) => {
         const { OrganizationNotFoundError } = require("../utils/api-helpers");
         const { respondWithOrganizationFallback } = require("../utils/api-helpers");
@@ -73,7 +77,7 @@ function createApp() {
         return res.status(500).json({ success: false, message: "internal_server_error" });
     });
 
-    // 6. SPA Catch-all (Express 5 named wildcard)
+    // 8. SPA Catch-all (Express 5 named wildcard)
     const path = require("path");
     const isProduction = process.env.NODE_ENV === "production";
 

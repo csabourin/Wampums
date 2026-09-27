@@ -10,6 +10,7 @@ import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { checkSession } from "./utils/SessionUtils.js";
 import { dismissActiveDialog } from "./utils/DialogUtils.js";
 import { releaseAllScrollLocks } from "./utils/ScrollLockUtils.js";
+import { resetPageReads } from "./modules/live-sync/LiveSyncState.js";
 import { TABBED_PAGES, MERGED_ROUTE_REDIRECTS } from "./config/tabbed-pages.js";
 import {
   canApproveBadges,
@@ -333,6 +334,9 @@ export class Router {
 
     // MEMORY LEAK FIX: Clean up previous module before loading new one
     this.cleanupCurrentModule();
+
+    // Live sync redraws a screen only when it shows data that changed.
+    resetPageReads();
 
     // Each screen starts at the top; without this, navigating from the
     // bottom of a long list opens the next page mid-scroll.

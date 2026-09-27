@@ -1,5 +1,6 @@
 import { debugLog, debugError, debugWarn } from "./utils/DebugUtils.js";
 import { buildScopedCacheKey, normalizeApiPath } from "./utils/OfflineCacheKeys.js";
+import { notePageCacheKey } from "./modules/live-sync/LiveSyncState.js";
 
 const DB_NAME = "WampumsAppDB";
 const DB_VERSION = 12;
@@ -75,9 +76,21 @@ export function openDB() {
   });
 }
 
-export async function setCachedData(key, data, expirationTime = 2 * 60 * 60 * 1000) {
+/**
+ * Cache data under a user- and organization-scoped key.
+ *
+ * @param {string} key - Logical or URL-shaped cache key
+ * @param {*} data - Data to cache
+ * @param {number} expirationTime - Lifetime in milliseconds
+ * @param {Object} [options]
+ * @param {string[]} [options.sources] - API paths the data came from, so a
+ *   write to one of them can find this entry whatever its key is named
+ * @returns {Promise<*>} Resolves once stored
+ */
+export async function setCachedData(key, data, expirationTime = 2 * 60 * 60 * 1000, { sources } = {}) {
   const db = await openDB();
   const scopedKey = buildScopedCacheKey(key);
+  notePageCacheKey(scopedKey);
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
@@ -90,6 +103,9 @@ export async function setCachedData(key, data, expirationTime = 2 * 60 * 60 * 10
       timestamp: Date.now(),
       expiration: Date.now() + expirationTime,
     };
+    if (Array.isArray(sources) && sources.length > 0) {
+      record.sources = sources;
+    }
 
     const request = store.put(record);
 
@@ -112,6 +128,7 @@ export async function setCachedData(key, data, expirationTime = 2 * 60 * 60 * 10
 export async function getCachedData(key) {
   const db = await openDB();
   const scopedKey = buildScopedCacheKey(key);
+  notePageCacheKey(scopedKey);
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly");
@@ -166,6 +183,7 @@ export async function getCachedData(key) {
 export async function getCachedDataIgnoreExpiration(key) {
   const db = await openDB();
   const scopedKey = buildScopedCacheKey(key);
+  notePageCacheKey(scopedKey);
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly");
@@ -496,6 +514,47 @@ export async function clearCachedApiPaths(paths = []) {
     debugLog("Cleared cached API paths:", normalized, matches);
   }
   return matches.length;
+}
+
+/**
+ * Delete every cached response (never queued offline writes) the predicate
+ * selects, in one transaction.
+ *
+ * @param {function(Object): boolean} predicate - Receives the stored record
+ *   ({ key, sources?, ... }) and returns true to delete it
+ * @returns {Promise<string[]>} Keys that were deleted
+ */
+export async function clearCacheEntriesWhere(predicate) {
+  const db = await openDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.index("type_idx").getAll("cache");
+    const deleted = [];
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      for (const record of request.result || []) {
+        if (predicate(record)) {
+          store.delete(record.key);
+          deleted.push(record.key);
+        }
+      }
+    };
+
+    transaction.oncomplete = () => {
+      db.close();
+      if (deleted.length > 0) {
+        debugLog("Cleared cache entries:", deleted);
+      }
+      resolve(deleted);
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
 }
 
 export async function clearFundraiserRelatedCaches(fundraiserId = null) {
