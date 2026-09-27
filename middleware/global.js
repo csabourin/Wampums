@@ -8,6 +8,7 @@ const logger = require("../config/logger");
 const ejs = require("ejs");
 const { sanitizeServerErrorResponses } = require("./response");
 const { getStorageImageOrigins } = require("../utils/railway-storage");
+const { isAllowedOrigin } = require("../config/cors");
 
 const isProduction = process.env.NODE_ENV === "production";
 const REQUEST_BODY_LIMIT = "20mb";
@@ -163,12 +164,7 @@ module.exports = (app) => {
     const corsOptions = {
         origin: (origin, callback) => {
             if (!origin) return callback(null, true);
-            const allowedPatterns = [
-                /^https:\/\/([a-z0-9-]+\.)?wampums\.app$/,
-                /^http:\/\/localhost:\d+$/,
-                /^http:\/\/127\.0\.0\.1:\d+$/,
-            ];
-            if (allowedPatterns.some((pattern) => pattern.test(origin))) {
+            if (isAllowedOrigin(origin)) {
                 callback(null, origin);
             } else {
                 callback(null, false);

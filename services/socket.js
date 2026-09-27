@@ -1,6 +1,7 @@
 const { Server: SocketIO } = require("socket.io");
 const logger = require("../config/logger");
 const { verifyJWT } = require("../utils/api-helpers");
+const { isAllowedOrigin, allowSocketRequest } = require("../config/cors");
 
 let io;
 
@@ -12,10 +13,13 @@ let io;
  */
 function init(server) {
     io = new SocketIO(server, {
+        // Same allow-list as the HTTP API; allowRequest also covers WebSocket
+        // upgrades, which CORS does not.
         cors: {
-            origin: process.env.CORS_ORIGIN || "*",
+            origin: (origin, callback) => callback(null, !origin || isAllowedOrigin(origin)),
             methods: ["GET", "POST"],
         },
+        allowRequest: allowSocketRequest,
     });
 
     // Authentication middleware
