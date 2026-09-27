@@ -279,6 +279,11 @@ export const app = {
                                         .then(({ initScoutYearBanner }) => initScoutYearBanner())
                                         .catch(error => debugError("Failed to mount the scout year selector:", error));
 
+                                // Pick up changes other leaders make while this session is open.
+                                import('./modules/live-sync/LiveDataSync.js')
+                                        .then(({ liveDataSync }) => liveDataSync.start())
+                                        .catch(error => debugError("Failed to start live sync:", error));
+
                                 // Grey out what cannot be changed while an archived year is shown.
                                 // The API layer already refuses those writes; this makes it visible.
                                 import('./modules/scout-year/ArchiveReadOnly.js')

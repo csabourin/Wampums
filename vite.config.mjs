@@ -164,6 +164,12 @@ export default defineConfig({
         target: "http://127.0.0.1:5000",
         changeOrigin: false,
       },
+      // Live sync and the WhatsApp QR feed (Socket.IO, served by the API)
+      "/socket.io": {
+        target: "http://127.0.0.1:5000",
+        changeOrigin: false,
+        ws: true,
+      },
     },
   },
 
