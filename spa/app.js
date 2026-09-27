@@ -832,5 +832,9 @@ if (storedOrgId && storedOrgId !== '[object Object]' && !storedOrgId.startsWith(
                 });
 }
 
+// Modules that cannot import app.js without a cycle (the offline manager, its
+// indicator and sync panel) reach translations and toasts through window.app.
+window.app = app;
+
 app.init();
 export const translate = app.translate.bind(app);
