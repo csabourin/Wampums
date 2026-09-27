@@ -356,6 +356,47 @@ describe('POST /api/v1/participants', () => {
     expect(participantInserted).toBe(true);
   });
 
+  // The table has no date_of_birth column: writing it failed every create with a 500.
+  test.each([
+    ['date_naissance', { date_naissance: '2015-06-15' }, '2015-06-15'],
+    ['date_of_birth', { date_of_birth: '2015-06-15' }, '2015-06-15'],
+    ['an empty date', { date_naissance: '' }, null],
+  ])('stores the birth date given as %s in date_naissance', async (_label, birthField, stored) => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ permissions: ['participants.create'] });
+    let insert = null;
+
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('INSERT INTO participants')) {
+        insert = { query, params };
+        return Promise.resolve({ rows: [{ id: 101, first_name: 'Jane', last_name: 'Smith' }] });
+      }
+      if (query.includes('FROM scout_years')) {
+        return Promise.resolve({ rows: [{ id: 1, organization_id: 1, status: 'active' }] });
+      }
+      if (query.includes('INSERT INTO participant_enrollments')) {
+        return Promise.resolve({ rows: [{}] });
+      }
+      if (query.includes('permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'participants.create' }] });
+      }
+      if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
+        return Promise.resolve({ rows: [] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .post('/api/v1/participants')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ first_name: 'Jane', last_name: 'Smith', ...birthField });
+
+    expect(res.status).toBe(201);
+    expect(insert.query).toMatch(/\(first_name, last_name, date_naissance\)/);
+    expect(insert.query).not.toMatch(/date_of_birth/);
+    expect(insert.params[2]).toBe(stored);
+  });
+
   test('requires first_name', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({
