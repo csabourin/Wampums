@@ -629,6 +629,10 @@ describe('POST /api/v1/forms/:id/submit', () => {
           }]
         });
       }
+      if (query.includes('data_scope')) {
+        // The parent role reaches only the children linked to the account
+        return Promise.resolve({ rows: [{ data_scope: 'linked' }] });
+      }
       if (query.includes('FROM user_participants')) {
         return Promise.resolve({ rows: [] }); // Not linked to this child
       }
@@ -1071,5 +1075,50 @@ describe('Form Organization Isolation', () => {
       .set('Authorization', `Bearer ${org2Token}`);
 
     expect(lastQueriedOrgId).toBe(2);
+  });
+});
+
+describe('form permissions follow forms.manage, not the role name', () => {
+  test('a role with any name that holds forms.manage may read them', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ roleNames: ['forms_coordinator'], user_role: 'forms_coordinator' });
+
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes('permission_key') && query.includes('user_organizations')) {
+        return Promise.resolve({ rows: [{ permission_key: 'forms.manage' }] });
+      }
+      if (query.includes('role_name')) {
+        return Promise.resolve({ rows: [{ role_name: 'forms_coordinator', id: 1 }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .get('/api/v1/forms/form-permissions')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  test('a role called unitadmin without forms.manage is refused, and told what is missing', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ roleNames: ['unitadmin'], user_role: 'unitadmin', permissions: [] });
+
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes('permission_key') && query.includes('user_organizations')) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('role_name')) {
+        return Promise.resolve({ rows: [{ role_name: 'unitadmin', id: 1 }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .get('/api/v1/forms/form-permissions')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body.missing).toContain('forms.manage');
   });
 });

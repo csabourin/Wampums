@@ -674,13 +674,22 @@ export const app = {
 
                 clearElement(appContainer);
 
+                // Signed in, the way back is the same link every screen opens with.
+                if (this.isLoggedIn) {
+                        appContainer.appendChild(createElement('a', {
+                                text: `← ${this.translate('back')}`,
+                                className: 'button button--ghost',
+                                attributes: { href: '/dashboard' }
+                        }));
+                }
+
                 const container = createElement('div', { className: 'error-container' });
                 const title = createElement('h1', { text: this.translate(titleKey) });
                 const messageText = createElement('p', { text: message });
                 container.appendChild(title);
                 container.appendChild(messageText);
 
-                const actionItems = actions || [{ labelKey: 'back_to_home', href: '/' }];
+                const actionItems = actions || (this.isLoggedIn ? [] : [{ labelKey: 'back_to_home', href: '/' }]);
                 if (actionItems.length || showReload) {
                         const actionsWrapper = createElement('div', { className: 'error-actions' });
 

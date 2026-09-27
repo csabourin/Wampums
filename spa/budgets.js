@@ -219,9 +219,9 @@ export class Budgets {
     if (!container) return;
 
     setContent(container, `
+      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <div class="page-container budget-page">
         <div class="page-header">
-          <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
           <div class="page-header-content">
             <h1>${translate("budget_management")}</h1>
           </div>
@@ -241,8 +241,8 @@ export class Budgets {
     const tabContent = await this.renderTabContent();
 
     setContent(container, `
-      <div class="page-container budgets-page">
       <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+      <div class="page-container budgets-page">
         <div class="page-header">
           <div class="page-header-content">
             <h1>${translate("budget_management")}</h1>

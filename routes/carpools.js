@@ -3,7 +3,6 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { ROLE_GROUPS } = require('../config/role-constants');
 
 module.exports = (pool) => {
   /**
@@ -305,7 +304,6 @@ module.exports = (pool) => {
   router.post('/assignments', authenticate, blockDemoRoles, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
-    const userRole = req.user.role;
 
     const {
       carpool_offer_id,
@@ -340,10 +338,8 @@ module.exports = (pool) => {
 
     const offer = offerCheck.rows[0];
 
-    // Check permission: parent can only assign own children, animation/admin can assign any
-    // Use centralized role constants for carpool management
-    const userRoles = req.userRoles || (userRole ? [userRole] : []);
-    const isStaff = userRoles.some(role => ROLE_GROUPS.CARPOOL_MANAGEMENT.includes(role));
+    // Whoever manages carpools may assign any child; others only their own
+    const isStaff = (req.userPermissions || []).includes('carpools.manage');
     if (!isStaff) {
       const guardianCheck = await pool.query(
         'SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2',
@@ -419,7 +415,6 @@ module.exports = (pool) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
-    const userRole = req.user.role;
 
     // Check if assignment exists
     const assignmentCheck = await pool.query(
@@ -435,10 +430,8 @@ module.exports = (pool) => {
 
     const assignment = assignmentCheck.rows[0];
 
-    // Check permission: parent can only remove own children, animation/admin can remove any
-    // Use centralized role constants for carpool management
-    const userRoles = req.userRoles || (userRole ? [userRole] : []);
-    const isStaff = userRoles.some(role => ROLE_GROUPS.CARPOOL_MANAGEMENT.includes(role));
+    // Whoever manages carpools may remove any child; others only their own
+    const isStaff = (req.userPermissions || []).includes('carpools.manage');
     if (!isStaff) {
       const guardianCheck = await pool.query(
         'SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2',

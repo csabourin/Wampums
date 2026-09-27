@@ -578,42 +578,6 @@ function safeJSONParse(jsonString, defaultValue = null) {
 }
 
 /**
- * Check if user has specific permission
- * @param {object} pool - Database pool
- * @param {number} userId - User ID
- * @param {number} organizationId - Organization ID
- * @param {string[]} allowedRoles - Allowed roles (e.g., ['admin', 'animation'])
- * @returns {Promise<boolean>}
- */
-async function hasPermission(
-  pool,
-  userId,
-  organizationId,
-  allowedRoles = ["admin"],
-) {
-  try {
-    const result = await pool.query(
-      `SELECT r.role_name
-       FROM user_organizations uo
-       JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
-       WHERE uo.user_id = $1 AND uo.organization_id = $2`,
-      [userId, organizationId],
-    );
-
-    if (result.rows.length === 0) {
-      return false;
-    }
-
-    // Check if user has any of the allowed roles
-    const userRoles = result.rows.map(row => row.role_name);
-    return userRoles.some(role => allowedRoles.includes(role));
-  } catch (error) {
-    logger.error("Error checking permission:", error);
-    return false;
-  }
-}
-
-/**
  * Get point system rules from organization settings
  * Returns organization-specific point values or defaults
  * @param {object} pool - Database pool or client
@@ -666,7 +630,6 @@ module.exports = {
   getOrganizationIdFromToken,
   formatDateForDB,
   safeJSONParse,
-  hasPermission,
   getPointSystemRules,
   getTranslationsByCode,
 };

@@ -258,9 +258,9 @@ export class Finance extends BaseModule {
 
   renderLoading() {
     const content = `
+      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <section class="finance-page">
         <header class="finance-header">
-          <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
           <div>
             <p class="finance-kicker">${translate("dashboard_day_to_day_section")}</p>
             <h1>${translate("finance_center_title")}</h1>
@@ -281,9 +281,9 @@ export class Finance extends BaseModule {
     const canEditDefinitions = canManageFinance();
     const canSeeReports = canViewFinance();
     const content = `
+      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <section class="finance-page">
         <header class="finance-header">
-          <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
           <div>
             <p class="finance-kicker">${translate("dashboard_day_to_day_section")}</p>
             <h1>${translate("finance_center_title")}</h1>

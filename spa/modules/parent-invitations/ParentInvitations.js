@@ -30,6 +30,7 @@ import {
   resendParentInvitation,
   revokeParentInvitation,
 } from '../../api/api-parent-invitations.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 const MODAL_ID = 'parent-invitation-modal';
 
@@ -112,6 +113,7 @@ export class ParentInvitations {
   renderLoading() {
     setContent(this.root(), `
       <section class="page parent-invitations" aria-busy="true">
+        ${renderBackLink()}
         <h1>${translate('parent_invitations_title')}</h1>
         <p role="status">${translate('loading')}</p>
       </section>
@@ -122,6 +124,7 @@ export class ParentInvitations {
   renderError() {
     setContent(this.root(), `
       <section class="page parent-invitations">
+        ${renderBackLink()}
         <h1>${translate('parent_invitations_title')}</h1>
         <p class="status-message error" role="alert">${translate('error_loading_data')}</p>
         <button type="button" class="button" id="parent-invitations-retry">${translate('parent_invitations_retry')}</button>
@@ -134,6 +137,7 @@ export class ParentInvitations {
   render() {
     setContent(this.root(), `
       <section class="page parent-invitations">
+        ${renderBackLink()}
         <header class="page__header">
           <h1>${translate('parent_invitations_title')}</h1>
           ${this.canInvite ? `

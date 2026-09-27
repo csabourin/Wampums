@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { toBool } = require('../utils');
 const { success, error, asyncHandler } = require('../middleware/response');
 const logger = require('../config/logger');

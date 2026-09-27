@@ -303,7 +303,7 @@ export class IncidentReport {
     const html = `
       <section class="page incident-form-page">
         <header class="page__header">
-          <button class="btn btn--secondary" id="incident-back-btn">&larr; ${translate('back')}</button>
+          <a href="/incident-reports" class="button button--ghost">&larr; ${translate('back')}</a>
           <h1>${title}</h1>
         </header>
 
@@ -371,10 +371,6 @@ export class IncidentReport {
   }
 
   attachFormListeners() {
-    // Back button
-    document.getElementById('incident-back-btn')?.addEventListener('click', () => {
-      this.app.router.navigate('/incident-reports');
-    });
 
     // Victim type radio
     document.querySelectorAll('input[name="victim_type"]').forEach(radio => {
@@ -689,7 +685,7 @@ export class IncidentReport {
     const html = `
       <section class="page incident-view-page">
         <header class="page__header">
-          <button class="btn btn--secondary" id="incident-back-btn">&larr; ${translate('back')}</button>
+          <a href="/incident-reports" class="button button--ghost">&larr; ${translate('back')}</a>
           <h1>${translate('incident_view')}</h1>
           <span class="badge ${statusClass}">${statusLabel}</span>
         </header>
@@ -728,9 +724,6 @@ export class IncidentReport {
   }
 
   attachViewListeners() {
-    document.getElementById('incident-back-btn')?.addEventListener('click', () => {
-      this.app.router.navigate('/incident-reports');
-    });
 
     document.getElementById('incident-edit-from-view-btn')?.addEventListener('click', () => {
       this.app.router.navigate(`/incident-reports/${this.incidentId}/edit`);

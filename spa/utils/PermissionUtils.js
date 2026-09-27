@@ -93,44 +93,6 @@ export function hasRole(roleName) {
 }
 
 /**
- * Check if user has ANY of the specified roles
- *
- * @param {...string} roles - Role names to check
- * @returns {boolean} True if user has at least one of the roles
- *
- * @example
- * if (hasAnyRole('district', 'unitadmin')) {
- *   // User is either district or unitadmin
- * }
- */
-export function hasAnyRole(...roles) {
-  if (!app.userRoles || !Array.isArray(app.userRoles)) {
-    return false;
-  }
-
-  return roles.some(role => app.userRoles.includes(role));
-}
-
-/**
- * Check if user has ALL of the specified roles
- *
- * @param {...string} roles - Role names to check
- * @returns {boolean} True if user has all of the roles
- *
- * @example
- * if (hasAllRoles('leader', 'finance')) {
- *   // User has both leader and finance roles
- * }
- */
-export function hasAllRoles(...roles) {
-  if (!app.userRoles || !Array.isArray(app.userRoles)) {
-    return false;
-  }
-
-  return roles.every(role => app.userRoles.includes(role));
-}
-
-/**
  * Check if user is a demo user (demoadmin or demoparent)
  *
  * @returns {boolean} True if user has a demo role
@@ -141,7 +103,7 @@ export function hasAllRoles(...roles) {
  * }
  */
 export function isDemoUser() {
-  return hasAnyRole('demoadmin', 'demoparent');
+  return hasRole('demoadmin') || hasRole('demoparent');
 }
 
 /**
@@ -160,40 +122,7 @@ export function isParent() {
  * @returns {boolean} True when user is a parent or has participant view access
  */
 export function canAccessParentTools() {
-  const parentFriendlyStaffRoles = [
-    'district',
-    'unitadmin',
-    'leader',
-    'demoadmin'
-  ];
-
-  if (isParent()) {
-    return true;
-  }
-
-  if (!canViewParticipants()) {
-    return false;
-  }
-
-  return hasAnyRole(...parentFriendlyStaffRoles);
-}
-
-/**
- * Check if user is an admin (district or unitadmin)
- *
- * @returns {boolean} True if user is an admin
- */
-export function isAdmin() {
-  return hasAnyRole('district', 'unitadmin');
-}
-
-/**
- * Check if user is a district admin
- *
- * @returns {boolean} True if user is a district admin
- */
-export function isDistrictAdmin() {
-  return hasRole('district');
+  return isParent() || canViewParticipants();
 }
 
 /**
@@ -550,17 +479,11 @@ export function canManageMeetings() {
 /**
  * Determine if the current user can access administrative tools
  *
- * Combines permission checks with leadership roles to keep compatibility
- * with existing role payloads coming from /api/roles.
  *
  * @returns {boolean} True when the user can access admin interfaces
  */
 export function canAccessAdminPanel() {
-  if (canManageUsers() || canViewUsers() || canManageRoles() || canViewRoles() || canCreateOrganization() || canSendCommunications()) {
-    return true;
-  }
-
-  return hasAnyRole('district', 'unitadmin', 'leader', 'demoadmin');
+  return canManageUsers() || canViewUsers() || canManageRoles() || canViewRoles() || canCreateOrganization() || canSendCommunications();
 }
 
 /**
@@ -601,46 +524,6 @@ export function getUserRoles() {
  */
 export function getPrimaryRole() {
   return app.userRole;
-}
-
-/**
- * Permission-based route access check
- * Used by router to determine if user can access a route
- *
- * @param {Object} options - Check options
- * @param {string[]} options.roles - Required roles (at least one)
- * @param {string[]} options.permissions - Required permissions (at least one)
- * @param {boolean} options.requireAll - If true, require all permissions/roles instead of any
- * @returns {boolean} True if user has access
- *
- * @example
- * canAccessRoute({ permissions: ['finance.view'] })
- * canAccessRoute({ roles: ['district', 'unitadmin'] })
- * canAccessRoute({ permissions: ['users.view', 'users.edit'], requireAll: true })
- */
-export function canAccessRoute(options = {}) {
-  const { roles, permissions, requireAll = false } = options;
-
-  // If no restrictions specified, allow access
-  if (!roles && !permissions) {
-    return true;
-  }
-
-  let hasRoleAccess = true;
-  let hasPermissionAccess = true;
-
-  // Check roles if specified
-  if (roles && roles.length > 0) {
-    hasRoleAccess = requireAll ? hasAllRoles(...roles) : hasAnyRole(...roles);
-  }
-
-  // Check permissions if specified
-  if (permissions && permissions.length > 0) {
-    hasPermissionAccess = requireAll ? hasAllPermissions(...permissions) : hasAnyPermission(...permissions);
-  }
-
-  // Return true if both checks pass
-  return hasRoleAccess && hasPermissionAccess;
 }
 
 /**

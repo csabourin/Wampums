@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, getOrganizationId, blockDemoRoles, hasAnyRole } = require('../middleware/auth');
+const { authenticate, getOrganizationId, blockDemoRoles } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 
 // Initialize Stripe with secret key
@@ -27,8 +27,9 @@ module.exports = (pool, logger) => {
     }
 
     // Verify the user has permission to pay this fee
-    // Parents can only pay for their own children, staff can pay for anyone
-    const isStaff = hasAnyRole(req.user, ['district', 'unitadmin', 'leader', 'finance', 'administration', 'demoadmin']);
+    // Parents can only pay for their own children; whoever manages the unit's
+    // finances can pay any fee
+    const isStaff = (req.user.permissions || []).includes('finance.manage');
 
     let feeQuery;
     let feeParams;

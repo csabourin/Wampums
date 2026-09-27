@@ -53,6 +53,7 @@ export class MailingList {
 
         render() {
                 const content = `
+                        <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
                         <h1>${translate("mailing_list")}</h1>
                         <div class="announcement-composer card">
                                 ${this.renderAnnouncementComposer()}
@@ -63,7 +64,6 @@ export class MailingList {
                         <div id="mailing-list">
                                 ${this.renderMailingList()}
                         </div>
-                        <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
                 `;
                 setContent(document.getElementById("app"), content);
         }
@@ -649,6 +649,7 @@ export class MailingList {
 
         renderError() {
                 const errorMessage = `
+                                                <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
                                                 <h1>${translate("error")}</h1>
                                                 <p>${translate("error_loading_mailing_list")}</p>
                                 `;

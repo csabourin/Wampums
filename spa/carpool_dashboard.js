@@ -188,12 +188,10 @@ export class CarpoolDashboard {
     const activityDateLabel = formatActivityDateRange(this.activity, this.app.lang || 'fr');
 
     setContent(container, `
+      <button type="button" class="button button--ghost" id="back-btn">← ${translate('back')}</button>
       <section class="page carpool-page">
         <header class="page__header">
           <div class="page__header-top">
-            <button class="button button--ghost" id="back-btn">
-              ← ${translate('back')}
-            </button>
             <h1>${translate('carpool_coordination')}</h1>
           </div>
         </header>

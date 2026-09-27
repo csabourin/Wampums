@@ -27,6 +27,7 @@ import {
   inviteParentForChild,
   resendWalkInInvitation,
 } from '../../api/api-walk-in.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 const SHORT_DATE = { year: 'numeric', month: 'short', day: 'numeric' };
 const BIRTH_DATE = { year: 'numeric', month: 'long', day: 'numeric' };
@@ -90,6 +91,7 @@ export class WalkInChildren {
   renderLoading() {
     setContent(this.root(), `
       <section class="page walk-in" aria-busy="true">
+        ${renderBackLink()}
         <h1>${translate('walk_in_title')}</h1>
         <p role="status">${translate('loading')}</p>
       </section>
@@ -100,6 +102,7 @@ export class WalkInChildren {
   renderError() {
     setContent(this.root(), `
       <section class="page walk-in">
+        ${renderBackLink()}
         <h1>${translate('walk_in_title')}</h1>
         <p class="status-message error" role="alert">${translate('error_loading_data')}</p>
         <button type="button" class="button" id="walk-in-retry">${translate('parent_invitations_retry')}</button>
@@ -170,6 +173,7 @@ export class WalkInChildren {
     const { today, earliest } = birthDateBounds();
     setContent(this.root(), `
       <section class="page walk-in">
+        ${renderBackLink()}
         <h1>${translate('walk_in_title')}</h1>
         <p>${translate('walk_in_intro')}</p>
         <p id="walk-in-status" class="status-message" role="status" hidden></p>

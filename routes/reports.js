@@ -11,7 +11,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import auth middleware
-const { authenticate, requirePermission, getOrganizationId, withScoutYear } = require('../middleware/auth');
+const { authenticate, requirePermission, getOrganizationId, getUserDataScope, withScoutYear } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/response');
 
 // Import utilities
@@ -1038,9 +1038,9 @@ module.exports = (pool, logger) => {
   router.get('/participant-progress', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
-    // Check if user has parent role - parents are restricted even if they have other permissions
-    const isParent = req.user.roleNames && (req.user.roleNames.includes('parent') || req.user.roleNames.includes('demoparent'));
-    const isStaff = !isParent; // Staff = NOT a parent
+    // A unit-wide role sees every participant; a 'linked' one (parents) only
+    // the children linked to the account
+    const isStaff = (await getUserDataScope(req, pool)) === 'organization';
 
     // Parents can only see their own children, staff can see all participants
     let participantsQuery, participantsParams;

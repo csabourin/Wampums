@@ -13,10 +13,9 @@ const router = express.Router();
 
 // Import utilities
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
-const { hasStaffRole, isParentOnly } = require('../config/role-constants');
 const { requireJWTSecret, signJWTToken } = require('../utils/jwt-config');
 const { resolveScoutYear } = require('../services/scoutYear');
-const { rosterStatusesFor } = require('../middleware/auth');
+const { authenticate, getUserDataScope, rosterStatusesFor } = require('../middleware/auth');
 
 // Validate JWT secret at startup
 requireJWTSecret();
@@ -184,7 +183,7 @@ document.addEventListener("DOMContentLoaded", function() {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/parent', asyncHandler(async (req, res) => {
+  router.get('/parent', authenticate, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -194,18 +193,12 @@ document.addEventListener("DOMContentLoaded", function() {
       }
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const roleNames = Array.isArray(decoded.roleNames) ? decoded.roleNames : [];
       const permissions = Array.isArray(decoded.permissions) ? decoded.permissions : [];
-      const userRoles = roleNames.length > 0 ? roleNames : (decoded.user_role ? [decoded.user_role] : []);
 
-      // Use centralized role constants instead of hardcoded arrays
-      const hasStaffAccess = hasStaffRole(userRoles);
-      const isParentOnlyAccess = isParentOnly(userRoles);
-      const canViewAllParticipants = hasStaffAccess && permissions.includes('participants.view');
-
-      if (!hasStaffAccess && !isParentOnlyAccess) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
+      // A unit-wide role with participants.view sees every child; anyone
+      // else sees the children linked to their account.
+      const canViewAllParticipants = (await getUserDataScope(req, pool)) === 'organization'
+        && permissions.includes('participants.view');
 
       // Verify user belongs to this organization
       const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
