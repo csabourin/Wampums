@@ -1252,7 +1252,7 @@ export class Router {
     const ResetPassword = await this.loadModule('ResetPassword');
     const resetPassword = new ResetPassword(this.app);
     this.currentModuleInstance = resetPassword;
-    resetPassword.render(token, errorParam);
+    await resetPassword.render(token, errorParam);
   }
 
   async loadAlumniLinkPage(action) {
