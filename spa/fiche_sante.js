@@ -2,6 +2,8 @@ import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.j
 import { translate } from "./app.js";
 import { DynamicFormHandler } from "./dynamicFormHandler.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
+import { formatDateShort } from "./utils/DateUtils.js";
 import {
   fetchParticipant,
   fetchParents,
@@ -20,12 +22,22 @@ export class FicheSante {
     this.organizationId = null;
   }
 
+  /**
+   * The page's language, for dates.
+   *
+   * @returns {string} Language code
+   */
+  lang() {
+    return this.app?.lang || document.documentElement.lang || "fr";
+  }
+
   async init(participantId) {
     this.participantId = participantId;
     try {
       await this.fetchData();
-      await this.initializeFormHandler();
+      // The dynamic form renders into its container, so the page goes first.
       this.render();
+      await this.initializeFormHandler();
       this.attachEventListeners();
     } catch (error) {
       debugError("Error initializing fiche sante:", error);
@@ -35,11 +47,23 @@ export class FicheSante {
 
   async fetchData() {
     try {
-      [this.participant, this.parents, this.organizationId] = await Promise.all([
+      const [participantResponse, parentsResponse, organizationId] = await Promise.all([
         fetchParticipant(this.participantId),
-        fetchParents(this.participantId),
+        // The contacts are a section of the page, not the page: without them
+        // the health form still opens.
+        fetchParents(this.participantId).catch((error) => {
+          debugWarn("Emergency contacts unavailable:", error);
+          return null;
+        }),
         getCurrentOrganizationId(),
       ]);
+
+      // fetchParticipant answers { success, participant }; the guardian list
+      // comes as the API's { success, data }.
+      this.participant = participantResponse?.participant || null;
+      const parents = Array.isArray(parentsResponse) ? parentsResponse : parentsResponse?.data;
+      this.parents = Array.isArray(parents) ? parents : [];
+      this.organizationId = organizationId;
 
       debugLog("Fetched participant:", this.participant);
       debugLog("Fetched parents:", this.parents);
@@ -79,8 +103,8 @@ export class FicheSante {
         <div class="general-info">
           <h2>${translate("informations_generales")}</h2>
           <div class="form-group">
-            <p><strong>${translate("nom_complet")}:</strong> ${this.participant.first_name} ${this.participant.last_name}</p>
-            <p><strong>${translate("date_naissance")}:</strong> ${this.participant.date_naissance}</p>
+            <p><strong>${translate("nom_complet")}:</strong> ${escapeHTML(this.participant.first_name)} ${escapeHTML(this.participant.last_name)}</p>
+            <p><strong>${translate("date_naissance")}:</strong> ${escapeHTML(formatDateShort(this.participant.date_naissance, this.lang()))}</p>
           </div>
         </div>
 
@@ -99,11 +123,6 @@ export class FicheSante {
     `;
 
     setContent(document.getElementById("app"), content);
-    // Re-initialize the form handler after the container is in the DOM
-    if (this.formHandler) {
-      this.formHandler.container = document.getElementById('fiche-sante-container');
-      this.formHandler.render();
-    }
   }
 
   renderEmergencyContacts() {
@@ -122,7 +141,7 @@ export class FicheSante {
             return `
               <div class="form-group">
                 <h3>${translate("contact")} ${index + 1}</h3>
-                <p>${parent.prenom} ${parent.nom}</p>
+                <p>${escapeHTML(parent.prenom || "")} ${escapeHTML(parent.nom || "")}</p>
                 <p>${translate("telephone")}: ${phoneDisplay}</p>
                 <div class="checkbox-group">
                   <input type="checkbox" id="emergency_contact_${parent.id}" name="emergency_contacts[]" value="${parent.id}" ${parent.is_emergency_contact ? "checked" : ""}>

@@ -131,7 +131,8 @@ export class DynamicFormHandler {
 
             debugLog("Form save result:", result);
             if (result.success) {
-                this.showMessage(translate("form_saved_successfully"));
+                // The class has no showMessage of its own; the app shows toasts.
+                this.app.showMessage(translate("form_saved_successfully"), "success");
                 return result;
             } else {
                 throw new Error(result.message || translate("error_saving_form"));
