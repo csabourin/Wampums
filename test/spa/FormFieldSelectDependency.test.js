@@ -197,6 +197,21 @@ describe('Form builder: depending on a select', () => {
     expect(document.getElementById('depends-on-value').value).toBe('other');
   });
 
+  it('drops a saved condition on the field itself instead of offering it', () => {
+    // A field cannot hide itself; a format saved that way (by hand or by an
+    // older builder) must not have the self-dependency preserved on re-save.
+    const builder = builderWith([
+      { ...LANGUAGE_FIELD, dependsOn: { field: 'langue', value: 'autre' } }
+    ]);
+    builder.renderFieldEditor(0);
+
+    const values = Array.from(document.getElementById('depends-on-field').options).map((o) => o.value);
+    expect(values).not.toContain('langue');
+
+    builder.saveField();
+    expect(builder.currentFields[0].dependsOn).toBeUndefined();
+  });
+
   it('offers "checked" as the only trigger for a checkbox', () => {
     const builder = builderWith([{ name: 'has_pet', type: 'checkbox', label: 'has_pet_label' }]);
     builder.renderFieldEditor();
@@ -443,6 +458,43 @@ describe('Rendered form: a text field depending on a select', () => {
     expect(form.querySelector('[name="origine"]:checked')).toBeNull();
     expect(dialectInput.value).toBe('');
     expect(isHidden(dialectInput)).toBe(true);
+  });
+
+  describe('with a multi-select as the controlling field', () => {
+    const MULTI_LANGUAGE_FIELD = { ...LANGUAGE_FIELD, name: 'langues', multiple: true };
+    const OTHER_FOR_MULTI = { ...OTHER_LANGUAGE_FIELD, dependsOn: { field: 'langues', value: 'autre' } };
+    const tick = (form, value, checked) => {
+      const box = form.querySelector(`[name="langues"][value="${value}"]`);
+      box.checked = checked;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    it('shows the dependent field when the trigger is among the selected options', () => {
+      const form = renderLive({}, [MULTI_LANGUAGE_FIELD, OTHER_FOR_MULTI]);
+      expect(isHidden(otherLanguage(form))).toBe(true);
+
+      tick(form, 'fr', true);
+      expect(isHidden(otherLanguage(form))).toBe(true);
+
+      tick(form, 'autre', true);
+      expect(isHidden(otherLanguage(form))).toBe(false);
+    });
+
+    it('keeps it shown while another option is unticked, and hides it with the trigger', () => {
+      const form = renderLive(
+        { langues: 'fr,autre', autre_langue: 'Cri' },
+        [MULTI_LANGUAGE_FIELD, OTHER_FOR_MULTI]
+      );
+      expect(isHidden(otherLanguage(form))).toBe(false);
+      expect(otherLanguage(form).value).toBe('Cri');
+
+      tick(form, 'fr', false);
+      expect(isHidden(otherLanguage(form))).toBe(false);
+
+      tick(form, 'autre', false);
+      expect(isHidden(otherLanguage(form))).toBe(true);
+      expect(otherLanguage(form).value).toBe('');
+    });
   });
 
   describe('with several forms on the page (one per guardian)', () => {

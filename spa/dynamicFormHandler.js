@@ -244,18 +244,19 @@ export class DynamicFormHandler {
 
         fields.forEach((field) => {
             if (field.dependsOn) {
+                const controller = fields.find((candidate) => candidate.name === field.dependsOn.field);
                 const controllingElements = getElementsByFieldName(root, field.dependsOn.field);
+                const sync = () => {
+                    const controllingValue = this.getCurrentControllingValue(controllingElements, controller);
+                    this.toggleDependentFields(field, controllingValue, root);
+                };
 
                 controllingElements.forEach((element) => {
-                    const eventType = this.getEventType(element.type);
-                    element.addEventListener(eventType, () => {
-                        const controllingValue = this.getFieldValue(element);
-                        this.toggleDependentFields(field, controllingValue, root);
-                    });
+                    element.addEventListener(this.getEventType(element.type), sync);
                 });
 
                 if (controllingElements.length > 0) {
-                    this.toggleDependentFields(field, this.getCurrentControllingValue(controllingElements), root);
+                    sync();
                 }
             }
         });
@@ -263,13 +264,19 @@ export class DynamicFormHandler {
 
     /**
      * The answer a controlling field currently shows: the checked radio of a
-     * group, the state of a checkbox, or the value of a select or input.
+     * group, the ticked options of a multi-select (rendered as checkboxes), the
+     * state of a lone checkbox, or the value of a select or input.
      *
      * @param {HTMLElement[]} elements - Every element carrying the controlling field's name
-     * @returns {string} The current answer, or '' when nothing is chosen
+     * @param {Object} [controller] - The controlling field's definition
+     * @returns {string|string[]} The current answer ('' when nothing is chosen),
+     *   or the ticked values of a multi-select
      */
-    getCurrentControllingValue(elements) {
+    getCurrentControllingValue(elements, controller) {
         const [first] = elements;
+        if (controller?.type === 'select' && controller.multiple) {
+            return elements.filter((element) => element.checked).map((element) => element.value);
+        }
         if (first.type === 'radio') {
             const checked = elements.find((element) => element.checked);
             return checked ? checked.value : '';

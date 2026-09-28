@@ -36,11 +36,17 @@ function normalize(input) {
 /**
  * Whether a `dependsOn` condition is satisfied by a given answer.
  *
- * @param {*} currentValue - The controlling field's current answer
+ * A multi-select answers with every option ticked; the condition is met when
+ * the awaited option is among them.
+ *
+ * @param {*|Array} currentValue - The controlling field's current answer
  * @param {*} expectedValue - The value the dependent field waits for
  * @returns {boolean} True when the dependent field should apply
  */
 export function isDependencySatisfied(currentValue, expectedValue) {
+  if (Array.isArray(currentValue)) {
+    return currentValue.some((value) => isDependencySatisfied(value, expectedValue));
+  }
   if (currentValue === undefined || currentValue === null || currentValue === "") {
     return false;
   }

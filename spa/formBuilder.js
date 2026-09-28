@@ -398,7 +398,9 @@ export class FormBuilder extends BaseModule {
             index !== editedIndex && f.name && CONTROLLING_FIELD_TYPES.includes(f.type)
         );
 
-        if (currentController && !candidates.some(f => f.name === currentController)) {
+        const editedName = editedIndex === null ? undefined : this.currentFields[editedIndex]?.name;
+        if (currentController && currentController !== editedName &&
+            !candidates.some(f => f.name === currentController)) {
             const existing = this.currentFields.find(f => f.name === currentController);
             candidates.push(existing || { name: currentController });
         }
