@@ -39,6 +39,7 @@ import {
 } from '../components';
 import { canViewBadges, canApproveBadges, canManageBadges } from '../utils/PermissionUtils';
 import { debugLog, debugError } from '../utils/DebugUtils';
+import { badgeLabel } from '../utils/BadgeLabelUtils';
 
 const BadgeDashboardScreen = () => {
   const navigation = useNavigation();
@@ -115,17 +116,7 @@ const BadgeDashboardScreen = () => {
     return templates.find((template) => template.id === normalizedId);
   };
 
-  const getBadgeLabel = (template, entry = {}) => {
-    if (!template) {
-      return (
-        t(entry.translation_key) ||
-        entry.badge_name ||
-        entry.territoire_chasse ||
-        t('badge_unknown_label')
-      );
-    }
-    return t(template.translation_key) || template.name || t('badge_unknown_label');
-  };
+  const getBadgeLabel = (template, entry = {}) => badgeLabel(template || entry);
 
   const getObtainableStars = (badgeName, currentStars = 0, templateId = null) => {
     const template = templateId ? getTemplateById(templateId) : null;
