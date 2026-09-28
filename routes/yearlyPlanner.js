@@ -9,7 +9,7 @@
  */
 const express = require('express');
 const { randomUUID } = require('crypto');
-const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
+const { authenticate, requirePermission, blockDemoRoles, getOrganizationId, userHasPermission } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { check } = require('express-validator');
 const { checkValidation } = require('../middleware/validation');
@@ -1204,9 +1204,9 @@ module.exports = (pool, logger) => {
       // Creating the outing needs activities.create. Rather than gating the whole
       // endpoint on both permissions - which would lock out animation staff who
       // may plan dates but not create outings - the date is still created and the
-      // omission is reported.
-      const canCreateActivities = Array.isArray(req.user.permissions)
-        && req.user.permissions.includes('activities.create');
+      // omission is reported. Read from the database, not the JWT, so a
+      // permission taken away since sign-in no longer counts.
+      const canCreateActivities = await userHasPermission(req, pool, organizationId, 'activities.create');
 
       const client = await pool.connect();
       try {

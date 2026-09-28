@@ -3169,6 +3169,7 @@
   "upcoming_short": "cette semaine",
   "dashboard_next_meeting_eyebrow": "Prochaine réunion",
   "access_denied": "Accès refusé",
+  "access_updated": "Vos accès ont changé depuis votre connexion. Cette page en tient maintenant compte.",
   "add": "Ajouter",
   "add_guardian": "Ajouter un tuteur",
   "assign_roles_to_users": "Attribuer des rôles aux utilisateurs",

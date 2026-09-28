@@ -3133,6 +3133,16 @@ export async function getCurrentUser() {
     return API.getNoCache('v1/users/me');
 }
 
+/**
+ * Get the current user's roles and permissions, read from the database.
+ * Never cached: its point is to replace a stale copy.
+ *
+ * @returns {Promise<{success: boolean, data: {roles: string[], permissions: string[]}}>}
+ */
+export async function getCurrentAccess() {
+    return API.getNoCache('v1/users/me/access');
+}
+
 // ============================================================================
 // BACKWARDS COMPATIBILITY ALIASES
 // ============================================================================

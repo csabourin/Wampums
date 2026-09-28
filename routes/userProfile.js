@@ -13,7 +13,7 @@ const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 
 // Import middleware
-const { authenticate, blockDemoRoles } = require('../middleware/auth');
+const { authenticate, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
 const {
   validateEmail,
@@ -220,6 +220,57 @@ module.exports = (pool, logger) => {
     }
 
     return success(res, result.rows[0], 'User information retrieved successfully');
+  }));
+
+  /**
+   * @swagger
+   * /api/v1/users/me/access:
+   *   get:
+   *     summary: Get the current user's roles and permissions
+   *     description: >
+   *       Read from the database for the caller's organization. The token's own
+   *       list is a snapshot taken at sign-in; the app refreshes its copy from
+   *       here so a role change reaches people already signed in.
+   *     tags: [User Profile]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Current roles and permission keys (both empty without an active membership)
+   *       401:
+   *         description: Authentication required
+   */
+  router.get('/access', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+
+    const [rolesResult, permissionsResult] = await Promise.all([
+      pool.query(
+        `SELECT DISTINCT r.role_name
+         FROM user_organizations uo
+         CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
+         JOIN roles r ON r.id = role_id_text::integer
+         WHERE uo.user_id = $1 AND uo.organization_id = $2
+           AND uo.status = 'active'
+         ORDER BY r.role_name`,
+        [req.user.id, organizationId]
+      ),
+      pool.query(
+        `SELECT DISTINCT p.permission_key
+         FROM user_organizations uo
+         CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
+         JOIN role_permissions rp ON rp.role_id = role_id_text::integer
+         JOIN permissions p ON p.id = rp.permission_id
+         WHERE uo.user_id = $1 AND uo.organization_id = $2
+           AND uo.status = 'active'
+         ORDER BY p.permission_key`,
+        [req.user.id, organizationId]
+      )
+    ]);
+
+    return success(res, {
+      roles: rolesResult.rows.map((row) => row.role_name),
+      permissions: permissionsResult.rows.map((row) => row.permission_key)
+    }, 'Access retrieved');
   }));
 
   /**
