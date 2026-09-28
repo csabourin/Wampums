@@ -29,6 +29,7 @@ jest.mock('../../spa/app.js', () => ({
 // DateUtils reads the SPA config, which uses import.meta.
 jest.mock('../../spa/utils/DateUtils.js', () => ({
   getTodayISO: () => '2026-09-28',
+  formatDateShort: (value, lang) => `${lang}:${value}`,
 }));
 
 jest.mock('../../spa/ajax-functions.js', () => ({
@@ -97,11 +98,13 @@ describe('health form', () => {
       data: [{ id: 7, prenom: 'Marie', nom: '<i>Parent</i>', telephone_cellulaire: '819-555-0101', is_emergency_contact: true }],
     });
 
-    await new FicheSante({}).init(CHILD_ID);
+    await new FicheSante({ lang: 'fr' }).init(CHILD_ID);
 
     const app = document.getElementById('app');
     expect(app.querySelector('h1').textContent).toBe('fiche_sante');
     expect(app.textContent).toContain('<b>Léa</b> Parent');
+    // The birth date goes through the locale-aware formatter, in the page's language.
+    expect(app.textContent).toContain('fr:2016-05-01');
     expect(app.querySelector('b, i')).toBeNull();
     expect(app.querySelector('#emergency_contact_7').checked).toBe(true);
     expect(containerAtInit).not.toBeNull();

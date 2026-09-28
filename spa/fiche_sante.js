@@ -3,6 +3,7 @@ import { translate } from "./app.js";
 import { DynamicFormHandler } from "./dynamicFormHandler.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { formatDateShort } from "./utils/DateUtils.js";
 import {
   fetchParticipant,
   fetchParents,
@@ -18,6 +19,15 @@ export class FicheSante {
     this.participantId = null;
     this.formHandler = null;
     this.organizationId = null;
+  }
+
+  /**
+   * The page's language, for dates.
+   *
+   * @returns {string} Language code
+   */
+  lang() {
+    return this.app?.lang || document.documentElement.lang || "fr";
   }
 
   async init(participantId) {
@@ -92,7 +102,7 @@ export class FicheSante {
           <h2>${translate("informations_generales")}</h2>
           <div class="form-group">
             <p><strong>${translate("nom_complet")}:</strong> ${escapeHTML(this.participant.first_name)} ${escapeHTML(this.participant.last_name)}</p>
-            <p><strong>${translate("date_naissance")}:</strong> ${escapeHTML(this.participant.date_naissance || "")}</p>
+            <p><strong>${translate("date_naissance")}:</strong> ${escapeHTML(formatDateShort(this.participant.date_naissance, this.lang()))}</p>
           </div>
         </div>
 
