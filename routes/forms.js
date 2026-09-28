@@ -14,6 +14,15 @@ const { success, error, asyncHandler } = require('../middleware/response');
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership, getFormPermissionsForRoles, checkFormPermission } = require('../utils/api-helpers');
 
+/** Largest value of a PostgreSQL integer column. */
+const MAX_INTEGER_ID = 2147483647;
+
+/** Unit-wide permissions that open any form's submissions for reading. */
+const FORM_READ_PERMISSIONS = ['forms.view', 'forms.submit', 'forms.manage'];
+
+/** Unit-wide permission that sets any submission's review status. */
+const FORM_APPROVE_PERMISSIONS = ['forms.manage'];
+
 /**
  * Export route factory function
  * Allows dependency injection of pool and logger
@@ -70,6 +79,144 @@ module.exports = (pool, logger) => {
 
     if (!result.rows[0]) return null;
     return { organizationId, scoutYearId: result.rows[0].scout_year_id };
+  };
+
+  /**
+   * Read a row id from a request: a positive integer within the
+   * database's integer range, or null.
+   *
+   * @param {*} value - Raw value from the query string or body
+   * @returns {number|null} The id, or null when it is not one
+   */
+  const parseIntegerId = (value) => {
+    if (typeof value !== 'number' && typeof value !== 'string') {
+      return null;
+    }
+    const text = String(value).trim();
+    if (!/^\d+$/.test(text)) {
+      return null;
+    }
+    const id = Number(text);
+    return id > 0 && id <= MAX_INTEGER_ID ? id : null;
+  };
+
+  /**
+   * Whether an account may act on a participant's form submissions in a unit.
+   *
+   * The child must be enrolled in the unit. Someone who sees the whole unit
+   * (a role with organization scope) reaches every child there; an account
+   * limited to its own children reaches only the children linked to it.
+   *
+   * @param {string} userId - Acting user (UUID)
+   * @param {number} organizationId - Unit
+   * @param {number} participantId - Participant
+   * @returns {Promise<boolean>} True when the account reaches the child
+   */
+  const mayReachParticipant = async (userId, organizationId, participantId) => {
+    const result = await pool.query(
+      `SELECT EXISTS (
+                SELECT 1 FROM participant_enrollments pe
+                 WHERE pe.participant_id = $1 AND pe.organization_id = $2
+              )
+          AND (
+                EXISTS (
+                  SELECT 1
+                    FROM user_organizations uo
+                    CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
+                    JOIN roles r ON r.id = role_id_text::integer
+                   WHERE uo.user_id = $3 AND uo.organization_id = $2
+                     AND uo.status = 'active'
+                     AND r.data_scope = 'organization'
+                )
+                OR EXISTS (
+                  SELECT 1 FROM user_participants up
+                   WHERE up.user_id = $3 AND up.participant_id = $1
+                )
+              ) AS reachable`,
+      [participantId, organizationId, userId]
+    );
+    return result.rows[0]?.reachable === true;
+  };
+
+  /**
+   * Whether an account sees the whole unit: a role with organization scope
+   * in an active membership.
+   *
+   * @param {string} userId - Acting user (UUID)
+   * @param {number} organizationId - Unit
+   * @returns {Promise<boolean>} True when it does
+   */
+  const seesWholeUnit = async (userId, organizationId) => {
+    const result = await pool.query(
+      `SELECT 1
+         FROM user_organizations uo
+         CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
+         JOIN roles r ON r.id = role_id_text::integer
+        WHERE uo.user_id = $1 AND uo.organization_id = $2
+          AND uo.status = 'active'
+          AND r.data_scope = 'organization'
+        LIMIT 1`,
+      [userId, organizationId]
+    );
+    return result.rows.length > 0;
+  };
+
+  /**
+   * Whether an account may read submissions of a form type: a unit-wide forms
+   * permission, or the view right the unit gave one of its roles on that form
+   * type -- the same per-form rights that let it save the form.
+   *
+   * @param {string} userId - Acting user (UUID)
+   * @param {number} organizationId - Unit
+   * @param {string[]} roleNames - The account's role names in the unit
+   * @param {string} formType - Form type
+   * @returns {Promise<boolean>} True when it may
+   */
+  const mayReadFormType = async (userId, organizationId, roleNames, formType) => (
+    await holdsAnyPermission(userId, organizationId, FORM_READ_PERMISSIONS)
+    || checkFormPermission(pool, organizationId, roleNames, formType, 'view')
+  );
+
+  /**
+   * Whether an account holds any of the given permissions in a unit, through
+   * an active membership.
+   *
+   * @param {string} userId - Acting user (UUID)
+   * @param {number} organizationId - Unit
+   * @param {string[]} permissionKeys - Permissions, any of which will do
+   * @returns {Promise<boolean>} True when one is held
+   */
+  const holdsAnyPermission = async (userId, organizationId, permissionKeys) => {
+    const result = await pool.query(
+      `SELECT 1
+         FROM user_organizations uo
+         CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
+         JOIN role_permissions rp ON rp.role_id = role_id_text::integer
+         JOIN permissions p ON p.id = rp.permission_id
+        WHERE uo.user_id = $1 AND uo.organization_id = $2
+          AND uo.status = 'active'
+          AND p.permission_key = ANY($3::text[])
+        LIMIT 1`,
+      [userId, organizationId, permissionKeys]
+    );
+    return result.rows.length > 0;
+  };
+
+  /**
+   * Refuse a request on a form type the account holds no right on.
+   *
+   * @param {Object} res - Express response
+   * @param {string} action - 'view' or 'approve'
+   * @returns {Object} The 403 response, naming the unit-wide permissions that would do
+   */
+  const refuseFormType = (res, action) => {
+    const permissions = action === 'approve' ? FORM_APPROVE_PERMISSIONS : FORM_READ_PERMISSIONS;
+    return res.status(403).json({
+      success: false,
+      message: `You do not have permission to ${action} this form type`,
+      required: permissions,
+      missing: permissions
+    });
   };
 
   // Compatibility REST endpoints used by comprehensive API tests
@@ -139,11 +286,11 @@ module.exports = (pool, logger) => {
         success: true,
         data: result.rows.map(row => row.form_type)
       });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
+    } catch (err) {
+      if (handleOrganizationResolutionError(res, err, logger)) {
         return;
       }
-      logger.error('Error fetching form types:', error);
+      logger.error('Error fetching form types:', err);
       return error(res, 'internal_server_error', 500);
     }
   }));
@@ -262,11 +409,11 @@ module.exports = (pool, logger) => {
       });
 
       res.json({ success: true, data: formatsObject });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
+    } catch (err) {
+      if (handleOrganizationResolutionError(res, err, logger)) {
         return;
       }
-      logger.error('Error fetching form formats:', error);
+      logger.error('Error fetching form formats:', err);
       return error(res, 'internal_server_error', 500);
     }
   }));
@@ -301,7 +448,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Access denied
    */
-  router.get('/submissions', authenticate, requireAnyPermission('forms.view', 'forms.submit', 'forms.manage'), asyncHandler(async (req, res) => {
+  router.get('/submissions', authenticate, asyncHandler(async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -318,28 +465,19 @@ module.exports = (pool, logger) => {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
 
-      const { participant_id, form_type } = req.query;
+      const { form_type } = req.query;
+      const participant_id = parseIntegerId(req.query.participant_id);
 
-      if (!participant_id || !form_type) {
+      if (!participant_id || !form_type || typeof form_type !== 'string') {
         return res.status(400).json({ success: false, message: 'Participant ID and form_type are required' });
       }
 
-      // A role scoped to the whole unit reaches every participant in it;
-      // a 'linked' role (parents) only the children linked to the account.
-      const hasStaffAccess = (await getUserDataScope(req, pool)) === 'organization';
+      if (!(await mayReadFormType(decoded.user_id, organizationId, authCheck.roles || [], form_type))) {
+        return refuseFormType(res, 'view');
+      }
 
-      // Only restrict access for non-staff users (parents)
-      if (!hasStaffAccess) {
-        // For parent/demoparent roles, check if they have access to this participant
-        const accessCheck = await pool.query(
-          `SELECT 1 FROM user_participants
-           WHERE user_id = $1 AND participant_id = $2`,
-          [decoded.user_id, participant_id]
-        );
-
-        if (accessCheck.rows.length === 0) {
-          return res.status(403).json({ success: false, message: 'Access denied to this participant' });
-        }
+      if (!(await mayReachParticipant(decoded.user_id, organizationId, participant_id))) {
+        return res.status(403).json({ success: false, message: 'Access denied to this participant' });
       }
 
       // Get form submission with participant basic information
@@ -399,11 +537,11 @@ module.exports = (pool, logger) => {
           res.json({ success: true, data: null, form_data: {}, message: 'No submission or participant found' });
         }
       }
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
+    } catch (err) {
+      if (handleOrganizationResolutionError(res, err, logger)) {
         return;
       }
-      logger.error('Error fetching form submission:', error);
+      logger.error('Error fetching form submission:', err);
       return error(res, 'internal_server_error', 500);
     }
   }));
@@ -591,7 +729,8 @@ module.exports = (pool, logger) => {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
 
-      const { participant_id, form_type, submission_data, status } = req.body;
+      const { form_type, submission_data, status } = req.body;
+      const participant_id = parseIntegerId(req.body.participant_id);
 
       if (!participant_id || !form_type || !submission_data) {
         return res.status(400).json({ success: false, message: 'Participant ID, form_type, and submission_data are required' });
@@ -607,6 +746,12 @@ module.exports = (pool, logger) => {
           success: false,
           message: 'You do not have permission to submit or edit this form type'
         });
+      }
+
+      // The right to fill a form type is not a right over every child's copy:
+      // a family writes only the forms of its own children.
+      if (!(await mayReachParticipant(decoded.user_id, organizationId, participant_id))) {
+        return res.status(403).json({ success: false, message: 'Access denied to this participant' });
       }
 
       const client = await pool.connect();
@@ -683,20 +828,20 @@ module.exports = (pool, logger) => {
           message: 'Form saved successfully',
           cache: { invalidate: ['forms', 'form-submissions', form_type] }
         });
-      } catch (error) {
-        if (handleOrganizationResolutionError(res, error, logger)) {
+      } catch (err) {
+        if (handleOrganizationResolutionError(res, err, logger)) {
           return;
         }
         await client.query('ROLLBACK');
-        throw error;
+        throw err;
       } finally {
         client.release();
       }
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
+    } catch (err) {
+      if (handleOrganizationResolutionError(res, err, logger)) {
         return;
       }
-      logger.error('Error saving form submission:', error);
+      logger.error('Error saving form submission:', err);
       return error(res, 'internal_server_error', 500);
     }
   }));
@@ -726,8 +871,8 @@ module.exports = (pool, logger) => {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
 
-      const form_type = req.query.form_type || req.body.form_type;
-      const participant_id = req.query.participant_id || req.body.participant_id;
+      const form_type = req.query.form_type || req.body?.form_type;
+      const participant_id = parseIntegerId(req.query.participant_id || req.body?.participant_id);
 
       if (!participant_id || !form_type) {
         return res.status(400).json({ success: false, message: 'Participant ID and form_type are required' });
@@ -741,6 +886,10 @@ module.exports = (pool, logger) => {
           success: false,
           message: 'You do not have permission to delete this form type'
         });
+      }
+
+      if (!(await mayReachParticipant(decoded.user_id, organizationId, participant_id))) {
+        return res.status(403).json({ success: false, message: 'Access denied to this participant' });
       }
 
       const client = await pool.connect();
@@ -760,17 +909,17 @@ module.exports = (pool, logger) => {
           message: 'Form submission deleted successfully',
           cache: { invalidate: ['forms', 'form-submissions', form_type] }
         });
-      } catch (error) {
+      } catch (err) {
         await client.query('ROLLBACK');
-        throw error;
+        throw err;
       } finally {
         client.release();
       }
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
+    } catch (err) {
+      if (handleOrganizationResolutionError(res, err, logger)) {
         return;
       }
-      logger.error('Error deleting form submission:', error);
+      logger.error('Error deleting form submission:', err);
       return error(res, 'internal_server_error', 500);
     }
   }));
@@ -832,11 +981,11 @@ module.exports = (pool, logger) => {
         // some test and compatibility adapters still return JSON strings.
         data: parseFormSchema(result.rows[0].form_structure)
       });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
+    } catch (err) {
+      if (handleOrganizationResolutionError(res, err, logger)) {
         return;
       }
-      logger.error('Error fetching form structure:', error);
+      logger.error('Error fetching form structure:', err);
       return error(res, 'internal_server_error', 500);
     }
   }));
@@ -879,15 +1028,32 @@ module.exports = (pool, logger) => {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
 
-      const { form_type, participant_id } = req.query;
+      const { form_type } = req.query;
+      const hasParticipant = req.query.participant_id !== undefined;
+      const participant_id = hasParticipant ? parseIntegerId(req.query.participant_id) : null;
 
-      if (!form_type) {
+      if (!form_type || typeof form_type !== 'string') {
         return res.status(400).json({ success: false, message: 'Form type is required' });
+      }
+      if (hasParticipant && !participant_id) {
+        return res.status(400).json({ success: false, message: 'Invalid participant ID' });
       }
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
+      if (!authCheck.authorized) {
+        return res.status(403).json({ success: false, message: authCheck.message });
+      }
+      if (!(await mayReadFormType(decoded.user_id, organizationId, authCheck.roles || [], form_type))) {
+        return refuseFormType(res, 'view');
+      }
+
       if (participant_id) {
+        if (!(await mayReachParticipant(decoded.user_id, organizationId, participant_id))) {
+          return res.status(403).json({ success: false, message: 'Access denied to this participant' });
+        }
+
         const result = await pool.query(
           "SELECT submission_data FROM form_submissions WHERE participant_id = $1 AND form_type = $2 AND organization_id = $3",
           [participant_id, form_type, organizationId]
@@ -903,14 +1069,22 @@ module.exports = (pool, logger) => {
           data: typeof submissionData === 'string' ? JSON.parse(submissionData) : submissionData
         });
       } else {
+        // The unit's list, or only the account's own children when it does
+        // not see the whole unit.
+        const unitWide = await seesWholeUnit(decoded.user_id, organizationId);
         const result = await pool.query(
           `SELECT fs.participant_id, fs.submission_data, p.first_name, p.last_name
            FROM form_submissions fs
            JOIN participant_organizations po ON fs.participant_id = po.participant_id
            JOIN participants p ON fs.participant_id = p.id
            WHERE po.organization_id = $1 AND fs.form_type = $2
+             AND fs.organization_id = $1
+             AND ($3::boolean OR EXISTS (
+                   SELECT 1 FROM user_participants up
+                    WHERE up.user_id = $4 AND up.participant_id = fs.participant_id
+                 ))
            ORDER BY p.first_name, p.last_name`,
-          [organizationId, form_type]
+          [organizationId, form_type, unitWide, decoded.user_id]
         );
 
         res.json({
@@ -925,11 +1099,11 @@ module.exports = (pool, logger) => {
           }))
         });
       }
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
+    } catch (err) {
+      if (handleOrganizationResolutionError(res, err, logger)) {
         return;
       }
-      logger.error('Error fetching form submissions:', error);
+      logger.error('Error fetching form submissions:', err);
       return error(res, 'internal_server_error', 500);
     }
   }));
@@ -1135,7 +1309,10 @@ module.exports = (pool, logger) => {
       }
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const submissionId = parseInt(req.params.submissionId, 10);
+      const submissionId = parseIntegerId(req.params.submissionId);
+      if (!submissionId) {
+        return res.status(400).json({ success: false, message: 'Invalid submission ID' });
+      }
 
       // Verify user belongs to this organization
       const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
@@ -1145,7 +1322,7 @@ module.exports = (pool, logger) => {
 
       // Verify the submission belongs to this organization
       const submissionCheck = await pool.query(
-        'SELECT organization_id FROM form_submissions WHERE id = $1',
+        'SELECT organization_id, participant_id, form_type FROM form_submissions WHERE id = $1',
         [submissionId]
       );
 
@@ -1153,8 +1330,15 @@ module.exports = (pool, logger) => {
         return res.status(404).json({ success: false, message: 'Submission not found' });
       }
 
-      if (submissionCheck.rows[0].organization_id !== organizationId) {
+      const submission = submissionCheck.rows[0];
+      if (submission.organization_id !== organizationId) {
         return res.status(403).json({ success: false, message: 'Access denied to this submission' });
+      }
+      if (!(await mayReadFormType(decoded.user_id, organizationId, authCheck.roles || [], submission.form_type))) {
+        return refuseFormType(res, 'view');
+      }
+      if (!(await mayReachParticipant(decoded.user_id, organizationId, submission.participant_id))) {
+        return res.status(403).json({ success: false, message: 'Access denied to this participant' });
       }
 
       // Get the history
@@ -1176,11 +1360,11 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
+    } catch (err) {
+      if (handleOrganizationResolutionError(res, err, logger)) {
         return;
       }
-      logger.error('Error fetching submission history:', error);
+      logger.error('Error fetching submission history:', err);
       return error(res, 'internal_server_error', 500);
     }
   }));
@@ -1246,6 +1430,31 @@ module.exports = (pool, logger) => {
         return res.status(400).json({ success: false, message: 'Invalid status value' });
       }
 
+      const submissionId = parseIntegerId(submission_id);
+      if (!submissionId) {
+        return res.status(400).json({ success: false, message: 'Invalid submission ID' });
+      }
+
+      const existing = await pool.query(
+        'SELECT participant_id, form_type FROM form_submissions WHERE id = $1 AND organization_id = $2',
+        [submissionId, organizationId]
+      );
+      if (existing.rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Submission not found' });
+      }
+
+      // Setting a review status is a reviewer's act: forms.manage, or the
+      // approve right the unit gave one of the account's roles on this form.
+      const { participant_id: participantId, form_type: formType } = existing.rows[0];
+      const mayApprove = await holdsAnyPermission(decoded.user_id, organizationId, FORM_APPROVE_PERMISSIONS)
+        || await checkFormPermission(pool, organizationId, authCheck.roles || [], formType, 'approve');
+      if (!mayApprove) {
+        return refuseFormType(res, 'approve');
+      }
+      if (!(await mayReachParticipant(decoded.user_id, organizationId, participantId))) {
+        return res.status(403).json({ success: false, message: 'Access denied to this participant' });
+      }
+
       const result = await pool.query(
         `UPDATE form_submissions
          SET status = $1,
@@ -1255,7 +1464,7 @@ module.exports = (pool, logger) => {
              updated_at = NOW()
          WHERE id = $4 AND organization_id = $5
          RETURNING *`,
-        [status, decoded.user_id, review_notes, submission_id, organizationId]
+        [status, decoded.user_id, review_notes, submissionId, organizationId]
       );
 
       if (result.rows.length === 0) {
@@ -1270,11 +1479,11 @@ module.exports = (pool, logger) => {
         message: 'Status updated successfully',
         cache: { invalidate: ['form-submissions'] }
       });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
+    } catch (err) {
+      if (handleOrganizationResolutionError(res, err, logger)) {
         return;
       }
-      logger.error('Error updating submission status:', error);
+      logger.error('Error updating submission status:', err);
       return error(res, 'internal_server_error', 500);
     }
   }));
@@ -1340,11 +1549,11 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
+    } catch (err) {
+      if (handleOrganizationResolutionError(res, err, logger)) {
         return;
       }
-      logger.error('Error fetching form versions:', error);
+      logger.error('Error fetching form versions:', err);
       return error(res, 'internal_server_error', 500);
     }
   }));
@@ -1407,11 +1616,11 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
+    } catch (err) {
+      if (handleOrganizationResolutionError(res, err, logger)) {
         return;
       }
-      logger.error('Error fetching form permissions:', error);
+      logger.error('Error fetching form permissions:', err);
       return error(res, 'internal_server_error', 500);
     }
   }));
@@ -1516,11 +1725,11 @@ module.exports = (pool, logger) => {
         data: result.rows[0],
         message: 'Display context updated successfully'
       });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
+    } catch (err) {
+      if (handleOrganizationResolutionError(res, err, logger)) {
         return;
       }
-      logger.error('Error updating form display context:', error);
+      logger.error('Error updating form display context:', err);
       return error(res, 'internal_server_error', 500);
     }
   }));
@@ -1625,11 +1834,11 @@ module.exports = (pool, logger) => {
         data: result.rows[0],
         message: 'Permissions updated successfully'
       });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
+    } catch (err) {
+      if (handleOrganizationResolutionError(res, err, logger)) {
         return;
       }
-      logger.error('Error updating form permissions:', error);
+      logger.error('Error updating form permissions:', err);
       return error(res, 'internal_server_error', 500);
     }
   }));
