@@ -68,8 +68,8 @@ test('not-found and not-authorized pages open with it too, outside the centred c
   expect(document.querySelector('.not-found-state__card a')).toBeNull();
 });
 
-test('the health form opens with the back link in every state, and keeps no small link at the bottom', () => {
-  const source = fs.readFileSync(path.join(ROOT, 'spa/fiche_sante.js'), 'utf8');
+test.each(['spa/fiche_sante.js', 'spa/acceptation_risque.js'])('%s opens with the back link in every state, and keeps no small link at the bottom', (file) => {
+  const source = fs.readFileSync(path.join(ROOT, file), 'utf8');
   const lines = source.split('\n');
 
   // Each rendered page (form and error) has the link as its first line.
