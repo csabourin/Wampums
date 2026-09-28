@@ -11,6 +11,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { UNIT_FINANCE_PERMISSIONS } = require('../config/constants');
 
 /**
  * Export route factory function
@@ -157,7 +158,7 @@ module.exports = (pool, logger) => {
 
         // Verify role is not a system role
         const roleCheck = await pool.query(
-          'SELECT is_system_role FROM roles WHERE id = $1',
+          'SELECT is_system_role, data_scope FROM roles WHERE id = $1',
           [roleId]
         );
 
@@ -173,6 +174,26 @@ module.exports = (pool, logger) => {
             success: false,
             message: 'Cannot modify system roles'
           });
+        }
+
+        const permissionCheck = await pool.query(
+          'SELECT permission_key FROM permissions WHERE id = $1',
+          [permissionId]
+        );
+
+        if (permissionCheck.rows.length === 0) {
+          return error(res, 'Permission not found', 404);
+        }
+
+        // The finance routes answer for every family in the unit. A role that
+        // only sees its own children would read everyone's fees through them.
+        const { permission_key: permissionKey } = permissionCheck.rows[0];
+        if (roleCheck.rows[0].data_scope === 'linked' && UNIT_FINANCE_PERMISSIONS.includes(permissionKey)) {
+          return error(
+            res,
+            `A role limited to its own children cannot hold ${permissionKey}: it covers every family in the unit`,
+            409
+          );
         }
 
         // Add permission to role
