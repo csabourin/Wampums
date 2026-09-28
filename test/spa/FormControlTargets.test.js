@@ -92,7 +92,8 @@ describe('targets', () => {
     '.radio-option input[type="radio"]',
     '.checkbox-option input[type="checkbox"]',
     '.form-group--single-checkbox > input[type="checkbox"]',
-    '.form-group--checkbox > input[type="checkbox"]'
+    // Also nested in its label, as on the meeting reminder form.
+    '.form-group--checkbox input[type="checkbox"]'
   ])('%s is at least 24px', (selector) => {
     const declarations = declarationsFor(selector);
     expect(declarations).toMatch(/inline-size:\s*var\(--control-size-min\)/);

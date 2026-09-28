@@ -4925,8 +4925,8 @@ body.online .pending-update {
 }
 
 .form-group--checkbox input[type="checkbox"] {
-  inline-size: 1.25rem;
-  block-size: 1.25rem;
+  inline-size: var(--control-size-min);
+  block-size: var(--control-size-min);
   cursor: pointer;
   accent-color: var(--color-primary);
 }
@@ -5053,7 +5053,7 @@ body.online .pending-update {
 .radio-option input[type="radio"],
 .checkbox-option input[type="checkbox"],
 .form-group--single-checkbox > input[type="checkbox"],
-.form-group--checkbox > input[type="checkbox"] {
+.form-group--checkbox input[type="checkbox"] {
   flex: none;
   inline-size: var(--control-size-min);
   block-size: var(--control-size-min);
