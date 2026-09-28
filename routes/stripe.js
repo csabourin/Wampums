@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, getOrganizationId, blockDemoRoles } = require('../middleware/auth');
+const { authenticate, getOrganizationId, blockDemoRoles, userHasPermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 
 // Initialize Stripe with secret key
@@ -28,8 +28,9 @@ module.exports = (pool, logger) => {
 
     // Verify the user has permission to pay this fee
     // Parents can only pay for their own children; whoever manages the unit's
-    // finances can pay any fee
-    const isStaff = (req.user.permissions || []).includes('finance.manage');
+    // finances can pay any fee. Read from the database, not the JWT, so a
+    // permission taken away since sign-in no longer counts.
+    const isStaff = await userHasPermission(req, pool, organizationId, 'finance.manage');
 
     let feeQuery;
     let feeParams;
