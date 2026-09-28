@@ -5,7 +5,7 @@
 -- payment plans, and the unit's financial summary. A parent could read all of
 -- it and hit an error on every save. What a parent needs about money -- their
 -- own children's statement and paying their own fees -- is served without
--- these permissions (/v1/finance/participants/:id/statement checks the
+-- these permissions (/v1/finance/participants/:participantId/statement checks the
 -- guardian link, Stripe checks the same).
 --
 -- The permissions below mean "the unit's money". A role that only sees its
