@@ -178,7 +178,11 @@ describe('focus ring colour', () => {
   });
 
   test('the update prompt\'s secondary button text is at least 4.5:1, hovered or not', () => {
-    const rule = (selector) => PWA_SOURCE.match(new RegExp(`${selector.replace(/[.:]/g, '\\$&')}\\s*\\{([^}]*)\\}`))[1];
+    // The first rule written for exactly this selector, found as plain text.
+    const rule = (selector) => {
+      const start = PWA_SOURCE.indexOf(`${selector} {`);
+      return PWA_SOURCE.slice(start, PWA_SOURCE.indexOf('}', start));
+    };
     const text = rule('.pwa-update-btn-secondary').match(/color:\s*(#[0-9a-f]{3,6})/i)[1];
     const full = (hex) => (hex.length === 4 ? `#${[...hex.slice(1)].map((c) => c + c).join('')}` : hex);
     const background = rule('.pwa-update-btn-secondary').match(/background:\s*(#[0-9a-f]{6})/i)[1];
