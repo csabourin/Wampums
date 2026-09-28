@@ -212,9 +212,16 @@ describe.skipIf(!DATABASE_URL)('Form submissions of a child', () => {
     ids.lea = await child('Léa', home);
     ids.noe = await child('Noé', home);
     ids.outsider = await child('Zoé', elsewhere);
+    // Left the unit: the enrollment remains, no longer active.
+    ids.former = await child('Théo', home);
+    await pool.query(
+      "UPDATE participant_enrollments SET status = 'left', ended_on = '2026-09-15' WHERE participant_id = $1",
+      [ids.former]
+    );
     await grantParticipantAccess(pool, { participantId: ids.lea, userId: ids.alice, sourceType: ACCESS_SOURCE.DIRECT });
     await grantParticipantAccess(pool, { participantId: ids.lea, userId: ids.dana, sourceType: ACCESS_SOURCE.DIRECT });
     await grantParticipantAccess(pool, { participantId: ids.noe, userId: ids.bob, sourceType: ACCESS_SOURCE.DIRECT });
+    await grantParticipantAccess(pool, { participantId: ids.former, userId: ids.alice, sourceType: ACCESS_SOURCE.DIRECT });
 
     // Bob already filled in Noé's health form.
     ids.noeSubmission = await one(
@@ -401,6 +408,30 @@ describe.skipIf(!DATABASE_URL)('Form submissions of a child', () => {
       [ids.outsider]
     )).toBe(0);
   });
+
+  test('no one saves a form for a child whose enrollment in the unit has ended', async () => {
+    const response = await request(app)
+      .post('/api/v1/forms/submissions')
+      .set(signedIn(ids.alice))
+      .send({ participant_id: ids.former, form_type: HEALTH_FORM, submission_data: { allergies: 'x' } });
+
+    expect(response.status).toBe(403);
+    expect(await one(
+      'SELECT count(*)::int FROM form_submissions WHERE participant_id = $1',
+      [ids.former]
+    )).toBe(0);
+  });
+
+  test.each(['abc', '99999999999999999999', '0'])(
+    'a malformed submission id on confirm-review (%p) is a 400, not a database error',
+    async (submissionId) => {
+      const response = await request(app)
+        .post(`/api/v1/forms/submissions/${submissionId}/confirm-review`)
+        .set(signedIn(ids.alice));
+
+      expect(response.status).toBe(400);
+    }
+  );
 
   test.each([
     ['GET', 'abc'],

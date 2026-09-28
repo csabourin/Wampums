@@ -103,7 +103,8 @@ module.exports = (pool, logger) => {
   /**
    * Whether an account may act on a participant's form submissions in a unit.
    *
-   * The child must be enrolled in the unit. Someone who sees the whole unit
+   * The child must have an active enrollment in the unit, as for the risk
+   * acceptance form (resolveParticipantFormAccess). Someone who sees the whole unit
    * (a role with organization scope) reaches every child there; an account
    * limited to its own children reaches only the children linked to it.
    *
@@ -117,6 +118,7 @@ module.exports = (pool, logger) => {
       `SELECT EXISTS (
                 SELECT 1 FROM participant_enrollments pe
                  WHERE pe.participant_id = $1 AND pe.organization_id = $2
+                   AND pe.status = 'active'
               )
           AND (
                 EXISTS (
@@ -664,9 +666,9 @@ module.exports = (pool, logger) => {
   router.post('/submissions/:submissionId/confirm-review', authenticate, blockDemoRoles,
     asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const submissionId = parseInt(req.params.submissionId, 10);
+    const submissionId = parseIntegerId(req.params.submissionId);
 
-    if (Number.isNaN(submissionId)) {
+    if (!submissionId) {
       return error(res, 'Invalid submission identifier', 400);
     }
 
