@@ -9,6 +9,9 @@ import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { getTodayISO } from "./utils/DateUtils.js";
 
+/** HTTP status the API answers when a child has no risk acceptance yet. */
+const NOT_FOUND = 404;
+
 export class AcceptationRisque {
   constructor(app) {
     this.app = app;
@@ -31,10 +34,24 @@ export class AcceptationRisque {
 
   async fetchData() {
     try {
-      [this.participant, this.acceptationRisque] = await Promise.all([
+      const [participantResponse, acceptationResponse] = await Promise.all([
         fetchParticipant(this.participantId),
-        fetchAcceptationRisque(this.participantId),
+        // A child with no answer yet is the normal case: the API says 404,
+        // and the form opens empty.
+        fetchAcceptationRisque(this.participantId).catch((error) => {
+          if (error?.status === NOT_FOUND) {
+            return null;
+          }
+          throw error;
+        }),
       ]);
+      // fetchParticipant answers { success, participant }; the saved answer
+      // comes as the API's { success, data }.
+      this.participant = participantResponse?.participant || null;
+      this.acceptationRisque = acceptationResponse?.data || null;
+      if (!this.participant) {
+        throw new Error("Participant data is missing");
+      }
     } catch (error) {
       debugError("Error fetching acceptation risque data:", error);
       throw error;
