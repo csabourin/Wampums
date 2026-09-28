@@ -132,6 +132,7 @@
 
   /* Touch Targets */
   --touch-target-min: 44px;
+  --control-size-min: 24px;
 
   /* Safe Area Insets */
   --safe-area-top: env(safe-area-inset-top, 0px);
@@ -576,10 +577,6 @@ label {
   color: var(--color-text);
 }
 
-input[type=checkbox]:checked~label {
-  color: var(--color-secondary);
-}
-
 input[type="text"],
 input[type="email"],
 input[type="password"],
@@ -614,8 +611,16 @@ textarea {
 
 .checkbox-group {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-xs) var(--space-lg);
+}
+
+/* A fieldset is at least as wide as its widest content by default
+   (min-inline-size: min-content). A single unwrapped row of options pushed the
+   fiche santé to 922px on a phone, cutting off the right of every field. */
+fieldset {
+  min-inline-size: 0;
 }
 
 input[type="checkbox"],
@@ -5038,6 +5043,59 @@ body.online .pending-update {
   cursor: pointer;
 }
 
+/* The control is large enough to hit on its own, and its label, which
+   toggles it too, fills a full touch-target row beside it. */
+.radio-option input[type="radio"],
+.checkbox-option input[type="checkbox"],
+.form-group--single-checkbox > input[type="checkbox"],
+.form-group--checkbox > input[type="checkbox"] {
+  flex: none;
+  inline-size: var(--control-size-min);
+  block-size: var(--control-size-min);
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+.radio-option label,
+.checkbox-option label,
+.form-group--single-checkbox > label,
+.form-group--checkbox > label {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--touch-target-min);
+  min-inline-size: var(--touch-target-min);
+}
+
+/* The label's hit area covers its whole option, the control included, so the
+   row as a whole is one target of at least 44px. */
+.radio-option,
+.checkbox-option,
+.form-group--single-checkbox,
+.form-group--checkbox {
+  position: relative;
+}
+
+.radio-option label::after,
+.checkbox-option label::after,
+.form-group--single-checkbox > label::after,
+.form-group--checkbox > label::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+/* A lone yes/no checkbox: the box, then its question, on one row. */
+.form-group--single-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.form-group--single-checkbox > label {
+  flex: 1;
+  margin: 0;
+}
+
 /* A field that only applies once its controlling question is answered a given
    way. Hidden rather than greyed out, so the form shows only what is relevant. */
 .form-group--hidden {
@@ -8961,10 +9019,13 @@ details p {
   transition: border-color 0.2s ease;
 }
 
+/* Keeps the app's focus outline. This rule used to remove it in favour of a
+   shadow at 10% opacity, which left every checkbox and radio button in a form
+   with no visible focus at all. */
 .form-group input:focus {
-  outline: none;
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(76, 101, 174, 0.1);
 }
 
 /* Button Styles */

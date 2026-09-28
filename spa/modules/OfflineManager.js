@@ -341,13 +341,15 @@ export class OfflineManager {
             // Replay only in the open, authenticated SPA. A service worker
             // cannot safely obtain a fresh bearer token or verify the active
             // account, so it must never replay authenticated writes.
-            await this.replayPendingMutations();
+            const replayed = await this.replayPendingMutations();
 
             // Check pending count
             await this.updatePendingCount();
 
-            // Show success message if all synced
-            if (this.pendingMutations.length === 0) {
+            // Announce a sync only when changes made offline were sent. This
+            // runs on every page load; announcing it with nothing to send put
+            // the same message over each page, twice.
+            if (replayed > 0 && this.pendingMutations.length === 0) {
                 this.showToast(this.getTranslation('sync.complete'), 'success');
             }
 
@@ -364,12 +366,14 @@ export class OfflineManager {
     /**
      * Replay pending mutations with a freshly obtained authorization header.
      * Unscoped legacy records are discarded instead of crossing accounts.
+     *
+     * @returns {Promise<number>} How many changes the server accepted
      */
     async replayPendingMutations() {
         const pendingData = await getOfflineData();
         if (!pendingData || pendingData.length === 0) {
             debugLog('OfflineManager: No pending mutations to replay');
-            return;
+            return 0;
         }
 
         debugLog('OfflineManager: Replaying', pendingData.length, 'pending mutations');
@@ -379,7 +383,7 @@ export class OfflineManager {
         const currentOrganizationId = getCurrentOrganizationId();
         if (!currentUserId || !localStorage.getItem('jwtToken')) {
             debugWarn('OfflineManager: No auth token, cannot replay mutations');
-            return;
+            return 0;
         }
 
         const authHeaders = {
@@ -387,6 +391,7 @@ export class OfflineManager {
             'Content-Type': 'application/json'
         };
         const nonRetriableStatuses = new Set([400, 403, 404, 409, 410, 422]);
+        let replayed = 0;
 
         for (const record of pendingData) {
             try {
@@ -414,6 +419,7 @@ export class OfflineManager {
 
                     if (response.ok) {
                         await deleteOfflineData(record.key);
+                        replayed += 1;
                         debugLog('OfflineManager: Mutation replayed successfully', record.key);
                     } else if (nonRetriableStatuses.has(response.status)) {
                         // Non-retryable client errors — discard
@@ -440,6 +446,7 @@ export class OfflineManager {
             }
         }
 
+        return replayed;
     }
 
     /**

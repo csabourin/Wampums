@@ -109,4 +109,23 @@ describe('OfflineManager guardrails', () => {
     expect(replaySpy).toHaveBeenCalledTimes(1);
   });
 
+  // Sync runs on every page load. Announcing it with nothing sent put
+  // "All changes synced" over every page, twice.
+  test.each([
+    [0, false],
+    [2, true],
+  ])('with %i changes sent, announces the sync: %s', async (replayed, announced) => {
+    const manager = new OfflineManager();
+    jest.spyOn(manager, 'replayPendingMutations').mockResolvedValue(replayed);
+    jest.spyOn(manager, 'updatePendingCount').mockImplementation(async () => {
+      manager.pendingMutations = [];
+    });
+    const toastSpy = jest.spyOn(manager, 'showToast').mockImplementation(() => {});
+
+    await manager.syncPendingData();
+
+    const syncedToasts = toastSpy.mock.calls.filter(([, type]) => type === 'success');
+    expect(syncedToasts).toHaveLength(announced ? 1 : 0);
+  });
+
 });

@@ -87,6 +87,11 @@ export class JSONFormRenderer {
 			// an unhidden-but-enabled one would submit its first option as an answer
 			// the user was never shown. Every branch below applies `disabled`.
 			const groupClasses = ['form-group'];
+			// A lone checkbox sits on one row before its label, like the options
+			// of a checkbox group, so the label widens the target to the full row.
+			if (type === 'checkbox') {
+					groupClasses.push('form-group--single-checkbox');
+			}
 			if (dependsOn) {
 					groupClasses.push('form-group--dependent');
 					if (disabled) {
@@ -95,7 +100,10 @@ export class JSONFormRenderer {
 			}
 
 			let output = `<div class="${groupClasses.join(' ')}" data-form-origin="${formOrigin}"${dependsOnAttr ? ` data-group-for="${name}"` : ''}>`;
-			output += `<label for="${fieldId}">${translate(label || name)}</label>`;
+			const labelHtml = `<label for="${fieldId}">${translate(label || name)}</label>`;
+			if (type !== 'checkbox') {
+					output += labelHtml;
+			}
 
 			switch (type) {
 					case 'textarea':
@@ -127,6 +135,7 @@ export class JSONFormRenderer {
 					case 'checkbox':
 							const checked = value === '1' || value === true || value === 'on' ? 'checked' : '';
 							output += `<input type="checkbox" id="${fieldId}" name="${name}" value="1" ${checked} ${requiredAttr} ${disabled} ${dependsOnAttr}>`;
+							output += labelHtml;
 							break;
 					case 'radio':
 							// Wrapped so the options lay out as a row. Bare inputs and labels
