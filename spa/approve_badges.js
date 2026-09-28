@@ -67,7 +67,7 @@ export class ApproveBadges {
           return `
             <div class="badge-request">
                 <h2>${badge.first_name} ${badge.last_name}</h2>
-                <p>${translate("badge_select_badge") || translate("badge")}: ${badgeLabel}</p>
+                <p>${translate("badge_select_badge") || translate("badge")}: ${escapeHTML(badgeLabel)}</p>
                 ${badge.badge_section ? `<p>${translate("badge_section_label") || translate("section") || "Section"}: ${badge.badge_section}</p>` : ""}
                 <p>${levelLabel}: ${badge.etoiles}</p>
                 <p>${translate("objectif")}: ${badge.objectif}</p>

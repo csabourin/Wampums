@@ -7,7 +7,7 @@ import {
 import { translate } from "./app.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { alert as showAlertDialog } from "./utils/DialogUtils.js";
-import { escapeHTML } from "./utils/SecurityUtils.js";
+import { escapeAttribute, escapeHTML } from "./utils/SecurityUtils.js";
 import { badgeLabel } from "./utils/BadgeLabelUtils.js";
 import { formatDate } from "./utils/DateUtils.js";
 import { openPrintWindow, setPrintContent } from "./utils/PrintUtils.js";
@@ -130,7 +130,7 @@ export class BadgeForm {
     return this.getTemplatesForSection()
       .map(
         (template) =>
-          `<option value="${template.id}">${this.getTemplateLabel(template)}</option>`,
+          `<option value="${template.id}">${escapeHTML(this.getTemplateLabel(template))}</option>`,
       )
       .join("");
   }
@@ -325,7 +325,7 @@ export class BadgeForm {
 
         return `
                 <div class="badge-item">
-                    ${imageName ? `<img src="/images/${imageName}" alt="${escapeHTML(label)}" class="badge-image">` : ""}
+                    ${imageName ? `<img src="/images/${imageName}" alt="${escapeAttribute(label)}" class="badge-image">` : ""}
                     <h3>${escapeHTML(label)}</h3>
                     <div class="stars">
                         ${this.renderStars(approvedLevels, pendingLevels, levelCount)}

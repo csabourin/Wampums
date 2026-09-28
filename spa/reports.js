@@ -1563,7 +1563,7 @@ export class Reports {
 					} else {
 						title = translate("badge_star") || translate("badge");
 						const levelLabel = translate("badge_level_label") || translate("badge_star_label") || translate("stars_count");
-						meta = `${event.badgeName || ""} · ${levelLabel} ${event.level || 0}${event.section ? ` · ${event.section}` : ""}`;
+						meta = `${escapeHTML(event.badgeName || "")} · ${levelLabel} ${event.level || 0}${event.section ? ` · ${event.section}` : ""}`;
 					}
 
 					return `

@@ -46,6 +46,7 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
 
 import {
   escapeHTML,
+  escapeAttribute,
   sanitizeHTML,
   sanitizeURL,
   sanitizeEmail,
@@ -55,6 +56,33 @@ import {
 } from '../../spa/utils/SecurityUtils.js';
 
 describe('SecurityUtils - XSS Prevention', () => {
+  describe('escapeAttribute', () => {
+    test('escapes quotes so a value cannot end its attribute', () => {
+      const input = 'Kaa" onerror="alert(1)';
+      const result = escapeAttribute(input);
+
+      expect(result).not.toContain('"');
+      expect(result).toBe('Kaa&quot; onerror=&quot;alert(1)');
+    });
+
+    test('escapes single quotes and markup', () => {
+      expect(escapeAttribute("<b>Frère Gris's</b>"))
+        .toBe('&lt;b&gt;Frère Gris&#39;s&lt;/b&gt;');
+    });
+
+    test('reads back unchanged through the DOM', () => {
+      const name = 'Débrouillard "comme" Kaa & <Bagheera>';
+      const div = document.createElement('div');
+      div.innerHTML = `<span data-name="${escapeAttribute(name)}"></span>`;
+
+      expect(div.firstChild.dataset.name).toBe(name);
+    });
+
+    test('returns an empty string for non-strings', () => {
+      expect(escapeAttribute(null)).toBe('');
+    });
+  });
+
   describe('escapeHTML', () => {
     test('escapes HTML special characters', () => {
       const input = '<script>alert("xss")</script>';

@@ -15,6 +15,7 @@ import {
 } from "./indexedDB.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { badgeLabel } from "./utils/BadgeLabelUtils.js";
+import { escapeAttribute, escapeHTML } from "./utils/SecurityUtils.js";
 import {
   canApproveBadges,
   canManageBadges,
@@ -449,12 +450,13 @@ export class BadgeDashboard extends BaseModule {
 
     const stars = this.renderBadgeStars(participantId, badge);
     const badgeImage = this.getBadgeImage(badge.name, badge);
+    const safeName = escapeAttribute(badge.name);
 
     return `
-      <div class="badge-chip-compact" data-participant-id="${participantId}" data-badge-name="${badge.name}" data-template-id="${badge.id || ""}">
-        ${badgeImage ? `<img src="${badgeImage}" alt="${badge.name}" class="badge-chip__image">` : ""}
+      <div class="badge-chip-compact" data-participant-id="${participantId}" data-badge-name="${safeName}" data-template-id="${badge.id || ""}">
+        ${badgeImage ? `<img src="${badgeImage}" alt="${safeName}" class="badge-chip__image">` : ""}
         <div class="badge-chip__content">
-          <div class="badge-chip__name">${badge.name}</div>
+          <div class="badge-chip__name">${safeName}</div>
           <div class="badge-chip__stars-compact" role="group" aria-label="${translate("badge_stars_label")}">${stars}</div>
           <div class="badge-chip__status">${statusLabel}</div>
           <div class="progress-compact" role="progressbar" aria-valuemin="0" aria-valuemax="${badge.obtainable}" aria-valuenow="${badge.stars}">
@@ -483,7 +485,7 @@ export class BadgeDashboard extends BaseModule {
           class="badge-star-button ${isEarned ? "is-earned" : "is-locked"}"
           data-action="star-details"
           data-participant-id="${participantId}"
-          data-badge-name="${badge.name}"
+          data-badge-name="${escapeAttribute(badge.name)}"
           data-template-id="${badge.id || ""}"
           data-star-index="${starIndex}"
           ${isEarned ? "" : "disabled"}
@@ -687,14 +689,14 @@ export class BadgeDashboard extends BaseModule {
     const badgeOptions = record.badges
       .map(
         (item) =>
-          `<option value="${item.id || item.name}" ${item.id === (badge?.id || badgeTemplateId) ? "selected" : ""}>${item.name}</option>`,
+          `<option value="${escapeAttribute(String(item.id || item.name))}" ${item.id === (badge?.id || badgeTemplateId) ? "selected" : ""}>${escapeHTML(item.name)}</option>`,
       )
       .join("");
 
     const templateOptions = availableTemplates
       .map(
         (template) =>
-          `<option value="${template.id}" ${template.id === (badge?.id || badgeTemplateId) ? "selected" : ""}>${this.getBadgeLabel(template)}</option>`,
+          `<option value="${template.id}" ${template.id === (badge?.id || badgeTemplateId) ? "selected" : ""}>${escapeHTML(this.getBadgeLabel(template))}</option>`,
       )
       .join("");
 

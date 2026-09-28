@@ -140,6 +140,20 @@ export function escapeHTML(str) {
 }
 
 /**
+ * Escape a string for use inside a double- or single-quoted HTML attribute.
+ *
+ * `escapeHTML()` serializes through `textContent`, which leaves quotes as they
+ * are: enough between tags, not inside `alt="…"`, where a `"` in the value ends
+ * the attribute.
+ *
+ * @param {string} str - String to escape
+ * @returns {string} Escaped string, safe in a quoted attribute value
+ */
+export function escapeAttribute(str) {
+  return escapeHTML(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/**
  * Sanitize and validate a URL
  * Only allows http, https, and mailto protocols
  *
