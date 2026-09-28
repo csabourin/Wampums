@@ -128,6 +128,9 @@ describe('GET /api/guardians', () => {
           ]
         });
       }
+      if (query.includes('FROM user_participants up')) {
+        return Promise.resolve({ rows: [] }); // No account has access to this child
+      }
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
     });
@@ -156,6 +159,9 @@ describe('GET /api/guardians', () => {
       if (query.includes('FROM participant_guardians pg')) {
         return Promise.resolve({ rows: [] }); // No guardians
       }
+      if (query.includes('FROM user_participants up')) {
+        return Promise.resolve({ rows: [] }); // No account has access to this child
+      }
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
     });
@@ -169,7 +175,7 @@ describe('GET /api/guardians', () => {
     expect(res.body.data).toEqual([]);
   });
 
-  test('requires guardians.view permission', async () => {
+  test('requires guardians.view permission, or access to the child', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: [] // No permission
@@ -178,6 +184,9 @@ describe('GET /api/guardians', () => {
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] }); // No permission found
+      }
+      if (query.includes('FROM user_participants up')) {
+        return Promise.resolve({ rows: [] }); // Not linked to this child
       }
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
@@ -425,7 +434,7 @@ describe('POST /api/guardians', () => {
     expect(updateCalled).toBe(true);
   });
 
-  test('requires guardians.manage permission', async () => {
+  test('requires guardians.manage permission, or access to the child', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: [] // No permission
@@ -434,6 +443,9 @@ describe('POST /api/guardians', () => {
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('FROM user_participants up')) {
+        return Promise.resolve({ rows: [] }); // Not linked to this child
       }
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
@@ -835,7 +847,7 @@ describe('Guardian Permission Enforcement', () => {
     expect(res2.status).toBe(200);
   });
 
-  test('user without permission cannot read guardians even if authenticated', async () => {
+  test('user without permission or access to the child cannot read guardians even if authenticated', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['participants.view'] // Different permission
@@ -844,6 +856,9 @@ describe('Guardian Permission Enforcement', () => {
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('FROM user_participants up')) {
+        return Promise.resolve({ rows: [] }); // Not linked to this child
       }
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;

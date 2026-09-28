@@ -10,12 +10,30 @@ import {
   saveParticipant,
   getGuardiansForParticipant,
   saveGuardian,
-  linkGuardianToParticipant,
   linkUserParticipants,
   linkParticipantToOrganization,
   getCurrentOrganizationId,
   fetchFromApi
 } from "./ajax-functions.js";
+
+/** The parent_guardian form's own columns; anything else is a unit's custom field. */
+const CORE_GUARDIAN_FIELDS = [
+  'nom', 'prenom', 'lien', 'courriel', 'telephone_residence', 'telephone_travail',
+  'telephone_cellulaire', 'is_primary', 'is_emergency_contact',
+];
+
+/**
+ * The fields a unit added to the parent_guardian form, from one guardian's
+ * form values.
+ *
+ * @param {Object} guardian - Values read from the guardian's form
+ * @returns {Object} Custom fields only
+ */
+function customFieldsOf(guardian) {
+  return Object.fromEntries(
+    Object.entries(guardian).filter(([key]) => !CORE_GUARDIAN_FIELDS.includes(key))
+  );
+}
 
 export class FormulaireInscription {
   constructor(app) {
@@ -104,7 +122,9 @@ export class FormulaireInscription {
 
     async fetchGuardianData() {
         try {
-            const guardianData = await getGuardiansForParticipant(this.participantId);
+            // The API answers { success, data }: the guardians are in data.
+            const response = await getGuardiansForParticipant(this.participantId, { includeAccountHolders: true });
+            const guardianData = Array.isArray(response) ? response : response?.data;
             if (Array.isArray(guardianData)) {
                 this.formData.guardians = guardianData;
             } else {
@@ -196,7 +216,9 @@ export class FormulaireInscription {
         telephone_cellulaire: '',
         is_primary: false,
         is_emergency_contact: false,
-        ...guardianData  // Overwrite defaults with actual data if present
+        ...guardianData,  // Overwrite defaults with actual data if present
+        // Fields the unit added to this form, saved on the child's submission.
+        ...(guardianData.custom_fields || {})
       };
 
       // Initialize the form handler with the correct index
@@ -306,6 +328,8 @@ export class FormulaireInscription {
       });
 
       try {
+        const isNewParticipant = !participantCoreData.id;
+
         // Step 1: Save participant core data
         const saveParticipantResult = await saveParticipant(participantCoreData);
         if (!saveParticipantResult.success) {
@@ -315,9 +339,12 @@ export class FormulaireInscription {
         const participantId = saveParticipantResult.participant_id || participantCoreData.id;
         this.participantId = participantId; // Update the current participantId
         debugLog("Participant saved with ID:", participantId);
-        //Step 1.5 Link the participant to the user
-        const result=await linkUserParticipants({participant_ids:[participantId]}) ;
-debugLog("linkUserParticipants result:",result);
+        // Step 1.5: Link a child just created to the account creating it. A child
+        // being edited is already reachable by whoever opened its form.
+        if (isNewParticipant) {
+          const result = await linkUserParticipants({ participant_ids: [participantId] });
+          debugLog("linkUserParticipants result:", result);
+        }
         // Step 2: Save the remaining fields in `form_submissions` for the participant
         const participantSubmissionData = { ...formSubmissionData };
         delete participantSubmissionData.guardians;
@@ -330,8 +357,11 @@ debugLog("linkUserParticipants result:",result);
         // Step 3: Save guardians and link them to the participant
         await this.saveGuardians(participantId, formSubmissionData.guardians);
 
-        // Step 4: Link participant to organization (if not already linked)
-        await this.linkParticipantToOrg(participantId);
+        // Step 4: Enrol a child just created in the unit. A child being edited is
+        // already enrolled, which is how its form could be opened.
+        if (isNewParticipant) {
+          await this.linkParticipantToOrg(participantId);
+        }
 
         debugLog("Participant and guardians saved successfully");
         this.showMessage(translate("form_saved_successfully"));
@@ -361,9 +391,17 @@ debugLog("linkUserParticipants result:",result);
     async saveGuardians(participantId, guardians) {
       if (guardians && guardians.length > 0) {
           debugLog("Guardians data before saving:", guardians);
-        for (let guardian of guardians) {
+
+        for (const [index, guardian] of guardians.entries()) {
+          // The form only holds the visible fields; which record it edits comes
+          // from what was loaded, so a save updates that record instead of
+          // trying to create a second one with the same address.
+          const loaded = this.formData.guardians?.[index] || {};
           const guardianData = {
             participant_id: participantId,
+            guardian_id: loaded.guardian_id || undefined,
+            // An entry offered from an account: the new record is theirs.
+            account_user_id: loaded.guardian_id ? undefined : (loaded.account_user_id || undefined),
             nom: guardian.nom,
             prenom: guardian.prenom,
             lien: guardian.lien,
@@ -372,7 +410,10 @@ debugLog("linkUserParticipants result:",result);
             telephone_travail: guardian.telephone_travail,
             telephone_cellulaire: guardian.telephone_cellulaire,
             is_primary: guardian.is_primary,
-            is_emergency_contact: guardian.is_emergency_contact
+            is_emergency_contact: guardian.is_emergency_contact,
+            // Fields the unit added to this form. The API keeps them on the
+            // child's submission, per guardian, in the same transaction.
+            custom_fields: customFieldsOf(guardian)
           };
 
           try {
@@ -382,27 +423,8 @@ debugLog("linkUserParticipants result:",result);
             }
             debugLog("Guardian saved successfully:", result);
 
-            // Link the guardian to the participant
-            await linkGuardianToParticipant(participantId, result.parent_id);
-
-            // If there are custom fields, save them using form submission
-            const guardianCustomFields = { ...guardian };
-            delete guardianCustomFields.nom;
-            delete guardianCustomFields.prenom;
-            delete guardianCustomFields.lien;
-            delete guardianCustomFields.courriel;
-            delete guardianCustomFields.telephone_residence;
-            delete guardianCustomFields.telephone_travail;
-            delete guardianCustomFields.telephone_cellulaire;
-            delete guardianCustomFields.is_primary;
-            delete guardianCustomFields.is_emergency_contact;
-
-            if (Object.keys(guardianCustomFields).length > 0) {
-              const guardianFormSubmissionResult = await saveFormSubmission('parent_guardian', result.parent_id, guardianCustomFields);
-              if (!guardianFormSubmissionResult.success) {
-                throw new Error("Error saving guardian custom fields: " + guardianFormSubmissionResult.message);
-              }
-            }
+            // Saving also links the guardian to the participant.
+            loaded.guardian_id = result.data?.guardian_id;
           } catch (error) {
             debugError("Error saving guardian:", error);
             throw error;
