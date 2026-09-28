@@ -197,6 +197,27 @@ describe('GET /api/v1/forms', () => {
     expect(res.status).toBe(403);
   });
 
+  test('a token still claiming forms.view is refused once the role has lost it', async () => {
+    const { __mClient, __mPool } = require('pg');
+    // Signed in while the role held forms.view; the database no longer grants it.
+    const token = generateToken({ permissions: ['forms.view', 'forms.manage'] });
+
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes('permission_key') && query.includes('user_organizations')) {
+        return Promise.resolve({ rows: [] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .get('/api/v1/forms')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body.required).toEqual(['forms.view', 'forms.manage']);
+    expect(res.body.missing).toEqual(['forms.view', 'forms.manage']);
+  });
+
   test('returns 401 without authentication', async () => {
     const res = await request(app)
       .get('/api/v1/forms');

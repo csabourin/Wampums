@@ -87,9 +87,14 @@ function meetingRow(overrides = {}) {
  * Standard permission/demo-role stubs every authenticated route hits first.
  * @param {string} query - SQL text
  * @param {string[]} permissions - Permission keys the user holds
+ * @param {Array} [params] - Query parameters; a lookup of one key answers for that key only
  * @returns {Promise|undefined} Stubbed result, or undefined to fall through
  */
-function authStubs(query, permissions = ALL_PERMISSIONS) {
+function authStubs(query, permissions = ALL_PERMISSIONS, params = []) {
+  if (query.includes('p.permission_key = $3') && params.length > 2) {
+    const held = permissions.includes(params[2]);
+    return Promise.resolve({ rows: held ? [{ '?column?': 1 }] : [] });
+  }
   if (query.includes('permission_key')) {
     return Promise.resolve({ rows: permissions.map(p => ({ permission_key: p })) });
   }
@@ -276,8 +281,8 @@ describe('POST /api/v1/yearly-planner/plans/:planId/meetings', () => {
     const { __mClient, __mPool } = require('pg');
     const permissions = ['meetings.view', 'meetings.manage', 'meetings.create'];
 
-    mockQueryImplementation(__mClient, __mPool, (query) => {
-      const stub = authStubs(query, permissions);
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      const stub = authStubs(query, permissions, params);
       if (stub) { return stub; }
       if (query.includes('FROM year_plans')) {
         return Promise.resolve({ rows: [{ id: PLAN_ID }] });
@@ -291,6 +296,33 @@ describe('POST /api/v1/yearly-planner/plans/:planId/meetings', () => {
     const res = await request(app)
       .post(`/api/v1/yearly-planner/plans/${PLAN_ID}/meetings`)
       .set('Authorization', `Bearer ${generateToken({ permissions })}`)
+      .send({ meeting_date: '2025-10-25', kind: 'weekend', theme: 'Sortie' })
+      .expect(201);
+
+    expect(res.body.data.activity_event_skipped).toBe('forbidden');
+    expect(clientQueries().some(q => q.includes('INSERT INTO activities'))).toBe(false);
+  });
+
+  test('a token still claiming activities.create does not create the outing once the role has lost it', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const held = ['meetings.view', 'meetings.manage', 'meetings.create'];
+
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      const stub = authStubs(query, held, params);
+      if (stub) { return stub; }
+      if (query.includes('FROM year_plans')) {
+        return Promise.resolve({ rows: [{ id: PLAN_ID }] });
+      }
+      if (query.includes('INSERT INTO year_plan_meetings')) {
+        return Promise.resolve({ rows: [meetingRow({ theme: 'Sortie', inserted: true })] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    // Signed in while the role held activities.create.
+    const res = await request(app)
+      .post(`/api/v1/yearly-planner/plans/${PLAN_ID}/meetings`)
+      .set('Authorization', `Bearer ${generateToken({ permissions: [...held, 'activities.create'] })}`)
       .send({ meeting_date: '2025-10-25', kind: 'weekend', theme: 'Sortie' })
       .expect(201);
 
