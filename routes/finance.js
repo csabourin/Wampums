@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, userHasPermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 
 function toNumeric(value) {
@@ -730,10 +730,11 @@ module.exports = (pool, logger) => {
       return error(res, 'Participant not found in this organization', 404);
     }
 
-    // Staff claims and organization scope come from the same signed JWT.
+    // Read from the database, not the JWT: a finance permission taken away
+    // since sign-in must stop opening other families' statements at once.
     // getOrganizationId ignores client-side organization overrides for
     // authenticated requests.
-    const isStaff = (req.user.permissions || []).includes('finance.view');
+    const isStaff = await userHasPermission(req, pool, organizationId, 'finance.view');
 
     if (!isStaff) {
       const guardianLink = await pool.query(

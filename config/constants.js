@@ -113,6 +113,24 @@ const CACHE = {
   CLEANUP_INTERVAL_MS: parseEnvInt(process.env.CACHE_CLEANUP_INTERVAL_MS, 5 * 60 * 1000),  // 5 minutes
 };
 
+/**
+ * Permissions over the unit's money as a whole.
+ *
+ * The finance and budget routes answer for every family in the unit; none of
+ * them filter by child. A role limited to its members' own children
+ * (data_scope 'linked') therefore cannot hold these: it would read every
+ * family's fees. A guardian's own statement and payments need none of them.
+ * Migration 010 removed them from such roles; role management refuses to add
+ * them back.
+ */
+const UNIT_FINANCE_PERMISSIONS = Object.freeze([
+  'finance.view',
+  'finance.manage',
+  'finance.approve',
+  'budget.view',
+  'budget.manage',
+]);
+
 module.exports = {
   RATE_LIMITS,
   FILE_LIMITS,
@@ -121,4 +139,5 @@ module.exports = {
   PAGINATION,
   SESSION,
   CACHE,
+  UNIT_FINANCE_PERMISSIONS,
 };
