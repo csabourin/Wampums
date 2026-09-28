@@ -291,10 +291,21 @@ a:focus-visible {
   cursor: pointer;
 }
 
+/* Tapped to call or write, often on a phone in a hurry: each link is a full
+   touch target (WCAG 2.5.8, and the project's 44px rule) while staying in
+   the line of text around it. */
+.phone-link,
 .email-link {
-  /* Comfortable tap target without breaking the inline flow. */
-  display: inline-block;
-  padding-block: var(--space-xs);
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--touch-target-min);
+  min-inline-size: var(--touch-target-min);
+  vertical-align: middle;
+}
+
+.email-link {
+  /* Addresses can be long; keep them inside narrow cards. */
+  overflow-wrap: anywhere;
 }
 
 @media (hover: hover) and (pointer: fine) {
