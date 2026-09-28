@@ -597,11 +597,19 @@ module.exports = (pool, logger) => {
    *         description: Submissions waiting for a review
    */
   router.get('/submissions/needs-review', authenticate,
-    requireAnyPermission('forms.view', 'forms.submit', 'forms.manage'),
     asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const dataScope = await getUserDataScope(req, pool);
     const isStaff = dataScope === 'organization';
+
+    // A unit-wide forms permission covers every form type; otherwise, only the
+    // form types the unit let one of the account's roles view.
+    let viewableTypes = null;
+    if (!(await holdsAnyPermission(req.user.id, organizationId, FORM_READ_PERMISSIONS))) {
+      const membership = await verifyOrganizationMembership(pool, req.user.id, organizationId);
+      const formRights = await getFormPermissionsForRoles(pool, organizationId, membership.roles || []);
+      viewableTypes = Object.keys(formRights).filter((formType) => formRights[formType].can_view);
+    }
 
     const result = await pool.query(
       `SELECT fs.id,
@@ -625,8 +633,9 @@ module.exports = (pool, logger) => {
                 SELECT 1 FROM user_participants up
                  WHERE up.user_id = $3 AND up.participant_id = fs.participant_id
               ))
+          AND ($4::text[] IS NULL OR fs.form_type = ANY($4::text[]))
         ORDER BY p.first_name, p.last_name, off.display_order NULLS LAST, fs.form_type`,
-      [organizationId, isStaff, req.user.id]
+      [organizationId, isStaff, req.user.id, viewableTypes]
     );
 
     return success(res, result.rows);
@@ -653,7 +662,6 @@ module.exports = (pool, logger) => {
    *         description: Submission not found
    */
   router.post('/submissions/:submissionId/confirm-review', authenticate, blockDemoRoles,
-    requireAnyPermission('forms.view', 'forms.submit', 'forms.manage'),
     asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const submissionId = parseInt(req.params.submissionId, 10);
@@ -687,6 +695,18 @@ module.exports = (pool, logger) => {
         return error(res, 'You do not have permission to review this form type', 403);
       }
     } else {
+      // A family confirms its own children's forms, on a form type it may
+      // fill: a unit-wide forms permission, or the submit or edit right the
+      // unit gave one of its roles on that form.
+      const membership = await verifyOrganizationMembership(pool, req.user.id, organizationId);
+      const userRoles = membership.roles || [];
+      const mayConfirm = await holdsAnyPermission(req.user.id, organizationId, FORM_READ_PERMISSIONS)
+        || await checkFormPermission(pool, organizationId, userRoles, formType, 'submit')
+        || await checkFormPermission(pool, organizationId, userRoles, formType, 'edit');
+      if (!mayConfirm) {
+        return error(res, 'You do not have permission to review this form type', 403);
+      }
+
       const accessCheck = await pool.query(
         'SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2',
         [req.user.id, participantId]

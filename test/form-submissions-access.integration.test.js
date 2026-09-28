@@ -5,7 +5,8 @@
  * may typically view, submit and edit the health form. Those rights are about
  * the form type; they are never a right over every child's copy. A family reads,
  * saves and deletes the forms of its own children only, and reads back what it
- * saved. Setting a review status is a reviewer's act.
+ * saved, and confirms them after a year transition. Setting a review status is
+ * a reviewer's act.
  *
  * Skipped unless SCOUT_YEAR_TEST_DATABASE_URL (or TEST_DATABASE_URL) points at
  * a disposable database holding the project schema and permission catalog.
@@ -345,6 +346,47 @@ describe.skipIf(!DATABASE_URL)('Form submissions of a child', () => {
       .send({ submission_id: ids.noeSubmission, status: 'approved' });
     expect(approved.status).toBe(200);
     expect(await one('SELECT status FROM form_submissions WHERE id = $1', [ids.noeSubmission])).toBe('approved');
+  });
+
+  test('a parent sees and confirms their own child\'s forms waiting for a re-read, and only those', async () => {
+    await pool.query(
+      `UPDATE form_submissions SET review_state = 'needs_review', flagged_for_review_at = now()
+        WHERE organization_id = $1 AND participant_id = ANY($2::int[]) AND form_type = $3`,
+      [ids.unit, [ids.lea, ids.noe], HEALTH_FORM]
+    );
+    const leaSubmission = await one(
+      'SELECT id FROM form_submissions WHERE participant_id = $1 AND form_type = $2',
+      [ids.lea, HEALTH_FORM]
+    );
+
+    const waiting = await request(app)
+      .get('/api/v1/forms/submissions/needs-review')
+      .set(signedIn(ids.alice));
+    expect(waiting.status).toBe(200);
+    expect(waiting.body.data.map((row) => row.participant_id)).toEqual([ids.lea]);
+
+    // No right on the form type: nothing listed, and nothing to confirm.
+    const noRight = await request(app)
+      .get('/api/v1/forms/submissions/needs-review')
+      .set(signedIn(ids.dana));
+    expect(noRight.status).toBe(200);
+    expect(noRight.body.data).toEqual([]);
+    const refusedConfirm = await request(app)
+      .post(`/api/v1/forms/submissions/${leaSubmission}/confirm-review`)
+      .set(signedIn(ids.dana));
+    expect(refusedConfirm.status).toBe(403);
+
+    const otherFamily = await request(app)
+      .post(`/api/v1/forms/submissions/${ids.noeSubmission}/confirm-review`)
+      .set(signedIn(ids.alice));
+    expect(otherFamily.status).toBe(403);
+    expect(await one('SELECT review_state FROM form_submissions WHERE id = $1', [ids.noeSubmission])).toBe('needs_review');
+
+    const confirmed = await request(app)
+      .post(`/api/v1/forms/submissions/${leaSubmission}/confirm-review`)
+      .set(signedIn(ids.alice));
+    expect(confirmed.status).toBe(200);
+    expect(await one('SELECT review_state FROM form_submissions WHERE id = $1', [leaSubmission])).toBe('current');
   });
 
   test('no one saves a form for a child who is not enrolled in the unit', async () => {
