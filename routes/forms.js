@@ -41,14 +41,6 @@ module.exports = (pool, logger) => {
   };
 
 
-  const hasAnyPermission = (req, required = []) => {
-    const granted = Array.isArray(req?.user?.permissions) ? req.user.permissions : [];
-    if (required.length === 0) {
-      return true;
-    }
-    return required.some((perm) => granted.includes(perm));
-  };
-
   /**
    * Resolve an enrolled participant for a form request while respecting the
    * authenticated user's organization or participant-level data scope.
@@ -81,11 +73,8 @@ module.exports = (pool, logger) => {
   };
 
   // Compatibility REST endpoints used by comprehensive API tests
-  router.get('/', authenticate, asyncHandler(async (req, res) => {
+  router.get('/', authenticate, requireAnyPermission('forms.view', 'forms.manage'), asyncHandler(async (req, res) => {
     try {
-      if (!hasAnyPermission(req, ['forms.view', 'forms.manage'])) {
-        return error(res, 'Forbidden', 403);
-      }
       const organizationId = await getOrganizationId(req, pool);
       const { type } = req.query;
 
@@ -159,11 +148,8 @@ module.exports = (pool, logger) => {
     }
   }));
 
-  router.post('/', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.post('/', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
     try {
-      if (!hasAnyPermission(req, ['forms.manage'])) {
-        return error(res, 'Forbidden', 403);
-      }
       const organizationId = await getOrganizationId(req, pool);
       const { name, type, schema } = req.body || {};
 
@@ -1650,11 +1636,8 @@ module.exports = (pool, logger) => {
 
   // ---- Parameterized /:id routes MUST be last to avoid shadowing literal paths ----
 
-  router.get('/:id', authenticate, asyncHandler(async (req, res) => {
+  router.get('/:id', authenticate, requireAnyPermission('forms.view', 'forms.manage'), asyncHandler(async (req, res) => {
     try {
-      if (!hasAnyPermission(req, ['forms.view', 'forms.manage'])) {
-        return error(res, 'Forbidden', 403);
-      }
       const organizationId = await getOrganizationId(req, pool);
       const formId = Number.parseInt(req.params.id, 10);
 
@@ -1683,11 +1666,8 @@ module.exports = (pool, logger) => {
     }
   }));
 
-  router.post('/:id/submit', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.post('/:id/submit', authenticate, blockDemoRoles, requireAnyPermission('forms.submit', 'forms.manage'), asyncHandler(async (req, res) => {
     try {
-      if (!hasAnyPermission(req, ['forms.submit', 'forms.manage'])) {
-        return error(res, 'Forbidden', 403);
-      }
       const organizationId = await getOrganizationId(req, pool);
       const formId = Number.parseInt(req.params.id, 10);
       const { participant_id, data } = req.body || {};
@@ -1738,11 +1718,8 @@ module.exports = (pool, logger) => {
     }
   }));
 
-  router.get('/:id/submissions', authenticate, asyncHandler(async (req, res) => {
+  router.get('/:id/submissions', authenticate, requireAnyPermission('forms.view', 'forms.manage'), asyncHandler(async (req, res) => {
     try {
-      if (!hasAnyPermission(req, ['forms.view', 'forms.manage'])) {
-        return error(res, 'Forbidden', 403);
-      }
       const organizationId = await getOrganizationId(req, pool);
       const formId = Number.parseInt(req.params.id, 10);
       const { status } = req.query;
@@ -1772,11 +1749,8 @@ module.exports = (pool, logger) => {
     }
   }));
 
-  router.put('/:id/submissions/:submissionId/approve', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.put('/:id/submissions/:submissionId/approve', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
     try {
-      if (!hasAnyPermission(req, ['forms.manage'])) {
-        return error(res, 'Forbidden', 403);
-      }
       const organizationId = await getOrganizationId(req, pool);
       const formId = Number.parseInt(req.params.id, 10);
       const submissionId = Number.parseInt(req.params.submissionId, 10);

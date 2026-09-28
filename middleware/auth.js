@@ -509,10 +509,13 @@ exports.requireAnyPermission = (...permissions) => {
         [req.user.id, organizationId, requiredPermissions]
       );
       if (result.rows.length === 0) {
+        // Holding any one would do, so every one of them is missing.
         return res.status(403).json({
           success: false,
           message: 'Insufficient permissions',
-          requiredAny: requiredPermissions
+          requiredAny: requiredPermissions,
+          required: requiredPermissions,
+          missing: requiredPermissions
         });
       }
       req.userPermissions = result.rows.map(row => row.permission_key);

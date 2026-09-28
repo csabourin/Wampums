@@ -3169,6 +3169,7 @@
   "upcoming_short": "this week",
   "dashboard_next_meeting_eyebrow": "Next meeting",
   "access_denied": "Access denied",
+  "access_updated": "Your access has changed since you signed in. This page now reflects it.",
   "add": "Add",
   "add_guardian": "Add a guardian",
   "assign_roles_to_users": "Assign roles to users",
