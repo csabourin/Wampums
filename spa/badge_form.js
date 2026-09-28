@@ -253,21 +253,21 @@ export class BadgeForm {
         </head>
         <body>
           <h1>${translate("badge_application_form")}</h1>
-          <h2>${this.participant ? `${this.participant.first_name} ${this.participant.last_name}` : translate("participant_name")}</h2>
+          <h2>${this.participant ? escapeHTML(`${this.participant.first_name} ${this.participant.last_name}`) : translate("participant_name")}</h2>
 
           <div class="form-field">
             <label>${translate("badge_select_badge") || translate("badge")}:</label>
-            <div class="input-line">${this.formData.badge_template_label || ""}</div>
+            <div class="input-line">${escapeHTML(this.formData.badge_template_label || "")}</div>
           </div>
 
           <div class="form-field">
             <label>${translate("objectif_proie")}:</label>
-            <div class="input-line long-input">${this.formData.objectif || ""}</div>
+            <div class="input-line long-input">${escapeHTML(this.formData.objectif || "")}</div>
           </div>
 
           <div class="form-field">
             <label>${translate("description")}:</label>
-            <div class="input-line long-input">${this.formData.description || ""}</div>
+            <div class="input-line long-input">${escapeHTML(this.formData.description || "")}</div>
           </div>
 
           <div class="form-field checkbox-field">
@@ -277,12 +277,12 @@ export class BadgeForm {
 
           <div class="form-field">
             <label>${translate("raison")}:</label>
-            <div class="input-line long-input">${this.formData.raison || ""}</div>
+            <div class="input-line long-input">${escapeHTML(this.formData.raison || "")}</div>
           </div>
 
           <div class="form-field">
             <label>${translate("date_obtention")}:</label>
-            <div class="input-line">${this.formData.date_obtention || ""}</div>
+            <div class="input-line">${escapeHTML(this.formData.date_obtention || "")}</div>
           </div>
 
           <div class="form-field">
