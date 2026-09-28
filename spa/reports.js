@@ -26,6 +26,7 @@ import {
 	getFinanceReport,
 } from "./ajax-functions.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { badgeLabel } from "./utils/BadgeLabelUtils.js";
 import { openPrintWindow, setPrintContent } from "./utils/PrintUtils.js";
 import { formatDateShort, isoToDateString } from "./utils/DateUtils.js";
 import { canViewReports, isParent } from "./utils/PermissionUtils.js";
@@ -1541,7 +1542,7 @@ export class Reports {
 				...(progressData.badges || []).map((item) => ({
 					type: "badge",
 					date: item.date,
-					badgeName: translate(item.translation_key) || item.badge_name || item.territoire_chasse,
+					badgeName: badgeLabel(item),
 					level: item.etoiles,
 					section: item.badge_section,
 				})),
@@ -1562,7 +1563,7 @@ export class Reports {
 					} else {
 						title = translate("badge_star") || translate("badge");
 						const levelLabel = translate("badge_level_label") || translate("badge_star_label") || translate("stars_count");
-						meta = `${event.badgeName || ""} · ${levelLabel} ${event.level || 0}${event.section ? ` · ${event.section}` : ""}`;
+						meta = `${escapeHTML(event.badgeName || "")} · ${levelLabel} ${event.level || 0}${event.section ? ` · ${event.section}` : ""}`;
 					}
 
 					return `

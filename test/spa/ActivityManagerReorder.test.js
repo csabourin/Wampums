@@ -18,15 +18,19 @@ jest.mock('../../spa/config.js', () => ({
   }
 }));
 
-jest.mock('../../spa/utils/SecurityUtils.js', () => ({
-  sanitizeHTML: (value) => value,
-  escapeHTML: (value) => String(value ?? '')
+jest.mock('../../spa/utils/SecurityUtils.js', () => {
+  const escape = (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}));
+    .replace(/'/g, '&#39;');
+  return {
+    sanitizeHTML: (value) => value,
+    escapeHTML: escape,
+    escapeAttribute: escape
+  };
+});
 
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn(),

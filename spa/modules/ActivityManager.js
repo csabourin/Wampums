@@ -3,7 +3,8 @@ import { CONFIG } from "../config.js";
 import { getSectionActivityTemplates } from "../utils/meetingSections.js";
 import { setContent } from "../utils/DOMUtils.js";
 import { debugLog, debugWarn } from "../utils/DebugUtils.js";
-import { escapeHTML } from "../utils/SecurityUtils.js";
+import { escapeAttribute, escapeHTML } from "../utils/SecurityUtils.js";
+import { badgeLabel } from "../utils/BadgeLabelUtils.js";
 import { AchievementModal } from "./AchievementModal.js";
 
 /**
@@ -1031,7 +1032,7 @@ export class ActivityManager {
                         (t) => String(t.id) === String(badgeId),
                 );
                 const badgeName = badge
-                        ? translate(badge.translation_key) || badge.name
+                        ? badgeLabel(badge)
                         : translate("no_badge_selected") || "No badge selected";
                 const badgeImage = badge?.image || badge?.image_url || "";
 
@@ -1059,9 +1060,9 @@ export class ActivityManager {
 
                 return `
                         <div class="achievement-summary__content">
-                                ${badgeImage ? `<img src="/assets/images/${badgeImage}" alt="${badgeName}" class="achievement-summary__image" />` : ""}
+                                ${badgeImage ? `<img src="/assets/images/${badgeImage}" alt="${escapeAttribute(badgeName)}" class="achievement-summary__image" />` : ""}
                                 <div class="achievement-summary__details">
-                                        <span class="achievement-summary__badge">${badgeName}</span>
+                                        <span class="achievement-summary__badge">${escapeHTML(badgeName)}</span>
                                         <span class="achievement-summary__type">(${typeLabel})</span>
                                         ${participantNames ? `<span class="achievement-summary__participants">→ ${participantNames}</span>` : ""}
                                 </div>

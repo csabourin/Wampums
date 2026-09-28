@@ -38,6 +38,7 @@ import {
 } from '../components';
 import DateUtils from '../utils/DateUtils';
 import SecurityUtils from '../utils/SecurityUtils';
+import { badgeLabel } from '../utils/BadgeLabelUtils';
 
 const BadgeFormScreen = ({ route, navigation }) => {
   const { participantId } = route.params || {};
@@ -121,10 +122,7 @@ const BadgeFormScreen = ({ route, navigation }) => {
     return (templates || []).find((template) => template.id === normalizedId);
   };
 
-  const getTemplateLabel = (template) => {
-    if (!template) return t('badge_unknown_label');
-    return t(template.translation_key) || template.name || t('badge_unknown_label');
-  };
+  const getTemplateLabel = (template) => badgeLabel(template);
 
   const handleFieldChange = (field, value) => {
     setFormData((prev) => ({

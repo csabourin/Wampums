@@ -619,7 +619,10 @@ export class ParentDashboard {
                                         `${form.first_name} ${form.last_name}`,
                                 );
                                 const label = escapeHTML(
-                                        form.display_name || form.form_type,
+                                        formTypeLabel(
+                                                form.form_type,
+                                                form.display_name,
+                                        ),
                                 );
                                 return `
                                         <li class="form-review__item" data-submission-id="${form.id}">

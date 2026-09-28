@@ -33,6 +33,7 @@ import {
 import { canApproveBadges } from '../utils/PermissionUtils';
 import DateUtils from '../utils/DateUtils';
 import { debugLog, debugError } from '../utils/DebugUtils';
+import { badgeLabel } from '../utils/BadgeLabelUtils';
 
 const ApproveBadgesScreen = () => {
   const navigation = useNavigation();
@@ -98,14 +99,7 @@ const ApproveBadgesScreen = () => {
     setRefreshing(false);
   };
 
-  const getBadgeLabel = (badge) => {
-    return (
-      t(badge.translation_key) ||
-      badge.badge_name ||
-      badge.territoire_chasse ||
-      t('badge_unknown_label')
-    );
-  };
+  const getBadgeLabel = (badge) => badgeLabel(badge);
 
   const handleActionPress = (badge, action) => {
     setSelectedBadge(badge);

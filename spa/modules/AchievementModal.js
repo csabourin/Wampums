@@ -1,5 +1,6 @@
 import { translate } from "../app.js";
-import { escapeHTML } from "../utils/SecurityUtils.js";
+import { escapeAttribute, escapeHTML } from "../utils/SecurityUtils.js";
+import { badgeLabel } from "../utils/BadgeLabelUtils.js";
 import { debugLog } from "../utils/DebugUtils.js";
 import { setContent, insertHTML } from "../utils/DOMUtils.js";
 
@@ -106,19 +107,16 @@ export class AchievementModal {
                 const isSelected =
                     String(badge.id) === String(this.selectedBadgeId);
                 const imageUrl = badge.image || badge.image_url || "";
-                const badgeName =
-                    translate(badge.translation_key) ||
-                    badge.name ||
-                    translate("badge_unknown_label");
+                const badgeName = badgeLabel(badge);
 
                 return `
                                 <button type="button" 
                                         class="achievement-badge-card ${isSelected ? "selected" : ""}" 
                                         data-badge-id="${badge.id}"
-                                        title="${escapeHTML(badgeName)}">
+                                        title="${escapeAttribute(badgeName)}">
                                         ${
                                             imageUrl
-                                                ? `<img src="/assets/images/${escapeHTML(imageUrl)}" alt="${escapeHTML(badgeName)}" class="achievement-badge-card__image" />`
+                                                ? `<img src="/assets/images/${escapeHTML(imageUrl)}" alt="${escapeAttribute(badgeName)}" class="achievement-badge-card__image" />`
                                                 : `<div class="achievement-badge-card__placeholder">★</div>`
                                         }
                                         <span class="achievement-badge-card__name">${escapeHTML(badgeName)}</span>

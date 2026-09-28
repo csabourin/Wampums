@@ -7,7 +7,9 @@ import {
 import { translate } from "./app.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { alert as showAlertDialog } from "./utils/DialogUtils.js";
-import { escapeHTML } from "./utils/SecurityUtils.js";
+import { escapeAttribute, escapeHTML } from "./utils/SecurityUtils.js";
+import { badgeLabel } from "./utils/BadgeLabelUtils.js";
+import { formatDate } from "./utils/DateUtils.js";
 import { openPrintWindow, setPrintContent } from "./utils/PrintUtils.js";
 import {
   getBadgeProgress,
@@ -81,12 +83,7 @@ export class BadgeForm {
   }
 
   getTemplateLabel(template) {
-    if (!template) return translate("badge_unknown_label");
-    return (
-      translate(template.translation_key) ||
-      template.name ||
-      translate("badge_unknown_label")
-    );
+    return badgeLabel(template);
   }
 
   async fetchParticipant(participantId) {
@@ -133,7 +130,7 @@ export class BadgeForm {
     return this.getTemplatesForSection()
       .map(
         (template) =>
-          `<option value="${template.id}">${this.getTemplateLabel(template)}</option>`,
+          `<option value="${template.id}">${escapeHTML(this.getTemplateLabel(template))}</option>`,
       )
       .join("");
   }
@@ -256,21 +253,21 @@ export class BadgeForm {
         </head>
         <body>
           <h1>${translate("badge_application_form")}</h1>
-          <h2>${this.participant ? `${this.participant.first_name} ${this.participant.last_name}` : translate("participant_name")}</h2>
+          <h2>${this.participant ? escapeHTML(`${this.participant.first_name} ${this.participant.last_name}`) : translate("participant_name")}</h2>
 
           <div class="form-field">
             <label>${translate("badge_select_badge") || translate("badge")}:</label>
-            <div class="input-line">${this.formData.badge_template_label || ""}</div>
+            <div class="input-line">${escapeHTML(this.formData.badge_template_label || "")}</div>
           </div>
 
           <div class="form-field">
             <label>${translate("objectif_proie")}:</label>
-            <div class="input-line long-input">${this.formData.objectif || ""}</div>
+            <div class="input-line long-input">${escapeHTML(this.formData.objectif || "")}</div>
           </div>
 
           <div class="form-field">
             <label>${translate("description")}:</label>
-            <div class="input-line long-input">${this.formData.description || ""}</div>
+            <div class="input-line long-input">${escapeHTML(this.formData.description || "")}</div>
           </div>
 
           <div class="form-field checkbox-field">
@@ -280,12 +277,12 @@ export class BadgeForm {
 
           <div class="form-field">
             <label>${translate("raison")}:</label>
-            <div class="input-line long-input">${this.formData.raison || ""}</div>
+            <div class="input-line long-input">${escapeHTML(this.formData.raison || "")}</div>
           </div>
 
           <div class="form-field">
             <label>${translate("date_obtention")}:</label>
-            <div class="input-line">${this.formData.date_obtention || ""}</div>
+            <div class="input-line">${escapeHTML(this.formData.date_obtention || "")}</div>
           </div>
 
           <div class="form-field">
@@ -324,11 +321,12 @@ export class BadgeForm {
         const latestEntry = this.getLatestEntry(approvedEntries);
         const imageName =
           template.image || this.getTerritoireImage(template.name);
+        const label = this.getTemplateLabel(template);
 
         return `
                 <div class="badge-item">
-                    ${imageName ? `<img src="/images/${imageName}" alt="${this.getTemplateLabel(template)}" class="badge-image">` : ""}
-                    <h3>${this.getTemplateLabel(template)}</h3>
+                    ${imageName ? `<img src="/images/${imageName}" alt="${escapeAttribute(label)}" class="badge-image">` : ""}
+                    <h3>${escapeHTML(label)}</h3>
                     <div class="stars">
                         ${this.renderStars(approvedLevels, pendingLevels, levelCount)}
                     </div>
@@ -380,8 +378,8 @@ export class BadgeForm {
 
   renderBadgeDetails(badge) {
     return `
-            <p>${translate("badge_select_badge") || translate("badge")}: ${badge.badge_name || badge.territoire_chasse || ""}</p>
-            <p>${translate("date")}: ${badge.date_obtention}</p>
+            <p>${translate("badge_select_badge") || translate("badge")}: ${escapeHTML(badgeLabel(badge))}</p>
+            <p>${translate("date")}: ${escapeHTML(formatDate(badge.date_obtention, this.app?.lang || "fr"))}</p>
             <details>
                 <summary>${translate("details")}</summary>
                 <p>${translate("objectif")}: ${badge.objectif}</p>
