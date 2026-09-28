@@ -10,7 +10,8 @@
 -- This links, for each account with access to a child, the contact record
 -- that belongs to that account, when there is one and it is not linked yet.
 -- The record is the one the Parent/Guardian form now offers for that account:
--- tied to it by user_uuid first, then by the older guardian_users mapping,
+-- tied to it by user_uuid first, then by the older guardian_users mapping
+-- (only where no other account owns it by user_uuid),
 -- then by the account's own address on a record no other account claims
 -- (neither by user_uuid nor through guardian_users).
 --
@@ -28,7 +29,10 @@ FROM user_participants up
 JOIN users u ON u.id = up.user_id
 JOIN parents_guardians g
   ON g.user_uuid = u.id
-  OR EXISTS (SELECT 1 FROM guardian_users gu WHERE gu.guardian_id = g.id AND gu.user_id = u.id)
+  -- The older mapping counts only on a record no other account owns by
+  -- user_uuid: an address reused by a newer account can leave both.
+  OR ((g.user_uuid IS NULL OR g.user_uuid = u.id)
+      AND EXISTS (SELECT 1 FROM guardian_users gu WHERE gu.guardian_id = g.id AND gu.user_id = u.id))
   OR (g.user_uuid IS NULL
       AND lower(g.courriel) = lower(u.email)
       AND NOT EXISTS (
@@ -51,7 +55,8 @@ WHERE EXISTS (
     JOIN parents_guardians lg ON lg.id = linked.guardian_id
     WHERE linked.participant_id = up.participant_id
       AND (lg.user_uuid = u.id
-           OR EXISTS (SELECT 1 FROM guardian_users lgu WHERE lgu.guardian_id = lg.id AND lgu.user_id = u.id)
+           OR ((lg.user_uuid IS NULL OR lg.user_uuid = u.id)
+               AND EXISTS (SELECT 1 FROM guardian_users lgu WHERE lgu.guardian_id = lg.id AND lgu.user_id = u.id))
            -- An address alone, only on a linked record no other account owns.
            OR (lower(lg.courriel) = lower(u.email)
                AND (lg.user_uuid IS NULL OR lg.user_uuid = u.id)

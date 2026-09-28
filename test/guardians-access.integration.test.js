@@ -457,6 +457,33 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
     expect(offered).toMatchObject({ guardian_id: null, prenom: 'Address', courriel: null });
   });
 
+  test('a guardian_users mapping to a record another account owns hands nothing over', async () => {
+    const family = await one('SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1', [ids.alice.id]);
+    // What upsertGuardianContact leaves after an address is reused: the former
+    // owner keeps user_uuid, the newer account gets a guardian_users row.
+    const former = await member('Former Holder', Number(family));
+    const newer = await member('Newer Holder', Number(family));
+    const formerRecord = await one(
+      `INSERT INTO parents_guardians (nom, prenom, courriel, telephone_cellulaire, user_uuid)
+       VALUES ('Holder', 'Former', $1, '819-555-0177', $2) RETURNING id`,
+      [`reused-${suffix}@example.test`, former.id]
+    );
+    await pool.query('INSERT INTO guardian_users (guardian_id, user_id) VALUES ($1, $2)', [formerRecord, newer.id]);
+    await grantParticipantAccess(pool, { participantId: ids.lea, userId: newer.id, sourceType: ACCESS_SOURCE.DIRECT });
+
+    const listed = await as(ids.alice.id).get('/api/v1/guardians')
+      .query({ participant_id: ids.lea, include_account_holders: 'true' });
+    const offered = listed.body.data.find((g) => g.account_user_id === newer.id);
+    expect(offered).toMatchObject({ guardian_id: null, prenom: 'Newer' });
+    expect(offered.telephone_cellulaire).toBeFalsy();
+
+    const write = await as(newer.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea, guardian_id: formerRecord, nom: 'Taken', prenom: 'Over',
+    });
+    expect(write.status).toBe(403);
+    expect(await one('SELECT nom FROM parents_guardians WHERE id = $1', [formerRecord])).toBe('Holder');
+  });
+
   test('a guardian_id of 0 is refused, not taken as "no guardian"', async () => {
     const name = `Zero-${suffix}`;
     const response = await as(ids.alice.id).post('/api/v1/guardians').send({

@@ -128,7 +128,8 @@ module.exports = (pool) => {
                 JOIN parents_guardians lg ON lg.id = linked.guardian_id
                 WHERE linked.participant_id = up.participant_id
                   AND (lg.user_uuid = u.id
-                       OR EXISTS (SELECT 1 FROM guardian_users lgu WHERE lgu.guardian_id = lg.id AND lgu.user_id = u.id)
+                       OR ((lg.user_uuid IS NULL OR lg.user_uuid = u.id)
+                           AND EXISTS (SELECT 1 FROM guardian_users lgu WHERE lgu.guardian_id = lg.id AND lgu.user_id = u.id))
                        OR (lower(lg.courriel) = lower(u.email)
                            AND (lg.user_uuid IS NULL OR lg.user_uuid = u.id)
                            AND NOT EXISTS (
@@ -152,7 +153,10 @@ module.exports = (pool) => {
          SELECT pg.*
          FROM parents_guardians pg
          WHERE pg.user_uuid = u.id
-            OR EXISTS (SELECT 1 FROM guardian_users gu WHERE gu.guardian_id = pg.id AND gu.user_id = u.id)
+            -- The older mapping counts only on a record no other account owns
+            -- by user_uuid: an address reused by a newer account leaves both.
+            OR ((pg.user_uuid IS NULL OR pg.user_uuid = u.id)
+                AND EXISTS (SELECT 1 FROM guardian_users gu WHERE gu.guardian_id = pg.id AND gu.user_id = u.id))
             -- An address alone counts only on a record no other account
             -- claims: an address can move to another account.
             OR (lower(pg.courriel) = lower(u.email)
@@ -396,7 +400,8 @@ module.exports = (pool) => {
              ON uo.user_id = u.id AND uo.organization_id = $3 AND uo.status = 'active'
            WHERE g.id = $1
              AND (g.user_uuid = u.id
-                  OR EXISTS (SELECT 1 FROM guardian_users gu WHERE gu.guardian_id = g.id AND gu.user_id = u.id)
+                  OR ((g.user_uuid IS NULL OR g.user_uuid = u.id)
+                      AND EXISTS (SELECT 1 FROM guardian_users gu WHERE gu.guardian_id = g.id AND gu.user_id = u.id))
                   OR (lower(g.courriel) = lower(u.email)
                       AND (g.user_uuid IS NULL OR g.user_uuid = u.id)
                       AND NOT EXISTS (
