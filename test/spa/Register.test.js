@@ -113,3 +113,17 @@ test('shows translated success feedback', async () => {
   expect(success.textContent).toBe('Account created');
   expect(document.getElementById('error-message').classList.contains('hidden')).toBe(true);
 });
+
+test('tags the account fields so password managers save the email as the username', () => {
+  new Register({ router: { route: jest.fn() } }).render();
+
+  expect(document.getElementById('email').getAttribute('autocomplete')).toBe('username');
+  expect(document.getElementById('password').getAttribute('autocomplete')).toBe('new-password');
+  expect(document.getElementById('confirm_password').getAttribute('autocomplete')).toBe('new-password');
+
+  // The unit's shared creation code is not the person's password.
+  const unitCode = document.getElementById('account_creation_password');
+  expect(unitCode.getAttribute('autocomplete')).toBe('off');
+  expect(unitCode.hasAttribute('data-1p-ignore')).toBe(true);
+  expect(unitCode.getAttribute('data-lpignore')).toBe('true');
+});

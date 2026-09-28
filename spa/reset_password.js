@@ -2,38 +2,134 @@ import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { getApiUrl } from "./ajax-functions.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
+/** Status the server answers with when a reset token is invalid or expired. */
+const HTTP_BAD_REQUEST = 400;
+/** How long the reset form waits to learn which account a link belongs to. */
+const RESET_LINK_LOOKUP_TIMEOUT_MS = 8000;
+
 export class ResetPassword {
 	constructor(app) {
 		this.app = app;
 	}
 
-	render(token = null, error = null) {
+	/**
+	 * Render the page. With a token, the form is shown at once; the account the
+	 * link belongs to is then looked up and its address added as the username,
+	 * so password managers save the new password against it instead of guessing.
+	 * That lookup is an enhancement: a slow or failed one never holds up the form.
+	 *
+	 * @param {string|null} token - Reset token from the emailed link
+	 * @param {string|null} error - Translation key of an error to show
+	 * @returns {Promise<void>} Settles once the address lookup is done
+	 */
+	async render(token = null, error = null) {
+		this.renderPage(token, error);
+		if (token) {
+			await this.showLinkAccount(token);
+		}
+	}
+
+	/**
+	 * Replace the page content.
+	 *
+	 * @param {string|null} token - Reset token, or null for the email step
+	 * @param {string|null} error - Translation key of an error to show
+	 * @returns {void}
+	 */
+	renderPage(token, error) {
 		const content = `
 												<h1>${translate("reset_password")}</h1>
 												<form id="reset-password-form">
 																${token ? this.renderResetStep(token) : this.renderEmailStep()}
 												</form>
-												<div id="message" class="${error ? 'error-message' : ''}">${error ? translate(error) : ''}</div>
+												<div id="message" class="${error ? 'error-message' : ''}" role="status" aria-live="polite">${error ? translate(error) : ''}</div>
 												<p><a href="/login">${translate("back_to_login")}</a></p>
 								`;
 		setContent(document.getElementById("app"), content);
 		this.attachEventListeners();
 	}
 
+	/**
+	 * Add the link's account address to the reset form, or return to the email
+	 * step if the link is no longer valid. Does nothing if the reader has already
+	 * left this page by the time the answer arrives.
+	 *
+	 * @param {string} token - Reset token from the emailed link
+	 * @returns {Promise<void>}
+	 */
+	async showLinkAccount(token) {
+		const form = document.getElementById("reset-password-form");
+		const link = await this.describeLink(token);
+		if (!form?.isConnected || this.resetSubmitted) {
+			return;
+		}
+
+		if (link.invalid) {
+			this.renderPage(null, "invalid_or_expired_token");
+			return;
+		}
+		if (!link.email) {
+			return;
+		}
+
+		const label = document.createElement("label");
+		label.htmlFor = "reset-email";
+		label.textContent = `${translate("email")}:`;
+
+		const input = document.createElement("input");
+		input.type = "email";
+		input.id = "reset-email";
+		input.name = "username";
+		input.autocomplete = "username";
+		input.value = link.email;
+		input.readOnly = true;
+
+		const passwordLabel = form.querySelector('label[for="new-password"]');
+		passwordLabel.before(label, input);
+	}
+
 	renderEmailStep() {
 		return `
 												<div id="email-step">
 																<label for="email">${translate("email")}:</label>
-																<input type="email" id="email" name="email" autocomplete="email" required>
+																<input type="email" id="email" name="email" autocomplete="username" required>
 																<button type="submit">${translate("send_reset_link")}</button>
 												</div>
 								`;
 	}
 
+	/**
+	 * Look up the address a reset token belongs to.
+	 *
+	 * @param {string} token - Reset token from the emailed link
+	 * @returns {Promise<{email: (string|null), invalid: boolean}>} The address, or
+	 *   invalid when the server refused the token. A network failure or timeout is neither:
+	 *   the reset can still be attempted without showing the address.
+	 */
+	async describeLink(token) {
+		try {
+			const response = await fetch(getApiUrl('v1/auth/reset-password/describe'), {
+				method: "POST",
+				signal: AbortSignal.timeout(RESET_LINK_LOOKUP_TIMEOUT_MS),
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ token })
+			});
+			const result = await response.json();
+			if (result.success) {
+				return { email: result.data?.email || null, invalid: false };
+			}
+			return { email: null, invalid: response.status === HTTP_BAD_REQUEST };
+		} catch (error) {
+			debugError("Could not describe reset link:", error);
+			return { email: null, invalid: false };
+		}
+	}
+
 	renderResetStep(token) {
 		return `
 												<div id="reset-step">
-																<input type="hidden" id="token" name="token" value="${token}" required>
+																<input type="hidden" id="token" name="token" value="${escapeHTML(token)}" required>
 																<label for="new-password">${translate("new_password")}:</label>
 																<input type="password" id="new-password" name="new-password" autocomplete="new-password" required minlength="8" maxlength="255">
 																<small class="password-hint">${translate("password_requirements")}</small>
@@ -60,6 +156,7 @@ export class ResetPassword {
 		try {
 		if (token) {
 			// Handle password reset
+			this.resetSubmitted = true;
 			const newPassword = document.getElementById("new-password").value;
 			const confirmPassword = document.getElementById("confirm-password").value;
 

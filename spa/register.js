@@ -19,7 +19,7 @@ export class Register {
                 <input type="text" id="full_name" name="full_name" autocomplete="name" required>
 
                 <label for="email">${translate("email")}:</label>
-                <input type="email" id="email" name="email" autocomplete="email" required>
+                <input type="email" id="email" name="email" autocomplete="username" required>
 
                 <label for="password">${translate("password")}:</label>
                 <input type="password" id="password" name="password" autocomplete="new-password" required minlength="8" maxlength="255">
@@ -33,7 +33,7 @@ export class Register {
                 <label for="account_creation_password">${translate(
       "account_creation_password"
     )}:</label>
-                <input type="password" id="account_creation_password" name="account_creation_password" autocomplete="off" required>
+                <input type="password" id="account_creation_password" name="account_creation_password" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" required>
 
                 <label for="user_type">${translate("user_type")}:</label>
                 <select id="user_type" name="user_type" required>

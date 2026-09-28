@@ -8,12 +8,12 @@
  */
 
 const express = require('express');
-const { asyncHandler, error: errorResponse } = require('../middleware/response');
+const { asyncHandler, success: successResponse, error: errorResponse } = require('../middleware/response');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { validationResult } = require('express-validator');
+const { body, validationResult } = require('express-validator');
 
 // Import middleware
 const { authenticate } = require('../middleware/auth');
@@ -115,6 +115,16 @@ const authLimiter = rateLimit({
 const passwordResetLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: isProduction ? 5 : 100, // 5 attempts per hour in production, 100 in development
+  message: { success: false, message: 'too_many_reset_requests' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Looking up which account a reset link belongs to happens on every page load
+// of the link, so it must not spend the few attempts the reset itself allows.
+const passwordResetLookupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: isProduction ? 30 : 300,
   message: { success: false, message: 'too_many_reset_requests' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -1020,6 +1030,49 @@ module.exports = (pool, logger) => {
         logger.error('Error requesting password reset:', error);
         return errorResponse(res, 'internal_server_error', 500);
       }
+    }));
+
+  /**
+   * @swagger
+   * /api/v1/auth/reset-password/describe:
+   *   post:
+   *     summary: Describe a password reset link
+   *     description: >
+   *       Return the address a valid reset token belongs to, so the reset page
+   *       can show it and password managers save the new password against the
+   *       right account. Changes nothing. POST keeps the token out of URLs and
+   *       access logs. The token came to that address, so returning it reveals
+   *       nothing its holder did not already have.
+   *     tags: [Authentication]
+   *     responses:
+   *       200:
+   *         description: Token is valid; data.email is the account's address
+   *       400:
+   *         description: Invalid or expired token
+   */
+  router.post('/api/v1/auth/reset-password/describe',
+    passwordResetLookupLimiter,
+    // Body only: a token in the query string would land in URLs and access logs.
+    body('token').isString().trim().notEmpty().withMessage('Token is required'),
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const token = typeof req.body.token === 'string' ? req.body.token.trim() : '';
+      if (!token) {
+        return errorResponse(res, 'token_not_found', 400);
+      }
+
+      const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+      const result = await pool.query(
+        `SELECT email FROM users
+         WHERE reset_token = $1 AND reset_token_expiry > NOW()`,
+        [hashedToken]
+      );
+
+      if (result.rows.length === 0) {
+        return errorResponse(res, 'invalid_or_expired_token', 400);
+      }
+
+      return successResponse(res, { email: result.rows[0].email });
     }));
 
   /**

@@ -361,6 +361,7 @@ export class AccountInfoModule {
         <section class="account-section">
           <h2>${translate("change_password") || translate("account_info_password_title")}</h2>
           <form id="password-form" class="account-form">
+            <input type="email" name="username" autocomplete="username" value="${email}" hidden readonly />
             <div class="form-group">
               <label for="current-password-input">${translate("current_password") || translate("account_info_password_current_label")}</label>
               <input
