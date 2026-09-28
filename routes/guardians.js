@@ -58,10 +58,13 @@ module.exports = (pool) => {
   /**
    * Whether the caller may read or change the guardians of one child.
    *
-   * Someone who sees the whole unit needs the permission. Anyone else may act
-   * only on a child they have access to: the Parent/Guardian section of their
-   * own child's form. The permission alone is not enough for a role limited
-   * to its own children, or it would open every family's contacts.
+   * Someone who sees the whole unit -- staff, including a leader who is also
+   * a parent -- needs the permission. A family account (every role limited to
+   * its own children) may act only on a child it has access to: the
+   * Parent/Guardian section of its own child's form. Access to a child is not
+   * enough for staff: they can be assigned to children they have no family
+   * tie to. The permission alone is not enough for a family account, or it
+   * would open every family's contacts.
    *
    * @param {Object} req - Authenticated request
    * @param {number} participantId - Child
@@ -74,8 +77,8 @@ module.exports = (pool) => {
       userHasPermission(req, pool, organizationId, permissionKey),
       getUserDataScope(req, pool),
     ]);
-    if (holdsPermission && dataScope === 'organization') {
-      return true;
+    if (dataScope === 'organization') {
+      return holdsPermission;
     }
 
     const linked = await pool.query(
@@ -149,13 +152,20 @@ module.exports = (pool) => {
        JOIN users u ON u.id = up.user_id
        JOIN user_organizations uo
          ON uo.user_id = u.id AND uo.organization_id = $2 AND uo.status = 'active'
-         -- A family account: holds a role limited to its own children. Access to
-         -- a child alone is not enough; staff can be linked to children too.
+         -- A family account: every role limited to its own children. Access to
+         -- a child is not enough; staff -- a leader who is also a parent included,
+         -- who sees the whole unit -- can be assigned to children too.
          AND EXISTS (
            SELECT 1
            FROM jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS family_role_id
            JOIN roles family_role ON family_role.id = family_role_id::integer
            WHERE family_role.data_scope = 'linked'
+         )
+         AND NOT EXISTS (
+           SELECT 1
+           FROM jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS staff_role_id
+           JOIN roles staff_role ON staff_role.id = staff_role_id::integer
+           WHERE staff_role.data_scope IS DISTINCT FROM 'linked'
          )
        LEFT JOIN LATERAL (
          SELECT pg.*
@@ -406,13 +416,20 @@ module.exports = (pool) => {
            JOIN users u ON u.id = up.user_id
            JOIN user_organizations uo
              ON uo.user_id = u.id AND uo.organization_id = $3 AND uo.status = 'active'
-             -- A family account: holds a role limited to its own children. Access to
-             -- a child alone is not enough; staff can be linked to children too.
+             -- A family account: every role limited to its own children. Access to
+             -- a child is not enough; staff -- a leader who is also a parent included,
+             -- who sees the whole unit -- can be assigned to children too.
              AND EXISTS (
                SELECT 1
                FROM jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS family_role_id
                JOIN roles family_role ON family_role.id = family_role_id::integer
                WHERE family_role.data_scope = 'linked'
+             )
+             AND NOT EXISTS (
+               SELECT 1
+               FROM jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS staff_role_id
+               JOIN roles staff_role ON staff_role.id = staff_role_id::integer
+               WHERE staff_role.data_scope IS DISTINCT FROM 'linked'
              )
            WHERE g.id = $1
              AND (g.user_uuid = u.id
@@ -470,13 +487,20 @@ module.exports = (pool) => {
              JOIN users u ON u.id = up.user_id
              JOIN user_organizations uo
                ON uo.user_id = u.id AND uo.organization_id = $10 AND uo.status = 'active'
-               -- A family account: holds a role limited to its own children. Access to
-               -- a child alone is not enough; staff can be linked to children too.
+               -- A family account: every role limited to its own children. Access to
+               -- a child is not enough; staff -- a leader who is also a parent included,
+               -- who sees the whole unit -- can be assigned to children too.
                AND EXISTS (
                  SELECT 1
                  FROM jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS family_role_id
                  JOIN roles family_role ON family_role.id = family_role_id::integer
                  WHERE family_role.data_scope = 'linked'
+               )
+               AND NOT EXISTS (
+                 SELECT 1
+                 FROM jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS staff_role_id
+                 JOIN roles staff_role ON staff_role.id = staff_role_id::integer
+                 WHERE staff_role.data_scope IS DISTINCT FROM 'linked'
                )
              WHERE up.participant_id = $9
                AND (u.id = $11::uuid

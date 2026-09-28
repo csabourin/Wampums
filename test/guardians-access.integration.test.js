@@ -505,6 +505,48 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
     expect(await one('SELECT nom FROM parents_guardians WHERE id = $1', [leaderRecord])).toBe('Leader');
   });
 
+  test('staff assigned to a child, without the guardian permissions, read and write nothing', async () => {
+    const plainStaff = await role('plain_staff', 'organization', ['participants.view']);
+    const assigned = await member('Assigned Staff', plainStaff);
+    await grantParticipantAccess(pool, { participantId: ids.lea, userId: assigned.id, sourceType: ACCESS_SOURCE.ADMIN });
+
+    const read = await as(assigned.id).get('/api/v1/guardians').query({ participant_id: ids.lea });
+    const write = await as(assigned.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea, guardian_id: ids.aliceRecord, nom: 'X', prenom: 'Y',
+    });
+
+    expect(read.status).toBe(403);
+    expect(write.status).toBe(403);
+    expect(await one('SELECT nom FROM parents_guardians WHERE id = $1', [ids.aliceRecord])).toBe('Tremblay');
+  });
+
+  test('a leader who is also a parent, assigned to someone else\'s child, is not offered as its guardian', async () => {
+    const family = Number(await one('SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1', [ids.alice.id]));
+    const leaderRole = await role('leader_g', 'organization', ['participants.view']);
+    const leaderParent = await member('Leader Parent', family);
+    await pool.query(
+      'UPDATE user_organizations SET role_ids = $1 WHERE user_id = $2',
+      [JSON.stringify([family, leaderRole]), leaderParent.id]
+    );
+    const leaderRecord = await one(
+      `INSERT INTO parents_guardians (nom, prenom, courriel, user_uuid)
+       VALUES ('Parent', 'Leader', $1, $2) RETURNING id`,
+      [leaderParent.email, leaderParent.id]
+    );
+    await grantParticipantAccess(pool, { participantId: ids.lea, userId: leaderParent.id, sourceType: ACCESS_SOURCE.ADMIN });
+
+    const listed = await as(ids.alice.id).get('/api/v1/guardians')
+      .query({ participant_id: ids.lea, include_account_holders: 'true' });
+    expect(listed.body.data.some((g) => g.account_user_id === leaderParent.id || g.guardian_id === leaderRecord))
+      .toBe(false);
+
+    const write = await as(ids.alice.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea, guardian_id: leaderRecord, nom: 'Over', prenom: 'Written',
+    });
+    expect(write.status).toBe(403);
+    expect(await one('SELECT nom FROM parents_guardians WHERE id = $1', [leaderRecord])).toBe('Parent');
+  });
+
   test('a guardian_id of 0 is refused, not taken as "no guardian"', async () => {
     const name = `Zero-${suffix}`;
     const response = await as(ids.alice.id).post('/api/v1/guardians').send({
