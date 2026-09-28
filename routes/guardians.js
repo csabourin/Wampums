@@ -43,8 +43,39 @@ const MAX_INTEGER_ID = 2147483647;
  * @returns {boolean} True for 1, '42'; false for 0, '', 'abc', '1.5', '99999999999'
  */
 function isPositiveInteger(value) {
+  // Only a number or a string: String([1]) is '1', but node-postgres would
+  // send the array as an array literal.
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    return false;
+  }
   const text = String(value);
   return /^[1-9]\d{0,9}$/.test(text) && Number(text) <= MAX_INTEGER_ID;
+}
+
+/** Most custom fields one guardian may carry. */
+const MAX_CUSTOM_FIELDS = 50;
+
+/** The parent_guardian form's own columns, kept on parents_guardians. */
+const CORE_GUARDIAN_FIELDS = new Set([
+  'nom', 'prenom', 'lien', 'courriel', 'telephone_residence', 'telephone_travail',
+  'telephone_cellulaire', 'is_primary', 'is_emergency_contact',
+]);
+
+/**
+ * Whether a value is a set of custom form fields: a plain object of plain
+ * values (string, number, boolean or null), none of them a core column.
+ *
+ * @param {*} value - Value to check
+ * @returns {boolean} True when it can be stored as given
+ */
+function isCustomFieldSet(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const entries = Object.entries(value);
+  return entries.length <= MAX_CUSTOM_FIELDS && entries.every(([key, field]) =>
+    !CORE_GUARDIAN_FIELDS.has(key)
+    && (field === null || ['string', 'number', 'boolean'].includes(typeof field)));
 }
 
 /**
@@ -308,9 +339,24 @@ module.exports = (pool) => {
         };
       });
 
+    // Custom fields saved for these guardians on the child's submission.
+    const submission = await pool.query(
+      `SELECT submission_data->'guardians' AS guardians
+       FROM form_submissions
+       WHERE participant_id = $1 AND organization_id = $2 AND form_type = 'parent_guardian'
+       ORDER BY id DESC
+       LIMIT 1`,
+      [participant_id, organizationId]
+    );
+    const customByGuardian = submission.rows[0]?.guardians || {};
+    const withCustomFields = (row) => ({
+      ...row,
+      custom_fields: (row.guardian_id && customByGuardian[String(row.guardian_id)]) || {},
+    });
+
     return success(res, [
-      ...result.rows.map((row) => ({ ...row, linked: true })),
-      ...fromAccounts,
+      ...result.rows.map((row) => withCustomFields({ ...row, linked: true })),
+      ...fromAccounts.map(withCustomFields),
     ]);
   }));
 
@@ -371,7 +417,7 @@ module.exports = (pool) => {
    */
   router.post('/', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const { participant_id, guardian_id, account_user_id, nom, prenom, lien, courriel,
+    const { participant_id, guardian_id, account_user_id, custom_fields, nom, prenom, lien, courriel,
       telephone_residence, telephone_travail, telephone_cellulaire,
       is_primary, is_emergency_contact } = req.body;
 
@@ -383,8 +429,11 @@ module.exports = (pool) => {
     if (!isPositiveInteger(participant_id) || (hasGuardianId && !isPositiveInteger(guardian_id))) {
       return error(res, 'Participant ID and guardian ID must be positive integers', 400);
     }
+    if (custom_fields !== undefined && custom_fields !== null && !isCustomFieldSet(custom_fields)) {
+      return error(res, 'Custom fields must be an object of plain values', 400);
+    }
     const hasAccountUserId = account_user_id !== undefined && account_user_id !== null;
-    if (hasAccountUserId && !UUID_PATTERN.test(String(account_user_id))) {
+    if (hasAccountUserId && (typeof account_user_id !== 'string' || !UUID_PATTERN.test(account_user_id))) {
       return error(res, 'Account user ID must be a UUID', 400);
     }
 
@@ -530,6 +579,44 @@ module.exports = (pool) => {
            ON CONFLICT (guardian_id, participant_id) DO UPDATE SET lien = $3`,
           [guardianIdToLink, participant_id, lien || null]
         );
+      }
+
+      // Fields a unit added to the parent_guardian form belong to this child's
+      // submission, per guardian (form_submissions is keyed by participant).
+      // Saved with the guardian, under the same authorization, so a save is
+      // never half done.
+      if (custom_fields && Object.keys(custom_fields).length > 0) {
+        const existing = await client.query(
+          `SELECT id FROM form_submissions
+           WHERE participant_id = $1 AND organization_id = $2 AND form_type = 'parent_guardian'
+           ORDER BY id DESC
+           LIMIT 1
+           FOR UPDATE`,
+          [participant_id, organizationId]
+        );
+        if (existing.rows.length > 0) {
+          await client.query(
+            `UPDATE form_submissions
+             SET submission_data = jsonb_set(
+                   COALESCE(submission_data, '{}'::jsonb),
+                   '{guardians}',
+                   COALESCE(submission_data->'guardians', '{}'::jsonb) || jsonb_build_object($1::text, $2::jsonb)
+                 ),
+                 user_id = $3::uuid,
+                 updated_at = NOW()
+             WHERE id = $4`,
+            [String(guardianIdToLink), JSON.stringify(custom_fields), req.user.id, existing.rows[0].id]
+          );
+        } else {
+          await client.query(
+            `INSERT INTO form_submissions
+               (participant_id, organization_id, form_type, submission_data, user_id, status, submitted_at)
+             VALUES ($1, $2, 'parent_guardian',
+                     jsonb_build_object('guardians', jsonb_build_object($3::text, $4::jsonb)),
+                     $5::uuid, 'submitted', NOW())`,
+            [participant_id, organizationId, String(guardianIdToLink), JSON.stringify(custom_fields), req.user.id]
+          );
+        }
       }
 
       await client.query('COMMIT');

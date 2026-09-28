@@ -6,9 +6,10 @@
  * Saving the Parent/Guardian section of a child's registration form.
  *
  * Each guardian is saved to its own contact record, which the API links to
- * the child. Fields a unit added to the parent_guardian form are kept on the
- * child's own form submission, per guardian: form_submissions is keyed by
- * participant, and a guardian id there would point at an unrelated child.
+ * the child. Fields a unit added to the parent_guardian form travel with the
+ * guardian: the API keeps them on the child's own submission, per guardian,
+ * under the same authorization. A guardian id is never a participant id, and
+ * a parent is never sent through the forms route their role may not use.
  */
 
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
@@ -91,7 +92,7 @@ describe('saving the Parent/Guardian section', () => {
     expect(saveGuardian.mock.calls[1][0].guardian_id).toBeUndefined();
   });
 
-  test('keeps custom fields on the child\'s submission, per guardian, never under a guardian id', async () => {
+  test('sends each guardian\'s custom fields with it, never as a separate submission', async () => {
     const form = formWithTwoGuardians();
 
     await form.saveGuardians(CHILD_ID, [
@@ -99,16 +100,13 @@ describe('saving the Parent/Guardian section', () => {
       { nom: 'Gagnon', prenom: 'Carole', courriel: 'carole@example.test', employeur: 'Ville' },
     ]);
 
-    expect(saveFormSubmission).toHaveBeenCalledTimes(1);
-    expect(saveFormSubmission).toHaveBeenCalledWith('parent_guardian', CHILD_ID, {
-      guardians: {
-        [EXISTING_GUARDIAN_ID]: { employeur: 'CCN' },
-        [NEW_GUARDIAN_ID]: { employeur: 'Ville' },
-      },
-    });
+    expect(saveGuardian.mock.calls[0][0].custom_fields).toEqual({ employeur: 'CCN' });
+    expect(saveGuardian.mock.calls[1][0].custom_fields).toEqual({ employeur: 'Ville' });
+    // Never under a guardian id, and never through the forms route parents may not use.
+    expect(saveFormSubmission).not.toHaveBeenCalled();
   });
 
-  test('writes no submission when the form has only the standard fields', async () => {
+  test('sends no custom fields when the form has only the standard fields', async () => {
     const form = formWithTwoGuardians();
 
     await form.saveGuardians(CHILD_ID, [
@@ -116,6 +114,7 @@ describe('saving the Parent/Guardian section', () => {
       { nom: 'Gagnon', prenom: 'Carole', courriel: 'carole@example.test' },
     ]);
 
+    expect(saveGuardian.mock.calls[0][0].custom_fields).toEqual({});
     expect(saveFormSubmission).not.toHaveBeenCalled();
   });
 });

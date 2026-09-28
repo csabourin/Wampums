@@ -563,6 +563,52 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
     expect(write.status).toBe(403);
   });
 
+  test('a parent saves custom guardian fields on the child, and they come back with the form', async () => {
+    const saved = await as(ids.alice.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea,
+      guardian_id: ids.aliceRecord,
+      nom: 'Tremblay',
+      prenom: 'Alice',
+      courriel: ids.alice.email,
+      custom_fields: { employeur: 'CCN', allergies_connues: false },
+    });
+    expect(saved.status).toBe(200);
+
+    const submission = await one(
+      `SELECT submission_data FROM form_submissions
+       WHERE participant_id = $1 AND organization_id = $2 AND form_type = 'parent_guardian'`,
+      [ids.lea, ids.unit]
+    );
+    expect(submission.guardians[String(ids.aliceRecord)]).toEqual({ employeur: 'CCN', allergies_connues: false });
+
+    const listed = await as(ids.alice.id).get('/api/v1/guardians')
+      .query({ participant_id: ids.lea, include_account_holders: 'true' });
+    expect(listed.body.data.find((g) => g.guardian_id === ids.aliceRecord).custom_fields)
+      .toEqual({ employeur: 'CCN', allergies_connues: false });
+  });
+
+  test('custom fields must be plain values, and ids must be scalars', async () => {
+    const nested = await as(ids.alice.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea, guardian_id: ids.aliceRecord, nom: 'Tremblay', prenom: 'Alice',
+      custom_fields: { adresse: { rue: 'x' } },
+    });
+    const core = await as(ids.alice.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea, guardian_id: ids.aliceRecord, nom: 'Tremblay', prenom: 'Alice',
+      custom_fields: { courriel: 'x@example.test' },
+    });
+    const arrayId = await as(ids.alice.id).post('/api/v1/guardians').send({
+      participant_id: [ids.lea], guardian_id: [ids.aliceRecord], nom: 'Tremblay', prenom: 'Alice',
+    });
+    const arrayAccount = await as(ids.alice.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea, account_user_id: [ids.carole.id], nom: 'X', prenom: 'Y',
+    });
+
+    expect(nested.status).toBe(400);
+    expect(core.status).toBe(400);
+    expect(arrayId.status).toBe(400);
+    expect(arrayAccount.status).toBe(400);
+  });
+
   test('a guardian_id of 0 is refused, not taken as "no guardian"', async () => {
     const name = `Zero-${suffix}`;
     const response = await as(ids.alice.id).post('/api/v1/guardians').send({
