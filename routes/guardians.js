@@ -178,6 +178,16 @@ module.exports = (pool) => {
                            AND NOT EXISTS (
                              SELECT 1 FROM guardian_users other
                              WHERE other.guardian_id = lg.id AND other.user_id IS NOT NULL AND other.user_id <> u.id
+                           )
+                           -- Nor linked to a child this account cannot see: that is another
+                           -- family's contact, whatever address it carries now.
+                           AND NOT EXISTS (
+                             SELECT 1 FROM participant_guardians elsewhere
+                             WHERE elsewhere.guardian_id = lg.id
+                               AND NOT EXISTS (
+                                 SELECT 1 FROM user_participants seen
+                                 WHERE seen.participant_id = elsewhere.participant_id AND seen.user_id = u.id
+                               )
                            )))
               ) AS already_linked,
               -- Another account's record already carries this address, and
@@ -222,6 +232,16 @@ module.exports = (pool) => {
                 AND NOT EXISTS (
                   SELECT 1 FROM guardian_users other
                   WHERE other.guardian_id = pg.id AND other.user_id IS NOT NULL AND other.user_id <> u.id
+                )
+                -- Nor linked to a child this account cannot see: that is another
+                -- family's contact, whatever address it carries now.
+                AND NOT EXISTS (
+                  SELECT 1 FROM participant_guardians elsewhere
+                  WHERE elsewhere.guardian_id = pg.id
+                    AND NOT EXISTS (
+                      SELECT 1 FROM user_participants seen
+                      WHERE seen.participant_id = elsewhere.participant_id AND seen.user_id = u.id
+                    )
                 ))
          ORDER BY (pg.user_uuid = u.id) DESC NULLS LAST,
                   EXISTS (SELECT 1 FROM guardian_users gu WHERE gu.guardian_id = pg.id AND gu.user_id = u.id) DESC,
@@ -498,6 +518,16 @@ module.exports = (pool) => {
                       AND NOT EXISTS (
                         SELECT 1 FROM guardian_users other
                         WHERE other.guardian_id = g.id AND other.user_id IS NOT NULL AND other.user_id <> u.id
+                      )
+                      -- Nor linked to a child this account cannot see: that is another
+                      -- family's contact, whatever address it carries now.
+                      AND NOT EXISTS (
+                        SELECT 1 FROM participant_guardians elsewhere
+                        WHERE elsewhere.guardian_id = g.id
+                          AND NOT EXISTS (
+                            SELECT 1 FROM user_participants seen
+                            WHERE seen.participant_id = elsewhere.participant_id AND seen.user_id = u.id
+                          )
                       )))
            LIMIT 1`,
           [guardian_id, participant_id, organizationId]

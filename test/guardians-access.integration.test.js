@@ -609,6 +609,52 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
     expect(arrayAccount.status).toBe(400);
   });
 
+  test('an unowned record linked to another family\'s child is not handed over by its address', async () => {
+    const family = Number(await one('SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1', [ids.alice.id]));
+    const newcomer = await member('Reused Address', family);
+    // An old contact of Noé's family, never tied to an account, whose address
+    // now belongs to someone with access to Léa.
+    const noeContact = await one(
+      `INSERT INTO parents_guardians (nom, prenom, courriel, telephone_cellulaire)
+       VALUES ('Contact', 'Noe', $1, '819-555-0166') RETURNING id`,
+      [newcomer.email]
+    );
+    await pool.query('INSERT INTO participant_guardians (guardian_id, participant_id) VALUES ($1, $2)', [noeContact, ids.noe]);
+    await grantParticipantAccess(pool, { participantId: ids.lea, userId: newcomer.id, sourceType: ACCESS_SOURCE.DIRECT });
+
+    const listed = await as(ids.alice.id).get('/api/v1/guardians')
+      .query({ participant_id: ids.lea, include_account_holders: 'true' });
+    const offered = listed.body.data.find((g) => g.account_user_id === newcomer.id);
+    expect(offered).toMatchObject({ guardian_id: null, prenom: 'Reused' });
+    expect(offered.telephone_cellulaire).toBeFalsy();
+
+    const write = await as(newcomer.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea, guardian_id: noeContact, nom: 'Taken', prenom: 'Over',
+    });
+    expect(write.status).toBe(403);
+    expect(await one('SELECT nom FROM parents_guardians WHERE id = $1', [noeContact])).toBe('Contact');
+  });
+
+  test('an unowned record linked to a sibling in the same family is still recognized by its address', async () => {
+    const family = Number(await one('SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1', [ids.alice.id]));
+    const sibling = await child('Soeur');
+    const siblingsParent = await member('Sibling Parent', family);
+    const siblingRecord = await one(
+      `INSERT INTO parents_guardians (nom, prenom, courriel, telephone_cellulaire)
+       VALUES ('Parent', 'Sibling', $1, '819-555-0155') RETURNING id`,
+      [siblingsParent.email]
+    );
+    await pool.query('INSERT INTO participant_guardians (guardian_id, participant_id) VALUES ($1, $2)', [siblingRecord, sibling]);
+    await grantParticipantAccess(pool, { participantId: sibling, userId: siblingsParent.id, sourceType: ACCESS_SOURCE.DIRECT });
+    await grantParticipantAccess(pool, { participantId: ids.lea, userId: siblingsParent.id, sourceType: ACCESS_SOURCE.DIRECT });
+
+    const listed = await as(ids.alice.id).get('/api/v1/guardians')
+      .query({ participant_id: ids.lea, include_account_holders: 'true' });
+
+    expect(listed.body.data.find((g) => g.account_user_id === siblingsParent.id))
+      .toMatchObject({ guardian_id: siblingRecord, telephone_cellulaire: '819-555-0155' });
+  });
+
   test('a guardian_id of 0 is refused, not taken as "no guardian"', async () => {
     const name = `Zero-${suffix}`;
     const response = await as(ids.alice.id).post('/api/v1/guardians').send({
@@ -642,7 +688,8 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
 
     const listed = await as(ids.alice.id).get('/api/v1/guardians')
       .query({ participant_id: ids.lea, include_account_holders: 'true' });
-    expect(listed.body.data.filter((g) => g.nom === 'Address' || g.courriel === edits.email)).toHaveLength(1);
+    expect(listed.body.data.filter((g) => g.guardian_id === saved.body.data.guardian_id
+      || g.account_user_id === edits.id)).toHaveLength(1);
   });
 
   test('an account id naming someone without access to the child is not used', async () => {
