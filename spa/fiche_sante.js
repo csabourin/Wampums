@@ -8,6 +8,7 @@ import {
   getCurrentOrganizationId,
 } from "./ajax-functions.js";
 import { createPhoneLink } from "./utils/PhoneUtils.js";
+import { renderBackLink } from "./utils/BackLinkUtils.js";
 
 export class FicheSante {
   constructor(app) {
@@ -70,6 +71,7 @@ export class FicheSante {
 
   render() {
     const content = `
+      ${renderBackLink()}
       <div class="fiche-sante-form">
         <h1>${translate("fiche_sante")}</h1>
 
@@ -94,7 +96,6 @@ export class FicheSante {
           </div>
         </form>
       </div>
-      <p><a href="/dashboard">${translate("retour_tableau_bord")}</a></p>
     `;
 
     setContent(document.getElementById("app"), content);
@@ -175,9 +176,9 @@ export class FicheSante {
 
   renderError(message) {
     const errorMessage = `
+      ${renderBackLink()}
       <h1>${translate("error")}</h1>
       <p>${message}</p>
-      <p><a href="/dashboard">${translate("retour_tableau_bord")}</a></p>
     `;
     setContent(document.getElementById("app"), errorMessage);
   }
