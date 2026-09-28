@@ -343,6 +343,108 @@ describe('Rendered form: a text field depending on a select', () => {
     expect(isHidden(otherLanguage(form))).toBe(false);
   });
 
+  it('clears "Autre langue" when another language is chosen', () => {
+    const form = renderLive({ langue: 'autre', autre_langue: 'Cri' });
+
+    choose(form.querySelector('[name="langue"]'), 'fr');
+
+    expect(otherLanguage(form).value).toBe('');
+    // Hidden, the field is disabled and absent from a native submit; the
+    // handler's own collector still reads it, and must read it empty.
+    expect(new FormData(form).has('autre_langue')).toBe(false);
+  });
+
+  it('comes back empty when Autre is chosen again', () => {
+    const form = renderLive({ langue: 'autre', autre_langue: 'Cri' });
+    const langue = form.querySelector('[name="langue"]');
+
+    choose(langue, 'fr');
+    choose(langue, 'autre');
+
+    expect(isHidden(otherLanguage(form))).toBe(false);
+    expect(otherLanguage(form).value).toBe('');
+  });
+
+  it('clears a stale saved answer whose condition is not met on load', () => {
+    const form = renderLive({ langue: 'fr', autre_langue: 'Cri' });
+
+    expect(otherLanguage(form).value).toBe('');
+  });
+
+  it.each([
+    ['a radio group', { type: 'radio', options: [{ label: 'a', value: 'a' }, { label: 'b', value: 'b' }] }, 'a',
+      (form) => form.querySelector('[name="detail"]:checked')],
+    ['a select', { type: 'select', options: [{ label: 'a', value: 'a' }, { label: 'b', value: 'b' }] }, 'b',
+      (form) => form.querySelector('[name="detail"]').value || null],
+    ['a checkbox', { type: 'checkbox' }, '1',
+      (form) => form.querySelector('[name="detail"]:checked')],
+    ['a textarea', { type: 'textarea' }, 'Du texte',
+      (form) => form.querySelector('[name="detail"]').value || null]
+  ])('clears %s when it is hidden', (_label, definition, saved, answerOf) => {
+    const detail = {
+      name: 'detail',
+      label: 'detail_label',
+      dependsOn: { field: 'langue', value: 'autre' },
+      ...definition
+    };
+    const form = renderLive({ langue: 'autre', detail: saved }, [LANGUAGE_FIELD, detail]);
+    expect(answerOf(form)).not.toBeNull();
+
+    choose(form.querySelector('[name="langue"]'), 'en');
+
+    expect(answerOf(form)).toBeNull();
+  });
+
+  it('asks for a real choice when a cleared required select is shown again', () => {
+    const detail = {
+      name: 'detail',
+      type: 'select',
+      label: 'detail_label',
+      required: true,
+      options: [{ label: 'a', value: 'a' }, { label: 'b', value: 'b' }],
+      dependsOn: { field: 'langue', value: 'autre' }
+    };
+    const form = renderLive({ langue: 'autre', detail: 'b' }, [LANGUAGE_FIELD, detail]);
+    const langue = form.querySelector('[name="langue"]');
+
+    choose(langue, 'fr');
+    choose(langue, 'autre');
+
+    const select = form.querySelector('[name="detail"]');
+    expect(select.value).toBe('');
+    expect(select.checkValidity()).toBe(false);
+  });
+
+  it('hides and clears a field further down the chain', () => {
+    // "Dialecte" depends on "Autre langue" being answered; hiding and clearing
+    // "Autre langue" must take "Dialecte" with it.
+    const origin = {
+      name: 'origine',
+      type: 'radio',
+      label: 'origine_label',
+      options: [{ label: 'yes', value: 'yes' }, { label: 'no', value: 'no' }],
+      dependsOn: { field: 'langue', value: 'autre' }
+    };
+    const dialect = {
+      name: 'dialecte',
+      type: 'text',
+      label: 'dialecte_label',
+      dependsOn: { field: 'origine', value: 'yes' }
+    };
+    const form = renderLive(
+      { langue: 'autre', origine: 'yes', dialecte: 'Innu-aimun' },
+      [LANGUAGE_FIELD, origin, dialect]
+    );
+    const dialectInput = form.querySelector('[name="dialecte"]');
+    expect(dialectInput.value).toBe('Innu-aimun');
+
+    choose(form.querySelector('[name="langue"]'), 'fr');
+
+    expect(form.querySelector('[name="origine"]:checked')).toBeNull();
+    expect(dialectInput.value).toBe('');
+    expect(isHidden(dialectInput)).toBe(true);
+  });
+
   it('has no WCAG A/AA violations with the dependent field shown or hidden', async () => {
     const form = renderLive({ langue: 'fr' });
     expect((await axe.run(form, AXE_OPTIONS)).violations).toEqual([]);

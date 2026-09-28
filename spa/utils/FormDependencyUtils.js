@@ -67,3 +67,45 @@ export function isDependencyMet(dependsOn, formData) {
   }
   return isDependencySatisfied(formData ? formData[dependsOn.field] : undefined, dependsOn.value);
 }
+
+/**
+ * Clear the answer held by a dependent field that has just been hidden.
+ *
+ * Without this, "Autre langue" kept whatever was typed before the language was
+ * switched back to Français, and the next save stored an answer the form no
+ * longer showed. A text box or textarea is emptied, checkboxes and radios are
+ * unchecked, and a select is left with no option chosen, so that a required
+ * select shown again asks for a real choice instead of keeping its first
+ * option.
+ *
+ * When something is cleared, `input` and `change` events are dispatched so a
+ * field that itself controls other fields hides and clears those in turn.
+ *
+ * @param {HTMLElement[]} elements - Every element carrying the dependent field's name
+ * @returns {boolean} True when at least one value was cleared
+ */
+export function clearDependentValues(elements) {
+  let cleared = false;
+
+  elements.forEach((element) => {
+    let changed = false;
+    if (element.type === "checkbox" || element.type === "radio") {
+      changed = element.checked;
+      element.checked = false;
+    } else if (element.tagName === "SELECT") {
+      changed = element.selectedIndex !== -1;
+      element.selectedIndex = -1;
+    } else {
+      changed = element.value !== "";
+      element.value = "";
+    }
+
+    if (changed) {
+      cleared = true;
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  });
+
+  return cleared;
+}

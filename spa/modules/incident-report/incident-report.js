@@ -17,6 +17,7 @@ import { confirm as confirmDialog, confirmDestructive } from '../../utils/Dialog
 
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { JSONFormRenderer } from '../../JSONFormRenderer.js';
+import { clearDependentValues } from '../../utils/FormDependencyUtils.js';
 import { API } from '../../api/api-core.js';
 import {
   getIncidentReports,
@@ -533,6 +534,10 @@ export class IncidentReport {
         depElements.forEach(el => {
           el.disabled = !isVisible;
         });
+        // A hidden field must not keep an answer the form no longer shows.
+        if (!isVisible) {
+          clearDependentValues(Array.from(depElements));
+        }
       };
 
       controllers.forEach(c => {

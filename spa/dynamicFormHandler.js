@@ -1,7 +1,7 @@
 // dynamicFormHandler.js
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
-import { isDependencySatisfied } from "./utils/FormDependencyUtils.js";
+import { isDependencySatisfied, clearDependentValues } from "./utils/FormDependencyUtils.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
 import {
     getOrganizationFormFormats,
@@ -286,7 +286,8 @@ export class DynamicFormHandler {
 
     /**
      * Show, enable and require a dependent field once its controlling question
-     * is answered the way the form format asks for — and hide it again otherwise.
+     * is answered the way the form format asks for — and hide and clear it again
+     * otherwise.
      *
      * @param {Object} dependentField - The dependent field's definition
      * @param {*} controllingValue - The controlling field's current answer
@@ -310,6 +311,11 @@ export class DynamicFormHandler {
                 element.removeAttribute("required");
             }
         });
+
+        // A hidden field must not keep an answer the form no longer shows.
+        if (!isMet) {
+            clearDependentValues(dependentElements);
+        }
 
         // Hide the whole group rather than leaving a greyed-out box on screen.
         const group = dependentElements[0].closest(".form-group");

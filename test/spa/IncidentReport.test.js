@@ -123,3 +123,45 @@ describe('getIncidentFormStructure', () => {
     expect(getIncidentFormStructure(response)).toBeNull();
   });
 });
+
+describe('incident report dependent fields', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('clears a dependent field when it is hidden', () => {
+    document.body.innerHTML = `
+      <form id="incident-form">
+        <div class="form-group">
+          <label for="injury">injury</label>
+          <select id="injury" name="injury">
+            <option value="no">no</option>
+            <option value="yes" selected>yes</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="injury_details">injury_details</label>
+          <input id="injury_details" name="injury_details" value="Genou éraflé">
+        </div>
+      </form>
+    `;
+    const module = new IncidentReport({});
+    module.formStructure = {
+      fields: [
+        { name: 'injury', type: 'select' },
+        { name: 'injury_details', type: 'text', dependsOn: { field: 'injury', value: 'yes' } }
+      ]
+    };
+    module.setupDependsOn();
+
+    const details = document.getElementById('injury_details');
+    expect(details.value).toBe('Genou éraflé');
+
+    const injury = document.getElementById('injury');
+    injury.value = 'no';
+    injury.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(details.disabled).toBe(true);
+    expect(details.value).toBe('');
+  });
+});
