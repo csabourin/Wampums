@@ -17,8 +17,16 @@ const express = require('express');
 const router = express.Router();
 
 // Import middleware and utilities
-const { authenticate, blockDemoRoles, getOrganizationId, requirePermission } = require('../middleware/auth');
+const {
+  authenticate,
+  blockDemoRoles,
+  getOrganizationId,
+  getUserDataScope,
+  requirePermission,
+  userHasPermission,
+} = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { splitFullName } = require('../services/accountProvisioning');
 
 /**
  * Export route factory function
@@ -28,6 +36,92 @@ const { success, error, asyncHandler } = require('../middleware/response');
  * @returns {Router} Express router with guardian routes
  */
 module.exports = (pool) => {
+  /**
+   * Whether the caller may read or change the guardians of one child.
+   *
+   * Someone who sees the whole unit needs the permission. Anyone else may act
+   * only on a child they have access to: the Parent/Guardian section of their
+   * own child's form. The permission alone is not enough for a role limited
+   * to its own children, or it would open every family's contacts.
+   *
+   * @param {Object} req - Authenticated request
+   * @param {number} participantId - Child
+   * @param {number} organizationId - Caller's unit
+   * @param {string} permissionKey - 'guardians.view' or 'guardians.manage'
+   * @returns {Promise<boolean>} True when allowed
+   */
+  async function mayActOnGuardians(req, participantId, organizationId, permissionKey) {
+    const [holdsPermission, dataScope] = await Promise.all([
+      userHasPermission(req, pool, organizationId, permissionKey),
+      getUserDataScope(req, pool),
+    ]);
+    if (holdsPermission && dataScope === 'organization') {
+      return true;
+    }
+
+    const linked = await pool.query(
+      `SELECT 1
+       FROM user_participants up
+       JOIN participant_organizations po ON po.participant_id = up.participant_id AND po.organization_id = $3
+       WHERE up.user_id = $1 AND up.participant_id = $2
+       LIMIT 1`,
+      [req.user.id, participantId, organizationId]
+    );
+    return linked.rows.length > 0;
+  }
+
+  /**
+   * Refuse, naming the permission that would have allowed it.
+   *
+   * @param {Object} res - Express response
+   * @param {string} permissionKey - Permission required
+   * @returns {Object} 403 response
+   */
+  function refuse(res, permissionKey) {
+    return res.status(403).json({
+      success: false,
+      message: 'Insufficient permissions',
+      required: [permissionKey],
+      missing: [permissionKey],
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * The accounts with access to a child in this unit, each with the contact
+   * record that belongs to it when there is one (by account, by the older
+   * guardian_users mapping, or by address).
+   *
+   * @param {number} participantId - Child
+   * @param {number} organizationId - Unit
+   * @returns {Promise<Array>} One row per account
+   */
+  async function accountsWithAccess(participantId, organizationId) {
+    const result = await pool.query(
+      `SELECT u.id AS user_id, u.full_name, u.email,
+              g.id AS guardian_id, g.nom, g.prenom, g.courriel,
+              g.telephone_residence, g.telephone_travail, g.telephone_cellulaire,
+              g.is_primary, g.is_emergency_contact
+       FROM user_participants up
+       JOIN users u ON u.id = up.user_id
+       JOIN user_organizations uo
+         ON uo.user_id = u.id AND uo.organization_id = $2 AND uo.status = 'active'
+       LEFT JOIN LATERAL (
+         SELECT pg.*
+         FROM parents_guardians pg
+         WHERE pg.user_uuid = u.id
+            OR EXISTS (SELECT 1 FROM guardian_users gu WHERE gu.guardian_id = pg.id AND gu.user_id = u.id)
+            OR lower(pg.courriel) = lower(u.email)
+         ORDER BY (pg.user_uuid = u.id) DESC NULLS LAST, pg.id
+         LIMIT 1
+       ) g ON true
+       WHERE up.participant_id = $1
+       ORDER BY u.full_name, u.email`,
+      [participantId, organizationId]
+    );
+    return result.rows;
+  }
+
   /**
    * @swagger
    * /api/guardians:
@@ -54,12 +148,16 @@ module.exports = (pool) => {
    *       404:
    *         description: Participant not found
    */
-  router.get('/', authenticate, requirePermission('guardians.view'), asyncHandler(async (req, res) => {
+  router.get('/', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { participant_id } = req.query;
 
     if (!participant_id) {
       return error(res, 'Participant ID is required', 400);
+    }
+
+    if (!(await mayActOnGuardians(req, participant_id, organizationId, 'guardians.view'))) {
+      return refuse(res, 'guardians.view');
     }
 
     // Verify participant belongs to this organization
@@ -87,7 +185,39 @@ module.exports = (pool) => {
       [participant_id, organizationId]
     );
 
-    return success(res, result.rows);
+    // The people who registered, or were given access to this child, are its
+    // parents or guardians too. Those without a contact record linked to the
+    // child yet are offered pre-filled from their account, so the form -- and
+    // the emergency contacts built from it -- is not empty.
+    const linkedIds = new Set(result.rows.map((row) => row.guardian_id));
+    const linkedEmails = new Set(result.rows.map((row) => (row.courriel || '').toLowerCase()).filter(Boolean));
+    const fromAccounts = (await accountsWithAccess(participant_id, organizationId))
+      .filter((account) => !linkedIds.has(account.guardian_id)
+        && !linkedEmails.has((account.courriel || account.email || '').toLowerCase()))
+      .map((account) => {
+        const fallback = splitFullName(account.full_name, account.email);
+        return {
+          guardian_id: account.guardian_id || null,
+          id: account.guardian_id || null,
+          participant_id: Number(participant_id),
+          lien: null,
+          relationship: null,
+          nom: account.nom || fallback.nom,
+          prenom: account.prenom || fallback.prenom,
+          courriel: account.courriel || account.email,
+          telephone_residence: account.telephone_residence,
+          telephone_travail: account.telephone_travail,
+          telephone_cellulaire: account.telephone_cellulaire,
+          is_primary: account.is_primary,
+          is_emergency_contact: account.is_emergency_contact,
+          linked: false,
+        };
+      });
+
+    return success(res, [
+      ...result.rows.map((row) => ({ ...row, linked: true })),
+      ...fromAccounts,
+    ]);
   }));
 
   /**
@@ -145,7 +275,7 @@ module.exports = (pool) => {
    *       404:
    *         description: Participant not found
    */
-  router.post('/', authenticate, blockDemoRoles, requirePermission('guardians.manage'), asyncHandler(async (req, res) => {
+  router.post('/', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { participant_id, guardian_id, nom, prenom, lien, courriel,
       telephone_residence, telephone_travail, telephone_cellulaire,
@@ -153,6 +283,10 @@ module.exports = (pool) => {
 
     if (!participant_id || !nom || !prenom) {
       return error(res, 'Participant ID, nom, and prenom are required', 400);
+    }
+
+    if (!(await mayActOnGuardians(req, participant_id, organizationId, 'guardians.manage'))) {
+      return refuse(res, 'guardians.manage');
     }
 
     const client = await pool.connect();
@@ -175,18 +309,30 @@ module.exports = (pool) => {
       let guardianIdToLink;
 
       if (guardian_id) {
-        // Verify the guardian is linked to a participant in this organization
+        // Only a guardian of this child may be edited from its form: one
+        // already linked to it, or the contact record of an account that has
+        // access to it (which this save then links).
         const guardianCheck = await client.query(
-          `SELECT pg.guardian_id FROM participant_guardians pg
-           JOIN participants p ON pg.participant_id = p.id
-           JOIN participant_organizations po ON p.id = po.participant_id
-           WHERE pg.guardian_id = $1 AND po.organization_id = $2`,
-          [guardian_id, organizationId]
+          `SELECT 1 FROM participant_guardians pg
+           WHERE pg.guardian_id = $1 AND pg.participant_id = $2
+           UNION ALL
+           SELECT 1
+           FROM parents_guardians g
+           JOIN user_participants up ON up.participant_id = $2
+           JOIN users u ON u.id = up.user_id
+           JOIN user_organizations uo
+             ON uo.user_id = u.id AND uo.organization_id = $3 AND uo.status = 'active'
+           WHERE g.id = $1
+             AND (g.user_uuid = u.id
+                  OR EXISTS (SELECT 1 FROM guardian_users gu WHERE gu.guardian_id = g.id AND gu.user_id = u.id)
+                  OR lower(g.courriel) = lower(u.email))
+           LIMIT 1`,
+          [guardian_id, participant_id, organizationId]
         );
 
         if (guardianCheck.rows.length === 0) {
           await client.query('ROLLBACK');
-          return error(res, 'Guardian not found in this organization', 403);
+          return error(res, 'Guardian not found for this participant', 403);
         }
 
         // Update existing guardian
@@ -201,23 +347,33 @@ module.exports = (pool) => {
         );
         guardianIdToLink = guardian_id;
 
-        // Update the relationship if provided
-        if (lien) {
-          await client.query(
-            `UPDATE participant_guardians SET lien = $1 WHERE guardian_id = $2 AND participant_id = $3`,
-            [lien, guardian_id, participant_id]
-          );
-        }
+        // Link it to the child (a record offered from an account is not yet),
+        // keeping the relationship already recorded unless a new one is given.
+        await client.query(
+          `INSERT INTO participant_guardians (guardian_id, participant_id, lien)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (guardian_id, participant_id)
+           DO UPDATE SET lien = COALESCE(EXCLUDED.lien, participant_guardians.lien)`,
+          [guardian_id, participant_id, lien || null]
+        );
       } else {
         // Insert new guardian
+        // When the address is that of an account with access to this child,
+        // the record is theirs: tie it to the account.
         const result = await client.query(
           `INSERT INTO parents_guardians
            (nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire,
-            is_primary, is_emergency_contact)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            is_primary, is_emergency_contact, user_uuid)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (
+             SELECT u.id
+             FROM user_participants up
+             JOIN users u ON u.id = up.user_id
+             WHERE up.participant_id = $9 AND lower(u.email) = lower($3::varchar)
+             LIMIT 1
+           ))
            RETURNING id`,
           [nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire,
-            is_primary || false, is_emergency_contact || false]
+            is_primary || false, is_emergency_contact || false, participant_id]
         );
         guardianIdToLink = result.rows[0].id;
 
@@ -234,6 +390,10 @@ module.exports = (pool) => {
       return success(res, { guardian_id: guardianIdToLink }, 'Guardian saved successfully');
     } catch (err) {
       await client.query('ROLLBACK');
+      // Contact records are keyed by address.
+      if (err.code === '23505') {
+        return error(res, 'A parent or guardian with this email already exists', 409);
+      }
       return error(res, 'Internal server error', 500);
     } finally {
       client.release();
