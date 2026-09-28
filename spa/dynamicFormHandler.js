@@ -1,7 +1,7 @@
 // dynamicFormHandler.js
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
-import { isDependencySatisfied, clearDependentValues, readControllingValue } from "./utils/FormDependencyUtils.js";
+import { isDependencyMet, isDependencySatisfied, clearDependentValues, readControllingValue } from "./utils/FormDependencyUtils.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
 import {
     getOrganizationFormFormats,
@@ -241,6 +241,8 @@ export class DynamicFormHandler {
         // the whole document let one guardian's answer hide — and clear — the
         // matching field of every other guardian.
         const root = this.container || document;
+        // Same unwrapping as JSONFormRenderer.render()
+        const savedAnswers = this.formData?.form_data || this.formData || {};
 
         fields.forEach((field) => {
             if (field.dependsOn) {
@@ -255,7 +257,13 @@ export class DynamicFormHandler {
                     element.addEventListener(this.getEventType(element.type), sync);
                 });
 
-                if (controllingElements.length > 0) {
+                // On load, the saved answers outrank the screen: a condition they
+                // meet is never undone — and its answer never cleared — because
+                // the rendered control fails to show the saved answer.
+                const shown = readControllingValue(controllingElements, controller);
+                const metBySavedAnswers = isDependencyMet(field.dependsOn, savedAnswers);
+                if (controllingElements.length > 0 &&
+                    !(metBySavedAnswers && !isDependencySatisfied(shown, field.dependsOn.value))) {
                     sync();
                 }
             }

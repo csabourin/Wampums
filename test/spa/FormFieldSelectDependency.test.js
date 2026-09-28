@@ -289,6 +289,7 @@ describe('Rendered form: a text field depending on a select', () => {
     const handler = new DynamicFormHandler({ showMessage: jest.fn() });
     handler.formFormats = { language_form: structure };
     handler.formType = 'language_form';
+    handler.formData = formData;
     handler.attachDependencyListeners();
 
     return form;
@@ -497,6 +498,59 @@ describe('Rendered form: a text field depending on a select', () => {
     });
   });
 
+  describe('with answers saved in an older spelling (fiche santé history)', () => {
+    const YES_NO = [{ label: 'yes_label', value: 'yes' }, { label: 'no_label', value: 'no' }];
+    const allergyFields = (type) => [
+      { name: 'has_allergies', type, label: 'has_allergies_label', options: YES_NO },
+      {
+        name: 'allergie',
+        type: 'textarea',
+        label: 'allergie_label',
+        dependsOn: { field: 'has_allergies', value: 'yes' }
+      }
+    ];
+    const allergy = (form) => form.querySelector('[name="allergie"]');
+
+    it.each([true, 'on', '1', 'oui', 'Yes'])(
+      'keeps the allergy of a radio saved as %p, and shows the yes option ticked',
+      (saved) => {
+        const form = renderLive({ has_allergies: saved, allergie: 'Arachides' }, allergyFields('radio'));
+
+        expect(allergy(form).value).toBe('Arachides');
+        expect(isHidden(allergy(form))).toBe(false);
+        expect(form.querySelector('[name="has_allergies"]:checked').value).toBe('yes');
+      }
+    );
+
+    it('keeps the allergy of a select saved as true, and selects yes', () => {
+      const form = renderLive({ has_allergies: true, allergie: 'Arachides' }, allergyFields('select'));
+
+      expect(form.querySelector('[name="has_allergies"]').value).toBe('yes');
+      expect(allergy(form).value).toBe('Arachides');
+    });
+
+    it.each(['yes', 'oui'])('renders a lone checkbox saved as %p ticked, keeping its dependent answer', (saved) => {
+      const form = renderLive(
+        { has_allergies: saved, allergie: 'Arachides' },
+        allergyFields('checkbox').map((field) => ({ ...field, options: undefined }))
+      );
+
+      expect(form.querySelector('[name="has_allergies"]').checked).toBe(true);
+      expect(allergy(form).value).toBe('Arachides');
+    });
+
+    it('never erases an answer on load whose saved condition is met, even if nothing on screen shows it', () => {
+      // No option can display "yes" here; the saved answer still says the
+      // allergy applies, so loading the form must not destroy it.
+      const fields = allergyFields('radio');
+      fields[0] = { ...fields[0], options: [{ label: 'a', value: 'a' }, { label: 'b', value: 'b' }] };
+      const form = renderLive({ has_allergies: 'yes', allergie: 'Arachides' }, fields);
+
+      expect(allergy(form).value).toBe('Arachides');
+      expect(allergy(form).disabled).toBe(false);
+    });
+  });
+
   describe('with several forms on the page (one per guardian)', () => {
     /**
      * Mount one handler per guardian, each in its own container, the way
@@ -516,6 +570,7 @@ describe('Rendered form: a text field depending on a select', () => {
         handler.container = container;
         handler.formFormats = { parent_guardian: structure };
         handler.formType = 'parent_guardian';
+        handler.formData = formData;
         handler.attachDependencyListeners();
         return container;
       });
