@@ -79,6 +79,35 @@ test('an expired link goes back to asking for the address, with the reason', asy
   expect(document.getElementById('message').textContent).toBe('invalid_or_expired_token');
 });
 
+test('the form is shown before the lookup answers, and a lookup that never answers is abandoned', async () => {
+  let lookupSignal;
+  global.fetch = jest.fn((url, options) => {
+    lookupSignal = options.signal;
+    return new Promise(() => {});
+  });
+
+  const rendering = new ResetPassword({}).render(TOKEN);
+
+  expect(document.getElementById('new-password')).not.toBeNull();
+  expect(lookupSignal).toBeInstanceOf(AbortSignal);
+  expect(rendering).toBeInstanceOf(Promise);
+});
+
+test('an answer arriving after the reader left does not overwrite the new page', async () => {
+  let answer;
+  global.fetch = jest.fn(() => new Promise((resolve) => {
+    answer = resolve;
+  }));
+
+  const rendering = new ResetPassword({}).render(TOKEN);
+  document.getElementById('app').innerHTML = '<p id="elsewhere">Login</p>';
+  answer({ status: 400, json: () => Promise.resolve({ success: false }) });
+  await rendering;
+
+  expect(document.getElementById('elsewhere')).not.toBeNull();
+  expect(document.getElementById('email')).toBeNull();
+});
+
 test('if the lookup cannot be reached, the reset can still be attempted', async () => {
   global.fetch = jest.fn().mockRejectedValue(new Error('offline'));
 

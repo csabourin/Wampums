@@ -13,7 +13,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { validationResult } = require('express-validator');
+const { body, validationResult } = require('express-validator');
 
 // Import middleware
 const { authenticate } = require('../middleware/auth');
@@ -1052,7 +1052,8 @@ module.exports = (pool, logger) => {
    */
   router.post('/api/v1/auth/reset-password/describe',
     passwordResetLookupLimiter,
-    validateToken,
+    // Body only: a token in the query string would land in URLs and access logs.
+    body('token').isString().trim().notEmpty().withMessage('Token is required'),
     checkValidation,
     asyncHandler(async (req, res) => {
       const token = typeof req.body.token === 'string' ? req.body.token.trim() : '';

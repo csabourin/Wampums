@@ -122,6 +122,7 @@ describe(`POST ${ENDPOINT}`, () => {
     const res = await request(app).post(`${ENDPOINT}?token=${RAW_TOKEN}`).send({});
 
     expect(res.status).toBe(400);
+    expect(Array.isArray(res.body.errors)).toBe(true);
     expect(seen.digest).toBeUndefined();
   });
 });
