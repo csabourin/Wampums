@@ -371,6 +371,19 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
     expect(write.status).toBe(400);
   });
 
+  test('an id beyond the database integer range is a 400, not a 500', async () => {
+    const tooLarge = '99999999999999999999';
+    const read = await as(ids.alice.id).get('/api/v1/guardians').query({ participant_id: tooLarge });
+    const justOver = await as(ids.alice.id).get('/api/v1/guardians').query({ participant_id: '2147483648' });
+    const write = await as(ids.alice.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea, guardian_id: tooLarge, nom: 'X', prenom: 'Y',
+    });
+
+    expect(read.status).toBe(400);
+    expect(justOver.status).toBe(400);
+    expect(write.status).toBe(400);
+  });
+
   test('an inactive member keeps no access through their child link', async () => {
     const family = await one('SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1', [ids.alice.id]);
     const former = await member('Former Member', Number(family));

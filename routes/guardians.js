@@ -28,15 +28,20 @@ const {
 const { success, error, asyncHandler } = require('../middleware/response');
 const { splitFullName } = require('../services/accountProvisioning');
 
+/** Largest value of a PostgreSQL integer column, which these ids are. */
+const MAX_INTEGER_ID = 2147483647;
+
 /**
- * Whether a query or body value is a positive integer id (as a number or a
- * string of digits). Anything else would reach SQL and fail as a 500.
+ * Whether a query or body value is a positive integer id that fits the
+ * database's integer columns (as a number or a string of digits). Anything
+ * else would reach SQL and fail as a 500.
  *
  * @param {*} value - Value to check
- * @returns {boolean} True for 1, '42'; false for 0, '', 'abc', '1.5'
+ * @returns {boolean} True for 1, '42'; false for 0, '', 'abc', '1.5', '99999999999'
  */
 function isPositiveInteger(value) {
-  return /^[1-9]\d*$/.test(String(value));
+  const text = String(value);
+  return /^[1-9]\d{0,9}$/.test(text) && Number(text) <= MAX_INTEGER_ID;
 }
 
 /**
