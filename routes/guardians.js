@@ -88,6 +88,15 @@ module.exports = (pool) => {
        JOIN user_organizations uo
          ON uo.user_id = up.user_id AND uo.organization_id = $3 AND uo.status = 'active'
        WHERE up.user_id = $1 AND up.participant_id = $2
+         -- A role that still exists and is limited to its own children. A
+         -- membership whose roles were all deleted reads as 'linked' scope by
+         -- default, and must not pass for a family.
+         AND EXISTS (
+           SELECT 1
+           FROM jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS family_role_id
+           JOIN roles family_role ON family_role.id = family_role_id::integer
+           WHERE family_role.data_scope = 'linked'
+         )
        LIMIT 1`,
       [req.user.id, participantId, organizationId]
     );

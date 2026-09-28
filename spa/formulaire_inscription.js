@@ -370,6 +370,10 @@ export class FormulaireInscription {
     async saveGuardians(participantId, guardians) {
       if (guardians && guardians.length > 0) {
           debugLog("Guardians data before saving:", guardians);
+        // Fields a unit added to the parent_guardian form, per guardian. They
+        // belong to this child's submission: form_submissions is keyed by
+        // participant, never by guardian.
+        const customFieldsByGuardian = {};
         for (const [index, guardian] of guardians.entries()) {
           // The form only holds the visible fields; which record it edits comes
           // from what was loaded, so a save updates that record instead of
@@ -415,14 +419,24 @@ export class FormulaireInscription {
             delete guardianCustomFields.is_emergency_contact;
 
             if (Object.keys(guardianCustomFields).length > 0) {
-              const guardianFormSubmissionResult = await saveFormSubmission('parent_guardian', guardianId, guardianCustomFields);
-              if (!guardianFormSubmissionResult.success) {
-                throw new Error("Error saving guardian custom fields: " + guardianFormSubmissionResult.message);
-              }
+              customFieldsByGuardian[guardianId] = guardianCustomFields;
             }
           } catch (error) {
             debugError("Error saving guardian:", error);
             throw error;
+          }
+        }
+
+        // The form holds every guardian of the child, so this replaces the
+        // whole set.
+        if (Object.keys(customFieldsByGuardian).length > 0) {
+          const guardianFormSubmissionResult = await saveFormSubmission(
+            'parent_guardian',
+            participantId,
+            { guardians: customFieldsByGuardian }
+          );
+          if (!guardianFormSubmissionResult.success) {
+            throw new Error("Error saving guardian custom fields: " + guardianFormSubmissionResult.message);
           }
         }
       }

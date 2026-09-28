@@ -547,6 +547,22 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
     expect(await one('SELECT nom FROM parents_guardians WHERE id = $1', [leaderRecord])).toBe('Parent');
   });
 
+  test('a membership whose only role was deleted gets no access through its child link', async () => {
+    const doomed = await role('doomed_family', 'linked', []);
+    const orphan = await member('Orphaned Member', doomed);
+    await grantParticipantAccess(pool, { participantId: ids.lea, userId: orphan.id, sourceType: ACCESS_SOURCE.DIRECT });
+    // Deleting a role leaves its id in user_organizations.role_ids.
+    await pool.query('DELETE FROM roles WHERE id = $1', [doomed]);
+
+    const read = await as(orphan.id).get('/api/v1/guardians').query({ participant_id: ids.lea });
+    const write = await as(orphan.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea, guardian_id: ids.aliceRecord, nom: 'X', prenom: 'Y',
+    });
+
+    expect(read.status).toBe(403);
+    expect(write.status).toBe(403);
+  });
+
   test('a guardian_id of 0 is refused, not taken as "no guardian"', async () => {
     const name = `Zero-${suffix}`;
     const response = await as(ids.alice.id).post('/api/v1/guardians').send({
