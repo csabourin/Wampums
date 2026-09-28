@@ -445,6 +445,55 @@ describe('Rendered form: a text field depending on a select', () => {
     expect(isHidden(dialectInput)).toBe(true);
   });
 
+  describe('with several forms on the page (one per guardian)', () => {
+    /**
+     * Mount one handler per guardian, each in its own container, the way
+     * participant registration does. The forms share their field names.
+     *
+     * @param {Object[]} answers - Saved answers, one object per guardian
+     * @returns {HTMLElement[]} The guardian containers
+     */
+    function renderGuardians(answers) {
+      const structure = { fields: [LANGUAGE_FIELD, OTHER_LANGUAGE_FIELD] };
+      return answers.map((formData, index) => {
+        const container = document.createElement('div');
+        container.innerHTML = new JSONFormRenderer(structure, formData, 'parent_guardian', true, index).render();
+        document.body.appendChild(container);
+
+        const handler = new DynamicFormHandler({ showMessage: jest.fn() });
+        handler.container = container;
+        handler.formFormats = { parent_guardian: structure };
+        handler.formType = 'parent_guardian';
+        handler.attachDependencyListeners();
+        return container;
+      });
+    }
+
+    it('keeps each guardian\'s dependent answer when another guardian changes language', () => {
+      const [first, second] = renderGuardians([
+        { langue: 'autre', autre_langue: 'Cri' },
+        { langue: 'autre', autre_langue: 'Innu-aimun' }
+      ]);
+
+      choose(first.querySelector('[name="langue"]'), 'fr');
+
+      expect(otherLanguage(first).value).toBe('');
+      expect(otherLanguage(second).value).toBe('Innu-aimun');
+      expect(isHidden(otherLanguage(second))).toBe(false);
+    });
+
+    it('syncs each guardian from their own controlling field on load', () => {
+      const [first, second] = renderGuardians([
+        { langue: 'fr' },
+        { langue: 'autre', autre_langue: 'Innu-aimun' }
+      ]);
+
+      expect(isHidden(otherLanguage(first))).toBe(true);
+      expect(isHidden(otherLanguage(second))).toBe(false);
+      expect(otherLanguage(second).value).toBe('Innu-aimun');
+    });
+  });
+
   it('has no WCAG A/AA violations with the dependent field shown or hidden', async () => {
     const form = renderLive({ langue: 'fr' });
     expect((await axe.run(form, AXE_OPTIONS)).violations).toEqual([]);

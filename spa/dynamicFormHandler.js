@@ -11,6 +11,21 @@ import {
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 
+/**
+ * Every form control carrying a field name within one form.
+ *
+ * Compares `name` directly rather than building a CSS selector, so a field name
+ * never has to be escaped.
+ *
+ * @param {ParentNode} root - The form, container or document to search
+ * @param {string} name - The field name
+ * @returns {HTMLElement[]} Matching controls, in document order
+ */
+function getElementsByFieldName(root, name) {
+    return Array.from(root.querySelectorAll('input, select, textarea'))
+        .filter((element) => element.name === name);
+}
+
 export class DynamicFormHandler {
     constructor(app, customSaveHandler = null, useUniqueIds = false, formIndex = null) {
         this.app = app;
@@ -221,21 +236,26 @@ export class DynamicFormHandler {
      */
     attachDependencyListeners() {
         const fields = this.formFormats[this.formType].fields;
+        // Participant registration mounts one handler per guardian, each in its
+        // own container and all sharing field names. Looking fields up across
+        // the whole document let one guardian's answer hide — and clear — the
+        // matching field of every other guardian.
+        const root = this.container || document;
 
         fields.forEach((field) => {
             if (field.dependsOn) {
-                const controllingElements = Array.from(document.getElementsByName(field.dependsOn.field));
+                const controllingElements = getElementsByFieldName(root, field.dependsOn.field);
 
                 controllingElements.forEach((element) => {
                     const eventType = this.getEventType(element.type);
                     element.addEventListener(eventType, () => {
                         const controllingValue = this.getFieldValue(element);
-                        this.toggleDependentFields(field, controllingValue);
+                        this.toggleDependentFields(field, controllingValue, root);
                     });
                 });
 
                 if (controllingElements.length > 0) {
-                    this.toggleDependentFields(field, this.getCurrentControllingValue(controllingElements));
+                    this.toggleDependentFields(field, this.getCurrentControllingValue(controllingElements), root);
                 }
             }
         });
@@ -291,12 +311,13 @@ export class DynamicFormHandler {
      *
      * @param {Object} dependentField - The dependent field's definition
      * @param {*} controllingValue - The controlling field's current answer
+     * @param {ParentNode} [root=document] - The form the dependent field belongs to
      * @returns {void}
      */
-    toggleDependentFields(dependentField, controllingValue) {
-        // getElementsByName(...)[0] only ever reached the first element, so a
-        // dependent field rendered as a group of radios was half-toggled.
-        const dependentElements = Array.from(document.getElementsByName(dependentField.name));
+    toggleDependentFields(dependentField, controllingValue, root = document) {
+        // Every element carrying the name, not just the first: a dependent field
+        // rendered as a group of radios was otherwise half-toggled.
+        const dependentElements = getElementsByFieldName(root, dependentField.name);
         if (dependentElements.length === 0) {
             return;
         }
