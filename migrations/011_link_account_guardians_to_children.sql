@@ -51,8 +51,14 @@ WHERE EXISTS (
     JOIN parents_guardians lg ON lg.id = linked.guardian_id
     WHERE linked.participant_id = up.participant_id
       AND (lg.user_uuid = u.id
-           OR lower(lg.courriel) = lower(u.email)
-           OR EXISTS (SELECT 1 FROM guardian_users lgu WHERE lgu.guardian_id = lg.id AND lgu.user_id = u.id))
+           OR EXISTS (SELECT 1 FROM guardian_users lgu WHERE lgu.guardian_id = lg.id AND lgu.user_id = u.id)
+           -- An address alone, only on a linked record no other account owns.
+           OR (lower(lg.courriel) = lower(u.email)
+               AND (lg.user_uuid IS NULL OR lg.user_uuid = u.id)
+               AND NOT EXISTS (
+                 SELECT 1 FROM guardian_users other
+                 WHERE other.guardian_id = lg.id AND other.user_id IS NOT NULL AND other.user_id <> u.id
+               )))
   )
 ORDER BY up.user_id, up.participant_id,
          (g.user_uuid = u.id) DESC NULLS LAST,

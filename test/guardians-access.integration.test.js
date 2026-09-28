@@ -277,6 +277,28 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
     expect(theirs[0]).toMatchObject({ guardian_id: linkedRecord, linked: true });
   });
 
+  test('a linked record left with a moved address does not hide the new account', async () => {
+    const family = await one('SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1', [ids.alice.id]);
+    const former = await member('Former Owner', Number(family));
+    const movedAddress = `moved-${suffix}@example.test`;
+    // Linked to Léa, still carrying the address its owner has since given up.
+    const formerRecord = await one(
+      "INSERT INTO parents_guardians (nom, prenom, courriel, user_uuid) VALUES ('Owner', 'Former', $1, $2) RETURNING id",
+      [movedAddress, former.id]
+    );
+    await pool.query('INSERT INTO participant_guardians (guardian_id, participant_id) VALUES ($1, $2)', [formerRecord, ids.lea]);
+    // The account now signing in with that address has access to Léa too.
+    const current = await member('Current Holder', Number(family));
+    await pool.query('UPDATE users SET email = $1 WHERE id = $2', [movedAddress, current.id]);
+    await grantParticipantAccess(pool, { participantId: ids.lea, userId: current.id, sourceType: ACCESS_SOURCE.DIRECT });
+
+    const listed = await as(ids.alice.id).get('/api/v1/guardians')
+      .query({ participant_id: ids.lea, include_account_holders: 'true' });
+
+    expect(listed.body.data.filter((g) => g.courriel === movedAddress && g.linked === false))
+      .toEqual([expect.objectContaining({ guardian_id: null, prenom: 'Current' })]);
+  });
+
   test('saving an account holder links their record to the child, once', async () => {
     const response = await as(ids.alice.id).post('/api/v1/guardians').send({
       participant_id: ids.lea,

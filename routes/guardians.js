@@ -120,8 +120,13 @@ module.exports = (pool) => {
                 JOIN parents_guardians lg ON lg.id = linked.guardian_id
                 WHERE linked.participant_id = up.participant_id
                   AND (lg.user_uuid = u.id
-                       OR lower(lg.courriel) = lower(u.email)
-                       OR EXISTS (SELECT 1 FROM guardian_users lgu WHERE lgu.guardian_id = lg.id AND lgu.user_id = u.id))
+                       OR EXISTS (SELECT 1 FROM guardian_users lgu WHERE lgu.guardian_id = lg.id AND lgu.user_id = u.id)
+                       OR (lower(lg.courriel) = lower(u.email)
+                           AND (lg.user_uuid IS NULL OR lg.user_uuid = u.id)
+                           AND NOT EXISTS (
+                             SELECT 1 FROM guardian_users other
+                             WHERE other.guardian_id = lg.id AND other.user_id IS NOT NULL AND other.user_id <> u.id
+                           )))
               ) AS already_linked,
               g.id AS guardian_id, g.nom, g.prenom, g.courriel,
               g.telephone_residence, g.telephone_travail, g.telephone_cellulaire,
@@ -234,11 +239,8 @@ module.exports = (pool) => {
     // from their account, so the form -- and the emergency contacts built
     // from it -- is not empty. They may have no id until saved.
     const linkedIds = new Set(result.rows.map((row) => row.guardian_id));
-    const linkedEmails = new Set(result.rows.map((row) => (row.courriel || '').toLowerCase()).filter(Boolean));
     const fromAccounts = (await accountsWithAccess(participant_id, organizationId))
-      .filter((account) => !account.already_linked
-        && !linkedIds.has(account.guardian_id)
-        && !linkedEmails.has((account.courriel || account.email || '').toLowerCase()))
+      .filter((account) => !account.already_linked && !linkedIds.has(account.guardian_id))
       .map((account) => {
         const fallback = splitFullName(account.full_name, account.email);
         return {
