@@ -29,6 +29,17 @@ const { success, error, asyncHandler } = require('../middleware/response');
 const { splitFullName } = require('../services/accountProvisioning');
 
 /**
+ * Whether a query or body value is a positive integer id (as a number or a
+ * string of digits). Anything else would reach SQL and fail as a 500.
+ *
+ * @param {*} value - Value to check
+ * @returns {boolean} True for 1, '42'; false for 0, '', 'abc', '1.5'
+ */
+function isPositiveInteger(value) {
+  return /^[1-9]\d*$/.test(String(value));
+}
+
+/**
  * Export route factory function
  * Allows dependency injection of pool
  *
@@ -63,6 +74,8 @@ module.exports = (pool) => {
       `SELECT 1
        FROM user_participants up
        JOIN participant_organizations po ON po.participant_id = up.participant_id AND po.organization_id = $3
+       JOIN user_organizations uo
+         ON uo.user_id = up.user_id AND uo.organization_id = $3 AND uo.status = 'active'
        WHERE up.user_id = $1 AND up.participant_id = $2
        LIMIT 1`,
       [req.user.id, participantId, organizationId]
@@ -71,7 +84,8 @@ module.exports = (pool) => {
   }
 
   /**
-   * Refuse, naming the permission that would have allowed it.
+   * Refuse, naming the permission that would have allowed it. Access to the
+   * child would also have done, and the message says so.
    *
    * @param {Object} res - Express response
    * @param {string} permissionKey - Permission required
@@ -80,7 +94,7 @@ module.exports = (pool) => {
   function refuse(res, permissionKey) {
     return res.status(403).json({
       success: false,
-      message: 'Insufficient permissions',
+      message: 'Insufficient permissions or no access to this participant',
       required: [permissionKey],
       missing: [permissionKey],
       timestamp: new Date().toISOString(),
@@ -111,7 +125,14 @@ module.exports = (pool) => {
          FROM parents_guardians pg
          WHERE pg.user_uuid = u.id
             OR EXISTS (SELECT 1 FROM guardian_users gu WHERE gu.guardian_id = pg.id AND gu.user_id = u.id)
-            OR lower(pg.courriel) = lower(u.email)
+            -- An address alone counts only on a record no other account
+            -- claims: an address can move to another account.
+            OR (lower(pg.courriel) = lower(u.email)
+                AND (pg.user_uuid IS NULL OR pg.user_uuid = u.id)
+                AND NOT EXISTS (
+                  SELECT 1 FROM guardian_users other
+                  WHERE other.guardian_id = pg.id AND other.user_id IS NOT NULL AND other.user_id <> u.id
+                ))
          ORDER BY (pg.user_uuid = u.id) DESC NULLS LAST, pg.id
          LIMIT 1
        ) g ON true
@@ -154,6 +175,9 @@ module.exports = (pool) => {
 
     if (!participant_id) {
       return error(res, 'Participant ID is required', 400);
+    }
+    if (!isPositiveInteger(participant_id)) {
+      return error(res, 'Participant ID must be a positive integer', 400);
     }
 
     if (!(await mayActOnGuardians(req, participant_id, organizationId, 'guardians.view'))) {
@@ -284,6 +308,9 @@ module.exports = (pool) => {
     if (!participant_id || !nom || !prenom) {
       return error(res, 'Participant ID, nom, and prenom are required', 400);
     }
+    if (!isPositiveInteger(participant_id) || (guardian_id && !isPositiveInteger(guardian_id))) {
+      return error(res, 'Participant ID and guardian ID must be positive integers', 400);
+    }
 
     if (!(await mayActOnGuardians(req, participant_id, organizationId, 'guardians.manage'))) {
       return refuse(res, 'guardians.manage');
@@ -325,7 +352,12 @@ module.exports = (pool) => {
            WHERE g.id = $1
              AND (g.user_uuid = u.id
                   OR EXISTS (SELECT 1 FROM guardian_users gu WHERE gu.guardian_id = g.id AND gu.user_id = u.id)
-                  OR lower(g.courriel) = lower(u.email))
+                  OR (lower(g.courriel) = lower(u.email)
+                      AND (g.user_uuid IS NULL OR g.user_uuid = u.id)
+                      AND NOT EXISTS (
+                        SELECT 1 FROM guardian_users other
+                        WHERE other.guardian_id = g.id AND other.user_id IS NOT NULL AND other.user_id <> u.id
+                      )))
            LIMIT 1`,
           [guardian_id, participant_id, organizationId]
         );
@@ -368,12 +400,14 @@ module.exports = (pool) => {
              SELECT u.id
              FROM user_participants up
              JOIN users u ON u.id = up.user_id
+             JOIN user_organizations uo
+               ON uo.user_id = u.id AND uo.organization_id = $10 AND uo.status = 'active'
              WHERE up.participant_id = $9 AND lower(u.email) = lower($3::varchar)
              LIMIT 1
            ))
            RETURNING id`,
           [nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire,
-            is_primary || false, is_emergency_contact || false, participant_id]
+            is_primary || false, is_emergency_contact || false, participant_id, organizationId]
         );
         guardianIdToLink = result.rows[0].id;
 

@@ -275,6 +275,69 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
     expect(await one('SELECT nom FROM parents_guardians WHERE id = $1', [ids.aliceRecord])).toBe('Tremblay');
   });
 
+  test('an id that is not a positive integer is a 400, not a 500', async () => {
+    const read = await as(ids.alice.id).get('/api/v1/guardians').query({ participant_id: 'abc' });
+    const write = await as(ids.alice.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea, guardian_id: '1.5', nom: 'X', prenom: 'Y',
+    });
+
+    expect(read.status).toBe(400);
+    expect(write.status).toBe(400);
+  });
+
+  test('an inactive member keeps no access through their child link', async () => {
+    const family = await one('SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1', [ids.alice.id]);
+    const former = await member('Former Member', Number(family));
+    await grantParticipantAccess(pool, { participantId: ids.lea, userId: former.id, sourceType: ACCESS_SOURCE.DIRECT });
+    await pool.query("UPDATE user_organizations SET status = 'inactive' WHERE user_id = $1", [former.id]);
+
+    const response = await as(former.id).get('/api/v1/guardians').query({ participant_id: ids.lea });
+
+    expect(response.status).toBe(403);
+  });
+
+  test('an address that moved to another account does not hand over the first account\'s record', async () => {
+    const family = await one('SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1', [ids.alice.id]);
+    // Denise's record keeps her old address after she changed her login email.
+    const denise = await member('Denise Old', Number(family));
+    const oldAddress = `old-${suffix}@example.test`;
+    const deniseRecord = await one(
+      `INSERT INTO parents_guardians (nom, prenom, courriel, telephone_cellulaire, user_uuid)
+       VALUES ('Old', 'Denise', $1, '819-555-0199', $2) RETURNING id`,
+      [oldAddress, denise.id]
+    );
+    // Another account now signs in with that address and has access to Léa.
+    const newcomer = await member('Newcomer Account', Number(family));
+    await pool.query('UPDATE users SET email = $1 WHERE id = $2', [oldAddress, newcomer.id]);
+    await grantParticipantAccess(pool, { participantId: ids.lea, userId: newcomer.id, sourceType: ACCESS_SOURCE.DIRECT });
+
+    const listed = await as(newcomer.id).get('/api/v1/guardians').query({ participant_id: ids.lea });
+    const offered = listed.body.data.find((g) => g.courriel === oldAddress);
+    expect(offered).toMatchObject({ guardian_id: null, prenom: 'Newcomer' });
+    expect(offered.telephone_cellulaire).toBeFalsy();
+
+    const write = await as(newcomer.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea, guardian_id: deniseRecord, nom: 'Taken', prenom: 'Over',
+    });
+    expect(write.status).toBe(403);
+    expect(await one('SELECT nom FROM parents_guardians WHERE id = $1', [deniseRecord])).toBe('Old');
+  });
+
+  test('a new record is tied only to an account that is an active member of this unit', async () => {
+    const family = await one('SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1', [ids.alice.id]);
+    const elsewhere = await member('Elsewhere Only', Number(family));
+    await pool.query("UPDATE user_organizations SET status = 'inactive' WHERE user_id = $1", [elsewhere.id]);
+    await grantParticipantAccess(pool, { participantId: ids.lea, userId: elsewhere.id, sourceType: ACCESS_SOURCE.DIRECT });
+
+    const response = await as(ids.alice.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea, nom: 'Only', prenom: 'Elsewhere', courriel: elsewhere.email,
+    });
+
+    expect(response.status).toBe(200);
+    expect(await one('SELECT user_uuid FROM parents_guardians WHERE id = $1', [response.body.data.guardian_id]))
+      .toBeNull();
+  });
+
   test('staff who see the whole unit read any child\'s guardians', async () => {
     const response = await as(ids.staff.id).get('/api/v1/guardians').query({ participant_id: ids.lea });
 
