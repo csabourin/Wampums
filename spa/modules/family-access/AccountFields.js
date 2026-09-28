@@ -9,8 +9,11 @@
  *
  * The address is shown but never editable. It is the invitation's identity,
  * and the server takes it from the stored invitation rather than from the form;
- * the disabled field is there so the reader can see which address they are
- * claiming, not as the thing that enforces it.
+ * the read-only field is there so the reader can see which address they are
+ * claiming, not as the thing that enforces it. It is read-only rather than
+ * disabled, and marked `autocomplete="username"`, because password managers
+ * skip disabled fields: they then took the phone number above the password as
+ * the username to save.
  *
  * @module spa/modules/family-access/AccountFields
  */
@@ -38,7 +41,7 @@ export function renderAccountFields({ email, prefill = {}, askNames = true, askP
   return `
     <div class="form-group">
       <label for="account-email">${translate('email')}</label>
-      <input type="email" id="account-email" value="${escapeHTML(email || '')}" disabled aria-describedby="account-email-hint" />
+      <input type="email" id="account-email" name="username" autocomplete="username" value="${escapeHTML(email || '')}" readonly aria-describedby="account-email-hint" />
       <p id="account-email-hint" class="form-hint">${translate('account_email_locked_hint')}</p>
     </div>
     ${askNames ? `

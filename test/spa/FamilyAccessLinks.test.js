@@ -146,8 +146,14 @@ describe('completing an invitation', () => {
     await new CompleteRegistration({}).init();
 
     const email = document.getElementById('account-email');
-    expect(email.disabled).toBe(true);
+    expect(email.readOnly).toBe(true);
     expect(email.value).toBe('ada@example.org');
+    // Password managers skip disabled fields and would save the phone number
+    // as the username; the locked address must be the one they pick up.
+    expect(email.disabled).toBe(false);
+    expect(email.getAttribute('autocomplete')).toBe('username');
+    expect(document.getElementById('account-phone-cell').getAttribute('autocomplete')).toBe('tel');
+    expect(document.getElementById('account-password').getAttribute('autocomplete')).toBe('new-password');
     expect(document.getElementById('account-first-name').value).toBe('Adda');
     expect(document.querySelector('h1').textContent).toBe('6A St-Paul');
     expect(document.getElementById('account-password')).not.toBeNull();

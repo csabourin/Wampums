@@ -24,7 +24,7 @@ export class ResetPassword {
 		return `
 												<div id="email-step">
 																<label for="email">${translate("email")}:</label>
-																<input type="email" id="email" name="email" autocomplete="email" required>
+																<input type="email" id="email" name="email" autocomplete="username" required>
 																<button type="submit">${translate("send_reset_link")}</button>
 												</div>
 								`;

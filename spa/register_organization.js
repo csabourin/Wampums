@@ -32,7 +32,7 @@ export class RegisterOrganization {
 					<option value="administration">${translate("administration")}</option>
 				</select>
 				<label for="registration_password">${translate("registration_password")}:</label>
-				<input type="password" id="registration_password" name="registration_password" required>
+				<input type="password" id="registration_password" name="registration_password" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" required>
 				${this.renderChildrenOptions()}
 				<button type="submit">${translate("register")}</button>
 			</form>

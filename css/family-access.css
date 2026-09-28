@@ -36,7 +36,7 @@
   box-sizing: border-box;
 }
 
-:is(.complete-registration, .family-link-review, .parent-onboarding, .family-access, .walk-in, #parent-invitation-modal) input:disabled {
+:is(.complete-registration, .family-link-review, .parent-onboarding, .family-access, .walk-in, #parent-invitation-modal) :is(input:disabled, input[readonly]) {
   background: var(--color-secondary);
   color: var(--color-text);
 }
