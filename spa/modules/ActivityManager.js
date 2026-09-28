@@ -4,6 +4,7 @@ import { getSectionActivityTemplates } from "../utils/meetingSections.js";
 import { setContent } from "../utils/DOMUtils.js";
 import { debugLog, debugWarn } from "../utils/DebugUtils.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
+import { badgeLabel } from "../utils/BadgeLabelUtils.js";
 import { AchievementModal } from "./AchievementModal.js";
 
 /**
@@ -1031,7 +1032,7 @@ export class ActivityManager {
                         (t) => String(t.id) === String(badgeId),
                 );
                 const badgeName = badge
-                        ? translate(badge.translation_key) || badge.name
+                        ? badgeLabel(badge)
                         : translate("no_badge_selected") || "No badge selected";
                 const badgeImage = badge?.image || badge?.image_url || "";
 

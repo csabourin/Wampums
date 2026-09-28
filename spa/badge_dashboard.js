@@ -14,6 +14,7 @@ import {
   clearBadgeRelatedCaches,
 } from "./indexedDB.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
+import { badgeLabel } from "./utils/BadgeLabelUtils.js";
 import {
   canApproveBadges,
   canManageBadges,
@@ -280,19 +281,7 @@ export class BadgeDashboard extends BaseModule {
   }
 
   getBadgeLabel(template, entry = {}) {
-    if (!template) {
-      return (
-        translate(entry.translation_key) ||
-        entry.badge_name ||
-        entry.territoire_chasse ||
-        translate("badge_unknown_label")
-      );
-    }
-    return (
-      translate(template.translation_key) ||
-      template.name ||
-      translate("badge_unknown_label")
-    );
+    return badgeLabel(template || entry);
   }
 
   getObtainableStars(badgeName, currentStars = 0, templateId = null) {

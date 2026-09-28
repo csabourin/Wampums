@@ -1,5 +1,6 @@
 import { translate } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
+import { badgeLabel } from "../utils/BadgeLabelUtils.js";
 import { debugLog } from "../utils/DebugUtils.js";
 import { setContent, insertHTML } from "../utils/DOMUtils.js";
 
@@ -106,10 +107,7 @@ export class AchievementModal {
                 const isSelected =
                     String(badge.id) === String(this.selectedBadgeId);
                 const imageUrl = badge.image || badge.image_url || "";
-                const badgeName =
-                    translate(badge.translation_key) ||
-                    badge.name ||
-                    translate("badge_unknown_label");
+                const badgeName = badgeLabel(badge);
 
                 return `
                                 <button type="button" 

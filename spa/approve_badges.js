@@ -5,6 +5,7 @@ import { clearBadgeRelatedCaches } from "./indexedDB.js";
 import { canApproveBadges } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { badgeLabel } from "./utils/BadgeLabelUtils.js";
 
 export class ApproveBadges {
   constructor(app) {
@@ -86,12 +87,7 @@ export class ApproveBadges {
   }
 
   getBadgeLabel(badge) {
-    return (
-      translate(badge.translation_key) ||
-      badge.badge_name ||
-      badge.territoire_chasse ||
-      translate("badge_unknown_label")
-    );
+    return badgeLabel(badge);
   }
 
   attachEventListeners() {
