@@ -378,6 +378,8 @@ export class FormulaireInscription {
           const guardianData = {
             participant_id: participantId,
             guardian_id: loaded.guardian_id || undefined,
+            // An entry offered from an account: the new record is theirs.
+            account_user_id: loaded.guardian_id ? undefined : (loaded.account_user_id || undefined),
             nom: guardian.nom,
             prenom: guardian.prenom,
             lien: guardian.lien,

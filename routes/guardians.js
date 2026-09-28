@@ -28,6 +28,9 @@ const {
 const { success, error, asyncHandler } = require('../middleware/response');
 const { splitFullName } = require('../services/accountProvisioning');
 
+/** Shape of a user id (users.id is a UUID). */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Largest value of a PostgreSQL integer column, which these ids are. */
 const MAX_INTEGER_ID = 2147483647;
 
@@ -133,6 +136,11 @@ module.exports = (pool) => {
                              WHERE other.guardian_id = lg.id AND other.user_id IS NOT NULL AND other.user_id <> u.id
                            )))
               ) AS already_linked,
+              -- Another account's record already carries this address, and
+              -- addresses are unique: offering it would make the save fail.
+              EXISTS (
+                SELECT 1 FROM parents_guardians taken WHERE lower(taken.courriel) = lower(u.email)
+              ) AS address_taken,
               g.id AS guardian_id, g.nom, g.prenom, g.courriel,
               g.telephone_residence, g.telephone_travail, g.telephone_cellulaire,
               g.is_primary, g.is_emergency_contact
@@ -256,12 +264,15 @@ module.exports = (pool) => {
           relationship: null,
           nom: account.nom || fallback.nom,
           prenom: account.prenom || fallback.prenom,
-          courriel: account.courriel || account.email,
+          courriel: account.courriel || (account.address_taken ? null : account.email),
           telephone_residence: account.telephone_residence,
           telephone_travail: account.telephone_travail,
           telephone_cellulaire: account.telephone_cellulaire,
           is_primary: account.is_primary,
           is_emergency_contact: account.is_emergency_contact,
+          // Which account this entry stands for, so a first save ties the new
+          // record to it even if the address was edited on the form.
+          account_user_id: account.user_id,
           linked: false,
         };
       });
@@ -329,15 +340,21 @@ module.exports = (pool) => {
    */
   router.post('/', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const { participant_id, guardian_id, nom, prenom, lien, courriel,
+    const { participant_id, guardian_id, account_user_id, nom, prenom, lien, courriel,
       telephone_residence, telephone_travail, telephone_cellulaire,
       is_primary, is_emergency_contact } = req.body;
 
     if (!participant_id || !nom || !prenom) {
       return error(res, 'Participant ID, nom, and prenom are required', 400);
     }
-    if (!isPositiveInteger(participant_id) || (guardian_id && !isPositiveInteger(guardian_id))) {
+    // Present at all means it must be valid: 0 or '' is not "no guardian".
+    const hasGuardianId = guardian_id !== undefined && guardian_id !== null;
+    if (!isPositiveInteger(participant_id) || (hasGuardianId && !isPositiveInteger(guardian_id))) {
       return error(res, 'Participant ID and guardian ID must be positive integers', 400);
+    }
+    const hasAccountUserId = account_user_id !== undefined && account_user_id !== null;
+    if (hasAccountUserId && !UUID_PATTERN.test(String(account_user_id))) {
+      return error(res, 'Account user ID must be a UUID', 400);
     }
 
     if (!(await mayActOnGuardians(req, participant_id, organizationId, 'guardians.manage'))) {
@@ -363,7 +380,7 @@ module.exports = (pool) => {
 
       let guardianIdToLink;
 
-      if (guardian_id) {
+      if (hasGuardianId) {
         // Only a guardian of this child may be edited from its form: one
         // already linked to it, or the contact record of an account that has
         // access to it (which this save then links).
@@ -418,8 +435,10 @@ module.exports = (pool) => {
         );
       } else {
         // Insert new guardian
-        // When the address is that of an account with access to this child,
-        // the record is theirs: tie it to the account.
+        // A record made for an account with access to this child is theirs:
+        // tie it to the account named by the form entry, or else to the one
+        // whose address it carries. Either way the account must be an active
+        // member of this unit with access to the child.
         const result = await client.query(
           `INSERT INTO parents_guardians
            (nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire,
@@ -430,12 +449,15 @@ module.exports = (pool) => {
              JOIN users u ON u.id = up.user_id
              JOIN user_organizations uo
                ON uo.user_id = u.id AND uo.organization_id = $10 AND uo.status = 'active'
-             WHERE up.participant_id = $9 AND lower(u.email) = lower($3::varchar)
+             WHERE up.participant_id = $9
+               AND (u.id = $11::uuid
+                    OR ($11::uuid IS NULL AND lower(u.email) = lower($3::varchar)))
              LIMIT 1
            ))
            RETURNING id`,
           [nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire,
-            is_primary || false, is_emergency_contact || false, participant_id, organizationId]
+            is_primary || false, is_emergency_contact || false, participant_id, organizationId,
+            hasAccountUserId ? account_user_id : null]
         );
         guardianIdToLink = result.rows[0].id;
 

@@ -295,8 +295,8 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
     const listed = await as(ids.alice.id).get('/api/v1/guardians')
       .query({ participant_id: ids.lea, include_account_holders: 'true' });
 
-    expect(listed.body.data.filter((g) => g.courriel === movedAddress && g.linked === false))
-      .toEqual([expect.objectContaining({ guardian_id: null, prenom: 'Current' })]);
+    expect(listed.body.data.filter((g) => g.account_user_id === current.id))
+      .toEqual([expect.objectContaining({ guardian_id: null, prenom: 'Current', linked: false })]);
   });
 
   test('saving an account holder links their record to the child, once', async () => {
@@ -412,8 +412,9 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
 
     const listed = await as(newcomer.id).get('/api/v1/guardians')
       .query({ participant_id: ids.lea, include_account_holders: 'true' });
-    const offered = listed.body.data.find((g) => g.courriel === oldAddress);
-    expect(offered).toMatchObject({ guardian_id: null, prenom: 'Newcomer' });
+    const offered = listed.body.data.find((g) => g.account_user_id === newcomer.id);
+    // Not Denise's record, and not her address either: it is taken.
+    expect(offered).toMatchObject({ guardian_id: null, prenom: 'Newcomer', courriel: null });
     expect(offered.telephone_cellulaire).toBeFalsy();
 
     const write = await as(newcomer.id).post('/api/v1/guardians').send({
@@ -431,6 +432,74 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
 
     const response = await as(ids.alice.id).post('/api/v1/guardians').send({
       participant_id: ids.lea, nom: 'Only', prenom: 'Elsewhere', courriel: elsewhere.email,
+    });
+
+    expect(response.status).toBe(200);
+    expect(await one('SELECT user_uuid FROM parents_guardians WHERE id = $1', [response.body.data.guardian_id]))
+      .toBeNull();
+  });
+
+  test('an account whose address sits on another account\'s record is offered without it', async () => {
+    const family = await one('SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1', [ids.alice.id]);
+    const owner = await member('Record Owner', Number(family));
+    const holder = await member('Address Holder', Number(family));
+    await pool.query(
+      "INSERT INTO parents_guardians (nom, prenom, courriel, user_uuid) VALUES ('Owner', 'Record', $1, $2)",
+      [holder.email, owner.id]
+    );
+    await grantParticipantAccess(pool, { participantId: ids.lea, userId: holder.id, sourceType: ACCESS_SOURCE.DIRECT });
+
+    const listed = await as(ids.alice.id).get('/api/v1/guardians')
+      .query({ participant_id: ids.lea, include_account_holders: 'true' });
+    const offered = listed.body.data.find((g) => g.account_user_id === holder.id);
+
+    // Saving it with that address would hit the unique address and fail the whole form.
+    expect(offered).toMatchObject({ guardian_id: null, prenom: 'Address', courriel: null });
+  });
+
+  test('a guardian_id of 0 is refused, not taken as "no guardian"', async () => {
+    const name = `Zero-${suffix}`;
+    const response = await as(ids.alice.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea, guardian_id: 0, nom: name, prenom: 'Id',
+    });
+
+    expect(response.status).toBe(400);
+    expect(await one('SELECT count(*) FROM parents_guardians WHERE nom = $1', [name])).toBe('0');
+  });
+
+  test('an account holder\'s first save stays theirs even with an edited address', async () => {
+    const family = await one('SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1', [ids.alice.id]);
+    const edits = await member('Edited Address', Number(family));
+    await grantParticipantAccess(pool, { participantId: ids.lea, userId: edits.id, sourceType: ACCESS_SOURCE.DIRECT });
+
+    const offered = (await as(ids.alice.id).get('/api/v1/guardians')
+      .query({ participant_id: ids.lea, include_account_holders: 'true' }))
+      .body.data.find((g) => g.courriel === edits.email);
+    expect(offered.account_user_id).toBe(edits.id);
+
+    const saved = await as(ids.alice.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea,
+      account_user_id: offered.account_user_id,
+      nom: 'Address',
+      prenom: 'Edited',
+      courriel: `edited-elsewhere-${suffix}@example.test`,
+    });
+    expect(saved.status).toBe(200);
+    expect(await one('SELECT user_uuid FROM parents_guardians WHERE id = $1', [saved.body.data.guardian_id]))
+      .toBe(edits.id);
+
+    const listed = await as(ids.alice.id).get('/api/v1/guardians')
+      .query({ participant_id: ids.lea, include_account_holders: 'true' });
+    expect(listed.body.data.filter((g) => g.nom === 'Address' || g.courriel === edits.email)).toHaveLength(1);
+  });
+
+  test('an account id naming someone without access to the child is not used', async () => {
+    const response = await as(ids.alice.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea,
+      account_user_id: ids.bob.id,
+      nom: 'Not',
+      prenom: 'Bob',
+      courriel: `not-bob-${suffix}@example.test`,
     });
 
     expect(response.status).toBe(200);
