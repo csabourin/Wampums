@@ -1,7 +1,7 @@
 // dynamicFormHandler.js
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
-import { isDependencySatisfied, clearDependentValues } from "./utils/FormDependencyUtils.js";
+import { isDependencySatisfied, clearDependentValues, readControllingValue } from "./utils/FormDependencyUtils.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
 import {
     getOrganizationFormFormats,
@@ -247,7 +247,7 @@ export class DynamicFormHandler {
                 const controller = fields.find((candidate) => candidate.name === field.dependsOn.field);
                 const controllingElements = getElementsByFieldName(root, field.dependsOn.field);
                 const sync = () => {
-                    const controllingValue = this.getCurrentControllingValue(controllingElements, controller);
+                    const controllingValue = readControllingValue(controllingElements, controller);
                     this.toggleDependentFields(field, controllingValue, root);
                 };
 
@@ -260,28 +260,6 @@ export class DynamicFormHandler {
                 }
             }
         });
-    }
-
-    /**
-     * The answer a controlling field currently shows: the checked radio of a
-     * group, the ticked options of a multi-select (rendered as checkboxes), the
-     * state of a lone checkbox, or the value of a select or input.
-     *
-     * @param {HTMLElement[]} elements - Every element carrying the controlling field's name
-     * @param {Object} [controller] - The controlling field's definition
-     * @returns {string|string[]} The current answer ('' when nothing is chosen),
-     *   or the ticked values of a multi-select
-     */
-    getCurrentControllingValue(elements, controller) {
-        const [first] = elements;
-        if (controller?.type === 'select' && controller.multiple) {
-            return elements.filter((element) => element.checked).map((element) => element.value);
-        }
-        if (first.type === 'radio') {
-            const checked = elements.find((element) => element.checked);
-            return checked ? checked.value : '';
-        }
-        return this.getFieldValue(first);
     }
 
     // Get the appropriate event type based on the input type

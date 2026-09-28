@@ -17,7 +17,7 @@ import { confirm as confirmDialog, confirmDestructive } from '../../utils/Dialog
 
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { JSONFormRenderer } from '../../JSONFormRenderer.js';
-import { clearDependentValues } from '../../utils/FormDependencyUtils.js';
+import { clearDependentValues, isDependencySatisfied, readControllingValue } from '../../utils/FormDependencyUtils.js';
 import { API } from '../../api/api-core.js';
 import {
   getIncidentReports,
@@ -517,16 +517,13 @@ export class IncidentReport {
       const depElements = form.querySelectorAll(`[name="${depField.name}"]`);
       const depGroup = depElements[0]?.closest('.form-group');
 
-      const updateVisibility = () => {
-        let controlValue = '';
-        controllers.forEach(c => {
-          if (c.type === 'radio' && c.checked) controlValue = c.value;
-          else if (c.type !== 'radio') controlValue = c.value;
-        });
+      const controllerDef = this.formStructure.fields.find(f => f.name === controlField);
 
-        // For multi-select checkboxes, check if value is in the selected set
-        const isVisible = controlValue === requiredValue ||
-          (controlValue && controlValue.split(',').includes(requiredValue));
+      const updateVisibility = () => {
+        // Same reading and comparison as the dynamic forms: only ticked boxes
+        // count, and a lone checkbox answers yes/no rather than its fixed value.
+        const controlValue = readControllingValue(Array.from(controllers), controllerDef);
+        const isVisible = isDependencySatisfied(controlValue, requiredValue);
 
         if (depGroup) {
           depGroup.style.display = isVisible ? '' : 'none';

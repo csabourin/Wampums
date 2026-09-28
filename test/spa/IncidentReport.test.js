@@ -165,3 +165,67 @@ describe('incident report dependent fields', () => {
     expect(details.value).toBe('');
   });
 });
+
+describe('incident report dependent fields controlled by checkboxes', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  /**
+   * Mount a controller and its dependent, then wire the module's toggling.
+   *
+   * @param {string} controllerHtml - Markup of the controlling inputs
+   * @param {Object} controller - Controlling field definition
+   * @param {string} trigger - Value the dependent field waits for
+   * @returns {HTMLInputElement} The dependent input
+   */
+  function mount(controllerHtml, controller, trigger) {
+    document.body.innerHTML = `
+      <form id="incident-form">
+        <div class="form-group">${controllerHtml}</div>
+        <div class="form-group">
+          <label for="details">details</label>
+          <input id="details" name="details" value="Déjà saisi">
+        </div>
+      </form>
+    `;
+    const module = new IncidentReport({});
+    module.formStructure = {
+      fields: [
+        controller,
+        { name: 'details', type: 'text', dependsOn: { field: controller.name, value: trigger } }
+      ]
+    };
+    module.setupDependsOn();
+    return document.getElementById('details');
+  }
+
+  it('keeps the answer of a report whose checkbox controller is checked', () => {
+    const details = mount(
+      '<input type="checkbox" id="police" name="police" value="1" checked><label for="police">police</label>',
+      { name: 'police', type: 'checkbox' },
+      'yes'
+    );
+
+    expect(details.disabled).toBe(false);
+    expect(details.value).toBe('Déjà saisi');
+  });
+
+  it('keeps the answer while the trigger is ticked in a multi-select', () => {
+    const details = mount(`
+      <input type="checkbox" id="kind_fall" name="kind" value="fall" checked><label for="kind_fall">fall</label>
+      <input type="checkbox" id="kind_other" name="kind" value="other" checked><label for="kind_other">other</label>
+      <input type="checkbox" id="kind_burn" name="kind" value="burn"><label for="kind_burn">burn</label>
+    `, { name: 'kind', type: 'select', multiple: true }, 'other');
+
+    expect(details.disabled).toBe(false);
+    expect(details.value).toBe('Déjà saisi');
+
+    const other = document.getElementById('kind_other');
+    other.checked = false;
+    other.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(details.disabled).toBe(true);
+    expect(details.value).toBe('');
+  });
+});

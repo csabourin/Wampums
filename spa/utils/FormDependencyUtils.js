@@ -61,6 +61,37 @@ export function isDependencySatisfied(currentValue, expectedValue) {
 }
 
 /**
+ * The answer a controlling field currently shows on screen.
+ *
+ * - a multi-select (rendered as a checkbox group): the ticked values
+ * - a radio group: the checked value, or '' when none is
+ * - a lone checkbox: "yes" or "no" — its `value` attribute is fixed ("1") and
+ *   says nothing about whether it is ticked
+ * - anything else: its value
+ *
+ * @param {HTMLElement[]} elements - Every element carrying the controlling field's name
+ * @param {Object} [controller] - The controlling field's definition
+ * @returns {string|string[]} The current answer
+ */
+export function readControllingValue(elements, controller) {
+  const [first] = elements;
+  if (!first) {
+    return "";
+  }
+  if (controller?.type === "select" && controller.multiple) {
+    return elements.filter((element) => element.checked).map((element) => element.value);
+  }
+  if (first.type === "radio") {
+    const checked = elements.find((element) => element.checked);
+    return checked ? checked.value : "";
+  }
+  if (first.type === "checkbox") {
+    return first.checked ? "yes" : "no";
+  }
+  return first.value;
+}
+
+/**
  * Whether a `dependsOn` condition is already met by a set of saved answers.
  *
  * @param {Object} dependsOn - `{ field, value }` from the form format
