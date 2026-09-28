@@ -1,7 +1,7 @@
 // dynamicFormHandler.js
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
-import { isDependencyMet, isDependencySatisfied, clearDependentValues, readControllingValue } from "./utils/FormDependencyUtils.js";
+import { isDependencyMet, isControllerAnswerMatching, clearDependentValues, readControllingValue } from "./utils/FormDependencyUtils.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
 import {
     getOrganizationFormFormats,
@@ -250,7 +250,7 @@ export class DynamicFormHandler {
                 const controllingElements = getElementsByFieldName(root, field.dependsOn.field);
                 const sync = () => {
                     const controllingValue = readControllingValue(controllingElements, controller);
-                    this.toggleDependentFields(field, controllingValue, root);
+                    this.toggleDependentFields(field, controllingValue, root, controller);
                 };
 
                 controllingElements.forEach((element) => {
@@ -263,7 +263,7 @@ export class DynamicFormHandler {
                 const shown = readControllingValue(controllingElements, controller);
                 const metBySavedAnswers = isDependencyMet(field.dependsOn, savedAnswers);
                 if (controllingElements.length > 0 &&
-                    !(metBySavedAnswers && !isDependencySatisfied(shown, field.dependsOn.value))) {
+                    !(metBySavedAnswers && !isControllerAnswerMatching(controller, shown, field.dependsOn.value))) {
                     sync();
                 }
             }
@@ -305,9 +305,11 @@ export class DynamicFormHandler {
      * @param {Object} dependentField - The dependent field's definition
      * @param {*} controllingValue - The controlling field's current answer
      * @param {ParentNode} [root=document] - The form the dependent field belongs to
+     * @param {Object} [controller] - The controlling field's definition, so that
+     *   its own option values are compared exactly
      * @returns {void}
      */
-    toggleDependentFields(dependentField, controllingValue, root = document) {
+    toggleDependentFields(dependentField, controllingValue, root = document, controller = undefined) {
         // Every element carrying the name, not just the first: a dependent field
         // rendered as a group of radios was otherwise half-toggled.
         const dependentElements = getElementsByFieldName(root, dependentField.name);
@@ -315,7 +317,7 @@ export class DynamicFormHandler {
             return;
         }
 
-        const isMet = isDependencySatisfied(controllingValue, dependentField.dependsOn.value);
+        const isMet = isControllerAnswerMatching(controller, controllingValue, dependentField.dependsOn.value);
 
         dependentElements.forEach((element) => {
             element.disabled = !isMet;

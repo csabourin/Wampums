@@ -229,3 +229,37 @@ describe('incident report dependent fields controlled by checkboxes', () => {
     expect(details.value).toBe('');
   });
 });
+
+describe('incident report dependent fields controlled by a select', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('compares the select\'s own options exactly', () => {
+    document.body.innerHTML = `
+      <form id="incident-form">
+        <div class="form-group">
+          <label for="level">level</label>
+          <select id="level" name="level">
+            <option value="1" selected>1</option>
+            <option value="yes">yes</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="details">details</label>
+          <input id="details" name="details">
+        </div>
+      </form>
+    `;
+    const module = new IncidentReport({});
+    module.formStructure = {
+      fields: [
+        { name: 'level', type: 'select', options: [{ label: '1', value: '1' }, { label: 'yes', value: 'yes' }] },
+        { name: 'details', type: 'text', dependsOn: { field: 'level', value: 'yes' } }
+      ]
+    };
+    module.setupDependsOn();
+
+    expect(document.getElementById('details').disabled).toBe(true);
+  });
+});

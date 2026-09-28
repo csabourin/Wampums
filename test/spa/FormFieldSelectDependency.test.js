@@ -498,6 +498,25 @@ describe('Rendered form: a text field depending on a select', () => {
     });
   });
 
+  it('compares a select\'s own options exactly, not as yes/no aliases', () => {
+    // "yes" and "1" are two distinct answers here, not two spellings of yes.
+    const scale = {
+      name: 'niveau',
+      type: 'select',
+      label: 'niveau_label',
+      options: [{ label: 'none', value: '0' }, { label: 'one', value: '1' }, { label: 'yes', value: 'yes' }]
+    };
+    const detail = { ...OTHER_LANGUAGE_FIELD, dependsOn: { field: 'niveau', value: 'yes' } };
+    const form = renderLive({ niveau: '0' }, [scale, detail]);
+    const select = form.querySelector('[name="niveau"]');
+
+    choose(select, '1');
+    expect(isHidden(otherLanguage(form))).toBe(true);
+
+    choose(select, 'yes');
+    expect(isHidden(otherLanguage(form))).toBe(false);
+  });
+
   describe('with answers saved in an older spelling (fiche santé history)', () => {
     const YES_NO = [{ label: 'yes_label', value: 'yes' }, { label: 'no_label', value: 'no' }];
     const allergyFields = (type) => [

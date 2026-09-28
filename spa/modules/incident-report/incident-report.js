@@ -17,7 +17,7 @@ import { confirm as confirmDialog, confirmDestructive } from '../../utils/Dialog
 
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { JSONFormRenderer } from '../../JSONFormRenderer.js';
-import { clearDependentValues, isDependencySatisfied, readControllingValue } from '../../utils/FormDependencyUtils.js';
+import { clearDependentValues, isControllerAnswerMatching, readControllingValue } from '../../utils/FormDependencyUtils.js';
 import { API } from '../../api/api-core.js';
 import {
   getIncidentReports,
@@ -523,7 +523,7 @@ export class IncidentReport {
         // Same reading and comparison as the dynamic forms: only ticked boxes
         // count, and a lone checkbox answers yes/no rather than its fixed value.
         const controlValue = readControllingValue(Array.from(controllers), controllerDef);
-        const isVisible = isDependencySatisfied(controlValue, requiredValue);
+        const isVisible = isControllerAnswerMatching(controllerDef, controlValue, requiredValue);
 
         if (depGroup) {
           depGroup.style.display = isVisible ? '' : 'none';
