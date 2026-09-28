@@ -273,6 +273,19 @@ export const app = {
                         if (this.isLoggedIn) {
                                 this.handlePostLoginActions();
 
+                                // Roles and permissions are stored at sign-in. Replace them with the
+                                // current ones, and show this screen again if they changed.
+                                import('./modules/session/AccessRefresh.js')
+                                        .then(({ refreshAccess }) => refreshAccess(this))
+                                        .then((changed) => {
+                                                if (!changed) {
+                                                        return;
+                                                }
+                                                this.router.route(window.location.pathname + window.location.search);
+                                                this.showMessage(this.translate('access_updated'), 'info');
+                                        })
+                                        .catch(error => debugError("Failed to refresh access:", error));
+
                                 // The year selector sits outside #app so it survives navigation.
                                 // It draws nothing for a unit that has only ever had one year.
                                 import('./modules/scout-year/ScoutYearBanner.js')
