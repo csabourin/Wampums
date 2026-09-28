@@ -599,6 +599,42 @@ exports.blockDemoRoles = async (req, res, next) => {
 };
 
 /**
+ * Whether the signed-in user holds a permission in an organization, read from
+ * the database.
+ *
+ * Use this instead of `req.user.permissions` whenever the answer grants
+ * access. The JWT's permission list is a snapshot taken at sign-in and stays
+ * valid for days; a permission taken away from a role since then would still
+ * be honored.
+ *
+ * @param {Object} req - Express request with an authenticated user
+ * @param {Object} pool - Database connection pool
+ * @param {number} organizationId - Organization to check in
+ * @param {string} permissionKey - Permission key (e.g. 'finance.view')
+ * @returns {Promise<boolean>} True when an active membership's role grants it
+ */
+exports.userHasPermission = async (req, pool, organizationId, permissionKey) => {
+  if (!req.user || !req.user.id) {
+    return false;
+  }
+
+  const result = await pool.query(
+    `SELECT 1
+     FROM user_organizations uo
+     CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
+     JOIN role_permissions rp ON rp.role_id = role_id_text::integer
+     JOIN permissions p ON p.id = rp.permission_id
+     WHERE uo.user_id = $1 AND uo.organization_id = $2
+       AND uo.status = 'active'
+       AND p.permission_key = $3
+     LIMIT 1`,
+    [req.user.id, organizationId, permissionKey]
+  );
+
+  return result.rows.length > 0;
+};
+
+/**
  * Helper function to check if user has any of the specified permissions
  * Use this in route handlers when you need conditional logic based on permissions
  *
