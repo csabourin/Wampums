@@ -1,7 +1,7 @@
 // dynamicFormHandler.js
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
-import { isDependencySatisfied } from "./utils/FormDependencyUtils.js";
+import { isDependencyMet, isDependencySatisfied, clearDependentValues, readControllingValue } from "./utils/FormDependencyUtils.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
 import {
     getOrganizationFormFormats,
@@ -10,6 +10,21 @@ import {
 } from "./ajax-functions.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+
+/**
+ * Every form control carrying a field name within one form.
+ *
+ * Compares `name` directly rather than building a CSS selector, so a field name
+ * never has to be escaped.
+ *
+ * @param {ParentNode} root - The form, container or document to search
+ * @param {string} name - The field name
+ * @returns {HTMLElement[]} Matching controls, in document order
+ */
+function getElementsByFieldName(root, name) {
+    return Array.from(root.querySelectorAll('input, select, textarea'))
+        .filter((element) => element.name === name);
+}
 
 export class DynamicFormHandler {
     constructor(app, customSaveHandler = null, useUniqueIds = false, formIndex = null) {
@@ -209,23 +224,48 @@ export class DynamicFormHandler {
         }
     }
 
-    // Attach dependency listeners to controlling fields after rendering
+    /**
+     * Attach listeners to controlling fields after rendering, then bring every
+     * dependent field in line with what its controlling field shows right now.
+     *
+     * The initial sync matters for a select: without a saved answer it still
+     * displays its first option, so a field waiting on that option must start
+     * visible even though nothing has been saved yet.
+     *
+     * @returns {void}
+     */
     attachDependencyListeners() {
         const fields = this.formFormats[this.formType].fields;
+        // Participant registration mounts one handler per guardian, each in its
+        // own container and all sharing field names. Looking fields up across
+        // the whole document let one guardian's answer hide — and clear — the
+        // matching field of every other guardian.
+        const root = this.container || document;
+        // Same unwrapping as JSONFormRenderer.render()
+        const savedAnswers = this.formData?.form_data || this.formData || {};
 
-        // Loop through all fields and attach listeners to controlling fields
         fields.forEach((field) => {
             if (field.dependsOn) {
-                const controllingFieldName = field.dependsOn.field;
-                const controllingElements = document.getElementsByName(controllingFieldName);
+                const controller = fields.find((candidate) => candidate.name === field.dependsOn.field);
+                const controllingElements = getElementsByFieldName(root, field.dependsOn.field);
+                const sync = () => {
+                    const controllingValue = readControllingValue(controllingElements, controller);
+                    this.toggleDependentFields(field, controllingValue, root);
+                };
 
                 controllingElements.forEach((element) => {
-                    const eventType = this.getEventType(element.type);
-                    element.addEventListener(eventType, (e) => {
-                        const controllingValue = this.getFieldValue(element);
-                        this.toggleDependentFields(field, controllingValue);
-                    });
+                    element.addEventListener(this.getEventType(element.type), sync);
                 });
+
+                // On load, the saved answers outrank the screen: a condition they
+                // meet is never undone — and its answer never cleared — because
+                // the rendered control fails to show the saved answer.
+                const shown = readControllingValue(controllingElements, controller);
+                const metBySavedAnswers = isDependencyMet(field.dependsOn, savedAnswers);
+                if (controllingElements.length > 0 &&
+                    !(metBySavedAnswers && !isDependencySatisfied(shown, field.dependsOn.value))) {
+                    sync();
+                }
             }
         });
     }
@@ -235,8 +275,8 @@ export class DynamicFormHandler {
         switch (type) {
             case "text":
             case "textarea":
-            case "select-one":
                 return "input";
+            case "select-one":
             case "checkbox":
             case "radio":
                 return "change";
@@ -259,16 +299,18 @@ export class DynamicFormHandler {
 
     /**
      * Show, enable and require a dependent field once its controlling question
-     * is answered the way the form format asks for — and hide it again otherwise.
+     * is answered the way the form format asks for — and hide and clear it again
+     * otherwise.
      *
      * @param {Object} dependentField - The dependent field's definition
      * @param {*} controllingValue - The controlling field's current answer
+     * @param {ParentNode} [root=document] - The form the dependent field belongs to
      * @returns {void}
      */
-    toggleDependentFields(dependentField, controllingValue) {
-        // getElementsByName(...)[0] only ever reached the first element, so a
-        // dependent field rendered as a group of radios was half-toggled.
-        const dependentElements = Array.from(document.getElementsByName(dependentField.name));
+    toggleDependentFields(dependentField, controllingValue, root = document) {
+        // Every element carrying the name, not just the first: a dependent field
+        // rendered as a group of radios was otherwise half-toggled.
+        const dependentElements = getElementsByFieldName(root, dependentField.name);
         if (dependentElements.length === 0) {
             return;
         }
@@ -283,6 +325,11 @@ export class DynamicFormHandler {
                 element.removeAttribute("required");
             }
         });
+
+        // A hidden field must not keep an answer the form no longer shows.
+        if (!isMet) {
+            clearDependentValues(dependentElements);
+        }
 
         // Hide the whole group rather than leaving a greyed-out box on screen.
         const group = dependentElements[0].closest(".form-group");

@@ -36,11 +36,17 @@ function normalize(input) {
 /**
  * Whether a `dependsOn` condition is satisfied by a given answer.
  *
- * @param {*} currentValue - The controlling field's current answer
+ * A multi-select answers with every option ticked; the condition is met when
+ * the awaited option is among them.
+ *
+ * @param {*|Array} currentValue - The controlling field's current answer
  * @param {*} expectedValue - The value the dependent field waits for
  * @returns {boolean} True when the dependent field should apply
  */
 export function isDependencySatisfied(currentValue, expectedValue) {
+  if (Array.isArray(currentValue)) {
+    return currentValue.some((value) => isDependencySatisfied(value, expectedValue));
+  }
   if (currentValue === undefined || currentValue === null || currentValue === "") {
     return false;
   }
@@ -55,6 +61,37 @@ export function isDependencySatisfied(currentValue, expectedValue) {
 }
 
 /**
+ * The answer a controlling field currently shows on screen.
+ *
+ * - a multi-select (rendered as a checkbox group): the ticked values
+ * - a radio group: the checked value, or '' when none is
+ * - a lone checkbox: "yes" or "no" — its `value` attribute is fixed ("1") and
+ *   says nothing about whether it is ticked
+ * - anything else: its value
+ *
+ * @param {HTMLElement[]} elements - Every element carrying the controlling field's name
+ * @param {Object} [controller] - The controlling field's definition
+ * @returns {string|string[]} The current answer
+ */
+export function readControllingValue(elements, controller) {
+  const [first] = elements;
+  if (!first) {
+    return "";
+  }
+  if (controller?.type === "select" && controller.multiple) {
+    return elements.filter((element) => element.checked).map((element) => element.value);
+  }
+  if (first.type === "radio") {
+    const checked = elements.find((element) => element.checked);
+    return checked ? checked.value : "";
+  }
+  if (first.type === "checkbox") {
+    return first.checked ? "yes" : "no";
+  }
+  return first.value;
+}
+
+/**
  * Whether a `dependsOn` condition is already met by a set of saved answers.
  *
  * @param {Object} dependsOn - `{ field, value }` from the form format
@@ -66,4 +103,46 @@ export function isDependencyMet(dependsOn, formData) {
     return true;
   }
   return isDependencySatisfied(formData ? formData[dependsOn.field] : undefined, dependsOn.value);
+}
+
+/**
+ * Clear the answer held by a dependent field that has just been hidden.
+ *
+ * Without this, "Autre langue" kept whatever was typed before the language was
+ * switched back to Français, and the next save stored an answer the form no
+ * longer showed. A text box or textarea is emptied, checkboxes and radios are
+ * unchecked, and a select is left with no option chosen, so that a required
+ * select shown again asks for a real choice instead of keeping its first
+ * option.
+ *
+ * When something is cleared, `input` and `change` events are dispatched so a
+ * field that itself controls other fields hides and clears those in turn.
+ *
+ * @param {HTMLElement[]} elements - Every element carrying the dependent field's name
+ * @returns {boolean} True when at least one value was cleared
+ */
+export function clearDependentValues(elements) {
+  let cleared = false;
+
+  elements.forEach((element) => {
+    let changed = false;
+    if (element.type === "checkbox" || element.type === "radio") {
+      changed = element.checked;
+      element.checked = false;
+    } else if (element.tagName === "SELECT") {
+      changed = element.selectedIndex !== -1;
+      element.selectedIndex = -1;
+    } else {
+      changed = element.value !== "";
+      element.value = "";
+    }
+
+    if (changed) {
+      cleared = true;
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  });
+
+  return cleared;
 }

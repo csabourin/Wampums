@@ -17,6 +17,12 @@ import { setContent, insertHTML } from "./utils/DOMUtils.js";
 import { BaseModule } from "./utils/BaseModule.js";
 import { confirmDestructive } from "./utils/DialogUtils.js";
 
+/** Field types whose answer can show or hide another field. */
+const CONTROLLING_FIELD_TYPES = ['select', 'radio', 'checkbox'];
+
+/** Value a checked checkbox is compared against (see FormDependencyUtils). */
+const CHECKBOX_CHECKED_VALUE = 'yes';
+
 /**
  * FormBuilder class - Main form builder component
  */
@@ -214,7 +220,7 @@ export class FormBuilder extends BaseModule {
                             <strong>${escapeHTML(field.name || field.type)}</strong>
                             <span class="field-type">${escapeHTML(field.type)}</span>
                             ${field.required ? `<span class="badge">${translate("required")}</span>` : ''}
-                            ${field.dependsOn ? `<span class="badge badge-info">${translate("conditional")}</span>` : ''}
+                            ${field.dependsOn ? `<span class="badge badge-info">${translate("conditional")}: ${escapeHTML(`${field.dependsOn.field} = ${field.dependsOn.value}`)}</span>` : ''}
                             ${this.checkTranslation(field.label) ? '' : `<span class="badge badge-warning" title="${translate("translation_missing")}">⚠</span>`}
                         </div>
                         <div class="field-actions">
@@ -258,10 +264,8 @@ export class FormBuilder extends BaseModule {
         document.getElementById("field-editor-title").textContent =
             isEdit ? translate("edit_field") : translate("add_field");
 
-        // Get boolean fields for dependsOn dropdown
-        const booleanFields = this.currentFields.filter(f =>
-            ['radio', 'checkbox'].includes(f.type) && f.name
-        );
+        const controllingFields = this.getControllingFieldCandidates(fieldIndex, field.dependsOn?.field);
+        const controllingField = controllingFields.find(f => f.name === field.dependsOn?.field);
 
         setContent(content, `
             <form id="field-editor-form" class="field-editor-form">
@@ -327,24 +331,21 @@ export class FormBuilder extends BaseModule {
 
                 <div class="form-group" id="depends-on-group" ${field.type === 'infoText' ? 'style="display:none;"' : ''}>
                     <label for="depends-on-field">${translate("depends_on")}</label>
-                    <select id="depends-on-field" name="dependsOnField">
+                    <select id="depends-on-field" name="dependsOnField" aria-describedby="depends-on-hint">
                         <option value="">${translate("none")}</option>
-                        ${booleanFields.map(f => `
+                        ${controllingFields.map(f => `
                             <option value="${escapeHTML(f.name)}" 
                                     ${field.dependsOn?.field === f.name ? 'selected' : ''}>
                                 ${escapeHTML(f.name)}
                             </option>
                         `).join('')}
                     </select>
-                    <small>${translate("depends_on_hint")}</small>
+                    <small id="depends-on-hint">${translate("depends_on_hint")}</small>
                 </div>
 
                 <div class="form-group" id="depends-on-value-group" 
                      style="display: ${field.dependsOn?.field ? 'block' : 'none'};">
-                    <label for="depends-on-value">${translate("depends_on_value")}</label>
-                    <input type="text" id="depends-on-value" name="dependsOnValue" 
-                           value="${escapeHTML(field.dependsOn?.value || '')}" 
-                           placeholder="yes">
+                    ${this.renderDependsOnValueControl(controllingField, field.dependsOn?.value)}
                 </div>
 
                 <div class="form-actions">
@@ -378,6 +379,87 @@ export class FormBuilder extends BaseModule {
                 <button type="button" class="btn-icon remove-option" data-index="${index}">🗑️</button>
             </div>
         `).join('');
+    }
+
+    /**
+     * Fields that another field can depend on: every named select, radio or
+     * checkbox except the field being edited (a field cannot hide itself).
+     *
+     * A condition saved against a field that has since been deleted or turned
+     * into another type stays listed, so opening and re-saving the field does not
+     * silently drop its condition.
+     *
+     * @param {number|null} editedIndex - Index of the field being edited, or null for a new one
+     * @param {string} [currentController] - Name of the field the edited field depends on today
+     * @returns {Object[]} Candidate controlling field definitions
+     */
+    getControllingFieldCandidates(editedIndex, currentController) {
+        const candidates = this.currentFields.filter((f, index) =>
+            index !== editedIndex && f.name && CONTROLLING_FIELD_TYPES.includes(f.type)
+        );
+
+        const editedName = editedIndex === null ? undefined : this.currentFields[editedIndex]?.name;
+        if (currentController && currentController !== editedName &&
+            !candidates.some(f => f.name === currentController)) {
+            const existing = this.currentFields.find(f => f.name === currentController);
+            candidates.push(existing || { name: currentController });
+        }
+
+        return candidates;
+    }
+
+    /**
+     * Render the "depends on value" control for a controlling field.
+     *
+     * A select or radio offers its own options, so the admin picks "Autre"
+     * instead of having to type its stored value exactly. A checkbox only has
+     * one meaningful trigger — checked. Anything else (a legacy condition on a
+     * field that is no longer a choice) falls back to a free-text value.
+     *
+     * @param {Object|undefined} controller - The controlling field definition
+     * @param {string} [currentValue] - The value saved in the condition today
+     * @returns {string} HTML for the label, control and hint
+     */
+    renderDependsOnValueControl(controller, currentValue = '') {
+        const label = `<label for="depends-on-value">${translate("depends_on_value")}</label>`;
+        const hint = `<small id="depends-on-value-hint">${translate("depends_on_value_hint")}</small>`;
+        const options = Array.isArray(controller?.options)
+            ? controller.options.filter(option => option && option.value !== undefined && option.value !== '')
+            : [];
+
+        let choices = null;
+        if (controller?.type === 'checkbox') {
+            choices = [{ value: CHECKBOX_CHECKED_VALUE, text: translate("depends_on_checked") }];
+        } else if (['select', 'radio'].includes(controller?.type) && options.length > 0) {
+            choices = options.map(option => ({
+                value: String(option.value),
+                text: `${translate(option.label || option.value)} (${option.value})`
+            }));
+        }
+
+        if (!choices) {
+            return `${label}
+                <input type="text" id="depends-on-value" name="dependsOnValue"
+                       value="${escapeHTML(currentValue || '')}"
+                       placeholder="${CHECKBOX_CHECKED_VALUE}" aria-describedby="depends-on-value-hint">
+                ${hint}`;
+        }
+
+        // Keep a saved value the controller no longer offers, rather than
+        // quietly swapping the condition for the first option on re-save.
+        if (currentValue && !choices.some(choice => choice.value === String(currentValue))) {
+            choices.push({ value: String(currentValue), text: String(currentValue) });
+        }
+
+        return `${label}
+            <select id="depends-on-value" name="dependsOnValue" aria-describedby="depends-on-value-hint">
+                ${choices.map(choice => `
+                    <option value="${escapeHTML(choice.value)}" ${String(currentValue) === choice.value ? 'selected' : ''}>
+                        ${escapeHTML(choice.text)}
+                    </option>
+                `).join('')}
+            </select>
+            ${hint}`;
     }
 
     /**
@@ -617,6 +699,9 @@ export class FormBuilder extends BaseModule {
             dependsOnField.addEventListener("change", (e) => {
                 const valueGroup = document.getElementById("depends-on-value-group");
                 if (valueGroup) {
+                    // The trigger values come from the newly chosen field's options
+                    const controller = this.currentFields.find(f => f.name === e.target.value);
+                    setContent(valueGroup, this.renderDependsOnValueControl(controller));
                     valueGroup.style.display = e.target.value ? "block" : "none";
                 }
             });
@@ -834,7 +919,10 @@ export class FormBuilder extends BaseModule {
         if (fieldIndex === "") {
             this.currentFields.push(field);
         } else {
-            this.currentFields[parseInt(fieldIndex)] = field;
+            const index = parseInt(fieldIndex, 10);
+            const previousName = this.currentFields[index]?.name;
+            this.currentFields[index] = field;
+            this.renameDependencies(previousName, field.name);
         }
 
         // Close modal and re-render
@@ -858,10 +946,44 @@ export class FormBuilder extends BaseModule {
      * Delete a field
      */
     async deleteField(index) {
-        if (await confirmDestructive(translate("confirm_delete_field"))) {
+        const deletedName = this.currentFields[index]?.name;
+        const hasDependents = Boolean(deletedName) &&
+            this.currentFields.some(f => f.dependsOn?.field === deletedName);
+        const message = hasDependents
+            ? translate("confirm_delete_field_with_dependents")
+            : translate("confirm_delete_field");
+
+        if (await confirmDestructive(message)) {
             this.currentFields.splice(index, 1);
+            // A condition on a field that no longer exists could never be met,
+            // so its dependents would stay hidden for good. Drop the condition.
+            if (hasDependents) {
+                this.currentFields.forEach(f => {
+                    if (f.dependsOn?.field === deletedName) {
+                        delete f.dependsOn;
+                    }
+                });
+            }
             this.updateFieldsList();
         }
+    }
+
+    /**
+     * Point the conditions of dependent fields at a controlling field's new name.
+     *
+     * @param {string|undefined} previousName - The field's name before the edit
+     * @param {string|undefined} newName - The field's name after the edit
+     * @returns {void}
+     */
+    renameDependencies(previousName, newName) {
+        if (!previousName || !newName || previousName === newName) {
+            return;
+        }
+        this.currentFields.forEach(f => {
+            if (f.dependsOn?.field === previousName) {
+                f.dependsOn.field = newName;
+            }
+        });
     }
 
     /**

@@ -1,6 +1,6 @@
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
-import { isDependencyMet } from "./utils/FormDependencyUtils.js";
+import { isDependencyMet, isDependencySatisfied } from "./utils/FormDependencyUtils.js";
 
 export class JSONFormRenderer {
 	constructor(formStructure, formData = {}, formOrigin, useUniqueIds = false, formIndex = null) {
@@ -42,6 +42,28 @@ export class JSONFormRenderer {
 	 */
 	isDependencyMet(dependsOn) {
 		return isDependencyMet(dependsOn, this.formData);
+	}
+
+	/**
+	 * The option a saved answer designates.
+	 *
+	 * An exact match wins. Otherwise the answer may be an older spelling of the
+	 * same thing — the fiche santé stored "yes" as `true`, "on", "1" and "oui"
+	 * over the years — and the option it is equivalent to is chosen. Leaving
+	 * such a radio unticked showed the question unanswered while its dependent
+	 * field (the allergy) was treated as applying, and the live sync then
+	 * cleared that allergy on load.
+	 *
+	 * @param {*} value - The saved answer
+	 * @param {Object[]} options - The field's `{ label, value }` options
+	 * @returns {string|undefined} The designated option's value, if any
+	 */
+	resolveChoice(value, options = []) {
+		const exact = options.find(option => option.value === value);
+		if (exact) {
+			return exact.value;
+		}
+		return options.find(option => isDependencySatisfied(value, option.value))?.value;
 	}
 
 	renderField(field, formOrigin, index) {
@@ -125,15 +147,17 @@ export class JSONFormRenderer {
 								output += `</div>`;
 							} else {
 								output += `<select id="${fieldId}" name="${name}" ${requiredAttr} ${disabled} ${dependsOnAttr}>`;
+								const chosen = this.resolveChoice(value, options);
 								options.forEach(option => {
-									const selected = value === option.value ? 'selected' : '';
+									const selected = chosen !== undefined && chosen === option.value ? 'selected' : '';
 									output += `<option value="${option.value}" ${selected}>${translate(option.label)}</option>`;
 								});
 								output += `</select>`;
 							}
 							break;
 					case 'checkbox':
-							const checked = value === '1' || value === true || value === 'on' ? 'checked' : '';
+							// Every stored spelling of "yes", including "yes" and "oui"
+							const checked = isDependencySatisfied(value, 'yes') ? 'checked' : '';
 							output += `<input type="checkbox" id="${fieldId}" name="${name}" value="1" ${checked} ${requiredAttr} ${disabled} ${dependsOnAttr}>`;
 							output += labelHtml;
 							break;
@@ -142,9 +166,10 @@ export class JSONFormRenderer {
 							// dropped straight into `.form-group` (a column flex container)
 							// put every option on its own line under the question.
 							output += `<div class="radio-group" data-field-name="${name}">`;
+							const chosenRadio = this.resolveChoice(value, options);
 							options.forEach(option => {
 									const radioId = this.useUniqueIds ? `${name}_${option.value}-${index}` : `${name}_${option.value}`;
-									const checked = value === option.value ? 'checked' : '';
+									const checked = chosenRadio !== undefined && chosenRadio === option.value ? 'checked' : '';
 									output += `<div class="radio-option">`;
 									output += `<input type="radio" id="${radioId}" name="${name}" value="${option.value}" ${checked} ${requiredAttr} ${disabled} ${dependsOnAttr}>`;
 									output += `<label for="${radioId}">${translate(option.label)}</label>`;

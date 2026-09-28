@@ -11148,12 +11148,14 @@ details p {
   font-size: 0.75rem;
   font-weight: 600;
   border-radius: 4px;
-  background: #007bff;
+  /* Darker than Bootstrap's #007bff / #17a2b8 so the small white text meets
+     WCAG AA contrast (4.5:1). */
+  background: #0062cc;
   color: white;
 }
 
 .badge-info {
-  background: #17a2b8;
+  background: #117a8b;
 }
 
 .badge-warning {
