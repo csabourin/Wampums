@@ -209,25 +209,52 @@ export class DynamicFormHandler {
         }
     }
 
-    // Attach dependency listeners to controlling fields after rendering
+    /**
+     * Attach listeners to controlling fields after rendering, then bring every
+     * dependent field in line with what its controlling field shows right now.
+     *
+     * The initial sync matters for a select: without a saved answer it still
+     * displays its first option, so a field waiting on that option must start
+     * visible even though nothing has been saved yet.
+     *
+     * @returns {void}
+     */
     attachDependencyListeners() {
         const fields = this.formFormats[this.formType].fields;
 
-        // Loop through all fields and attach listeners to controlling fields
         fields.forEach((field) => {
             if (field.dependsOn) {
-                const controllingFieldName = field.dependsOn.field;
-                const controllingElements = document.getElementsByName(controllingFieldName);
+                const controllingElements = Array.from(document.getElementsByName(field.dependsOn.field));
 
                 controllingElements.forEach((element) => {
                     const eventType = this.getEventType(element.type);
-                    element.addEventListener(eventType, (e) => {
+                    element.addEventListener(eventType, () => {
                         const controllingValue = this.getFieldValue(element);
                         this.toggleDependentFields(field, controllingValue);
                     });
                 });
+
+                if (controllingElements.length > 0) {
+                    this.toggleDependentFields(field, this.getCurrentControllingValue(controllingElements));
+                }
             }
         });
+    }
+
+    /**
+     * The answer a controlling field currently shows: the checked radio of a
+     * group, the state of a checkbox, or the value of a select or input.
+     *
+     * @param {HTMLElement[]} elements - Every element carrying the controlling field's name
+     * @returns {string} The current answer, or '' when nothing is chosen
+     */
+    getCurrentControllingValue(elements) {
+        const [first] = elements;
+        if (first.type === 'radio') {
+            const checked = elements.find((element) => element.checked);
+            return checked ? checked.value : '';
+        }
+        return this.getFieldValue(first);
     }
 
     // Get the appropriate event type based on the input type
@@ -235,8 +262,8 @@ export class DynamicFormHandler {
         switch (type) {
             case "text":
             case "textarea":
-            case "select-one":
                 return "input";
+            case "select-one":
             case "checkbox":
             case "radio":
                 return "change";
