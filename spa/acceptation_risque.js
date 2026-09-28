@@ -8,6 +8,7 @@ import {
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { getTodayISO } from "./utils/DateUtils.js";
+import { renderBackLink } from "./utils/BackLinkUtils.js";
 
 export class AcceptationRisque {
   constructor(app) {
@@ -43,6 +44,7 @@ export class AcceptationRisque {
 
   render() {
     const content = `
+            ${renderBackLink()}
             <h1>${translate("formulaire_acceptation_risque")}</h1>
             <form id="acceptation-risque-form">
                 <h2>${translate("informations_participant")}</h2>
@@ -103,7 +105,6 @@ export class AcceptationRisque {
                   "soumettre_acceptation_risque"
                 )}">
             </form>
-            <p><a href="/dashboard">${translate("retour_tableau_bord")}</a></p>
         `;
     setContent(document.getElementById("app"), content);
   }
@@ -137,9 +138,9 @@ export class AcceptationRisque {
 
   renderError(message) {
     const errorMessage = `
+            ${renderBackLink()}
             <h1>${translate("error")}</h1>
             <p>${escapeHTML(message)}</p>
-            <p><a href="/dashboard">${translate("retour_tableau_bord")}</a></p>
         `;
     setContent(document.getElementById("app"), errorMessage);
   }

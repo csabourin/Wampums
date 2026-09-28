@@ -67,3 +67,20 @@ test('not-found and not-authorized pages open with it too, outside the centred c
   expect(first.getAttribute('href')).toBe('/dashboard');
   expect(document.querySelector('.not-found-state__card a')).toBeNull();
 });
+
+test.each(['spa/fiche_sante.js', 'spa/acceptation_risque.js'])('%s opens with the back link in every state, and keeps no small link at the bottom', (file) => {
+  const source = fs.readFileSync(path.join(ROOT, file), 'utf8');
+  const lines = source.split('\n');
+
+  // Each rendered page (form and error) has the link as its first line.
+  const pageStarts = lines
+    .map((line, index) => [line, index])
+    .filter(([line]) => /const (content|errorMessage) = `$/.test(line.trim()));
+  expect(pageStarts).toHaveLength(2);
+  for (const [, index] of pageStarts) {
+    expect(lines[index + 1].trim()).toBe('${renderBackLink()}');
+  }
+
+  // The old 18px text link at the foot of the page is gone.
+  expect(source).not.toContain('retour_tableau_bord');
+});
