@@ -107,6 +107,8 @@ describe('health form', () => {
     expect(app.textContent).toContain('fr:2016-05-01');
     expect(app.querySelector('b, i')).toBeNull();
     expect(app.querySelector('#emergency_contact_7').checked).toBe(true);
+    // Laid out like every other checkbox option: a full-height row, box first.
+    expect(app.querySelector('#emergency_contact_7').parentElement.classList.contains('checkbox-option')).toBe(true);
     expect(containerAtInit).not.toBeNull();
     expect(containerAtInit.id).toBe('fiche-sante-container');
   });
@@ -132,6 +134,11 @@ describe('risk acceptance form', () => {
     expect(app.querySelector('#acceptation-risque-form')).not.toBeNull();
     expect(app.querySelector('#groupe_district').value).toBe('');
     expect(app.textContent).toContain('<b>Léa</b> Parent');
+    // A button, whose label wraps; an input's value never does, and the French
+    // one ran 23px past a phone screen.
+    expect(app.querySelector('#acceptation-risque-form button[type="submit"]').textContent)
+      .toBe('soumettre_acceptation_risque');
+    expect(app.querySelector('#acceptation-risque-form input[type="submit"]')).toBeNull();
   });
 
   test('opens with the saved answer', async () => {

@@ -118,9 +118,7 @@ export class AcceptationRisque {
                   getTodayISO()
                 )}" required>
 
-                <input type="submit" value="${translate(
-                  "soumettre_acceptation_risque"
-                )}">
+                <button type="submit">${translate("soumettre_acceptation_risque")}</button>
             </form>
         `;
     setContent(document.getElementById("app"), content);

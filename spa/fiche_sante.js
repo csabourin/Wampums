@@ -143,7 +143,7 @@ export class FicheSante {
                 <h3>${translate("contact")} ${index + 1}</h3>
                 <p>${escapeHTML(parent.prenom || "")} ${escapeHTML(parent.nom || "")}</p>
                 <p>${translate("telephone")}: ${phoneDisplay}</p>
-                <div class="checkbox-group">
+                <div class="checkbox-option">
                   <input type="checkbox" id="emergency_contact_${parent.id}" name="emergency_contacts[]" value="${parent.id}" ${parent.is_emergency_contact ? "checked" : ""}>
                   <label for="emergency_contact_${parent.id}">${translate("is_emergency_contact")}</label>
                 </div>
