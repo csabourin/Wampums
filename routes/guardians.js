@@ -615,7 +615,11 @@ module.exports = (pool) => {
       // submission, per guardian (form_submissions is keyed by participant).
       // Saved with the guardian, under the same authorization, so a save is
       // never half done.
-      if (custom_fields && Object.keys(custom_fields).length > 0) {
+      // A supplied set replaces this guardian's fields, even when empty (the
+      // unit removed them, or they were cleared); an omitted one leaves them.
+      // No submission is created just to hold nothing.
+      const hasCustomFields = custom_fields !== undefined && custom_fields !== null;
+      if (hasCustomFields) {
         const existing = await client.query(
           `SELECT id FROM form_submissions
            WHERE participant_id = $1 AND organization_id = $2 AND form_type = 'parent_guardian'
@@ -637,7 +641,7 @@ module.exports = (pool) => {
              WHERE id = $4`,
             [String(guardianIdToLink), JSON.stringify(custom_fields), req.user.id, existing.rows[0].id]
           );
-        } else {
+        } else if (Object.keys(custom_fields).length > 0) {
           await client.query(
             `INSERT INTO form_submissions
                (participant_id, organization_id, form_type, submission_data, user_id, status, submitted_at)

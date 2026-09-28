@@ -587,6 +587,25 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
       .toEqual({ employeur: 'CCN', allergies_connues: false });
   });
 
+  test('an empty set of custom fields clears the saved ones; an omitted set leaves them', async () => {
+    const stored = async () => (await one(
+      `SELECT submission_data FROM form_submissions
+       WHERE participant_id = $1 AND organization_id = $2 AND form_type = 'parent_guardian'`,
+      [ids.lea, ids.unit]
+    )).guardians[String(ids.aliceRecord)];
+    const save = (extra) => as(ids.alice.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea, guardian_id: ids.aliceRecord, nom: 'Tremblay', prenom: 'Alice',
+      courriel: ids.alice.email, ...extra,
+    });
+
+    await save({ custom_fields: { employeur: 'CCN' } });
+    await save({});
+    expect(await stored()).toEqual({ employeur: 'CCN' });
+
+    await save({ custom_fields: {} });
+    expect(await stored()).toEqual({});
+  });
+
   test('custom fields must be plain values, and ids must be scalars', async () => {
     const nested = await as(ids.alice.id).post('/api/v1/guardians').send({
       participant_id: ids.lea, guardian_id: ids.aliceRecord, nom: 'Tremblay', prenom: 'Alice',
