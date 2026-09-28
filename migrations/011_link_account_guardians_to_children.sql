@@ -16,7 +16,9 @@
 -- (neither by user_uuid nor through guardian_users).
 --
 -- Only an account that is an active member of a unit where the child is
--- enrolled counts: user_participants carries no unit of its own. Accounts
+-- enrolled counts (user_participants carries no unit of its own), and only
+-- a family account there: one holding a role limited to its own children.
+-- Staff can be linked to children too; that does not make them guardians. Accounts
 -- without a contact record are left alone; there is nothing to link, and the
 -- form offers them pre-filled from the account.
 --
@@ -47,6 +49,14 @@ WHERE EXISTS (
      AND uo.user_id = up.user_id
      AND uo.status = 'active'
     WHERE pe.participant_id = up.participant_id
+      -- A family account: holds a role limited to its own children. Access to
+      -- a child alone is not enough; staff can be linked to children too.
+      AND EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS family_role_id
+        JOIN roles family_role ON family_role.id = family_role_id::integer
+        WHERE family_role.data_scope = 'linked'
+      )
   )
   -- The account is already among this child's guardians.
   AND NOT EXISTS (

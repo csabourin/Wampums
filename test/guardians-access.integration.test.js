@@ -484,6 +484,27 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
     expect(await one('SELECT nom FROM parents_guardians WHERE id = $1', [formerRecord])).toBe('Holder');
   });
 
+  test('staff linked to a child are not offered as its guardians, nor editable by the family', async () => {
+    const staffRole = await one('SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1', [ids.staff.id]);
+    const leader = await member('Linked Leader', Number(staffRole));
+    const leaderRecord = await one(
+      `INSERT INTO parents_guardians (nom, prenom, courriel, telephone_cellulaire, user_uuid)
+       VALUES ('Leader', 'Linked', $1, '819-555-0188', $2) RETURNING id`,
+      [leader.email, leader.id]
+    );
+    await grantParticipantAccess(pool, { participantId: ids.lea, userId: leader.id, sourceType: ACCESS_SOURCE.ADMIN });
+
+    const listed = await as(ids.alice.id).get('/api/v1/guardians')
+      .query({ participant_id: ids.lea, include_account_holders: 'true' });
+    expect(listed.body.data.some((g) => g.account_user_id === leader.id || g.guardian_id === leaderRecord)).toBe(false);
+
+    const write = await as(ids.alice.id).post('/api/v1/guardians').send({
+      participant_id: ids.lea, guardian_id: leaderRecord, nom: 'Over', prenom: 'Written',
+    });
+    expect(write.status).toBe(403);
+    expect(await one('SELECT nom FROM parents_guardians WHERE id = $1', [leaderRecord])).toBe('Leader');
+  });
+
   test('a guardian_id of 0 is refused, not taken as "no guardian"', async () => {
     const name = `Zero-${suffix}`;
     const response = await as(ids.alice.id).post('/api/v1/guardians').send({

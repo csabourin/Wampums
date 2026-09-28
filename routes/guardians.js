@@ -149,6 +149,14 @@ module.exports = (pool) => {
        JOIN users u ON u.id = up.user_id
        JOIN user_organizations uo
          ON uo.user_id = u.id AND uo.organization_id = $2 AND uo.status = 'active'
+         -- A family account: holds a role limited to its own children. Access to
+         -- a child alone is not enough; staff can be linked to children too.
+         AND EXISTS (
+           SELECT 1
+           FROM jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS family_role_id
+           JOIN roles family_role ON family_role.id = family_role_id::integer
+           WHERE family_role.data_scope = 'linked'
+         )
        LEFT JOIN LATERAL (
          SELECT pg.*
          FROM parents_guardians pg
@@ -398,6 +406,14 @@ module.exports = (pool) => {
            JOIN users u ON u.id = up.user_id
            JOIN user_organizations uo
              ON uo.user_id = u.id AND uo.organization_id = $3 AND uo.status = 'active'
+             -- A family account: holds a role limited to its own children. Access to
+             -- a child alone is not enough; staff can be linked to children too.
+             AND EXISTS (
+               SELECT 1
+               FROM jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS family_role_id
+               JOIN roles family_role ON family_role.id = family_role_id::integer
+               WHERE family_role.data_scope = 'linked'
+             )
            WHERE g.id = $1
              AND (g.user_uuid = u.id
                   OR ((g.user_uuid IS NULL OR g.user_uuid = u.id)
@@ -454,6 +470,14 @@ module.exports = (pool) => {
              JOIN users u ON u.id = up.user_id
              JOIN user_organizations uo
                ON uo.user_id = u.id AND uo.organization_id = $10 AND uo.status = 'active'
+               -- A family account: holds a role limited to its own children. Access to
+               -- a child alone is not enough; staff can be linked to children too.
+               AND EXISTS (
+                 SELECT 1
+                 FROM jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS family_role_id
+                 JOIN roles family_role ON family_role.id = family_role_id::integer
+                 WHERE family_role.data_scope = 'linked'
+               )
              WHERE up.participant_id = $9
                AND (u.id = $11::uuid
                     OR ($11::uuid IS NULL AND lower(u.email) = lower($3::varchar)))
