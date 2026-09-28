@@ -113,6 +113,16 @@ module.exports = (pool) => {
   async function accountsWithAccess(participantId, organizationId) {
     const result = await pool.query(
       `SELECT u.id AS user_id, u.full_name, u.email,
+              -- Already among this child's guardians through any record of theirs.
+              EXISTS (
+                SELECT 1
+                FROM participant_guardians linked
+                JOIN parents_guardians lg ON lg.id = linked.guardian_id
+                WHERE linked.participant_id = up.participant_id
+                  AND (lg.user_uuid = u.id
+                       OR lower(lg.courriel) = lower(u.email)
+                       OR EXISTS (SELECT 1 FROM guardian_users lgu WHERE lgu.guardian_id = lg.id AND lgu.user_id = u.id))
+              ) AS already_linked,
               g.id AS guardian_id, g.nom, g.prenom, g.courriel,
               g.telephone_residence, g.telephone_travail, g.telephone_cellulaire,
               g.is_primary, g.is_emergency_contact
@@ -133,7 +143,9 @@ module.exports = (pool) => {
                   SELECT 1 FROM guardian_users other
                   WHERE other.guardian_id = pg.id AND other.user_id IS NOT NULL AND other.user_id <> u.id
                 ))
-         ORDER BY (pg.user_uuid = u.id) DESC NULLS LAST, pg.id
+         ORDER BY (pg.user_uuid = u.id) DESC NULLS LAST,
+                  EXISTS (SELECT 1 FROM guardian_users gu WHERE gu.guardian_id = pg.id AND gu.user_id = u.id) DESC,
+                  pg.id
          LIMIT 1
        ) g ON true
        WHERE up.participant_id = $1
@@ -209,14 +221,23 @@ module.exports = (pool) => {
       [participant_id, organizationId]
     );
 
-    // The people who registered, or were given access to this child, are its
-    // parents or guardians too. Those without a contact record linked to the
-    // child yet are offered pre-filled from their account, so the form -- and
-    // the emergency contacts built from it -- is not empty.
+    // Other screens (health form, guardian and medication management, the
+    // mobile app) read this list as linked contact records, each with an id.
+    // They get exactly that.
+    if (req.query.include_account_holders !== 'true') {
+      return success(res, result.rows);
+    }
+
+    // The registration form asks for more: the people who registered, or were
+    // given access to this child, are its parents or guardians too. Those
+    // without a contact record linked to the child yet are offered pre-filled
+    // from their account, so the form -- and the emergency contacts built
+    // from it -- is not empty. They may have no id until saved.
     const linkedIds = new Set(result.rows.map((row) => row.guardian_id));
     const linkedEmails = new Set(result.rows.map((row) => (row.courriel || '').toLowerCase()).filter(Boolean));
     const fromAccounts = (await accountsWithAccess(participant_id, organizationId))
-      .filter((account) => !linkedIds.has(account.guardian_id)
+      .filter((account) => !account.already_linked
+        && !linkedIds.has(account.guardian_id)
         && !linkedEmails.has((account.courriel || account.email || '').toLowerCase()))
       .map((account) => {
         const fallback = splitFullName(account.full_name, account.email);

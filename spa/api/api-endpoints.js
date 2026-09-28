@@ -1016,8 +1016,15 @@ export async function getGuardianCoreInfo(guardianId) {
 /**
  * Get guardians for specific participant
  */
-export async function getGuardiansForParticipant(participantId) {
-    return API.get('v1/guardians', { participant_id: participantId });
+export async function getGuardiansForParticipant(participantId, { includeAccountHolders = false } = {}) {
+    const params = { participant_id: participantId };
+    // Also offer the accounts with access to the child that have no linked
+    // contact record yet (they may have no id). Only the registration form
+    // asks for them.
+    if (includeAccountHolders) {
+        params.include_account_holders = 'true';
+    }
+    return API.get('v1/guardians', params);
 }
 
 /**

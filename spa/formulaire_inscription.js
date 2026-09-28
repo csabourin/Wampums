@@ -104,7 +104,7 @@ export class FormulaireInscription {
     async fetchGuardianData() {
         try {
             // The API answers { success, data }: the guardians are in data.
-            const response = await getGuardiansForParticipant(this.participantId);
+            const response = await getGuardiansForParticipant(this.participantId, { includeAccountHolders: true });
             const guardianData = Array.isArray(response) ? response : response?.data;
             if (Array.isArray(guardianData)) {
                 this.formData.guardians = guardianData;

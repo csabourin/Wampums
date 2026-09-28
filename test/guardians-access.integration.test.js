@@ -198,7 +198,8 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
   });
 
   test('a parent sees the child\'s account holders, pre-filled, before any record is linked', async () => {
-    const response = await as(ids.alice.id).get('/api/v1/guardians').query({ participant_id: ids.lea });
+    const response = await as(ids.alice.id).get('/api/v1/guardians')
+      .query({ participant_id: ids.lea, include_account_holders: 'true' });
 
     expect(response.status).toBe(200);
     const byEmail = Object.fromEntries(response.body.data.map((g) => [g.courriel, g]));
@@ -214,6 +215,68 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
     });
   });
 
+  test('without asking, the list holds only linked records, each with an id', async () => {
+    // The health form, guardian and medication management and the mobile app
+    // read this list and use every entry's id.
+    const response = await as(ids.alice.id).get('/api/v1/guardians').query({ participant_id: ids.lea });
+
+    expect(response.status).toBe(200);
+    response.body.data.forEach((guardian) => {
+      expect(guardian.id).toEqual(expect.any(Number));
+    });
+    expect(response.body.data.map((g) => g.courriel)).not.toContain(ids.carole.email);
+  });
+
+  test('an explicit guardian_users mapping wins over a record matching the address alone', async () => {
+    const family = await one('SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1', [ids.alice.id]);
+    const mapped = await member('Mapped Parent', Number(family));
+    // An unclaimed record with the account's address, created first (lower id)...
+    await pool.query(
+      "INSERT INTO parents_guardians (nom, prenom, courriel) VALUES ('Stray', 'Address', $1)",
+      [mapped.email]
+    );
+    // ...and the record the account is explicitly mapped to.
+    const mappedRecord = await one(
+      `INSERT INTO parents_guardians (nom, prenom, courriel, telephone_cellulaire)
+       VALUES ('Parent', 'Mapped', $1, '819-555-0142') RETURNING id`,
+      [`mapped-${suffix}@example.test`]
+    );
+    await pool.query('INSERT INTO guardian_users (guardian_id, user_id) VALUES ($1, $2)', [mappedRecord, mapped.id]);
+    await grantParticipantAccess(pool, { participantId: ids.lea, userId: mapped.id, sourceType: ACCESS_SOURCE.DIRECT });
+
+    const listed = await as(ids.alice.id).get('/api/v1/guardians')
+      .query({ participant_id: ids.lea, include_account_holders: 'true' });
+
+    const offered = listed.body.data.filter((g) => [mapped.email, `mapped-${suffix}@example.test`].includes(g.courriel));
+    expect(offered).toHaveLength(1);
+    expect(offered[0]).toMatchObject({ guardian_id: mappedRecord, telephone_cellulaire: '819-555-0142' });
+  });
+
+  test('an account already among the guardians through guardian_users is not offered again', async () => {
+    const family = await one('SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1', [ids.alice.id]);
+    const both = await member('Twice Recorded', Number(family));
+    // Linked through the older mapping, under another address...
+    const linkedRecord = await one(
+      "INSERT INTO parents_guardians (nom, prenom, courriel) VALUES ('Recorded', 'Twice', $1) RETURNING id",
+      [`twice-old-${suffix}@example.test`]
+    );
+    await pool.query('INSERT INTO guardian_users (guardian_id, user_id) VALUES ($1, $2)', [linkedRecord, both.id]);
+    await pool.query('INSERT INTO participant_guardians (guardian_id, participant_id) VALUES ($1, $2)', [linkedRecord, ids.lea]);
+    // ...and holding a second record of their own.
+    await pool.query(
+      "INSERT INTO parents_guardians (nom, prenom, courriel, user_uuid) VALUES ('Recorded', 'Again', $1, $2)",
+      [both.email, both.id]
+    );
+    await grantParticipantAccess(pool, { participantId: ids.lea, userId: both.id, sourceType: ACCESS_SOURCE.DIRECT });
+
+    const listed = await as(ids.alice.id).get('/api/v1/guardians')
+      .query({ participant_id: ids.lea, include_account_holders: 'true' });
+
+    const theirs = listed.body.data.filter((g) => g.nom === 'Recorded');
+    expect(theirs).toHaveLength(1);
+    expect(theirs[0]).toMatchObject({ guardian_id: linkedRecord, linked: true });
+  });
+
   test('saving an account holder links their record to the child, once', async () => {
     const response = await as(ids.alice.id).post('/api/v1/guardians').send({
       participant_id: ids.lea,
@@ -227,7 +290,8 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
     });
 
     expect(response.status).toBe(200);
-    const listed = await as(ids.alice.id).get('/api/v1/guardians').query({ participant_id: ids.lea });
+    const listed = await as(ids.alice.id).get('/api/v1/guardians')
+      .query({ participant_id: ids.lea, include_account_holders: 'true' });
     const alice = listed.body.data.filter((g) => g.courriel === ids.alice.email);
     expect(alice).toHaveLength(1);
     expect(alice[0]).toMatchObject({ guardian_id: ids.aliceRecord, linked: true, lien: 'mère', is_emergency_contact: true });
@@ -311,7 +375,8 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
     await pool.query('UPDATE users SET email = $1 WHERE id = $2', [oldAddress, newcomer.id]);
     await grantParticipantAccess(pool, { participantId: ids.lea, userId: newcomer.id, sourceType: ACCESS_SOURCE.DIRECT });
 
-    const listed = await as(newcomer.id).get('/api/v1/guardians').query({ participant_id: ids.lea });
+    const listed = await as(newcomer.id).get('/api/v1/guardians')
+      .query({ participant_id: ids.lea, include_account_holders: 'true' });
     const offered = listed.body.data.find((g) => g.courriel === oldAddress);
     expect(offered).toMatchObject({ guardian_id: null, prenom: 'Newcomer' });
     expect(offered.telephone_cellulaire).toBeFalsy();

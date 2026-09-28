@@ -54,5 +54,8 @@ WHERE EXISTS (
            OR lower(lg.courriel) = lower(u.email)
            OR EXISTS (SELECT 1 FROM guardian_users lgu WHERE lgu.guardian_id = lg.id AND lgu.user_id = u.id))
   )
-ORDER BY up.user_id, up.participant_id, (g.user_uuid = u.id) DESC NULLS LAST, g.id
+ORDER BY up.user_id, up.participant_id,
+         (g.user_uuid = u.id) DESC NULLS LAST,
+         EXISTS (SELECT 1 FROM guardian_users gu WHERE gu.guardian_id = g.id AND gu.user_id = u.id) DESC,
+         g.id
 ON CONFLICT (guardian_id, participant_id) DO NOTHING;
