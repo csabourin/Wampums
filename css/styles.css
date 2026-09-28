@@ -134,6 +134,10 @@
   --touch-target-min: 44px;
   --control-size-min: 24px;
 
+  /* Focus Ring: at least 3:1 against the surface around it (WCAG 1.4.11,
+     2.4.13). #0f7a5a is 5.3:1 on white; a dark surface sets a light one. */
+  --color-focus-ring: var(--color-primary);
+
   /* Safe Area Insets */
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
@@ -599,7 +603,7 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
   border-color: var(--color-primary);
 }
@@ -2148,7 +2152,7 @@ tr:hover {
 }
 
 .manage-items a:focus-visible {
-  outline: 3px solid var(--color-primary);
+  outline: 3px solid var(--color-focus-ring);
   outline-offset: 3px;
 }
 
@@ -4345,7 +4349,7 @@ tr:hover {
 
 /* Focus visible styles */
 *:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
@@ -4365,6 +4369,7 @@ tr:hover {
     --color-background: #1a1a1a;
     --color-surface: #2d2d2d;
     --color-border: #444;
+    --color-focus-ring: #7fd1b4;
   }
   */
 }
@@ -5229,7 +5234,7 @@ body.online .pending-update {
 .activity-drag-handle:focus-visible {
   color: var(--color-text);
   background: var(--color-secondary);
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: -2px;
 }
 
@@ -7360,7 +7365,7 @@ details p {
 .badge-star-button.is-earned:hover,
 .badge-star-button.is-earned:focus-visible {
   transform: scale(1.05);
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
@@ -8126,7 +8131,7 @@ details p {
 }
 
 .dm-user-card:focus-visible {
-  outline: 3px solid var(--color-primary);
+  outline: 3px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
@@ -8867,7 +8872,7 @@ details p {
 }
 
 .toggle-btn:focus {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
@@ -8938,7 +8943,7 @@ details p {
 }
 
 .sort-btn:focus {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
@@ -8974,7 +8979,7 @@ details p {
 }
 
 .calendars-table input[type="number"]:focus {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 1px;
   border-color: var(--color-primary);
 }
@@ -8986,7 +8991,7 @@ details p {
 }
 
 .calendars-table input[type="checkbox"]:focus {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
@@ -9023,7 +9028,7 @@ details p {
    shadow at 10% opacity, which left every checkbox and radio button in a form
    with no visible focus at all. */
 .form-group input:focus {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
   border-color: var(--color-primary);
 }
@@ -9054,7 +9059,7 @@ details p {
 }
 
 .primary-btn:focus {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
@@ -9992,7 +9997,7 @@ details p {
 
 /* WCAG 2.2 Compliance - Focus indicators */
 *:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
@@ -10297,7 +10302,7 @@ details p {
 }
 
 .filter-select:focus {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
@@ -11601,7 +11606,7 @@ details p {
 
 /* Accessibility - Focus states */
 .permission-checkbox:focus {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 

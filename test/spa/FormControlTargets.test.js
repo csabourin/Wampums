@@ -134,10 +134,64 @@ describe('targets', () => {
   });
 });
 
+/**
+ * WCAG contrast ratio between two #rrggbb colours.
+ *
+ * @param {string} first - Colour
+ * @param {string} second - Colour
+ * @returns {number} Ratio, from 1 to 21
+ */
+function contrast(first, second) {
+  const luminance = (hex) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const [light, dark] = [luminance(first), luminance(second)].sort((a, b) => b - a);
+  return (light + 0.05) / (dark + 0.05);
+}
+
+describe('focus ring colour', () => {
+  const PWA_SOURCE = readFileSync(path.join(__dirname, '../../spa/pwa-update-manager.js'), 'utf8');
+
+  test('every focus outline takes the focus-ring token, which a dark surface can override', () => {
+    expect(declarationsFor('*:focus-visible')).toMatch(/outline:\s*2px solid var\(--color-focus-ring\)/);
+    expect(STYLES).not.toMatch(/outline(-color)?:[^;]*var\(--color-primary\)/);
+  });
+
+  test('the default ring is at least 3:1 on the light surfaces', () => {
+    const primary = declarationsFor(':root').match(/--color-primary:\s*(#[0-9a-f]{6})/i)[1];
+    expect(declarationsFor(':root')).toMatch(/--color-focus-ring:\s*var\(--color-primary\)/);
+    expect(contrast(primary, '#ffffff')).toBeGreaterThanOrEqual(3);
+    expect(contrast(primary, '#f3f7f4')).toBeGreaterThanOrEqual(3);
+  });
+
+  test('the update prompt sets a light ring on its dark surface, at least 3:1', () => {
+    const dark = PWA_SOURCE.match(/prefers-color-scheme: dark\)\s*\{\s*\.pwa-update-prompt\s*\{([^}]*)\}/)[1];
+    const surface = dark.match(/background:\s*(#[0-9a-f]{6})/i)[1];
+    const ring = dark.match(/--color-focus-ring:\s*(#[0-9a-f]{6})/i)[1];
+    const primary = declarationsFor(':root').match(/--color-primary:\s*(#[0-9a-f]{6})/i)[1];
+
+    expect(contrast(primary, surface)).toBeLessThan(3);
+    expect(contrast(ring, surface)).toBeGreaterThanOrEqual(3);
+  });
+
+  test('the update prompt\'s secondary button text is at least 4.5:1, hovered or not', () => {
+    const rule = (selector) => PWA_SOURCE.match(new RegExp(`${selector.replace(/[.:]/g, '\\$&')}\\s*\\{([^}]*)\\}`))[1];
+    const text = rule('.pwa-update-btn-secondary').match(/color:\s*(#[0-9a-f]{3,6})/i)[1];
+    const full = (hex) => (hex.length === 4 ? `#${[...hex.slice(1)].map((c) => c + c).join('')}` : hex);
+    const background = rule('.pwa-update-btn-secondary').match(/background:\s*(#[0-9a-f]{6})/i)[1];
+    const hovered = rule('.pwa-update-btn-secondary:hover').match(/background:\s*(#[0-9a-f]{6})/i)[1];
+
+    expect(contrast(full(text), background)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(full(text), hovered)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
 describe('visibility', () => {
   test('no rule takes the focus outline away from form inputs', () => {
     expect(declarationsFor('.form-group input:focus')).not.toMatch(/outline:\s*(none|0)/);
-    expect(declarationsFor('.form-group input:focus')).toMatch(/outline:\s*2px solid/);
+    expect(declarationsFor('.form-group input:focus')).toMatch(/outline:\s*2px solid var\(--color-focus-ring\)/);
   });
 
   test('a checked option keeps its label in the text colour', () => {

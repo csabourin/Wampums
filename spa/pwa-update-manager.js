@@ -471,7 +471,9 @@ class PWAUpdateManager {
 
             .pwa-update-btn-secondary {
                 background: #e0e0e0;
-                color: #666;
+
+                /* 5.65:1 on #e0e0e0 (4.84:1 on hover); #666 was 4.35:1. */
+                color: #555;
             }
 
             .pwa-update-btn-secondary:hover {
@@ -486,6 +488,10 @@ class PWAUpdateManager {
             @media (prefers-color-scheme: dark) {
                 .pwa-update-prompt {
                     background: #2d2d2d;
+
+                    /* The app's green ring is 2.6:1 on this surface; this one
+                       is 7.7:1 (WCAG 1.4.11, 2.4.13). */
+                    --color-focus-ring: #7fd1b4;
                 }
 
                 .pwa-update-text h3 {
