@@ -108,8 +108,8 @@ module.exports = (app, pool) => {
 
     // Organizations
     app.use("/api/v1/organizations", organizationsRoutes);
-    app.use("/public", organizationsRoutes);
-    app.use("/public/organizations", organizationsRoutes);
+    // Two signed-out reads kept at their old /public paths for installed mobile builds.
+    app.use("/public", organizationsRoutes.legacyPublic);
 
     // User Management
     app.use("/api/v1/users/me", userProfileRoutes);

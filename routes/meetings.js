@@ -12,7 +12,7 @@
 
 const express = require('express');
 const { check } = require('express-validator');
-const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
+const { authenticate, requirePermission, requireAnyPermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateDate, validateDateOptional, checkValidation } = require('../middleware/validation');
 const { getMeetingSectionConfig } = require('../utils/meeting-sections');
@@ -20,6 +20,10 @@ const { getMeetingDefaults, computeEndTime, formatLocalDate } = require('../util
 
 const MINUTES_PER_HOUR = 60;
 const UNPROCESSED_MEETINGS_LIMIT = 10;
+
+// Reading a meeting's plan: whoever prepares meetings, and the leaders who run
+// them (the same people the SPA shows the upcoming-meeting screen to).
+const MEETING_READ_PERMISSIONS = ['meetings.view', 'meetings.manage', 'activities.view', 'participants.view'];
 
 /**
  * Trim a Postgres TIME value ("HH:MM:SS") to "HH:MM".
@@ -188,6 +192,7 @@ module.exports = (pool, logger) => {
    */
   router.get('/preparation',
     authenticate,
+    requireAnyPermission(...MEETING_READ_PERMISSIONS),
     validateDateOptional('date'),
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -390,6 +395,7 @@ module.exports = (pool, logger) => {
    */
   router.get('/dates',
     authenticate,
+    requireAnyPermission(...MEETING_READ_PERMISSIONS),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
 
@@ -414,6 +420,7 @@ module.exports = (pool, logger) => {
    */
   router.get('/next',
     authenticate,
+    requireAnyPermission(...MEETING_READ_PERMISSIONS),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const today = formatLocalDate(new Date());

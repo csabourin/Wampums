@@ -46,7 +46,6 @@ import {
   // Auth & Organization
   RegisterScreen,
   ResetPasswordScreen,
-  RegisterOrganizationScreen,
   CreateOrganizationScreen,
 } from '../screens';
 
@@ -561,14 +560,6 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         }}
       />
 
-      <Stack.Screen
-        name="RegisterOrganization"
-        component={RegisterOrganizationScreen}
-        options={{
-          headerShown: true,
-          title: t('register_for_organization'),
-        }}
-      />
 
       <Stack.Screen
         name="CreateOrganization"

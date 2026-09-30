@@ -516,27 +516,3 @@ export function getUserPermissions() {
 export function getUserRoles() {
   return app.userRoles || [];
 }
-
-/**
- * Get primary user role (for backward compatibility)
- *
- * @returns {string|null} Primary role name
- */
-export function getPrimaryRole() {
-  return app.userRole;
-}
-
-/**
- * Log current user's roles and permissions (for debugging)
- */
-export function logUserAccess() {
-  debugLog('=== USER ACCESS INFO ===');
-  debugLog('Primary Role:', getPrimaryRole());
-  debugLog('All Roles:', getUserRoles());
-  debugLog('Permissions:', getUserPermissions());
-  debugLog('Is Admin:', isAdmin());
-  debugLog('Is District Admin:', isDistrictAdmin());
-  debugLog('Is Parent:', isParent());
-  debugLog('Is Demo User:', isDemoUser());
-  debugLog('=== END ACCESS INFO ===');
-}

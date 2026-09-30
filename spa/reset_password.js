@@ -180,7 +180,7 @@ export class ResetPassword {
 			}
 
 			try {
-				const response = await fetch(getApiUrl('api/auth/reset-password'), {
+				const response = await fetch(getApiUrl('v1/auth/reset-password'), {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ token, new_password: newPassword })
@@ -217,7 +217,7 @@ export class ResetPassword {
 				return;
 			}
 			try {
-				const response = await fetch(getApiUrl('api/auth/request-reset'), {
+				const response = await fetch(getApiUrl('v1/auth/request-reset'), {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ email })

@@ -9,6 +9,7 @@ import {
   getUsers,
   getUserRoleAssignments,
   updateUserRoleBundles,
+  updateUserRolesV1,
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { getCachedData, setCachedData } from "./indexedDB.js";

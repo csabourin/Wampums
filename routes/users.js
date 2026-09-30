@@ -18,6 +18,7 @@ const {
   revokeAllAccessInUnit,
   isAssociationInUnit,
 } = require('../services/participantAccess');
+const { listUnitLeaders } = require('../services/unitLeaders');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership } = require('../utils/api-helpers');
@@ -152,22 +153,15 @@ module.exports = (pool, logger) => {
 
   /**
    * GET /api/v1/users/leaders
-   * Returns users with leader/unitadmin/district roles (for med auth admin selectors)
+   * The unit's leaders (see services/unitLeaders.js), for the medication
+   * authorization selectors and the unit-settings leader suggestions.
    */
   router.get('/leaders', authenticate, asyncHandler(async (req, res) => {
+    // Any member may see who leads the unit: families pick two of them on a
+    // medication authorization. Names only -- no contact details.
     const organizationId = await getOrganizationId(req, pool);
-
-    const result = await pool.query(
-      `SELECT u.id, u.full_name, u.email
-       FROM users u
-       JOIN user_organizations uo ON u.id = uo.user_id
-       JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
-       WHERE uo.organization_id = $1 AND r.role_name IN ('district', 'unitadmin', 'leader')
-       ORDER BY u.full_name`,
-      [organizationId]
-    );
-
-    return success(res, { users: result.rows });
+    const users = await listUnitLeaders(pool, organizationId);
+    return success(res, { users });
   }));
 
 

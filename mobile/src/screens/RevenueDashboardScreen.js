@@ -84,7 +84,7 @@ const RevenueDashboardScreen = ({ navigation }) => {
         end_date: dateRange.end,
       };
 
-      const result = await API.get('/v1/finance/revenue-dashboard', params);
+      const result = await API.get('/v1/revenue/dashboard', params);
 
       setDashboardData(result.data || null);
     } catch (err) {
@@ -100,7 +100,7 @@ const RevenueDashboardScreen = ({ navigation }) => {
         end_date: dateRange.end,
       };
 
-      const result = await API.get('/v1/finance/revenue-by-source', params);
+      const result = await API.get('/v1/revenue/by-source', params);
 
       setBySourceData(result.data || []);
     } catch (err) {
@@ -116,7 +116,7 @@ const RevenueDashboardScreen = ({ navigation }) => {
         end_date: dateRange.end,
       };
 
-      const result = await API.get('/v1/finance/revenue-by-category', params);
+      const result = await API.get('/v1/revenue/by-category', params);
 
       setByCategoryData(result.data || []);
     } catch (err) {
@@ -132,7 +132,7 @@ const RevenueDashboardScreen = ({ navigation }) => {
         end_date: fiscalYear.end,
       };
 
-      const result = await API.get('/v1/finance/revenue-comparison', params);
+      const result = await API.get('/v1/revenue/comparison', params);
 
       setComparisonData(result.data || null);
     } catch (err) {

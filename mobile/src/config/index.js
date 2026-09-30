@@ -63,23 +63,22 @@ const CONFIG = {
 
   // API Endpoints (mirrors spa/config.js)
   ENDPOINTS: {
-    // Auth endpoints (non-versioned)
-    LOGIN: '/public/login',
-    VERIFY_2FA: '/public/verify-2fa',
-    LOGOUT: '/api/auth/logout',
-    REGISTER: '/public/register',
-    RESET_PASSWORD: '/api/auth/reset-password',
-    REQUEST_RESET: '/api/auth/request-reset',
-    VERIFY_SESSION: '/api/auth/verify-session',
-    REFRESH_TOKEN: '/refresh-token',
+    // Auth
+    LOGIN: '/v1/auth/login',
+    VERIFY_2FA: '/v1/auth/verify-2fa',
+    LOGOUT: '/v1/auth/logout',
+    REGISTER: '/v1/auth/register',
+    RESET_PASSWORD: '/v1/auth/reset-password',
+    REQUEST_RESET: '/v1/auth/request-reset',
+    VERIFY_SESSION: '/v1/auth/verify-session',
 
     // Organization
-    GET_ORGANIZATION_ID: '/public/get_organization_id',
-    ORGANIZATION_SETTINGS: '/organization-settings',
-    ORGANIZATION_JWT: '/organization-jwt',
-    SWITCH_ORGANIZATION: '/switch-organization',
+    // Signed-out lookup of the unit served at a host: { organizationId, defaultLanguage }
+    ORGANIZATION_INFO: '/v1/organizations/info',
+    ORGANIZATION_SETTINGS: '/v1/organizations/settings',
+    SWITCH_ORGANIZATION: '/v1/organizations/switch',
 
-    // V1 endpoints
+    // Resources
     ACTIVITIES: '/v1/activities',
     ANNOUNCEMENTS: '/v1/announcements',
     ATTENDANCE: '/v1/attendance',
@@ -95,33 +94,26 @@ const CONFIG = {
     STRIPE: '/v1/stripe',
     USERS: '/v1/users',
     BUDGET: '/v1/budget',
-    PUSH_SUBSCRIPTION: '/v1/push-subscription',
+    PUSH_SUBSCRIPTION: '/v1/notifications/subscription',
     FORMS: '/v1/forms',
 
-    // Honors endpoints (v1 - permission-based)
+    // Honors
     HONORS: '/v1/honors',
     AWARD_HONOR: '/v1/honors',
     HONORS_HISTORY: '/v1/honors/history',
 
-    // Legacy endpoints
-    INITIAL_DATA: '/initial-data',
-    NEWS: '/news',
-    TRANSLATIONS: '/translations',
-    PARTICIPANTS_LEGACY: '/participants',
-    POINTS_DATA: '/points-data',
-    UPDATE_POINTS: '/update-points',
-    POINTS_REPORT: '/points-report',
-    POINTS_LEADERBOARD: '/points-leaderboard',
-    BADGE_SUMMARY: '/badge-summary',
-    HONORS_REPORT: '/honors-report',
-    FUNDRAISERS: '/fundraisers',
-    CALENDARS: '/calendars',
+    INITIAL_DATA: '/v1/dashboards/initial',
+    TRANSLATIONS: '/v1/public/translations',
+    UPDATE_POINTS: '/v1/points',
+    POINTS_REPORT: '/v1/points/report',
+    POINTS_LEADERBOARD: '/v1/points/leaderboard',
+    HONORS_REPORT: '/v1/reports/honors',
     REUNION_PREPARATION: '/v1/meetings/preparation',
     SAVE_REUNION_PREPARATION: '/v1/meetings/preparation',
     REUNION_DATES: '/v1/meetings/dates',
     MEETING_ACTIVITIES: '/v1/meetings/activities',
     NEXT_MEETING_INFO: '/v1/meetings/next',
-    ANIMATEURS: '/animateurs',
+    ANIMATEURS: '/v1/users/animateurs',
   },
 
   // Storage keys (mirrors spa CONFIG.STORAGE_KEYS)

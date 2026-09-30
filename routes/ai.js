@@ -1,13 +1,19 @@
 const express = require("express");
 const multer = require("multer");
 const router = express.Router();
-const { authenticate, getOrganizationId } = require("../middleware/auth");
+const { authenticate, blockDemoRoles, getOrganizationId, requireAnyPermission } = require("../middleware/auth");
 const { success, error, asyncHandler } = require("../middleware/response");
 const { generateText, isOpenAIConfigured } = require("../services/openai");
 const { parseReceipt } = require("../services/veryfi");
 const { getBudgetStatus } = require("../services/ai-budget");
 const { FILE_LIMITS } = require("../config/constants");
 const { AI_MODES, validateAIPayload } = require("../utils/aiPayloadValidation");
+
+// Every AI call spends the shared, paid budget, so it is limited to the staff
+// features that offer it: message rewriting and translation (communications),
+// meeting plans (meetings and activities) and receipt reading (finance).
+const AI_TEXT_PERMISSIONS = ["communications.send", "meetings.manage", "activities.create", "activities.edit"];
+const AI_RECEIPT_PERMISSIONS = ["finance.manage"];
 
 // Multer for receipt uploads (memory storage)
 const upload = multer({
@@ -30,6 +36,8 @@ const buildUserContext = async (req) => {
 router.post(
     "/text",
     authenticate,
+    blockDemoRoles,
+    requireAnyPermission(...AI_TEXT_PERMISSIONS),
     asyncHandler(async (req, res) => {
         const { mode, payload } = req.body || {};
 
@@ -94,6 +102,8 @@ router.post(
 router.post(
     "/receipt",
     authenticate,
+    blockDemoRoles,
+    requireAnyPermission(...AI_RECEIPT_PERMISSIONS),
     upload.single("file"),
     asyncHandler(async (req, res) => {
         if (!req.file) {
@@ -132,6 +142,7 @@ router.post(
 router.get(
     "/budget",
     authenticate,
+    requireAnyPermission(...AI_TEXT_PERMISSIONS, ...AI_RECEIPT_PERMISSIONS),
     asyncHandler(async (req, res) => {
         const status = await getBudgetStatus();
         return success(res, status);

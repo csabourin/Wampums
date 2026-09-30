@@ -58,8 +58,7 @@ const CRITICAL_ENDPOINTS = [
     '/api/v1/badges/summary',
     '/api/v1/badges/settings',
     '/api/v1/attendance/dates',
-    '/api/v1/activities?days=30',
-    '/api/v1/health/report'
+    '/api/v1/activities?days=30'
 ];
 
 /**

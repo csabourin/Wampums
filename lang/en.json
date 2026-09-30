@@ -3206,6 +3206,7 @@
   "guardian_added_successfully": "Guardian added successfully",
   "guardian_management": "Guardian management",
   "guardian_removed_successfully": "Guardian removed successfully",
+  "confirm_remove_guardian": "Remove this guardian from the participant's file?",
   "guardian_updated_successfully": "Guardian updated successfully",
   "home_phone": "Home phone",
   "invalid_parameters": "Invalid parameters",

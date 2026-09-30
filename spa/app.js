@@ -29,7 +29,7 @@ installChunkErrorRecovery();
 // Service worker registration: vite-plugin-pwa injects registration at build time,
 // with a fallback in registerServiceWorker() if the injection is missing.
 
-async function registerPushSubscription() {
+export async function registerPushSubscription() {
         if ('serviceWorker' in navigator && 'PushManager' in window) {
                 try {
                         const registration = await navigator.serviceWorker.ready;

@@ -121,7 +121,7 @@ const CreateOrganizationScreen = ({ navigation }) => {
       };
 
       // Use centralized API helper (mirrors spa/api/api-endpoints.js)
-      const result = await API.post('/organizations', payload);
+      const result = await API.post('/v1/organizations', payload);
 
       if (result.success) {
         toast.show(t('unit_created_successfully'), 'success');

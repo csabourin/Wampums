@@ -3206,6 +3206,7 @@
   "guardian_added_successfully": "Tuteur ajouté avec succès",
   "guardian_management": "Gestion des tuteurs",
   "guardian_removed_successfully": "Tuteur retiré avec succès",
+  "confirm_remove_guardian": "Retirer ce tuteur du dossier du participant ?",
   "guardian_updated_successfully": "Tuteur mis à jour avec succès",
   "home_phone": "Téléphone (domicile)",
   "invalid_parameters": "Paramètres invalides",

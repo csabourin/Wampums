@@ -140,6 +140,7 @@ const SettingsScreen = ({ navigation, route }) => {
         email: SecurityUtils.sanitizeInput(email.trim()),
         languagePreference,
         whatsappPhoneNumber: SecurityUtils.sanitizeInput(whatsappPhone.trim()),
+        previousEmail: userData.email,
       });
 
       if (response.success) {

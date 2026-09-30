@@ -138,6 +138,20 @@ const passwordResetLookupLimiter = rateLimit({
  * @param {Object} logger - Winston logger instance
  * @returns {Router} Express router with authentication routes
  */
+/**
+ * Pre-/api/v1 paths of the authentication routes.
+ *
+ * The web app and the mobile app call only the /api/v1/auth/* paths. The old
+ * ones answer too because mobile builds already installed on phones still call
+ * them; remove this list once every supported mobile release uses /api/v1.
+ *
+ * @param {...string} paths - Legacy paths served by the same handler
+ * @returns {string[]} The paths
+ */
+function legacyAuthPaths(...paths) {
+  return paths;
+}
+
 module.exports = (pool, logger) => {
   /**
    * @swagger
@@ -186,7 +200,7 @@ module.exports = (pool, logger) => {
    *       429:
    *         description: Too many attempts
    */
-  router.post('/public/login',
+  router.post(['/api/v1/auth/login', ...legacyAuthPaths('/public/login')],
     authLimiter,
     validateEmail,
     validatePassword,
@@ -447,7 +461,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Invalid or expired code
    */
-  router.post('/public/verify-2fa',
+  router.post(['/api/v1/auth/verify-2fa', ...legacyAuthPaths('/public/verify-2fa')],
     authLimiter,
     validateEmail,
     checkValidation,
@@ -628,7 +642,7 @@ module.exports = (pool, logger) => {
    *       400:
    *         description: Validation error or duplicate email
    */
-  router.post('/public/register',
+  router.post(['/api/v1/auth/register', ...legacyAuthPaths('/public/register')],
     validateEmail,
     validateStrongPassword,
     validateFullName,
@@ -758,111 +772,6 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/auth/register:
-   *   post:
-   *     summary: Register new user
-   *     description: Register a new user account (requires admin approval)
-   *     tags: [Authentication]
-   *     responses:
-   *       201:
-   *         description: User registered successfully
-   *       400:
-   *         description: Validation error
-   */
-  router.post('/api/auth/register',
-    validateEmail,
-    validateStrongPassword,
-    validateFullName,
-    checkValidation,
-    asyncHandler(async (req, res) => {
-      const client = await pool.connect();
-      try {
-        const organizationId = await getCurrentOrganizationId(req, pool, logger);
-        const { email, password, full_name, user_type } = req.body;
-        const normalizedEmail = normalizeEmailValue(email);
-        const trimmedPassword = password.trim();
-        const role = mapRequestedRole(user_type);
-
-        const refusal = await checkRegistrationEligibility(client, normalizedEmail, organizationId);
-        if (refusal) {
-          return res.status(400).json({ success: false, message: refusal.message });
-        }
-
-        await client.query('BEGIN');
-
-        // Hash password
-        const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
-
-        // Insert user
-        // Parent role users are auto-verified, animation role requires admin approval
-        const result = await client.query(
-          `INSERT INTO users (email, password, full_name, is_verified)
-           VALUES ($1, $2, $3, $4)
-           RETURNING id, email, full_name, is_verified`,
-          [normalizedEmail, hashedPassword, full_name, role === 'parent']
-        );
-
-        const userId = result.rows[0].id;
-
-        // Get role ID from roles table
-        const roleResult = await client.query(
-          `SELECT id FROM roles WHERE role_name = $1`,
-          [role]
-        );
-
-        if (roleResult.rows.length === 0) {
-          throw new Error(`Role '${role}' not found in roles table`);
-        }
-
-        const roleId = roleResult.rows[0].id;
-
-        // Link user to organization with the requested role (parent by default)
-        await client.query(
-          `INSERT INTO user_organizations (user_id, organization_id, role_ids)
-           VALUES ($1, $2, $3)`,
-          [userId, organizationId, JSON.stringify([roleId])]
-        );
-
-        await client.query('COMMIT');
-
-        if (role === 'animation') {
-          await sendAdminVerificationEmail(
-            pool,
-            organizationId,
-            full_name,
-            normalizedEmail,
-            getEmailTranslations(req)
-          );
-        }
-
-        res.status(201).json({
-          success: true,
-          data: result.rows[0],
-          message: 'registration_successful_await_verification'
-        });
-      } catch (error) {
-        if (handleOrganizationResolutionError(res, error, logger)) {
-          return;
-        }
-        await client.query('ROLLBACK');
-        logger.error('Error registering user:', error);
-
-        // Handle duplicate email error (PostgreSQL error code 23505)
-        if (error.code === '23505' && error.constraint === 'users_email_key') {
-          return res.status(400).json({
-            success: false,
-            message: 'account_already_exists'
-          });
-        }
-
-        res.status(500).json({ success: false, message: 'registration_error' });
-      } finally {
-        client.release();
-      }
-    }));
-
-  /**
-   * @swagger
    * /api/auth/request-reset:
    *   post:
    *     summary: Request password reset
@@ -874,7 +783,7 @@ module.exports = (pool, logger) => {
    *       429:
    *         description: Too many requests
    */
-  router.post('/api/auth/request-reset',
+  router.post(['/api/v1/auth/request-reset', ...legacyAuthPaths('/api/auth/request-reset')],
     passwordResetLimiter,
     validateEmail,
     checkValidation,
@@ -1088,7 +997,7 @@ module.exports = (pool, logger) => {
    *       400:
    *         description: Invalid or expired token
    */
-  router.post('/api/auth/reset-password',
+  router.post(['/api/v1/auth/reset-password', ...legacyAuthPaths('/api/auth/reset-password')],
     passwordResetLimiter,
     validateToken,
     validateNewPassword,
@@ -1163,7 +1072,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Invalid session
    */
-  router.post('/api/auth/verify-session', authenticate, asyncHandler(async (req, res) => {
+  router.post(['/api/v1/auth/verify-session', ...legacyAuthPaths('/api/auth/verify-session')], authenticate, asyncHandler(async (req, res) => {
     try {
       // If authenticate middleware passed, session is valid
       res.json({
@@ -1200,7 +1109,7 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/auth/logout:
+   * /api/v1/auth/logout:
    *   post:
    *     summary: Logout user
    *     description: Clear user session (client-side token should be removed)
@@ -1209,23 +1118,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Logout successful
    */
-  router.post('/api/auth/logout', respondLogoutSuccess);
-
-  /**
-   * @swagger
-   * /api/v1/auth/logout:
-   *   post:
-   *     summary: Logout user (v1)
-   *     description: Clear user session (client-side token should be removed)
-   *     tags: [Authentication]
-   *     responses:
-   *       200:
-   *         description: Logout successful
-   */
-  router.post('/api/v1/auth/logout', respondLogoutSuccess);
-
-  // Backward-compatible alias used by some clients.
-  router.post('/api/v1/logout', respondLogoutSuccess);
+  router.post(['/api/v1/auth/logout', ...legacyAuthPaths('/api/auth/logout', '/api/v1/logout')], respondLogoutSuccess);
 
   return router;
 };

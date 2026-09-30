@@ -21,7 +21,8 @@ const ALLOWED_NON_VERSIONED_MOUNTS = new Set([
   'app.use("/api", externalRevenueRoutes);',
   'app.use("/api", medicationRoutes);',
   'app.use("/api", whatsappBaileysRoutes);',
-  'app.use("/api", legacyApiDeprecationLogger, legacyApiDeprecationResponder);'
+  'app.use("/api", legacyApiDeprecationLogger, legacyApiDeprecationResponder);',
+  'app.use("/public", organizationsRoutes.legacyPublic);'
 ]);
 
 const REQUIRED_MOUNTS = new Map([
@@ -66,8 +67,11 @@ function checkNonVersionedMounts() {
 
     const isNonVersionedRoot = mountPath === '/';
     const isNonVersionedApi = mountPath === '/api' || /^\/api\/(?!v1\b)/.test(mountPath);
+    // /public/* sits outside /api entirely; a whole router mounted there
+    // exposes every route it defines, writes included.
+    const isPublicRoot = mountPath === '/public' || mountPath.startsWith('/public/');
 
-    if ((isNonVersionedRoot || isNonVersionedApi) && !ALLOWED_NON_VERSIONED_MOUNTS.has(trimmedLine)) {
+    if ((isNonVersionedRoot || isNonVersionedApi || isPublicRoot) && !ALLOWED_NON_VERSIONED_MOUNTS.has(trimmedLine)) {
       violations.push({ line: index + 1, statement: trimmedLine });
     }
   });

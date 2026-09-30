@@ -92,7 +92,7 @@ const BudgetsScreen = ({ navigation }) => {
           start_date: fiscalYear.start,
           end_date: fiscalYear.end,
         }),
-        API.get('/v1/finance/budget-summary', {
+        API.get('/v1/budget/reports/summary', {
           start_date: fiscalYear.start,
           end_date: fiscalYear.end,
         }),
@@ -137,9 +137,9 @@ const BudgetsScreen = ({ navigation }) => {
 
       let result;
       if (editingCategory) {
-        result = await API.put(`/v1/finance/budget-categories/${editingCategory.id}`, payload);
+        result = await API.put(`/v1/budget/categories/${editingCategory.id}`, payload);
       } else {
-        result = await API.post('/v1/finance/budget-categories', payload);
+        result = await API.post('/v1/budget/categories', payload);
       }
 
       if (result.success) {
@@ -188,9 +188,9 @@ const BudgetsScreen = ({ navigation }) => {
 
       let result;
       if (editingItem) {
-        result = await API.put(`/v1/finance/budget-items/${editingItem.id}`, payload);
+        result = await API.put(`/v1/budget/items/${editingItem.id}`, payload);
       } else {
-        result = await API.post('/v1/finance/budget-items', payload);
+        result = await API.post('/v1/budget/items', payload);
       }
 
       if (result.success) {
