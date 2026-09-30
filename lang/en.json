@@ -3688,5 +3688,7 @@
   "group_member_count": "Youth",
   "no_groups_found": "Nothing here yet.",
   "vocabulary_no_groups_found": "No {subgroup_singular} yet.",
-  "vocabulary_remove_group": "Remove"
+  "vocabulary_remove_group": "Remove",
+  "yearly_planner_action_plan": "Action plan",
+  "yearly_planner_print_weekend": "Weekend"
 }

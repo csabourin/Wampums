@@ -444,6 +444,16 @@
   }
 }
 
+/* Printable action plan: hidden on screen, replaces the year grid on paper. */
+.yp-print-sheet {
+  display: none;
+}
+
+@page yp-action-plan {
+  size: letter landscape;
+  margin: 1.2cm;
+}
+
 @media print {
   body > :not(#app),
   .yearly-planner .yp-back-btn,
@@ -452,31 +462,112 @@
   .yearly-planner .page__actions,
   .yearly-planner .yp-armbar,
   .yearly-planner #yp-live,
-  .yearly-planner #yp-tab-periods,
-  .yearly-planner #yp-tab-objectives {
+  .yearly-planner .yp-plan-detail-header,
+  .yearly-planner .yp-plan-meta,
+  .yearly-planner .yp-tab-content {
     display: none !important;
   }
 
-  .yearly-planner #yp-tab-timeline {
-    display: block !important;
-  }
-
-  .yearly-planner,
-  .yp-month {
-    break-inside: avoid;
-  }
-
-  .yp-year {
-    gap: 1rem;
-  }
-
-  .yp-chip {
-    break-inside: avoid;
+  .yearly-planner .yp-print-sheet {
+    display: block;
+    page: yp-action-plan;
     color: #000;
-    box-shadow: none;
+    font-size: 9pt;
+    line-height: 1.25;
+  }
+
+  .yp-print-sheet__header {
+    text-align: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .yp-print-sheet__header h2 {
+    margin: 0;
+    font-size: 18pt;
+    color: #000;
+  }
+
+  .yp-print-sheet__title {
+    margin: 0.15rem 0 0;
+    font-weight: 700;
+    font-size: 11pt;
+    text-transform: uppercase;
+  }
+
+  .yp-print-sheet__legend {
+    margin: 0.25rem 0 0;
+    font-size: 8pt;
+  }
+
+  .yp-print-sheet__table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    background: #fff;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+  }
+
+  .yp-print-sheet__table th,
+  .yp-print-sheet__table td {
+    border: 1px solid #000;
+    padding: 2pt 4pt;
+    vertical-align: middle;
+    text-align: left;
+    background: #fff;
+    color: #000;
+    border-radius: 0;
+  }
+
+  .yp-print-sheet__table tr:hover {
+    background: none;
+  }
+
+  .yp-print-sheet__table thead th {
+    font-style: italic;
+    font-weight: 400;
+    text-align: center;
+    font-size: 10pt;
+  }
+
+  .yp-print-sheet__table th:nth-child(3),
+  .yp-print-sheet__table td:nth-child(3) {
+    width: 26%;
+  }
+
+  .yp-print-sheet__table th:nth-child(4),
+  .yp-print-sheet__table td:nth-child(4) {
+    width: 30%;
+  }
+
+  .yp-print-sheet__table .yp-print-sheet__date {
+    width: 8%;
+    text-align: right;
+  }
+
+  .yp-print-sheet__table .yp-print-sheet__period {
+    width: 7%;
+    text-align: center;
+  }
+
+  .yp-print-sheet__month th {
+    background: #bfbfbf;
+    font-style: italic;
+    font-weight: 700;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .yp-print-sheet__table tr {
+    break-inside: avoid;
+  }
+
+  .yp-print-sheet__row--cancelled td,
+  .yp-print-sheet__item--cancelled {
+    font-style: italic;
   }
 }
-
 
 /* Periods */
 .yp-periods {
