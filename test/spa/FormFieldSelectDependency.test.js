@@ -619,6 +619,34 @@ describe('Rendered form: a text field depending on a select', () => {
         expect(allergy(form).disabled).toBe(false);
       }
     );
+
+    it.each([
+      ['radio', true], ['radio', 'on'], ['radio', 'oui'],
+      ['select', true], ['select', 'on'], ['select', 'oui']
+    ])(
+      'shows a legacy %s answer %p as the option its dependent waits for, and keeps it across saves',
+      (type, saved) => {
+        // With "1" before "yes", showing the legacy answer as "1" kept the
+        // allergy on the first open only: saving wrote "1", and the next open
+        // (rightly) no longer counted "1" as "yes" and cleared the allergy.
+        const fields = allergyFields(type);
+        fields[0] = { ...fields[0], options: [{ label: 'one', value: '1' }, { label: 'yes', value: 'yes' }] };
+
+        const first = renderLive({ has_allergies: saved, allergie: 'Arachides' }, fields);
+        const shown = type === 'radio'
+          ? first.querySelector('[name="has_allergies"]:checked').value
+          : first.querySelector('[name="has_allergies"]').value;
+        expect(shown).toBe('yes');
+
+        const resaved = Object.fromEntries(new FormData(first).entries());
+        document.body.innerHTML = '';
+        const reopened = renderLive(resaved, fields);
+
+        expect(resaved.has_allergies).toBe('yes');
+        expect(allergy(reopened).value).toBe('Arachides');
+        expect(allergy(reopened).disabled).toBe(false);
+      }
+    );
   });
 
   describe('with several forms on the page (one per guardian)', () => {
