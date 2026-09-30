@@ -65,7 +65,11 @@ export class JSONFormRenderer {
 	 * @returns {string|undefined} The designated option's value, if any
 	 */
 	resolveChoice(value, options = [], fieldName = undefined) {
-		const exact = options.find(option => option.value === value);
+		// Compared as strings, as the DOM and the dependency helpers see them: a
+		// JSON number 1 is the "1" option, not a legacy spelling of yes.
+		const exact = value === undefined || value === null
+			? undefined
+			: options.find(option => String(option.value) === String(value));
 		if (exact) {
 			return exact.value;
 		}

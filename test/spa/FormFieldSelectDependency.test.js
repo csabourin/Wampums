@@ -620,6 +620,20 @@ describe('Rendered form: a text field depending on a select', () => {
       }
     );
 
+    it.each(['radio', 'select'])('shows a %s answer saved as the number 1 as the option "1", not "yes"', (type) => {
+      // JSON may hold 1 as a number; it is the "1" option exactly, not a
+      // legacy spelling of yes.
+      const fields = allergyFields(type);
+      fields[0] = { ...fields[0], options: [{ label: 'one', value: '1' }, { label: 'yes', value: 'yes' }] };
+      const form = renderLive({ has_allergies: 1, allergie: 'Périmé' }, fields);
+
+      const shown = type === 'radio'
+        ? form.querySelector('[name="has_allergies"]:checked').value
+        : form.querySelector('[name="has_allergies"]').value;
+      expect(shown).toBe('1');
+      expect(isHidden(allergy(form))).toBe(true);
+    });
+
     it.each([
       ['radio', true], ['radio', 'on'], ['radio', 'oui'],
       ['select', true], ['select', 'on'], ['select', 'oui']
