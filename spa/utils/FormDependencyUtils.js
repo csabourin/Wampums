@@ -61,6 +61,94 @@ export function isDependencySatisfied(currentValue, expectedValue) {
 }
 
 /**
+ * Whether a controlling field's live answer meets a condition.
+ *
+ * When the awaited value is one of the controller's own options, the answer
+ * on screen is an option value too, so they are compared exactly: a select may
+ * well offer "yes" and "1" as two distinct answers, and treating them as
+ * spellings of yes would show a field for the wrong one. The tolerant
+ * comparison remains for yes/no controllers without options (a lone checkbox
+ * reads "yes"/"no") and for conditions that name no current option.
+ *
+ * @param {Object|undefined} controller - The controlling field's definition
+ * @param {*|Array} currentValue - The answer on screen (see readControllingValue)
+ * @param {*} expectedValue - The value the dependent field waits for
+ * @returns {boolean} True when the dependent field should apply
+ */
+export function isControllerAnswerMatching(controller, currentValue, expectedValue) {
+  const optionValues = Array.isArray(controller?.options)
+    ? controller.options.map((option) => String(option?.value))
+    : [];
+  const expected = String(expectedValue);
+
+  if (optionValues.includes(expected)) {
+    const answers = Array.isArray(currentValue) ? currentValue : [currentValue];
+    return answers.some((answer) => answer !== undefined && answer !== null && String(answer) === expected);
+  }
+  return isDependencySatisfied(currentValue, expectedValue);
+}
+
+/**
+ * Whether a controlling field's saved answer meets a condition.
+ *
+ * Each saved value is judged on its own — every ticked value of a
+ * multi-select, whether saved as an array or a comma-separated string. A value
+ * that is one of the controller's options is displayed as saved, so when the
+ * condition also names an option it is compared exactly, like the live answer:
+ * a saved "1" does not meet a condition on "yes". A value no option can show
+ * (a legacy spelling of yes, a retired option) is compared tolerantly.
+ *
+ * @param {Object|undefined} controller - The controlling field's definition
+ * @param {*|Array} savedValue - The saved answer
+ * @param {*} expectedValue - The value the dependent field waits for
+ * @returns {boolean} True when the saved answers meet the condition
+ */
+export function isSavedAnswerMatching(controller, savedValue, expectedValue) {
+  let values = [savedValue];
+  if (Array.isArray(savedValue)) {
+    values = savedValue;
+  } else if (controller?.multiple && typeof savedValue === "string") {
+    values = savedValue.split(",");
+  }
+
+  const optionValues = Array.isArray(controller?.options)
+    ? controller.options.map((option) => String(option?.value))
+    : [];
+  const expected = String(expectedValue);
+  const expectedIsOption = optionValues.includes(expected);
+
+  return values.some((value) => {
+    if (value === undefined || value === null) {
+      return false;
+    }
+    if (expectedIsOption && optionValues.includes(String(value))) {
+      return String(value) === expected;
+    }
+    return isDependencySatisfied(value, expectedValue);
+  });
+}
+
+/**
+ * Whether a form that has just loaded must leave a dependent field as rendered
+ * rather than sync it from what its controlling field shows.
+ *
+ * On load, the saved answers outrank the screen: a condition they meet is
+ * never undone — and its answer never cleared — because the rendered control
+ * cannot show the saved answer as saved (a legacy "true" displayed as the first
+ * yes-like option, say "1", which a condition on "yes" rejects).
+ *
+ * @param {Object|undefined} controller - The controlling field's definition
+ * @param {*|Array} savedValue - The controlling field's saved answer
+ * @param {*|Array} shownValue - What the controlling field shows (readControllingValue)
+ * @param {*} expectedValue - The value the dependent field waits for
+ * @returns {boolean} True when the initial sync must be skipped
+ */
+export function shouldKeepSavedDependency(controller, savedValue, shownValue, expectedValue) {
+  return isSavedAnswerMatching(controller, savedValue, expectedValue) &&
+    !isControllerAnswerMatching(controller, shownValue, expectedValue);
+}
+
+/**
  * The answer a controlling field currently shows on screen.
  *
  * - a multi-select (rendered as a checkbox group): the ticked values

@@ -498,6 +498,62 @@ describe('Rendered form: a text field depending on a select', () => {
     });
   });
 
+  it('compares a select\'s own options exactly, not as yes/no aliases', () => {
+    // "yes" and "1" are two distinct answers here, not two spellings of yes.
+    const scale = {
+      name: 'niveau',
+      type: 'select',
+      label: 'niveau_label',
+      options: [{ label: 'none', value: '0' }, { label: 'one', value: '1' }, { label: 'yes', value: 'yes' }]
+    };
+    const detail = { ...OTHER_LANGUAGE_FIELD, dependsOn: { field: 'niveau', value: 'yes' } };
+    const form = renderLive({ niveau: '0' }, [scale, detail]);
+    const select = form.querySelector('[name="niveau"]');
+
+    choose(select, '1');
+    expect(isHidden(otherLanguage(form))).toBe(true);
+
+    choose(select, 'yes');
+    expect(isHidden(otherLanguage(form))).toBe(false);
+  });
+
+  it('hides and clears on load an answer whose saved controller is a different exact option', () => {
+    // The saved "1" is shown selected; it is not the awaited "yes", even though
+    // the tolerant comparison of legacy answers would equate them.
+    const scale = {
+      name: 'niveau',
+      type: 'select',
+      label: 'niveau_label',
+      options: [{ label: 'none', value: '0' }, { label: 'one', value: '1' }, { label: 'yes', value: 'yes' }]
+    };
+    const detail = { ...OTHER_LANGUAGE_FIELD, dependsOn: { field: 'niveau', value: 'yes' } };
+    const form = renderLive({ niveau: '1', autre_langue: 'Périmé' }, [scale, detail]);
+
+    expect(form.querySelector('[name="niveau"]').value).toBe('1');
+    expect(isHidden(otherLanguage(form))).toBe(true);
+    expect(otherLanguage(form).value).toBe('');
+  });
+
+  it.each([
+    ['an array', ['x', '1']],
+    ['a comma-separated string', 'x,1'],
+    ['an array holding a retired option', ['x', '1', 'retired']]
+  ])('judges each option of a multi-select saved as %s exactly on load', (_label, saved) => {
+    const multi = {
+      name: 'niveaux',
+      type: 'select',
+      multiple: true,
+      label: 'niveaux_label',
+      options: [{ label: 'x', value: 'x' }, { label: 'one', value: '1' }, { label: 'yes', value: 'yes' }]
+    };
+    const detail = { ...OTHER_LANGUAGE_FIELD, dependsOn: { field: 'niveaux', value: 'yes' } };
+    const form = renderLive({ niveaux: saved, autre_langue: 'Périmé' }, [multi, detail]);
+
+    expect(form.querySelector('[name="niveaux"][value="1"]').checked).toBe(true);
+    expect(isHidden(otherLanguage(form))).toBe(true);
+    expect(otherLanguage(form).value).toBe('');
+  });
+
   describe('with answers saved in an older spelling (fiche santé history)', () => {
     const YES_NO = [{ label: 'yes_label', value: 'yes' }, { label: 'no_label', value: 'no' }];
     const allergyFields = (type) => [
@@ -549,6 +605,62 @@ describe('Rendered form: a text field depending on a select', () => {
       expect(allergy(form).value).toBe('Arachides');
       expect(allergy(form).disabled).toBe(false);
     });
+
+    it.each([true, 'on', 'oui'])(
+      'keeps the answer of a legacy %p shown as a different yes-like option',
+      (saved) => {
+        // Options "1" then "yes": the renderer shows the legacy answer as "1",
+        // which the exact live comparison rejects for a condition on "yes".
+        const fields = allergyFields('radio');
+        fields[0] = { ...fields[0], options: [{ label: 'one', value: '1' }, { label: 'yes', value: 'yes' }] };
+        const form = renderLive({ has_allergies: saved, allergie: 'Arachides' }, fields);
+
+        expect(allergy(form).value).toBe('Arachides');
+        expect(allergy(form).disabled).toBe(false);
+      }
+    );
+
+    it.each(['radio', 'select'])('shows a %s answer saved as the number 1 as the option "1", not "yes"', (type) => {
+      // JSON may hold 1 as a number; it is the "1" option exactly, not a
+      // legacy spelling of yes.
+      const fields = allergyFields(type);
+      fields[0] = { ...fields[0], options: [{ label: 'one', value: '1' }, { label: 'yes', value: 'yes' }] };
+      const form = renderLive({ has_allergies: 1, allergie: 'Périmé' }, fields);
+
+      const shown = type === 'radio'
+        ? form.querySelector('[name="has_allergies"]:checked').value
+        : form.querySelector('[name="has_allergies"]').value;
+      expect(shown).toBe('1');
+      expect(isHidden(allergy(form))).toBe(true);
+    });
+
+    it.each([
+      ['radio', true], ['radio', 'on'], ['radio', 'oui'],
+      ['select', true], ['select', 'on'], ['select', 'oui']
+    ])(
+      'shows a legacy %s answer %p as the option its dependent waits for, and keeps it across saves',
+      (type, saved) => {
+        // With "1" before "yes", showing the legacy answer as "1" kept the
+        // allergy on the first open only: saving wrote "1", and the next open
+        // (rightly) no longer counted "1" as "yes" and cleared the allergy.
+        const fields = allergyFields(type);
+        fields[0] = { ...fields[0], options: [{ label: 'one', value: '1' }, { label: 'yes', value: 'yes' }] };
+
+        const first = renderLive({ has_allergies: saved, allergie: 'Arachides' }, fields);
+        const shown = type === 'radio'
+          ? first.querySelector('[name="has_allergies"]:checked').value
+          : first.querySelector('[name="has_allergies"]').value;
+        expect(shown).toBe('yes');
+
+        const resaved = Object.fromEntries(new FormData(first).entries());
+        document.body.innerHTML = '';
+        const reopened = renderLive(resaved, fields);
+
+        expect(resaved.has_allergies).toBe('yes');
+        expect(allergy(reopened).value).toBe('Arachides');
+        expect(allergy(reopened).disabled).toBe(false);
+      }
+    );
   });
 
   describe('with several forms on the page (one per guardian)', () => {

@@ -54,16 +54,34 @@ export class JSONFormRenderer {
 	 * field (the allergy) was treated as applying, and the live sync then
 	 * cleared that allergy on load.
 	 *
+	 * When several options are equivalent (a field offering "1" and "yes"), the
+	 * one another field depends on wins. Showing the first ("1") kept the
+	 * allergy on the first open only: saving wrote "1", which the next open —
+	 * comparing options exactly — no longer counted as "yes".
+	 *
 	 * @param {*} value - The saved answer
 	 * @param {Object[]} options - The field's `{ label, value }` options
+	 * @param {string} [fieldName] - The field's name, to find what its dependents wait for
 	 * @returns {string|undefined} The designated option's value, if any
 	 */
-	resolveChoice(value, options = []) {
-		const exact = options.find(option => option.value === value);
+	resolveChoice(value, options = [], fieldName = undefined) {
+		// Compared as strings, as the DOM and the dependency helpers see them: a
+		// JSON number 1 is the "1" option, not a legacy spelling of yes.
+		const exact = value === undefined || value === null
+			? undefined
+			: options.find(option => String(option.value) === String(value));
 		if (exact) {
 			return exact.value;
 		}
-		return options.find(option => isDependencySatisfied(value, option.value))?.value;
+
+		const equivalent = options.filter(option => isDependencySatisfied(value, option.value));
+		const awaited = new Set(
+			(this.formStructure.fields || [])
+				.filter(field => fieldName && field.dependsOn?.field === fieldName)
+				.map(field => String(field.dependsOn.value))
+		);
+		const preferred = equivalent.find(option => awaited.has(String(option.value)));
+		return (preferred || equivalent[0])?.value;
 	}
 
 	renderField(field, formOrigin, index) {
@@ -147,7 +165,7 @@ export class JSONFormRenderer {
 								output += `</div>`;
 							} else {
 								output += `<select id="${fieldId}" name="${name}" ${requiredAttr} ${disabled} ${dependsOnAttr}>`;
-								const chosen = this.resolveChoice(value, options);
+								const chosen = this.resolveChoice(value, options, name);
 								options.forEach(option => {
 									const selected = chosen !== undefined && chosen === option.value ? 'selected' : '';
 									output += `<option value="${option.value}" ${selected}>${translate(option.label)}</option>`;
@@ -166,7 +184,7 @@ export class JSONFormRenderer {
 							// dropped straight into `.form-group` (a column flex container)
 							// put every option on its own line under the question.
 							output += `<div class="radio-group" data-field-name="${name}">`;
-							const chosenRadio = this.resolveChoice(value, options);
+							const chosenRadio = this.resolveChoice(value, options, name);
 							options.forEach(option => {
 									const radioId = this.useUniqueIds ? `${name}_${option.value}-${index}` : `${name}_${option.value}`;
 									const checked = chosenRadio !== undefined && chosenRadio === option.value ? 'checked' : '';

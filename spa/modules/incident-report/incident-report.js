@@ -17,7 +17,12 @@ import { confirm as confirmDialog, confirmDestructive } from '../../utils/Dialog
 
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { JSONFormRenderer } from '../../JSONFormRenderer.js';
-import { clearDependentValues, isDependencySatisfied, readControllingValue } from '../../utils/FormDependencyUtils.js';
+import {
+  clearDependentValues,
+  isControllerAnswerMatching,
+  readControllingValue,
+  shouldKeepSavedDependency
+} from '../../utils/FormDependencyUtils.js';
 import { API } from '../../api/api-core.js';
 import {
   getIncidentReports,
@@ -507,6 +512,8 @@ export class IncidentReport {
     if (!form || !this.formStructure?.fields) return;
 
     const dependentFields = this.formStructure.fields.filter(f => f.dependsOn);
+    // The report as saved, as the renderer received it
+    const savedAnswers = this.formRenderer?.formData || {};
 
     dependentFields.forEach(depField => {
       const controlField = depField.dependsOn.field;
@@ -523,7 +530,7 @@ export class IncidentReport {
         // Same reading and comparison as the dynamic forms: only ticked boxes
         // count, and a lone checkbox answers yes/no rather than its fixed value.
         const controlValue = readControllingValue(Array.from(controllers), controllerDef);
-        const isVisible = isDependencySatisfied(controlValue, requiredValue);
+        const isVisible = isControllerAnswerMatching(controllerDef, controlValue, requiredValue);
 
         if (depGroup) {
           depGroup.style.display = isVisible ? '' : 'none';
@@ -541,8 +548,18 @@ export class IncidentReport {
         c.addEventListener('change', updateVisibility);
       });
 
-      // Initial state
-      updateVisibility();
+      // Initial state — unless the saved report meets the condition while the
+      // rendered control cannot show it (see shouldKeepSavedDependency): the
+      // next save would otherwise drop a detail the report already holds.
+      const keepAsRendered = shouldKeepSavedDependency(
+        controllerDef,
+        savedAnswers[controlField],
+        readControllingValue(Array.from(controllers), controllerDef),
+        requiredValue
+      );
+      if (!keepAsRendered) {
+        updateVisibility();
+      }
     });
   }
 
