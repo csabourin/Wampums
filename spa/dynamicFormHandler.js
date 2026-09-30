@@ -1,7 +1,7 @@
 // dynamicFormHandler.js
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
-import { isSavedAnswerMatching, isControllerAnswerMatching, clearDependentValues, readControllingValue } from "./utils/FormDependencyUtils.js";
+import { shouldKeepSavedDependency, isControllerAnswerMatching, clearDependentValues, readControllingValue } from "./utils/FormDependencyUtils.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
 import {
     getOrganizationFormFormats,
@@ -257,18 +257,15 @@ export class DynamicFormHandler {
                     element.addEventListener(this.getEventType(element.type), sync);
                 });
 
-                // On load, the saved answers outrank the screen: a condition they
-                // meet is never undone — and its answer never cleared — because
-                // the rendered control fails to show the saved answer. A saved
-                // answer made of the controller's own options is shown as saved,
-                // so it is judged exactly, like the live answer: a saved "1" does
-                // not meet a condition on "yes" just because both can spell yes.
-                const shown = readControllingValue(controllingElements, controller);
-                const metBySavedAnswers = isSavedAnswerMatching(
-                    controller, savedAnswers[field.dependsOn.field], field.dependsOn.value
+                // On load, the saved answers outrank the screen (see
+                // shouldKeepSavedDependency).
+                const keepAsRendered = shouldKeepSavedDependency(
+                    controller,
+                    savedAnswers[field.dependsOn.field],
+                    readControllingValue(controllingElements, controller),
+                    field.dependsOn.value
                 );
-                if (controllingElements.length > 0 &&
-                    !(metBySavedAnswers && !isControllerAnswerMatching(controller, shown, field.dependsOn.value))) {
+                if (controllingElements.length > 0 && !keepAsRendered) {
                     sync();
                 }
             }

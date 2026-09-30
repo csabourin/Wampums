@@ -605,6 +605,20 @@ describe('Rendered form: a text field depending on a select', () => {
       expect(allergy(form).value).toBe('Arachides');
       expect(allergy(form).disabled).toBe(false);
     });
+
+    it.each([true, 'on', 'oui'])(
+      'keeps the answer of a legacy %p shown as a different yes-like option',
+      (saved) => {
+        // Options "1" then "yes": the renderer shows the legacy answer as "1",
+        // which the exact live comparison rejects for a condition on "yes".
+        const fields = allergyFields('radio');
+        fields[0] = { ...fields[0], options: [{ label: 'one', value: '1' }, { label: 'yes', value: 'yes' }] };
+        const form = renderLive({ has_allergies: saved, allergie: 'Arachides' }, fields);
+
+        expect(allergy(form).value).toBe('Arachides');
+        expect(allergy(form).disabled).toBe(false);
+      }
+    );
   });
 
   describe('with several forms on the page (one per guardian)', () => {

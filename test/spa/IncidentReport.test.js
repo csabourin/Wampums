@@ -262,4 +262,41 @@ describe('incident report dependent fields controlled by a select', () => {
 
     expect(document.getElementById('details').disabled).toBe(true);
   });
+
+  it.each([true, 'on', 'oui'])(
+    'keeps the detail of a report whose controller was saved as the legacy %p',
+    (saved) => {
+      // The renderer shows the legacy answer as the first yes-like option ("1"),
+      // which the exact comparison rejects; the saved answer must still win on
+      // open, or the next save drops the detail.
+      document.body.innerHTML = `
+        <form id="incident-form">
+          <div class="form-group">
+            <label for="level">level</label>
+            <select id="level" name="level">
+              <option value="1" selected>1</option>
+              <option value="yes">yes</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="details">details</label>
+            <input id="details" name="details" value="Déjà saisi">
+          </div>
+        </form>
+      `;
+      const module = new IncidentReport({});
+      module.formStructure = {
+        fields: [
+          { name: 'level', type: 'select', options: [{ label: '1', value: '1' }, { label: 'yes', value: 'yes' }] },
+          { name: 'details', type: 'text', dependsOn: { field: 'level', value: 'yes' } }
+        ]
+      };
+      module.formRenderer = { formData: { level: saved, details: 'Déjà saisi' } };
+      module.setupDependsOn();
+
+      const details = document.getElementById('details');
+      expect(details.disabled).toBe(false);
+      expect(details.value).toBe('Déjà saisi');
+    }
+  );
 });

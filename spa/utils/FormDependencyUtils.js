@@ -129,6 +129,26 @@ export function isSavedAnswerMatching(controller, savedValue, expectedValue) {
 }
 
 /**
+ * Whether a form that has just loaded must leave a dependent field as rendered
+ * rather than sync it from what its controlling field shows.
+ *
+ * On load, the saved answers outrank the screen: a condition they meet is
+ * never undone — and its answer never cleared — because the rendered control
+ * cannot show the saved answer as saved (a legacy "true" displayed as the first
+ * yes-like option, say "1", which a condition on "yes" rejects).
+ *
+ * @param {Object|undefined} controller - The controlling field's definition
+ * @param {*|Array} savedValue - The controlling field's saved answer
+ * @param {*|Array} shownValue - What the controlling field shows (readControllingValue)
+ * @param {*} expectedValue - The value the dependent field waits for
+ * @returns {boolean} True when the initial sync must be skipped
+ */
+export function shouldKeepSavedDependency(controller, savedValue, shownValue, expectedValue) {
+  return isSavedAnswerMatching(controller, savedValue, expectedValue) &&
+    !isControllerAnswerMatching(controller, shownValue, expectedValue);
+}
+
+/**
  * The answer a controlling field currently shows on screen.
  *
  * - a multi-select (rendered as a checkbox group): the ticked values
