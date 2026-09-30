@@ -130,11 +130,20 @@ export function renderPrintSheet(plan, options = {}) {
     }
   });
 
+  // Italics alone do not survive a photocopy: a cancelled entry always says so in words.
+  const cancelledLabel = translate('yearly_planner_cancelled');
+  const withStatus = item => {
+    if (!item.cancelled) {
+      return item.theme;
+    }
+    return item.theme ? `${item.theme} (${cancelledLabel})` : cancelledLabel;
+  };
+
   const renderRow = ({ entry, weekend }) => {
-    const activity = entry.theme || (entry.cancelled ? translate('yearly_planner_cancelled') : '');
+    const activity = withStatus(entry);
     const period = entry.periodId ? periodNumber.get(entry.periodId) || '' : '';
     const weekendHtml = weekend.map(item => `
-      <div>${escapeHTML(formatRange(item.date, item.endDate, lang, true))}${labelSeparator}${escapeHTML(item.theme)}</div>
+      <div class="${item.cancelled ? 'yp-print-sheet__item--cancelled' : ''}">${escapeHTML(formatRange(item.date, item.endDate, lang, true))}${labelSeparator}${escapeHTML(withStatus(item))}</div>
     `).join('');
     return `
       <tr class="${entry.cancelled ? 'yp-print-sheet__row--cancelled' : ''}">

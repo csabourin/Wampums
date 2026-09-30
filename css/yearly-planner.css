@@ -563,7 +563,8 @@
     break-inside: avoid;
   }
 
-  .yp-print-sheet__row--cancelled td {
+  .yp-print-sheet__row--cancelled td,
+  .yp-print-sheet__item--cancelled {
     font-style: italic;
   }
 }
