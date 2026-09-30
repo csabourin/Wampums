@@ -14,6 +14,7 @@ import { CONFIG } from '../../config.js';
 import { buildYearModel } from './PlannerModel.js';
 import { renderYearGrid, renderYearSummary, renderArmBar, renderLiveRegion } from './YearGridView.js';
 import { openMeetingSheet } from './MeetingSheet.js';
+import { renderPrintSheet } from './PrintSheetView.js';
 import { CampSchedule } from './CampSchedule.js';
 import { PeriodEditor } from './PeriodEditor.js';
 import { AchievementEditor } from './AchievementEditor.js';
@@ -825,6 +826,11 @@ export class YearlyPlanner extends BaseModule {
             placement: this.placement
           })}
         </div>
+
+        ${renderPrintSheet(plan, {
+          lang: this.lang,
+          organizationName: this.app?.organizationSettings?.organization_info?.name || ''
+        })}
 
         <!-- Periods Tab -->
         <div class="yp-tab-content" id="yp-tab-periods" style="display:none;">

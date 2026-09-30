@@ -3688,5 +3688,7 @@
   "group_member_count": "Jeunes",
   "no_groups_found": "Aucune entrée pour l’instant.",
   "vocabulary_no_groups_found": "Aucune {subgroup_singular} pour l’instant.",
-  "vocabulary_remove_group": "Supprimer"
+  "vocabulary_remove_group": "Supprimer",
+  "yearly_planner_action_plan": "Plan d'action",
+  "yearly_planner_print_weekend": "Fin de semaine"
 }
