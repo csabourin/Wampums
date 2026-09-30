@@ -517,6 +517,23 @@ describe('Rendered form: a text field depending on a select', () => {
     expect(isHidden(otherLanguage(form))).toBe(false);
   });
 
+  it('hides and clears on load an answer whose saved controller is a different exact option', () => {
+    // The saved "1" is shown selected; it is not the awaited "yes", even though
+    // the tolerant comparison of legacy answers would equate them.
+    const scale = {
+      name: 'niveau',
+      type: 'select',
+      label: 'niveau_label',
+      options: [{ label: 'none', value: '0' }, { label: 'one', value: '1' }, { label: 'yes', value: 'yes' }]
+    };
+    const detail = { ...OTHER_LANGUAGE_FIELD, dependsOn: { field: 'niveau', value: 'yes' } };
+    const form = renderLive({ niveau: '1', autre_langue: 'Périmé' }, [scale, detail]);
+
+    expect(form.querySelector('[name="niveau"]').value).toBe('1');
+    expect(isHidden(otherLanguage(form))).toBe(true);
+    expect(otherLanguage(form).value).toBe('');
+  });
+
   describe('with answers saved in an older spelling (fiche santé history)', () => {
     const YES_NO = [{ label: 'yes_label', value: 'yes' }, { label: 'no_label', value: 'no' }];
     const allergyFields = (type) => [

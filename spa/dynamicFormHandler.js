@@ -259,9 +259,18 @@ export class DynamicFormHandler {
 
                 // On load, the saved answers outrank the screen: a condition they
                 // meet is never undone — and its answer never cleared — because
-                // the rendered control fails to show the saved answer.
+                // the rendered control fails to show the saved answer. A saved
+                // answer that is itself one of the options is shown as saved, so
+                // it is judged exactly, like the live answer: a saved "1" does not
+                // meet a condition on "yes" just because both can spell yes.
                 const shown = readControllingValue(controllingElements, controller);
-                const metBySavedAnswers = isDependencyMet(field.dependsOn, savedAnswers);
+                const savedValue = savedAnswers[field.dependsOn.field];
+                const savedIsAnOption = savedValue !== undefined && savedValue !== null &&
+                    Array.isArray(controller?.options) &&
+                    controller.options.some((option) => String(option?.value) === String(savedValue));
+                const metBySavedAnswers = savedIsAnOption
+                    ? isControllerAnswerMatching(controller, savedValue, field.dependsOn.value)
+                    : isDependencyMet(field.dependsOn, savedAnswers);
                 if (controllingElements.length > 0 &&
                     !(metBySavedAnswers && !isControllerAnswerMatching(controller, shown, field.dependsOn.value))) {
                     sync();
