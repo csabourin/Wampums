@@ -89,6 +89,40 @@ export function isControllerAnswerMatching(controller, currentValue, expectedVal
 }
 
 /**
+ * Whether a controlling field's saved answer meets a condition.
+ *
+ * A saved answer made only of the controller's own options is displayed as
+ * saved, so it is judged exactly, like the live answer — each ticked value of
+ * a multi-select included, whether saved as an array or a comma-separated
+ * string. Anything else (a legacy spelling of yes that no option can show) is
+ * judged tolerantly.
+ *
+ * @param {Object|undefined} controller - The controlling field's definition
+ * @param {*|Array} savedValue - The saved answer
+ * @param {*} expectedValue - The value the dependent field waits for
+ * @returns {boolean} True when the saved answers meet the condition
+ */
+export function isSavedAnswerMatching(controller, savedValue, expectedValue) {
+  let values = [savedValue];
+  if (Array.isArray(savedValue)) {
+    values = savedValue;
+  } else if (controller?.multiple && typeof savedValue === "string") {
+    values = savedValue.split(",");
+  }
+
+  const optionValues = Array.isArray(controller?.options)
+    ? controller.options.map((option) => String(option?.value))
+    : [];
+  const shownAsSaved = values.length > 0 && values.every(
+    (value) => value !== undefined && value !== null && optionValues.includes(String(value))
+  );
+
+  return shownAsSaved
+    ? isControllerAnswerMatching(controller, values, expectedValue)
+    : isDependencySatisfied(values, expectedValue);
+}
+
+/**
  * The answer a controlling field currently shows on screen.
  *
  * - a multi-select (rendered as a checkbox group): the ticked values

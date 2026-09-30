@@ -534,6 +534,25 @@ describe('Rendered form: a text field depending on a select', () => {
     expect(otherLanguage(form).value).toBe('');
   });
 
+  it.each([
+    ['an array', ['x', '1']],
+    ['a comma-separated string', 'x,1']
+  ])('judges each option of a multi-select saved as %s exactly on load', (_label, saved) => {
+    const multi = {
+      name: 'niveaux',
+      type: 'select',
+      multiple: true,
+      label: 'niveaux_label',
+      options: [{ label: 'x', value: 'x' }, { label: 'one', value: '1' }, { label: 'yes', value: 'yes' }]
+    };
+    const detail = { ...OTHER_LANGUAGE_FIELD, dependsOn: { field: 'niveaux', value: 'yes' } };
+    const form = renderLive({ niveaux: saved, autre_langue: 'Périmé' }, [multi, detail]);
+
+    expect(form.querySelector('[name="niveaux"][value="1"]').checked).toBe(true);
+    expect(isHidden(otherLanguage(form))).toBe(true);
+    expect(otherLanguage(form).value).toBe('');
+  });
+
   describe('with answers saved in an older spelling (fiche santé history)', () => {
     const YES_NO = [{ label: 'yes_label', value: 'yes' }, { label: 'no_label', value: 'no' }];
     const allergyFields = (type) => [
