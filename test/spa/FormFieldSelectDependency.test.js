@@ -536,7 +536,8 @@ describe('Rendered form: a text field depending on a select', () => {
 
   it.each([
     ['an array', ['x', '1']],
-    ['a comma-separated string', 'x,1']
+    ['a comma-separated string', 'x,1'],
+    ['an array holding a retired option', ['x', '1', 'retired']]
   ])('judges each option of a multi-select saved as %s exactly on load', (_label, saved) => {
     const multi = {
       name: 'niveaux',

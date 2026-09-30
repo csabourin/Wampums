@@ -91,11 +91,12 @@ export function isControllerAnswerMatching(controller, currentValue, expectedVal
 /**
  * Whether a controlling field's saved answer meets a condition.
  *
- * A saved answer made only of the controller's own options is displayed as
- * saved, so it is judged exactly, like the live answer — each ticked value of
- * a multi-select included, whether saved as an array or a comma-separated
- * string. Anything else (a legacy spelling of yes that no option can show) is
- * judged tolerantly.
+ * Each saved value is judged on its own — every ticked value of a
+ * multi-select, whether saved as an array or a comma-separated string. A value
+ * that is one of the controller's options is displayed as saved, so when the
+ * condition also names an option it is compared exactly, like the live answer:
+ * a saved "1" does not meet a condition on "yes". A value no option can show
+ * (a legacy spelling of yes, a retired option) is compared tolerantly.
  *
  * @param {Object|undefined} controller - The controlling field's definition
  * @param {*|Array} savedValue - The saved answer
@@ -113,13 +114,18 @@ export function isSavedAnswerMatching(controller, savedValue, expectedValue) {
   const optionValues = Array.isArray(controller?.options)
     ? controller.options.map((option) => String(option?.value))
     : [];
-  const shownAsSaved = values.length > 0 && values.every(
-    (value) => value !== undefined && value !== null && optionValues.includes(String(value))
-  );
+  const expected = String(expectedValue);
+  const expectedIsOption = optionValues.includes(expected);
 
-  return shownAsSaved
-    ? isControllerAnswerMatching(controller, values, expectedValue)
-    : isDependencySatisfied(values, expectedValue);
+  return values.some((value) => {
+    if (value === undefined || value === null) {
+      return false;
+    }
+    if (expectedIsOption && optionValues.includes(String(value))) {
+      return String(value) === expected;
+    }
+    return isDependencySatisfied(value, expectedValue);
+  });
 }
 
 /**
