@@ -62,13 +62,6 @@ async function invalidateUserAssociationCaches() {
 // ============================================================================
 
 /**
- * Test database connection
- */
-export async function testConnection() {
-    return API.get('v1/public/test-connection');
-}
-
-/**
  * Get organization ID based on hostname
  */
 export async function getOrganizationId() {
@@ -84,7 +77,7 @@ export const getApiOrganizationId = getOrganizationId;
  * Get public organization settings
  */
 export async function getPublicOrganizationSettings() {
-    return fetchPublic('settings');
+    return fetchPublic('organizations/settings/public');
 }
 
 /**
@@ -92,26 +85,6 @@ export async function getPublicOrganizationSettings() {
  */
 export async function getPublicNews(lang = 'en') {
     return API.get('v1/public/news', { lang });
-}
-
-/**
- * Get initial data for frontend
- */
-export async function getPublicInitialData() {
-    return API.get('v1/public/initial-data');
-}
-
-/**
- * Authenticate with API key
- */
-export async function authenticate(apiKey) {
-    const url = new URL('/public/authenticate', CONFIG.API_BASE_URL);
-    const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ api_key: apiKey })
-    });
-    return handleResponse(response);
 }
 
 // ============================================================================
@@ -150,7 +123,7 @@ export async function login(email, password, organization_id) {
         // Get device token from localStorage (if previously trusted)
         const deviceToken = localStorage.getItem('device_token') || '';
 
-        const url = new URL('/public/login', CONFIG.API_BASE_URL);
+        const url = new URL('/api/v1/auth/login', CONFIG.API_BASE_URL);
         const response = await fetch(url.toString(), {
             method: "POST",
             headers: {
@@ -207,7 +180,7 @@ export async function verify2FA(email, code, organization_id) {
 
         debugLog('Sending 2FA verification request...', email);
 
-        const url = new URL('/public/verify-2fa', CONFIG.API_BASE_URL);
+        const url = new URL('/api/v1/auth/verify-2fa', CONFIG.API_BASE_URL);
         const response = await fetch(url.toString(), {
             method: "POST",
             headers: {
@@ -244,7 +217,7 @@ export async function verify2FA(email, code, organization_id) {
  * Register new user (uses public endpoint)
  */
 export async function register(userData) {
-    const url = new URL('/public/register', CONFIG.API_BASE_URL);
+    const url = new URL('/api/v1/auth/register', CONFIG.API_BASE_URL);
     const organizationId = getCurrentOrganizationId();
 
     const response = await fetch(url.toString(), {
@@ -260,38 +233,24 @@ export async function register(userData) {
 }
 
 /**
- * Verify email with token
- */
-export async function verifyEmail(token) {
-    return API.post('verify-email', { token });
-}
-
-/**
  * Request password reset
  */
 export async function requestPasswordReset(email) {
-    return API.post('api/auth/request-reset', { email });
+    return API.post('v1/auth/request-reset', { email });
 }
 
 /**
  * Reset password with token
  */
 export async function resetPassword(token, newPassword) {
-    return API.post('api/auth/reset-password', { token, new_password: newPassword });
-}
-
-/**
- * Refresh JWT token
- */
-export async function refreshToken() {
-    return API.post('refresh-token');
+    return API.post('v1/auth/reset-password', { token, new_password: newPassword });
 }
 
 /**
  * Refresh JWT token
  */
 export async function verifySession() {
-    await API.post('api/auth/verify-session');
+    await API.post('v1/auth/verify-session');
 }
 
 /**
@@ -547,42 +506,19 @@ export async function getUsers(organizationId, cacheOptions = {}) {
 export async function getRoleCatalog(options = {}) {
     const { forceRefresh = false, organizationId } = options || {};
     const params = organizationId ? { organization_id: organizationId } : {};
-    const cacheKey = buildApiCacheKey('v1/roles', params);
-    try {
-        return await API.get('v1/roles', params, {
-            cacheKey,
-            cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
-            forceRefresh
-        });
-    } catch (error) {
-        debugWarn('v1/roles unavailable, using legacy /roles', error);
-        const fallbackCacheKey = buildApiCacheKey('role_catalog', params);
-        return API.get('roles', params, {
-            cacheKey: fallbackCacheKey,
-            cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
-            forceRefresh
-        });
-    }
+    return API.get('v1/roles', params, {
+        cacheKey: buildApiCacheKey('v1/roles', params),
+        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
+        forceRefresh
+    });
 }
 
 /**
- * Retrieve role bundles (metadata-first) with graceful fallback to role catalog.
+ * Retrieve the roles offered as assignable bundles. Bundles are the role
+ * catalog; there is no separate bundle resource.
  */
 export async function getRoleBundles(options = {}) {
-    const { forceRefresh = false, organizationId } = options || {};
-    const params = organizationId ? { organization_id: organizationId } : {};
-    const cacheKey = buildApiCacheKey('v1/roles/bundles', params);
-
-    try {
-        return await API.get('v1/roles/bundles', params, {
-            cacheKey,
-            cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
-            forceRefresh
-        });
-    } catch (error) {
-        debugWarn('v1/roles/bundles unavailable, falling back to catalog', error);
-        return getRoleCatalog({ forceRefresh, organizationId });
-    }
+    return getRoleCatalog(options);
 }
 
 /**
@@ -618,34 +554,17 @@ export async function updateUserRolesV1(userId, roleIds, metadata = {}) {
 }
 
 /**
- * Update a user's role bundles using the dedicated v1 endpoint, with role assignment fallback.
+ * Update a user's role bundles. A bundle is a role, so this assigns the
+ * selected roles through the role assignment endpoint.
  */
 export async function updateUserRoleBundles(userId, bundlePayload = {}, metadata = {}) {
-    const params = metadata.organizationId ? { organization_id: metadata.organizationId } : {};
     const bundleNames = bundlePayload.bundles || metadata.bundles || [];
-    const payload = {
-        bundleIds: bundlePayload.bundleIds || bundleNames || [],
-        roleIds: bundlePayload.roleIds || metadata.roleIds || [],
+    const roleIds = bundlePayload.roleIds || metadata.roleIds || [];
+    return updateUserRolesV1(userId, roleIds, {
+        ...metadata,
         audit_note: bundlePayload.audit_note || metadata.audit_note || metadata.auditNote,
-    };
-
-    if (bundlePayload.bundles && !payload.bundleIds.length) {
-        payload.bundleIds = bundlePayload.bundles;
-    }
-
-    try {
-        return await API.put(`v1/users/${userId}/role-bundles`, payload, params);
-    } catch (error) {
-        debugWarn('role-bundles endpoint unavailable, falling back to role assignment', error);
-        if (Array.isArray(payload.roleIds) && payload.roleIds.length) {
-            return updateUserRolesV1(userId, payload.roleIds, {
-                ...metadata,
-                audit_note: payload.audit_note,
-                bundles: bundleNames.length ? bundleNames : payload.bundleIds
-            });
-        }
-        throw error;
-    }
+        bundles: bundleNames
+    });
 }
 
 /**
@@ -670,20 +589,6 @@ export async function getRoleAuditLog(userId, options = {}) {
         debugWarn('Audit log endpoint unavailable', error);
         return { success: false, data: [] };
     }
-}
-
-/**
- * Get pending users awaiting approval
- */
-export async function getPendingUsers() {
-    return API.getNoCache('pending-users');
-}
-
-/**
- * Check user permission
- */
-export async function checkPermission(permission) {
-    return API.post('check-permission', { permission });
 }
 
 /**
@@ -1278,40 +1183,19 @@ export async function getFormSubmissions(participantId = null, formType) {
 /**
  * Save form submission
  */
-export async function saveFormSubmission(formTypeOrData, participantId, submissionData) {
-    let formType, pId;
+export async function saveFormSubmission(formType, participantId, submissionData) {
+    const response = await API.post('v1/forms/submissions', {
+        participant_id: participantId,
+        form_type: formType,
+        submission_data: submissionData
+    });
 
-    // Support both signatures:
-    // 1. saveFormSubmission({ form_type, participant_id, submission_data })
-    // 2. saveFormSubmission(formType, participantId, submissionData)
-    if (typeof formTypeOrData === 'object' && formTypeOrData !== null && participantId === undefined) {
-        formType = formTypeOrData.form_type;
-        pId = formTypeOrData.participant_id;
-        const result = await API.post('save-form-submission', formTypeOrData);
-
-        // Clear cache for this specific form submission
-        if (formType && pId) {
-            await deleteCachedData(`form-submission-${formType}-${pId}`);
-        }
-
-        return result;
-    } else {
-        formType = formTypeOrData;
-        pId = participantId;
-        // Use standardized endpoint
-        const response = await API.post('v1/forms/submissions', {
-            participant_id: pId || participantId,
-            form_type: formType,
-            submission_data: submissionData
-        });
-
-        // Clear cache for this specific form submission
-        if (formType && pId) {
-            await deleteCachedData(`form-submission-${formType}-${pId}`);
-        }
-
-        return response;
+    // Clear cache for this specific form submission
+    if (formType && participantId) {
+        await deleteCachedData(`form-submission-${formType}-${participantId}`);
     }
+
+    return response;
 }
 
 /**
@@ -1380,57 +1264,6 @@ export async function getOrganizationFormFormats(organizationId = null, context 
     }
 
     return includeMeta ? { formats: formFormats, meta: formMeta } : formFormats;
-}
-
-/**
- * Get health form (fiche santé)
- */
-export async function fetchFicheSante(participantId) {
-    return API.get('v1/forms/submissions', { participant_id: participantId, form_type: 'fiche_sante' }, {
-        cacheKey: `fiche-sante-${participantId}`
-    });
-}
-
-/**
- * Save health form
- */
-export async function saveFicheSante(ficheSanteData) {
-    const result = await API.post('v1/forms/submissions', {
-        ...ficheSanteData,
-        form_type: 'fiche_sante'
-    });
-
-    // Clear cache for this participant's fiche sante
-    if (ficheSanteData.participant_id) {
-        await deleteCachedData(`fiche-sante-${ficheSanteData.participant_id}`);
-        await deleteCachedData(`form-submission-fiche_sante-${ficheSanteData.participant_id}`);
-    }
-
-    return result;
-}
-
-/**
- * Get risk acceptance form
- */
-export async function fetchAcceptationRisque(participantId) {
-    return API.get('v1/forms/risk-acceptance', { participant_id: participantId }, {
-        cacheKey: `acceptation-risque-${participantId}`
-    });
-}
-
-/**
- * Save risk acceptance form
- */
-export async function saveAcceptationRisque(data) {
-    const result = await API.post('v1/forms/risk-acceptance', data);
-
-    // Clear cache for this participant's risk acceptance form
-    if (data.participant_id) {
-        await deleteCachedData(`acceptation-risque-${data.participant_id}`);
-        await deleteCachedData(`form-submission-acceptation_risque-${data.participant_id}`);
-    }
-
-    return result;
 }
 
 /**
@@ -1582,10 +1415,10 @@ export async function getBadgeSystemSettings() {
 }
 
 /**
- * Get badge system settings
+ * Get organization settings through the public (unauthenticated) endpoint
  */
 export async function fetchPublicOrganizationSettings() {
-    return fetchPublic('settings');
+    return fetchPublic('organizations/settings/public');
 }
 
 /**
@@ -1649,16 +1482,6 @@ export async function getMeetingParent(date = null) {
  */
 export async function getHonorsAndParticipants(date = null) {
     return getHonors(date);
-}
-
-/**
- * Get recent honors (legacy endpoint)
- */
-export async function getRecentHonors() {
-    return API.get('v1/honors/recent', {}, {
-        cacheKey: 'recent_honors',
-        cacheDuration: CONFIG.CACHE_DURATION.SHORT
-    });
 }
 
 /**
@@ -1802,27 +1625,6 @@ export async function updateCalendar(participantId, amount) {
         amount
     });
 }
-
-/**
- * Update calendar paid status
- */
-export async function updateCalendarPaid(participantId, isPaid) {
-    return API.post('v1/calendars/update-calendar-paid', {
-        participant_id: participantId,
-        paid: isPaid
-    });
-}
-
-/**
- * Update calendar amount paid
- */
-export async function updateCalendarAmountPaid(participantId, amountPaid) {
-    return API.post('v1/calendars/update-calendar-amount-paid', {
-        participant_id: participantId,
-        amount_paid: amountPaid
-    });
-}
-
 
 // ============================================================================
 // FUNDRAISERS
@@ -2313,16 +2115,6 @@ export async function getAnnouncements() {
 
 export async function createAnnouncement(payload) {
     return API.post('v1/announcements', payload);
-}
-
-/**
- * Generic reports function
- */
-export async function getReports(reportType) {
-    return API.get(`v1/reports/${reportType}`, {}, {
-        cacheKey: `report_${reportType}`,
-        cacheDuration: CONFIG.CACHE_DURATION.SHORT
-    });
 }
 
 // ============================================================================
@@ -3033,13 +2825,6 @@ export async function importSISC(csvContent) {
 }
 
 /**
- * Register for organization
- */
-export async function registerForOrganization(registrationData) {
-    return API.post('v1/organizations/register', registrationData);
-}
-
-/**
  * Fetch organization JWT token
  */
 export async function fetchOrganizationJwt(organizationId) {
@@ -3063,13 +2848,6 @@ export async function fetchOrganizationJwt(organizationId) {
 // ============================================================================
 // UTILITY
 // ============================================================================
-
-/**
- * Test API connection (API endpoint)
- */
-export async function testApiConnection() {
-    return API.get('v1/public/test-connection');
-}
 
 /**
  * Get initial data (API endpoint)
@@ -3126,7 +2904,7 @@ export async function checkAuthStatus() {
     }
 
     try {
-        await API.post('api/auth/verify-session');
+        await API.post('v1/auth/verify-session');
         return { isValid: true };
     } catch (error) {
         return { isValid: false, reason: 'invalid_token' };

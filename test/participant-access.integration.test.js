@@ -356,24 +356,6 @@ describe.skipIf(!DATABASE_URL)('Participant access routes', () => {
     expect(await liveGrants(ids.admin, here)).toEqual([{ source_type: 'direct', source_id: null }]);
   });
 
-  test('registering to a unit links only that unit\'s children', async () => {
-    const here = await child('Here', ids.unitA);
-    const elsewhere = await child('Elsewhere', ids.unitB);
-    // requirePermission reads permissions in the unit on the token, so only
-    // someone already holding org.register *in this unit* can reach the route.
-    // It cannot be used to join a unit one is not already in -- the linking
-    // behaviour is what this test holds, so the caller is made a member first.
-    const newcomer = await member('Newcomer', ids.unitA, ids.adminRoleId);
-
-    const response = await as(newcomer, ids.unitA).post('/api/v1/organizations/register')
-      .send({ registration_password: 'sesame', link_children: [here, elsewhere] });
-
-    expect(response.status).toBe(200);
-    expect(await sees(newcomer, here)).toBe(true);
-    expect(await liveGrants(newcomer, here)).toEqual([{ source_type: 'direct', source_id: null }]);
-    expect(await sees(newcomer, elsewhere)).toBe(false);
-  });
-
   describe('POST /participants/save', () => {
     // Roles as the registration form meets them: parents hold
     // participants.create (the form cannot save without it), staff also hold

@@ -51,7 +51,6 @@ export { default as MedicationDistributionScreen } from './MedicationDistributio
 // Auth & Organization screens
 export { default as RegisterScreen } from './RegisterScreen';
 export { default as ResetPasswordScreen } from './ResetPasswordScreen';
-export { default as RegisterOrganizationScreen } from './RegisterOrganizationScreen';
 export { default as CreateOrganizationScreen } from './CreateOrganizationScreen';
 
 // Finance screens

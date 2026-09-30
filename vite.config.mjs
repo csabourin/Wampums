@@ -109,8 +109,6 @@ export default defineConfig({
           // Forms - lazy loaded
           forms: [
             "./spa/formulaire_inscription.js",
-            "./spa/fiche_sante.js",
-            "./spa/acceptation_risque.js",
             "./spa/badge_form.js",
             "./spa/dynamicFormHandler.js",
           ],

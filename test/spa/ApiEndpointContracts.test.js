@@ -130,7 +130,7 @@ test('public registration does not send a stale authenticated session', async ()
   });
 
   expect(global.fetch).toHaveBeenCalledWith(
-    'http://localhost:5173/public/register',
+    'http://localhost:5173/api/v1/auth/register',
     expect.objectContaining({
       method: 'POST',
       headers: {

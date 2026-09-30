@@ -172,9 +172,20 @@ module.exports = (pool, logger) => {
    */
   router.get('/v1/stripe/payment-status/:paymentIntentId', authenticate, asyncHandler(async (req, res) => {
     const { paymentIntentId } = req.params;
+    const organizationId = await getOrganizationId(req, pool);
 
     try {
       const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+      // A payment intent id is not a secret: it shows up in redirect URLs. Only
+      // the unit that created it may read it, and within the unit only whoever
+      // started the payment or manages the unit's finances.
+      const metadata = paymentIntent.metadata || {};
+      const sameUnit = metadata.organization_id === String(organizationId);
+      const isPayer = metadata.user_id === String(req.user.id);
+      if (!sameUnit || (!isPayer && !(await userHasPermission(req, pool, organizationId, 'finance.view')))) {
+        return error(res, 'Payment not found', 404);
+      }
 
       return success(res, {
         status: paymentIntent.status,

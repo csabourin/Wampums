@@ -24,6 +24,7 @@ import {
   useToast,
 } from '../components';
 import API from '../api/api-core';
+import CONFIG from '../config';
 import { validatePassword } from '../utils/ValidationUtils';
 
 const ResetPasswordScreen = ({ route, navigation }) => {
@@ -52,7 +53,7 @@ const ResetPasswordScreen = ({ route, navigation }) => {
     try {
       setLoading(true);
 
-      const result = await API.public('/api/auth/request-reset', { email }, 'POST');
+      const result = await API.public(CONFIG.ENDPOINTS.REQUEST_RESET, { email }, 'POST');
 
       if (result.success) {
         toast.show(t('reset_link_sent'), 'success');
@@ -88,7 +89,7 @@ const ResetPasswordScreen = ({ route, navigation }) => {
     try {
       setLoading(true);
 
-      const result = await API.public('/api/auth/reset-password', { token, new_password: newPassword }, 'POST');
+      const result = await API.public(CONFIG.ENDPOINTS.RESET_PASSWORD, { token, new_password: newPassword }, 'POST');
 
       if (result.success) {
         toast.show(t('password_reset_successful'), 'success');

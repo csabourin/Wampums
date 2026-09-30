@@ -90,8 +90,6 @@ const lazyModules = {
   BadgeDashboard: () => import('./badge_dashboard.js').then(m => m.BadgeDashboard),
   BadgeTracker: () => import('./badge_tracker.js').then(m => m.BadgeTracker),
   ProgramProgressDashboard: () => import('./modules/program-progress/ProgramProgressDashboard.js').then(m => m.ProgramProgressDashboard),
-  FicheSante: () => import('./fiche_sante.js').then(m => m.FicheSante),
-  AcceptationRisque: () => import('./acceptation_risque.js').then(m => m.AcceptationRisque),
   BadgeForm: () => import('./badge_form.js').then(m => m.BadgeForm),
   Register: () => import('./register.js').then(m => m.Register),
   Admin: () => import('./admin.js').then(m => m.Admin),
@@ -102,7 +100,6 @@ const lazyModules = {
   DynamicFormHandler: () => import('./dynamicFormHandler.js').then(m => m.DynamicFormHandler),
   Reports: () => import('./reports.js').then(m => m.Reports),
   MeetingPrep: () => import('./modules/meetings/MeetingPrep.js').then(m => m.MeetingPrep),
-  RegisterOrganization: () => import('./register_organization.js').then(m => m.RegisterOrganization),
   CreateOrganization: () => import('./create_organization.js').then(m => m.CreateOrganization),
   PrintableGroupParticipantReport: () => import('./group-participant-report.js').then(m => m.PrintableGroupParticipantReport),
   UpcomingMeeting: () => import('./upcoming_meeting.js').then(m => m.UpcomingMeeting),
@@ -181,8 +178,6 @@ const routes = {
   "/parent-program-progress": "parentProgramProgress",
   "/parent-contact-list": "parentContactList",
   "/mailing-list": "mailingList",
-  "/fiche-sante/:id": "ficheSante",
-  "/acceptation-risque/:id": "acceptationRisque",
   "/badge-form/:id": "badgeForm",
   "/register": "register",
   "/fundraisers": "fundraisers",
@@ -201,9 +196,7 @@ const routes = {
   "/reports": "reports",
   "/preparation-reunions": "preparation_reunions",
   "/preparation-reunions/:date": "preparation_reunions",
-  "/register-organization": "registerOrganization",
   "/manage-users-participants": "manageUsersParticipants",
-  "/dynamic-form/fiche_sante/:id": "ficheSante",
   "/create-organization": "createOrganization",
   "/group-participant-report": "PrintableGroupParticipantReport",
   "/upcoming-meeting": "UpcomingMeeting",
@@ -226,7 +219,6 @@ const routes = {
   "/permission-slip/:token": "permissionSlipSign",
   "/account-info": "accountInfo",
   "/form-builder": "formBuilder",
-  "/admin/form-builder": "formBuilder",
   "/activities": "activities",
   "/carpool": "carpoolLanding",
   "/carpool/:id": "carpool",
@@ -364,13 +356,6 @@ export class Router {
       return;
     }
     const [routeName, param] = this.getRouteNameAndParam(path);
-    const dynamicFormMatch = path.match(/^\/dynamic-form\/([^\/]+)\/(\d+)$/);
-    if (dynamicFormMatch) {
-      const formType = dynamicFormMatch[1];
-      const participantId = dynamicFormMatch[2];
-      await this.loadDynamicForm(formType, participantId);
-      return;
-    }
 
     // Check session
     const session = checkSession();
@@ -407,6 +392,16 @@ export class Router {
         await this.loadLoginPage();
         return;
 
+      }
+
+      // Any form type for one participant; checked after the session so a
+      // signed-out visitor is sent to login like on every other private page.
+      const dynamicFormMatch = path.split("?")[0].match(/^\/dynamic-form\/([^/]+)\/(\d+)$/);
+      if (dynamicFormMatch) {
+        if (guard(isParent() || canViewParticipants())) {
+          await this.loadDynamicForm(decodeURIComponent(dynamicFormMatch[1]), dynamicFormMatch[2]);
+        }
+        return;
       }
 
 
@@ -702,15 +697,6 @@ export class Router {
             await this.loadLoginPage();
           }
           break;
-        case "registerOrganization":
-          if (!guard(canCreateOrganization())) {
-            break;
-          }
-          const RegisterOrganization = await this.loadModule('RegisterOrganization');
-          const registerOrganization = new RegisterOrganization(this.app);
-          this.currentModuleInstance = registerOrganization;
-          await registerOrganization.init();
-          break;
         case "logout":
           await this.handleLogout();
           break;
@@ -895,18 +881,6 @@ export class Router {
           }
           await this.loadParentProgramProgress();
           break;
-        case "ficheSante":
-          if (!guard(isParent() || canViewParticipants())) {
-            break;
-          }
-          await this.loadFicheSante(param);
-          break;
-        case "acceptationRisque":
-          if (!guard(isParent() || canViewParticipants())) {
-            break;
-          }
-          await this.loadAcceptationRisque(param);
-          break;
         case "badgeForm":
           if (!guard(canViewBadges() || canApproveBadges())) {
             break;
@@ -992,7 +966,7 @@ export class Router {
             // (replaceState so the URL matches what is rendered)
             const registerTarget = isParent() ? "/parent-dashboard" : "/dashboard";
             history.replaceState(null, "", registerTarget);
-            this.route(registerTarget);
+            return this.route(registerTarget);
           } else {
             await this.loadRegisterPage();
           }
@@ -1358,20 +1332,6 @@ export class Router {
     const parentProgramProgress = new ParentProgramProgress(this.app);
     this.currentModuleInstance = parentProgramProgress;
     await parentProgramProgress.init();
-  }
-
-  async loadFicheSante(participantId) {
-    const FicheSante = await this.loadModule('FicheSante');
-    const ficheSante = new FicheSante(this.app);
-    this.currentModuleInstance = ficheSante;
-    await ficheSante.init(participantId);
-  }
-
-  async loadAcceptationRisque(participantId) {
-    const AcceptationRisque = await this.loadModule('AcceptationRisque');
-    const acceptationRisque = new AcceptationRisque(this.app);
-    this.currentModuleInstance = acceptationRisque;
-    await acceptationRisque.init(participantId);
   }
 
   loadNotFoundPage() {

@@ -123,7 +123,7 @@ const ExpensesScreen = ({ navigation }) => {
 
   const loadCategories = async () => {
     try {
-      const result = await API.get('/v1/finance/budget-categories');
+      const result = await API.get('/v1/budget/categories');
 
       setCategories(result.data || []);
     } catch (err) {
@@ -134,7 +134,7 @@ const ExpensesScreen = ({ navigation }) => {
 
   const loadItems = async () => {
     try {
-      const result = await API.get('/v1/finance/budget-items');
+      const result = await API.get('/v1/budget/items');
 
       setItems(result.data || []);
     } catch (err) {
@@ -154,7 +154,7 @@ const ExpensesScreen = ({ navigation }) => {
         params.category_id = filters.category_id;
       }
 
-      const result = await API.get('/v1/finance/budget-expenses', params);
+      const result = await API.get('/v1/budget/expenses', params);
 
       setExpenses(result.data || []);
     } catch (err) {
@@ -174,7 +174,7 @@ const ExpensesScreen = ({ navigation }) => {
         params.category_id = filters.category_id;
       }
 
-      const result = await API.get('/v1/finance/expense-summary', params);
+      const result = await API.get('/v1/expenses/summary', params);
 
       setSummary(result.data || null);
     } catch (err) {
@@ -194,7 +194,7 @@ const ExpensesScreen = ({ navigation }) => {
         params.category_id = filters.category_id;
       }
 
-      const result = await API.get('/v1/finance/expenses-monthly', params);
+      const result = await API.get('/v1/expenses/monthly', params);
 
       setMonthlyData(result.data || []);
     } catch (err) {
@@ -293,7 +293,7 @@ const ExpensesScreen = ({ navigation }) => {
       setSaving(true);
       setDeleteConfirmVisible(false);
 
-      await API.delete(`/v1/finance/budget-expenses/${expenseToDelete.id}`);
+      await API.delete(`/v1/budget/expenses/${expenseToDelete.id}`);
 
       toast.show(t('expense_deleted'), 'success');
       setExpenseToDelete(null);
@@ -334,9 +334,9 @@ const ExpensesScreen = ({ navigation }) => {
       };
 
       if (selectedExpense) {
-        await API.put(`/v1/finance/budget-expenses/${selectedExpense.id}`, payload);
+        await API.put(`/v1/budget/expenses/${selectedExpense.id}`, payload);
       } else {
-        await API.post('/v1/finance/budget-expenses', payload);
+        await API.post('/v1/budget/expenses', payload);
       }
 
       toast.show(

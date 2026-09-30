@@ -135,10 +135,14 @@ export async function validateCurrentToken() {
 }
 
 /**
- * Build public API URL (no /api prefix)
+ * Build the URL of a signed-out endpoint under /api/v1
+ *
+ * @param {string} endpoint - Path below /api/v1, e.g. 'organizations/settings/public'
+ * @param {Object} [params] - Query parameters
+ * @returns {string} Absolute URL
  */
 export function buildPublicUrl(endpoint, params = {}) {
-    const url = new URL(`/public/${endpoint}`, CONFIG.API_BASE_URL);
+    const url = new URL(`/api/v1/${endpoint.replace(/^\/+/, '')}`, CONFIG.API_BASE_URL);
 
     Object.entries(params).forEach(([key, value]) => {
         if (value !== null && value !== undefined) {

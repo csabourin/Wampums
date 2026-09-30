@@ -225,6 +225,7 @@ function isStorageAccessError(error) {
 function isAuthEndpoint(url) {
   const pathname = url?.pathname || '';
   return (
+    pathname.startsWith('/api/v1/auth/') ||
     pathname.startsWith('/public/login') ||
     pathname.startsWith('/public/verify-2fa') ||
     pathname.startsWith('/api/auth/')

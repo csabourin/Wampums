@@ -570,8 +570,12 @@ export class Dashboard extends BaseModule {
     const canSeeActivities = this._isFeatureEnabled("activities")
       && hasAnyPermission("activities.view", "activities.manage");
 
+    const canSeeMeetings = hasAnyPermission(
+      "meetings.view", "meetings.manage", "activities.view", "participants.view",
+    );
+
     const tasks = [
-      ["nextMeeting", getNextMeetingInfo()],
+      canSeeMeetings ? ["nextMeeting", getNextMeetingInfo()] : null,
       canSeeSlips ? ["slips", getPermissionSlips({})] : null,
       canSeeMedication ? ["meds", getMedicationDistributions({ upcoming_only: true })] : null,
       canSeeActivities ? ["activities", getActivities()] : null,
@@ -808,7 +812,9 @@ export class Dashboard extends BaseModule {
     const [hero, ...rest] = nowTiles;
 
     const isMeetingHero = hero.href === "/reunions" && this.nextMeeting;
-    const chips = rest.slice(0, 3);
+    // Every other "now" tile becomes a chip. Capping the list hid whichever
+    // tile came last (Meetings, once walk-in children joined this moment).
+    const chips = rest;
     const heroDomain = hero.domain || "attendance";
     const heroStyles = `--tile-bg-attendance: var(--tile-bg-${heroDomain}); --tile-fg-attendance: var(--tile-fg-${heroDomain});`;
 

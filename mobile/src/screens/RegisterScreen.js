@@ -26,6 +26,7 @@ import {
   useToast,
 } from '../components';
 import API from '../api/api-core';
+import CONFIG from '../config';
 import { validateEmail, validatePassword, validateRequired } from '../utils/ValidationUtils';
 
 const RegisterScreen = ({ navigation }) => {
@@ -99,8 +100,8 @@ const RegisterScreen = ({ navigation }) => {
         user_type: formData.user_type,
       };
 
-      // Use /public/register endpoint (mirrors spa/api/api-endpoints.js)
-      const result = await API.public('/public/register', payload, 'POST');
+      // Same endpoint as the web app's registration
+      const result = await API.public(CONFIG.ENDPOINTS.REGISTER, payload, 'POST');
 
       if (result.success) {
         toast.show(result.message || t('registration_successful_parent'), 'success');

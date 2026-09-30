@@ -449,10 +449,7 @@ export class GuardianManagementModule {
       return;
     }
 
-    const guardian = this.guardians.find((g) => g.id === guardianId);
-    const guardianName = `${guardian.prenom} ${guardian.nom}`;
-
-    if (!(await confirmDestructive(translate('confirm_remove_guardian', { name: guardianName })))) {
+    if (!(await confirmDestructive(translate('confirm_remove_guardian')))) {
       return;
     }
 

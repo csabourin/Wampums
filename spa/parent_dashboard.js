@@ -27,7 +27,7 @@ import {
         debugWarn,
         debugInfo,
 } from "./utils/DebugUtils.js";
-import { translate } from "./app.js";
+import { translate, registerPushSubscription } from "./app.js";
 import { hexStringToUint8Array, base64UrlEncode } from "./functions.js";
 import { CONFIG } from "./config.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";

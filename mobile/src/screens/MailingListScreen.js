@@ -96,7 +96,7 @@ const MailingListScreen = ({ navigation }) => {
   const loadData = async () => {
     try {
       const [mailingResponse, groupsResponse, announcementsResponse] = await Promise.all([
-        API.get('mailing-list'),
+        API.get('/v1/reports/mailing-list'),
         API.get('v1/groups'),
         API.get('v1/announcements'),
       ]);

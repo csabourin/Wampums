@@ -3,6 +3,7 @@ const router = express.Router();
 const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
+const { areUnitLeaders } = require('../services/unitLeaders');
 
 const MEDICATION_READ_PERMISSIONS = ['medication.view'];
 const MEDICATION_MANAGE_PERMISSIONS = ['medication.manage'];
@@ -1165,6 +1166,10 @@ module.exports = (pool, logger) => {
       if (!authAdmin.authorized) {
         return error(res, 'Unauthorized to save for this participant/guardian', 403);
       }
+    }
+
+    if (!(await areUnitLeaders(pool, organizationId, [admin_user_id_1, admin_user_id_2]))) {
+      return error(res, 'Medication may only be entrusted to leaders of this unit', 400);
     }
 
     const client = await pool.connect();

@@ -2,7 +2,7 @@
  * ESLint Configuration for Wampums Scout Management System
  *
  * Enforces code quality standards and prevents common security issues.
- * Run with: npx eslint spa/**/*.js routes/**/*.js
+ * Run with: npx eslint spa routes
  */
 
 module.exports = {

@@ -105,22 +105,17 @@ export async function ajax({ url, method = 'GET', body = null, headers = {} }) {
 // Re-export all endpoint functions
 export {
     // Public Endpoints
-    testConnection,
     getOrganizationId,
     fetchOrganizationId,
     getPublicOrganizationSettings,
     getPublicNews,
-    getPublicInitialData,
-    authenticate,
 
     // Authentication & Users
     login,
     verify2FA,
     register,
-    verifyEmail,
     requestPasswordReset,
     resetPassword,
-    refreshToken,
     logout,
     getUsers,
     getRoleCatalog,
@@ -131,8 +126,6 @@ export {
     getRoleAuditLog,
     updateUserRolesV1,
     updateUserRoleBundles,
-    getPendingUsers,
-    checkPermission,
     getCurrentUser,
     approveUser,
     updateUserRole,
@@ -207,10 +200,6 @@ export {
     getFormSubmissions,
     saveFormSubmission,
     getOrganizationFormFormats,
-    fetchFicheSante,
-    saveFicheSante,
-    fetchAcceptationRisque,
-    saveAcceptationRisque,
     getParticipantsWithDocuments,
 
     // Badges
@@ -230,7 +219,6 @@ export {
     // Honors
     getHonors,
     getHonorsAndParticipants,
-    getRecentHonors,
     awardHonor,
     getHonorsReport,
     getHonorsHistory,
@@ -247,8 +235,6 @@ export {
     // Calendar
     getCalendars,
     updateCalendar,
-    updateCalendarPaid,
-    updateCalendarAmountPaid,
     getParticipantCalendar,
 
     // Fundraisers
@@ -291,7 +277,6 @@ export {
     getMailingList,
     getAnnouncements,
     createAnnouncement,
-    getReports,
 
     // Organization
     getApiOrganizationId,
@@ -299,14 +284,12 @@ export {
     switchOrganization,
     getOrganizationSettings,
     getNews,
-    registerForOrganization,
     fetchOrganizationJwt,
 
     // Admin / Import
     importSISC,
 
     // Utility
-    testApiConnection,
     getInitialData,
     fetchPushSubscribers as getSubscribers,
     sendPushNotification as sendNotification,

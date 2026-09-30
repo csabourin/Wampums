@@ -104,49 +104,6 @@ export const CONFIG = {
     },
 
     /**
-     * API Endpoints
-     * Centralized endpoint paths
-     * All RESTful endpoints use /api/v1/ prefix
-     */
-    ENDPOINTS: {
-        // Auth
-        LOGIN: "/public/login",
-        LOGOUT: "/api/v1/auth/logout",
-        REGISTER: "/api/v1/auth/register",
-        RESET_PASSWORD: "/api/v1/auth/reset-password",
-
-        // Organization
-        ORGANIZATION_SETTINGS: "/api/v1/organizations/settings",
-        ORGANIZATION_ID: "/public/get_organization_id",
-        ORGANIZATION_JWT: "/api/v1/organizations/jwt",
-
-        // Participants (v1 RESTful)
-        PARTICIPANTS: "/api/v1/participants",
-        PARTICIPANT_DETAILS: "/api/v1/participants/details",
-
-        // Groups (v1 RESTful)
-        GROUPS: "/api/v1/groups",
-
-        // Attendance (v1 RESTful)
-        ATTENDANCE: "/api/v1/attendance",
-        ATTENDANCE_DATES: "/api/v1/attendance/dates",
-
-        // Points & Honors
-        POINTS_DATA: "/api/v1/points",
-        UPDATE_POINTS: "/api/v1/points",
-        HONORS: "/api/v1/honors",
-        AWARD_HONOR: "/api/v1/honors",
-
-        // Other
-        TRANSLATIONS: "/api/v1/public/translations",
-        NEWS: "/api/v1/public/news",
-        INITIAL_DATA: "/api/v1/dashboards/initial",
-        REUNION_PREPARATION: "/api/v1/meetings/preparation",
-        MAILING_LIST: "/api/v1/reports/mailing-list",
-        PARENT_CONTACT_LIST: "/api/v1/reports/parent-contact-list",
-    },
-
-    /**
      * User Roles
      */
     ROLES: {
@@ -386,7 +343,6 @@ export const {
     API_BASE_URL,
     CACHE_DURATION,
     STORAGE_KEYS,
-    ENDPOINTS,
     ROLES,
     ATTENDANCE_STATUS,
     DEFAULT_POINTS,
@@ -396,7 +352,6 @@ export const {
 Object.freeze(CONFIG);
 Object.freeze(CONFIG.CACHE_DURATION);
 Object.freeze(CONFIG.STORAGE_KEYS);
-Object.freeze(CONFIG.ENDPOINTS);
 Object.freeze(CONFIG.ROLES);
 Object.freeze(CONFIG.ATTENDANCE_STATUS);
 Object.freeze(CONFIG.DEFAULT_POINTS);

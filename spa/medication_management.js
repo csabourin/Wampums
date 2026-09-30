@@ -956,22 +956,18 @@ export class MedicationManagement {
         : translate("medication_planning_description");
 
     // Hide switch link for parents (they should only see planning view)
-    const switchLink = this.participantId
-      ? `<a class="pill" href="/medication-authorizations/${this.participantId}">${escapeHTML(translate("medication_switch_to_authorizations"))}</a>`
-      : this.view === "dispensing"
-        ? `
-          <a class="pill" href="/medication-planning">${escapeHTML(translate("medication_switch_to_planning"))}</a>
-          <a class="pill" href="/medication-authorizations">${escapeHTML(translate("medication_switch_to_authorizations"))}</a>
-        `
-        : this.view === "authorizations"
-          ? `
-            <a class="pill" href="/medication-planning">${escapeHTML(translate("medication_switch_to_planning"))}</a>
-            <a class="pill" href="/medication-dispensing">${escapeHTML(translate("medication_switch_to_dispensing"))}</a>
-          `
-          : `
-            <a class="pill" href="/medication-dispensing">${escapeHTML(translate("medication_switch_to_dispensing"))}</a>
-            <a class="pill" href="/medication-authorizations">${escapeHTML(translate("medication_switch_to_authorizations"))}</a>
-          `;
+    // Authorizations belong to one child, so they are only offered once a
+    // participant is chosen; there is no unit-wide authorizations page.
+    let switchLink;
+    if (this.participantId) {
+      switchLink = this.view === "authorizations"
+        ? `<a class="pill" href="/medication-planning/${this.participantId}">${escapeHTML(translate("medication_switch_to_planning"))}</a>`
+        : `<a class="pill" href="/medication-authorizations/${this.participantId}">${escapeHTML(translate("medication_switch_to_authorizations"))}</a>`;
+    } else {
+      switchLink = this.view === "dispensing"
+        ? `<a class="pill" href="/medication-planning">${escapeHTML(translate("medication_switch_to_planning"))}</a>`
+        : `<a class="pill" href="/medication-dispensing">${escapeHTML(translate("medication_switch_to_dispensing"))}</a>`;
+    }
 
     // Back button goes to returnUrl (set by router based on role), or dashboard
     const backUrl = this.returnUrl || (this.participantId ? '/parent-dashboard' : '/dashboard');
@@ -1211,14 +1207,14 @@ export class MedicationManagement {
                 <span>1.</span>
                 <select name="admin_user_id_1" style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;">
                   <option value="">—</option>
-                  ${(this.authLeaders || []).map(l => `<option value="${l.id}" ${String(aa?.admin_user_id_1) === String(l.id) ? 'selected' : ''}>${escapeHTML(l.full_name || l.email)}</option>`).join('')}
+                  ${(this.authLeaders || []).map(l => `<option value="${l.id}" ${String(aa?.admin_user_id_1) === String(l.id) ? 'selected' : ''}>${escapeHTML(l.full_name)}</option>`).join('')}
                 </select>
               </label>
               <label class="field-group">
                 <span>2.</span>
                 <select name="admin_user_id_2" style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;">
                   <option value="">—</option>
-                  ${(this.authLeaders || []).map(l => `<option value="${l.id}" ${String(aa?.admin_user_id_2) === String(l.id) ? 'selected' : ''}>${escapeHTML(l.full_name || l.email)}</option>`).join('')}
+                  ${(this.authLeaders || []).map(l => `<option value="${l.id}" ${String(aa?.admin_user_id_2) === String(l.id) ? 'selected' : ''}>${escapeHTML(l.full_name)}</option>`).join('')}
                 </select>
               </label>
             </div>

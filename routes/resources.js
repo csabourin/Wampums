@@ -2492,6 +2492,7 @@ module.exports = (pool) => {
   router.patch(
     "/permission-slips/:id/sign",
     authenticate,
+    blockDemoRoles,
     requirePermission("permission_slips.sign"),
     [
       param("id").isInt({ min: 1 }),
@@ -2553,6 +2554,7 @@ module.exports = (pool) => {
   router.patch(
     "/permission-slips/:id",
     authenticate,
+    blockDemoRoles,
     requirePermission("permission_slips.sign"),
     [
       param("id").isInt({ min: 1 }),

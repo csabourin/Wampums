@@ -10,7 +10,6 @@
 const express = require('express');
 const router = express.Router();
 const meetingSectionDefaults = require('../config/meeting_sections.json');
-const bcrypt = require('bcryptjs');
 
 // Import auth middleware
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
@@ -26,7 +25,6 @@ const {
 const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { ensureProgramSectionsSeeded, getProgramSections } = require('../utils/programSections');
 const { installDefaultFormFormats } = require('../services/defaultFormFormats');
-const { ACCESS_SOURCE, grantParticipantAccess } = require('../services/participantAccess');
 
 // Validate JWT secret at startup
 requireJWTSecret();
@@ -379,7 +377,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Organization ID retrieved
    */
-  router.get('/get_organization_id', asyncHandler(async (req, res) => {
+  const sendOrganizationId = asyncHandler(async (req, res) => {
     try {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
       res.json({
@@ -392,7 +390,8 @@ module.exports = (pool, logger) => {
       }
       throw error;
     }
-  }));
+  });
+  router.get('/get_organization_id', sendOrganizationId);
 
   /**
    * @swagger
@@ -416,11 +415,7 @@ module.exports = (pool, logger) => {
    *                   additionalProperties: true
    */
   // Public-safe organization settings (no authentication, limited data)
-  router.get('/settings', asyncHandler(async (req, res, next) => {
-    if (!req.baseUrl?.startsWith('/public')) {
-      return next();
-    }
-
+  const sendPublicSettings = asyncHandler(async (req, res) => {
     try {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
       const settings = await loadOrganizationSettings(pool, organizationId);
@@ -440,7 +435,8 @@ module.exports = (pool, logger) => {
         message: 'Error fetching organization settings'
       });
     }
-  }));
+  });
+  router.get('/settings/public', sendPublicSettings);
 
   router.get('/settings', authenticate, requirePermission('org.view'), asyncHandler(async (req, res) => {
     try {
@@ -817,106 +813,6 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/v1/organizations/register:
-   *   post:
-   *     summary: Register user to organization
-   *     description: Register the current user to an organization using a registration password
-   *     tags: [Organizations]
-   *     security:
-   *       - bearerAuth: []
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             required: [registration_password]
-   *             properties:
-   *               registration_password:
-   *                 type: string
-   *               role:
-   *                 type: string
-   *                 default: parent
-   *               link_children:
-   *                 type: array
-   *                 items:
-   *                   type: integer
-   *     responses:
-   *       200:
-   *         description: Successfully registered
-   *       403:
-   *         description: Invalid registration password
-   */
-  router.post('/register', authenticate, blockDemoRoles, requirePermission('org.register'), asyncHandler(async (req, res) => {
-    const { registration_password, role, link_children } = req.body;
-    const organizationId = await getOrganizationId(req, pool);
-
-    // Check registration password
-    const passwordResult = await pool.query(
-      `SELECT setting_value FROM organization_settings
-         WHERE organization_id = $1 AND setting_key = 'registration_password'`,
-      [organizationId]
-    );
-
-    if (passwordResult.rows.length === 0 || passwordResult.rows[0].setting_value !== registration_password) {
-      return res.status(403).json({ success: false, message: 'Invalid registration password' });
-    }
-
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-
-      // Get role ID from roles table
-      const roleName = role || 'parent';
-      const roleResult = await client.query(
-        `SELECT id FROM roles WHERE role_name = $1`,
-        [roleName]
-      );
-      if (roleResult.rows.length === 0) {
-        throw new Error(`Role '${roleName}' not found in roles table`);
-      }
-      const roleId = roleResult.rows[0].id;
-
-      // Add user to organization
-      await client.query(
-        `INSERT INTO user_organizations (user_id, organization_id, role_ids)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (user_id, organization_id) DO NOTHING`,
-        [req.user.id, organizationId, JSON.stringify([roleId])]
-      );
-
-      // Link children if provided -- only children of this unit. Any id used to
-      // be accepted, including a child enrolled somewhere else entirely.
-      if (link_children && Array.isArray(link_children)) {
-        const inUnit = await client.query(
-          `SELECT DISTINCT participant_id
-             FROM participant_enrollments
-            WHERE organization_id = $1 AND participant_id = ANY($2::int[])`,
-          [organizationId, link_children.map((id) => parseInt(id, 10)).filter(Number.isInteger)]
-        );
-        for (const { participant_id: participantId } of inUnit.rows) {
-          await grantParticipantAccess(client, {
-            participantId,
-            userId: req.user.id,
-            sourceType: ACCESS_SOURCE.DIRECT,
-            grantedBy: req.user.id,
-          });
-        }
-      }
-
-      await client.query('COMMIT');
-
-      res.json({ success: true, message: 'Successfully registered for organization' });
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-  }));
-
-  /**
-   * @swagger
    * /api/switch-organization:
    *   post:
    *     summary: Switch active organization for user
@@ -1018,61 +914,13 @@ module.exports = (pool, logger) => {
     });
   }));
 
-  router.post('/create', asyncHandler(async (req, res) => {
-    const { organization_name, admin_email, admin_password, admin_full_name } = req.body || {};
-
-    if (!organization_name || typeof organization_name !== 'string' || organization_name.trim().length === 0) {
-      return res.status(400).json({ success: false, message: 'organization_name is required' });
-    }
-
-    const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,255}$/;
-    if (!passwordPattern.test(admin_password || '')) {
-      return res.status(400).json({ success: false, message: 'admin_password must be strong' });
-    }
-
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-
-      const orgResult = await client.query(
-        `INSERT INTO organizations (name, created_at)
-         VALUES ($1, NOW())
-         RETURNING id, name, created_at`,
-        [organization_name.trim()]
-      );
-
-      const newOrg = orgResult.rows[0];
-      if (!newOrg) {
-        throw new Error('Failed to create organization');
-      }
-
-      // organizations.program_section is a deferred FK into this table: the
-      // sections have to exist by COMMIT or the whole transaction is rejected.
-      await ensureProgramSectionsSeeded(client, newOrg.id);
-
-      const userResult = await client.query(
-        `INSERT INTO users (email, password, full_name, is_verified)
-         VALUES ($1, $2, $3, true)
-         RETURNING id, email`,
-        [admin_email, await bcrypt.hash(admin_password, 10), admin_full_name]
-      );
-
-      if (!userResult.rows[0]) {
-        throw new Error('Failed to create admin user');
-      }
-
-      await client.query('COMMIT');
-      return res.status(201).json({ success: true, data: { organization_id: newOrg.id, user_id: userResult.rows[0].id } });
-    } catch (error) {
-      await client.query('ROLLBACK');
-      if (error.code === '23505' && error.constraint === 'users_email_key') {
-        return res.status(400).json({ success: false, message: 'account_already_exists' });
-      }
-      throw error;
-    } finally {
-      client.release();
-    }
-  }));
+  // The two reads a signed-out client needs, at their pre-/api/v1 paths
+  // (/public/settings, /public/get_organization_id) for mobile builds already
+  // installed. Nothing else of this router is reachable outside /api/v1.
+  const legacyPublicRouter = express.Router();
+  legacyPublicRouter.get('/settings', sendPublicSettings);
+  legacyPublicRouter.get('/get_organization_id', sendOrganizationId);
+  router.legacyPublic = legacyPublicRouter;
 
   return router;
 };

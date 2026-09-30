@@ -107,7 +107,7 @@ const ExternalRevenueScreen = ({ navigation }) => {
 
   const loadCategories = async () => {
     try {
-      const result = await API.get('/v1/finance/budget-categories');
+      const result = await API.get('/v1/budget/categories');
 
       setCategories(result.data || []);
     } catch (err) {
@@ -131,7 +131,7 @@ const ExternalRevenueScreen = ({ navigation }) => {
         params.category_id = filters.category_id;
       }
 
-      const result = await API.get('/v1/finance/external-revenue', params);
+      const result = await API.get('/v1/revenue/external', params);
 
       setRevenues(result.data || []);
     } catch (err) {
@@ -147,7 +147,7 @@ const ExternalRevenueScreen = ({ navigation }) => {
         end_date: filters.end_date,
       };
 
-      const result = await API.get('/v1/finance/external-revenue-summary', params);
+      const result = await API.get('/v1/revenue/external/summary', params);
 
       setSummary(result.data || null);
     } catch (err) {
@@ -244,7 +244,7 @@ const ExternalRevenueScreen = ({ navigation }) => {
       setSaving(true);
       setDeleteConfirmVisible(false);
 
-      await API.delete(`/v1/finance/external-revenue/${revenueToDelete.id}`);
+      await API.delete(`/v1/revenue/external/${revenueToDelete.id}`);
 
       toast.show(t('external_revenue_deleted'), 'success');
       setRevenueToDelete(null);
@@ -287,9 +287,9 @@ const ExternalRevenueScreen = ({ navigation }) => {
       };
 
       if (selectedRevenue) {
-        await API.put(`/v1/finance/external-revenue/${selectedRevenue.id}`, payload);
+        await API.put(`/v1/revenue/external/${selectedRevenue.id}`, payload);
       } else {
-        await API.post('/v1/finance/external-revenue', payload);
+        await API.post('/v1/revenue/external', payload);
       }
 
       toast.show(
