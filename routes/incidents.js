@@ -28,6 +28,10 @@ const { success, error, asyncHandler } = require('../middleware/response');
 const { sendEmail } = require('../utils/index');
 const { escapeHtml } = require('../utils/api-helpers');
 
+// Incident escalation email queue
+const EMAIL_QUEUE_BATCH_SIZE = 50;
+const EMAIL_QUEUE_STALE_SENDING_MINUTES = 15;
+
 // ============================================================
 // Email helpers
 // ============================================================
@@ -138,11 +142,14 @@ function buildIncidentEscalationEmail(formData, submitter, orgName) {
  * @param {number|null} incidentId - Scope to specific incident (optional)
  */
 async function processEmailQueue(pool, logger, organizationId = null, incidentId = null) {
+  // A row left in 'sending' by a process that died mid-send becomes retryable
+  // once it has been stuck longer than any real send takes.
+  const params = [EMAIL_QUEUE_STALE_SENDING_MINUTES];
   const whereClauses = [
-    "status IN ('pending', 'failed')",
+    `(status IN ('pending', 'failed')
+      OR (status = 'sending' AND last_attempt_at < NOW() - make_interval(mins => $1)))`,
     'attempts < max_attempts'
   ];
-  const params = [];
 
   if (organizationId) {
     params.push(organizationId);
@@ -153,24 +160,32 @@ async function processEmailQueue(pool, logger, organizationId = null, incidentId
     whereClauses.push(`incident_report_id = $${params.length}`);
   }
 
-  const queued = await pool.query(
-    `SELECT * FROM incident_email_queue
-     WHERE ${whereClauses.join(' AND ')}
-     ORDER BY created_at ASC
-     LIMIT 50`,
+  // Claim the batch in one statement. The submit handler and the periodic
+  // retry (on every instance) all call this; SKIP LOCKED plus the 'sending'
+  // status guarantee each email is picked up by exactly one of them.
+  params.push(EMAIL_QUEUE_BATCH_SIZE);
+  const claimed = await pool.query(
+    `UPDATE incident_email_queue
+     SET status = 'sending', last_attempt_at = NOW(), attempts = attempts + 1
+     WHERE id IN (
+       SELECT id FROM incident_email_queue
+       WHERE ${whereClauses.join(' AND ')}
+       ORDER BY created_at ASC
+       LIMIT $${params.length}
+       FOR UPDATE SKIP LOCKED
+     )
+     RETURNING *`,
     params
   );
 
-  for (const item of queued.rows) {
+  for (const item of claimed.rows) {
     try {
-      await pool.query(
-        `UPDATE incident_email_queue
-         SET status = 'sending', last_attempt_at = NOW(), attempts = attempts + 1
-         WHERE id = $1`,
-        [item.id]
-      );
-
-      await sendEmail(item.recipient_email, item.subject, item.body_text, item.body_html);
+      // sendEmail reports failure by returning false rather than throwing.
+      // eslint-disable-next-line no-await-in-loop -- one send at a time keeps the provider's rate limit
+      const sent = await sendEmail(item.recipient_email, item.subject, item.body_text, item.body_html);
+      if (!sent) {
+        throw new Error('Email provider did not accept the message');
+      }
 
       await pool.query(
         `UPDATE incident_email_queue SET status = 'sent', sent_at = NOW() WHERE id = $1`,

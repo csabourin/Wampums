@@ -68,11 +68,11 @@ module.exports = (pool, logger) => {
         upsertPromise.catch((error) => {
           logger.error('Error saving subscription asynchronously:', error);
         });
-      } catch (error) {
-        if (handleOrganizationResolutionError(res, error, logger)) {
+      } catch (err) {
+        if (handleOrganizationResolutionError(res, err, logger)) {
           return;
         }
-        logger.error('Error initiating subscription save:', error);
+        logger.error('Error initiating subscription save:', err);
         error(res, 'Failed to save subscription', 500);
       }
     }));
@@ -116,11 +116,11 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
+    } catch (err) {
+      if (handleOrganizationResolutionError(res, err, logger)) {
         return;
       }
-      logger.error('Error fetching push subscribers:', error);
+      logger.error('Error fetching push subscribers:', err);
       return error(res, 'internal_server_error', 500);
     }
   }));
@@ -231,11 +231,11 @@ module.exports = (pool, logger) => {
             throw error;
           }
         }
-      } catch (error) {
-        if (handleOrganizationResolutionError(res, error, logger)) {
+      } catch (err) {
+        if (handleOrganizationResolutionError(res, err, logger)) {
           return;
         }
-        logger.error('Error sending notification:', error);
+        logger.error('Error sending notification:', err);
         return error(res, 'internal_server_error', 500);
       }
     }));

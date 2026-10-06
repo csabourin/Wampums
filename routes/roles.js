@@ -12,6 +12,7 @@ const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { UNIT_FINANCE_PERMISSIONS } = require('../config/constants');
+const { DISTRICT_ASSIGNMENT_PERMISSION, canAssignDistrictRoles } = require('../services/roleAssignment');
 
 /**
  * Export route factory function
@@ -32,46 +33,39 @@ module.exports = (pool, logger) => {
     requirePermission('roles.view'),
     asyncHandler(async (req, res) => {
       try {
-        // Only someone who may hand out the district role sees it
-        const excludeDistrict = !(req.userPermissions || []).includes('users.assign_district');
+        // Only someone who may hand out district-level roles sees them. A role
+        // is district-level when it grants users.assign_district, whatever its name.
+        const excludeDistrictLevel = !canAssignDistrictRoles(req.userPermissions);
 
-        const query = excludeDistrict
-          ? `SELECT id, role_name, display_name, description, is_system_role, created_at
-             FROM roles
-             WHERE role_name != 'district'
-             ORDER BY
-               CASE role_name
-                 WHEN 'unitadmin' THEN 1
-                 WHEN 'leader' THEN 2
-                 WHEN 'parent' THEN 3
-                 WHEN 'finance' THEN 4
-                 WHEN 'equipment' THEN 5
-                 WHEN 'administration' THEN 6
-                 WHEN 'demoadmin' THEN 7
-                 WHEN 'demoparent' THEN 8
-                 ELSE 9
-               END`
-          : `SELECT id, role_name, display_name, description, is_system_role, created_at
-             FROM roles
-             ORDER BY
-               CASE role_name
-                 WHEN 'district' THEN 0
-                 WHEN 'unitadmin' THEN 1
-                 WHEN 'leader' THEN 2
-                 WHEN 'parent' THEN 3
-                 WHEN 'finance' THEN 4
-                 WHEN 'equipment' THEN 5
-                 WHEN 'administration' THEN 6
-                 WHEN 'demoadmin' THEN 7
-                 WHEN 'demoparent' THEN 8
-                 ELSE 9
-               END`;
-
-        const result = await pool.query(query);
+        const result = await pool.query(
+          `SELECT r.id, r.role_name, r.display_name, r.description, r.is_system_role, r.created_at
+           FROM roles r
+           WHERE NOT $1::boolean
+              OR NOT EXISTS (
+                SELECT 1
+                FROM role_permissions rp
+                JOIN permissions p ON p.id = rp.permission_id
+                WHERE rp.role_id = r.id AND p.permission_key = $2
+              )
+           ORDER BY
+             CASE r.role_name
+               WHEN 'district' THEN 0
+               WHEN 'unitadmin' THEN 1
+               WHEN 'leader' THEN 2
+               WHEN 'parent' THEN 3
+               WHEN 'finance' THEN 4
+               WHEN 'equipment' THEN 5
+               WHEN 'administration' THEN 6
+               WHEN 'demoadmin' THEN 7
+               WHEN 'demoparent' THEN 8
+               ELSE 9
+             END`,
+          [excludeDistrictLevel, DISTRICT_ASSIGNMENT_PERMISSION]
+        );
 
         return success(res, result.rows, 'Roles retrieved successfully');
-      } catch (error) {
-        logger.error('Error fetching roles:', error);
+      } catch (err) {
+        logger.error('Error fetching roles:', err);
         return error(res, 'Failed to fetch roles', 500);
       }
     })
@@ -100,8 +94,8 @@ module.exports = (pool, logger) => {
         const result = await pool.query(query, [roleId]);
 
         return success(res, result.rows, 'Role permissions retrieved successfully');
-      } catch (error) {
-        logger.error('Error fetching role permissions:', error);
+      } catch (err) {
+        logger.error('Error fetching role permissions:', err);
         return error(res, 'Failed to fetch role permissions', 500);
       }
     })
@@ -135,8 +129,8 @@ module.exports = (pool, logger) => {
         }, {});
 
         return success(res, grouped, 'Permissions retrieved successfully');
-      } catch (error) {
-        logger.error('Error fetching permissions:', error);
+      } catch (err) {
+        logger.error('Error fetching permissions:', err);
         return error(res, 'Failed to fetch permissions', 500);
       }
     })
@@ -205,8 +199,8 @@ module.exports = (pool, logger) => {
         );
 
         return success(res, null, 'Permission added to role');
-      } catch (error) {
-        logger.error('Error adding permission to role:', error);
+      } catch (err) {
+        logger.error('Error adding permission to role:', err);
         return error(res, 'Failed to add permission to role', 500);
       }
     })
@@ -246,8 +240,8 @@ module.exports = (pool, logger) => {
         );
 
         return success(res, null, 'Permission removed from role');
-      } catch (error) {
-        logger.error('Error removing permission from role:', error);
+      } catch (err) {
+        logger.error('Error removing permission from role:', err);
         return error(res, 'Failed to remove permission from role', 500);
       }
     })
@@ -280,12 +274,12 @@ module.exports = (pool, logger) => {
         logger.info(`User ${req.user.id} created new role: ${role_name}`);
 
         return success(res, result.rows[0], 'Role created successfully', 201);
-      } catch (error) {
-        if (error.code === '23505') { // Unique constraint violation
+      } catch (err) {
+        if (err.code === '23505') { // Unique constraint violation
           return error(res, 'Role name already exists', 409);
         }
 
-        logger.error('Error creating role:', error);
+        logger.error('Error creating role:', err);
         return error(res, 'Failed to create role', 500);
       }
     })
@@ -324,8 +318,8 @@ module.exports = (pool, logger) => {
         logger.info(`User ${req.user.id} deleted role: ${roleCheck.rows[0].role_name}`);
 
         return success(res, null, 'Role deleted successfully');
-      } catch (error) {
-        logger.error('Error deleting role:', error);
+      } catch (err) {
+        logger.error('Error deleting role:', err);
         return error(res, 'Failed to delete role', 500);
       }
     })

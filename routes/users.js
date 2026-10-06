@@ -19,6 +19,7 @@ const {
   isAssociationInUnit,
 } = require('../services/participantAccess');
 const { listUnitLeaders } = require('../services/unitLeaders');
+const { canAssignDistrictRoles, findDistrictLevelRoleIds } = require('../services/roleAssignment');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership } = require('../utils/api-helpers');
@@ -42,12 +43,6 @@ module.exports = (pool, logger) => {
    *     tags: [Users]
    *     security:
    *       - bearerAuth: []
-   *     parameters:
-   *       - in: query
-   *         name: organization_id
-   *         schema:
-   *           type: integer
-   *         description: Optional organization ID override
    *     responses:
    *       200:
    *         description: List of users
@@ -55,7 +50,7 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.get('/', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
-    const organizationId = req.query.organization_id || await getOrganizationId(req, pool);
+    const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
       `SELECT
@@ -368,11 +363,6 @@ module.exports = (pool, logger) => {
       return error(res, 'Cannot change your own role', 400);
     }
 
-    // Check if user is trying to assign district role
-    if (mappedRole === 'district' && !req.userPermissions.includes('users.assign_district')) {
-      return error(res, 'You do not have permission to assign the district administrator role', 403);
-    }
-
     // Verify target user belongs to this organization
     const userCheck = await pool.query(
       `SELECT id FROM user_organizations WHERE user_id = $1 AND organization_id = $2`,
@@ -394,6 +384,13 @@ module.exports = (pool, logger) => {
     }
 
     const roleId = roleIdResult.rows[0].id;
+
+    if (!canAssignDistrictRoles(req.userPermissions)) {
+      const districtLevelRoleIds = await findDistrictLevelRoleIds(pool, [roleId]);
+      if (districtLevelRoleIds.length > 0) {
+        return error(res, 'You do not have permission to assign the district administrator role', 403);
+      }
+    }
 
     // Update user role in organization
     await pool.query(
@@ -523,10 +520,11 @@ module.exports = (pool, logger) => {
       return error(res, 'One or more invalid role IDs', 400);
     }
 
-    // Check if user is trying to assign district role
-    const hasDistrictRole = rolesResult.rows.some(r => r.role_name === 'district');
-    if (hasDistrictRole && !req.userPermissions.includes('users.assign_district')) {
-      return error(res, 'You do not have permission to assign the district administrator role', 403);
+    if (!canAssignDistrictRoles(req.userPermissions)) {
+      const districtLevelRoleIds = await findDistrictLevelRoleIds(pool, roleIds);
+      if (districtLevelRoleIds.length > 0) {
+        return error(res, 'You do not have permission to assign the district administrator role', 403);
+      }
     }
 
     // Verify target user belongs to this organization
