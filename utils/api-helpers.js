@@ -91,8 +91,8 @@ function handleOrganizationResolutionError(res, error, loggerInstance = logger) 
 /**
  * Get current organization ID from request
  * Tries multiple sources in priority order:
- * 1. Validated x-organization-id selection for authenticated users
- * 2. Authenticated JWT claim
+ * 1. Authenticated JWT claim (a differing x-organization-id is ignored)
+ * 2. x-organization-id header for unauthenticated requests, if the tenant exists
  * 3. Domain mapping from database
  * 4. Throws when no organization mapping is available
  *
@@ -107,8 +107,11 @@ function handleOrganizationResolutionError(res, error, loggerInstance = logger) 
  * const organizationId = await getCurrentOrganizationId(req, pool, logger);
  */
 async function getCurrentOrganizationId(req, pool, logger, { allowAuthentication = true } = {}) {
-  // Authenticated users may select another organization only when their
-  // membership is confirmed by the database.
+  // Authenticated requests are scoped to the organization signed into the JWT,
+  // matching getOrganizationId in middleware/auth.js. requirePermission checks
+  // permissions in that organization, so honouring a header here would let a
+  // handler act in a tenant the caller's permissions were never checked in.
+  // Switching organizations goes through POST /api/v1/organizations/switch.
   const bearerToken = req.headers.authorization?.split(' ')[1];
   if (allowAuthentication && bearerToken) {
     try {
@@ -117,14 +120,7 @@ async function getCurrentOrganizationId(req, pool, logger, { allowAuthentication
       if (!Number.isNaN(tokenOrganizationId)) {
         const headerOrganizationId = parseInt(req.headers['x-organization-id'], 10);
         if (!Number.isNaN(headerOrganizationId) && headerOrganizationId !== tokenOrganizationId) {
-          const membership = await pool.query(
-            'SELECT 1 FROM user_organizations WHERE user_id = $1 AND organization_id = $2 LIMIT 1',
-            [decoded.user_id, headerOrganizationId],
-          );
-          if (membership.rows.length > 0) {
-            return headerOrganizationId;
-          }
-          logger?.warn(`Rejected unauthorized organization selection. Header=${headerOrganizationId}, User=${decoded.user_id}`);
+          logger?.warn(`Ignoring organization header override for authenticated request. Header=${headerOrganizationId}, Token=${tokenOrganizationId}, User=${decoded.user_id}`);
         }
         return tokenOrganizationId;
       }
@@ -341,29 +337,6 @@ function jsonResponse(res, success, data = null, message = '') {
     data,
     message,
   });
-}
-
-/**
- * Handle error and send JSON error response
- *
- * @param {Error} err - Error object
- * @param {Object} req - Express request
- * @param {Object} res - Express response
- * @param {Function} next - Express next middleware
- * @param {Object} logger - Winston logger
- *
- * @example
- * app.use((err, req, res, next) => {
- *   handleError(err, req, res, next, logger);
- * });
- */
-function handleError(err, req, res, next, logger) {
-  if (logger) {
-    logger.error(err.stack);
-  } else {
-    console.error(err.stack);
-  }
-  res.status(500).json({ success: false, message: err.message });
 }
 
 /**
@@ -603,7 +576,6 @@ module.exports = {
   getPointSystemRules,
   calculateAttendancePoints,
   jsonResponse,
-  handleError,
   verifyOrganizationMembership,
   escapeHtml,
   getFormPermissionsForRoles,

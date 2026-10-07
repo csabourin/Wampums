@@ -55,6 +55,27 @@ describe('public organization resolution', () => {
     );
   });
 
+  test('keeps an authenticated request in the token organization despite a header', async () => {
+    const pool = {
+      // A membership in the header organization must not matter.
+      query: jest.fn().mockResolvedValue({ rows: [{ '?column?': 1 }] }),
+    };
+    const logger = { info: jest.fn(), warn: jest.fn() };
+    const request = {
+      headers: {
+        authorization: `Bearer ${signJWTToken({ user_id: 9, organizationId: 3 })}`,
+        'x-organization-id': '7',
+      },
+      hostname: '127.0.0.1',
+    };
+
+    await expect(getCurrentOrganizationId(request, pool, logger)).resolves.toBe(3);
+    expect(pool.query).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Ignoring organization header override'),
+    );
+  });
+
   test('ignores a stale session token when authentication is disabled', async () => {
     const pool = {
       query: jest.fn().mockResolvedValue({ rows: [] }),
