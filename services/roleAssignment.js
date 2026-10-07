@@ -18,6 +18,32 @@
 
 
 /**
+ * Load the given roles that a unit may use: the built-in roles, which are
+ * shared and read-only (organization_id IS NULL, is_system_role), and the
+ * unit's own custom roles. Another unit's roles, and custom roles no unit
+ * owns, are left out. Queries listing roles repeat this condition inline.
+ *
+ * @param {Object} db - Database pool or client
+ * @param {Array<number|string>} roleIds - Role IDs
+ * @param {number} organizationId - The unit
+ * @returns {Promise<Array<{id: number, role_name: string, is_system_role: boolean, organization_id: number|null, data_scope: string}>>}
+ */
+async function findRolesInUnit(db, roleIds, organizationId) {
+  const ids = normalizeRoleIds(roleIds);
+  if (ids.length === 0) {
+    return [];
+  }
+  const result = await db.query(
+    `SELECT id, role_name, is_system_role, organization_id, data_scope
+     FROM roles
+     WHERE id = ANY($1::int[])
+       AND (organization_id = $2 OR (organization_id IS NULL AND is_system_role))`,
+    [ids, organizationId]
+  );
+  return result.rows.map((row) => ({ ...row, id: Number(row.id) }));
+}
+
+/**
  * @param {Iterable<string>} required - Permission keys needed
  * @param {Iterable<string>} held - Permission keys the caller holds
  * @returns {string[]} Sorted keys in `required` missing from `held`
@@ -126,6 +152,7 @@ function permissionCountsAgainstGrantor(permission, role) {
 }
 
 module.exports = {
+  findRolesInUnit,
   checkRoleChange,
   permissionCountsAgainstGrantor,
   checkRolesGrantable,

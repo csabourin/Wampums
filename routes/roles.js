@@ -9,10 +9,43 @@
 
 const express = require('express');
 const router = express.Router();
-const { authenticate, requirePermission, blockDemoRoles } = require('../middleware/auth');
+const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const { UNIT_FINANCE_PERMISSIONS } = require('../config/constants');
-const { checkRolesGrantable, permissionCountsAgainstGrantor } = require('../services/roleAssignment');
+const { checkRolesGrantable, findRolesInUnit, permissionCountsAgainstGrantor } = require('../services/roleAssignment');
+
+/** Longest roles.role_name the column accepts. */
+const ROLE_NAME_MAX_LENGTH = 50;
+
+/**
+ * @param {string|number} value - Route parameter or body field
+ * @returns {number|null} The ID, or null when it is not a positive integer
+ */
+function parsePositiveId(value) {
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+/**
+ * Internal key for a unit's custom role. The unit prefix keeps keys unique
+ * across units without revealing another unit's role names, and keeps custom
+ * keys apart from the built-in ones.
+ *
+ * @param {number} organizationId - The unit
+ * @param {string} requested - Name the caller asked for
+ * @returns {string|null} Key, or null when nothing usable remains
+ */
+function customRoleKey(organizationId, requested) {
+  const prefix = `u${organizationId}_`;
+  const slug = String(requested || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, ROLE_NAME_MAX_LENGTH - prefix.length);
+  return slug ? `${prefix}${slug}` : null;
+}
 
 /**
  * Export route factory function
@@ -36,6 +69,9 @@ module.exports = (pool, logger) => {
         // Every role is listed. `assignable` says whether the caller holds all
         // of its permissions, which is what granting or removing it requires
         // (services/roleAssignment.js); forms show the others as read-only.
+        const organizationId = await getOrganizationId(req, pool);
+        // A unit sees the shared built-in roles and its own custom roles
+        // (services/roleAssignment.js findRolesInUnit).
         const result = await pool.query(
           `SELECT r.id, r.role_name, r.display_name, r.description, r.is_system_role, r.created_at,
                   NOT EXISTS (
@@ -48,6 +84,7 @@ module.exports = (pool, logger) => {
                       AND NOT (p.self_scoped AND r.data_scope = 'linked')
                   ) AS assignable
            FROM roles r
+           WHERE r.organization_id = $2 OR (r.organization_id IS NULL AND r.is_system_role)
            ORDER BY
              CASE r.role_name
                WHEN 'district' THEN 0
@@ -61,7 +98,7 @@ module.exports = (pool, logger) => {
                WHEN 'demoparent' THEN 8
                ELSE 9
              END`,
-          [req.userPermissions || []]
+          [req.userPermissions || [], organizationId]
         );
 
         return success(res, result.rows, 'Roles retrieved successfully');
@@ -82,7 +119,11 @@ module.exports = (pool, logger) => {
     requirePermission('roles.view'),
     asyncHandler(async (req, res) => {
       try {
-        const { roleId } = req.params;
+        const organizationId = await getOrganizationId(req, pool);
+        const roleId = parsePositiveId(req.params.roleId);
+        if (!roleId || (await findRolesInUnit(pool, [roleId], organizationId)).length === 0) {
+          return error(res, 'Role not found', 404);
+        }
 
         const query = `
           SELECT p.id, p.permission_key, p.permission_name, p.category, p.description
@@ -148,23 +189,21 @@ module.exports = (pool, logger) => {
     requirePermission('roles.manage'),
     asyncHandler(async (req, res) => {
       try {
-        const { roleId } = req.params;
-        const { permissionId } = req.body;
+        const organizationId = await getOrganizationId(req, pool);
+        const roleId = parsePositiveId(req.params.roleId);
+        const permissionId = parsePositiveId(req.body?.permissionId);
 
-        // Verify role is not a system role
-        const roleCheck = await pool.query(
-          'SELECT is_system_role, data_scope FROM roles WHERE id = $1',
-          [roleId]
-        );
+        // Only the unit's own custom roles can change; built-in roles are shared.
+        const [role] = roleId ? await findRolesInUnit(pool, [roleId], organizationId) : [];
 
-        if (roleCheck.rows.length === 0) {
+        if (!role) {
           return res.status(404).json({
             success: false,
             message: 'Role not found'
           });
         }
 
-        if (roleCheck.rows[0].is_system_role) {
+        if (role.is_system_role) {
           return res.status(403).json({
             success: false,
             message: 'Cannot modify system roles'
@@ -184,7 +223,7 @@ module.exports = (pool, logger) => {
 
         // The finance routes answer for every family in the unit. A role that
         // only sees its own children would read everyone's fees through them.
-        if (roleCheck.rows[0].data_scope === 'linked' && UNIT_FINANCE_PERMISSIONS.includes(permissionKey)) {
+        if (role.data_scope === 'linked' && UNIT_FINANCE_PERMISSIONS.includes(permissionKey)) {
           return error(
             res,
             `A role limited to its own children cannot hold ${permissionKey}: it covers every family in the unit`,
@@ -194,7 +233,7 @@ module.exports = (pool, logger) => {
 
         // Someone may grant only what they hold. Checked after the rule above,
         // which holds whoever asks.
-        if (permissionCountsAgainstGrantor(permissionCheck.rows[0], roleCheck.rows[0])
+        if (permissionCountsAgainstGrantor(permissionCheck.rows[0], role)
           && !(req.userPermissions || []).includes(permissionKey)) {
           return forbidden(
             res,
@@ -231,19 +270,18 @@ module.exports = (pool, logger) => {
     requirePermission('roles.manage'),
     asyncHandler(async (req, res) => {
       try {
-        const { roleId, permissionId } = req.params;
+        const organizationId = await getOrganizationId(req, pool);
+        const roleId = parsePositiveId(req.params.roleId);
+        const permissionId = parsePositiveId(req.params.permissionId);
 
-        // Verify role is not a system role
-        const roleCheck = await pool.query(
-          'SELECT is_system_role, data_scope FROM roles WHERE id = $1',
-          [roleId]
-        );
+        // Only the unit's own custom roles can change; built-in roles are shared.
+        const [role] = roleId ? await findRolesInUnit(pool, [roleId], organizationId) : [];
 
-        if (roleCheck.rows.length === 0) {
+        if (!role) {
           return error(res, 'Role not found', 404);
         }
 
-        if (roleCheck.rows[0].is_system_role) {
+        if (role.is_system_role) {
           return error(res, 'Cannot modify system roles', 403);
         }
 
@@ -259,7 +297,7 @@ module.exports = (pool, logger) => {
         // Removing a permission changes what every holder of the role can do,
         // so it takes the same standing as granting it.
         const { permission_key: permissionKey } = permissionCheck.rows[0];
-        if (permissionCountsAgainstGrantor(permissionCheck.rows[0], roleCheck.rows[0])
+        if (permissionCountsAgainstGrantor(permissionCheck.rows[0], role)
           && !(req.userPermissions || []).includes(permissionKey)) {
           return forbidden(
             res,
@@ -294,20 +332,27 @@ module.exports = (pool, logger) => {
     requirePermission('roles.manage'),
     asyncHandler(async (req, res) => {
       try {
-        const { role_name, display_name, description } = req.body;
+        const organizationId = await getOrganizationId(req, pool);
+        const { role_name: requestedName, display_name: displayName, description } = req.body;
 
-        if (!role_name || !display_name) {
+        if (!requestedName || !displayName) {
           return error(res, 'role_name and display_name are required', 400);
         }
 
+        const roleKey = customRoleKey(organizationId, requestedName);
+        if (!roleKey) {
+          return error(res, 'role_name must contain letters or digits', 400);
+        }
+
+        // A custom role belongs to the unit that creates it.
         const result = await pool.query(
-          `INSERT INTO roles (role_name, display_name, description, is_system_role)
-           VALUES ($1, $2, $3, false)
+          `INSERT INTO roles (role_name, display_name, description, is_system_role, organization_id)
+           VALUES ($1, $2, $3, false, $4)
            RETURNING *`,
-          [role_name, display_name, description]
+          [roleKey, displayName, description, organizationId]
         );
 
-        logger.info(`User ${req.user.id} created new role: ${role_name}`);
+        logger.info(`User ${req.user.id} created role ${roleKey} in unit ${organizationId}`);
 
         return success(res, result.rows[0], 'Role created successfully', 201);
       } catch (err) {
@@ -332,19 +377,17 @@ module.exports = (pool, logger) => {
     requirePermission('roles.manage'),
     asyncHandler(async (req, res) => {
       try {
-        const { roleId } = req.params;
+        const organizationId = await getOrganizationId(req, pool);
+        const roleId = parsePositiveId(req.params.roleId);
 
-        // Verify role is not a system role
-        const roleCheck = await pool.query(
-          'SELECT is_system_role, role_name FROM roles WHERE id = $1',
-          [roleId]
-        );
+        // Only the unit's own custom roles can be deleted; built-in roles are shared.
+        const [role] = roleId ? await findRolesInUnit(pool, [roleId], organizationId) : [];
 
-        if (roleCheck.rows.length === 0) {
+        if (!role) {
           return error(res, 'Role not found', 404);
         }
 
-        if (roleCheck.rows[0].is_system_role) {
+        if (role.is_system_role) {
           return error(res, 'Cannot delete system roles', 403);
         }
 
@@ -360,9 +403,9 @@ module.exports = (pool, logger) => {
         }
 
         // Delete role (cascade will handle role_permissions)
-        await pool.query('DELETE FROM roles WHERE id = $1', [roleId]);
+        await pool.query('DELETE FROM roles WHERE id = $1 AND organization_id = $2', [roleId, organizationId]);
 
-        logger.info(`User ${req.user.id} deleted role: ${roleCheck.rows[0].role_name}`);
+        logger.info(`User ${req.user.id} deleted role: ${role.role_name}`);
 
         return success(res, null, 'Role deleted successfully');
       } catch (err) {

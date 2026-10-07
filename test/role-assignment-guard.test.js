@@ -27,6 +27,7 @@ const OTHER_ORG_ID = 99;
 const CALLER_ID = '11111111-1111-4111-8111-111111111111';
 const TARGET_ID = '22222222-2222-4222-8222-222222222222';
 const DISTRICT_LEVEL_ROLE_ID = 41;
+const OTHER_UNIT_ROLE_ID = 77;
 const LEADER_ROLE_ID = 2;
 
 let app;
@@ -126,8 +127,14 @@ describe('PUT /api/v1/users/:userId/roles', () => {
       statements.push(sql);
       return { rows: [] };
     }
-    if (sql.startsWith('SELECT id FROM roles WHERE id = ANY')) {
-      return { rows: params[0].map((id) => ({ id })) };
+    if (sql.startsWith('SELECT id, role_name, is_system_role, organization_id, data_scope FROM roles')) {
+      // findRolesInUnit: only roles the caller's unit may use come back.
+      expect(params[1]).toBe(ORG_ID);
+      return {
+        rows: params[0]
+          .filter((id) => id !== OTHER_UNIT_ROLE_ID)
+          .map((id) => ({ id, role_name: `role_${id}`, is_system_role: false, organization_id: ORG_ID })),
+      };
     }
     if (sql.startsWith('SELECT role_ids FROM user_organizations')) {
       expect(sql).toContain('FOR UPDATE');
@@ -188,6 +195,13 @@ describe('PUT /api/v1/users/:userId/roles', () => {
     expect(writes).toHaveLength(1);
   });
 
+  test('rejects a role belonging to another unit', async () => {
+    const { res, writes } = await putRoles([LEADER_ROLE_ID], [LEADER_ROLE_ID, OTHER_UNIT_ROLE_ID]);
+
+    expect(res.status).toBe(400);
+    expect(writes).toHaveLength(0);
+  });
+
   test('rejects role IDs that are not integers', async () => {
     const { res, writes } = await putRoles([], ['admin']);
 
@@ -197,7 +211,7 @@ describe('PUT /api/v1/users/:userId/roles', () => {
 });
 
 describe('GET /api/v1/roles', () => {
-  test('lists every role with whether the caller may grant it', async () => {
+  test('lists the built-in and own-unit roles with whether the caller may grant each', async () => {
     let listing = null;
     const permissions = ['roles.view', 'carpools.view'];
     mockDatabase({
@@ -217,7 +231,8 @@ describe('GET /api/v1/roles', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual([{ id: 1, role_name: 'district', assignable: false }]);
-    expect(listing.params).toEqual([permissions]);
+    expect(listing.params).toEqual([permissions, ORG_ID]);
+    expect(listing.sql).toContain('r.organization_id = $2 OR (r.organization_id IS NULL AND r.is_system_role)');
     expect(listing.sql).toContain("NOT (p.self_scoped AND r.data_scope = 'linked')");
     expect(listing.sql).not.toMatch(/WHERE\s+r\.role_name|role_name != /);
   });
