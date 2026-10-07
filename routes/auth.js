@@ -209,6 +209,7 @@ module.exports = (pool, logger) => {
       try {
         // Login is public. Ignore any stale session token left in the
         // browser so it cannot select a deleted or unrelated organization.
+        // policy-allow manual-auth: public login route, no session yet
         const organizationId = await getCurrentOrganizationId(
           req,
           pool,
@@ -283,6 +284,7 @@ module.exports = (pool, logger) => {
            JOIN roles r ON r.id = role_id_text::integer
            WHERE uo.user_id = $1
              AND uo.organization_id = $2
+             -- policy-allow role-names: demo accounts are described by role (CLAUDE.md §3)
              AND r.role_name IN ('demoadmin', 'demoparent')`,
           [user.id, organizationId]
         );
@@ -378,6 +380,7 @@ module.exports = (pool, logger) => {
         // Priority: district > unitadmin > leader > finance > equipment > administration > parent
         // Use centralized role priority from config
         const rolePriority = ROLE_PRIORITY;
+        // policy-allow role-names: legacy display role claim, not an access decision
         const primaryRole = rolePriority.find(role => roleNames.includes(role)) || roleNames[0] || 'parent';
 
         const token = signJWTToken(
@@ -467,6 +470,7 @@ module.exports = (pool, logger) => {
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
+        // policy-allow manual-auth: public 2FA route, no session yet
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const { email, code } = req.body;
         const normalizedEmail = normalizeEmailValue(email);
@@ -552,6 +556,7 @@ module.exports = (pool, logger) => {
         // Determine primary role for backward compatibility
         // Use centralized role priority from config
         const rolePriority = ROLE_PRIORITY;
+        // policy-allow role-names: legacy display role claim, not an access decision
         const primaryRole = rolePriority.find(role => roleNames.includes(role)) || roleNames[0] || 'parent';
 
         const token = signJWTToken(
@@ -652,6 +657,7 @@ module.exports = (pool, logger) => {
       try {
         // Registration is public. Ignore any stale session token left in the
         // browser so it cannot select a deleted or unrelated organization.
+        // policy-allow manual-auth: public registration route, no session yet
         const organizationId = await getCurrentOrganizationId(
           req,
           pool,

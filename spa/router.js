@@ -1400,6 +1400,7 @@ export function initRouter(app) {
     if (
       !href ||
       href.startsWith("#") ||
+      // eslint-disable-next-line no-script-url -- leaves javascript: links to the browser instead of routing them
       href.startsWith("javascript:") ||
       href.startsWith("blob:") ||
       href.startsWith("mailto:") ||

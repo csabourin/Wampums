@@ -28,6 +28,7 @@ function loadRoleBundles() {
         filename: sourcePath,
     });
     const roleModule = { exports: {} };
+    // eslint-disable-next-line no-new-func -- evaluates the repository's own config/roles.js, transpiled to CommonJS
     const evaluate = new Function("module", "exports", "require", transformed.code);
     evaluate(roleModule, roleModule.exports, require);
     return roleModule.exports.ROLE_BUNDLES;

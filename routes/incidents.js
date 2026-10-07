@@ -273,7 +273,7 @@ module.exports = (pool, logger) => {
       const prefill = {
         victim_last_name: p.last_name || '',
         victim_first_name: p.first_name || '',
-        victim_age: p.age != null ? p.age.toString() : '',
+        victim_age: p.age === null || p.age === undefined ? '' : p.age.toString(),
         guardian_name: g.prenom && g.nom ? `${g.prenom} ${g.nom}` : '',
         victim_phone_home: g.telephone_residence || g.telephone_cellulaire || '',
         victim_phone_work: g.telephone_travail || '',

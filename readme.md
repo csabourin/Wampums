@@ -105,14 +105,7 @@ npm test
 npm run test:quality
 npm run test:stories
 npm run build
-npm run lint:api-version
-npm run lint:duplicate-mounts
-npm run lint:non-versioned-mounts
-npm run lint:spa-files
-npm run lint:spa-console
-npm run lint:spa-innerhtml
-npm run lint:sql-params
-npm run lint:i18n-parity
+npm run lint:all   # every guardrail and ESLint, as CI runs them
 ```
 
 The complete command list is authoritative in `package.json`.
