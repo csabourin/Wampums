@@ -451,11 +451,18 @@ ${showNotifications ? `
                 const checkboxes = roles.map((role) => {
                         const checked = currentRoleIds.includes(role.id) ? "checked" : "";
                         const label = escapeHTML(role.display_name || translate(role.role_name) || role.role_name);
+                        // A role carrying permissions the viewer does not hold cannot be
+                        // granted or removed by them; it keeps its state and is sent back unchanged.
+                        const locked = role.assignable === false;
+                        const noteId = `role-modal-locked-${role.id}`;
                         return `
-                                <label class="role-modal-checkbox">
-                                        <input type="checkbox" name="role_id" value="${role.id}" ${checked}>
-                                        <span>${label}</span>
-                                </label>`;
+                                <div class="role-modal-option">
+                                        <label class="role-modal-checkbox${locked ? " role-modal-checkbox--locked" : ""}">
+                                                <input type="checkbox" name="role_id" value="${role.id}" ${checked}${locked ? ` disabled aria-describedby="${noteId}"` : ""}>
+                                                <span>${label}</span>
+                                        </label>
+                                        ${locked ? `<small class="role-locked-note" id="${noteId}">${translate("role_not_assignable")}</small>` : ""}
+                                </div>`;
                 }).join("");
 
                 const modalHTML = `
@@ -534,8 +541,9 @@ ${showNotifications ? `
                         }
                 } catch (error) {
                         debugError("Error updating user roles:", error);
+                        const FORBIDDEN = 403;
                         this.app.showMessage(
-                                translate("error_updating_role"),
+                                translate(error.status === FORBIDDEN ? "role_grant_forbidden" : "error_updating_role"),
                                 "error",
                         );
                 }

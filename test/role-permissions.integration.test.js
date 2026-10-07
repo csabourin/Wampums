@@ -123,10 +123,12 @@ describe.skipIf(!DATABASE_URL)('Role permissions', () => {
     }
 
     ids.managerRole = await role('role_manager', 'organization');
+    // Someone may grant only what they hold, so the manager holds every
+    // permission these tests hand out.
     await pool.query(
       `INSERT INTO role_permissions (role_id, permission_id)
-       SELECT $1, id FROM permissions WHERE permission_key = 'roles.manage'`,
-      [ids.managerRole]
+       SELECT $1, id FROM permissions WHERE permission_key = ANY($2::text[])`,
+      [ids.managerRole, ['roles.manage', 'carpools.view', ...UNIT_FINANCE_PERMISSIONS]]
     );
     ids.manager = await one(
       `INSERT INTO users (email, password, full_name)

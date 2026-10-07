@@ -1992,6 +1992,23 @@ tr:hover {
   accent-color: var(--color-primary, #3b82f6);
 }
 
+/* A role the viewer cannot grant or remove: still readable, not clickable. */
+.role-modal-checkbox--locked,
+.role-checkbox-item--locked {
+  cursor: not-allowed;
+}
+
+.role-modal-checkbox--locked:hover {
+  background-color: transparent;
+}
+
+.role-locked-note {
+  display: block;
+  margin: 0 0 var(--space-xs, 4px) var(--space-sm, 8px);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
 /* ----------------------------------------------------------------------------
    5.13 TOAST NOTIFICATIONS
    ---------------------------------------------------------------------------- */

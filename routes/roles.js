@@ -10,9 +10,9 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles } = require('../middleware/auth');
-const { success, error, asyncHandler } = require('../middleware/response');
+const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const { UNIT_FINANCE_PERMISSIONS } = require('../config/constants');
-const { DISTRICT_ASSIGNMENT_PERMISSION, canAssignDistrictRoles } = require('../services/roleAssignment');
+const { checkRolesGrantable, permissionCountsAgainstGrantor } = require('../services/roleAssignment');
 
 /**
  * Export route factory function
@@ -33,20 +33,21 @@ module.exports = (pool, logger) => {
     requirePermission('roles.view'),
     asyncHandler(async (req, res) => {
       try {
-        // Only someone who may hand out district-level roles sees them. A role
-        // is district-level when it grants users.assign_district, whatever its name.
-        const excludeDistrictLevel = !canAssignDistrictRoles(req.userPermissions);
-
+        // Every role is listed. `assignable` says whether the caller holds all
+        // of its permissions, which is what granting or removing it requires
+        // (services/roleAssignment.js); forms show the others as read-only.
         const result = await pool.query(
-          `SELECT r.id, r.role_name, r.display_name, r.description, r.is_system_role, r.created_at
+          `SELECT r.id, r.role_name, r.display_name, r.description, r.is_system_role, r.created_at,
+                  NOT EXISTS (
+                    SELECT 1
+                    FROM role_permissions rp
+                    JOIN permissions p ON p.id = rp.permission_id
+                    WHERE rp.role_id = r.id
+                      AND NOT (p.permission_key = ANY($1::text[]))
+                      -- same exception as services/roleAssignment.js
+                      AND NOT (p.self_scoped AND r.data_scope = 'linked')
+                  ) AS assignable
            FROM roles r
-           WHERE NOT $1::boolean
-              OR NOT EXISTS (
-                SELECT 1
-                FROM role_permissions rp
-                JOIN permissions p ON p.id = rp.permission_id
-                WHERE rp.role_id = r.id AND p.permission_key = $2
-              )
            ORDER BY
              CASE r.role_name
                WHEN 'district' THEN 0
@@ -60,7 +61,7 @@ module.exports = (pool, logger) => {
                WHEN 'demoparent' THEN 8
                ELSE 9
              END`,
-          [excludeDistrictLevel, DISTRICT_ASSIGNMENT_PERMISSION]
+          [req.userPermissions || []]
         );
 
         return success(res, result.rows, 'Roles retrieved successfully');
@@ -171,7 +172,7 @@ module.exports = (pool, logger) => {
         }
 
         const permissionCheck = await pool.query(
-          'SELECT permission_key FROM permissions WHERE id = $1',
+          'SELECT permission_key, self_scoped FROM permissions WHERE id = $1',
           [permissionId]
         );
 
@@ -179,14 +180,27 @@ module.exports = (pool, logger) => {
           return error(res, 'Permission not found', 404);
         }
 
+        const { permission_key: permissionKey } = permissionCheck.rows[0];
+
         // The finance routes answer for every family in the unit. A role that
         // only sees its own children would read everyone's fees through them.
-        const { permission_key: permissionKey } = permissionCheck.rows[0];
         if (roleCheck.rows[0].data_scope === 'linked' && UNIT_FINANCE_PERMISSIONS.includes(permissionKey)) {
           return error(
             res,
             `A role limited to its own children cannot hold ${permissionKey}: it covers every family in the unit`,
             409
+          );
+        }
+
+        // Someone may grant only what they hold. Checked after the rule above,
+        // which holds whoever asks.
+        if (permissionCountsAgainstGrantor(permissionCheck.rows[0], roleCheck.rows[0])
+          && !(req.userPermissions || []).includes(permissionKey)) {
+          return forbidden(
+            res,
+            'You can only add permissions you hold',
+            [permissionKey],
+            [permissionKey]
           );
         }
 
@@ -221,7 +235,7 @@ module.exports = (pool, logger) => {
 
         // Verify role is not a system role
         const roleCheck = await pool.query(
-          'SELECT is_system_role FROM roles WHERE id = $1',
+          'SELECT is_system_role, data_scope FROM roles WHERE id = $1',
           [roleId]
         );
 
@@ -231,6 +245,28 @@ module.exports = (pool, logger) => {
 
         if (roleCheck.rows[0].is_system_role) {
           return error(res, 'Cannot modify system roles', 403);
+        }
+
+        const permissionCheck = await pool.query(
+          'SELECT permission_key, self_scoped FROM permissions WHERE id = $1',
+          [permissionId]
+        );
+
+        if (permissionCheck.rows.length === 0) {
+          return error(res, 'Permission not found', 404);
+        }
+
+        // Removing a permission changes what every holder of the role can do,
+        // so it takes the same standing as granting it.
+        const { permission_key: permissionKey } = permissionCheck.rows[0];
+        if (permissionCountsAgainstGrantor(permissionCheck.rows[0], roleCheck.rows[0])
+          && !(req.userPermissions || []).includes(permissionKey)) {
+          return forbidden(
+            res,
+            'You can only remove permissions you hold',
+            [permissionKey],
+            [permissionKey]
+          );
         }
 
         // Remove permission from role
@@ -310,6 +346,17 @@ module.exports = (pool, logger) => {
 
         if (roleCheck.rows[0].is_system_role) {
           return error(res, 'Cannot delete system roles', 403);
+        }
+
+        // Deleting a role takes its permissions from everyone holding it.
+        const check = await checkRolesGrantable(pool, [roleId], req.userPermissions);
+        if (!check.allowed) {
+          return forbidden(
+            res,
+            'You can only delete roles whose permissions you hold',
+            check.required,
+            check.missing
+          );
         }
 
         // Delete role (cascade will handle role_permissions)
