@@ -2,8 +2,8 @@
  * Tenant and role-escalation guards on user and role management.
  *
  * - GET /api/v1/users lists the caller's own unit only, whatever the query says.
- * - A role is district-level when it grants users.assign_district, not when it
- *   is named 'district'. Only holders of that permission may assign or list it.
+ * - Someone may grant or remove only roles whose permissions they hold
+ *   (services/roleAssignment.js); the roles list says which ones those are.
  * - Creating a role whose name already exists answers 409.
  */
 
@@ -26,7 +26,7 @@ const ORG_ID = 3;
 const OTHER_ORG_ID = 99;
 const CALLER_ID = '11111111-1111-4111-8111-111111111111';
 const TARGET_ID = '22222222-2222-4222-8222-222222222222';
-const RENAMED_DISTRICT_ROLE_ID = 41;
+const DISTRICT_LEVEL_ROLE_ID = 41;
 const LEADER_ROLE_ID = 2;
 
 let app;
@@ -109,26 +109,34 @@ describe('GET /api/v1/users', () => {
 });
 
 describe('PUT /api/v1/users/:userId/roles', () => {
-  /** A role named 'chef-de-district' that carries users.assign_district. */
-  const handleRoles = (writes) => (sql, params) => {
-    if (sql.startsWith('SELECT id, role_name FROM roles WHERE id = ANY')) {
-      return {
-        rows: params[0].map((id) => ({
-          id,
-          role_name: id === RENAMED_DISTRICT_ROLE_ID ? 'chef-de-district' : 'leader',
-        })),
-      };
+  const CALLER_PERMISSIONS = ['users.assign_roles', 'carpools.view'];
+  /** Permissions each role carries, as loadRolePermissions reports them. */
+  const ROLE_PERMISSIONS = {
+    [LEADER_ROLE_ID]: ['carpools.view'],
+    [DISTRICT_LEVEL_ROLE_ID]: ['carpools.view', 'roles.manage'],
+  };
+
+  /**
+   * @param {number[]} currentRoleIds - Roles the member holds before the request
+   * @param {Array} writes - Collects UPDATE parameters
+   * @param {string[]} statements - Collects transaction statements
+   */
+  const handleRoles = (currentRoleIds, writes, statements) => (sql, params) => {
+    if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql)) {
+      statements.push(sql);
+      return { rows: [] };
     }
-    if (sql.startsWith('SELECT DISTINCT rp.role_id AS id')) {
-      expect(params[1]).toBe('users.assign_district');
-      return {
-        rows: params[0]
-          .filter((id) => id === RENAMED_DISTRICT_ROLE_ID)
-          .map((id) => ({ id })),
-      };
+    if (sql.startsWith('SELECT id FROM roles WHERE id = ANY')) {
+      return { rows: params[0].map((id) => ({ id })) };
     }
-    if (sql.startsWith('SELECT id FROM user_organizations')) {
-      return { rows: [{ id: 1 }] };
+    if (sql.startsWith('SELECT role_ids FROM user_organizations')) {
+      expect(sql).toContain('FOR UPDATE');
+      return { rows: [{ role_ids: currentRoleIds }] };
+    }
+    if (sql.startsWith('SELECT r.id, r.role_name,')) {
+      return {
+        rows: params[0].map((id) => ({ id, role_name: `role_${id}`, permissions: ROLE_PERMISSIONS[id] || [] })),
+      };
     }
     if (sql.startsWith('UPDATE user_organizations')) {
       writes.push(params);
@@ -137,59 +145,67 @@ describe('PUT /api/v1/users/:userId/roles', () => {
     return undefined;
   };
 
-  test('refuses a renamed role that grants users.assign_district', async () => {
+  async function putRoles(currentRoleIds, roleIds) {
     const writes = [];
-    const permissions = ['users.assign_roles'];
-    mockDatabase({ permissions, handle: handleRoles(writes) });
-
+    const statements = [];
+    mockDatabase({ permissions: CALLER_PERMISSIONS, handle: handleRoles(currentRoleIds, writes, statements) });
     const res = await request(app)
       .put(`/api/v1/users/${TARGET_ID}/roles`)
-      .set('Authorization', `Bearer ${tokenFor(permissions)}`)
-      .send({ roleIds: [RENAMED_DISTRICT_ROLE_ID] });
+      .set('Authorization', `Bearer ${tokenFor(CALLER_PERMISSIONS)}`)
+      .send({ roleIds });
+    return { res, writes, statements };
+  }
+
+  test('refuses to grant a role carrying a permission the caller lacks', async () => {
+    const { res, writes, statements } = await putRoles([LEADER_ROLE_ID], [LEADER_ROLE_ID, DISTRICT_LEVEL_ROLE_ID]);
+
+    expect(res.status).toBe(403);
+    expect(res.body.missing).toEqual(['roles.manage']);
+    expect(res.body.required).toEqual(['carpools.view', 'roles.manage']);
+    expect(writes).toHaveLength(0);
+    expect(statements).toContain('ROLLBACK');
+  });
+
+  test('refuses to remove such a role from someone who holds it', async () => {
+    const { res, writes } = await putRoles([DISTRICT_LEVEL_ROLE_ID], [LEADER_ROLE_ID]);
 
     expect(res.status).toBe(403);
     expect(writes).toHaveLength(0);
   });
 
-  test('allows an ordinary role without users.assign_district', async () => {
-    const writes = [];
-    const permissions = ['users.assign_roles'];
-    mockDatabase({ permissions, handle: handleRoles(writes) });
+  test('grants a role whose permissions the caller holds', async () => {
+    const { res, writes, statements } = await putRoles([], [LEADER_ROLE_ID]);
 
-    const res = await request(app)
-      .put(`/api/v1/users/${TARGET_ID}/roles`)
-      .set('Authorization', `Bearer ${tokenFor(permissions)}`)
-      .send({ roleIds: [LEADER_ROLE_ID] });
+    expect(res.status).toBe(200);
+    expect(writes).toEqual([[JSON.stringify([LEADER_ROLE_ID]), TARGET_ID, ORG_ID]]);
+    expect(statements).toEqual(['BEGIN', 'COMMIT']);
+  });
+
+  test('leaves a role the caller could not grant in place while adding another', async () => {
+    const { res, writes } = await putRoles([DISTRICT_LEVEL_ROLE_ID], [String(DISTRICT_LEVEL_ROLE_ID), LEADER_ROLE_ID]);
 
     expect(res.status).toBe(200);
     expect(writes).toHaveLength(1);
   });
 
-  test('lets a holder of users.assign_district assign the district-level role', async () => {
-    const writes = [];
-    const permissions = ['users.assign_roles', 'users.assign_district'];
-    mockDatabase({ permissions, handle: handleRoles(writes) });
+  test('rejects role IDs that are not integers', async () => {
+    const { res, writes } = await putRoles([], ['admin']);
 
-    const res = await request(app)
-      .put(`/api/v1/users/${TARGET_ID}/roles`)
-      .set('Authorization', `Bearer ${tokenFor(permissions)}`)
-      .send({ roleIds: [RENAMED_DISTRICT_ROLE_ID] });
-
-    expect(res.status).toBe(200);
-    expect(writes).toHaveLength(1);
+    expect(res.status).toBe(400);
+    expect(writes).toHaveLength(0);
   });
 });
 
 describe('GET /api/v1/roles', () => {
-  test('hides district-level roles by permission, not by name', async () => {
+  test('lists every role with whether the caller may grant it', async () => {
     let listing = null;
-    const permissions = ['roles.view'];
+    const permissions = ['roles.view', 'carpools.view'];
     mockDatabase({
       permissions,
       handle: (sql, params) => {
         if (sql.startsWith('SELECT r.id, r.role_name')) {
           listing = { sql, params };
-          return { rows: [] };
+          return { rows: [{ id: 1, role_name: 'district', assignable: false }] };
         }
         return undefined;
       },
@@ -200,8 +216,10 @@ describe('GET /api/v1/roles', () => {
       .set('Authorization', `Bearer ${tokenFor(permissions)}`);
 
     expect(res.status).toBe(200);
-    expect(listing.params).toEqual([true, 'users.assign_district']);
-    expect(listing.sql).not.toMatch(/role_name != 'district'/);
+    expect(res.body.data).toEqual([{ id: 1, role_name: 'district', assignable: false }]);
+    expect(listing.params).toEqual([permissions]);
+    expect(listing.sql).toContain("NOT (p.self_scoped AND r.data_scope = 'linked')");
+    expect(listing.sql).not.toMatch(/WHERE\s+r\.role_name|role_name != /);
   });
 });
 

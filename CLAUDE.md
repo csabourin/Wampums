@@ -74,7 +74,7 @@ return paginated(res, items, page, limit, total);
 - `204` - No Content (successful DELETE)
 - `400` - Bad Request (validation error, malformed request); response includes `errors` array when from validation middleware
 - `401` - Unauthorized (authentication required or failed); message must match `/authentication required/i`
-- `403` - Forbidden (authenticated but insufficient permissions); response MUST include `required: string[]` and `missing: string[]`; `blockDemoRoles` 403 MUST include `isDemo: true`
+- `403` - Forbidden (authenticated but insufficient permissions); response MUST include `required: string[]` and `missing: string[]` — use `forbidden(res, message, required, missing)` from `middleware/response.js`; `blockDemoRoles` 403 MUST include `isDemo: true`
 - `404` - Not Found (resource doesn't exist)
 - `409` - Conflict (duplicate, constraint violation)
 - `410` - Gone (deprecated `/api/` legacy endpoint)
@@ -116,6 +116,20 @@ or renamed role holding the right permissions would be refused. The role-based `
 - Format: `{resource}.{action}`
 - Examples: `users.view`, `users.manage`, `finance.manage`, `reports.view`, `carpools.view`
 - Common actions: `view`, `manage`, `create`, `edit`, `delete`, `assign_roles`
+
+#### Granting Roles and Permissions
+- ✅ **Someone may grant only what they hold.** Adding or removing a member's role, adding or removing a
+  permission on a role, deleting a role, and roles handed out by imports all go through
+  `services/roleAssignment.js` (`checkRoleChange`, `checkRolesGrantable`). Removal is covered too, so nobody
+  can demote someone holding permissions they lack. A refusal answers 403 through `forbidden()` with
+  `required` and `missing`.
+- ✅ One exception: a permission marked `permissions.self_scoped` does not count in a role whose
+  `data_scope` is `'linked'`, because there it only acts on the holder's own children
+  (`participants.create_own`, `permission_slips.sign`). In an organization-wide role it counts like any
+  other. Mark a new permission `self_scoped` only if, in a linked role, it acts solely on the holder's own
+  children.
+- ✅ `GET /api/v1/roles` lists every role with `assignable`. Forms show the others disabled, keeping their
+  state, so saving sends them back unchanged.
 
 #### Protecting Write Operations
 - ✅ Use `blockDemoRoles` middleware for write operations to prevent demo accounts from making changes

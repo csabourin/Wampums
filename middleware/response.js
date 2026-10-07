@@ -40,6 +40,27 @@ exports.error = (res, message = 'An error occurred', statusCode = 400, errors = 
 };
 
 /**
+ * Forbidden (403) response carrying the permissions involved, in the shape
+ * requirePermission uses.
+ * @param {Object} res - Express response object
+ * @param {String} message - Error message
+ * @param {String[]} required - Permissions the action needs
+ * @param {String[]} missing - Required permissions the caller lacks
+ * @param {Object} [extra] - Additional fields for the body
+ */
+exports.forbidden = (res, message, required = [], missing = [], extra = {}) => {
+  const FORBIDDEN = 403;
+  return res.status(FORBIDDEN).json({
+    success: false,
+    message,
+    required,
+    missing,
+    ...extra,
+    timestamp: new Date().toISOString()
+  });
+};
+
+/**
  * Prevent route-local HTTP 500 responses from exposing database, SDK, filesystem, or
  * stack details. This provides a final safety boundary while older handlers are
  * migrated to the standardized response helpers.

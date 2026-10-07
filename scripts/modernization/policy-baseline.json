@@ -17,7 +17,6 @@
   },
   "role-names": {
     "mobile/src/screens/CreateOrganizationScreen.js": 1,
-    "routes/import.js": 2,
     "routes/organizations.js": 1,
     "routes/users.js": 2,
     "services/reactivation.js": 1,

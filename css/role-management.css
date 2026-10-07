@@ -266,7 +266,8 @@
 
 .btn-primary {
   padding: 10px 20px;
-  background: #4CAF50;
+  /* App primary: white text on it meets WCAG AA (#4CAF50 was 2.8:1). */
+  background: var(--color-primary, #0f7a5a);
   color: white;
   border: none;
   border-radius: 4px;
@@ -277,7 +278,7 @@
 }
 
 .btn-primary:hover {
-  background: #45a049;
+  background: var(--color-primary-dark, #0b5b43);
 }
 
 .btn-secondary {

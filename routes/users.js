@@ -11,7 +11,7 @@ const express = require('express');
 
 // Import auth middleware
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
-const { asyncHandler, success, error } = require('../middleware/response');
+const { asyncHandler, success, error, forbidden } = require('../middleware/response');
 const {
   ACCESS_SOURCE,
   grantParticipantAccess,
@@ -19,7 +19,7 @@ const {
   isAssociationInUnit,
 } = require('../services/participantAccess');
 const { listUnitLeaders } = require('../services/unitLeaders');
-const { canAssignDistrictRoles, findDistrictLevelRoleIds } = require('../services/roleAssignment');
+const { checkRoleChange, normalizeRoleIds } = require('../services/roleAssignment');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership } = require('../utils/api-helpers');
@@ -34,6 +34,69 @@ const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, 
  */
 module.exports = (pool, logger) => {
   const router = express.Router();
+
+  /**
+   * Replace a member's roles, provided the caller may grant every role added
+   * or removed (services/roleAssignment.js). The member's row is locked so the
+   * check and the write see the same current roles.
+   *
+   * @param {Object} req - Request, after requirePermission (req.userPermissions)
+   * @param {Object} res - Response
+   * @param {Object} change
+   * @param {number} change.organizationId - Caller's unit
+   * @param {string} change.userId - Member UUID
+   * @param {number[]} change.roleIds - Roles the member should hold
+   * @returns {Promise<Object>} The response sent
+   */
+  async function replaceMemberRoles(req, res, { organizationId, userId, roleIds }) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const membership = await client.query(
+        `SELECT role_ids FROM user_organizations
+         WHERE user_id = $1 AND organization_id = $2
+         FOR UPDATE`,
+        [userId, organizationId]
+      );
+      if (membership.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return error(res, 'User not found in this organization', 404);
+      }
+
+      const check = await checkRoleChange(client, {
+        currentRoleIds: membership.rows[0].role_ids || [],
+        requestedRoleIds: roleIds,
+        heldPermissions: req.userPermissions,
+      });
+      if (!check.allowed) {
+        await client.query('ROLLBACK');
+        logger.warn(`User ${req.user.id} refused role change for ${userId}: missing ${check.missing.join(', ')}`);
+        return forbidden(
+          res,
+          'You can only grant or remove roles whose permissions you hold',
+          check.required,
+          check.missing,
+          { roles: check.roles }
+        );
+      }
+
+      await client.query(
+        `UPDATE user_organizations
+         SET role_ids = $1::jsonb
+         WHERE user_id = $2 AND organization_id = $3`,
+        [JSON.stringify(roleIds), userId, organizationId]
+      );
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    logger.info(`User ${userId} roles updated to [${roleIds.join(', ')}] by user ${req.user.id}`);
+    return success(res, null, 'User roles updated successfully');
+  }
   /**
    * @swagger
    * /api/v1/users:
@@ -330,6 +393,8 @@ module.exports = (pool, logger) => {
    *         description: Role updated successfully
    *       400:
    *         description: Invalid role or cannot change own role
+   *       403:
+   *         description: The role carries permissions the caller does not hold (body lists required and missing)
    */
   router.post('/update-role', authenticate, blockDemoRoles, requirePermission('users.assign_roles'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
@@ -363,16 +428,6 @@ module.exports = (pool, logger) => {
       return error(res, 'Cannot change your own role', 400);
     }
 
-    // Verify target user belongs to this organization
-    const userCheck = await pool.query(
-      `SELECT id FROM user_organizations WHERE user_id = $1 AND organization_id = $2`,
-      [user_id, organizationId]
-    );
-
-    if (userCheck.rows.length === 0) {
-      return error(res, 'User not found in this organization', 404);
-    }
-
     // Get role ID for the new role
     const roleIdResult = await pool.query(
       'SELECT id FROM roles WHERE role_name = $1',
@@ -383,25 +438,11 @@ module.exports = (pool, logger) => {
       return error(res, 'Role not found', 400);
     }
 
-    const roleId = roleIdResult.rows[0].id;
-
-    if (!canAssignDistrictRoles(req.userPermissions)) {
-      const districtLevelRoleIds = await findDistrictLevelRoleIds(pool, [roleId]);
-      if (districtLevelRoleIds.length > 0) {
-        return error(res, 'You do not have permission to assign the district administrator role', 403);
-      }
-    }
-
-    // Update user role in organization
-    await pool.query(
-      `UPDATE user_organizations
-       SET role_ids = jsonb_build_array($1::integer)
-       WHERE user_id = $2 AND organization_id = $3`,
-      [roleId, user_id, organizationId]
-    );
-
-    logger.info(`User ${user_id} role updated to ${mappedRole} (ID: ${roleId}) by user ${req.user.id}`);
-    return success(res, null, 'User role updated successfully');
+    return replaceMemberRoles(req, res, {
+      organizationId,
+      userId: user_id,
+      roleIds: [roleIdResult.rows[0].id],
+    });
   }));
 
   /**
@@ -510,43 +551,22 @@ module.exports = (pool, logger) => {
       return error(res, 'Cannot change your own roles', 400);
     }
 
-    // Verify all role IDs are valid
-    const rolesResult = await pool.query(
-      `SELECT id, role_name FROM roles WHERE id = ANY($1::int[])`,
-      [roleIds]
-    );
-
-    if (rolesResult.rows.length !== roleIds.length) {
+    const requestedRoleIds = normalizeRoleIds(roleIds);
+    if (requestedRoleIds.length !== new Set(roleIds.map(String)).size) {
       return error(res, 'One or more invalid role IDs', 400);
     }
 
-    if (!canAssignDistrictRoles(req.userPermissions)) {
-      const districtLevelRoleIds = await findDistrictLevelRoleIds(pool, roleIds);
-      if (districtLevelRoleIds.length > 0) {
-        return error(res, 'You do not have permission to assign the district administrator role', 403);
-      }
-    }
-
-    // Verify target user belongs to this organization
-    const userCheck = await pool.query(
-      `SELECT id FROM user_organizations WHERE user_id = $1 AND organization_id = $2`,
-      [userId, organizationId]
+    // Verify all role IDs are valid
+    const rolesResult = await pool.query(
+      'SELECT id FROM roles WHERE id = ANY($1::int[])',
+      [requestedRoleIds]
     );
 
-    if (userCheck.rows.length === 0) {
-      return error(res, 'User not found in this organization', 404);
+    if (rolesResult.rows.length !== requestedRoleIds.length) {
+      return error(res, 'One or more invalid role IDs', 400);
     }
 
-    // Update user roles
-    await pool.query(
-      `UPDATE user_organizations
-       SET role_ids = $1::jsonb
-       WHERE user_id = $2 AND organization_id = $3`,
-      [JSON.stringify(roleIds), userId, organizationId]
-    );
-
-    logger.info(`User ${userId} roles updated to [${roleIds.join(', ')}] by user ${req.user.id}`);
-    return success(res, null, 'User roles updated successfully');
+    return replaceMemberRoles(req, res, { organizationId, userId, roleIds: requestedRoleIds });
   }));
 
   /**
