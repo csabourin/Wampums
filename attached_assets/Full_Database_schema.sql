@@ -2,9 +2,9 @@
 -- PostgreSQL database dump
 --
 
-\restrict gJjnYqQhHIoLpimte7cmxRu8e7oe8dxT2yjqPbaDadautsPtsV0vlWO6li8akVb
+\restrict qILYfGSeqbVL9GAwjX5rViFL6UuA0Pk5YfJHVxeefgPs3zlKb1J3pY3La249X7r
 
--- Dumped from database version 18.4 (Debian 18.4-1.pgdg13+1)
+-- Dumped from database version 18.6 (Debian 18.6-1.pgdg13+2)
 -- Dumped by pg_dump version 18.4 (Debian 18.4-1.pgdg13+1)
 
 SET statement_timeout = 0;
@@ -1044,8 +1044,17 @@ CREATE TABLE public.announcements (
     sent_at timestamp with time zone,
     status character varying(32) DEFAULT 'draft'::character varying NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    audience text DEFAULT 'members'::text NOT NULL,
+    CONSTRAINT announcements_audience_check CHECK ((audience = ANY (ARRAY['members'::text, 'alumni'::text])))
 );
+
+
+--
+-- Name: COLUMN announcements.audience; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.announcements.audience IS 'Who this announcement is for. ''members'' is the unit; ''alumni'' is the consented former families, who are never reached by a members send and never by group or role filters.';
 
 
 --
@@ -1460,8 +1469,19 @@ CREATE TABLE public.fundraiser_entries (
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     amount_paid double precision DEFAULT '0'::double precision,
     fundraiser integer,
-    id integer NOT NULL
+    id integer NOT NULL,
+    quantity numeric(12,2),
+    hours numeric(8,2),
+    amount_raised numeric(12,2),
+    CONSTRAINT fundraiser_entries_measures_non_negative CHECK ((((quantity IS NULL) OR (quantity >= (0)::numeric)) AND ((hours IS NULL) OR (hours >= (0)::numeric)) AND ((amount_raised IS NULL) OR (amount_raised >= (0)::numeric))))
 );
+
+
+--
+-- Name: COLUMN fundraiser_entries.amount; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fundraiser_entries.amount IS 'Legacy unit count kept for backwards compatibility. New code reads quantity and amount_raised instead.';
 
 
 --
@@ -1469,6 +1489,27 @@ CREATE TABLE public.fundraiser_entries (
 --
 
 COMMENT ON COLUMN public.fundraiser_entries.amount_paid IS 'Amount paid';
+
+
+--
+-- Name: COLUMN fundraiser_entries.quantity; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fundraiser_entries.quantity IS 'Number of units credited to this participant (items sold, containers collected). NULL when the campaign is not unit based.';
+
+
+--
+-- Name: COLUMN fundraiser_entries.hours; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fundraiser_entries.hours IS 'Hours worked by this participant. NULL unless the campaign is hours based.';
+
+
+--
+-- Name: COLUMN fundraiser_entries.amount_raised; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fundraiser_entries.amount_raised IS 'Money raised by this participant, entered directly. Takes precedence over quantity/hours x unit_price.';
 
 
 --
@@ -1746,7 +1787,7 @@ CREATE TABLE public.equipment_reservations (
     date_to date,
     activity_id integer,
     CONSTRAINT equipment_reservations_reserved_quantity_check CHECK ((reserved_quantity > 0)),
-    CONSTRAINT equipment_reservations_status_check CHECK (((status)::text = ANY (ARRAY[('reserved'::character varying)::text, ('confirmed'::character varying)::text, ('returned'::character varying)::text, ('cancelled'::character varying)::text])))
+    CONSTRAINT equipment_reservations_status_check CHECK (((status)::text = ANY (ARRAY[('reserved'::character varying)::text, ('confirmed'::character varying)::text, ('returned'::character varying)::text, ('cancelled'::character varying)::text, ('expired'::character varying)::text])))
 );
 
 
@@ -1826,6 +1867,74 @@ CREATE SEQUENCE public.erasure_log_id_seq
 --
 
 ALTER SEQUENCE public.erasure_log_id_seq OWNED BY public.erasure_log.id;
+
+
+--
+-- Name: family_link_requests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.family_link_requests (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id integer NOT NULL,
+    requester_user_id uuid NOT NULL,
+    target_email text NOT NULL,
+    token_digest character(64) NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    sent_at timestamp with time zone,
+    resend_count integer DEFAULT 0 NOT NULL,
+    responded_at timestamp with time zone,
+    responded_user_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT family_link_requests_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'declined'::text, 'revoked'::text])))
+);
+
+
+--
+-- Name: TABLE family_link_requests; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.family_link_requests IS 'One parent asking another to share a family. Opening the emailed link changes nothing; only an explicit confirmation does.';
+
+
+--
+-- Name: family_links; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.family_links (
+    id integer NOT NULL,
+    organization_id integer NOT NULL,
+    user_id_low uuid NOT NULL,
+    user_id_high uuid NOT NULL,
+    status text DEFAULT 'active'::text NOT NULL,
+    created_from_request_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    revoked_at timestamp with time zone,
+    revoked_by uuid,
+    CONSTRAINT family_links_ordered_pair CHECK ((user_id_low < user_id_high)),
+    CONSTRAINT family_links_status_check CHECK ((status = ANY (ARRAY['active'::text, 'revoked'::text])))
+);
+
+
+--
+-- Name: family_links_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.family_links_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: family_links_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.family_links_id_seq OWNED BY public.family_links.id;
 
 
 --
@@ -2139,7 +2248,12 @@ CREATE TABLE public.fundraisers (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     organization integer,
     archived boolean DEFAULT false NOT NULL,
-    budget_category_id integer
+    budget_category_id integer,
+    campaign_type text DEFAULT 'fixed_price_sale'::text NOT NULL,
+    unit_price numeric(12,2),
+    unit_label text,
+    CONSTRAINT fundraisers_campaign_type_check CHECK ((campaign_type = ANY (ARRAY['fixed_price_sale'::text, 'variable_price_sale'::text, 'container_deposit'::text, 'hours_worked'::text, 'direct_amount'::text, 'donation'::text, 'sponsored_activity'::text, 'other'::text]))),
+    CONSTRAINT fundraisers_unit_price_non_negative CHECK (((unit_price IS NULL) OR (unit_price >= (0)::numeric)))
 );
 
 
@@ -2148,6 +2262,27 @@ CREATE TABLE public.fundraisers (
 --
 
 COMMENT ON TABLE public.fundraisers IS 'Table to host fundraisers';
+
+
+--
+-- Name: COLUMN fundraisers.campaign_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fundraisers.campaign_type IS 'How entry values are turned into money: fixed_price_sale, variable_price_sale, container_deposit, hours_worked, direct_amount, donation, sponsored_activity, other';
+
+
+--
+-- Name: COLUMN fundraisers.unit_price; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fundraisers.unit_price IS 'Money per unit (fixed_price_sale, container_deposit) or per hour (hours_worked). NULL when the campaign has no unit price.';
+
+
+--
+-- Name: COLUMN fundraisers.unit_label; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fundraisers.unit_label IS 'Human label for one unit, e.g. "calendriers", "contenants". Optional.';
 
 
 --
@@ -3707,6 +3842,110 @@ ALTER SEQUENCE public.pab_themes_id_seq OWNED BY public.pab_themes.id;
 
 
 --
+-- Name: parent_invitation_participants; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.parent_invitation_participants (
+    invitation_id uuid NOT NULL,
+    participant_id integer NOT NULL,
+    organization_id integer NOT NULL,
+    added_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE parent_invitation_participants; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.parent_invitation_participants IS 'Children an invitation was sent for. Accepting the invitation links the parent to each of them.';
+
+
+--
+-- Name: parent_invitations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.parent_invitations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id integer NOT NULL,
+    email text NOT NULL,
+    first_name character varying(255),
+    last_name character varying(255),
+    telephone_residence character varying(20),
+    telephone_cellulaire character varying(20),
+    support_contact_name character varying(255),
+    support_contact_email character varying(255),
+    language character varying(10),
+    token_digest character(64) NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    invited_by uuid,
+    accepted_user_id uuid,
+    sent_at timestamp with time zone,
+    resend_count integer DEFAULT 0 NOT NULL,
+    accepted_at timestamp with time zone,
+    revoked_at timestamp with time zone,
+    revoked_by uuid,
+    deactivation_override_reason text,
+    deactivation_override_at timestamp with time zone,
+    onboarding_completed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT parent_invitations_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'revoked'::text])))
+);
+
+
+--
+-- Name: COLUMN parent_invitations.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.parent_invitations.status IS 'Lifecycle the database controls: pending, accepted or revoked. Expiry is derived from expires_at and is deliberately not a status.';
+
+
+--
+-- Name: participant_access_grants; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.participant_access_grants (
+    id bigint NOT NULL,
+    participant_id integer NOT NULL,
+    user_id uuid NOT NULL,
+    source_type text NOT NULL,
+    source_id text,
+    granted_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    revoked_at timestamp with time zone,
+    CONSTRAINT participant_access_grants_source_type_check CHECK ((source_type = ANY (ARRAY['direct'::text, 'guardian'::text, 'admin'::text, 'family_link'::text])))
+);
+
+
+--
+-- Name: TABLE participant_access_grants; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.participant_access_grants IS 'Provenance for user_participants. A person may hold access for several reasons at once; removing one reason must not remove the others, which is the question user_participants alone cannot answer.';
+
+
+--
+-- Name: participant_access_grants_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.participant_access_grants_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: participant_access_grants_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.participant_access_grants_id_seq OWNED BY public.participant_access_grants.id;
+
+
+--
 -- Name: participant_credentials; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3747,6 +3986,47 @@ ALTER SEQUENCE public.participant_credentials_id_seq OWNED BY public.participant
 
 
 --
+-- Name: participant_duplicate_candidates; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.participant_duplicate_candidates (
+    id integer NOT NULL,
+    organization_id integer NOT NULL,
+    participant_id_low integer NOT NULL,
+    participant_id_high integer NOT NULL,
+    detected_via text NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    detected_at timestamp with time zone DEFAULT now() NOT NULL,
+    resolved_at timestamp with time zone,
+    resolved_by uuid,
+    resolution_note text,
+    CONSTRAINT participant_duplicate_candidates_detected_via_check CHECK ((detected_via = ANY (ARRAY['family_link'::text, 'onboarding'::text]))),
+    CONSTRAINT participant_duplicate_candidates_ordered_pair CHECK ((participant_id_low < participant_id_high)),
+    CONSTRAINT participant_duplicate_candidates_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'same_person'::text, 'different'::text])))
+);
+
+
+--
+-- Name: participant_duplicate_candidates_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.participant_duplicate_candidates_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: participant_duplicate_candidates_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.participant_duplicate_candidates_id_seq OWNED BY public.participant_duplicate_candidates.id;
+
+
+--
 -- Name: participant_enrollments; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3761,6 +4041,8 @@ CREATE TABLE public.participant_enrollments (
     exception_note text,
     transferred_to_organization_id integer,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    transferred_at timestamp with time zone,
+    transferred_by uuid,
     CONSTRAINT participant_enrollments_status_check CHECK ((status = ANY (ARRAY['active'::text, 'graduated'::text, 'left'::text, 'transferred'::text])))
 );
 
@@ -3770,6 +4052,39 @@ CREATE TABLE public.participant_enrollments (
 --
 
 COMMENT ON COLUMN public.participant_enrollments.inscription_date IS 'Date à laquelle le participant a joint l''organisation';
+
+
+--
+-- Name: COLUMN participant_enrollments.transferred_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.participant_enrollments.transferred_at IS 'When the transfer was carried out. Distinct from ended_on, which is the date the enrollment stopped counting and may be back-dated to the year boundary.';
+
+
+--
+-- Name: COLUMN participant_enrollments.transferred_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.participant_enrollments.transferred_by IS 'Who carried out the transfer. A transfer moves a file between two tenants, which is why it names a person rather than only a destination.';
+
+
+--
+-- Name: participant_erasure_approvals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.participant_erasure_approvals (
+    participant_id integer NOT NULL,
+    organization_id integer NOT NULL,
+    approved_by uuid,
+    approved_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE participant_erasure_approvals; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.participant_erasure_approvals IS 'Per-organization approvals for erasing a participant whose global record is owned by multiple organizations. Rows disappear with the participant.';
 
 
 --
@@ -4246,6 +4561,13 @@ COMMENT ON COLUMN public.permission_slips.reminder_sent_at IS 'Timestamp when re
 
 
 --
+-- Name: COLUMN permission_slips.guardians_emailed; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.permission_slips.guardians_emailed IS 'Array of guardian IDs that have been sent email notifications for this permission slip';
+
+
+--
 -- Name: permission_slips_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -4275,7 +4597,8 @@ CREATE TABLE public.permissions (
     permission_name character varying(100) NOT NULL,
     category character varying(50) NOT NULL,
     description text,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    self_scoped boolean DEFAULT false NOT NULL
 );
 
 
@@ -4774,7 +5097,8 @@ CREATE TABLE public.roles (
     is_system_role boolean DEFAULT false,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    data_scope character varying(50) DEFAULT 'organization'::character varying
+    data_scope character varying(50) DEFAULT 'organization'::character varying,
+    organization_id integer
 );
 
 
@@ -4803,6 +5127,17 @@ CREATE SEQUENCE public.roles_id_seq
 --
 
 ALTER SEQUENCE public.roles_id_seq OWNED BY public.roles.id;
+
+
+--
+-- Name: schema_migrations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.schema_migrations (
+    migration_name text NOT NULL,
+    description text,
+    applied_at timestamp with time zone DEFAULT now() NOT NULL
+);
 
 
 --
@@ -5220,8 +5555,41 @@ CREATE TABLE public.user_organizations (
     deactivated_at timestamp with time zone,
     deactivated_reason text,
     last_active_scout_year_id integer,
+    alumni_invited_at timestamp with time zone,
+    alumni_consent_at timestamp with time zone,
+    alumni_opted_out_at timestamp with time zone,
+    reactivation_requested_at timestamp with time zone,
+    CONSTRAINT user_organizations_alumni_requires_consent CHECK (((status <> 'alumni'::text) OR (alumni_consent_at IS NOT NULL))),
     CONSTRAINT user_organizations_status_check CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text, 'alumni'::text])))
 );
+
+
+--
+-- Name: COLUMN user_organizations.alumni_invited_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.user_organizations.alumni_invited_at IS 'When the alumni opt-in email was sent. Set so a later transition does not ask a second time; a NULL here on an inactive membership is what makes it a candidate for the invitation.';
+
+
+--
+-- Name: COLUMN user_organizations.alumni_consent_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.user_organizations.alumni_consent_at IS 'When the person opted in, through the signed link in that email. Only a row with this set may carry status = ''alumni''.';
+
+
+--
+-- Name: COLUMN user_organizations.alumni_opted_out_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.user_organizations.alumni_opted_out_at IS 'When the person unsubscribed. The membership goes back to ''inactive''; the timestamp stays as the proof the request was honoured.';
+
+
+--
+-- Name: COLUMN user_organizations.reactivation_requested_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.user_organizations.reactivation_requested_at IS 'Set when a deactivated member confirmed an emailed reactivation link that needs an admin decision. Cleared whenever the membership becomes active again.';
 
 
 --
@@ -5596,8 +5964,17 @@ CREATE TABLE public.year_plan_meeting_activities (
     material text,
     is_default boolean DEFAULT false NOT NULL,
     badge_template_id integer,
-    processed boolean DEFAULT false NOT NULL
+    processed boolean DEFAULT false NOT NULL,
+    day_offset integer DEFAULT 0 NOT NULL,
+    CONSTRAINT ypm_activities_day_offset_check CHECK (((day_offset >= 0) AND (day_offset < 60)))
 );
+
+
+--
+-- Name: COLUMN year_plan_meeting_activities.day_offset; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.year_plan_meeting_activities.day_offset IS 'Days after the meeting date this schedule line belongs to. 0 for a regular meeting night and for the first day of a camp.';
 
 
 --
@@ -5618,6 +5995,50 @@ CREATE SEQUENCE public.year_plan_meeting_activities_id_seq
 --
 
 ALTER SEQUENCE public.year_plan_meeting_activities_id_seq OWNED BY public.year_plan_meeting_activities.id;
+
+
+--
+-- Name: year_plan_meeting_days; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.year_plan_meeting_days (
+    id integer NOT NULL,
+    organization_id integer NOT NULL,
+    meeting_id integer NOT NULL,
+    day_offset integer DEFAULT 0 NOT NULL,
+    title character varying(255),
+    notes text,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT year_plan_meeting_days_day_offset_check CHECK (((day_offset >= 0) AND (day_offset < 60)))
+);
+
+
+--
+-- Name: TABLE year_plan_meeting_days; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.year_plan_meeting_days IS 'Per-day heading for a multi-day block (camp). One row per day of the span; the timed lines themselves live in year_plan_meeting_activities.day_offset.';
+
+
+--
+-- Name: year_plan_meeting_days_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.year_plan_meeting_days_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: year_plan_meeting_days_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.year_plan_meeting_days_id_seq OWNED BY public.year_plan_meeting_days.id;
 
 
 --
@@ -5646,7 +6067,9 @@ CREATE TABLE public.year_plan_meetings (
     animateur_responsable uuid,
     duration_override integer,
     activity_id integer,
-    CONSTRAINT year_plan_meetings_duration_override_check CHECK (((duration_override IS NULL) OR (duration_override > 0)))
+    meeting_kind character varying(20) DEFAULT 'regular'::character varying NOT NULL,
+    CONSTRAINT year_plan_meetings_duration_override_check CHECK (((duration_override IS NULL) OR (duration_override > 0))),
+    CONSTRAINT year_plan_meetings_kind_check CHECK (((meeting_kind)::text = ANY ((ARRAY['regular'::character varying, 'weekend'::character varying, 'camp'::character varying, 'special'::character varying])::text[])))
 );
 
 
@@ -5655,6 +6078,13 @@ CREATE TABLE public.year_plan_meetings (
 --
 
 COMMENT ON COLUMN public.year_plan_meetings.activity_id IS 'Optional link to an outing/event in the activities table (carpools, permission slips).';
+
+
+--
+-- Name: COLUMN year_plan_meetings.meeting_kind; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.year_plan_meetings.meeting_kind IS 'regular = weekly meeting night; weekend = single out-of-schedule outing; camp = multi-day block (span lives on the linked activities row); special = one-off date that is neither.';
 
 
 --
@@ -5816,8 +6246,16 @@ CREATE TABLE public.year_plans (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     is_active boolean DEFAULT true,
+    scout_year_id integer,
     CONSTRAINT year_plans_recurrence_pattern_check CHECK (((recurrence_pattern)::text = ANY (ARRAY[('weekly'::character varying)::text, ('biweekly'::character varying)::text])))
 );
+
+
+--
+-- Name: COLUMN year_plans.scout_year_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.year_plans.scout_year_id IS 'Scout year that owns this historical plan. Plans are not copied during rollover.';
 
 
 --
@@ -5964,6 +6402,13 @@ ALTER TABLE ONLY public.equipment_reservations ALTER COLUMN id SET DEFAULT nextv
 --
 
 ALTER TABLE ONLY public.erasure_log ALTER COLUMN id SET DEFAULT nextval('public.erasure_log_id_seq'::regclass);
+
+
+--
+-- Name: family_links id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_links ALTER COLUMN id SET DEFAULT nextval('public.family_links_id_seq'::regclass);
 
 
 --
@@ -6198,10 +6643,24 @@ ALTER TABLE ONLY public.parents_guardians ALTER COLUMN id SET DEFAULT nextval('p
 
 
 --
+-- Name: participant_access_grants id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_access_grants ALTER COLUMN id SET DEFAULT nextval('public.participant_access_grants_id_seq'::regclass);
+
+
+--
 -- Name: participant_credentials id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.participant_credentials ALTER COLUMN id SET DEFAULT nextval('public.participant_credentials_id_seq'::regclass);
+
+
+--
+-- Name: participant_duplicate_candidates id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_duplicate_candidates ALTER COLUMN id SET DEFAULT nextval('public.participant_duplicate_candidates_id_seq'::regclass);
 
 
 --
@@ -6440,6 +6899,13 @@ ALTER TABLE ONLY public.whatsapp_baileys_connections ALTER COLUMN id SET DEFAULT
 --
 
 ALTER TABLE ONLY public.year_plan_meeting_activities ALTER COLUMN id SET DEFAULT nextval('public.year_plan_meeting_activities_id_seq'::regclass);
+
+
+--
+-- Name: year_plan_meeting_days id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.year_plan_meeting_days ALTER COLUMN id SET DEFAULT nextval('public.year_plan_meeting_days_id_seq'::regclass);
 
 
 --
@@ -6699,6 +7165,22 @@ ALTER TABLE ONLY public.equipment_reservations
 
 ALTER TABLE ONLY public.erasure_log
     ADD CONSTRAINT erasure_log_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: family_link_requests family_link_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_link_requests
+    ADD CONSTRAINT family_link_requests_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: family_links family_links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_links
+    ADD CONSTRAINT family_links_pkey PRIMARY KEY (id);
 
 
 --
@@ -7166,6 +7648,30 @@ ALTER TABLE ONLY public.pab_themes
 
 
 --
+-- Name: parent_invitation_participants parent_invitation_participants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.parent_invitation_participants
+    ADD CONSTRAINT parent_invitation_participants_pkey PRIMARY KEY (invitation_id, participant_id);
+
+
+--
+-- Name: parent_invitations parent_invitations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.parent_invitations
+    ADD CONSTRAINT parent_invitations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: participant_access_grants participant_access_grants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_access_grants
+    ADD CONSTRAINT participant_access_grants_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: participant_credentials participant_credentials_organization_id_participant_id_cred_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7182,11 +7688,27 @@ ALTER TABLE ONLY public.participant_credentials
 
 
 --
+-- Name: participant_duplicate_candidates participant_duplicate_candidates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_duplicate_candidates
+    ADD CONSTRAINT participant_duplicate_candidates_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: participant_enrollments participant_enrollments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.participant_enrollments
     ADD CONSTRAINT participant_enrollments_pkey PRIMARY KEY (participant_id, organization_id, scout_year_id);
+
+
+--
+-- Name: participant_erasure_approvals participant_erasure_approvals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_erasure_approvals
+    ADD CONSTRAINT participant_erasure_approvals_pkey PRIMARY KEY (participant_id, organization_id);
 
 
 --
@@ -7467,6 +7989,14 @@ ALTER TABLE ONLY public.roles
 
 ALTER TABLE ONLY public.roles
     ADD CONSTRAINT roles_role_name_key UNIQUE (role_name);
+
+
+--
+-- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.schema_migrations
+    ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (migration_name);
 
 
 --
@@ -7811,6 +8341,22 @@ ALTER TABLE ONLY public.whatsapp_baileys_connections
 
 ALTER TABLE ONLY public.year_plan_meeting_activities
     ADD CONSTRAINT year_plan_meeting_activities_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: year_plan_meeting_days year_plan_meeting_days_meeting_id_day_offset_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.year_plan_meeting_days
+    ADD CONSTRAINT year_plan_meeting_days_meeting_id_day_offset_key UNIQUE (meeting_id, day_offset);
+
+
+--
+-- Name: year_plan_meeting_days year_plan_meeting_days_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.year_plan_meeting_days
+    ADD CONSTRAINT year_plan_meeting_days_pkey PRIMARY KEY (id);
 
 
 --
@@ -8218,6 +8764,13 @@ CREATE INDEX idx_equipment_reservations_activity_org ON public.equipment_reserva
 
 
 --
+-- Name: idx_equipment_reservations_lapsed; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_equipment_reservations_lapsed ON public.equipment_reservations USING btree (organization_id) WHERE ((status)::text = 'reserved'::text);
+
+
+--
 -- Name: idx_equipment_reservations_org_date; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8229,6 +8782,48 @@ CREATE INDEX idx_equipment_reservations_org_date ON public.equipment_reservation
 --
 
 CREATE INDEX idx_equipment_reservations_status ON public.equipment_reservations USING btree (status);
+
+
+--
+-- Name: idx_family_link_requests_live; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_family_link_requests_live ON public.family_link_requests USING btree (organization_id, requester_user_id, target_email) WHERE (status = 'pending'::text);
+
+
+--
+-- Name: idx_family_link_requests_requester; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_family_link_requests_requester ON public.family_link_requests USING btree (requester_user_id, status);
+
+
+--
+-- Name: idx_family_link_requests_token_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_family_link_requests_token_digest ON public.family_link_requests USING btree (token_digest);
+
+
+--
+-- Name: idx_family_links_active_pair; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_family_links_active_pair ON public.family_links USING btree (organization_id, user_id_low, user_id_high) WHERE (status = 'active'::text);
+
+
+--
+-- Name: idx_family_links_user_high; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_family_links_user_high ON public.family_links USING btree (user_id_high, organization_id) WHERE (status = 'active'::text);
+
+
+--
+-- Name: idx_family_links_user_low; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_family_links_user_low ON public.family_links USING btree (user_id_low, organization_id) WHERE (status = 'active'::text);
 
 
 --
@@ -8652,10 +9247,80 @@ CREATE INDEX idx_pab_reviews_org_plan ON public.pab_reviews USING btree (organiz
 
 
 --
+-- Name: idx_parent_invitation_participants_participant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_parent_invitation_participants_participant ON public.parent_invitation_participants USING btree (participant_id);
+
+
+--
+-- Name: idx_parent_invitations_accepted_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_parent_invitations_accepted_user ON public.parent_invitations USING btree (accepted_user_id) WHERE (accepted_user_id IS NOT NULL);
+
+
+--
+-- Name: idx_parent_invitations_live_email; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_parent_invitations_live_email ON public.parent_invitations USING btree (organization_id, email) WHERE (status = 'pending'::text);
+
+
+--
+-- Name: idx_parent_invitations_organization_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_parent_invitations_organization_status ON public.parent_invitations USING btree (organization_id, status, created_at DESC);
+
+
+--
+-- Name: idx_parent_invitations_token_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_parent_invitations_token_digest ON public.parent_invitations USING btree (token_digest);
+
+
+--
+-- Name: idx_participant_access_grants_live; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_participant_access_grants_live ON public.participant_access_grants USING btree (participant_id, user_id, source_type, COALESCE(source_id, ''::text)) WHERE (revoked_at IS NULL);
+
+
+--
+-- Name: idx_participant_access_grants_source; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_participant_access_grants_source ON public.participant_access_grants USING btree (source_type, source_id) WHERE (revoked_at IS NULL);
+
+
+--
+-- Name: idx_participant_access_grants_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_participant_access_grants_user ON public.participant_access_grants USING btree (user_id) WHERE (revoked_at IS NULL);
+
+
+--
 -- Name: idx_participant_credentials_org_participant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_participant_credentials_org_participant ON public.participant_credentials USING btree (organization_id, participant_id);
+
+
+--
+-- Name: idx_participant_duplicate_candidates_pair; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_participant_duplicate_candidates_pair ON public.participant_duplicate_candidates USING btree (organization_id, participant_id_low, participant_id_high);
+
+
+--
+-- Name: idx_participant_duplicate_candidates_pending; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_participant_duplicate_candidates_pending ON public.participant_duplicate_candidates USING btree (organization_id, detected_at DESC) WHERE (status = 'pending'::text);
 
 
 --
@@ -8768,6 +9433,13 @@ CREATE INDEX idx_permission_slips_deadline ON public.permission_slips USING btre
 --
 
 CREATE INDEX idx_permission_slips_email_tracking ON public.permission_slips USING btree (organization_id, meeting_date, email_sent, status) WHERE ((status)::text = 'pending'::text);
+
+
+--
+-- Name: idx_permission_slips_guardians_emailed; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_permission_slips_guardians_emailed ON public.permission_slips USING gin (guardians_emailed);
 
 
 --
@@ -8918,6 +9590,13 @@ CREATE INDEX idx_roles_data_scope ON public.roles USING btree (data_scope);
 
 
 --
+-- Name: idx_roles_organization_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_roles_organization_id ON public.roles USING btree (organization_id);
+
+
+--
 -- Name: idx_submission_data; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9006,6 +9685,13 @@ CREATE INDEX idx_two_factor_codes_expires ON public.two_factor_codes USING btree
 --
 
 CREATE INDEX idx_two_factor_codes_user_org ON public.two_factor_codes USING btree (user_id, organization_id, verified);
+
+
+--
+-- Name: idx_user_organizations_reactivation_pending; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_organizations_reactivation_pending ON public.user_organizations USING btree (organization_id) WHERE (reactivation_requested_at IS NOT NULL);
 
 
 --
@@ -9142,6 +9828,13 @@ CREATE INDEX idx_year_plans_org ON public.year_plans USING btree (organization_i
 
 
 --
+-- Name: idx_year_plans_scout_year; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_year_plans_scout_year ON public.year_plans USING btree (organization_id, scout_year_id, start_date DESC);
+
+
+--
 -- Name: idx_yp_reminders_meeting; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9160,6 +9853,13 @@ CREATE INDEX idx_yp_reminders_org ON public.year_plan_reminders USING btree (org
 --
 
 CREATE INDEX idx_yp_reminders_status ON public.year_plan_reminders USING btree (status, scheduled_at);
+
+
+--
+-- Name: idx_ypm_activities_day; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ypm_activities_day ON public.year_plan_meeting_activities USING btree (meeting_id, day_offset, sort_order);
 
 
 --
@@ -9184,6 +9884,27 @@ CREATE INDEX idx_ypm_activities_unprocessed_badges ON public.year_plan_meeting_a
 
 
 --
+-- Name: idx_ypm_activity_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ypm_activity_id ON public.year_plan_meetings USING btree (activity_id) WHERE (activity_id IS NOT NULL);
+
+
+--
+-- Name: idx_ypm_days_org; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ypm_days_org ON public.year_plan_meeting_days USING btree (organization_id, meeting_id);
+
+
+--
+-- Name: idx_ypm_org_kind; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ypm_org_kind ON public.year_plan_meetings USING btree (organization_id, meeting_kind) WHERE ((meeting_kind)::text <> 'regular'::text);
+
+
+--
 -- Name: medication_admin_auth_year_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9205,10 +9926,24 @@ CREATE INDEX participant_enrollments_participant_idx ON public.participant_enrol
 
 
 --
+-- Name: participant_enrollments_transferred_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX participant_enrollments_transferred_idx ON public.participant_enrollments USING btree (transferred_to_organization_id) WHERE (transferred_to_organization_id IS NOT NULL);
+
+
+--
 -- Name: participant_enrollments_year_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX participant_enrollments_year_idx ON public.participant_enrollments USING btree (organization_id, scout_year_id, status);
+
+
+--
+-- Name: participant_erasure_approvals_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX participant_erasure_approvals_org_idx ON public.participant_erasure_approvals USING btree (organization_id, approved_at DESC);
 
 
 --
@@ -9279,6 +10014,13 @@ CREATE UNIQUE INDEX uq_badge_progress_source ON public.badge_progress USING btre
 --
 
 CREATE UNIQUE INDEX uq_medreq_org_name_start ON public.medication_requirements USING btree (organization_id, medication_name, COALESCE(start_date, '0001-01-01'::date));
+
+
+--
+-- Name: user_organizations_alumni_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX user_organizations_alumni_idx ON public.user_organizations USING btree (organization_id) WHERE (status = 'alumni'::text);
 
 
 --
@@ -9849,6 +10591,70 @@ ALTER TABLE ONLY public.erasure_log
 
 ALTER TABLE ONLY public.erasure_log
     ADD CONSTRAINT erasure_log_performed_by_fkey FOREIGN KEY (performed_by) REFERENCES public.users(id);
+
+
+--
+-- Name: family_link_requests family_link_requests_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_link_requests
+    ADD CONSTRAINT family_link_requests_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: family_link_requests family_link_requests_requester_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_link_requests
+    ADD CONSTRAINT family_link_requests_requester_user_id_fkey FOREIGN KEY (requester_user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: family_link_requests family_link_requests_responded_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_link_requests
+    ADD CONSTRAINT family_link_requests_responded_user_id_fkey FOREIGN KEY (responded_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: family_links family_links_created_from_request_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_links
+    ADD CONSTRAINT family_links_created_from_request_id_fkey FOREIGN KEY (created_from_request_id) REFERENCES public.family_link_requests(id) ON DELETE SET NULL;
+
+
+--
+-- Name: family_links family_links_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_links
+    ADD CONSTRAINT family_links_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: family_links family_links_revoked_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_links
+    ADD CONSTRAINT family_links_revoked_by_fkey FOREIGN KEY (revoked_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: family_links family_links_user_id_high_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_links
+    ADD CONSTRAINT family_links_user_id_high_fkey FOREIGN KEY (user_id_high) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: family_links family_links_user_id_low_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_links
+    ADD CONSTRAINT family_links_user_id_low_fkey FOREIGN KEY (user_id_low) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -10644,6 +11450,13 @@ ALTER TABLE ONLY public.organizations
 
 
 --
+-- Name: CONSTRAINT organizations_program_section_fk ON organizations; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT organizations_program_section_fk ON public.organizations IS 'Deferred by necessity: organization_program_sections references organizations back, so an organization and its default section can only be created together, inside one transaction.';
+
+
+--
 -- Name: pab_plan_items pab_plan_items_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10732,6 +11545,94 @@ ALTER TABLE ONLY public.pab_themes
 
 
 --
+-- Name: parent_invitation_participants parent_invitation_participants_added_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.parent_invitation_participants
+    ADD CONSTRAINT parent_invitation_participants_added_by_fkey FOREIGN KEY (added_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: parent_invitation_participants parent_invitation_participants_invitation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.parent_invitation_participants
+    ADD CONSTRAINT parent_invitation_participants_invitation_id_fkey FOREIGN KEY (invitation_id) REFERENCES public.parent_invitations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: parent_invitation_participants parent_invitation_participants_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.parent_invitation_participants
+    ADD CONSTRAINT parent_invitation_participants_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: parent_invitation_participants parent_invitation_participants_participant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.parent_invitation_participants
+    ADD CONSTRAINT parent_invitation_participants_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: parent_invitations parent_invitations_accepted_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.parent_invitations
+    ADD CONSTRAINT parent_invitations_accepted_user_id_fkey FOREIGN KEY (accepted_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: parent_invitations parent_invitations_invited_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.parent_invitations
+    ADD CONSTRAINT parent_invitations_invited_by_fkey FOREIGN KEY (invited_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: parent_invitations parent_invitations_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.parent_invitations
+    ADD CONSTRAINT parent_invitations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: parent_invitations parent_invitations_revoked_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.parent_invitations
+    ADD CONSTRAINT parent_invitations_revoked_by_fkey FOREIGN KEY (revoked_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: participant_access_grants participant_access_grants_granted_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_access_grants
+    ADD CONSTRAINT participant_access_grants_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: participant_access_grants participant_access_grants_participant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_access_grants
+    ADD CONSTRAINT participant_access_grants_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: participant_access_grants participant_access_grants_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_access_grants
+    ADD CONSTRAINT participant_access_grants_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: participant_credentials participant_credentials_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10756,6 +11657,38 @@ ALTER TABLE ONLY public.participant_credentials
 
 
 --
+-- Name: participant_duplicate_candidates participant_duplicate_candidates_high_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_duplicate_candidates
+    ADD CONSTRAINT participant_duplicate_candidates_high_fkey FOREIGN KEY (participant_id_high) REFERENCES public.participants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: participant_duplicate_candidates participant_duplicate_candidates_low_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_duplicate_candidates
+    ADD CONSTRAINT participant_duplicate_candidates_low_fkey FOREIGN KEY (participant_id_low) REFERENCES public.participants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: participant_duplicate_candidates participant_duplicate_candidates_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_duplicate_candidates
+    ADD CONSTRAINT participant_duplicate_candidates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: participant_duplicate_candidates participant_duplicate_candidates_resolved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_duplicate_candidates
+    ADD CONSTRAINT participant_duplicate_candidates_resolved_by_fkey FOREIGN KEY (resolved_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
 -- Name: participant_enrollments participant_enrollments_scout_year_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10764,11 +11697,43 @@ ALTER TABLE ONLY public.participant_enrollments
 
 
 --
+-- Name: participant_enrollments participant_enrollments_transferred_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_enrollments
+    ADD CONSTRAINT participant_enrollments_transferred_by_fkey FOREIGN KEY (transferred_by) REFERENCES public.users(id);
+
+
+--
 -- Name: participant_enrollments participant_enrollments_transferred_to_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.participant_enrollments
     ADD CONSTRAINT participant_enrollments_transferred_to_organization_id_fkey FOREIGN KEY (transferred_to_organization_id) REFERENCES public.organizations(id);
+
+
+--
+-- Name: participant_erasure_approvals participant_erasure_approvals_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_erasure_approvals
+    ADD CONSTRAINT participant_erasure_approvals_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: participant_erasure_approvals participant_erasure_approvals_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_erasure_approvals
+    ADD CONSTRAINT participant_erasure_approvals_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: participant_erasure_approvals participant_erasure_approvals_participant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participant_erasure_approvals
+    ADD CONSTRAINT participant_erasure_approvals_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id) ON DELETE CASCADE;
 
 
 --
@@ -11156,6 +12121,14 @@ ALTER TABLE ONLY public.role_permissions
 
 
 --
+-- Name: roles roles_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.roles
+    ADD CONSTRAINT roles_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: scout_year_transitions scout_year_transitions_executed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11436,6 +12409,14 @@ ALTER TABLE ONLY public.year_plan_meeting_activities
 
 
 --
+-- Name: year_plan_meeting_days year_plan_meeting_days_meeting_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.year_plan_meeting_days
+    ADD CONSTRAINT year_plan_meeting_days_meeting_id_fkey FOREIGN KEY (meeting_id) REFERENCES public.year_plan_meetings(id) ON DELETE CASCADE;
+
+
+--
 -- Name: year_plan_meetings year_plan_meetings_activity_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11564,8 +12545,16 @@ ALTER TABLE ONLY public.year_plans
 
 
 --
+-- Name: year_plans year_plans_scout_year_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.year_plans
+    ADD CONSTRAINT year_plans_scout_year_id_fkey FOREIGN KEY (scout_year_id) REFERENCES public.scout_years(id) ON DELETE SET NULL;
+
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict gJjnYqQhHIoLpimte7cmxRu8e7oe8dxT2yjqPbaDadautsPtsV0vlWO6li8akVb
+\unrestrict qILYfGSeqbVL9GAwjX5rViFL6UuA0Pk5YfJHVxeefgPs3zlKb1J3pY3La249X7r
 

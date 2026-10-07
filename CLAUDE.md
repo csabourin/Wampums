@@ -191,6 +191,8 @@ const result = await pool.query(
 The current schema is dumped in `attached_assets/Full_Database_schema.sql`, and the permission
 inventory in `attached_assets/permissions_list.sql`. Migration SQL in `migrations/` remains
 authoritative for repository-managed changes.
+Schema refreshes must preserve `COMMENT ON` documentation. Export schema only, omit ownership
+and grants, and review comments and DDL literals for PII or secrets before committing the dump.
 
 #### ID Column Types
 - ✅ **Users:** `id UUID` (generated via `gen_random_uuid()`)
