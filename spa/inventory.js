@@ -1856,6 +1856,7 @@ export class Inventory {
     const trimmed = imageUrl.trim();
     const lowered = trimmed.toLowerCase();
 
+    // eslint-disable-next-line no-script-url -- rejects javascript: image URLs
     if (lowered.startsWith("javascript:") || lowered.startsWith("vbscript:")) {
       debugError("Blocked unsafe image src", imageUrl);
       return null;

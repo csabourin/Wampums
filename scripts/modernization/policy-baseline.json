@@ -1,0 +1,27 @@
+{
+  "catch-shadow": {},
+  "client-org-id": {
+    "routes/organizations.js": 2
+  },
+  "manual-auth": {
+    "routes/announcements.js": 6,
+    "routes/dashboards.js": 5,
+    "routes/external-revenue.js": 5,
+    "routes/forms.js": 40,
+    "routes/groups.js": 2,
+    "routes/import.js": 3,
+    "routes/medication.js": 17,
+    "routes/notifications.js": 7,
+    "routes/participants.js": 6,
+    "routes/whatsapp-baileys.js": 12
+  },
+  "role-names": {
+    "mobile/src/screens/CreateOrganizationScreen.js": 1,
+    "routes/import.js": 2,
+    "routes/organizations.js": 1,
+    "routes/users.js": 2,
+    "services/reactivation.js": 1,
+    "utils/api-helpers.js": 2,
+    "utils/index.js": 1
+  }
+}

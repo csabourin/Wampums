@@ -1,6 +1,6 @@
 # CLAUDE.md - Development Guidelines for Wampums Scout Management System
 
-**Last Updated:** 2026-09-24
+**Last Updated:** 2026-10-07
 **Project:** Wampums Scout Management System
 **Tech Stack:** Node.js + Express, PostgreSQL, Vite (SPA), Vanilla JavaScript (ES modules), Expo/React Native (mobile)
 
@@ -326,9 +326,16 @@ try {
 }
 ```
 
-### 10) ESLint Rules (`.eslintrc.js`)
+### 10) ESLint Rules (`eslint.config.js`)
 
-The project enforces ESLint rules. **Errors block CI; warnings must be resolved before merge.**
+The project enforces ESLint 9 rules (`npm run lint:eslint`). **Errors block CI; warnings must be resolved before merge.**
+
+- Errors that predate CI enforcement are frozen in `eslint-suppressions.json`. A **new** error fails CI.
+- After fixing a suppressed error, run `npm run lint:eslint:prune` and commit the smaller file — CI also
+  fails while the suppressions list errors that no longer exist.
+- Never add to `eslint-suppressions.json` by hand. A false positive gets an inline
+  `// eslint-disable-next-line <rule> -- <reason>`.
+- `mobile/` has its own toolchain and is not linted by the root config.
 
 **Errors (must fix):**
 - `eqeqeq` — always use `===` / `!==`, never `==` / `!=`
@@ -362,12 +369,13 @@ The project enforces ESLint rules. **Errors block CI; warnings must be resolved 
 
 **Override exceptions:**
 - `routes/`, `middleware/`, `services/`, `scripts/` — `no-console` is off (use `console.log` freely)
-- `*.test.js`, `*.spec.js` — `no-magic-numbers` and `no-console` are off
+- `*.test.js`, `*.spec.js` — `no-magic-numbers`, `no-console` and `no-script-url` are off
 - `migrations/`, `config/` — `no-magic-numbers` is off
+- Backend files are parsed as CommonJS; `spa/` and the shared `config/roles.js` / `config/meeting_sections.js` as ES modules
 
 ### 11) Automated Lint Scripts
 
-Run these before every PR. All must pass.
+Run `npm run lint:all` before every PR — it runs every check below, and it is exactly what CI runs.
 
 | Script | What it checks |
 |---|---|
@@ -379,6 +387,21 @@ Run these before every PR. All must pass.
 | `npm run lint:spa-innerhtml` | No `innerHTML =` assignments in `spa/` (except `DOMUtils.js`, `SecurityUtils.js`) |
 | `npm run lint:sql-params` | No template-literal SQL (`pool.query(\`...${var}...\`)`)|
 | `npm run lint:i18n-parity` | `lang/en.json` and `lang/fr.json` have identical key sets |
+| `npm run lint:api-contracts` | SPA API calls match the endpoints the server exposes |
+| `npm run lint:role-names` | No access decided by a role name (§3) — server code, plus `hasRole('…')` in `spa/` and `mobile/src/` |
+| `npm run lint:client-org-id` | No `organization_id` / `x-organization-id` read from the client outside `getOrganizationId` and `getCurrentOrganizationId` |
+| `npm run lint:manual-auth` | No `verifyJWT`, `verifyOrganizationMembership` or `getCurrentOrganizationId` in routes — use `authenticate` + `requirePermission` |
+| `npm run lint:catch-shadow` | No `catch (error)` hiding the `error()` response helper |
+| `npm run lint:eslint` | ESLint errors (§10) |
+
+**Policy checks (`lint:policy` runs the four above) are a ratchet.** Existing violations are counted per
+file in `scripts/modernization/policy-baseline.json`:
+
+- A file may never gain a violation. Fix it, or — only for a use CLAUDE.md permits — annotate it on that
+  line or the line above, with a reason: `// policy-allow manual-auth: public login route, no session yet`
+  (inside SQL, use `-- policy-allow …`).
+- When you remove violations, run `npm run lint:policy -- --update-baseline` and commit the lower counts;
+  CI fails while the baseline overstates them. The script refuses to raise a count.
 
 ---
 
@@ -834,14 +857,8 @@ Before submitting code, verify:
 - [ ] Permission checks before showing UI elements
 
 **Linting (run all before PR):**
-- [ ] `npm run lint:api-version` passes
-- [ ] `npm run lint:duplicate-mounts` passes
-- [ ] `npm run lint:non-versioned-mounts` passes
-- [ ] `npm run lint:spa-files` passes
-- [ ] `npm run lint:spa-console` passes
-- [ ] `npm run lint:spa-innerhtml` passes
-- [ ] `npm run lint:sql-params` passes
-- [ ] `npm run lint:i18n-parity` passes
+- [ ] `npm run lint:all` passes (all checks in §11, ESLint included)
+- [ ] Baselines lowered when violations were removed; no new `policy-allow` without a CLAUDE.md-permitted reason
 
 **General:**
 - [ ] No commented-out code

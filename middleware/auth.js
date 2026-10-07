@@ -571,6 +571,7 @@ exports.blockDemoRoles = async (req, res, next) => {
       JOIN roles r ON r.id = role_id_text::integer
       WHERE uo.user_id = $1
         AND uo.organization_id = $2
+        -- policy-allow role-names: demo accounts are described by role (CLAUDE.md §3)
         AND r.role_name IN ('demoadmin', 'demoparent')
     `;
 

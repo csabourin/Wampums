@@ -157,6 +157,7 @@ module.exports = (pool, logger) => {
    */
   router.get('/news', asyncHandler(async (req, res) => {
     try {
+      // policy-allow manual-auth: public route resolving the unit from domain/header
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
       const lang = SUPPORTED_TRANSLATION_LANGS.includes(req.query.lang) ? req.query.lang : 'en';
 
@@ -549,6 +550,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
+        // policy-allow manual-auth: public route resolving the unit from domain/header
         const organizationId = await getCurrentOrganizationId(
           req,
           pool,

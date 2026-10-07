@@ -37,15 +37,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ripgrep
 
+      # Every CLAUDE.md guardrail, ESLint included. Existing violations are
+      # baselined (policy-baseline.json, eslint-suppressions.json): new ones
+      # fail, and fixed ones must be removed from the baseline.
       - name: Lint and policy checks
-        run: |
-          npm run lint:api-version
-          npm run lint:duplicate-mounts
-          npm run lint:spa-files
-          npm run lint:spa-console
-          npm run lint:spa-innerhtml
-          npm run lint:sql-params
-          npm run lint:non-versioned-mounts
+        run: npm run lint:all
 
       - name: Build SPA
         run: npm run build
