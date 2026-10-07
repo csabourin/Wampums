@@ -79,6 +79,11 @@ export class CompleteRegistration {
     this.renderLoading();
     this.link = this.token ? await describeLink(DESCRIBE_PATH, this.token) : { state: 'invalid' };
 
+    if (this.link.state === 'load_error') {
+      this.renderLoadError();
+      return;
+    }
+
     // Speak the email's language. If switching reloads the route, the reload
     // renders this page afresh and this pass must not render over it.
     if (await adoptLinkLanguage(this.app, this.link.language)) {
@@ -94,6 +99,19 @@ export class CompleteRegistration {
         showLogin: this.link.state === 'accepted',
       });
     }
+  }
+
+  /** Show a retryable load failure without declaring the emailed link invalid. */
+  renderLoadError() {
+    setContent(this.root(), `
+      <section class="page complete-registration">
+        ${this.backLink()}
+        <h1>${translate('complete_registration_title')}</h1>
+        <p class="status-message error" role="alert">${translate('family_link_load_failed')}</p>
+        <button type="button" class="button button--primary" data-link-retry>${translate('parent_invitations_retry')}</button>
+      </section>
+    `);
+    this.root()?.querySelector('[data-link-retry]')?.addEventListener('click', () => this.init());
   }
 
   /** @returns {HTMLElement|null} The page root */
@@ -187,7 +205,7 @@ export class CompleteRegistration {
     }
 
     const button = document.getElementById('complete-registration-submit');
-    if (button) button.disabled = true;
+    if (button) {button.disabled = true;}
 
     const { password_confirm: _confirm, ...fields } = values;
     const outcome = await postLink(ACCEPT_PATH, { token: this.token, ...fields });
@@ -240,7 +258,7 @@ export class CompleteRegistration {
     }
 
     if (!outcome.ok || data.error) {
-      if (button) button.disabled = false;
+      if (button) {button.disabled = false;}
       this.showError(FIXABLE_ERRORS[data.error] || 'complete_registration_failed');
       return;
     }
@@ -266,7 +284,7 @@ export class CompleteRegistration {
    */
   showError(key) {
     const element = document.getElementById('complete-registration-error');
-    if (!element) return;
+    if (!element) {return;}
     element.textContent = translate(key);
     element.hidden = false;
   }

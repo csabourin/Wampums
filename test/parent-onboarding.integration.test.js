@@ -199,7 +199,7 @@ describe.skipIf(!DATABASE_URL)('Parent onboarding', () => {
   });
 
   afterAll(async () => {
-    if (pool) await pool.end();
+    if (pool) {await pool.end();}
   });
 
   beforeEach(async () => {
@@ -531,4 +531,70 @@ describe.skipIf(!DATABASE_URL)('Parent onboarding', () => {
     const after = await request(app).get('/api/v1/parent-onboarding/context');
     expect(after.body.data.onboarding_pending).toBe(false);
   });
+
+  test('parents can correct their child, but another family cannot edit or withdraw it', async () => {
+    const made = await registerChild(ids.parentId, LEA);
+    const childId = made.body.data.participant_id;
+    const path = `/api/v1/parent-onboarding/children/${childId}`;
+    const corrected = { ...LEA, first_name: 'Léa Marie', date_naissance: '2016-05-02' };
+    mockContext.userId = ids.strangerId;
+    expect((await request(app).put(path).send(corrected)).status).toBe(404);
+    expect((await request(app).delete(path)).status).toBe(404);
+    mockContext.userId = ids.parentId;
+    const response = await request(app).put(path).send(corrected);
+    expect(response.status).toBe(200);
+    expect(response.body.data.child).toMatchObject(corrected);
+    expect(await one('SELECT count(*) FROM participants WHERE id = $1', [childId])).toBe('1');
+  });
+
+  test('withdrawal preserves history and access, and can be undone by reenrollment', async () => {
+    const made = await registerChild(ids.parentId, LEA);
+    const childId = made.body.data.participant_id;
+    await pool.query(
+      'INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id) VALUES ($1, $2, $3)',
+      [childId, ids.organizationId, ids.lastYearId]
+    );
+    mockContext.userId = ids.parentId;
+    const removed = await request(app).delete(`/api/v1/parent-onboarding/children/${childId}`);
+    expect(removed.status).toBe(200);
+    expect(await one('SELECT status FROM participant_enrollments WHERE participant_id = $1 AND scout_year_id = $2',
+      [childId, ids.activeYearId])).toBe('left');
+    expect(await one('SELECT status FROM participant_enrollments WHERE participant_id = $1 AND scout_year_id = $2',
+      [childId, ids.lastYearId])).toBe('active');
+    expect(await one('SELECT count(*) FROM user_participants WHERE participant_id = $1 AND user_id = $2',
+      [childId, ids.parentId])).toBe('1');
+    const again = await registerChild(ids.parentId, LEA);
+    expect(again.body.data).toMatchObject({ result: 'reenrolled', participant_id: childId });
+  });
+
+  test('a shared co-parent can correct details but cannot withdraw a borrowed child', async () => {
+    const made = await registerChild(ids.parentId, LEA);
+    const childId = made.body.data.participant_id;
+    mockContext.userId = ids.coParentId;
+    expect((await request(app).delete(`/api/v1/parent-onboarding/children/${childId}`)).status).toBe(404);
+    expect((await request(app).put(`/api/v1/parent-onboarding/children/${childId}`)
+      .send({ ...LEA, first_name: 'Léa Marie' })).status).toBe(200);
+  });
+
+  test('correction refuses invalid dates and duplicate child identities', async () => {
+    const first = await registerChild(ids.parentId, LEA);
+    const second = await registerChild(ids.parentId, { ...LEA, first_name: 'Noé' });
+    mockContext.userId = ids.parentId;
+    const path = `/api/v1/parent-onboarding/children/${second.body.data.participant_id}`;
+    expect((await request(app).put(path).send(LEA)).status).toBe(409);
+    expect((await request(app).put(path).send({ ...LEA, date_naissance: '2016-02-30' })).status).toBe(400);
+    expect(await one('SELECT first_name FROM participants WHERE id = $1', [first.body.data.participant_id])).toBe('Léa');
+  });
+
+  test('registration paperwork dates are saved with the child’s enrollment', async () => {
+    const made = await registerChild(ids.parentId, { ...LEA, inscription_date: '2026-09-15' });
+    const childId = made.body.data.participant_id;
+    expect(await one('SELECT inscription_date::text FROM participant_enrollments WHERE participant_id = $1', [childId])).toBe('2026-09-15');
+    mockContext.userId = ids.parentId;
+    const changed = await request(app).put(`/api/v1/parent-onboarding/children/${childId}`)
+      .send({ ...LEA, inscription_date: '2026-09-16' });
+    expect(changed.status).toBe(200);
+    expect(await one('SELECT inscription_date::text FROM participant_enrollments WHERE participant_id = $1', [childId])).toBe('2026-09-16');
+  });
+
 });

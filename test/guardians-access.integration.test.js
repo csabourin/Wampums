@@ -731,4 +731,24 @@ describe.skipIf(!DATABASE_URL)('Guardians of a child', () => {
     expect(response.status).toBe(200);
     expect(response.body.data.length).toBeGreaterThan(0);
   });
+
+  test('removing a guardian revokes only that child’s guardian grants and reports remaining access', async () => {
+    const first = await child('Guardian removal first');
+    const sibling = await child('Guardian removal sibling');
+    const guardianId = ids.aliceRecord;
+    await pool.query('INSERT INTO participant_guardians (guardian_id, participant_id) VALUES ($1, $2), ($1, $3)',
+      [guardianId, first, sibling]);
+    await grantParticipantAccess(pool, { participantId: first, userId: ids.alice.id, sourceType: ACCESS_SOURCE.GUARDIAN, sourceId: guardianId });
+    await grantParticipantAccess(pool, { participantId: sibling, userId: ids.alice.id, sourceType: ACCESS_SOURCE.GUARDIAN, sourceId: guardianId });
+    const removed = await as(ids.staff.id).delete('/api/v1/guardians').query({ participant_id: first, guardian_id: guardianId });
+    expect(removed.status).toBe(200);
+    expect(removed.body.data.access_remaining).toBe(false);
+    expect(await one('SELECT count(*) FROM user_participants WHERE participant_id = $1 AND user_id = $2', [first, ids.alice.id])).toBe('0');
+    expect(await one('SELECT count(*) FROM user_participants WHERE participant_id = $1 AND user_id = $2', [sibling, ids.alice.id])).toBe('1');
+    await grantParticipantAccess(pool, { participantId: sibling, userId: ids.alice.id, sourceType: ACCESS_SOURCE.DIRECT });
+    const second = await as(ids.staff.id).delete('/api/v1/guardians').query({ participant_id: sibling, guardian_id: guardianId });
+    expect(second.body.data.access_remaining).toBe(true);
+    expect(await one('SELECT count(*) FROM user_participants WHERE participant_id = $1 AND user_id = $2', [sibling, ids.alice.id])).toBe('1');
+  });
+
 });

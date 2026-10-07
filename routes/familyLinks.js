@@ -27,12 +27,11 @@ const {
 } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateEmail, checkValidation, normalizeEmailValue } = require('../middleware/validation');
-const { resolveOrganizationBaseUrl } = require('../utils/public-url');
+const { deliverFamilyRequest } = require('../services/familyDelivery');
 const {
   createFamilyLinkRequest,
   resendFamilyLinkRequest,
   withdrawFamilyLinkRequest,
-  deliverFamilyLinkRequest,
   listFamilyLinks,
   endFamilyLink,
 } = require('../services/familyLinks');
@@ -125,11 +124,9 @@ module.exports = (pool, logger) => {
         });
       }
 
-      const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
-      const emailSent = await deliverFamilyLinkRequest(pool, {
+      const emailSent = await deliverFamilyRequest(pool, {
         request: created.request,
         token: created.token,
-        baseUrl,
         logger,
       });
 
@@ -164,11 +161,9 @@ module.exports = (pool, logger) => {
         return error(res, 'Request not found', 404);
       }
 
-      const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
-      const emailSent = await deliverFamilyLinkRequest(pool, {
+      const emailSent = await deliverFamilyRequest(pool, {
         request: resent.request,
         token: resent.token,
-        baseUrl,
         logger,
       });
 

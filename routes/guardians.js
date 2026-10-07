@@ -14,6 +14,7 @@
  */
 
 const express = require('express');
+const HTTP_STATUS = { BAD_REQUEST: 400, NOT_FOUND: 404 };
 const router = express.Router();
 
 // Import middleware and utilities
@@ -26,6 +27,7 @@ const {
   userHasPermission,
 } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { revokeGuardianAccess } = require('../services/participantAccess');
 const { splitFullName } = require('../services/accountProvisioning');
 
 /** Shape of a user id (users.id is a UUID). */
@@ -699,31 +701,57 @@ module.exports = (pool) => {
    */
   router.delete('/', authenticate, blockDemoRoles, requirePermission('guardians.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const { participant_id, guardian_id } = req.query;
+    const { participant_id: participantId, guardian_id: guardianId } = req.query;
 
-    if (!participant_id || !guardian_id) {
-      return error(res, 'Participant ID and Guardian ID are required', 400);
+    if (!participantId || !guardianId) {
+      return error(res, 'Participant ID and Guardian ID are required', HTTP_STATUS.BAD_REQUEST);
     }
 
-    // Verify the guardian-participant link belongs to this organization
-    const linkCheck = await pool.query(
-      `SELECT pg.guardian_id FROM participant_guardians pg
-       JOIN participants p ON pg.participant_id = p.id
-       JOIN participant_organizations po ON p.id = po.participant_id
-       WHERE pg.guardian_id = $1 AND pg.participant_id = $2 AND po.organization_id = $3`,
-      [guardian_id, participant_id, organizationId]
-    );
-
-    if (linkCheck.rows.length === 0) {
-      return error(res, 'Guardian link not found in this organization', 404);
+    if (!isPositiveInteger(participantId) || !isPositiveInteger(guardianId)) {
+      return error(res, 'Participant and guardian IDs must be positive integers', HTTP_STATUS.BAD_REQUEST);
     }
-
-    await pool.query(
-      `DELETE FROM participant_guardians WHERE guardian_id = $1 AND participant_id = $2`,
-      [guardian_id, participant_id]
-    );
-
-    return success(res, null, 'Guardian removed successfully');
+    if (!(await mayActOnGuardians(req, participantId, organizationId, 'guardians.manage'))) {
+      return refuse(res, 'guardians.manage');
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const linkCheck = await client.query(
+        `SELECT pg.guardian_id FROM participant_guardians pg
+          WHERE pg.guardian_id = $1 AND pg.participant_id = $2
+            AND EXISTS (SELECT 1 FROM participant_enrollments pe
+                         WHERE pe.participant_id = pg.participant_id AND pe.organization_id = $3)
+          FOR UPDATE`,
+        [guardianId, participantId, organizationId]
+      );
+      if (linkCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return error(res, 'Guardian link not found in this organization', HTTP_STATUS.NOT_FOUND);
+      }
+      await client.query(
+        `DELETE FROM participant_guardians WHERE guardian_id = $1 AND participant_id = $2`,
+        [guardianId, participantId]
+      );
+      await revokeGuardianAccess(client, { participantId, guardianId });
+      const remaining = await client.query(
+        `SELECT EXISTS (
+           SELECT 1 FROM user_participants up
+             JOIN user_organizations uo ON uo.user_id = up.user_id AND uo.organization_id = $3
+            WHERE up.participant_id = $2 AND up.user_id IN (
+              SELECT user_uuid FROM parents_guardians WHERE id = $1
+              UNION SELECT user_id FROM guardian_users WHERE guardian_id = $1
+            )
+         ) AS access_remaining`,
+        [guardianId, participantId, organizationId]
+      );
+      await client.query('COMMIT');
+      return success(res, { access_remaining: remaining.rows[0].access_remaining }, 'Guardian removed successfully');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
   }));
 
   /**

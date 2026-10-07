@@ -30,15 +30,16 @@ import { loadFamilyAccessStyles } from '../family-access/styles.js';
 import {
   getOnboardingContext,
   registerChild,
+  updateOwnChild,
+  withdrawOwnChild,
   completeOnboarding,
 } from '../../api/api-family.js';
+import { familyOperationErrorKey, beginFamilyOperation, refreshFamilyAfterWrite } from '../family-access/operations.js';
+import { openChildEditor } from '../family-access/childEditor.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
-/**
- * The oldest a participant can plausibly be at registration, matching the
- * server. The Rover section ends at 25.
- */
-const MAX_PARTICIPANT_AGE_YEARS = 26;
+import { birthDateBounds, childProblem } from '../family-access/childValidation.js';
+export { birthDateBounds, childProblem } from '../family-access/childValidation.js';
 
 /** Birth dates as a parent reads them. */
 const BIRTH_DATE = { year: 'numeric', month: 'long', day: 'numeric' };
@@ -49,48 +50,6 @@ const RESULT_MESSAGES = {
   reenrolled: 'onboarding_child_reenrolled',
   enrolled_existing: 'onboarding_child_enrolled_existing',
 };
-
-/**
- * Today and the earliest plausible birth date, as ISO dates in local time.
- *
- * @param {Date} [now] - Clock reading, for tests
- * @returns {{today: string, earliest: string}} Date bounds
- */
-export function birthDateBounds(now = new Date()) {
-  const iso = (date) => [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('-');
-  const earliest = new Date(now);
-  earliest.setFullYear(earliest.getFullYear() - MAX_PARTICIPANT_AGE_YEARS);
-  return { today: iso(now), earliest: iso(earliest) };
-}
-
-/**
- * Check a child's details the way the server will, so the parent hears about a
- * problem before submitting.
- *
- * @param {Object} child - `first_name`, `last_name`, `date_naissance`
- * @param {Date} [now] - Clock reading, for tests
- * @returns {string|null} Translation key of the first problem, or null
- */
-export function childProblem(child, now = new Date()) {
-  if (!child.first_name || !child.last_name) {
-    return 'onboarding_error_name_required';
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(child.date_naissance || '')) {
-    return 'onboarding_error_dob_required';
-  }
-  const { today, earliest } = birthDateBounds(now);
-  if (child.date_naissance > today) {
-    return 'onboarding_error_dob_future';
-  }
-  if (child.date_naissance < earliest) {
-    return 'onboarding_error_dob_too_old';
-  }
-  return null;
-}
 
 export class ParentOnboarding {
   /**
@@ -177,6 +136,10 @@ export class ParentOnboarding {
             ${translate('onboarding_register_this_year')}
           </button>
         `}
+        ${child.can_edit || child.can_manage ? `<div class="family-child-actions">
+          <button type="button" class="button button--small button--secondary" data-edit-child="${id}">${translate('edit')}</button>
+          ${child.can_manage && child.enrolled_this_year ? `<button type="button" class="button button--small button--danger" data-withdraw-child="${id}">${translate('family_child_withdraw')}</button>` : ''}
+        </div>` : ''}
       </li>
     `;
   }
@@ -200,8 +163,8 @@ export class ParentOnboarding {
 
         <h2>${translate('onboarding_your_children')}</h2>
         ${children.length === 0
-          ? `<p class="empty-state">${translate('onboarding_no_children')}</p>`
-          : `<ul class="onboarding-children">${children.map((child) => this.renderChild(child)).join('')}</ul>`}
+    ? `<p class="empty-state">${translate('onboarding_no_children')}</p>`
+    : `<ul class="onboarding-children">${children.map((child) => this.renderChild(child)).join('')}</ul>`}
 
         <h2>${translate('onboarding_add_child')}</h2>
         <form id="onboarding-child-form" novalidate>
@@ -260,6 +223,16 @@ export class ParentOnboarding {
       });
     });
 
+    this.root()?.querySelectorAll('[data-edit-child]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const child = this.context.children.find((item) => String(item.id) === button.dataset.editChild);
+        if (child) {openChildEditor(this, child, updateOwnChild);}
+      });
+    });
+    this.root()?.querySelectorAll('[data-withdraw-child]').forEach((button) => {
+      button.addEventListener('click', () => this.withdraw(Number(button.dataset.withdrawChild)));
+    });
+
     document.getElementById('onboarding-done')?.addEventListener('click', () => this.finish());
   }
 
@@ -287,33 +260,62 @@ export class ParentOnboarding {
    * @returns {Promise<void>}
    */
   async submitChild(child, confirmSimilar = false) {
+    if (this.pendingAction) {return;}
     const problem = childProblem(child);
     if (problem) {
       this.showError(problem);
       return;
     }
 
-    const button = document.getElementById('onboarding-add');
-    if (button) button.disabled = true;
+    const release = beginFamilyOperation(this);
+    if (!release) {return;}
+    let similarMatches = null;
 
     try {
       const response = await registerChild(confirmSimilar ? { ...child, confirm_similar: true } : child);
-      await this.load();
-      this.render();
+      document.getElementById('onboarding-child-form')?.reset();
+      if (!(await refreshFamilyAfterWrite(this))) {return;}
       this.showStatus(RESULT_MESSAGES[response?.data?.result] || RESULT_MESSAGES.created, child);
     } catch (error) {
-      if (button) button.disabled = false;
 
       if (error?.code === 'similar_child_exists' && !confirmSimilar) {
-        await this.askAboutSimilar(child, error.data?.matches || []);
-        return;
+        similarMatches = error.data?.matches || [];
       }
-      if (error?.code === 'duplicate_child') {
+      else if (error?.code === 'duplicate_child') {
         this.showError('onboarding_error_duplicate');
         return;
       }
-      debugError('Failed to register child:', error);
-      this.showError('onboarding_error_failed');
+      else {
+        debugError('Failed to register child:', error);
+        this.showError(familyOperationErrorKey(error, 'onboarding_error_failed'));
+      }
+    } finally {
+      release();
+    }
+    if (similarMatches) {await this.askAboutSimilar(child, similarMatches);}
+  }
+
+  /** Withdraw only the family's enrollment in this unit and active year. */
+  async withdraw(participantId) {
+    if (this.pendingAction) {return;}
+    const child = this.context.children.find((item) => item.id === participantId);
+    if (!child) {return;}
+    const accepted = await confirm({
+      title: translate('family_child_withdraw'),
+      message: translate('family_child_withdraw_confirm').replace('{name}', `${child.first_name} ${child.last_name}`),
+      confirmLabel: translate('family_child_withdraw'), danger: true,
+    });
+    if (!accepted) {return;}
+    const release = beginFamilyOperation(this);
+    if (!release) {return;}
+    try {
+      await withdrawOwnChild(participantId);
+      if (await refreshFamilyAfterWrite(this)) {this.showStatus('family_child_withdrawn');}
+    } catch (err) {
+      debugError('Failed to withdraw child enrollment:', err);
+      this.showStatus(familyOperationErrorKey(err, 'onboarding_error_failed'), 'error');
+    } finally {
+      release();
     }
   }
 
@@ -353,10 +355,14 @@ export class ParentOnboarding {
    * @returns {Promise<void>}
    */
   async finish() {
+    const release = beginFamilyOperation(this);
+    if (!release) {return;}
     try {
       await completeOnboarding();
     } catch (error) {
       debugError('Failed to mark onboarding complete:', error);
+    } finally {
+      release();
     }
     history.pushState(null, '', '/parent-dashboard');
     await this.app?.router?.route('/parent-dashboard');
@@ -370,7 +376,7 @@ export class ParentOnboarding {
    */
   showError(key) {
     const element = document.getElementById('onboarding-error');
-    if (!element) return;
+    if (!element) {return;}
     element.textContent = translate(key);
     element.hidden = false;
   }
@@ -382,11 +388,13 @@ export class ParentOnboarding {
    * @param {Object} child - The child submitted
    * @returns {void}
    */
-  showStatus(key, child) {
+  showStatus(key, childOrKind = null) {
+    const child = typeof childOrKind === 'object' ? childOrKind : null;
+    const kind = typeof childOrKind === 'string' ? childOrKind : 'success';
     const element = document.getElementById('onboarding-status');
-    if (!element) return;
-    element.textContent = translate(key).split('{name}').join(`${child.first_name} ${child.last_name}`);
-    element.className = 'status-message success';
+    if (!element) {return;}
+    element.textContent = child ? translate(key).split('{name}').join(`${child.first_name} ${child.last_name}`) : translate(key);
+    element.className = `status-message ${kind}`;
     element.hidden = false;
   }
 }

@@ -20,18 +20,19 @@ import { debugError } from '../../utils/DebugUtils.js';
  *
  * @param {string} path - Describe endpoint, e.g. `/api/v1/public/family-links/describe`
  * @param {string} token - Token from the page's own URL
- * @returns {Promise<Object>} The link description; `{ state: 'invalid' }` on any failure
+ * @returns {Promise<Object>} Description, or `load_error` for a retryable failure
  */
 export async function describeLink(path, token) {
   try {
     const url = new URL(getApiUrl(path));
     url.searchParams.set('token', token);
     const response = await fetch(url);
+    if (!response.ok) {return { state: 'load_error' };}
     const body = await response.json();
-    return body?.data || { state: 'invalid' };
+    return body?.data?.state ? body.data : { state: 'load_error' };
   } catch (error) {
     debugError('Failed to describe link:', error);
-    return { state: 'invalid' };
+    return { state: 'load_error' };
   }
 }
 

@@ -32,6 +32,16 @@ export function registerChild(child) {
   return API.post('v1/parent-onboarding/children', child);
 }
 
+/** Correct the details of a child the parent independently holds in this unit. */
+export function updateOwnChild(participantId, child) {
+  return API.put(`v1/parent-onboarding/children/${participantId}`, child);
+}
+
+/** Close this year's enrollment, retaining the child's history and family access. */
+export function withdrawOwnChild(participantId) {
+  return API.delete(`v1/parent-onboarding/children/${participantId}`);
+}
+
 /**
  * Stop sending this parent back to onboarding after they sign in.
  *

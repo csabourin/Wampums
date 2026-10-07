@@ -24,6 +24,15 @@ jest.mock('../../spa/app.js', () => ({
   translate: (key) => key,
 }));
 
+jest.mock('../../spa/config.js', () => ({
+  CONFIG: {
+    UI: { SUCCESS_REDIRECT_DELAY: 0 },
+    TIME_FORMAT: { DEFAULT: '24h' },
+    STORAGE_KEYS: {},
+  },
+  getStorageKey: (key) => key,
+}));
+
 jest.mock('../../spa/dynamicFormHandler.js', () => ({
   DynamicFormHandler: jest.fn(),
 }));
@@ -40,6 +49,15 @@ jest.mock('../../spa/ajax-functions.js', () => ({
   linkParticipantToOrganization: jest.fn(),
   getCurrentOrganizationId: jest.fn(),
   fetchFromApi: jest.fn(),
+}));
+
+jest.mock('../../spa/api/api-endpoints.js', () => ({
+  removeGuardian: jest.fn(),
+}));
+
+jest.mock('../../spa/api/api-family.js', () => ({
+  registerChild: jest.fn(),
+  updateOwnChild: jest.fn(),
 }));
 
 import { saveGuardian, saveFormSubmission } from '../../spa/ajax-functions.js';

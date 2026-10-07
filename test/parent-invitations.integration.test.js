@@ -55,7 +55,7 @@ jest.mock('../middleware/auth', () => {
       next();
     },
     requirePermission: (...permissions) => (_req, res, next) => {
-      if (mockContext.permitted) return next();
+      if (mockContext.permitted) {return next();}
       return res.status(403).json({
         success: false,
         message: 'Forbidden',
@@ -64,7 +64,7 @@ jest.mock('../middleware/auth', () => {
       });
     },
     blockDemoRoles: (_req, res, next) => {
-      if (!mockContext.demo) return next();
+      if (!mockContext.demo) {return next();}
       return res.status(403).json({ success: false, message: 'Forbidden', isDemo: true });
     },
     getOrganizationId: async () => mockContext.organizationId,
@@ -153,7 +153,7 @@ describe.skipIf(!DATABASE_URL)('Parent invitations', () => {
   function tokenFromLastEmail() {
     const last = sentEmails[sentEmails.length - 1];
     const match = /complete-registration\?token=([^"\s&]+)/.exec(last.message);
-    if (!match) throw new Error('no completion link in the email');
+    if (!match) {throw new Error('no completion link in the email');}
     return decodeURIComponent(match[1]);
   }
 
@@ -194,7 +194,7 @@ describe.skipIf(!DATABASE_URL)('Parent invitations', () => {
 
   afterAll(async () => {
     delete process.env.PUBLIC_BASE_URL;
-    if (pool) await pool.end();
+    if (pool) {await pool.end();}
   });
 
   beforeEach(async () => {
@@ -831,4 +831,48 @@ describe.skipIf(!DATABASE_URL)('Parent invitations', () => {
         .toBe('1');
     });
   });
+
+  test('editing an invitation clears optional fields, changes language and invalidates the old link', async () => {
+    const made = await invite({ email: 'editing@example.org', first_name: 'Wrong', language: 'fr' });
+    const oldToken = tokenFromLastEmail();
+    const updated = await request(app).put(`/api/v1/parent-invitations/${made.body.data.id}`)
+      .send({ email: 'editing@example.org', first_name: null, language: 'en' });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data).toMatchObject({ id: made.body.data.id, first_name: null, language: 'en', email_sent: true });
+    expect(updated.body.data.token_digest).toBeUndefined();
+    expect((await describeInvitation(pool, oldToken)).state).toBe('invalid');
+    expect((await describeInvitation(pool, tokenFromLastEmail())).language).toBe('en');
+  });
+
+  test('changing the recipient revokes the old invitation and retains an audit row', async () => {
+    const made = await invite({ email: 'mistyped@example.org' });
+    const oldToken = tokenFromLastEmail();
+    const updated = await request(app).put(`/api/v1/parent-invitations/${made.body.data.id}`)
+      .send({ email: 'corrected@example.org', language: 'fr' });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data.id).not.toBe(made.body.data.id);
+    expect((await describeInvitation(pool, oldToken)).state).toBe('revoked');
+    expect(await one('SELECT status FROM parent_invitations WHERE id = $1', [made.body.data.id])).toBe('revoked');
+    expect((await describeInvitation(pool, tokenFromLastEmail())).email).toBe('corrected@example.org');
+  });
+
+  test('editing refuses another unit’s or a revoked invitation', async () => {
+    const made = await invite({ email: 'locked-edit@example.org' });
+    mockContext.organizationId = ids.otherOrganizationId;
+    expect((await request(app).put(`/api/v1/parent-invitations/${made.body.data.id}`)
+      .send({ email: 'changed@example.org' })).status).toBe(404);
+    mockContext.organizationId = ids.organizationId;
+    await request(app).post(`/api/v1/parent-invitations/${made.body.data.id}/revoke`).send({});
+    expect((await request(app).put(`/api/v1/parent-invitations/${made.body.data.id}`)
+      .send({ email: 'changed@example.org' })).status).toBe(404);
+  });
+
+  test('an unexpected email delivery failure still returns the saved invitation', async () => {
+    require('../utils/index').sendEmail.mockRejectedValueOnce(new Error('Transport unavailable'));
+    const response = await invite({ email: 'delivery-exception@example.org' });
+    expect(response.status).toBe(201);
+    expect(response.body.data.email_sent).toBe(false);
+    expect(await one('SELECT status FROM parent_invitations WHERE id = $1', [response.body.data.id])).toBe('pending');
+  });
+
 });

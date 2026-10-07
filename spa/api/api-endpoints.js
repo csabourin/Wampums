@@ -734,8 +734,8 @@ export async function getParticipantDetails(participantId) {
 /**
  * Save or update participant
  */
-export async function saveParticipant(participantData) {
-    return API.post('v1/participants/save', participantData);
+export async function saveParticipant(participantData, options = {}) {
+    return API.post('v1/participants/save', participantData, {}, options);
 }
 
 /**
@@ -949,8 +949,8 @@ export async function saveParent(parentData) {
 /**
  * Save guardian (alias for saveParent)
  */
-export async function saveGuardian(guardianData) {
-    return API.post('v1/guardians', guardianData);
+export async function saveGuardian(guardianData, options = {}) {
+    return API.post('v1/guardians', guardianData, {}, options);
 }
 
 /**
@@ -978,6 +978,11 @@ export async function linkGuardianToParticipant(participantId, guardianId) {
         participant_id: participantId,
         parent_id: guardianId
     });
+}
+
+/** Unlink one guardian and revoke the access backed by that relationship. */
+export function removeGuardian(participantId, guardianId) {
+  return API.delete('v1/guardians', { participant_id: participantId, guardian_id: guardianId });
 }
 
 /**
@@ -1183,12 +1188,12 @@ export async function getFormSubmissions(participantId = null, formType) {
 /**
  * Save form submission
  */
-export async function saveFormSubmission(formType, participantId, submissionData) {
+export async function saveFormSubmission(formType, participantId, submissionData, options = {}) {
     const response = await API.post('v1/forms/submissions', {
         participant_id: participantId,
         form_type: formType,
         submission_data: submissionData
-    });
+    }, {}, options);
 
     // Clear cache for this specific form submission
     if (formType && participantId) {
