@@ -103,9 +103,14 @@ jobs:
           docker exec -i ${{ job.services.postgres.id }} psql -v ON_ERROR_STOP=1 -U postgres -d wampums_test < attached_assets/Full_Database_schema.sql
           docker exec -i ${{ job.services.postgres.id }} psql -v ON_ERROR_STOP=1 -U postgres -d wampums_test < attached_assets/permissions_list.sql
 
-      - name: Apply every migration, then again to prove the run is idempotent
+      # The runner skips migrations recorded in schema_migrations, so a plain
+      # second run proves nothing. Forgetting the records makes the second pass
+      # execute every file again against the migrated schema, as CLAUDE.md
+      # requires each migration to tolerate.
+      - name: Apply every migration, then re-execute each one to prove it is re-runnable
         run: |
           npm run db:migrate:deploy
+          docker exec -i ${{ job.services.postgres.id }} psql -v ON_ERROR_STOP=1 -U postgres -d wampums_test -c 'DELETE FROM schema_migrations'
           npm run db:migrate:deploy
 
       - name: Run the integration suites

@@ -35,7 +35,7 @@ beforeEach(() => {
   workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'policy-check-'));
   baselinePath = path.join(workspace, 'policy-baseline.json');
   fs.writeFileSync(baselinePath, JSON.stringify({
-    'role-names': {}, 'client-org-id': {}, 'manual-auth': {}, 'catch-shadow': {},
+    'role-names': {}, 'client-org-id': {}, 'manual-auth': {}, 'catch-shadow': {}, 'eslint-warnings': {},
   }));
 });
 
@@ -207,5 +207,32 @@ describe('baseline ratchet', () => {
     expect(runPolicy('client-org-id', '--update-baseline').status).toBe(0);
     expect(JSON.parse(fs.readFileSync(baselinePath, 'utf8'))['client-org-id']).toEqual({});
     expect(runPolicy('client-org-id').status).toBe(0);
+  });
+});
+
+describe('eslint-warnings', () => {
+  beforeEach(() => {
+    writeSource('eslint.config.js', "module.exports = [{ rules: { 'no-magic-numbers': ['warn', { ignore: [0, 1] }] } }];\n");
+  });
+
+  test('fails when a file gains a warning, naming it', () => {
+    writeSource('routes/sample.js', 'setTimeout(() => {}, 3600);\n');
+
+    const { status, output } = runPolicy('eslint-warnings');
+
+    expect(status).toBe(1);
+    expect(output).toContain('routes/sample.js:1: No magic number: 3600. [no-magic-numbers]');
+  });
+
+  test('passes on the warnings the baseline records, and asks to lower it after a fix', () => {
+    writeSource('routes/sample.js', 'setTimeout(() => {}, 3600);\n');
+    fs.writeFileSync(baselinePath, JSON.stringify({ 'eslint-warnings': { 'routes/sample.js': 1 } }));
+
+    expect(runPolicy('eslint-warnings').status).toBe(0);
+
+    writeSource('routes/sample.js', 'const DELAY_MS = 3600;\nsetTimeout(() => {}, DELAY_MS);\n');
+    const fixed = runPolicy('eslint-warnings');
+    expect(fixed.status).toBe(1);
+    expect(fixed.output).toContain('lock in the progress');
   });
 });

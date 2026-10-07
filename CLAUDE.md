@@ -354,9 +354,12 @@ try {
 
 ### 10) ESLint Rules (`eslint.config.js`)
 
-The project enforces ESLint 9 rules (`npm run lint:eslint`). **Errors block CI; warnings must be resolved before merge.**
+The project enforces ESLint 9 rules. **Errors block CI; warnings must be resolved before merge** — both are enforced.
 
-- Errors that predate CI enforcement are frozen in `eslint-suppressions.json`. A **new** error fails CI.
+- Errors that predate CI enforcement are frozen in `eslint-suppressions.json` (`npm run lint:eslint`). A **new** error fails CI.
+- Warnings that predate CI enforcement are counted per file in `scripts/modernization/policy-baseline.json`
+  (`npm run lint:eslint-warnings`, part of `lint:policy`). A file that **gains** a warning fails CI; after removing
+  warnings, lower the baseline with `npm run lint:policy -- --update-baseline`.
 - After fixing a suppressed error, run `npm run lint:eslint:prune` and commit the smaller file — CI also
   fails while the suppressions list errors that no longer exist.
 - Never add to `eslint-suppressions.json` by hand. A false positive gets an inline
@@ -418,14 +421,16 @@ Run `npm run lint:all` before every PR — it runs every check below, and it is 
 | `npm run lint:client-org-id` | No `organization_id` / `x-organization-id` read from the client outside `getOrganizationId` and `getCurrentOrganizationId` |
 | `npm run lint:manual-auth` | No `verifyJWT`, `verifyOrganizationMembership` or `getCurrentOrganizationId` in routes — use `authenticate` + `requirePermission` |
 | `npm run lint:catch-shadow` | No `catch (error)` hiding the `error()` response helper |
+| `npm run lint:eslint-warnings` | No file gains an ESLint warning (§10) |
 | `npm run lint:eslint` | ESLint errors (§10) |
 
-**Policy checks (`lint:policy` runs the four above) are a ratchet.** Existing violations are counted per
+**Policy checks (`lint:policy` runs the five above) are a ratchet.** Existing violations are counted per
 file in `scripts/modernization/policy-baseline.json`:
 
 - A file may never gain a violation. Fix it, or — only for a use CLAUDE.md permits — annotate it on that
   line or the line above, with a reason: `// policy-allow manual-auth: public login route, no session yet`
-  (inside SQL, use `-- policy-allow …`).
+  (inside SQL, use `-- policy-allow …`). ESLint warnings are not annotated this way: fix them, or disable a
+  false positive inline with `// eslint-disable-next-line <rule> -- <reason>`.
 - When you remove violations, run `npm run lint:policy -- --update-baseline` and commit the lower counts;
   CI fails while the baseline overstates them. The script refuses to raise a count.
 
@@ -583,7 +588,8 @@ How the runner behaves, and what it demands of a migration file:
   using their tables and columns, and every database built from the repository broke until
   `015_restore_lost_migrations.sql`. Never apply schema SQL that is not committed here.
 - ✅ CI (`database-integration` job) builds a PostgreSQL 17 database from the baseline, the permission
-  catalog, and every migration, applies the migrations a second time, and runs all
+  catalog, and every migration, then clears `schema_migrations` and executes every migration again — a
+  migration that cannot run twice fails here — and runs all
   `*.integration.test.js` suites against it. Locally:
   `TEST_DATABASE_URL=postgresql://… npx jest --runInBand --testPathPatterns 'integration\.test\.js$'`.
 

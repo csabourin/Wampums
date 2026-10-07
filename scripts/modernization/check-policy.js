@@ -8,6 +8,9 @@
  * the baseline must be lowered in the same change, so the debt only shrinks.
  *
  *   node scripts/modernization/check-policy.js [rule ...]       check (all rules by default)
+ *
+ * Rules: role-names, client-org-id, manual-auth, catch-shadow (source patterns),
+ * and eslint-warnings (ESLint warnings, which ESLint's own suppressions do not cover).
  *   node scripts/modernization/check-policy.js --update-baseline record lower counts
  *
  * A line that legitimately matches a rule is annotated instead of baselined,
@@ -78,6 +81,12 @@ const RULES = {
         ],
       },
     ],
+  },
+  'eslint-warnings': {
+    description: 'New ESLint warnings (CLAUDE.md §10: warnings must be resolved before merge)',
+    guidance: 'Fix them (npx eslint <file>); a false positive gets // eslint-disable-next-line <rule> -- <reason>.',
+    annotatable: false,
+    collect: collectEslintWarnings,
   },
   'catch-shadow': {
     description: 'catch (error) hides the error() response helper, so error(res, ...) throws',
@@ -191,10 +200,36 @@ function isAllowed(lines, index, ruleName) {
 }
 
 /**
+ * ESLint warnings per file. Errors are enforced separately by `npm run lint:eslint`
+ * against eslint-suppressions.json; ESLint has no equivalent for warnings.
+ *
+ * @returns {Promise<Map<string, string[]>>} file -> warning descriptions
+ */
+async function collectEslintWarnings() {
+  const { ESLint } = require('eslint');
+  const eslint = new ESLint({ cwd: ROOT });
+  const results = await eslint.lintFiles(['.']);
+  const violations = new Map();
+  for (const result of results) {
+    const file = path.relative(ROOT, result.filePath);
+    const warnings = result.messages
+      .filter((message) => message.severity === 1)
+      .map((message) => `${file}:${message.line}: ${message.message} [${message.ruleId}]`);
+    if (warnings.length > 0) {
+      violations.set(file, warnings);
+    }
+  }
+  return violations;
+}
+
+/**
  * @param {string} ruleName - Key of RULES
- * @returns {Map<string, string[]>} file -> violation descriptions
+ * @returns {Map<string, string[]>|Promise<Map<string, string[]>>} file -> violation descriptions
  */
 function findViolations(ruleName) {
+  if (RULES[ruleName].collect) {
+    return RULES[ruleName].collect();
+  }
   const violations = new Map();
   for (const scope of RULES[ruleName].scopes) {
     const excluded = new Set(scope.exclude || []);
@@ -232,72 +267,82 @@ function writeBaseline(baseline) {
   fs.writeFileSync(BASELINE_PATH, `${JSON.stringify(sorted, null, 2)}\n`);
 }
 
-const args = process.argv.slice(2);
-const updateBaseline = args.includes('--update-baseline');
-const requested = args.filter((arg) => !arg.startsWith('--'));
-const unknown = requested.filter((ruleName) => !RULES[ruleName]);
-if (unknown.length > 0) {
-  process.stderr.write(`Unknown policy rule: ${unknown.join(', ')}. Known: ${Object.keys(RULES).join(', ')}\n`);
-  process.exit(2);
-}
-const ruleNames = requested.length > 0 ? requested : Object.keys(RULES);
-
-const baseline = readBaseline();
-let failed = false;
-
-for (const ruleName of ruleNames) {
-  const rule = RULES[ruleName];
-  const violations = findViolations(ruleName);
-  const recorded = baseline[ruleName];
-  const allowed = recorded || {};
-  const grown = [];
-  const shrunk = [];
-
-  for (const file of new Set([...violations.keys(), ...Object.keys(allowed)])) {
-    const count = (violations.get(file) || []).length;
-    const limit = allowed[file] || 0;
-    if (count > limit) {
-      grown.push({ file, count, limit });
-    } else if (count < limit) {
-      shrunk.push({ file, count, limit });
-    }
+async function main() {
+  const args = process.argv.slice(2);
+  const updateBaseline = args.includes('--update-baseline');
+  const requested = args.filter((arg) => !arg.startsWith('--'));
+  const unknown = requested.filter((ruleName) => !RULES[ruleName]);
+  if (unknown.length > 0) {
+    process.stderr.write(`Unknown policy rule: ${unknown.join(', ')}. Known: ${Object.keys(RULES).join(', ')}\n`);
+    process.exit(2);
   }
+  const ruleNames = requested.length > 0 ? requested : Object.keys(RULES);
 
-  if (updateBaseline) {
-    if (recorded && grown.length > 0) {
-      process.stderr.write(`[${ruleName}] Refusing to raise the baseline; fix or annotate these instead:\n`);
-      grown.forEach(({ file }) => process.stderr.write(`${violations.get(file).join('\n')}\n`));
-      failed = true;
+  const baseline = readBaseline();
+  let failed = false;
+
+  for (const ruleName of ruleNames) {
+    const rule = RULES[ruleName];
+    // eslint-disable-next-line no-await-in-loop -- rules report in order; ESLint dominates the run anyway
+    const violations = await findViolations(ruleName);
+    const recorded = baseline[ruleName];
+    const allowed = recorded || {};
+    const grown = [];
+    const shrunk = [];
+
+    for (const file of new Set([...violations.keys(), ...Object.keys(allowed)])) {
+      const count = (violations.get(file) || []).length;
+      const limit = allowed[file] || 0;
+      if (count > limit) {
+        grown.push({ file, count, limit });
+      } else if (count < limit) {
+        shrunk.push({ file, count, limit });
+      }
+    }
+
+    if (updateBaseline) {
+      if (recorded && grown.length > 0) {
+        process.stderr.write(`[${ruleName}] Refusing to raise the baseline; fix or annotate these instead:\n`);
+        grown.forEach(({ file }) => process.stderr.write(`${violations.get(file).join('\n')}\n`));
+        failed = true;
+        continue;
+      }
+      baseline[ruleName] = Object.fromEntries([...violations].map(([file, lines]) => [file, lines.length]));
+      const total = Object.values(baseline[ruleName]).reduce((sum, count) => sum + count, 0);
+      process.stdout.write(`[${ruleName}] baseline recorded: ${total} existing violation(s)\n`);
       continue;
     }
-    baseline[ruleName] = Object.fromEntries([...violations].map(([file, lines]) => [file, lines.length]));
-    const total = Object.values(baseline[ruleName]).reduce((sum, count) => sum + count, 0);
-    process.stdout.write(`[${ruleName}] baseline recorded: ${total} existing violation(s)\n`);
-    continue;
-  }
 
-  if (grown.length > 0) {
-    failed = true;
-    process.stderr.write(`❌ [${ruleName}] ${rule.description}.\n   ${rule.guidance}\n`);
-    for (const { file, count, limit } of grown) {
-      process.stderr.write(`   ${file}: ${count} found, ${limit} allowed by the baseline\n`);
-      violations.get(file).forEach((line) => process.stderr.write(`     ${line}\n`));
+    if (grown.length > 0) {
+      failed = true;
+      process.stderr.write(`❌ [${ruleName}] ${rule.description}.\n   ${rule.guidance}\n`);
+      for (const { file, count, limit } of grown) {
+        process.stderr.write(`   ${file}: ${count} found, ${limit} allowed by the baseline\n`);
+        violations.get(file).forEach((line) => process.stderr.write(`     ${line}\n`));
+      }
+      if (rule.annotatable !== false) {
+        process.stderr.write('   A legitimate use may be annotated: // policy-allow <rule>: <reason>\n');
+      }
     }
-    process.stderr.write('   A legitimate use may be annotated: // policy-allow <rule>: <reason>\n');
+    if (shrunk.length > 0) {
+      failed = true;
+      process.stderr.write(`❌ [${ruleName}] Fewer violations than the baseline records — lock in the progress:\n`);
+      shrunk.forEach(({ file, count, limit }) => process.stderr.write(`   ${file}: ${count} found, baseline says ${limit}\n`));
+      process.stderr.write('   Run: npm run lint:policy -- --update-baseline\n');
+    }
+    if (grown.length === 0 && shrunk.length === 0) {
+      const total = [...violations.values()].reduce((sum, lines) => sum + lines.length, 0);
+      process.stdout.write(`✅ [${ruleName}] passed (${total} baselined violation(s) remaining)\n`);
+    }
   }
-  if (shrunk.length > 0) {
-    failed = true;
-    process.stderr.write(`❌ [${ruleName}] Fewer violations than the baseline records — lock in the progress:\n`);
-    shrunk.forEach(({ file, count, limit }) => process.stderr.write(`   ${file}: ${count} found, baseline says ${limit}\n`));
-    process.stderr.write('   Run: npm run lint:policy -- --update-baseline\n');
+
+  if (updateBaseline && !failed) {
+    writeBaseline(baseline);
   }
-  if (grown.length === 0 && shrunk.length === 0) {
-    const total = [...violations.values()].reduce((sum, lines) => sum + lines.length, 0);
-    process.stdout.write(`✅ [${ruleName}] passed (${total} baselined violation(s) remaining)\n`);
-  }
+  process.exit(failed ? 1 : 0);
 }
 
-if (updateBaseline && !failed) {
-  writeBaseline(baseline);
-}
-process.exit(failed ? 1 : 0);
+main().catch((err) => {
+  process.stderr.write(`${err.stack || err}\n`);
+  process.exit(2);
+});
