@@ -117,6 +117,18 @@ or renamed role holding the right permissions would be refused. The role-based `
 - Examples: `users.view`, `users.manage`, `finance.manage`, `reports.view`, `carpools.view`
 - Common actions: `view`, `manage`, `create`, `edit`, `delete`, `assign_roles`
 
+#### Roles Belong to Units
+- ✅ **Built-in roles** (`organization_id IS NULL`, `is_system_role`) are shared by every unit and read-only
+  to them; change them only through migrations, since an edit would apply to every unit.
+- ✅ **Custom roles** belong to one unit (`roles.organization_id`, migration 014). Another unit cannot see,
+  assign, edit, or delete them, and they are deleted with their unit.
+- ✅ Any query that lists or accepts roles from the catalog — rather than through a member's own
+  `role_ids` — must keep to the roles the unit may use: `findRolesInUnit()` in
+  `services/roleAssignment.js`, or inline
+  `r.organization_id = $unit OR (r.organization_id IS NULL AND r.is_system_role)`.
+- ✅ A custom role's `role_name` is an internal key the server generates (`u<unit>_<slug>`); show
+  `display_name` to people. Built-in roles may be looked up by name; custom roles never collide with them.
+
 #### Granting Roles and Permissions
 - ✅ **Someone may grant only what they hold.** Adding or removing a member's role, adding or removing a
   permission on a role, deleting a role, and roles handed out by imports all go through

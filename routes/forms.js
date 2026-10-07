@@ -10,6 +10,7 @@
 const express = require('express');
 const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope, requireAnyPermission, requirePermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { findRolesInUnit } = require('../services/roleAssignment');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership, getFormPermissionsForRoles, checkFormPermission } = require('../utils/api-helpers');
@@ -1633,6 +1634,8 @@ module.exports = (pool, logger) => {
          CROSS JOIN roles r
          LEFT JOIN form_permissions fp ON fp.form_format_id = off.id AND fp.role_id = r.id
          WHERE off.organization_id = $1
+           -- the shared built-in roles and this unit's own (services/roleAssignment.js)
+           AND (r.organization_id = $1 OR (r.organization_id IS NULL AND r.is_system_role))
          ORDER BY off.form_type, r.role_name`,
         [organizationId]
       );
@@ -1833,6 +1836,11 @@ module.exports = (pool, logger) => {
 
       if (formCheck.rows[0].organization_id !== organizationId) {
         return res.status(403).json({ success: false, message: 'Access denied to this form' });
+      }
+
+      // The role must be one this unit may use.
+      if ((await findRolesInUnit(pool, [role_id], organizationId)).length === 0) {
+        return res.status(404).json({ success: false, message: 'Role not found' });
       }
 
       // Upsert the permission

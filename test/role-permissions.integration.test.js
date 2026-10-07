@@ -66,9 +66,9 @@ describe.skipIf(!DATABASE_URL)('Role permissions', () => {
    */
   function role(name, dataScope) {
     return one(
-      `INSERT INTO roles (role_name, display_name, data_scope, is_system_role)
-       VALUES ($1, $1, $2, false) RETURNING id`,
-      [`${name}_${suffix}`, dataScope]
+      `INSERT INTO roles (role_name, display_name, data_scope, is_system_role, organization_id)
+       VALUES ($1, $1, $2, false, $3) RETURNING id`,
+      [`${name}_${suffix}`, dataScope, ids.unit]
     );
   }
 

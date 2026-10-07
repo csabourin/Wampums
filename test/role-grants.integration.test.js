@@ -50,9 +50,9 @@ describe.skipIf(!DATABASE_URL)('Granting only what one holds', () => {
 
   async function createRole(key, dataScope, permissionKeys) {
     const roleId = await one(
-      `INSERT INTO roles (role_name, display_name, data_scope, is_system_role)
-       VALUES ($1, $1, $2, false) RETURNING id`,
-      [`${key}_${suffix}`, dataScope]
+      `INSERT INTO roles (role_name, display_name, data_scope, is_system_role, organization_id)
+       VALUES ($1, $1, $2, false, $3) RETURNING id`,
+      [`${key}_${suffix}`, dataScope, ids.unit]
     );
     await pool.query(
       `INSERT INTO role_permissions (role_id, permission_id)

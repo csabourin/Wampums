@@ -19,7 +19,7 @@ const {
   isAssociationInUnit,
 } = require('../services/participantAccess');
 const { listUnitLeaders } = require('../services/unitLeaders');
-const { checkRoleChange, normalizeRoleIds } = require('../services/roleAssignment');
+const { checkRoleChange, findRolesInUnit, normalizeRoleIds } = require('../services/roleAssignment');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership } = require('../utils/api-helpers');
@@ -415,12 +415,16 @@ module.exports = (pool, logger) => {
     // Support both old and new role names
     const mappedRole = roleMapping[role] || role;
 
-    // Get list of valid roles from database
-    const rolesResult = await pool.query('SELECT role_name FROM roles');
-    const validRoles = rolesResult.rows.map(r => r.role_name);
+    // Roles this unit may use: the shared built-in roles and its own.
+    const rolesResult = await pool.query(
+      `SELECT id, role_name FROM roles
+       WHERE organization_id = $1 OR (organization_id IS NULL AND is_system_role)`,
+      [organizationId]
+    );
+    const requestedRole = rolesResult.rows.find((r) => r.role_name === mappedRole);
 
-    if (!validRoles.includes(mappedRole)) {
-      return error(res, `Invalid role. Valid roles: ${validRoles.join(', ')}`, 400);
+    if (!requestedRole) {
+      return error(res, `Invalid role. Valid roles: ${rolesResult.rows.map((r) => r.role_name).join(', ')}`, 400);
     }
 
     // Prevent users from changing their own role
@@ -428,20 +432,10 @@ module.exports = (pool, logger) => {
       return error(res, 'Cannot change your own role', 400);
     }
 
-    // Get role ID for the new role
-    const roleIdResult = await pool.query(
-      'SELECT id FROM roles WHERE role_name = $1',
-      [mappedRole]
-    );
-
-    if (roleIdResult.rows.length === 0) {
-      return error(res, 'Role not found', 400);
-    }
-
     return replaceMemberRoles(req, res, {
       organizationId,
       userId: user_id,
-      roleIds: [roleIdResult.rows[0].id],
+      roleIds: [requestedRole.id],
     });
   }));
 
@@ -556,13 +550,10 @@ module.exports = (pool, logger) => {
       return error(res, 'One or more invalid role IDs', 400);
     }
 
-    // Verify all role IDs are valid
-    const rolesResult = await pool.query(
-      'SELECT id FROM roles WHERE id = ANY($1::int[])',
-      [requestedRoleIds]
-    );
+    // Every role must exist and be one this unit may use.
+    const unitRoles = await findRolesInUnit(pool, requestedRoleIds, organizationId);
 
-    if (rolesResult.rows.length !== requestedRoleIds.length) {
+    if (unitRoles.length !== requestedRoleIds.length) {
       return error(res, 'One or more invalid role IDs', 400);
     }
 
