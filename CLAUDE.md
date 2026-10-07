@@ -578,6 +578,15 @@ How the runner behaves, and what it demands of a migration file:
   ```
 - ✅ A `.js` migration exports `up(client, context)` and may set a `description`.
 
+- ✅ **Every schema change the code relies on must exist in `attached_assets/Full_Database_schema.sql` or
+  in `migrations/`.** In August 2026 seven migrations were lost when the folder was reset; the code kept
+  using their tables and columns, and every database built from the repository broke until
+  `015_restore_lost_migrations.sql`. Never apply schema SQL that is not committed here.
+- ✅ CI (`database-integration` job) builds a PostgreSQL 17 database from the baseline, the permission
+  catalog, and every migration, applies the migrations a second time, and runs all
+  `*.integration.test.js` suites against it. Locally:
+  `TEST_DATABASE_URL=postgresql://… npx jest --runInBand --testPathPatterns 'integration\.test\.js$'`.
+
 Validate a migration against a disposable database before committing it, rather than reading it and
 hoping — load `attached_assets/Full_Database_schema.sql` into a scratch database, apply the file,
 then apply it a second time to prove it is re-runnable.
