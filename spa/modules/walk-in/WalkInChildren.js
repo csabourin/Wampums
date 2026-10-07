@@ -322,7 +322,6 @@ export class WalkInChildren {
    */
   async submitChild(form) {
     if (this.pendingAction) {return;}
-    if (!form.reportValidity()) {return;}
     // The last child's confirmation would otherwise sit beside this one's error.
     const status = document.getElementById('walk-in-status');
     if (status) {status.hidden = true;}
@@ -357,7 +356,6 @@ export class WalkInChildren {
       this.announce(PARENT_MESSAGES[response?.data?.parent] || PARENT_MESSAGES.invited, body, response?.data?.email_sent);
       document.getElementById('walk-in-first-name')?.focus();
     } catch (error) {
-      release();
       this.handleRefusal(error, body);
     } finally {
       release();
