@@ -72,6 +72,11 @@ export class FamilyLinkReview {
     this.renderLoading();
     this.link = this.token ? await describeLink(DESCRIBE_PATH, this.token) : { state: 'invalid' };
 
+    if (this.link.state === 'load_error') {
+      this.renderLoadError();
+      return;
+    }
+
     // Speak the email's language. If switching reloads the route, the reload
     // renders this page afresh and this pass must not render over it.
     if (await adoptLinkLanguage(this.app, this.link.language)) {
@@ -85,6 +90,19 @@ export class FamilyLinkReview {
         showLogin: this.link.state === 'accepted',
       });
     }
+  }
+
+  /** Show a retryable load failure without declaring the emailed link invalid. */
+  renderLoadError() {
+    setContent(this.root(), `
+      <section class="page family-link-review">
+        ${this.backLink()}
+        <h1>${translate('family_link_title')}</h1>
+        <p class="status-message error" role="alert">${translate('family_link_load_failed')}</p>
+        <button type="button" class="button button--primary" data-link-retry>${translate('parent_invitations_retry')}</button>
+      </section>
+    `);
+    this.root()?.querySelector('[data-link-retry]')?.addEventListener('click', () => this.init());
   }
 
   /** @returns {HTMLElement|null} The page root */
@@ -132,9 +150,9 @@ export class FamilyLinkReview {
         ${this.backLink()}
         <h1>${translate('family_link_title')}</h1>
         <p>${this.fill('family_link_intro', {
-          requester: this.link.requester_name || '',
-          organization: this.link.organization_name || '',
-        })}</p>
+    requester: this.link.requester_name || '',
+    organization: this.link.organization_name || '',
+  })}</p>
         <div class="info-card">
           <p><strong>${translate('family_link_what_accepting_means')}</strong></p>
           <ul>
@@ -246,7 +264,7 @@ export class FamilyLinkReview {
   setBusy(busy) {
     ['family-link-accept', 'family-link-decline'].forEach((id) => {
       const button = document.getElementById(id);
-      if (button) button.disabled = busy;
+      if (button) {button.disabled = busy;}
     });
   }
 
@@ -258,7 +276,7 @@ export class FamilyLinkReview {
    */
   showError(key) {
     const element = document.getElementById('family-link-error');
-    if (!element) return;
+    if (!element) {return;}
     element.textContent = translate(key);
     element.hidden = false;
   }

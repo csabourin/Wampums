@@ -17,7 +17,8 @@
  */
 
 const express = require('express');
-const rateLimit = require('express-rate-limit');
+const HTTP_STATUS = { OK: 200, CREATED: 201, BAD_REQUEST: 400, FORBIDDEN: 403, NOT_FOUND: 404, CONFLICT: 409, INTERNAL_ERROR: 500 };
+const { familyInvitationLimiter: invitationWriteLimiter } = require('../middleware/familyInvitationLimiter');
 const { body, param } = require('express-validator');
 
 const {
@@ -32,13 +33,13 @@ const {
   checkValidation,
   normalizeEmailValue,
 } = require('../middleware/validation');
-const { resolveOrganizationBaseUrl } = require('../utils/public-url');
+const { deliverParentInvitation } = require('../services/familyDelivery');
 const {
   listInvitations,
   createInvitation,
+  updateInvitation,
   resendInvitation,
   revokeInvitation,
-  deliverInvitation,
   resolveInvitationLanguage,
 } = require('../services/parentInvitations');
 
@@ -52,20 +53,6 @@ const MAX_PHONE_LENGTH = 20;
 const MAX_OVERRIDE_REASON_LENGTH = 1000;
 
 /**
- * Sending mail costs money and lands in someone else's inbox, so the write
- * endpoints are capped per admin session even though the caller is trusted. A
- * mis-wired client retrying in a loop should not be able to mail a family
- * forty times.
- */
-const invitationWriteLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 60,
-  message: { success: false, message: 'too_many_invitation_requests' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-/**
  * Trim a value to null when it carries nothing.
  *
  * An admin who tabs past the optional fields should leave nulls behind, not a
@@ -75,7 +62,7 @@ const invitationWriteLimiter = rateLimit({
  * @returns {string|null} Trimmed text, or null
  */
 function optionalText(value) {
-  if (typeof value !== 'string') return null;
+  if (typeof value !== 'string') {return null;}
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
@@ -94,12 +81,13 @@ module.exports = (pool, logger) => {
   const router = express.Router();
 
   const validateOptionalFields = [
+    body('language').optional({ nullable: true }).isIn(['en', 'fr']),
     body('first_name').optional({ nullable: true }).isString().trim().isLength({ max: MAX_NAME_LENGTH }),
     body('last_name').optional({ nullable: true }).isString().trim().isLength({ max: MAX_NAME_LENGTH }),
     body('telephone_residence').optional({ nullable: true }).isString().trim().isLength({ max: MAX_PHONE_LENGTH }),
     body('telephone_cellulaire').optional({ nullable: true }).isString().trim().isLength({ max: MAX_PHONE_LENGTH }),
     body('support_contact_name').optional({ nullable: true }).isString().trim().isLength({ max: MAX_NAME_LENGTH }),
-    body('support_contact_email').optional({ nullable: true }).isEmail().isLength({ max: MAX_NAME_LENGTH }),
+    body('support_contact_email').optional({ values: 'falsy' }).isEmail().isLength({ max: MAX_NAME_LENGTH }),
     body('confirm_reactivation').optional({ nullable: true }).isBoolean(),
     // Confirming without saying why is not confirming. The reason is required
     // exactly when the confirmation is given, and kept on the invitation.
@@ -140,83 +128,84 @@ module.exports = (pool, logger) => {
    * why, and resubmits with `confirm_reactivation: true` and a
    * `reactivation_reason`. Nothing is created or sent until then.
    */
-  router.post('/',
-    authenticate,
-    blockDemoRoles,
-    requirePermission('users.invite'),
-    invitationWriteLimiter,
-    validateEmail,
-    ...validateOptionalFields,
-    checkValidation,
-    asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+  /** Create or replace a pending invitation through the same validation and delivery path. */
+  async function writeInvitation(req, res, editing = false) {
+    const organizationId = await getOrganizationId(req, pool);
 
-      const organization = await pool.query(
-        'SELECT default_language FROM organizations WHERE id = $1',
-        [organizationId]
-      );
+    const organization = await pool.query(
+      'SELECT default_language FROM organizations WHERE id = $1',
+      [organizationId]
+    );
 
-      const created = await createInvitation(pool, {
-        organizationId,
-        email: normalizeEmailValue(req.body.email),
-        firstName: optionalText(req.body.first_name),
-        lastName: optionalText(req.body.last_name),
-        telephoneResidence: optionalText(req.body.telephone_residence),
-        telephoneCellulaire: optionalText(req.body.telephone_cellulaire),
-        supportContactName: optionalText(req.body.support_contact_name),
-        supportContactEmail: optionalText(req.body.support_contact_email),
-        language: resolveInvitationLanguage(
-          req.body.language,
-          organization.rows[0]?.default_language
-        ),
-        invitedBy: req.user.id,
-        deactivationOverrideReason: isConfirmed(req.body.confirm_reactivation)
-          ? optionalText(req.body.reactivation_reason)
-          : null,
+    const created = await (editing ? updateInvitation : createInvitation)(pool, {
+      invitationId: req.params.id,
+      organizationId,
+      email: normalizeEmailValue(req.body.email),
+      firstName: optionalText(req.body.first_name),
+      lastName: optionalText(req.body.last_name),
+      telephoneResidence: optionalText(req.body.telephone_residence),
+      telephoneCellulaire: optionalText(req.body.telephone_cellulaire),
+      supportContactName: optionalText(req.body.support_contact_name),
+      supportContactEmail: optionalText(req.body.support_contact_email),
+      language: resolveInvitationLanguage(
+        req.body.language,
+        organization.rows[0]?.default_language
+      ),
+      invitedBy: req.user.id,
+      deactivationOverrideReason: isConfirmed(req.body.confirm_reactivation)
+        ? optionalText(req.body.reactivation_reason)
+        : null,
+    });
+
+    if (!created.ok && created.reason === 'not_found') {
+      return error(res, 'Invitation not found', HTTP_STATUS.NOT_FOUND);
+    }
+
+    if (!created.ok && created.reason === 'manually_deactivated') {
+      return res.status(HTTP_STATUS.CONFLICT).json({
+        success: false,
+        code: 'manually_deactivated',
+        message: 'This address belongs to a member who was deactivated by hand. Confirm, with a reason, to reinstate them.',
+        data: {
+          deactivated_at: created.deactivated_at,
+          deactivated_reason: created.deactivated_reason,
+        },
+        timestamp: new Date().toISOString(),
       });
+    }
 
-      if (!created.ok && created.reason === 'manually_deactivated') {
-        return res.status(409).json({
-          success: false,
-          code: 'manually_deactivated',
-          message: 'This address belongs to a member who was deactivated by hand. Confirm, with a reason, to reinstate them.',
-          data: {
-            deactivated_at: created.deactivated_at,
-            deactivated_reason: created.deactivated_reason,
-          },
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      if (!created.ok) {
-        // The reason travels as a code as well as prose, so the screen can say
-        // it in the admin's own language.
-        return res.status(409).json({
-          success: false,
-          code: created.reason,
-          message: created.reason === 'already_member'
-            ? 'This address already belongs to an active member of this unit'
-            : 'This address already has a pending invitation',
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
-      const emailSent = await deliverInvitation(pool, {
-        invitation: created.invitation,
-        token: created.token,
-        baseUrl,
-        logger,
+    if (!created.ok) {
+      // The reason travels as a code as well as prose, so the screen can say
+      // it in the admin's own language.
+      return res.status(HTTP_STATUS.CONFLICT).json({
+        success: false,
+        code: created.reason,
+        message: created.reason === 'already_member'
+          ? 'This address already belongs to an active member of this unit'
+          : 'This address already has a pending invitation',
+        timestamp: new Date().toISOString(),
       });
+    }
 
-      return success(
-        res,
-        { ...serializeInvitation(created.invitation), email_sent: emailSent },
-        emailSent ? 'Invitation sent' : 'Invitation created, but the email could not be sent',
-        201
-      );
-    })
-  );
+    const emailSent = await deliverParentInvitation(pool, {
+      invitation: created.invitation,
+      token: created.token,
+      logger,
+    });
+
+    return success(
+      res,
+      { ...serializeInvitation(created.invitation), email_sent: emailSent },
+      emailSent ? 'Invitation sent' : 'Invitation created, but the email could not be sent',
+      editing ? HTTP_STATUS.OK : HTTP_STATUS.CREATED
+    );
+  }
+
+  const writeMiddleware = [authenticate, blockDemoRoles, requirePermission('users.invite'),
+    invitationWriteLimiter, validateEmail, ...validateOptionalFields, checkValidation];
+  router.post('/', ...writeMiddleware, asyncHandler((req, res) => writeInvitation(req, res)));
+  router.put('/:id', param('id').isUUID(), ...writeMiddleware,
+    asyncHandler((req, res) => writeInvitation(req, res, true)));
 
   /**
    * Send a fresh link, invalidating the previous one.
@@ -237,14 +226,12 @@ module.exports = (pool, logger) => {
       });
 
       if (!resent.ok) {
-        return error(res, 'Invitation not found', 404);
+        return error(res, 'Invitation not found', HTTP_STATUS.NOT_FOUND);
       }
 
-      const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
-      const emailSent = await deliverInvitation(pool, {
+      const emailSent = await deliverParentInvitation(pool, {
         invitation: resent.invitation,
         token: resent.token,
-        baseUrl,
         logger,
       });
 
@@ -275,7 +262,7 @@ module.exports = (pool, logger) => {
       });
 
       if (!revoked.ok) {
-        return error(res, 'Invitation not found', 404);
+        return error(res, 'Invitation not found', HTTP_STATUS.NOT_FOUND);
       }
 
       return success(res, serializeInvitation(revoked.invitation), 'Invitation revoked');

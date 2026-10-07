@@ -172,7 +172,7 @@ function isActionableState(state) {
  */
 async function findInvitationByToken(pool, token) {
   const digest = digestInvitationToken(token);
-  if (!digest) return null;
+  if (!digest) {return null;}
 
   const result = await pool.query(
     `SELECT pi.id,
@@ -431,6 +431,73 @@ async function createInvitation(pool, params) {
 }
 
 /**
+ * Replace an outstanding invitation and send a fresh link. Recipient changes
+ * create a new audited invitation and revoke the old one in the same
+ * transaction; this also rechecks membership/reactivation for the new address.
+ * @param {Object} pool - Database pool
+ * @param {Object} params - Full invitation fields, unit, id and acting user
+ * @returns {Promise<Object>} Invitation/token or a conflict reason
+ */
+async function updateInvitation(pool, params) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const locked = await client.query(
+      `SELECT * FROM parent_invitations
+        WHERE id = $1 AND organization_id = $2 AND status = 'pending'
+        FOR UPDATE`,
+      [params.invitationId, params.organizationId]
+    );
+    const previous = locked.rows[0];
+    if (!previous) {
+      await client.query('ROLLBACK');
+      return { ok: false, reason: 'not_found' };
+    }
+    let updated;
+    if (previous.email !== params.email) {
+      updated = await createInvitation(client, params);
+      if (!updated.ok) {
+        await client.query('ROLLBACK');
+        return updated;
+      }
+      await client.query(
+        `INSERT INTO parent_invitation_participants
+           (invitation_id, participant_id, organization_id, added_by)
+         SELECT $1, participant_id, organization_id, added_by
+           FROM parent_invitation_participants WHERE invitation_id = $2`,
+        [updated.invitation.id, previous.id]
+      );
+      await revokeInvitation(client, {
+        organizationId: params.organizationId, invitationId: previous.id, revokedBy: params.invitedBy,
+      });
+    } else {
+      const { token, digest } = generateInvitationToken();
+      const result = await client.query(
+        `UPDATE parent_invitations
+            SET first_name = $1, last_name = $2,
+                telephone_residence = $3, telephone_cellulaire = $4,
+                support_contact_name = $5, support_contact_email = $6,
+                language = $7, token_digest = $8, expires_at = $9,
+                sent_at = NULL, updated_at = now()
+          WHERE id = $10 AND organization_id = $11 AND status = 'pending'
+          RETURNING *`,
+        [params.firstName, params.lastName, params.telephoneResidence, params.telephoneCellulaire,
+          params.supportContactName, params.supportContactEmail, params.language, digest,
+          invitationExpiresAt(), previous.id, params.organizationId]
+      );
+      updated = { ok: true, invitation: result.rows[0], token };
+    }
+    await client.query('COMMIT');
+    return updated;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Issue a fresh link for an invitation that is still outstanding.
  *
  * Rotating the token is the point, not a side effect: the old link stops
@@ -520,10 +587,11 @@ async function revokeInvitation(pool, { organizationId, invitationId, revokedBy 
  * @param {string} invitationId - Invitation UUID
  * @returns {Promise<void>} Resolves once recorded
  */
-async function markInvitationSent(pool, invitationId) {
+async function markInvitationSent(pool, invitationId, tokenDigest) {
   await pool.query(
-    'UPDATE parent_invitations SET sent_at = now(), updated_at = now() WHERE id = $1',
-    [invitationId]
+    `UPDATE parent_invitations SET sent_at = now(), updated_at = now()
+      WHERE id = $1 AND token_digest = $2 AND status = 'pending'`,
+    [invitationId, tokenDigest]
   );
 }
 
@@ -538,7 +606,7 @@ async function markInvitationSent(pool, invitationId) {
  * @returns {string} HTML-safe text
  */
 function safeText(value) {
-  if (value === null || value === undefined) return '';
+  if (value === null || value === undefined) {return '';}
   return escapeHtml(String(value));
 }
 
@@ -664,7 +732,7 @@ async function deliverInvitation(pool, { invitation, token, baseUrl, logger }) {
   const sent = await sendEmail(invitation.email, subject, text, html, organizationName);
 
   if (sent) {
-    await markInvitationSent(pool, invitation.id);
+    await markInvitationSent(pool, invitation.id, digestInvitationToken(token));
     logger?.info('Parent invitation sent', {
       organizationId: invitation.organization_id,
       invitationId: invitation.id,
@@ -924,6 +992,7 @@ module.exports = {
   describeInvitation,
   listInvitations,
   createInvitation,
+  updateInvitation,
   resendInvitation,
   revokeInvitation,
   markInvitationSent,

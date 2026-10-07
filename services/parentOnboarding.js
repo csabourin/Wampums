@@ -1,4 +1,5 @@
 'use strict';
+const { isCalendarDate } = require('../utils/calendar-date');
 
 /**
  * Parent onboarding — a family registering its own children.
@@ -182,6 +183,19 @@ async function listFamilyChildren(client, { requesterId, familyUserIds, organiza
             p.last_name,
             p.date_naissance::text AS date_naissance,
             EXISTS (
+              SELECT 1 FROM participant_access_grants g
+               WHERE g.participant_id = p.id AND g.user_id = $1
+                 AND g.revoked_at IS NULL AND g.source_type <> 'family_link'
+                 AND EXISTS (SELECT 1 FROM participant_enrollments own_unit
+                              WHERE own_unit.participant_id = p.id AND own_unit.organization_id = $3)
+            ) AS can_manage,
+            EXISTS (
+              SELECT 1 FROM participant_access_grants g
+               WHERE g.participant_id = p.id AND g.user_id = $1 AND g.revoked_at IS NULL
+                 AND EXISTS (SELECT 1 FROM participant_enrollments edit_unit
+                              WHERE edit_unit.participant_id = p.id AND edit_unit.organization_id = $3)
+            ) AS can_edit,
+            EXISTS (
               SELECT 1 FROM participant_enrollments pe
                WHERE pe.participant_id = p.id AND pe.organization_id = $3
             ) AS in_this_unit,
@@ -222,15 +236,17 @@ async function listFamilyChildren(client, { requesterId, familyUserIds, organiza
  * @param {number} participantId - Child
  * @param {number} organizationId - Unit
  * @param {number} scoutYearId - Active scout year
+ * @param {string|null} [inscriptionDate] - Explicit date from registration paperwork
  * @returns {Promise<void>} Resolves once enrolled
  */
-async function enrollInYear(client, participantId, organizationId, scoutYearId) {
+async function enrollInYear(client, participantId, organizationId, scoutYearId, inscriptionDate = null) {
   await client.query(
     `INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id, inscription_date)
-     VALUES ($1, $2, $3, CURRENT_DATE)
+     VALUES ($1, $2, $3, COALESCE($4::date, CURRENT_DATE))
      ON CONFLICT (participant_id, organization_id, scout_year_id)
-     DO UPDATE SET status = 'active', ended_on = NULL, exit_reason = NULL`,
-    [participantId, organizationId, scoutYearId]
+     DO UPDATE SET status = 'active', ended_on = NULL, exit_reason = NULL,
+                   inscription_date = COALESCE($4::date, participant_enrollments.inscription_date)`,
+    [participantId, organizationId, scoutYearId, inscriptionDate]
   );
 }
 
@@ -311,6 +327,7 @@ async function linkChildToFamily(client, participantId, family, requesterId) {
  * @param {string} params.firstName - Child's first name
  * @param {string} params.lastName - Child's last name
  * @param {string} params.dateOfBirth - ISO date
+ * @param {string|null} [params.inscriptionDate] - Registration date, or today for a new enrollment
  * @param {boolean} [params.confirmSimilar] - The parent has seen a same-name
  *   match and confirms this is a different child
  * @param {Object} [options] - Options
@@ -325,7 +342,12 @@ async function createChild(pool, params, { now = new Date() } = {}) {
     lastName,
     dateOfBirth,
     confirmSimilar = false,
+    inscriptionDate = null,
   } = params;
+
+  if (inscriptionDate !== null && !isCalendarDate(inscriptionDate)) {
+    return { result: CHILD_RESULT.INVALID, error: 'registration_date_invalid' };
+  }
 
   const invalid = validateChild({ firstName, lastName, dateOfBirth }, now);
   if (invalid) {
@@ -364,7 +386,7 @@ async function createChild(pool, params, { now = new Date() } = {}) {
     }
 
     if (exact) {
-      await enrollInYear(client, exact.id, organizationId, scoutYear.id);
+      await enrollInYear(client, exact.id, organizationId, scoutYear.id, inscriptionDate);
       await linkChildToFamily(client, exact.id, family, userId);
       await client.query('COMMIT');
       return {
@@ -391,7 +413,7 @@ async function createChild(pool, params, { now = new Date() } = {}) {
     );
     const participantId = created.rows[0].id;
 
-    await enrollInYear(client, participantId, organizationId, scoutYear.id);
+    await enrollInYear(client, participantId, organizationId, scoutYear.id, inscriptionDate);
     await linkChildToFamily(client, participantId, family, userId);
 
     // The check above never looks at a partner's children in other units, so

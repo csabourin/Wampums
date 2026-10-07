@@ -24,6 +24,7 @@ const {
 } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { checkValidation } = require('../middleware/validation');
+const { registerFamilyChildManagement } = require('./familyChildManagement');
 const {
   CHILD_RESULT,
   createChild,
@@ -43,6 +44,9 @@ function isConfirmed(value) {
 
 module.exports = (pool, logger) => {
   const router = express.Router();
+  registerFamilyChildManagement(router, pool, {
+    prefix: '/children', permission: 'participants.create_own',
+  });
 
   /**
    * Where this parent stands: their unit, this year, the children their family
@@ -78,6 +82,7 @@ module.exports = (pool, logger) => {
     body('first_name').isString().trim().notEmpty(),
     body('last_name').isString().trim().notEmpty(),
     body('date_naissance').isISO8601({ strict: true }),
+    body('inscription_date').optional({ nullable: true }).matches(/^\d{4}-\d{2}-\d{2}$/).isISO8601({ strict: true }),
     body('confirm_similar').optional({ nullable: true }).isBoolean(),
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -89,6 +94,7 @@ module.exports = (pool, logger) => {
         firstName: req.body.first_name,
         lastName: req.body.last_name,
         dateOfBirth: String(req.body.date_naissance).slice(0, 10),
+        inscriptionDate: req.body.inscription_date || null,
         confirmSimilar: isConfirmed(req.body.confirm_similar),
       });
 

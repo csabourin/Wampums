@@ -58,6 +58,8 @@ jest.mock('../middleware/auth', () => {
   };
 });
 
+const { describeInvitation } = require('../services/parentInvitations');
+
 describe.skipIf(!DATABASE_URL)('Walk-in children', () => {
   let pool;
   let app;
@@ -222,7 +224,7 @@ describe.skipIf(!DATABASE_URL)('Walk-in children', () => {
 
   afterAll(async () => {
     delete process.env.PUBLIC_BASE_URL;
-    if (pool) await pool.end();
+    if (pool) {await pool.end();}
   });
 
   beforeEach(async () => {
@@ -455,4 +457,47 @@ describe.skipIf(!DATABASE_URL)('Walk-in children', () => {
     expect(badAddress.status).toBe(400);
     expect(await one('SELECT count(*) FROM participant_enrollments WHERE organization_id = $1', [ids.unit])).toBe('0');
   });
+
+  test('a walk-in can be corrected and withdrawn, cancelling its invitation', async () => {
+    const made = await walkIn(ids.leader.id, { parent_email: `withdraw@new.${DOMAIN}` });
+    const childId = made.body.data.participant_id;
+    const token = lastToken();
+    const edited = await as(ids.leader.id).put(`/api/v1/walk-in-children/${childId}`)
+      .send({ first_name: 'Noé', last_name: 'Walker', date_naissance: '2016-04-05' });
+    expect(edited.status).toBe(200);
+    expect(edited.body.data.child.first_name).toBe('Noé');
+    const removed = await as(ids.leader.id).delete(`/api/v1/walk-in-children/${childId}`);
+    expect(removed.status).toBe(200);
+    expect(await one('SELECT status FROM participant_enrollments WHERE participant_id = $1', [childId])).toBe('left');
+    expect((await describeInvitation(pool, token)).state).toBe('revoked');
+  });
+
+  test('withdrawing one sibling preserves the other sibling’s invitation', async () => {
+    const first = await walkIn(ids.leader.id, { parent_email: `siblings-withdraw@new.${DOMAIN}` });
+    const token = lastToken();
+    const second = await walkIn(ids.leader.id, { first_name: 'Léa', parent_email: `siblings-withdraw@new.${DOMAIN}` });
+    expect((await as(ids.leader.id).delete(`/api/v1/walk-in-children/${first.body.data.participant_id}`)).status).toBe(200);
+    expect((await describeInvitation(pool, token)).state).toBe('ready_new_account');
+    expect(await one('SELECT count(*) FROM parent_invitation_participants WHERE participant_id = $1',
+      [second.body.data.participant_id])).toBe('1');
+  });
+
+  test('walk-in correction is refused once an account can see the child', async () => {
+    const made = await walkIn(ids.leader.id, { parent_email: ids.parent.email });
+    const path = `/api/v1/walk-in-children/${made.body.data.participant_id}`;
+    expect((await as(ids.leader.id).put(path).send({ first_name: 'Other', last_name: 'Name', date_naissance: '2016-04-05' })).status).toBe(404);
+    expect((await as(ids.leader.id).delete(path)).status).toBe(404);
+  });
+
+  test('a leader can withdraw a child invitation while retaining the enrollment', async () => {
+    const made = await walkIn(ids.leader.id, { parent_email: `revoke-only@new.${DOMAIN}` });
+    const token = lastToken();
+    const invitationId = await one('SELECT invitation_id FROM parent_invitation_participants WHERE participant_id = $1',
+      [made.body.data.participant_id]);
+    expect((await as(ids.leader.id).delete(`/api/v1/walk-in-children/invitations/${invitationId}`)).status).toBe(200);
+    expect((await describeInvitation(pool, token)).state).toBe('revoked');
+    expect(await one('SELECT status FROM participant_enrollments WHERE participant_id = $1',
+      [made.body.data.participant_id])).toBe('active');
+  });
+
 });

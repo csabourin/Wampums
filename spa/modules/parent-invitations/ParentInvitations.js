@@ -27,10 +27,13 @@ import { confirm } from '../../utils/DialogUtils.js';
 import {
   getParentInvitations,
   createParentInvitation,
+  updateParentInvitation,
   resendParentInvitation,
   revokeParentInvitation,
 } from '../../api/api-parent-invitations.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+
+import { familyOperationErrorKey, beginFamilyOperation, refreshFamilyAfterWrite, invitationLanguageField } from '../family-access/operations.js';
 
 const MODAL_ID = 'parent-invitation-modal';
 
@@ -149,8 +152,8 @@ export class ParentInvitations {
         <p>${translate('parent_invitations_intro')}</p>
         <p id="parent-invitations-status" class="status-message" role="status" hidden></p>
         ${this.invitations.length === 0
-          ? `<p class="empty-state">${translate('parent_invitations_empty')}</p>`
-          : `<ul class="invitation-list">${this.invitations.map((invitation) => this.renderRow(invitation)).join('')}</ul>`}
+    ? `<p class="empty-state">${translate('parent_invitations_empty')}</p>`
+    : `<ul class="invitation-list">${this.invitations.map((invitation) => this.renderRow(invitation)).join('')}</ul>`}
       </section>
     `);
 
@@ -200,6 +203,9 @@ export class ParentInvitations {
         ` : ''}
         ${canAct ? `
           <div class="invitation-card__actions">
+            <button type="button" class="button button--small button--secondary" data-action="edit" data-id="${escapeHTML(invitation.id)}">
+              ${translate('edit')}
+            </button>
             <button type="button" class="button button--small button--secondary" data-action="resend" data-id="${escapeHTML(invitation.id)}">
               ${translate('parent_invitations_resend')}
             </button>
@@ -219,7 +225,9 @@ export class ParentInvitations {
     this.root()?.querySelectorAll('[data-action]').forEach((button) => {
       button.addEventListener('click', () => {
         const { action, id } = button.dataset;
-        if (action === 'resend') {
+        if (action === 'edit') {
+          this.openInviteForm(this.invitations.find((invitation) => invitation.id === id));
+        } else if (action === 'resend') {
           this.resend(id);
         } else if (action === 'revoke') {
           this.revoke(id);
@@ -237,7 +245,7 @@ export class ParentInvitations {
    */
   showStatus(key, kind = 'success') {
     const element = document.getElementById('parent-invitations-status');
-    if (!element) return;
+    if (!element) {return;}
     element.textContent = translate(key);
     element.className = `status-message ${kind}`;
     element.hidden = false;
@@ -248,20 +256,25 @@ export class ParentInvitations {
    *
    * @returns {void}
    */
-  openInviteForm() {
+  openInviteForm(invitation = null) {
+    if (this.pendingAction) {return;}
+    this.editingInvitationId = invitation?.id || null;
     const field = (name, type, labelKey, extra = '') => `
       <div class="form-group">
         <label for="invite-${name}">${translate(labelKey)}</label>
-        <input type="${type}" id="invite-${name}" name="${name}" ${extra} />
+        <input type="${type}" id="invite-${name}" name="${name}" value="${escapeHTML(invitation?.[name] || '')}" ${extra} />
       </div>
     `;
 
     openModal({
       id: MODAL_ID,
-      title: translate('parent_invitations_invite'),
+      canClose: () => !this.pendingAction,
+      title: translate(invitation ? 'family_invitation_edit' : 'parent_invitations_invite'),
       body: `
         <form id="parent-invitation-form" novalidate>
           ${field('email', 'email', 'email', 'required autocomplete="off" maxlength="255"')}
+          ${invitationLanguageField('invite-language', invitation?.language || this.lang())}
+          ${invitation ? `<p class="form-hint">${translate('family_invitation_edit_hint')}</p>` : ''}
           <p class="form-hint">${translate('parent_invitations_optional_hint')}</p>
           ${field('first_name', 'text', 'first_name', 'maxlength="255"')}
           ${field('last_name', 'text', 'last_name', 'maxlength="255"')}
@@ -276,7 +289,7 @@ export class ParentInvitations {
       footer: `
         <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
         <button type="button" id="parent-invitation-submit" class="button button--primary">
-          ${translate('parent_invitations_send')}
+          ${translate(invitation ? 'family_invitation_save_send' : 'parent_invitations_send')}
         </button>
       `,
     });
@@ -290,7 +303,7 @@ export class ParentInvitations {
       this.submitInvitation(form);
     });
     document.getElementById('parent-invitation-submit')?.addEventListener('click', () => {
-      if (form) this.submitInvitation(form);
+      if (form) {this.submitInvitation(form);}
     });
   }
 
@@ -302,10 +315,10 @@ export class ParentInvitations {
    */
   readInvitation(form) {
     const value = (name) => form.querySelector(`[name="${name}"]`)?.value.trim() || '';
-    const body = { email: value('email'), language: this.lang() };
+    const body = { email: value('email'), language: value('language') };
     OPTIONAL_FIELDS.forEach((name) => {
       const entered = value(name);
-      if (entered) body[name] = entered;
+      if (entered || this.editingInvitationId) {body[name] = entered || null;}
     });
     return body;
   }
@@ -317,6 +330,7 @@ export class ParentInvitations {
    * @returns {Promise<void>}
    */
   async submitInvitation(form) {
+    if (this.pendingAction) {return;}
     const body = this.readInvitation(form);
     if (!body.email) {
       this.showFormError('parent_invitations_email_required');
@@ -333,28 +347,31 @@ export class ParentInvitations {
       body.confirm_reactivation = true;
       body.reactivation_reason = reason;
     }
+    if (!form.reportValidity()) {return;}
 
-    const submit = document.getElementById('parent-invitation-submit');
-    if (submit) submit.disabled = true;
+    const release = beginFamilyOperation(this);
+    if (!release) {return;}
 
     try {
-      const response = await createParentInvitation(body);
+      const response = await (this.editingInvitationId
+        ? updateParentInvitation(this.editingInvitationId, body) : createParentInvitation(body));
       closeModal(MODAL_ID);
-      await this.load();
-      this.render();
+      if (!(await refreshFamilyAfterWrite(this, { emailSent: response?.data?.email_sent }))) {return;}
       if (response?.data?.email_sent === false) {
         this.showStatus('parent_invitations_created_not_sent', 'warning');
       } else {
         this.showStatus('parent_invitations_sent');
       }
     } catch (error) {
-      if (submit) submit.disabled = false;
       if (error?.code === 'manually_deactivated') {
+        release();
         this.askToReinstate(error.data || {});
         return;
       }
       debugError('Failed to invite parent:', error);
-      this.showFormError(CONFLICT_MESSAGES[error?.code] || 'parent_invitations_failed');
+      this.showFormError(familyOperationErrorKey(error, CONFLICT_MESSAGES[error?.code] || 'parent_invitations_failed'));
+    } finally {
+      release();
     }
   }
 
@@ -367,7 +384,7 @@ export class ParentInvitations {
    */
   askToReinstate(details) {
     const panel = document.getElementById('parent-invitation-override');
-    if (!panel) return;
+    if (!panel) {return;}
 
     const when = details.deactivated_at ? this.date(details.deactivated_at) : translate('parent_invitations_date_unknown');
     const why = details.deactivated_reason
@@ -386,7 +403,7 @@ export class ParentInvitations {
     panel.hidden = false;
 
     const submit = document.getElementById('parent-invitation-submit');
-    if (submit) submit.textContent = translate('parent_invitations_reinstate_and_send');
+    if (submit) {submit.textContent = translate('parent_invitations_reinstate_and_send');}
     document.getElementById('parent-invitation-reason')?.focus();
   }
 
@@ -398,7 +415,7 @@ export class ParentInvitations {
    */
   showFormError(key) {
     const element = document.getElementById('parent-invitation-error');
-    if (!element) return;
+    if (!element) {return;}
     element.textContent = translate(key);
     element.hidden = false;
   }
@@ -410,17 +427,20 @@ export class ParentInvitations {
    * @returns {Promise<void>}
    */
   async resend(invitationId) {
+    const release = beginFamilyOperation(this);
+    if (!release) {return;}
     try {
       const response = await resendParentInvitation(invitationId);
-      await this.load();
-      this.render();
+      if (!(await refreshFamilyAfterWrite(this, { emailSent: response?.data?.email_sent }))) {return;}
       this.showStatus(
         response?.data?.email_sent === false ? 'parent_invitations_created_not_sent' : 'parent_invitations_resent',
         response?.data?.email_sent === false ? 'warning' : 'success'
       );
     } catch (error) {
       debugError('Failed to resend invitation:', error);
-      this.showStatus('parent_invitations_failed', 'error');
+      this.showStatus(familyOperationErrorKey(error, 'parent_invitations_failed'), 'error');
+    } finally {
+      release();
     }
   }
 
@@ -431,22 +451,26 @@ export class ParentInvitations {
    * @returns {Promise<void>}
    */
   async revoke(invitationId) {
+    if (this.pendingAction) {return;}
     const confirmed = await confirm({
       title: translate('parent_invitations_revoke'),
       message: translate('parent_invitations_revoke_confirm'),
       confirmLabel: translate('parent_invitations_revoke'),
       danger: true,
     });
-    if (!confirmed) return;
+    if (!confirmed) {return;}
+    const release = beginFamilyOperation(this);
+    if (!release) {return;}
 
     try {
       await revokeParentInvitation(invitationId);
-      await this.load();
-      this.render();
+      if (!(await refreshFamilyAfterWrite(this))) {return;}
       this.showStatus('parent_invitations_revoked');
     } catch (error) {
       debugError('Failed to revoke invitation:', error);
-      this.showStatus('parent_invitations_failed', 'error');
+      this.showStatus(familyOperationErrorKey(error, 'parent_invitations_failed'), 'error');
+    } finally {
+      release();
     }
   }
 }

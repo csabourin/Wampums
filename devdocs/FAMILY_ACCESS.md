@@ -79,12 +79,50 @@ Within a family: same name and birth date on this year's roster is refused; the
 same child from last year or another unit is re-enrolled; same name with another
 birth date asks the parent.
 
+**Corrections and withdrawals are explicit.** Outstanding invitations can be
+edited and sent again in the recipient's chosen language. Every save rotates the
+link. Changing the address creates a new invitation, transfers its children,
+and revokes the old invitation in one transaction, retaining its history.
+
+Parents can correct children they can see in the unit; withdrawing an enrollment
+requires independent access, not access borrowed through family sharing. A
+withdrawal closes only the active year's enrollment. It keeps historical records
+and family access, and the same child can be re-enrolled later. Walk-in staff can
+correct or withdraw children before an account gains access. Withdrawal detaches
+the child's outstanding invitations, revoking an invitation only when it has no
+remaining children. Staff may also withdraw a whole child invitation while
+keeping all of its children on the roster.
+
+**Contact removal and access removal have different meanings.** Removing a
+guardian relationship revokes that relationship's grants for that child, never
+for siblings. Independently granted account access survives, and the response
+reports it so the interface can explain that account–child management is needed
+to remove it. Guardian removal respects the caller's data scope.
+
+**Feedback distinguishes saved changes, delivery and refresh.** A failed email
+send remains a saved invitation with a resend option. A failed list refresh
+after a successful write offers a read-only retry. Connection failures while
+opening emailed links are retryable load errors, not invalid-link states.
+Writes on family screens are serialized while pending. Invitations, family
+sharing and child management require an online server result and are never
+silently queued for offline replay. A lost response reports an unconfirmed
+operation and asks the user to refresh before retrying.
+
+**Registration paperwork is resumable.** Core child creation/enrollment and
+family linking are transactional. The existing paperwork and guardian requests
+remain separate saves: a later failure keeps the entered fields, the saved
+child ID and saved guardian IDs, and explains that registration is incomplete.
+Saving again updates those same records. Adding or removing a guardian captures
+all current drafts before rebuilding the forms. Paperwork saves require a
+confirmed online response rather than reporting queued writes as complete.
+
 ## Permissions
 
 | Permission | Used for |
 |---|---|
-| `users.invite` | Inviting parents |
-| `participants.create_own` | Registering one's own children, sharing a family |
+| `users.invite` | Inviting parents; editing, resending and withdrawing outstanding invitations |
+| `participants.create_own` | Registering and correcting family children; withdrawing independently held children's active-year enrollments; sharing a family |
+| `participants.walk_in` | Entering walk-in children; correcting or withdrawing children without an account; resending or withdrawing their invitations |
 | `participants.edit` | Reviewing duplicates; changing any child of the unit through `/participants/save`, including their den |
 
 `participants.create` is unscoped and must not be widened to make a parent
@@ -98,7 +136,10 @@ children they are already linked to.
 - `test/family-links.integration.test.js`
 - `test/participant-access.integration.test.js`
 - `test/participant-duplicates.integration.test.js`
+- `test/walk-in-children.integration.test.js`
+- `test/guardians-access.integration.test.js`
 - `test/spa/FamilyAccess*.test.js`, `test/spa/LoginOnboardingResume.test.js`
+- `test/spa/FamilyWorkflowUX.test.js`, `test/spa/FamilyOnlineWrites.test.js`
 
 The integration suites run against a disposable PostgreSQL named by
 `TEST_DATABASE_URL`, built from `attached_assets/Full_Database_schema.sql` plus

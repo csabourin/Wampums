@@ -137,6 +137,25 @@ async function revokeGrantsFromSource(client, { sourceType, sourceId }) {
 }
 
 /**
+ * Remove one guardian relationship's grants for one child only. A contact
+ * can guard siblings, so revoking its entire source would affect other children.
+ * @param {Object} client - Client in the relationship removal transaction
+ * @param {Object} scope - Participant and guardian ids already checked in-unit
+ * @returns {Promise<Object>} Revoked grants and accounts losing their last grant
+ */
+async function revokeGuardianAccess(client, { participantId, guardianId }) {
+  const revoked = await client.query(
+    `UPDATE participant_access_grants SET revoked_at = now()
+      WHERE participant_id = $1 AND source_type = 'guardian'
+        AND source_id = $2 AND revoked_at IS NULL
+      RETURNING participant_id, user_id`,
+    [participantId, String(guardianId)]
+  );
+  const removed = await pruneUnbackedAccess(client, revoked.rows);
+  return { revoked: revoked.rowCount, removed };
+}
+
+/**
  * Take one person's access to one child away completely, whatever it rested on.
  *
  * This is the administrator's "this person should not see this child", and it
@@ -269,6 +288,7 @@ module.exports = {
   ACCESS_SOURCE,
   grantParticipantAccess,
   revokeGrantsFromSource,
+  revokeGuardianAccess,
   revokeAllAccessForPair,
   revokeAllAccessInUnit,
   listOwnChildrenInUnit,

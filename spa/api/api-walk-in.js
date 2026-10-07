@@ -8,6 +8,7 @@
  * @module spa/api/api-walk-in
  */
 
+import { debugError } from '../utils/DebugUtils.js';
 import { API } from './api-core.js';
 import {
   clearBadgeRelatedCaches,
@@ -37,11 +38,16 @@ export function getWalkInChildren() {
  */
 export async function addWalkInChild(child) {
   const result = await API.post('v1/walk-in-children', child);
-  await Promise.all([
+  const invalidations = await Promise.allSettled([
     clearGroupRelatedCaches(),
     clearBadgeRelatedCaches(),
     clearCachedApiPaths(['v1/participants', 'v1/attendance']),
   ]);
+  invalidations.forEach((invalidation) => {
+    if (invalidation.status === 'rejected') {
+      debugError('Walk-in saved; roster cache invalidation failed:', invalidation.reason);
+    }
+  });
   return result;
 }
 
@@ -64,4 +70,19 @@ export function inviteParentForChild(participantId, parent) {
  */
 export function resendWalkInInvitation(invitationId) {
   return API.post(`v1/walk-in-children/invitations/${invitationId}/resend`, {});
+}
+
+/** Correct a child who is still waiting for a parent account. */
+export function updateWalkInChild(participantId, child) {
+  return API.put(`v1/walk-in-children/${participantId}`, child);
+}
+
+/** Withdraw a walk-in enrollment and detach outstanding invitations for the child. */
+export function withdrawWalkInChild(participantId) {
+  return API.delete(`v1/walk-in-children/${participantId}`);
+}
+
+/** Withdraw an outstanding child invitation without removing its enrollment. */
+export function revokeWalkInInvitation(invitationId) {
+  return API.delete(`v1/walk-in-children/invitations/${invitationId}`);
 }

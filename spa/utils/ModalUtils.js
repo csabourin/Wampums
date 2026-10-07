@@ -15,9 +15,10 @@ import { lockBodyScroll, unlockBodyScroll } from './ScrollLockUtils.js';
  * @param {string} options.body - Body HTML
  * @param {string} [options.footer] - Footer HTML (usually action buttons)
  * @param {Function} [options.onClose] - Called after the modal is removed
+ * @param {Function} [options.canClose] - Whether a user may dismiss the dialog (e.g. while saving)
  * @returns {{ overlay: HTMLElement, close: Function }} Modal handle
  */
-export function openModal({ id = 'app-modal', title = '', body = '', footer = '', onClose = null }) {
+export function openModal({ id = 'app-modal', title = '', body = '', footer = '', onClose = null, canClose = () => true }) {
   closeModal(id);
 
   const overlay = document.createElement('div');
@@ -40,7 +41,8 @@ export function openModal({ id = 'app-modal', title = '', body = '', footer = ''
   // the router's releaseAllScrollLocks() covers navigating away mid-dialog.
   lockBodyScroll(`modal:${id}`);
 
-  const close = () => {
+  const close = (force = false) => {
+    if (!force && !canClose()) {return;}
     unlockBodyScroll(`modal:${id}`);
     document.removeEventListener('keydown', handleEscape);
     overlay.remove();
@@ -61,8 +63,9 @@ export function openModal({ id = 'app-modal', title = '', body = '', footer = ''
     }
   });
   overlay.querySelectorAll('[data-modal-close]').forEach(btn => {
-    btn.addEventListener('click', close);
+    btn.addEventListener('click', () => close());
   });
+  overlay.addEventListener('modal-force-close', () => close(true));
   document.addEventListener('keydown', handleEscape);
 
   // Focus the first focusable form control for keyboard users
@@ -80,10 +83,10 @@ export function openModal({ id = 'app-modal', title = '', body = '', footer = ''
  */
 export function closeModal(id = 'app-modal') {
   const overlay = document.getElementById(id);
-  if (!overlay) return;
+  if (!overlay) {return;}
 
-  // Prefer the modal's own close handler so it can clean up document listeners.
-  overlay.querySelector('[data-modal-close]')?.dispatchEvent(new Event('click', { bubbles: true }));
+  // Programmatic completion may close a pending dialog, with listener cleanup.
+  overlay.dispatchEvent(new Event('modal-force-close'));
 
   // Fallback: if no handler was registered, still remove the DOM.
   document.getElementById(id)?.remove();

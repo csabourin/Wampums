@@ -45,6 +45,11 @@ export const CONFIG = {
      */
     API_BASE_URL: import.meta.env?.VITE_API_URL || window.location.origin,
 
+  /** These workflows need a confirmed server result, never an offline replay. */
+  ONLINE_REQUIRED_MUTATION_RESOURCES: [
+    'parent-invitations', 'parent-onboarding', 'walk-in-children',
+    'family-links', 'family-link-requests',
+  ],
     /**
      * Cache Duration Settings
      * Controls how long data is cached in IndexedDB

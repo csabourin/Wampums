@@ -29,6 +29,11 @@ export function createParentInvitation(invitation) {
   return API.post('v1/parent-invitations', invitation);
 }
 
+/** Replace an outstanding invitation and email its fresh link. */
+export function updateParentInvitation(invitationId, invitation) {
+  return API.put(`v1/parent-invitations/${invitationId}`, invitation);
+}
+
 /**
  * Send a fresh link; the previous one stops working.
  *

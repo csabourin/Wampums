@@ -21,6 +21,7 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { confirm } from '../../utils/DialogUtils.js';
+import { familyOperationErrorKey, beginFamilyOperation, refreshFamilyAfterWrite } from './operations.js';
 import { loadFamilyAccessStyles } from './styles.js';
 import {
   getFamilyLinks,
@@ -171,8 +172,8 @@ export class FamilyAccess {
 
         <h2>${translate('family_access_shared_with')}</h2>
         ${this.links.length === 0
-          ? `<p class="empty-state">${translate('family_access_no_links')}</p>`
-          : `<ul class="family-access-list">${this.links.map((link) => this.renderLink(link)).join('')}</ul>`}
+    ? `<p class="empty-state">${translate('family_access_no_links')}</p>`
+    : `<ul class="family-access-list">${this.links.map((link) => this.renderLink(link)).join('')}</ul>`}
 
         <h2>${translate('family_access_invite')}</h2>
         <div class="info-card">
@@ -229,27 +230,29 @@ export class FamilyAccess {
    * @returns {Promise<void>}
    */
   async sendRequest(email) {
+    if (this.pendingAction) {return;}
     if (!email) {
       this.showError('parent_invitations_email_required');
       return;
     }
 
-    const button = document.getElementById('family-access-send');
-    if (button) button.disabled = true;
+    const release = beginFamilyOperation(this);
+    if (!release) {return;}
 
     try {
       const response = await requestFamilyLink(email);
-      await this.load();
-      this.render();
+      document.getElementById('family-access-form')?.reset();
+      if (!(await refreshFamilyAfterWrite(this, { emailSent: response?.data?.email_sent }))) {return;}
       if (response?.data?.email_sent === false) {
         this.showStatus('family_access_created_not_sent', 'warning');
       } else {
         this.showStatus('family_access_sent');
       }
     } catch (error) {
-      if (button) button.disabled = false;
       debugError('Failed to send family link request:', error);
-      this.showError(REFUSAL_MESSAGES[error?.code] || 'family_access_error_failed');
+      this.showError(familyOperationErrorKey(error, REFUSAL_MESSAGES[error?.code] || 'family_access_error_failed'));
+    } finally {
+      release();
     }
   }
 
@@ -261,13 +264,14 @@ export class FamilyAccess {
    * @returns {Promise<void>}
    */
   async endLink(linkId, name) {
+    if (this.pendingAction) {return;}
     const confirmed = await confirm({
       title: translate('family_access_end'),
       message: translate('family_access_end_confirm').split('{name}').join(name || ''),
       confirmLabel: translate('family_access_end'),
       danger: true,
     });
-    if (!confirmed) return;
+    if (!confirmed) {return;}
 
     await this.act(() => endFamilyLink(linkId), 'family_access_ended');
   }
@@ -280,14 +284,21 @@ export class FamilyAccess {
    * @returns {Promise<void>}
    */
   async act(action, successKey) {
+    const release = beginFamilyOperation(this);
+    if (!release) {return;}
     try {
-      await action();
-      await this.load();
-      this.render();
-      this.showStatus(successKey);
+      const response = await action();
+      if (!(await refreshFamilyAfterWrite(this, { emailSent: response?.data?.email_sent }))) {return;}
+      if (response?.data?.email_sent === false) {
+        this.showStatus('family_access_created_not_sent', 'warning');
+      } else {
+        this.showStatus(successKey);
+      }
     } catch (error) {
       debugError('Family access action failed:', error);
-      this.showStatus('family_access_error_failed', 'error');
+      this.showStatus(familyOperationErrorKey(error, 'family_access_error_failed'), 'error');
+    } finally {
+      release();
     }
   }
 
@@ -299,7 +310,7 @@ export class FamilyAccess {
    */
   showError(key) {
     const element = document.getElementById('family-access-error');
-    if (!element) return;
+    if (!element) {return;}
     element.textContent = translate(key);
     element.hidden = false;
   }
@@ -313,7 +324,7 @@ export class FamilyAccess {
    */
   showStatus(key, kind = 'success') {
     const element = document.getElementById('family-access-status');
-    if (!element) return;
+    if (!element) {return;}
     element.textContent = translate(key);
     element.className = `status-message ${kind}`;
     element.hidden = false;

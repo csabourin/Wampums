@@ -218,6 +218,7 @@ export async function makeApiRequest(endpoint, options = {}) {
         headers = {},
         cacheBuster = false,
         retries = 1,
+    queueOffline = true,
         signal = null
     } = options;
 
@@ -267,8 +268,18 @@ export async function makeApiRequest(endpoint, options = {}) {
         }
     }
 
-    // Offline Handling for Write Operations
+  const requestPath = normalizeApiPath(endpoint);
+  const requiresOnline = !queueOffline || (CONFIG.ONLINE_REQUIRED_MUTATION_RESOURCES || []).some((resource) =>
+    requestPath === `/api/v1/${resource}` || requestPath.startsWith(`/api/v1/${resource}/`)
+  );
+
+    // Family authority and mail delivery must be confirmed before reporting success.
     if ((offlineManager.isOffline || navigator.onLine === false) && method !== 'GET') {
+    if (requiresOnline) {
+      const offlineError = new Error(offlineManager.getTranslation('family_operation_online_required'));
+      offlineError.code = 'online_required';
+      throw offlineError;
+    }
         debugLog(`[Offline] Queueing ${method} ${url}`);
         try {
             await offlineManager.queueMutation(url, {
@@ -349,7 +360,7 @@ export async function makeApiRequest(endpoint, options = {}) {
         (!lastError?.status && lastError?.name !== 'AbortError')
     );
 
-    if (method !== 'GET' && isNetworkError) {
+    if (method !== 'GET' && isNetworkError && !requiresOnline) {
         await offlineManager.queueMutation(url, {
             method,
             headers: requestConfig.headers,
@@ -366,7 +377,8 @@ export async function makeApiRequest(endpoint, options = {}) {
         cause: lastError
     });
     finalError.status = lastError.status;
-    finalError.code = lastError.code ?? null;
+    finalError.code = method !== 'GET' && isNetworkError && requiresOnline
+    ? 'operation_unconfirmed' : lastError.code ?? null;
     finalError.data = lastError.data ?? null;
     finalError.isNetworkError = isNetworkError;
     throw finalError;
@@ -485,8 +497,9 @@ export const API = {
     /**
      * POST request
      */
-    async post(endpoint, body = {}, params = {}) {
+    async post(endpoint, body = {}, params = {}, options = {}) {
         return makeApiRequest(endpoint, {
+      ...options,
             method: 'POST',
             body,
             params

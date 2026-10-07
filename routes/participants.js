@@ -12,6 +12,8 @@ const {
   revokeAllAccessInUnit,
   isAssociationInUnit,
 } = require('../services/participantAccess');
+const { isCalendarDate } = require('../utils/calendar-date');
+const BAD_REQUEST_STATUS = 400;
 const { eraseParticipant } = require('../services/erasure');
 
 /**
@@ -613,7 +615,10 @@ module.exports = (pool) => {
       return error(res, authCheck.message, 403);
     }
 
-    const { id, first_name, last_name, date_naissance, group_id } = req.body;
+    const { id, first_name, last_name, date_naissance, group_id, inscription_date: inscriptionDate = null } = req.body;
+    if (inscriptionDate !== null && !isCalendarDate(inscriptionDate)) {
+      return error(res, 'Registration date must be a valid calendar date', BAD_REQUEST_STATUS);
+    }
 
     if (!first_name || !last_name) {
       return error(res, 'First name and last name are required', 400);
@@ -726,10 +731,19 @@ module.exports = (pool) => {
         // read-only view over participant_enrollments.
         const scoutYear = await ensureActiveScoutYear(client, organizationId);
         await client.query(
-          `INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id)
-           VALUES ($1, $2, $3)
+          `INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id, inscription_date)
+           VALUES ($1, $2, $3, COALESCE($4::date, CURRENT_DATE))
            ON CONFLICT (participant_id, organization_id, scout_year_id) DO NOTHING`,
-          [participantId, organizationId, scoutYear.id]
+          [participantId, organizationId, scoutYear.id, inscriptionDate]
+        );
+      }
+
+      if (inscriptionDate !== null && id) {
+        await client.query(
+          `UPDATE participant_enrollments pe SET inscription_date = $1
+            WHERE pe.participant_id = $2 AND pe.organization_id = $3
+              AND EXISTS (SELECT 1 FROM scout_years sy WHERE sy.id = pe.scout_year_id AND sy.status = 'active')`,
+          [inscriptionDate, participantId, organizationId]
         );
       }
 
@@ -1554,7 +1568,7 @@ module.exports = (pool) => {
       WHERE p.id = $1 AND po.organization_id = $2
     `;
 
-    let params = [id, organizationId];
+    const params = [id, organizationId];
 
     // Linked-scoped users (parents): verify they have access to this specific participant
     if (dataScope === 'linked') {

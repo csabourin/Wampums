@@ -15,6 +15,7 @@
  */
 
 const express = require('express');
+const HTTP_STATUS = { OK: 200, CREATED: 201, BAD_REQUEST: 400, FORBIDDEN: 403, NOT_FOUND: 404, CONFLICT: 409, INTERNAL_ERROR: 500 };
 const { body, param } = require('express-validator');
 
 const {
@@ -25,8 +26,10 @@ const {
 } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { checkValidation, normalizeEmailValue } = require('../middleware/validation');
-const { resolveOrganizationBaseUrl } = require('../utils/public-url');
-const { deliverInvitation, resolveInvitationLanguage } = require('../services/parentInvitations');
+const { registerFamilyChildManagement } = require('./familyChildManagement');
+const { familyInvitationLimiter } = require('../middleware/familyInvitationLimiter');
+const { deliverParentInvitation } = require('../services/familyDelivery');
+const { resolveInvitationLanguage } = require('../services/parentInvitations');
 const {
   listChildrenWithoutParent,
   createWalkInChild,
@@ -69,6 +72,9 @@ function refuse(res, status, code, message, data = null) {
 
 module.exports = (pool, logger) => {
   const router = express.Router();
+  registerFamilyChildManagement(router, pool, {
+    prefix: '', permission: 'participants.walk_in', walkIn: true,
+  });
 
   const parentFields = [
     body('parent_email').isEmail().isLength({ max: 255 }),
@@ -105,15 +111,13 @@ module.exports = (pool, logger) => {
    * Mail the link if one was minted, after the transaction committed.
    *
    * @param {Object} outcome - From the service
-   * @param {number} organizationId - Unit
-   * @returns {Promise<boolean|null>} Whether it was sent; null when nothing needed sending
+   * @returns {Promise<boolean>|null} Whether it was sent; null when nothing needed sending
    */
-  async function mailIfNeeded(outcome, organizationId) {
+  function mailIfNeeded(outcome) {
     if (!outcome.token || !outcome.invitation) {
       return null;
     }
-    const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
-    return deliverInvitation(pool, { invitation: outcome.invitation, token: outcome.token, baseUrl, logger });
+    return deliverParentInvitation(pool, { invitation: outcome.invitation, token: outcome.token, logger });
   }
 
   /**
@@ -125,7 +129,7 @@ module.exports = (pool, logger) => {
    * @returns {Object} Express response
    */
   function refuseBlocked(res, outcome, canOverride) {
-    return refuse(res, 409, 'manually_deactivated',
+    return refuse(res, HTTP_STATUS.CONFLICT, 'manually_deactivated',
       'This address belongs to a member an administrator removed by hand',
       { ...outcome.blocked, can_override: canOverride });
   }
@@ -150,6 +154,7 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('participants.walk_in'),
+    familyInvitationLimiter,
     body('first_name').isString().trim().notEmpty(),
     body('last_name').isString().trim().notEmpty(),
     body('date_naissance').isISO8601({ strict: true }),
@@ -171,23 +176,23 @@ module.exports = (pool, logger) => {
       });
 
       if (outcome.result === 'invalid') {
-        return error(res, outcome.error, 400, [{ path: 'child', msg: outcome.error }]);
+        return error(res, outcome.error, HTTP_STATUS.BAD_REQUEST, [{ path: 'child', msg: outcome.error }]);
       }
       if (outcome.result === 'duplicate_child') {
-        return refuse(res, 409, 'duplicate_child', 'This child is already in the unit', { existing: outcome.existing });
+        return refuse(res, HTTP_STATUS.CONFLICT, 'duplicate_child', 'This child is already in the unit', { existing: outcome.existing });
       }
       if (outcome.result === 'manually_deactivated') {
         return refuseBlocked(res, outcome, context.canOverride);
       }
 
-      const emailSent = await mailIfNeeded(outcome, organizationId);
+      const emailSent = await mailIfNeeded(outcome);
       logger?.info('Walk-in child entered', { organizationId, participantId: outcome.participant_id, parent: outcome.parent });
 
       return success(res, {
         participant_id: outcome.participant_id,
         parent: outcome.parent,
         email_sent: emailSent,
-      }, 'Child added', 201);
+      }, 'Child added', HTTP_STATUS.CREATED);
     })
   );
 
@@ -198,6 +203,7 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('participants.walk_in'),
+    familyInvitationLimiter,
     param('id').isInt({ min: 1 }),
     ...parentFields,
     checkValidation,
@@ -215,16 +221,16 @@ module.exports = (pool, logger) => {
       });
 
       if (outcome.result === 'not_found') {
-        return error(res, 'Participant not found', 404);
+        return error(res, 'Participant not found', HTTP_STATUS.NOT_FOUND);
       }
       if (outcome.result === 'already_has_parent') {
-        return refuse(res, 409, 'already_has_parent', 'This child is already linked to a parent account');
+        return refuse(res, HTTP_STATUS.CONFLICT, 'already_has_parent', 'This child is already linked to a parent account');
       }
       if (outcome.result === 'manually_deactivated') {
         return refuseBlocked(res, outcome, context.canOverride);
       }
 
-      const emailSent = await mailIfNeeded(outcome, organizationId);
+      const emailSent = await mailIfNeeded(outcome);
       return success(res, { parent: outcome.parent, email_sent: emailSent }, 'Parent invited');
     })
   );
@@ -236,6 +242,7 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('participants.walk_in'),
+    familyInvitationLimiter,
     param('invitationId').isUUID(),
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -243,10 +250,30 @@ module.exports = (pool, logger) => {
       const resent = await resendWalkInInvitation(pool, { organizationId, invitationId: req.params.invitationId });
 
       if (!resent.ok) {
-        return error(res, 'Invitation not found', 404);
+        return error(res, 'Invitation not found', HTTP_STATUS.NOT_FOUND);
       }
-      const emailSent = await mailIfNeeded(resent, organizationId);
+      const emailSent = await mailIfNeeded(resent);
       return success(res, { email_sent: emailSent }, 'Invitation resent');
+    })
+  );
+
+  /** Withdraw a child invitation while keeping its enrollment on the roster. */
+  router.delete('/invitations/:invitationId',
+    authenticate, blockDemoRoles, requirePermission('participants.walk_in'),
+    param('invitationId').isUUID(), checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const revoked = await pool.query(
+        `UPDATE parent_invitations pi
+            SET status = 'revoked', revoked_at = now(), revoked_by = $3, updated_at = now()
+          WHERE pi.id = $1 AND pi.organization_id = $2 AND pi.status = 'pending'
+            AND EXISTS (SELECT 1 FROM parent_invitation_participants pip
+                         WHERE pip.invitation_id = pi.id AND pip.organization_id = $2)
+          RETURNING pi.id`,
+        [req.params.invitationId, organizationId, req.user.id]
+      );
+      if (!revoked.rows.length) {return error(res, 'Invitation not found', HTTP_STATUS.NOT_FOUND);}
+      return success(res, { id: revoked.rows[0].id }, 'Invitation withdrawn');
     })
   );
 
