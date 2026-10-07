@@ -140,6 +140,9 @@ or renamed role holding the right permissions would be refused. The role-based `
   (`participants.create_own`, `permission_slips.sign`). In an organization-wide role it counts like any
   other. Mark a new permission `self_scoped` only if, in a linked role, it acts solely on the holder's own
   children.
+- ✅ **The district role holds every permission.** It is marked `roles.grants_all_permissions` (migration 016):
+  it was given every existing permission, and a trigger gives it each permission created later, however
+  it is created. Never remove a permission from it; to restrict an admin, give them another role.
 - ✅ `GET /api/v1/roles` lists every role with `assignable`. Forms show the others disabled, keeping their
   state, so saving sends them back unchanged.
 

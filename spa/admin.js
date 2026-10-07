@@ -131,7 +131,7 @@ export class Admin {
                         if (loadUsers && this.roleCatalog.length === 0) {
                                 try {
                                         const rolesResult = await getRoleCatalog({
-                                                organizationId: this.currentOrganizationId,
+                                                organizationId: this.currentOrganizationId, forceRefresh: true, // assignable depends on live permissions
                                         });
                                         this.roleCatalog = Array.isArray(rolesResult?.data)
                                                 ? rolesResult.data
