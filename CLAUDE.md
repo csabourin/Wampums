@@ -1,6 +1,6 @@
 # CLAUDE.md - Development Guidelines for Wampums Scout Management System
 
-**Last Updated:** 2026-09-24
+**Last Updated:** 2026-10-07
 **Project:** Wampums Scout Management System
 **Tech Stack:** Node.js + Express, PostgreSQL, Vite (SPA), Vanilla JavaScript (ES modules), Expo/React Native (mobile)
 
@@ -74,7 +74,7 @@ return paginated(res, items, page, limit, total);
 - `204` - No Content (successful DELETE)
 - `400` - Bad Request (validation error, malformed request); response includes `errors` array when from validation middleware
 - `401` - Unauthorized (authentication required or failed); message must match `/authentication required/i`
-- `403` - Forbidden (authenticated but insufficient permissions); response MUST include `required: string[]` and `missing: string[]`; `blockDemoRoles` 403 MUST include `isDemo: true`
+- `403` - Forbidden (authenticated but insufficient permissions); response MUST include `required: string[]` and `missing: string[]` — use `forbidden(res, message, required, missing)` from `middleware/response.js`; `blockDemoRoles` 403 MUST include `isDemo: true`
 - `404` - Not Found (resource doesn't exist)
 - `409` - Conflict (duplicate, constraint violation)
 - `410` - Gone (deprecated `/api/` legacy endpoint)
@@ -116,6 +116,32 @@ or renamed role holding the right permissions would be refused. The role-based `
 - Format: `{resource}.{action}`
 - Examples: `users.view`, `users.manage`, `finance.manage`, `reports.view`, `carpools.view`
 - Common actions: `view`, `manage`, `create`, `edit`, `delete`, `assign_roles`
+
+#### Roles Belong to Units
+- ✅ **Built-in roles** (`organization_id IS NULL`, `is_system_role`) are shared by every unit and read-only
+  to them; change them only through migrations, since an edit would apply to every unit.
+- ✅ **Custom roles** belong to one unit (`roles.organization_id`, migration 014). Another unit cannot see,
+  assign, edit, or delete them, and they are deleted with their unit.
+- ✅ Any query that lists or accepts roles from the catalog — rather than through a member's own
+  `role_ids` — must keep to the roles the unit may use: `findRolesInUnit()` in
+  `services/roleAssignment.js`, or inline
+  `r.organization_id = $unit OR (r.organization_id IS NULL AND r.is_system_role)`.
+- ✅ A custom role's `role_name` is an internal key the server generates (`u<unit>_<slug>`); show
+  `display_name` to people. Built-in roles may be looked up by name; custom roles never collide with them.
+
+#### Granting Roles and Permissions
+- ✅ **Someone may grant only what they hold.** Adding or removing a member's role, adding or removing a
+  permission on a role, deleting a role, and roles handed out by imports all go through
+  `services/roleAssignment.js` (`checkRoleChange`, `checkRolesGrantable`). Removal is covered too, so nobody
+  can demote someone holding permissions they lack. A refusal answers 403 through `forbidden()` with
+  `required` and `missing`.
+- ✅ One exception: a permission marked `permissions.self_scoped` does not count in a role whose
+  `data_scope` is `'linked'`, because there it only acts on the holder's own children
+  (`participants.create_own`, `permission_slips.sign`). In an organization-wide role it counts like any
+  other. Mark a new permission `self_scoped` only if, in a linked role, it acts solely on the holder's own
+  children.
+- ✅ `GET /api/v1/roles` lists every role with `assignable`. Forms show the others disabled, keeping their
+  state, so saving sends them back unchanged.
 
 #### Protecting Write Operations
 - ✅ Use `blockDemoRoles` middleware for write operations to prevent demo accounts from making changes
@@ -326,9 +352,19 @@ try {
 }
 ```
 
-### 10) ESLint Rules (`.eslintrc.js`)
+### 10) ESLint Rules (`eslint.config.js`)
 
-The project enforces ESLint rules. **Errors block CI; warnings must be resolved before merge.**
+The project enforces ESLint 9 rules. **Errors block CI; warnings must be resolved before merge** — both are enforced.
+
+- Errors that predate CI enforcement are frozen in `eslint-suppressions.json` (`npm run lint:eslint`). A **new** error fails CI.
+- Warnings that predate CI enforcement are counted per file in `scripts/modernization/policy-baseline.json`
+  (`npm run lint:eslint-warnings`, part of `lint:policy`). A file that **gains** a warning fails CI; after removing
+  warnings, lower the baseline with `npm run lint:policy -- --update-baseline`.
+- After fixing a suppressed error, run `npm run lint:eslint:prune` and commit the smaller file — CI also
+  fails while the suppressions list errors that no longer exist.
+- Never add to `eslint-suppressions.json` by hand. A false positive gets an inline
+  `// eslint-disable-next-line <rule> -- <reason>`.
+- `mobile/` has its own toolchain and is not linted by the root config.
 
 **Errors (must fix):**
 - `eqeqeq` — always use `===` / `!==`, never `==` / `!=`
@@ -362,12 +398,13 @@ The project enforces ESLint rules. **Errors block CI; warnings must be resolved 
 
 **Override exceptions:**
 - `routes/`, `middleware/`, `services/`, `scripts/` — `no-console` is off (use `console.log` freely)
-- `*.test.js`, `*.spec.js` — `no-magic-numbers` and `no-console` are off
+- `*.test.js`, `*.spec.js` — `no-magic-numbers`, `no-console` and `no-script-url` are off
 - `migrations/`, `config/` — `no-magic-numbers` is off
+- Backend files are parsed as CommonJS; `spa/` and the shared `config/roles.js` / `config/meeting_sections.js` as ES modules
 
 ### 11) Automated Lint Scripts
 
-Run these before every PR. All must pass.
+Run `npm run lint:all` before every PR — it runs every check below, and it is exactly what CI runs.
 
 | Script | What it checks |
 |---|---|
@@ -379,6 +416,23 @@ Run these before every PR. All must pass.
 | `npm run lint:spa-innerhtml` | No `innerHTML =` assignments in `spa/` (except `DOMUtils.js`, `SecurityUtils.js`) |
 | `npm run lint:sql-params` | No template-literal SQL (`pool.query(\`...${var}...\`)`)|
 | `npm run lint:i18n-parity` | `lang/en.json` and `lang/fr.json` have identical key sets |
+| `npm run lint:api-contracts` | SPA API calls match the endpoints the server exposes |
+| `npm run lint:role-names` | No access decided by a role name (§3) — server code, plus `hasRole('…')` in `spa/` and `mobile/src/` |
+| `npm run lint:client-org-id` | No `organization_id` / `x-organization-id` read from the client outside `getOrganizationId` and `getCurrentOrganizationId` |
+| `npm run lint:manual-auth` | No `verifyJWT`, `verifyOrganizationMembership` or `getCurrentOrganizationId` in routes — use `authenticate` + `requirePermission` |
+| `npm run lint:catch-shadow` | No `catch (error)` hiding the `error()` response helper |
+| `npm run lint:eslint-warnings` | No file gains an ESLint warning (§10) |
+| `npm run lint:eslint` | ESLint errors (§10) |
+
+**Policy checks (`lint:policy` runs the five above) are a ratchet.** Existing violations are counted per
+file in `scripts/modernization/policy-baseline.json`:
+
+- A file may never gain a violation. Fix it, or — only for a use CLAUDE.md permits — annotate it on that
+  line or the line above, with a reason: `// policy-allow manual-auth: public login route, no session yet`
+  (inside SQL, use `-- policy-allow …`). ESLint warnings are not annotated this way: fix them, or disable a
+  false positive inline with `// eslint-disable-next-line <rule> -- <reason>`.
+- When you remove violations, run `npm run lint:policy -- --update-baseline` and commit the lower counts;
+  CI fails while the baseline overstates them. The script refuses to raise a count.
 
 ---
 
@@ -528,6 +582,16 @@ How the runner behaves, and what it demands of a migration file:
   );
   ```
 - ✅ A `.js` migration exports `up(client, context)` and may set a `description`.
+
+- ✅ **Every schema change the code relies on must exist in `attached_assets/Full_Database_schema.sql` or
+  in `migrations/`.** In August 2026 seven migrations were lost when the folder was reset; the code kept
+  using their tables and columns, and every database built from the repository broke until
+  `015_restore_lost_migrations.sql`. Never apply schema SQL that is not committed here.
+- ✅ CI (`database-integration` job) builds a PostgreSQL 17 database from the baseline, the permission
+  catalog, and every migration, then clears `schema_migrations` and executes every migration again — a
+  migration that cannot run twice fails here — and runs all
+  `*.integration.test.js` suites against it. Locally:
+  `TEST_DATABASE_URL=postgresql://… npx jest --runInBand --testPathPatterns 'integration\.test\.js$'`.
 
 Validate a migration against a disposable database before committing it, rather than reading it and
 hoping — load `attached_assets/Full_Database_schema.sql` into a scratch database, apply the file,
@@ -834,14 +898,8 @@ Before submitting code, verify:
 - [ ] Permission checks before showing UI elements
 
 **Linting (run all before PR):**
-- [ ] `npm run lint:api-version` passes
-- [ ] `npm run lint:duplicate-mounts` passes
-- [ ] `npm run lint:non-versioned-mounts` passes
-- [ ] `npm run lint:spa-files` passes
-- [ ] `npm run lint:spa-console` passes
-- [ ] `npm run lint:spa-innerhtml` passes
-- [ ] `npm run lint:sql-params` passes
-- [ ] `npm run lint:i18n-parity` passes
+- [ ] `npm run lint:all` passes (all checks in §11, ESLint included)
+- [ ] Baselines lowered when violations were removed; no new `policy-allow` without a CLAUDE.md-permitted reason
 
 **General:**
 - [ ] No commented-out code

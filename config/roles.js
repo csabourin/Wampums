@@ -60,6 +60,8 @@ const SHARED_ADMIN_PERMISSIONS = [
   "forms.manage",
   "meetings.view",
   "meetings.manage",
+  // Leaders hold it; admins rank above leaders (migration 013).
+  "permission_slips.sign",
 ];
 
 const DISTRICT_PERMISSIONS = [

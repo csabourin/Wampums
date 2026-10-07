@@ -170,6 +170,7 @@ export function sanitizeURL(url, options = { allowMailto: true }) {
   const trimmed = url.trim().toLowerCase();
 
   // Check for dangerous protocols
+  // eslint-disable-next-line no-script-url -- rejects javascript: URLs
   if (trimmed.startsWith('javascript:') ||
       trimmed.startsWith('data:') ||
       trimmed.startsWith('vbscript:')) {

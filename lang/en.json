@@ -1818,6 +1818,8 @@
   "role": "Role",
   "role_management": "Role Management",
   "role_updated_successfully": "Roles updated successfully",
+  "role_grant_forbidden": "You can only grant or remove roles whose permissions you hold.",
+  "role_not_assignable": "Locked: this role includes permissions you don't hold, so you can't grant or remove it.",
   "roles": "Roles",
   "manage_roles": "Manage roles",
   "no_role": "No role",

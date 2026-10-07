@@ -1,44 +1,162 @@
 /**
- * Rules for handing out roles.
+ * Rules for handing out roles and permissions.
  *
- * A role is district-level when it grants users.assign_district, whatever it is
- * called. Only someone who holds that permission may assign such a role or see
- * it in the list of assignable roles. Asking the role's permissions rather than
- * its name means a renamed or custom role carrying district powers is guarded
- * the same way as the built-in district role.
+ * Someone may grant only what they hold. A role carries every permission
+ * attached to it, so adding a role to a member — or removing one — requires
+ * the caller to hold all of that role's permissions. Removal is covered too:
+ * otherwise a unit admin could strip the district role from the district
+ * administrator. The same rule applies to adding a permission to a role.
+ *
+ * Built-in or custom, what a role is called never matters; only what it grants.
+ *
+ * One exception: a permission marked `permissions.self_scoped` (migration 013)
+ * does not count when the role is limited to the holder's own children
+ * (`roles.data_scope = 'linked'`). There it gives no authority over anyone
+ * else — registering or signing for one's own child — so a unit admin can make
+ * someone a parent without holding parent-only permissions.
  */
 
-const DISTRICT_ASSIGNMENT_PERMISSION = 'users.assign_district';
 
 /**
- * Whether the caller may hand out district-level roles.
- * @param {string[]} callerPermissions - Permissions resolved by requirePermission
- * @returns {boolean}
+ * Load the given roles that a unit may use: the built-in roles, which are
+ * shared and read-only (organization_id IS NULL, is_system_role), and the
+ * unit's own custom roles. Another unit's roles, and custom roles no unit
+ * owns, are left out. Queries listing roles repeat this condition inline.
+ *
+ * @param {Object} db - Database pool or client
+ * @param {Array<number|string>} roleIds - Role IDs
+ * @param {number} organizationId - The unit
+ * @returns {Promise<Array<{id: number, role_name: string, is_system_role: boolean, organization_id: number|null, data_scope: string}>>}
  */
-function canAssignDistrictRoles(callerPermissions) {
-  return (callerPermissions || []).includes(DISTRICT_ASSIGNMENT_PERMISSION);
+async function findRolesInUnit(db, roleIds, organizationId) {
+  const ids = normalizeRoleIds(roleIds);
+  if (ids.length === 0) {
+    return [];
+  }
+  const result = await db.query(
+    `SELECT id, role_name, is_system_role, organization_id, data_scope
+     FROM roles
+     WHERE id = ANY($1::int[])
+       AND (organization_id = $2 OR (organization_id IS NULL AND is_system_role))`,
+    [ids, organizationId]
+  );
+  return result.rows.map((row) => ({ ...row, id: Number(row.id) }));
 }
 
 /**
- * Find which of the given roles are district-level.
- * @param {Object} pool - Database pool or client
- * @param {number[]} roleIds - Role IDs about to be assigned
- * @returns {Promise<number[]>} IDs of the roles that grant users.assign_district
+ * @param {Iterable<string>} required - Permission keys needed
+ * @param {Iterable<string>} held - Permission keys the caller holds
+ * @returns {string[]} Sorted keys in `required` missing from `held`
  */
-async function findDistrictLevelRoleIds(pool, roleIds) {
-  const result = await pool.query(
-    `SELECT DISTINCT rp.role_id AS id
-     FROM role_permissions rp
-     JOIN permissions p ON p.id = rp.permission_id
-     WHERE rp.role_id = ANY($1::int[])
-       AND p.permission_key = $2`,
-    [roleIds, DISTRICT_ASSIGNMENT_PERMISSION]
+function missingPermissions(required, held) {
+  const heldSet = new Set(held || []);
+  return [...new Set(required)].filter((key) => !heldSet.has(key)).sort();
+}
+
+/**
+ * Normalize role IDs read from JSON (numbers or numeric strings).
+ * @param {Array<number|string>} roleIds - Raw role IDs
+ * @returns {number[]} Unique integer role IDs
+ */
+function normalizeRoleIds(roleIds) {
+  return [...new Set((roleIds || []).map(Number).filter(Number.isInteger))];
+}
+
+/**
+ * Load, for each role, the permissions someone needs to hold to grant it.
+ * @param {Object} db - Database pool or client
+ * @param {number[]} roleIds - Role IDs
+ * @returns {Promise<Map<number, {roleName: string, permissions: string[]}>>}
+ */
+async function loadRolePermissions(db, roleIds) {
+  const ids = normalizeRoleIds(roleIds);
+  if (ids.length === 0) {
+    return new Map();
+  }
+  const result = await db.query(
+    `SELECT r.id, r.role_name,
+            COALESCE(
+              array_agg(p.permission_key) FILTER (
+                WHERE p.permission_key IS NOT NULL
+                  AND NOT (p.self_scoped AND r.data_scope = 'linked')
+              ),
+              '{}'
+            ) AS permissions
+     FROM roles r
+     LEFT JOIN role_permissions rp ON rp.role_id = r.id
+     LEFT JOIN permissions p ON p.id = rp.permission_id
+     WHERE r.id = ANY($1::int[])
+     GROUP BY r.id, r.role_name`,
+    [ids]
   );
-  return result.rows.map((row) => row.id);
+  return new Map(result.rows.map((row) => [
+    Number(row.id),
+    { roleName: row.role_name, permissions: row.permissions || [] },
+  ]));
+}
+
+/**
+ * Check that the caller may grant every role in `roleIds`.
+ *
+ * @param {Object} db - Database pool or client
+ * @param {number[]} roleIds - Roles being granted (or removed)
+ * @param {string[]} heldPermissions - Caller's permissions in the unit
+ * @returns {Promise<{allowed: boolean, required: string[], missing: string[], roles: Array<{id: number, roleName: string, missing: string[]}>}>}
+ *   `roles` lists only the roles the caller may not grant.
+ */
+async function checkRolesGrantable(db, roleIds, heldPermissions) {
+  const rolePermissions = await loadRolePermissions(db, roleIds);
+  const required = new Set();
+  const roles = [];
+  for (const [id, { roleName, permissions }] of rolePermissions) {
+    permissions.forEach((key) => required.add(key));
+    const missing = missingPermissions(permissions, heldPermissions);
+    if (missing.length > 0) {
+      roles.push({ id, roleName, missing });
+    }
+  }
+  const missing = missingPermissions(required, heldPermissions);
+  return { allowed: missing.length === 0, required: [...required].sort(), missing, roles };
+}
+
+/**
+ * Check a change from a member's current roles to the requested ones. Every
+ * role added or removed must be grantable; roles kept as they are need not be.
+ *
+ * @param {Object} db - Database pool or client
+ * @param {Object} change
+ * @param {Array<number|string>} change.currentRoleIds - Roles the member holds now
+ * @param {Array<number|string>} change.requestedRoleIds - Roles the member should hold
+ * @param {string[]} change.heldPermissions - Caller's permissions in the unit
+ * @returns {Promise<ReturnType<typeof checkRolesGrantable> & {changedRoleIds: number[]}>}
+ */
+async function checkRoleChange(db, { currentRoleIds, requestedRoleIds, heldPermissions }) {
+  const current = new Set(normalizeRoleIds(currentRoleIds));
+  const requested = new Set(normalizeRoleIds(requestedRoleIds));
+  const changedRoleIds = [
+    ...[...requested].filter((id) => !current.has(id)),
+    ...[...current].filter((id) => !requested.has(id)),
+  ];
+  const check = await checkRolesGrantable(db, changedRoleIds, heldPermissions);
+  return { ...check, changedRoleIds };
+}
+
+/**
+ * Whether adding or removing a permission on a role requires holding it.
+ * @param {{self_scoped: boolean}} permission - Row from permissions
+ * @param {{data_scope: string}} role - Row from roles
+ * @returns {boolean}
+ */
+function permissionCountsAgainstGrantor(permission, role) {
+  return !(permission.self_scoped && role.data_scope === 'linked');
 }
 
 module.exports = {
-  DISTRICT_ASSIGNMENT_PERMISSION,
-  canAssignDistrictRoles,
-  findDistrictLevelRoleIds,
+  findRolesInUnit,
+  checkRoleChange,
+  permissionCountsAgainstGrantor,
+  checkRolesGrantable,
+  loadRolePermissions,
+  missingPermissions,
+  normalizeRoleIds,
 };

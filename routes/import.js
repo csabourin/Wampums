@@ -1,4 +1,5 @@
 const express = require('express');
+const { checkRolesGrantable } = require('../services/roleAssignment');
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { asyncHandler, error: errorResponse } = require('../middleware/response');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
@@ -176,6 +177,25 @@ module.exports = function (pool, logger) {
         errors: []
       };
 
+      // Someone may grant only what they hold (services/roleAssignment.js).
+      // Staff rows grant 'animation' and guardian e-mails grant 'parent'; a row
+      // needing a role the importer cannot grant is skipped and reported.
+      const importRoles = await client.query(
+        // policy-allow role-names: the import grants these two built-in roles by name
+        "SELECT id, role_name FROM roles WHERE role_name IN ('animation', 'parent')"
+      );
+      const importRoleIds = Object.fromEntries(importRoles.rows.map((row) => [row.role_name, row.id]));
+      for (const roleName of ['animation', 'parent']) {
+        if (!importRoleIds[roleName]) {
+          throw new Error(`Role '${roleName}' not found in roles table`);
+        }
+      }
+      const animationGrant = await checkRolesGrantable(client, [importRoleIds.animation], authCheck.permissions);
+      const parentGrant = await checkRolesGrantable(client, [importRoleIds.parent], authCheck.permissions);
+      const cannotGrant = (roleName, grant) => (
+        `You cannot grant the ${roleName} role: it carries ${grant.missing.join(', ')}, which you do not hold`
+      );
+
       for (let i = 1; i < lines.length; i++) {
         try {
           const values = parseCSVLine(lines[i]);
@@ -205,6 +225,11 @@ module.exports = function (pool, logger) {
               continue;
             }
 
+            if (!animationGrant.allowed) {
+              stats.errors.push(`Row ${i + 1}: ${cannotGrant('animation', animationGrant)}`);
+              continue;
+            }
+
             const userResult = await client.query(
               `INSERT INTO users (email, password, full_name, is_verified)
                VALUES (LOWER($1), '', $2, TRUE)
@@ -222,20 +247,17 @@ module.exports = function (pool, logger) {
               stats.animationUsersUpdated++;
             }
 
-            // Get animation role ID
-            const animationRoleResult = await client.query(
-              `SELECT id FROM roles WHERE role_name = 'animation'`
-            );
-            if (animationRoleResult.rows.length === 0) {
-              throw new Error("Animation role not found in roles table");
-            }
-            const animationRoleId = animationRoleResult.rows[0].id;
-
+            // Add the role without removing any the member already holds: an
+            // admin listed as staff must not be demoted by an import.
             await client.query(
               `INSERT INTO user_organizations (user_id, organization_id, role_ids)
-               VALUES ($1, $2, $3)
-               ON CONFLICT (user_id, organization_id) DO UPDATE SET role_ids = $3`,
-              [userId, organizationId, JSON.stringify([animationRoleId])]
+               VALUES ($1, $2, $3::jsonb)
+               ON CONFLICT (user_id, organization_id) DO UPDATE SET role_ids =
+                 CASE WHEN COALESCE(user_organizations.role_ids, '[]'::jsonb) @> $3::jsonb
+                      THEN user_organizations.role_ids
+                      ELSE COALESCE(user_organizations.role_ids, '[]'::jsonb) || $3::jsonb
+                 END`,
+              [userId, organizationId, JSON.stringify([importRoleIds.animation])]
             );
 
             continue;
@@ -404,7 +426,9 @@ module.exports = function (pool, logger) {
               [guardianId, participantId, gLien]
             );
 
-            if (gEmail) {
+            if (gEmail && !parentGrant.allowed) {
+              stats.errors.push(`Row ${i + 1}: ${cannotGrant('parent', parentGrant)}`);
+            } else if (gEmail) {
               // Use upsert to handle duplicate emails gracefully
               const fullName = `${gPrenom} ${gNom}`.trim();
               const userResult = await client.query(
@@ -422,14 +446,7 @@ module.exports = function (pool, logger) {
                 stats.usersCreated++;
               }
 
-              // Get parent role ID
-              const parentRoleResult = await client.query(
-                `SELECT id FROM roles WHERE role_name = 'parent'`
-              );
-              if (parentRoleResult.rows.length === 0) {
-                throw new Error("Parent role not found in roles table");
-              }
-              const parentRoleId = parentRoleResult.rows[0].id;
+              const parentRoleId = importRoleIds.parent;
 
               // Always ensure user is linked to organization
               await client.query(

@@ -323,23 +323,34 @@ export class RoleManagement {
             <p class="help-text">${translate('select_roles_help') || 'Select one or more roles to assign to this user. Users will have all permissions from their assigned roles.'}</p>
 
             <div class="role-checkboxes">
-              ${this.roles.map(role => `
-                <label class="role-checkbox-item">
-                  <input
-                    type="checkbox"
-                    name="role_ids"
-                    value="${role.id}"
-                    ${userRoleIds.includes(role.id) ? 'checked' : ''}
-                  />
-                  <div class="role-checkbox-content">
-                    <div class="role-checkbox-header">
-                      <strong>${this.escapeHtml(role.display_name)}</strong>
-                      <span class="role-badge-small role-badge-${role.role_name}">${role.role_name}</span>
+              ${this.roles.map(role => {
+                // Roles carrying permissions the viewer does not hold cannot be
+                // granted or removed by them; they stay visible, keeping their
+                // state, so saving sends them back unchanged.
+                const locked = role.assignable === false;
+                const noteId = `role-locked-note-${role.id}`;
+                return `
+                <div class="role-checkbox-option">
+                  <label class="role-checkbox-item${locked ? ' role-checkbox-item--locked' : ''}">
+                    <input
+                      type="checkbox"
+                      name="role_ids"
+                      value="${role.id}"
+                      ${userRoleIds.includes(role.id) ? 'checked' : ''}
+                      ${locked ? `disabled aria-describedby="${noteId}"` : ''}
+                    />
+                    <div class="role-checkbox-content">
+                      <div class="role-checkbox-header">
+                        <strong>${this.escapeHtml(role.display_name)}</strong>
+                        <span class="role-badge-small role-badge-${role.role_name}">${role.role_name}</span>
+                      </div>
+                      <small class="role-checkbox-description">${this.escapeHtml(role.description || '')}</small>
                     </div>
-                    <small class="role-checkbox-description">${this.escapeHtml(role.description || '')}</small>
-                  </div>
-                </label>
-              `).join('')}
+                  </label>
+                  ${locked ? `<small class="role-locked-note" id="${noteId}">${translate('role_not_assignable')}</small>` : ''}
+                </div>
+              `;
+              }).join('')}
             </div>
           </div>
 
@@ -352,7 +363,7 @@ export class RoleManagement {
             </button>
           </div>
 
-          <div id="assignment-message" class="status-message"></div>
+          <div id="assignment-message" class="status-message" role="status" aria-live="polite"></div>
         </form>
       </div>
     `;
@@ -482,7 +493,7 @@ export class RoleManagement {
     this.selectedUserId = userId;
 
     const assignmentContent = document.getElementById('user-assignment-content');
-    setContent(assignmentContent, '<div class="loading-spinner">Loading...</div>');
+    setContent(assignmentContent, `<div class="loading-spinner" role="status">${translate('loading')}</div>`);
     const html = await this.renderUserAssignment(userId);
     setContent(assignmentContent, html);
     // Attach form listener
@@ -527,7 +538,11 @@ export class RoleManagement {
         this.attachUsersTabListeners();
       } catch (error) {
         debugError('Error updating roles:', error);
-        this.showAssignmentMessage(error.message, 'error');
+        const FORBIDDEN = 403;
+        this.showAssignmentMessage(
+          translate(error.status === FORBIDDEN ? 'role_grant_forbidden' : 'error_updating_role'),
+          'error'
+        );
       }
     });
   }

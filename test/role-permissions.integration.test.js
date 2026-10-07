@@ -66,9 +66,9 @@ describe.skipIf(!DATABASE_URL)('Role permissions', () => {
    */
   function role(name, dataScope) {
     return one(
-      `INSERT INTO roles (role_name, display_name, data_scope, is_system_role)
-       VALUES ($1, $1, $2, false) RETURNING id`,
-      [`${name}_${suffix}`, dataScope]
+      `INSERT INTO roles (role_name, display_name, data_scope, is_system_role, organization_id)
+       VALUES ($1, $1, $2, false, $3) RETURNING id`,
+      [`${name}_${suffix}`, dataScope, ids.unit]
     );
   }
 
@@ -123,10 +123,12 @@ describe.skipIf(!DATABASE_URL)('Role permissions', () => {
     }
 
     ids.managerRole = await role('role_manager', 'organization');
+    // Someone may grant only what they hold, so the manager holds every
+    // permission these tests hand out.
     await pool.query(
       `INSERT INTO role_permissions (role_id, permission_id)
-       SELECT $1, id FROM permissions WHERE permission_key = 'roles.manage'`,
-      [ids.managerRole]
+       SELECT $1, id FROM permissions WHERE permission_key = ANY($2::text[])`,
+      [ids.managerRole, ['roles.manage', 'carpools.view', ...UNIT_FINANCE_PERMISSIONS]]
     );
     ids.manager = await one(
       `INSERT INTO users (email, password, full_name)

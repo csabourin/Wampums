@@ -249,6 +249,7 @@ function buildPublicOrganizationSettings(settings = {}) {
 module.exports = (pool, logger) => {
   router.get('/status', asyncHandler(async (req, res) => {
     try {
+      // policy-allow manual-auth: public route resolving the unit from domain/header
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
       // `domain` lives on organization_domains, not organizations — selecting it
       // directly threw "column domain does not exist" and returned 500 on every call.
@@ -308,7 +309,7 @@ module.exports = (pool, logger) => {
   router.get('/jwt', asyncHandler(async (req, res) => {
     const organizationId = req.query.organization_id
       ? parseInt(req.query.organization_id, 10)
-      : await getCurrentOrganizationId(req, pool, logger);
+      : await getCurrentOrganizationId(req, pool, logger);  // policy-allow manual-auth: public route resolving the unit from domain/header
 
     if (!organizationId) {
       return res.status(400).json({
@@ -343,6 +344,7 @@ module.exports = (pool, logger) => {
    */
   router.get('/info', asyncHandler(async (req, res) => {
     try {
+      // policy-allow manual-auth: public route resolving the unit from domain/header
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       // Fetch organization default language
@@ -379,6 +381,7 @@ module.exports = (pool, logger) => {
    */
   const sendOrganizationId = asyncHandler(async (req, res) => {
     try {
+      // policy-allow manual-auth: public route resolving the unit from domain/header
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
       res.json({
         success: true,
@@ -417,6 +420,7 @@ module.exports = (pool, logger) => {
   // Public-safe organization settings (no authentication, limited data)
   const sendPublicSettings = asyncHandler(async (req, res) => {
     try {
+      // policy-allow manual-auth: public route resolving the unit from domain/header
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
       const settings = await loadOrganizationSettings(pool, organizationId);
 
@@ -850,6 +854,7 @@ module.exports = (pool, logger) => {
    *         description: User not a member of organization
    */
   router.post('/switch', authenticate, asyncHandler(async (req, res) => {
+    // policy-allow client-org-id: the switch endpoint itself; membership is verified below
     const organizationId = Number.parseInt(req.body?.organization_id, 10);
 
     if (!Number.isInteger(organizationId) || organizationId <= 0) {

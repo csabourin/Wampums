@@ -1809,6 +1809,8 @@
   "role": "Rôle",
   "role_management": "Gestion des rôles",
   "role_updated_successfully": "Rôles mis à jour avec succès",
+  "role_grant_forbidden": "Vous pouvez seulement attribuer ou retirer les rôles dont vous détenez toutes les permissions.",
+  "role_not_assignable": "Verrouillé : ce rôle comporte des permissions que vous ne détenez pas. Vous ne pouvez donc ni l’attribuer ni le retirer.",
   "roles": "Rôles",
   "manage_roles": "Gérer les rôles",
   "no_role": "Aucun rôle",

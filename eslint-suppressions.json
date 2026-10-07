@@ -1,0 +1,85 @@
+{
+  "routes/yearlyPlanner.js": {
+    "eqeqeq": {
+      "count": 3
+    },
+    "no-eq-null": {
+      "count": 3
+    }
+  },
+  "scripts/find-mismatches.js": {
+    "no-empty": {
+      "count": 1
+    }
+  },
+  "scripts/modernization/check-spa-api-contracts.js": {
+    "no-useless-escape": {
+      "count": 5
+    }
+  },
+  "spa/JSONFormRenderer.js": {
+    "no-case-declarations": {
+      "count": 2
+    }
+  },
+  "spa/api/api-endpoints.js": {
+    "no-useless-catch": {
+      "count": 1
+    }
+  },
+  "spa/communication-settings.js": {
+    "no-useless-escape": {
+      "count": 4
+    }
+  },
+  "spa/functions.js": {
+    "no-useless-escape": {
+      "count": 1
+    }
+  },
+  "spa/reports.js": {
+    "no-case-declarations": {
+      "count": 2
+    }
+  },
+  "spa/router.js": {
+    "no-case-declarations": {
+      "count": 69
+    }
+  },
+  "spa/utils/SecurityUtils.js": {
+    "no-control-regex": {
+      "count": 1
+    }
+  },
+  "spa/utils/StorageUtils.js": {
+    "no-prototype-builtins": {
+      "count": 1
+    }
+  },
+  "spa/utils/ValidationUtils.js": {
+    "no-control-regex": {
+      "count": 1
+    }
+  },
+  "test/schema-parser.js": {
+    "no-useless-escape": {
+      "count": 1
+    }
+  },
+  "utils/aiPayloadValidation.js": {
+    "no-control-regex": {
+      "count": 1
+    }
+  },
+  "utils/railway-storage.js": {
+    "no-control-regex": {
+      "count": 1
+    }
+  },
+  "utils/unitCustomization.js": {
+    "no-control-regex": {
+      "count": 1
+    }
+  }
+}
