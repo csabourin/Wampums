@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict xHtHbfFMXcDb8OsVIhv7qfJ1afi6Ze7zdZjiidLdsb4nNaGTnFBcy6dRyNb2r6F
+\restrict qILYfGSeqbVL9GAwjX5rViFL6UuA0Pk5YfJHVxeefgPs3zlKb1J3pY3La249X7r
 
 -- Dumped from database version 18.6 (Debian 18.6-1.pgdg13+2)
 -- Dumped by pg_dump version 18.4 (Debian 18.4-1.pgdg13+1)
@@ -24,6 +24,13 @@ SET row_security = off;
 --
 
 CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA public;
+
+
+--
+-- Name: EXTENSION btree_gist; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON EXTENSION btree_gist IS 'support for indexing common datatypes in GiST';
 
 
 --
@@ -178,6 +185,13 @@ $$;
 
 
 --
+-- Name: FUNCTION form_has_context(p_form_id integer, p_context text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_has_context(p_form_id integer, p_context text) IS 'Check if a form has a specific display context';
+
+
+--
 -- Name: form_submissions_set_scout_year(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -271,6 +285,13 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: FUNCTION notify_announcement_scheduled(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.notify_announcement_scheduled() IS 'Trigger function that sends NOTIFY when announcements are scheduled. Used to eliminate polling and reduce compute usage.';
 
 
 --
@@ -553,6 +574,13 @@ $$;
 
 
 --
+-- Name: FUNCTION scout_year_for_date(p_organization_id integer, p_on_date date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.scout_year_for_date(p_organization_id integer, p_on_date date) IS 'Scout year label and boundaries containing p_on_date, based on the organization fiscal_year setting.';
+
+
+--
 -- Name: update_activities_updated_at(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -671,6 +699,13 @@ CREATE TABLE public.points (
 
 
 --
+-- Name: COLUMN points.honor_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.points.honor_id IS 'Links point award to honor (CASCADE delete on honor removal)';
+
+
+--
 -- Name: scout_years; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -706,6 +741,13 @@ CREATE VIEW public.active_year_points AS
    FROM (public.points p
      JOIN public.scout_years sy ON ((sy.id = p.scout_year_id)))
   WHERE (sy.status = 'active'::text);
+
+
+--
+-- Name: VIEW active_year_points; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.active_year_points IS 'Read-only view over points, restricted to each organization active scout year.';
 
 
 --
@@ -751,6 +793,55 @@ CREATE TABLE public.activities (
     CONSTRAINT activities_start_before_end CHECK (((activity_end_date > activity_start_date) OR ((activity_end_date = activity_start_date) AND (activity_end_time >= activity_start_time)))),
     CONSTRAINT valid_going_times CHECK ((departure_time_going >= meeting_time_going))
 );
+
+
+--
+-- Name: TABLE activities; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.activities IS 'Calendar of activities/events for organizations';
+
+
+--
+-- Name: COLUMN activities.meeting_location_going; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.activities.meeting_location_going IS 'Meeting point before departure to activity';
+
+
+--
+-- Name: COLUMN activities.meeting_time_going; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.activities.meeting_time_going IS 'Time to meet before going to activity';
+
+
+--
+-- Name: COLUMN activities.departure_time_going; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.activities.departure_time_going IS 'Time when carpools depart to activity';
+
+
+--
+-- Name: COLUMN activities.meeting_location_return; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.activities.meeting_location_return IS 'Meeting point for return journey';
+
+
+--
+-- Name: COLUMN activities.meeting_time_return; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.activities.meeting_time_return IS 'Time to meet for return trip';
+
+
+--
+-- Name: COLUMN activities.departure_time_return; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.activities.departure_time_return IS 'Time when carpools depart on return';
 
 
 --
@@ -911,6 +1002,13 @@ CREATE TABLE public.announcement_logs (
 
 
 --
+-- Name: TABLE announcement_logs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.announcement_logs IS 'Logs for announcement deliveries. Supported channels: email, push, whatsapp. Status can be: sent, failed.';
+
+
+--
 -- Name: announcement_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -950,6 +1048,13 @@ CREATE TABLE public.announcements (
     audience text DEFAULT 'members'::text NOT NULL,
     CONSTRAINT announcements_audience_check CHECK ((audience = ANY (ARRAY['members'::text, 'alumni'::text])))
 );
+
+
+--
+-- Name: COLUMN announcements.audience; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.announcements.audience IS 'Who this announcement is for. ''members'' is the unit; ''alumni'' is the consented former families, who are never reached by a members send and never by group or role filters.';
 
 
 --
@@ -1038,6 +1143,48 @@ CREATE TABLE public.badge_progress (
 
 
 --
+-- Name: COLUMN badge_progress.etoiles; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.badge_progress.etoiles IS 'Star number/index (1, 2, 3, etc.) not quantity. Each star is a separate row.';
+
+
+--
+-- Name: COLUMN badge_progress.delivered_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.badge_progress.delivered_at IS 'Timestamp when the physical badge/star was given to the participant';
+
+
+--
+-- Name: COLUMN badge_progress.star_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.badge_progress.star_type IS 'Achievement type: proie (individual accomplishment) or battue (group activity)';
+
+
+--
+-- Name: COLUMN badge_progress.source_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.badge_progress.source_type IS 'Origin type for badge progress record: oas_stage, pab_plan, top_award, manual';
+
+
+--
+-- Name: COLUMN badge_progress.source_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.badge_progress.source_id IS 'Origin record identifier from the source table';
+
+
+--
+-- Name: COLUMN badge_progress.attempt_no; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.badge_progress.attempt_no IS 'Attempt number for repeatable source-driven badge submissions';
+
+
+--
 -- Name: badge_progress_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -1078,6 +1225,13 @@ CREATE TABLE public.badge_templates (
     version integer DEFAULT 1 NOT NULL,
     requirements jsonb DEFAULT '{}'::jsonb NOT NULL
 );
+
+
+--
+-- Name: COLUMN badge_templates.image; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.badge_templates.image IS 'Filename of badge image (stored in /assets/images/ directory). Example: kaa.webp';
 
 
 --
@@ -1324,6 +1478,41 @@ CREATE TABLE public.fundraiser_entries (
 
 
 --
+-- Name: COLUMN fundraiser_entries.amount; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fundraiser_entries.amount IS 'Legacy unit count kept for backwards compatibility. New code reads quantity and amount_raised instead.';
+
+
+--
+-- Name: COLUMN fundraiser_entries.amount_paid; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fundraiser_entries.amount_paid IS 'Amount paid';
+
+
+--
+-- Name: COLUMN fundraiser_entries.quantity; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fundraiser_entries.quantity IS 'Number of units credited to this participant (items sold, containers collected). NULL when the campaign is not unit based.';
+
+
+--
+-- Name: COLUMN fundraiser_entries.hours; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fundraiser_entries.hours IS 'Hours worked by this participant. NULL unless the campaign is hours based.';
+
+
+--
+-- Name: COLUMN fundraiser_entries.amount_raised; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fundraiser_entries.amount_raised IS 'Money raised by this participant, entered directly. Takes precedence over quantity/hours x unit_price.';
+
+
+--
 -- Name: calendars_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -1353,6 +1542,27 @@ CREATE TABLE public.carpool_assignments (
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT carpool_assignments_trip_direction_check CHECK (((trip_direction)::text = ANY (ARRAY[('both'::character varying)::text, ('to_activity'::character varying)::text, ('from_activity'::character varying)::text])))
 );
+
+
+--
+-- Name: TABLE carpool_assignments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.carpool_assignments IS 'Assignments of participants to carpool vehicles';
+
+
+--
+-- Name: COLUMN carpool_assignments.assigned_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.carpool_assignments.assigned_by IS 'User who made this assignment (parent or animation staff)';
+
+
+--
+-- Name: COLUMN carpool_assignments.trip_direction; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.carpool_assignments.trip_direction IS 'Which part of trip this assignment covers: both, to_activity, or from_activity';
 
 
 --
@@ -1398,6 +1608,41 @@ CREATE TABLE public.carpool_offers (
     CONSTRAINT carpool_offers_trip_direction_check CHECK (((trip_direction)::text = ANY (ARRAY[('both'::character varying)::text, ('to_activity'::character varying)::text, ('from_activity'::character varying)::text]))),
     CONSTRAINT positive_seats CHECK ((total_seats_available > 0))
 );
+
+
+--
+-- Name: TABLE carpool_offers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.carpool_offers IS 'Carpool ride offers from parents and animation staff';
+
+
+--
+-- Name: COLUMN carpool_offers.total_seats_available; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.carpool_offers.total_seats_available IS 'Total seats available excluding driver. Front seat should only be used by driver own child if local laws allow';
+
+
+--
+-- Name: COLUMN carpool_offers.trip_direction; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.carpool_offers.trip_direction IS 'Direction of ride: both (round trip), to_activity (one-way to), from_activity (one-way from)';
+
+
+--
+-- Name: COLUMN carpool_offers.is_active; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.carpool_offers.is_active IS 'Whether this ride offer is still available';
+
+
+--
+-- Name: COLUMN carpool_offers.cancelled_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.carpool_offers.cancelled_reason IS 'Reason provided when ride is cancelled';
 
 
 --
@@ -1457,6 +1702,27 @@ CREATE TABLE public.equipment_items (
     CONSTRAINT equipment_items_quantity_available_check CHECK ((quantity_available >= 0)),
     CONSTRAINT equipment_items_quantity_total_check CHECK ((quantity_total >= 0))
 );
+
+
+--
+-- Name: COLUMN equipment_items.acquisition_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.equipment_items.acquisition_date IS 'Purchased / Received when';
+
+
+--
+-- Name: COLUMN equipment_items.item_value; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.equipment_items.item_value IS 'value / price';
+
+
+--
+-- Name: COLUMN equipment_items.photo_url; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.equipment_items.photo_url IS 'URL for inventory photo';
 
 
 --
@@ -1526,6 +1792,13 @@ CREATE TABLE public.equipment_reservations (
 
 
 --
+-- Name: COLUMN equipment_reservations.activity_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.equipment_reservations.activity_id IS 'Links reservation to an activity. When set, date_from and date_to are automatically populated from the activity date. Nullable for standalone reservations.';
+
+
+--
 -- Name: equipment_reservations_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -1560,6 +1833,20 @@ CREATE TABLE public.erasure_log (
     users_retained integer DEFAULT 0 NOT NULL,
     rows_deleted jsonb DEFAULT '{}'::jsonb NOT NULL
 );
+
+
+--
+-- Name: TABLE erasure_log; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.erasure_log IS 'One row per honoured erasure request. Holds counts only, never a name, an email or a participant id: the point is to prove the request was carried out without reconstituting the person.';
+
+
+--
+-- Name: COLUMN erasure_log.users_retained; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.erasure_log.users_retained IS 'Parent accounts deliberately kept: they still have another enrolled child, or they hold a non-parent role in the unit. Reported so the admin knows the request was only partly applicable.';
 
 
 --
@@ -1602,6 +1889,13 @@ CREATE TABLE public.family_link_requests (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT family_link_requests_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'declined'::text, 'revoked'::text])))
 );
+
+
+--
+-- Name: TABLE family_link_requests; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.family_link_requests IS 'One parent asking another to share a family. Opening the emailed link changes nothing; only an explicit confirmation does.';
 
 
 --
@@ -1733,6 +2027,27 @@ CREATE TABLE public.form_format_versions (
 
 
 --
+-- Name: TABLE form_format_versions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.form_format_versions IS 'Stores all versions of form formats for audit and rollback';
+
+
+--
+-- Name: COLUMN form_format_versions.version_number; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_format_versions.version_number IS 'Sequential version number starting at 1';
+
+
+--
+-- Name: COLUMN form_format_versions.is_active; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_format_versions.is_active IS 'Only one version should be active per form at a time';
+
+
+--
 -- Name: form_format_versions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -1766,6 +2081,13 @@ CREATE TABLE public.form_permissions (
     can_approve boolean DEFAULT false,
     created_at timestamp without time zone DEFAULT now()
 );
+
+
+--
+-- Name: TABLE form_permissions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.form_permissions IS 'Role-based access control for organization forms. Controls which roles can view, submit, edit, and approve specific form types.';
 
 
 --
@@ -1804,6 +2126,20 @@ CREATE TABLE public.form_submission_history (
     user_agent text,
     changes_summary jsonb
 );
+
+
+--
+-- Name: TABLE form_submission_history; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.form_submission_history IS 'Audit trail for all changes to form submissions';
+
+
+--
+-- Name: COLUMN form_submission_history.changes_summary; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_submission_history.changes_summary IS 'JSONB object tracking what fields changed';
 
 
 --
@@ -1858,6 +2194,27 @@ CREATE TABLE public.form_submissions (
 
 
 --
+-- Name: COLUMN form_submissions.user_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_submissions.user_id IS 'User who submitted the form (already exists)';
+
+
+--
+-- Name: COLUMN form_submissions.form_version_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_submissions.form_version_id IS 'Links submission to specific form version used';
+
+
+--
+-- Name: COLUMN form_submissions.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_submissions.status IS 'Submission workflow status';
+
+
+--
 -- Name: form_submissions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -1901,6 +2258,34 @@ CREATE TABLE public.fundraisers (
 
 
 --
+-- Name: TABLE fundraisers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.fundraisers IS 'Table to host fundraisers';
+
+
+--
+-- Name: COLUMN fundraisers.campaign_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fundraisers.campaign_type IS 'How entry values are turned into money: fixed_price_sale, variable_price_sale, container_deposit, hours_worked, direct_amount, donation, sponsored_activity, other';
+
+
+--
+-- Name: COLUMN fundraisers.unit_price; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fundraisers.unit_price IS 'Money per unit (fixed_price_sale, container_deposit) or per hour (hours_worked). NULL when the campaign has no unit price.';
+
+
+--
+-- Name: COLUMN fundraisers.unit_label; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fundraisers.unit_label IS 'Human label for one unit, e.g. "calendriers", "contenants". Optional.';
+
+
+--
 -- Name: fundraisers_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -1928,6 +2313,27 @@ CREATE TABLE public.google_chat_config (
     created_at timestamp without time zone DEFAULT now(),
     updated_at timestamp without time zone DEFAULT now()
 );
+
+
+--
+-- Name: TABLE google_chat_config; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.google_chat_config IS 'Stores Google Chat API configuration including service account credentials for each organization. One active configuration per organization.';
+
+
+--
+-- Name: COLUMN google_chat_config.service_account_email; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.google_chat_config.service_account_email IS 'Email address of the service account (e.g., my-bot@project-id.iam.gserviceaccount.com).';
+
+
+--
+-- Name: COLUMN google_chat_config.credentials_json; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.google_chat_config.credentials_json IS 'Service account key file in JSON format. Contains private key for authenticating with Google Chat API. Should be kept secure.';
 
 
 --
@@ -1969,6 +2375,13 @@ CREATE TABLE public.google_chat_messages (
 
 
 --
+-- Name: TABLE google_chat_messages; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.google_chat_messages IS 'Audit log of all messages sent through Google Chat API.';
+
+
+--
 -- Name: google_chat_messages_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -2005,6 +2418,27 @@ CREATE TABLE public.google_chat_spaces (
     created_at timestamp without time zone DEFAULT now(),
     updated_at timestamp without time zone DEFAULT now()
 );
+
+
+--
+-- Name: TABLE google_chat_spaces; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.google_chat_spaces IS 'Stores configured Google Chat Spaces for each organization.';
+
+
+--
+-- Name: COLUMN google_chat_spaces.space_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.google_chat_spaces.space_id IS 'Google Chat Space identifier in the format spaces/AAAAxxxxxxx.';
+
+
+--
+-- Name: COLUMN google_chat_spaces.is_broadcast_space; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.google_chat_spaces.is_broadcast_space IS 'Identifies the primary space for broadcasting announcements.';
 
 
 --
@@ -2177,6 +2611,41 @@ CREATE TABLE public.honors (
 
 
 --
+-- Name: COLUMN honors.reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.honors.reason IS 'Reason why the honor was given';
+
+
+--
+-- Name: COLUMN honors.created_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.honors.created_at IS 'Timestamp when honor was awarded (for undo time-window)';
+
+
+--
+-- Name: COLUMN honors.created_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.honors.created_by IS 'User ID who awarded the honor (audit trail)';
+
+
+--
+-- Name: COLUMN honors.updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.honors.updated_at IS 'Timestamp of last edit';
+
+
+--
+-- Name: COLUMN honors.updated_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.honors.updated_by IS 'User ID who last edited the honor';
+
+
+--
 -- Name: honors_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -2233,6 +2702,27 @@ CREATE TABLE public.incident_email_queue (
 
 
 --
+-- Name: TABLE incident_email_queue; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.incident_email_queue IS 'Queue for incident escalation emails with offline retry support';
+
+
+--
+-- Name: COLUMN incident_email_queue.attempts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.incident_email_queue.attempts IS 'Number of send attempts made';
+
+
+--
+-- Name: COLUMN incident_email_queue.max_attempts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.incident_email_queue.max_attempts IS 'Maximum retry attempts before giving up (default 5)';
+
+
+--
 -- Name: incident_escalation_contacts_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -2258,6 +2748,20 @@ CREATE TABLE public.incident_escalation_contacts (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
+
+
+--
+-- Name: TABLE incident_escalation_contacts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.incident_escalation_contacts IS 'Per-organization email contacts for incident escalation notifications';
+
+
+--
+-- Name: COLUMN incident_escalation_contacts.role_description; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.incident_escalation_contacts.role_description IS 'Role or title of the contact (e.g., District Commissioner, Safety Officer)';
 
 
 --
@@ -2299,6 +2803,34 @@ CREATE TABLE public.incident_reports (
     CONSTRAINT incident_reports_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('submitted'::character varying)::text]))),
     CONSTRAINT incident_reports_victim_type_check CHECK (((victim_type)::text = ANY (ARRAY[('participant'::character varying)::text, ('leader'::character varying)::text, ('parent'::character varying)::text, ('other'::character varying)::text])))
 );
+
+
+--
+-- Name: TABLE incident_reports; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.incident_reports IS 'Tracks incident/accident reports with escalation workflow';
+
+
+--
+-- Name: COLUMN incident_reports.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.incident_reports.status IS 'Report status: draft or submitted';
+
+
+--
+-- Name: COLUMN incident_reports.victim_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.incident_reports.victim_type IS 'Type of victim: participant, leader, parent, or other';
+
+
+--
+-- Name: COLUMN incident_reports.escalation_sent_to; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.incident_reports.escalation_sent_to IS 'Snapshot of email addresses that received escalation notification';
 
 
 --
@@ -2507,6 +3039,34 @@ CREATE TABLE public.medication_receptions (
 
 
 --
+-- Name: TABLE medication_receptions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.medication_receptions IS 'Tracks when medications are received from parents/guardians at activities';
+
+
+--
+-- Name: COLUMN medication_receptions.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.medication_receptions.status IS 'Reception status: received, not_received, or partial';
+
+
+--
+-- Name: COLUMN medication_receptions.quantity_received; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.medication_receptions.quantity_received IS 'Free-text quantity (e.g., "1 bottle of 30 pills")';
+
+
+--
+-- Name: COLUMN medication_receptions.reception_notes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.medication_receptions.reception_notes IS 'Notes visible during medication dispensing';
+
+
+--
 -- Name: medication_requirements; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2532,6 +3092,41 @@ CREATE TABLE public.medication_requirements (
     frequency_interval_start time without time zone,
     participant_id integer NOT NULL
 );
+
+
+--
+-- Name: COLUMN medication_requirements.frequency_preset_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.medication_requirements.frequency_preset_type IS 'Type of frequency preset: interval, time_of_day, meal, or prn';
+
+
+--
+-- Name: COLUMN medication_requirements.frequency_times; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.medication_requirements.frequency_times IS 'Array of time strings (HH:MM) for time_of_day preset';
+
+
+--
+-- Name: COLUMN medication_requirements.frequency_slots; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.medication_requirements.frequency_slots IS 'JSON object mapping slot names to times for meal preset (e.g., {"breakfast": "08:00"})';
+
+
+--
+-- Name: COLUMN medication_requirements.frequency_interval_hours; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.medication_requirements.frequency_interval_hours IS 'Number of hours between doses for interval preset';
+
+
+--
+-- Name: COLUMN medication_requirements.frequency_interval_start; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.medication_requirements.frequency_interval_start IS 'Starting time for interval preset';
 
 
 --
@@ -2690,6 +3285,13 @@ CREATE TABLE public.news (
     expires date,
     link text
 );
+
+
+--
+-- Name: COLUMN news.expires; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.news.expires IS 'Date to stop showing a news';
 
 
 --
@@ -2928,6 +3530,41 @@ CREATE TABLE public.organization_form_formats (
 
 
 --
+-- Name: COLUMN organization_form_formats.display_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.organization_form_formats.display_type IS 'Sets where the form should be rendered';
+
+
+--
+-- Name: COLUMN organization_form_formats.display_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.organization_form_formats.display_name IS 'Human-readable name for the form';
+
+
+--
+-- Name: COLUMN organization_form_formats.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.organization_form_formats.status IS 'Form lifecycle: draft, published, archived';
+
+
+--
+-- Name: COLUMN organization_form_formats.current_version_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.organization_form_formats.current_version_id IS 'Points to the currently active version';
+
+
+--
+-- Name: COLUMN organization_form_formats.display_context; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.organization_form_formats.display_context IS 'UI contexts where this form should be displayed. Values: participant, organization, admin_panel, public, form_builder';
+
+
+--
 -- Name: organization_form_formats_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -2985,6 +3622,13 @@ CREATE TABLE public.organization_settings (
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
+
+
+--
+-- Name: TABLE organization_settings; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.organization_settings IS 'Stores organization-level settings including default_email_language (supported: en, fr, uk, it)';
 
 
 --
@@ -3211,6 +3855,13 @@ CREATE TABLE public.parent_invitation_participants (
 
 
 --
+-- Name: TABLE parent_invitation_participants; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.parent_invitation_participants IS 'Children an invitation was sent for. Accepting the invitation links the parent to each of them.';
+
+
+--
 -- Name: parent_invitations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3245,6 +3896,13 @@ CREATE TABLE public.parent_invitations (
 
 
 --
+-- Name: COLUMN parent_invitations.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.parent_invitations.status IS 'Lifecycle the database controls: pending, accepted or revoked. Expiry is derived from expires_at and is deliberately not a status.';
+
+
+--
 -- Name: participant_access_grants; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3259,6 +3917,13 @@ CREATE TABLE public.participant_access_grants (
     revoked_at timestamp with time zone,
     CONSTRAINT participant_access_grants_source_type_check CHECK ((source_type = ANY (ARRAY['direct'::text, 'guardian'::text, 'admin'::text, 'family_link'::text])))
 );
+
+
+--
+-- Name: TABLE participant_access_grants; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.participant_access_grants IS 'Provenance for user_participants. A person may hold access for several reasons at once; removing one reason must not remove the others, which is the question user_participants alone cannot answer.';
 
 
 --
@@ -3383,6 +4048,27 @@ CREATE TABLE public.participant_enrollments (
 
 
 --
+-- Name: COLUMN participant_enrollments.inscription_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.participant_enrollments.inscription_date IS 'Date à laquelle le participant a joint l''organisation';
+
+
+--
+-- Name: COLUMN participant_enrollments.transferred_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.participant_enrollments.transferred_at IS 'When the transfer was carried out. Distinct from ended_on, which is the date the enrollment stopped counting and may be back-dated to the year boundary.';
+
+
+--
+-- Name: COLUMN participant_enrollments.transferred_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.participant_enrollments.transferred_by IS 'Who carried out the transfer. A transfer moves a file between two tenants, which is why it names a person rather than only a destination.';
+
+
+--
 -- Name: participant_erasure_approvals; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3392,6 +4078,13 @@ CREATE TABLE public.participant_erasure_approvals (
     approved_by uuid,
     approved_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+
+--
+-- Name: TABLE participant_erasure_approvals; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.participant_erasure_approvals IS 'Per-organization approvals for erasing a participant whose global record is owned by multiple organizations. Rows disappear with the participant.';
 
 
 --
@@ -3448,6 +4141,13 @@ CREATE TABLE public.participant_group_assignments (
 
 
 --
+-- Name: TABLE participant_group_assignments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.participant_group_assignments IS 'Which den a participant belonged to in a given scout year, with their den role. One row per participant per year; assignments are not carried over by a year transition.';
+
+
+--
 -- Name: participant_groups; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -3461,6 +4161,13 @@ CREATE VIEW public.participant_groups AS
    FROM (public.participant_group_assignments pga
      JOIN public.scout_years sy ON ((sy.id = pga.scout_year_id)))
   WHERE (sy.status = 'active'::text);
+
+
+--
+-- Name: VIEW participant_groups; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.participant_groups IS 'Compatibility view over participant_group_assignments, restricted to the active scout year. New code should write to participant_group_assignments directly.';
 
 
 --
@@ -3603,6 +4310,13 @@ CREATE VIEW public.participant_organizations AS
 
 
 --
+-- Name: VIEW participant_organizations; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.participant_organizations IS 'Compatibility view over participant_enrollments, restricted to the active scout year. New code should write to participant_enrollments directly; INSTEAD OF triggers keep older deployments working.';
+
+
+--
 -- Name: participant_top_award_progress; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3701,6 +4415,48 @@ CREATE TABLE public.payments (
 
 
 --
+-- Name: COLUMN payments.stripe_payment_intent_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.payments.stripe_payment_intent_id IS 'Stripe PaymentIntent ID for tracking payments';
+
+
+--
+-- Name: COLUMN payments.stripe_payment_method_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.payments.stripe_payment_method_id IS 'Stripe PaymentMethod ID used for payment';
+
+
+--
+-- Name: COLUMN payments.stripe_transaction_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.payments.stripe_transaction_id IS 'Stripe transaction/charge ID';
+
+
+--
+-- Name: COLUMN payments.stripe_payment_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.payments.stripe_payment_status IS 'Stripe payment status: requires_payment_method, requires_confirmation, requires_action, processing, requires_capture, canceled, succeeded';
+
+
+--
+-- Name: COLUMN payments.stripe_metadata; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.payments.stripe_metadata IS 'Additional Stripe metadata and response data';
+
+
+--
+-- Name: COLUMN payments.payment_processor; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.payments.payment_processor IS 'Payment processor used: manual, stripe, etc.';
+
+
+--
 -- Name: payments_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -3753,6 +4509,62 @@ CREATE TABLE public.permission_slips (
     declined_by text,
     CONSTRAINT permission_slips_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('signed'::character varying)::text, ('declined'::character varying)::text, ('revoked'::character varying)::text, ('expired'::character varying)::text, ('archived'::character varying)::text])))
 );
+
+
+--
+-- Name: COLUMN permission_slips.activity_title; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.permission_slips.activity_title IS 'Title of the activity requiring permission';
+
+
+--
+-- Name: COLUMN permission_slips.activity_description; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.permission_slips.activity_description IS 'Rich text description of the activity (supports HTML from WYSIWYG editor)';
+
+
+--
+-- Name: COLUMN permission_slips.deadline_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.permission_slips.deadline_date IS 'Deadline for parent to sign the permission slip';
+
+
+--
+-- Name: COLUMN permission_slips.email_sent; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.permission_slips.email_sent IS 'Whether notification email has been sent to parent';
+
+
+--
+-- Name: COLUMN permission_slips.email_sent_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.permission_slips.email_sent_at IS 'Timestamp when notification email was sent';
+
+
+--
+-- Name: COLUMN permission_slips.reminder_sent; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.permission_slips.reminder_sent IS 'Whether reminder email has been sent';
+
+
+--
+-- Name: COLUMN permission_slips.reminder_sent_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.permission_slips.reminder_sent_at IS 'Timestamp when reminder email was sent';
+
+
+--
+-- Name: COLUMN permission_slips.guardians_emailed; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.permission_slips.guardians_emailed IS 'Array of guardian IDs that have been sent email notifications for this permission slip';
 
 
 --
@@ -3882,6 +4694,20 @@ CREATE TABLE public.profile (
 
 
 --
+-- Name: TABLE profile; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.profile IS 'This is a duplicate of users';
+
+
+--
+-- Name: COLUMN profile.supabase_user_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.profile.supabase_user_id IS 'To reconcole logins';
+
+
+--
 -- Name: profiles; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3899,6 +4725,20 @@ CREATE TABLE public.profiles (
     auth_user_id uuid NOT NULL,
     token_version integer DEFAULT 0
 );
+
+
+--
+-- Name: TABLE profiles; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.profiles IS 'This is a duplicate of users';
+
+
+--
+-- Name: COLUMN profiles.auth_user_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.profiles.auth_user_id IS 'To reconcole logins';
 
 
 --
@@ -4260,6 +5100,13 @@ CREATE TABLE public.roles (
     data_scope character varying(50) DEFAULT 'organization'::character varying,
     organization_id integer
 );
+
+
+--
+-- Name: COLUMN roles.data_scope; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.roles.data_scope IS 'Data access scope: ''organization'' (all data) or ''linked'' (linked data only)';
 
 
 --
@@ -4627,6 +5474,34 @@ CREATE TABLE public.trusted_devices (
 
 
 --
+-- Name: TABLE trusted_devices; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.trusted_devices IS 'Stores trusted device tokens for users who have completed 2FA. Devices remain trusted for 90 days.';
+
+
+--
+-- Name: COLUMN trusted_devices.device_token; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.trusted_devices.device_token IS 'Unique token stored in client localStorage to identify trusted devices';
+
+
+--
+-- Name: COLUMN trusted_devices.device_fingerprint; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.trusted_devices.device_fingerprint IS 'Hash of user-agent string for additional device verification';
+
+
+--
+-- Name: COLUMN trusted_devices.expires_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.trusted_devices.expires_at IS 'Device trust expires after 90 days of inactivity';
+
+
+--
 -- Name: two_factor_codes; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4643,6 +5518,27 @@ CREATE TABLE public.two_factor_codes (
     ip_address character varying(45),
     user_agent text
 );
+
+
+--
+-- Name: TABLE two_factor_codes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.two_factor_codes IS 'Stores temporary 2FA verification codes sent via email. Codes expire after 10 minutes.';
+
+
+--
+-- Name: COLUMN two_factor_codes.code_hash; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.two_factor_codes.code_hash IS 'SHA256 hash of the verification code for secure storage';
+
+
+--
+-- Name: COLUMN two_factor_codes.attempts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.two_factor_codes.attempts IS 'Number of verification attempts (max 5 allowed)';
 
 
 --
@@ -4666,6 +5562,34 @@ CREATE TABLE public.user_organizations (
     CONSTRAINT user_organizations_alumni_requires_consent CHECK (((status <> 'alumni'::text) OR (alumni_consent_at IS NOT NULL))),
     CONSTRAINT user_organizations_status_check CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text, 'alumni'::text])))
 );
+
+
+--
+-- Name: COLUMN user_organizations.alumni_invited_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.user_organizations.alumni_invited_at IS 'When the alumni opt-in email was sent. Set so a later transition does not ask a second time; a NULL here on an inactive membership is what makes it a candidate for the invitation.';
+
+
+--
+-- Name: COLUMN user_organizations.alumni_consent_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.user_organizations.alumni_consent_at IS 'When the person opted in, through the signed link in that email. Only a row with this set may carry status = ''alumni''.';
+
+
+--
+-- Name: COLUMN user_organizations.alumni_opted_out_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.user_organizations.alumni_opted_out_at IS 'When the person unsubscribed. The membership goes back to ''inactive''; the timestamp stays as the proof the request was honoured.';
+
+
+--
+-- Name: COLUMN user_organizations.reactivation_requested_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.user_organizations.reactivation_requested_at IS 'Set when a deactivated member confirmed an emailed reactivation link that needs an admin decision. Cleared whenever the membership becomes active again.';
 
 
 --
@@ -4739,6 +5663,27 @@ CREATE TABLE public.users (
 
 
 --
+-- Name: COLUMN users.supabase_user_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.users.supabase_user_id IS 'To reconcole logins';
+
+
+--
+-- Name: COLUMN users.language_preference; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.users.language_preference IS 'User preferred language for email communications. Supported: en, fr, uk, it. NULL inherits from organization default.';
+
+
+--
+-- Name: COLUMN users.whatsapp_phone_number; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.users.whatsapp_phone_number IS 'User WhatsApp phone number in E.164 format (e.g., +1234567890) for WhatsApp notifications. NULL if user has not opted in to WhatsApp communications.';
+
+
+--
 -- Name: user_role_permissions_summary; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -4758,6 +5703,13 @@ CREATE VIEW public.user_role_permissions_summary WITH (security_invoker='on') AS
           ORDER BY p.permission_key), (ARRAY[]::text[])::character varying[]) AS permissions
    FROM (public.users u
      JOIN public.user_organizations uo ON ((u.id = uo.user_id)));
+
+
+--
+-- Name: VIEW user_role_permissions_summary; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.user_role_permissions_summary IS 'Summarizes each user''s full name, role names, and aggregated permission keys by organization. Updated to use only role_ids JSONB column.';
 
 
 --
@@ -4839,6 +5791,13 @@ UNION ALL
     br.id AS source_id
    FROM (public.budget_revenues br
      LEFT JOIN public.budget_categories bc ON ((br.budget_category_id = bc.id)));
+
+
+--
+-- Name: VIEW v_budget_revenue; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_budget_revenue IS 'Every revenue line of an organization. Participant fees are attributed through participant_fees.organization_id, never through an enrollment: a participant has one enrollment per scout year, and joining them would count each payment once per year.';
 
 
 --
@@ -4926,6 +5885,41 @@ CREATE TABLE public.whatsapp_baileys_connections (
 
 
 --
+-- Name: TABLE whatsapp_baileys_connections; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.whatsapp_baileys_connections IS 'Stores WhatsApp connection status and session data for organizations using Baileys (unofficial WhatsApp Web API). One connection per organization.';
+
+
+--
+-- Name: COLUMN whatsapp_baileys_connections.connected_phone_number; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.whatsapp_baileys_connections.connected_phone_number IS 'The phone number of the WhatsApp account that was connected via QR code scan, in E.164 format.';
+
+
+--
+-- Name: COLUMN whatsapp_baileys_connections.session_data; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.whatsapp_baileys_connections.session_data IS 'Encrypted Baileys session credentials stored as base64 encoded JSON. Contains authentication tokens and keys needed to maintain the WhatsApp connection.';
+
+
+--
+-- Name: COLUMN whatsapp_baileys_connections.auth_creds; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.whatsapp_baileys_connections.auth_creds IS 'Baileys authentication credentials stored as JSONB. Contains creds.json data including registration ID, identity keys, etc.';
+
+
+--
+-- Name: COLUMN whatsapp_baileys_connections.auth_keys; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.whatsapp_baileys_connections.auth_keys IS 'Baileys authentication keys stored as JSONB. Contains pre-keys, session keys, sender keys, and app state sync keys.';
+
+
+--
 -- Name: whatsapp_baileys_connections_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -4977,6 +5971,13 @@ CREATE TABLE public.year_plan_meeting_activities (
 
 
 --
+-- Name: COLUMN year_plan_meeting_activities.day_offset; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.year_plan_meeting_activities.day_offset IS 'Days after the meeting date this schedule line belongs to. 0 for a regular meeting night and for the first day of a camp.';
+
+
+--
 -- Name: year_plan_meeting_activities_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -5011,6 +6012,13 @@ CREATE TABLE public.year_plan_meeting_days (
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT year_plan_meeting_days_day_offset_check CHECK (((day_offset >= 0) AND (day_offset < 60)))
 );
+
+
+--
+-- Name: TABLE year_plan_meeting_days; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.year_plan_meeting_days IS 'Per-day heading for a multi-day block (camp). One row per day of the span; the timed lines themselves live in year_plan_meeting_activities.day_offset.';
 
 
 --
@@ -5063,6 +6071,20 @@ CREATE TABLE public.year_plan_meetings (
     CONSTRAINT year_plan_meetings_duration_override_check CHECK (((duration_override IS NULL) OR (duration_override > 0))),
     CONSTRAINT year_plan_meetings_kind_check CHECK (((meeting_kind)::text = ANY ((ARRAY['regular'::character varying, 'weekend'::character varying, 'camp'::character varying, 'special'::character varying])::text[])))
 );
+
+
+--
+-- Name: COLUMN year_plan_meetings.activity_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.year_plan_meetings.activity_id IS 'Optional link to an outing/event in the activities table (carpools, permission slips).';
+
+
+--
+-- Name: COLUMN year_plan_meetings.meeting_kind; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.year_plan_meetings.meeting_kind IS 'regular = weekly meeting night; weekend = single out-of-schedule outing; camp = multi-day block (span lives on the linked activities row); special = one-off date that is neither.';
 
 
 --
@@ -5227,6 +6249,13 @@ CREATE TABLE public.year_plans (
     scout_year_id integer,
     CONSTRAINT year_plans_recurrence_pattern_check CHECK (((recurrence_pattern)::text = ANY (ARRAY[('weekly'::character varying)::text, ('biweekly'::character varying)::text])))
 );
+
+
+--
+-- Name: COLUMN year_plans.scout_year_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.year_plans.scout_year_id IS 'Scout year that owns this historical plan. Plans are not copied during rollover.';
 
 
 --
@@ -9016,10 +10045,24 @@ CREATE TRIGGER announcement_scheduled_insert AFTER INSERT ON public.announcement
 
 
 --
+-- Name: TRIGGER announcement_scheduled_insert ON announcements; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TRIGGER announcement_scheduled_insert ON public.announcements IS 'Sends notification when new announcements are scheduled';
+
+
+--
 -- Name: announcements announcement_scheduled_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER announcement_scheduled_update AFTER UPDATE ON public.announcements FOR EACH ROW WHEN ((((new.status)::text = 'scheduled'::text) AND (((old.status)::text IS DISTINCT FROM 'scheduled'::text) OR (old.scheduled_at IS DISTINCT FROM new.scheduled_at)))) EXECUTE FUNCTION public.notify_announcement_scheduled();
+
+
+--
+-- Name: TRIGGER announcement_scheduled_update ON announcements; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TRIGGER announcement_scheduled_update ON public.announcements IS 'Sends notification when announcements are updated to scheduled status';
 
 
 --
@@ -10407,6 +11450,13 @@ ALTER TABLE ONLY public.organizations
 
 
 --
+-- Name: CONSTRAINT organizations_program_section_fk ON organizations; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT organizations_program_section_fk ON public.organizations IS 'Deferred by necessity: organization_program_sections references organizations back, so an organization and its default section can only be created together, inside one transaction.';
+
+
+--
 -- Name: pab_plan_items pab_plan_items_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11506,5 +12556,5 @@ ALTER TABLE ONLY public.year_plans
 -- PostgreSQL database dump complete
 --
 
-\unrestrict xHtHbfFMXcDb8OsVIhv7qfJ1afi6Ze7zdZjiidLdsb4nNaGTnFBcy6dRyNb2r6F
+\unrestrict qILYfGSeqbVL9GAwjX5rViFL6UuA0Pk5YfJHVxeefgPs3zlKb1J3pY3La249X7r
 
