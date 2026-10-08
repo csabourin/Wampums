@@ -5,12 +5,14 @@ import { debugError } from "../../utils/DebugUtils.js";
 import { makeApiRequest } from "../../api/api-core.js";
 import {
   fetchEditableOrganizationSettings,
+  getEmailSenderSettings,
   getLeaders,
   getLocalGroupMemberships,
   getLocalGroups,
   joinLocalGroup,
   leaveLocalGroup,
   updateDashboardConfiguration,
+  updateEmailSenderSettings,
   updateOrganizationInfo,
   updateUnitVocabulary,
 } from "../../api/api-endpoints.js";
@@ -46,6 +48,8 @@ const MAXIMUM_MEETING_DURATION_MINUTES = 720;
 const SHORT_TEXT_MAX_LENGTH = 255;
 const LOCATION_MAX_LENGTH = 500;
 const LOGO_URL_MAX_LENGTH = 2048;
+const SENDER_NAME_MAX_LENGTH = 100;
+const EMAIL_MAX_LENGTH = 254;
 const VOCABULARY_TERM_MAX_LENGTH = 80;
 const BASE_SETTINGS_TABS = ["general", "vocabulary", "dashboard"];
 const GROUP_TAB = "group";
@@ -59,6 +63,8 @@ export class UnitSettings extends BaseModule {
     this.organizationInfo = {};
     this.leaders = [];
     this.emailLanguage = "fr";
+    /** @type {{email_sender: Object, allowed_from_domains: string[], default_sender: string}|null} */
+    this.emailSender = null;
     this.twoFactorDisabled = false;
     this.canManageOrg = false;
     this.canEditOrg = false;
@@ -96,7 +102,7 @@ export class UnitSettings extends BaseModule {
     this.canViewOrg = hasPermission("org.view");
     try {
       await this.loadSettings();
-      await this.loadLeaders();
+      await Promise.all([this.loadLeaders(), this.loadEmailSender()]);
       this.isLoading = false;
       this.render();
       this.attachEventListeners();
@@ -158,6 +164,21 @@ export class UnitSettings extends BaseModule {
     }
   }
 
+  /**
+   * Load the email sender identity. A failure only hides that section; the
+   * rest of the page stays usable.
+   */
+  async loadEmailSender() {
+    if (!this.canEditOrg) {return;}
+    try {
+      const response = await getEmailSenderSettings();
+      this.emailSender = response?.data || null;
+    } catch (error) {
+      debugError('Failed to load email sender settings:', error);
+      this.emailSender = null;
+    }
+  }
+
   render() {
     const container = document.getElementById("app");
 
@@ -188,6 +209,7 @@ export class UnitSettings extends BaseModule {
           ${this.activeTab === "general" ? `
             ${this.renderUnitDetailsSection()}
             ${this.canEditOrg ? this.renderLanguageSection() : ""}
+            ${this.canEditOrg && this.emailSender ? this.renderEmailSenderSection() : ''}
             ${this.canManageOrg ? this.renderSecuritySection() : ""}
             ${this.renderQuickLinks()}
           ` : ""}
@@ -505,6 +527,44 @@ export class UnitSettings extends BaseModule {
       </section>`;
   }
 
+  renderEmailSenderSection() {
+    const { email_sender: sender = {}, allowed_from_domains: domains = [], default_sender: defaultSender = '' }
+      = this.emailSender;
+    const domainList = domains.map((domain) => `@${domain}`).join(', ');
+    const fromField = domains.length > 0
+      ? `
+          <div class="form-group">
+            <label for="email-sender-from">${translate('email_sender_from_email')}</label>
+            <input type="email" id="email-sender-from" class="form-control" value="${escapeHTML(sender.from_email || '')}"
+              maxlength="${EMAIL_MAX_LENGTH}" placeholder="${escapeHTML(defaultSender)}" autocomplete="off">
+            <p class="muted-text">${escapeHTML(translate('email_sender_from_email_help').replace('{default}', defaultSender).replace('{domains}', domainList))}</p>
+          </div>`
+      : `<p class="muted-text">${escapeHTML(translate('email_sender_no_domain').replace('{address}', defaultSender))}</p>`;
+
+    return `
+      <section class="account-section">
+        <h2>${translate('email_sender_title')}</h2>
+        <p class="section-description">${translate('email_sender_description')}</p>
+        <form id="email-sender-form" class="unit-settings-form" novalidate>
+          <div class="form-group">
+            <label for="email-sender-name">${translate('email_sender_from_name')}</label>
+            <input type="text" id="email-sender-name" class="form-control" value="${escapeHTML(sender.from_name || '')}"
+              maxlength="${SENDER_NAME_MAX_LENGTH}" placeholder="${escapeHTML(this.orgName)}">
+          </div>
+          ${fromField}
+          <div class="form-group">
+            <label for="email-sender-reply-to">${translate('email_sender_reply_to')}</label>
+            <input type="email" id="email-sender-reply-to" class="form-control" value="${escapeHTML(sender.reply_to || '')}"
+              maxlength="${EMAIL_MAX_LENGTH}" autocomplete="off">
+            <p class="muted-text">${translate('email_sender_reply_to_help')}</p>
+          </div>
+          <button type="submit" id="save-email-sender-btn" class="button button--primary unit-settings-save-button">
+            ${translate('save')}
+          </button>
+        </form>
+      </section>`;
+  }
+
   renderSecuritySection() {
     const checked = this.twoFactorDisabled ? "checked" : "";
     return `
@@ -620,6 +680,11 @@ export class UnitSettings extends BaseModule {
     const saveLanguageBtn = document.getElementById("save-language-btn");
     if (saveLanguageBtn) {
       this.addEventListener(saveLanguageBtn, "click", () => this.handleSaveLanguage());
+    }
+
+    const emailSenderForm = document.getElementById('email-sender-form');
+    if (emailSenderForm) {
+      this.addEventListener(emailSenderForm, 'submit', (event) => this.handleSaveEmailSender(event));
     }
 
     const twoFaToggle = document.getElementById("disable-2fa-toggle");
@@ -935,6 +1000,39 @@ export class UnitSettings extends BaseModule {
     } finally {
       btn.disabled = false;
       btn.textContent = translate("save") || "Save";
+    }
+  }
+
+  async handleSaveEmailSender(event) {
+    event.preventDefault();
+    const btn = document.getElementById('save-email-sender-btn');
+    if (!btn) {return;}
+
+    const payload = {
+      from_name: String(document.getElementById('email-sender-name')?.value || '').trim(),
+      from_email: String(document.getElementById('email-sender-from')?.value || '').trim(),
+      reply_to: String(document.getElementById('email-sender-reply-to')?.value || '').trim(),
+    };
+
+    const allowedDomains = this.emailSender?.allowed_from_domains || [];
+    const fromDomain = payload.from_email.split('@').pop().toLowerCase();
+    if (payload.from_email && !allowedDomains.includes(fromDomain)) {
+      this.app?.showMessage?.(translate('email_sender_from_rejected'), 'error');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = translate('saving');
+    try {
+      const response = await updateEmailSenderSettings(payload);
+      this.emailSender = response?.data || this.emailSender;
+      this.app?.showMessage?.(translate('email_sender_saved'), 'success');
+    } catch (error) {
+      debugError('Failed to save email sender:', error);
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = translate('save');
     }
   }
 

@@ -20,10 +20,10 @@ const {
   listAlumni,
   issueAlumniToken,
   buildUnsubscribeFooter,
-  getOrganizationName,
   UNSUBSCRIBE_PURPOSE
 } = require('../services/alumni');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
+const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { resolveDatabaseConnectionString } = require('../config/database-url');
 
 const ALLOWED_ROLES = ['admin', 'animation', 'parent'];
@@ -252,8 +252,8 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
   );
 
   const isAlumniSend = audience === ALUMNI_AUDIENCE;
-  const organizationName = isAlumniSend
-    ? await getOrganizationName(pool, announcement.organization_id)
+  const sender = emails.length > 0
+    ? await resolveOrganizationEmailSender(pool, announcement.organization_id)
     : null;
   // Scheduled sends run without a request, so the unsubscribe link cannot be
   // derived from the caller's host the way the invitation's is.
@@ -265,7 +265,6 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
     emails.map(async (email) => {
       let body = announcement.message;
       let html = null;
-      let fromName = null;
 
       // An alumni mailing carries its own way out. Building the footer per
       // recipient is what makes the link personal — a shared one could only
@@ -277,10 +276,9 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
         const footer = buildUnsubscribeFooter({ language, unsubscribeLink });
         body = `${announcement.message}${footer.text}`;
         html = `<div>${escapeHtml(announcement.message).replace(/\n/g, '<br />')}</div>${footer.html}`;
-        fromName = organizationName;
       }
 
-      const success = await sendEmail(email, announcement.subject, body, html, fromName);
+      const success = await sendEmail(email, announcement.subject, body, html, sender);
       await pool.query(
         `INSERT INTO announcement_logs (announcement_id, channel, recipient_email, status, error_message)
          VALUES ($1, 'email', $2, $3, $4)`,

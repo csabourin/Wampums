@@ -25,6 +25,17 @@ const {
 const { getCurrentOrganizationId, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { ensureProgramSectionsSeeded, getProgramSections } = require('../utils/programSections');
 const { installDefaultFormFormats } = require('../services/defaultFormFormats');
+const {
+  EMAIL_SENDER_SETTING_KEY,
+  getDefaultSenderEmail,
+  getUnitSenderDomains,
+  validateEmailSenderSettings
+} = require('../services/emailSender');
+
+// Settings that have their own validated endpoint and must not be written
+// through the generic PUT /settings.
+const DEDICATED_SETTING_KEYS = new Set([EMAIL_SENDER_SETTING_KEY]);
+const HTTP_BAD_REQUEST = 400;
 
 // Validate JWT secret at startup
 requireJWTSecret();
@@ -625,6 +636,10 @@ module.exports = (pool, logger) => {
       return res.status(400).json({ success: false, message: 'setting_key is required' });
     }
 
+    if (DEDICATED_SETTING_KEYS.has(req.body.setting_key)) {
+      return errorResponse(res, 'This setting must be updated through its dedicated endpoint', HTTP_BAD_REQUEST);
+    }
+
     await pool.query(
       `INSERT INTO organization_settings (organization_id, setting_key, setting_value, created_at, updated_at)
        VALUES ($2, $3, $1, NOW(), NOW())
@@ -710,6 +725,81 @@ module.exports = (pool, logger) => {
       message: 'Organization default email language updated successfully',
       data: { language }
     });
+  }));
+
+  /**
+   * Current email sender identity, plus the From domains this unit may use.
+   * `default_sender` is what From shows when no unit address is set.
+   */
+  router.get('/settings/email-sender', authenticate, requirePermission('org.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const [stored, allowedFromDomains] = await Promise.all([
+      pool.query(
+        `SELECT setting_value FROM organization_settings
+         WHERE organization_id = $1 AND setting_key = $2`,
+        [organizationId, EMAIL_SENDER_SETTING_KEY]
+      ),
+      getUnitSenderDomains(pool, organizationId)
+    ]);
+    const current = stored.rows[0]?.setting_value || {};
+
+    return success(res, {
+      email_sender: {
+        from_name: current.from_name || '',
+        from_email: current.from_email || '',
+        reply_to: current.reply_to || ''
+      },
+      allowed_from_domains: allowedFromDomains,
+      default_sender: getDefaultSenderEmail(allowedFromDomains)
+    });
+  }));
+
+  /**
+   * Set how the unit's email presents itself: display name, Reply-To, and a
+   * From address on one of the unit's authenticated domains.
+   */
+  router.patch('/settings/email-sender', authenticate, blockDemoRoles, requirePermission('org.edit'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const [allowedFromDomains, stored] = await Promise.all([
+      getUnitSenderDomains(pool, organizationId),
+      pool.query(
+        `SELECT setting_value FROM organization_settings
+         WHERE organization_id = $1 AND setting_key = $2`,
+        [organizationId, EMAIL_SENDER_SETTING_KEY]
+      )
+    ]);
+    // PATCH: a field the request leaves out keeps its stored value.
+    const input = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const validation = validateEmailSenderSettings(
+      { ...(stored.rows[0]?.setting_value || {}), ...input },
+      allowedFromDomains
+    );
+
+    if (validation.errors.length > 0) {
+      return errorResponse(res, 'Invalid email sender settings', HTTP_BAD_REQUEST, validation.errors);
+    }
+
+    await pool.query(
+      `INSERT INTO organization_settings
+         (organization_id, setting_key, setting_value, created_at, updated_at)
+       VALUES ($1, $2, $3::jsonb, NOW(), NOW())
+       ON CONFLICT (organization_id, setting_key)
+       DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = NOW()`,
+      [organizationId, EMAIL_SENDER_SETTING_KEY, JSON.stringify(validation.value)]
+    );
+
+    orgSettingsCache.delete(`org_${organizationId}`);
+    logger.info(`Organization ${organizationId} email sender updated by user ${req.user.id}`);
+
+    return success(
+      res,
+      {
+        email_sender: validation.value,
+        allowed_from_domains: allowedFromDomains,
+        default_sender: getDefaultSenderEmail(allowedFromDomains)
+      },
+      'Email sender updated'
+    );
   }));
 
   /**

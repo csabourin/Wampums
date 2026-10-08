@@ -40,6 +40,7 @@ const {
 const { sendEmail, getTranslationsByCode } = require('../utils/index');
 const { escapeHtml } = require('../utils/api-helpers');
 const { getOrganizationName } = require('./alumni');
+const { resolveOrganizationEmailSender } = require('./emailSender');
 const {
   findMembershipStanding,
   classifyStanding,
@@ -729,7 +730,13 @@ async function deliverInvitation(pool, { invitation, token, baseUrl, logger }) {
     supportContactEmail: invitation.support_contact_email,
   });
 
-  const sent = await sendEmail(invitation.email, subject, text, html, organizationName);
+  const sent = await sendEmail(
+    invitation.email,
+    subject,
+    text,
+    html,
+    await resolveOrganizationEmailSender(pool, invitation.organization_id)
+  );
 
   if (sent) {
     await markInvitationSent(pool, invitation.id, digestInvitationToken(token));

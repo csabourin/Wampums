@@ -289,7 +289,7 @@ module.exports = (pool) => {
     // Send email notifications to affected guardians
     if (affectedResult.rows.length > 0) {
       const { sendRideCancellationNotifications } = require('../utils/carpool-notifications');
-      await sendRideCancellationNotifications(pool, affectedResult.rows);
+      await sendRideCancellationNotifications(pool, affectedResult.rows, organizationId);
     }
 
     return success(res, {

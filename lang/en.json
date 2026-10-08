@@ -3716,5 +3716,15 @@
   "family_registration_partial": "Some registration details were saved, but the registration is not complete. Your entries are still here. Save again to finish updating the same child and guardian records.",
   "family_saved_not_sent_refresh_failed": "Your changes were saved, but the email could not be sent and the list could not be refreshed. Retry loading, then resend the invitation.",
   "family_operation_online_required": "Connect to the internet to save this change. No request was sent.",
-  "family_operation_unconfirmed": "We could not confirm whether this change was saved. Check your connection and refresh the list before trying again."
+  "family_operation_unconfirmed": "We could not confirm whether this change was saved. Check your connection and refresh the list before trying again.",
+  "email_sender_title": "Email sender",
+  "email_sender_description": "How emails sent on behalf of your unit (announcements, permission slips, invitations) appear to families.",
+  "email_sender_from_name": "Sender name",
+  "email_sender_from_email": "Sender address",
+  "email_sender_from_email_help": "Leave blank to send from {default}. Must end with {domains}.",
+  "email_sender_no_domain": "Emails are sent from {address}. To send from your own domain, ask the platform administrator to authenticate it with the email provider.",
+  "email_sender_reply_to": "Reply-to address",
+  "email_sender_reply_to_help": "Replies from families go here. Any address works, including Gmail.",
+  "email_sender_saved": "Email sender saved.",
+  "email_sender_from_rejected": "This sender address is not on an authenticated domain for your unit. Put addresses such as Gmail in the reply-to field instead."
 }

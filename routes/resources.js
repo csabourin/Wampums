@@ -18,6 +18,7 @@ const { handleOrganizationResolutionError } = require("../utils/api-helpers");
 const { sendEmail, getUserEmailLanguage } = require("../utils/index");
 const { buildPermissionSlipEmailContent } = require("../utils/permission-slip-email");
 const { resolveOrganizationBaseUrl } = require("../utils/public-url");
+const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const {
   MAX_FILE_SIZE,
   OUTPUT_MIME_TYPE,
@@ -1882,6 +1883,7 @@ module.exports = (pool) => {
         let emailsSentCount = 0;
         const failedEmails = [];
         const emailDetails = [];
+        const sender = await resolveOrganizationEmailSender(pool, organizationId);
 
         for (const slip of slipsResult.rows) {
           // Get ALL guardians linked to this participant
@@ -1975,6 +1977,7 @@ module.exports = (pool) => {
               subject,
               textBody,
               htmlBody,
+              sender,
             );
 
             if (emailSent) {
@@ -2142,6 +2145,7 @@ module.exports = (pool) => {
         let sentCount = 0;
         const failedEmails = [];
         const emailDetails = [];
+        const sender = await resolveOrganizationEmailSender(pool, organizationId);
 
         for (const slip of slipsResult.rows) {
           // Get ALL guardians linked to this participant
@@ -2233,6 +2237,7 @@ module.exports = (pool) => {
               subject,
               textBody,
               htmlBody,
+              sender,
             );
 
             if (emailSent) {

@@ -6,6 +6,7 @@ const {
   sanitizeInput
 } = require('./index');
 const { escapeHtml } = require('./api-helpers');
+const { resolveOrganizationEmailSender } = require('../services/emailSender');
 
 const fallbackTranslations = getTranslationsByCode('en');
 
@@ -28,8 +29,10 @@ function formatEmailDate(dateValue, locale) {
  * Send email notifications to affected guardians when a ride is cancelled
  * @param {Object} pool - Database connection pool
  * @param {Array} affectedParticipants - Array of affected participants with guardian info
+ * @param {Number} organizationId - Organization ID, whose sender identity the emails use
  */
-async function sendRideCancellationNotifications(pool, affectedParticipants) {
+async function sendRideCancellationNotifications(pool, affectedParticipants, organizationId) {
+  const sender = await resolveOrganizationEmailSender(pool, organizationId);
   const emailPromises = affectedParticipants.map(async (participant) => {
     const subject = `Carpool Ride Cancelled - ${participant.activity_name}`;
     const message = `
@@ -62,7 +65,7 @@ Wampums Team
     `.trim();
 
     try {
-      await sendEmail(participant.guardian_email, subject, message, html);
+      await sendEmail(participant.guardian_email, subject, message, html, sender);
     } catch (err) {
       console.error(`Failed to send cancellation email to ${participant.guardian_email}:`, err);
     }
@@ -124,6 +127,7 @@ async function sendActivityUpdateNotifications(pool, activityId, organizationId)
 
   const activity = result.rows[0]; // Activity details are the same for all rows
 
+  const sender = await resolveOrganizationEmailSender(pool, organizationId);
   const emailPromises = result.rows.map(async (user) => {
     const preferredLanguage = await getUserEmailLanguage(pool, user.email, organizationId);
     const translations = getTranslationsByCode(preferredLanguage);
@@ -229,7 +233,7 @@ ${signature}
     `.trim();
 
     try {
-      await sendEmail(user.email, subject, message, html);
+      await sendEmail(user.email, subject, message, html, sender);
     } catch (err) {
       console.error(`Failed to send update email to ${user.email}:`, err);
     }
@@ -279,6 +283,7 @@ async function sendActivityCancellationNotifications(pool, activityId, organizat
 
   const activity = result.rows[0]; // Activity details are the same for all rows
 
+  const sender = await resolveOrganizationEmailSender(pool, organizationId);
   const emailPromises = result.rows.map(async (user) => {
     const subject = `Activity Cancelled - ${activity.activity_name}`;
     const message = `
@@ -310,7 +315,7 @@ Wampums Team
     `.trim();
 
     try {
-      await sendEmail(user.email, subject, message, html);
+      await sendEmail(user.email, subject, message, html, sender);
     } catch (err) {
       console.error(`Failed to send cancellation email to ${user.email}:`, err);
     }
