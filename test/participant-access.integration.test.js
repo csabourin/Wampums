@@ -237,7 +237,7 @@ describe.skipIf(!DATABASE_URL)('Participant access routes', () => {
   });
 
   afterAll(async () => {
-    if (pool) await pool.end();
+    if (pool) {await pool.end();}
   });
 
   beforeEach(async () => {
@@ -480,7 +480,7 @@ describe.skipIf(!DATABASE_URL)('Participant access routes', () => {
       });
 
       expect(response.status).toBe(403);
-      expect(response.body.required).toEqual(['participants.edit']);
+      expect(response.body.required).toEqual(['participants.create', 'participants.edit']);
       expect(response.body.missing).toEqual(['participants.edit']);
       expect(await one('SELECT count(*) FROM participant_group_assignments WHERE participant_id = $1', [mine]))
         .toBe('0');

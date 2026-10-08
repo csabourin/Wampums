@@ -32,7 +32,7 @@ const {
 } = require('../middleware/validation');
 
 // Import utilities
-const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { findMembershipStanding, classifyStanding } = require('../services/reactivation');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { sendEmail, sendAdminVerificationEmail, getTranslationsByCode, getUserEmailLanguage } = require('../utils/index');
@@ -213,8 +213,7 @@ module.exports = (pool, logger) => {
         const organizationId = await getCurrentOrganizationId(
           req,
           pool,
-          logger,
-          { allowAuthentication: false }
+          logger
         );
         const { email, password } = req.body;
         const normalizedEmail = normalizeEmailValue(email);
@@ -242,7 +241,7 @@ module.exports = (pool, logger) => {
         // Convert $2y$ to $2a$ for compatibility with legacy PHP hashes
         let storedHash = user.password;
         if (storedHash && storedHash.startsWith('$2y$')) {
-          storedHash = '$2a$' + storedHash.substring(4);
+          storedHash = `$2a$${  storedHash.substring(4)}`;
         }
 
         const passwordValid = await bcrypt.compare(trimmedPassword, storedHash);
@@ -471,6 +470,7 @@ module.exports = (pool, logger) => {
     asyncHandler(async (req, res) => {
       try {
         // policy-allow manual-auth: public 2FA route, no session yet
+        // policy-allow manual-auth: public two-factor login resolves its unit without a session
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const { email, code } = req.body;
         const normalizedEmail = normalizeEmailValue(email);
@@ -661,8 +661,7 @@ module.exports = (pool, logger) => {
         const organizationId = await getCurrentOrganizationId(
           req,
           pool,
-          logger,
-          { allowAuthentication: false }
+          logger
         );
         const { email, password, full_name, user_type } = req.body;
         const normalizedEmail = normalizeEmailValue(email);
@@ -892,17 +891,17 @@ module.exports = (pool, logger) => {
         const buttonLabel = translations.password_reset_email_button || fallbackTranslations.password_reset_email_button || 'Reset Password';
         const copyHint = translations.password_reset_email_copy_hint || fallbackTranslations.password_reset_email_copy_hint || 'Or copy this link:';
         const expiry = translations.password_reset_email_expiry || fallbackTranslations.password_reset_email_expiry || 'This link will expire in 1 hour.';
-        const ignore = translations.password_reset_email_ignore || fallbackTranslations.password_reset_email_ignore || "If you did not request this reset, please ignore this email.";
+        const ignore = translations.password_reset_email_ignore || fallbackTranslations.password_reset_email_ignore || 'If you did not request this reset, please ignore this email.';
 
         const message = [
           greeting,
-          "",
+          '',
           intro,
-          "",
+          '',
           resetLink,
-          "",
+          '',
           expiry,
-          "",
+          '',
           ignore
         ].join('\n');
 

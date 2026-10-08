@@ -4,14 +4,12 @@
  * Provides endpoints to draft, schedule, and send announcements via email and web push.
  */
 
+const { authenticate, blockDemoRoles, requirePermission, getOrganizationId } = require('../middleware/auth');
 const express = require('express');
 const { asyncHandler, error: errorResponse } = require('../middleware/response');
 const { check } = require('express-validator');
 const router = express.Router();
 const {
-  verifyJWT,
-  getCurrentOrganizationId,
-  verifyOrganizationMembership,
   handleOrganizationResolutionError,
   escapeHtml,
 } = require('../utils/api-helpers');
@@ -346,13 +344,13 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
       // Batch log failures for push notifications
       const failedPushResults = pushResults.filter(result => result.status === 'rejected');
       if (failedPushResults.length > 0) {
-        const values = failedPushResults.map((_, idx) => 
+        const values = failedPushResults.map((_, idx) =>
           `($1, 'push', 'failed', $${idx + 2})`
         ).join(', ');
-        const errorMessages = failedPushResults.map(result => 
+        const errorMessages = failedPushResults.map(result =>
           result.reason?.message || 'Push send failed'
         );
-        
+
         await pool.query(
           `INSERT INTO announcement_logs (announcement_id, channel, status, error_message)
            VALUES ${values}`,
@@ -410,7 +408,7 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
   // Never for an alumni send: the broadcast space belongs to the unit, so
   // posting there would put a message meant for former families in front of the
   // current ones — the general send this audience exists to stay out of.
-  let googleChatOutcome = { successes: 0, failures: 0 };
+  const googleChatOutcome = { successes: 0, failures: 0 };
   if (googleChatService && !isAlumniSend) {
     try {
       // Check if Google Chat is configured for this organization
@@ -698,6 +696,8 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
    */
   router.post(
     '/v1/announcements',
+    authenticate, blockDemoRoles, requirePermission((req) =>
+      req.body?.audience === ALUMNI_AUDIENCE ? ['communications.send', 'alumni.manage'] : ['communications.send']),
     [
       check('subject').trim().notEmpty().withMessage('Subject is required'),
       check('message').trim().notEmpty().withMessage('Message is required'),
@@ -715,27 +715,9 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const token = req.headers.authorization?.split(' ')[1];
-        const payload = verifyJWT(token);
-        if (!payload?.user_id) {
-          return res.status(401).json({ success: false, message: 'Unauthorized' });
-        }
 
-        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+        const organizationId = await getOrganizationId(req, pool);
         const normalized = normalizeAnnouncementPayload(req.body);
-
-        // Writing to former families is a narrower right than writing to the
-        // unit: it reaches people who no longer belong to it and who agreed to
-        // hear from the organization, not from anyone who can post a notice.
-        const requiredPermissions = normalized.audience === ALUMNI_AUDIENCE
-          ? ['communications.send', 'alumni.manage']
-          : ['communications.send'];
-        const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
-          requiredPermissions,
-        });
-        if (!membership.authorized) {
-          return res.status(403).json({ success: false, message: membership.message });
-        }
 
         if (normalized.audience !== ALUMNI_AUDIENCE && !normalized.roles.length) {
           return res.status(400).json({ success: false, message: 'No valid roles provided' });
@@ -757,7 +739,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
 
         const { rows } = await pool.query(insertQuery, [
           organizationId,
-          payload.user_id,
+          req.user.id,
           normalized.subject,
           normalized.message,
           normalized.roles,
@@ -787,21 +769,10 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
   /**
    * List announcements with delivery logs
    */
-  router.get('/v1/announcements', asyncHandler(async (req, res) => {
+  router.get('/v1/announcements', authenticate, requirePermission(['communications.send']), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const payload = verifyJWT(token);
-      if (!payload?.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
 
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
-        requiredPermissions: ['communications.send'],
-      });
-      if (!membership.authorized) {
-        return res.status(403).json({ success: false, message: membership.message });
-      }
+      const organizationId = await getOrganizationId(req, pool);
 
       const announcementsQuery = `
         SELECT id, subject, message, recipient_roles, recipient_groups, audience, scheduled_at, sent_at, status, created_at
@@ -823,7 +794,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
           [announcementIds],
         );
         logsByAnnouncement = logsResult.rows.reduce((acc, log) => {
-          if (!acc[log.announcement_id]) acc[log.announcement_id] = [];
+          if (!acc[log.announcement_id]) {acc[log.announcement_id] = [];}
           acc[log.announcement_id].push(log);
           return acc;
         }, {});

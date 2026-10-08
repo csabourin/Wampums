@@ -12,10 +12,10 @@ const { asyncHandler, error: errorResponse } = require('../middleware/response')
 const router = express.Router();
 
 // Import utilities
-const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { requireJWTSecret, signJWTToken } = require('../utils/jwt-config');
 const { resolveScoutYear } = require('../services/scoutYear');
-const { authenticate, getUserDataScope, rosterStatusesFor } = require('../middleware/auth');
+const { authenticate, optionalAuth, getUserDataScope, rosterStatusesFor, requirePermission, getOrganizationId } = require('../middleware/auth');
 
 // Validate JWT secret at startup
 requireJWTSecret();
@@ -50,26 +50,16 @@ module.exports = (pool, logger) => {
    *             schema:
    *               type: string
    */
-  router.get('/initial', asyncHandler(async (req, res) => {
+  router.get('/initial', optionalAuth, asyncHandler(async (req, res) => {
     try {
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const token = req.headers.authorization?.split(' ')[1];
-
-      let isLoggedIn = false;
-      let userRole = null;
-      let userId = null;
-      let jwtToken = null;
-
-      // Check if user is logged in via JWT
-      if (token) {
-        const decoded = verifyJWT(token);
-        if (decoded && decoded.user_id) {
-          isLoggedIn = true;
-          userRole = decoded.user_role;
-          userId = decoded.user_id;
-          jwtToken = token;
-        }
-      }
+      const organizationId = req.user
+        ? await getOrganizationId(req, pool)
+        // policy-allow manual-auth: optional-auth bootstrap resolves the visitor's public unit
+        : await getCurrentOrganizationId(req, pool, logger);
+      const isLoggedIn = Boolean(req.user);
+      const userRole = req.user?.role || null;
+      const userId = req.user?.id || null;
+      let jwtToken = req.user ? req.headers.authorization.slice('Bearer '.length) : null;
 
       // If not logged in, generate organization-only JWT
       if (!jwtToken) {
@@ -183,28 +173,14 @@ document.addEventListener("DOMContentLoaded", function() {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/parent', authenticate, asyncHandler(async (req, res) => {
+  router.get('/parent', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const permissions = Array.isArray(decoded.permissions) ? decoded.permissions : [];
+      const organizationId = await getOrganizationId(req, pool);
 
       // A unit-wide role with participants.view sees every child; anyone
       // else sees the children linked to their account.
-      const canViewAllParticipants = (await getUserDataScope(req, pool)) === 'organization'
-        && permissions.includes('participants.view');
-
-      // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
+      const canViewAllParticipants = (await getUserDataScope(req, pool)) === 'organization';
 
       // Which season is being looked at. Defaults to the active one; an
       // archived year is requested with ?scout_year_id= or x-scout-year-id.
@@ -241,7 +217,7 @@ document.addEventListener("DOMContentLoaded", function() {
           `${participantBaseQuery}
              JOIN user_participants up ON p.id = up.participant_id
              WHERE up.user_id = $4`,
-          [organizationId, scoutYear.id, rosterStatuses, decoded.user_id]
+          [organizationId, scoutYear.id, rosterStatuses, req.user.id]
         );
 
       const children = [];
@@ -338,7 +314,7 @@ document.addEventListener("DOMContentLoaded", function() {
       const formsByChild = {};
 
       attendanceResults.rows.forEach(row => {
-        if (!attendanceByChild[row.participant_id]) attendanceByChild[row.participant_id] = [];
+        if (!attendanceByChild[row.participant_id]) {attendanceByChild[row.participant_id] = [];}
         attendanceByChild[row.participant_id].push({ date: row.date, status: row.status });
       });
 
@@ -351,7 +327,7 @@ document.addEventListener("DOMContentLoaded", function() {
       });
 
       badgesResults.rows.forEach(row => {
-        if (!badgesByChild[row.participant_id]) badgesByChild[row.participant_id] = [];
+        if (!badgesByChild[row.participant_id]) {badgesByChild[row.participant_id] = [];}
         badgesByChild[row.participant_id].push({
           etoiles: row.etoiles,
           date_obtention: row.date_obtention,
@@ -365,7 +341,7 @@ document.addEventListener("DOMContentLoaded", function() {
       });
 
       formsResults.rows.forEach(row => {
-        if (!formsByChild[row.participant_id]) formsByChild[row.participant_id] = [];
+        if (!formsByChild[row.participant_id]) {formsByChild[row.participant_id] = [];}
         formsByChild[row.participant_id].push({ type: row.form_type, updated_at: row.updated_at });
       });
 

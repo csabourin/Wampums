@@ -304,7 +304,7 @@ La migration **ne supprime jamais de ligne** : si une inscription ne peut être 
 **Backend**
 
 - `services/scoutYear.js` : bornes d'année, année active, ouverture de l'année suivante, détection des comptes sans enfant inscrit ;
-- `middleware/auth.js` : `getScoutYear(req, pool)` / `getScoutYearId(req, pool)` (paramètre `?scout_year_id=` ou en-tête `x-scout-year-id`), et **statut de membership appliqué** dans `requirePermission`, `requireOrganizationRole` et `getUserDataScope` ;
+- `middleware/auth.js` : `getScoutYear(req, pool)` / `getScoutYearId(req, pool)` (paramètre `?scout_year_id=` ou en-tête `x-scout-year-id`), et **statut de membership appliqué** dans `authenticate` et le contexte partagé de `requirePermission` / `requireAnyPermission` ; `getUserDataScope` limite les données visibles ;
 - `routes/auth.js` : connexion et validation 2FA refusent un membership non actif avec `membership_inactive` ;
 - `routes/announcements.js` : les comptes désactivés ne reçoivent plus courriels ni notifications push ;
 - `routes/scoutYears.js` monté sur `/api/v1/scout-years` :

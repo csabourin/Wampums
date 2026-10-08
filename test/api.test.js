@@ -22,7 +22,7 @@ jest.mock('pg', () => {
 });
 
 const { Pool } = require('pg');
-const { setupDefaultMocks } = require('./mock-helpers');
+const { setupDefaultMocks, authorizationContextRow } = require('./mock-helpers');
 let app;
 
 beforeAll(() => {
@@ -64,9 +64,10 @@ describe('Authenticated API communication', () => {
   test('returns data when valid token is provided', async () => {
     const { __mPool } = require('pg');
     
-    // Authentication now re-checks active membership before loading form types.
+    // Authentication re-checks active membership, then loads the authorization context.
     __mPool.query
       .mockResolvedValueOnce({ rows: [{ organization_id: 1 }] })
+      .mockResolvedValueOnce(authorizationContextRow())
       .mockResolvedValueOnce({ rows: [{ form_type: 'general' }] });
 
     const token = jwt.sign({ user_id: 1, organizationId: 1 }, 'testsecret');

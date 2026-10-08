@@ -1,3 +1,4 @@
+const { adaptAuthorizationMock } = require('./mock-helpers');
 /**
  * Fundraising campaign creation and the generalised campaign model.
  *
@@ -87,6 +88,7 @@ function createFixture() {
     connect: jest.fn(async () => client),
   };
 
+  adaptAuthorizationMock(pool);
   const app = express();
   app.locals.pool = pool;
   app.use(express.json());
@@ -308,6 +310,7 @@ describe('PUT /api/v1/calendars/:id', () => {
       connect: jest.fn(),
     };
 
+    adaptAuthorizationMock(pool);
     const app = express();
     app.locals.pool = pool;
     app.use(express.json());
@@ -490,6 +493,7 @@ describe('databases where migration 004 has not been applied', () => {
       })),
     };
 
+    adaptAuthorizationMock(pool);
     const app = express();
     app.locals.pool = pool;
     app.use(express.json());
@@ -636,6 +640,7 @@ describe('DELETE /api/v1/fundraisers/:id', () => {
       connect: jest.fn(async () => client),
     };
 
+    adaptAuthorizationMock(pool);
     const app = express();
     app.locals.pool = pool;
     app.use(express.json());

@@ -7,13 +7,11 @@
  * IMPORTANT: This uses an unofficial API. Follow safety guidelines.
  */
 
+const { authenticate, blockDemoRoles, requirePermission, getOrganizationId } = require('../middleware/auth');
 const express = require('express');
 const { asyncHandler, error: errorResponse } = require('../middleware/response');
 const router = express.Router();
 const {
-  verifyJWT,
-  getCurrentOrganizationId,
-  verifyOrganizationMembership,
   handleOrganizationResolutionError,
 } = require('../utils/api-helpers');
 
@@ -29,26 +27,10 @@ module.exports = (pool, logger, whatsappService) => {
    * Initialize WhatsApp connection (generates QR code)
    * POST /api/v1/whatsapp/baileys/connect
    */
-  router.post('/v1/whatsapp/baileys/connect', asyncHandler(async (req, res) => {
+  router.post('/v1/whatsapp/baileys/connect', authenticate, blockDemoRoles, requirePermission('communications.send'), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const payload = verifyJWT(token);
 
-      if (!payload?.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const membership = await verifyOrganizationMembership(
-        pool,
-        payload.user_id,
-        organizationId,
-        ['admin', 'animation']
-      );
-
-      if (!membership.authorized) {
-        return res.status(403).json({ success: false, message: membership.message });
-      }
+      const organizationId = await getOrganizationId(req, pool);
 
       // Check if already connected
       const isConnected = await whatsappService.isConnected(organizationId);
@@ -61,7 +43,7 @@ module.exports = (pool, logger, whatsappService) => {
       }
 
       // Initialize connection (will generate QR code)
-      await whatsappService.initializeConnection(organizationId, payload.user_id);
+      await whatsappService.initializeConnection(organizationId, req.user.id);
 
       res.json({
         success: true,
@@ -81,26 +63,10 @@ module.exports = (pool, logger, whatsappService) => {
    * Disconnect WhatsApp
    * POST /api/v1/whatsapp/baileys/disconnect
    */
-  router.post('/v1/whatsapp/baileys/disconnect', asyncHandler(async (req, res) => {
+  router.post('/v1/whatsapp/baileys/disconnect', authenticate, blockDemoRoles, requirePermission('communications.send'), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const payload = verifyJWT(token);
 
-      if (!payload?.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const membership = await verifyOrganizationMembership(
-        pool,
-        payload.user_id,
-        organizationId,
-        ['admin', 'animation']
-      );
-
-      if (!membership.authorized) {
-        return res.status(403).json({ success: false, message: membership.message });
-      }
+      const organizationId = await getOrganizationId(req, pool);
 
       // Disconnect
       await whatsappService.disconnect(organizationId);
@@ -122,26 +88,10 @@ module.exports = (pool, logger, whatsappService) => {
    * Get WhatsApp connection status
    * GET /api/v1/whatsapp/baileys/status
    */
-  router.get('/v1/whatsapp/baileys/status', asyncHandler(async (req, res) => {
+  router.get('/v1/whatsapp/baileys/status', authenticate, requirePermission(), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const payload = verifyJWT(token);
 
-      if (!payload?.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const membership = await verifyOrganizationMembership(
-        pool,
-        payload.user_id,
-        organizationId,
-        ['admin', 'animation', 'parent']
-      );
-
-      if (!membership.authorized) {
-        return res.status(403).json({ success: false, message: membership.message });
-      }
+      const organizationId = await getOrganizationId(req, pool);
 
       // Get connection info
       const connectionInfo = await whatsappService.getConnectionInfo(organizationId);
@@ -168,26 +118,10 @@ module.exports = (pool, logger, whatsappService) => {
    * Send test WhatsApp message
    * POST /api/v1/whatsapp/baileys/test
    */
-  router.post('/v1/whatsapp/baileys/test', asyncHandler(async (req, res) => {
+  router.post('/v1/whatsapp/baileys/test', authenticate, blockDemoRoles, requirePermission('communications.send'), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const payload = verifyJWT(token);
 
-      if (!payload?.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const membership = await verifyOrganizationMembership(
-        pool,
-        payload.user_id,
-        organizationId,
-        ['admin', 'animation']
-      );
-
-      if (!membership.authorized) {
-        return res.status(403).json({ success: false, message: membership.message });
-      }
+      const organizationId = await getOrganizationId(req, pool);
 
       const { phoneNumber, message } = req.body;
 

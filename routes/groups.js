@@ -4,7 +4,6 @@ const router = express.Router();
 const winston = require('winston');
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { requireJWTSecret, verifyJWTToken } = require('../utils/jwt-config');
 // Configure logger for non-v1 endpoints
 const logger = winston.createLogger({
   level: 'info',
@@ -20,16 +19,6 @@ if (process.env.NODE_ENV !== 'production') {
   logger.add(new winston.transports.Console({
     format: winston.format.simple(),
   }));
-}
-
-// JWT verification helper for non-v1 endpoints
-requireJWTSecret();
-function verifyJWT(token) {
-  try {
-    return verifyJWTToken(token);
-  } catch (e) {
-    return null;
-  }
 }
 
 module.exports = (pool) => {

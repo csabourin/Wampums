@@ -29,10 +29,8 @@ jest.mock('../middleware/auth', () => {
       req.user = { id: mockContext.userId, roleNames: ['unitadmin'] };
       next();
     },
-    // The route re-checks the permission against the database through
-    // verifyOrganizationMembership, which is left real — that second check is
-    // the one that actually keeps animateurs out.
-    requirePermission: () => (_req, _res, next) => next(),
+    // Authorization remains real: the route has one database-backed permission gate.
+    requirePermission: actual.requirePermission,
     authorize: () => (_req, _res, next) => next(),
     blockDemoRoles: (_req, _res, next) => next(),
     getOrganizationId: async () => mockContext.organizationId,
@@ -368,6 +366,7 @@ describe.skipIf(!DATABASE_URL)('Right to erasure', () => {
     pool = new Pool({ connectionString: DATABASE_URL });
     app = express();
     app.use(express.json());
+    app.locals.pool = pool;
     app.use('/api/v1/participants', require('../routes/participants')(pool, { info: () => {} }));
     // Surface the real error instead of an opaque 500: a failing erasure has to
     // say why, both here and in production.

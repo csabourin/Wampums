@@ -22,7 +22,7 @@ jest.mock('pg', () => {
 });
 
 const { Pool } = require('pg');
-const { setupDefaultMocks } = require('./mock-helpers');
+const { setupDefaultMocks, authorizationContextRow } = require('./mock-helpers');
 let app;
 
 const TEST_SECRET = 'testsecret';
@@ -140,14 +140,11 @@ describe('Permission Slip Security', () => {
             __mPool.query.mockResolvedValueOnce({
                 rows: [{ organization_id: 1 }]
             });
-            // Mock permissions check
-            __mPool.query.mockResolvedValueOnce({
-                rows: [{ permission_key: 'activities.view' }]
-            });
-            // Mock roles check (for context)
-            __mPool.query.mockResolvedValueOnce({
-                rows: [{ role_name: 'leader', display_name: 'Leader' }]
-            });
+            // Mock authorization context
+            __mPool.query.mockResolvedValueOnce(authorizationContextRow({
+                permissions: ['activities.view'],
+                roles: [{ role_name: 'leader', display_name: 'Leader' }],
+            }));
             // Mock the organization-scoped slip result
             __mPool.query.mockResolvedValueOnce({
                 rows: [{ id: TEST_ID, activity_title: 'Camp' }]
@@ -167,9 +164,10 @@ describe('Permission Slip Security', () => {
 
             __mPool.query
                 .mockResolvedValueOnce({ rows: [{ organization_id: 1 }] })
-                .mockResolvedValueOnce({ rows: [] })
-                .mockResolvedValueOnce({ rows: [{ permission_key: 'activities.edit' }] })
-                .mockResolvedValueOnce({ rows: [{ role_name: 'leader', display_name: 'Leader' }] })
+                .mockResolvedValueOnce(authorizationContextRow({
+                    permissions: ['activities.edit'],
+                    roles: [{ role_name: 'leader', display_name: 'Leader' }],
+                }))
                 .mockResolvedValueOnce({ rows: [{ id: TEST_ID, status: 'archived' }] });
 
             const res = await request(app)
@@ -179,7 +177,7 @@ describe('Permission Slip Security', () => {
 
             expect(res.status).toBe(200);
             expect(res.body.data.permission_slip.status).toBe('archived');
-            const archiveQuery = __mPool.query.mock.calls[4];
+            const archiveQuery = __mPool.query.mock.calls[2];
             expect(archiveQuery[0]).toContain('organization_id = $2');
             expect(archiveQuery[1]).toEqual([TEST_ID, 1]);
         });

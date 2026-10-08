@@ -2,6 +2,7 @@
 
 process.env.JWT_SECRET_KEY ||= 'api-helper-organization-test-secret';
 
+const { getOrganizationId } = require('../middleware/auth');
 const { getCurrentOrganizationId } = require('../utils/api-helpers');
 const { signJWTToken } = require('../utils/jwt-config');
 
@@ -60,8 +61,8 @@ describe('public organization resolution', () => {
       // A membership in the header organization must not matter.
       query: jest.fn().mockResolvedValue({ rows: [{ '?column?': 1 }] }),
     };
-    const logger = { info: jest.fn(), warn: jest.fn() };
     const request = {
+      user: { id: 9, organizationId: 3 },
       headers: {
         authorization: `Bearer ${signJWTToken({ user_id: 9, organizationId: 3 })}`,
         'x-organization-id': '7',
@@ -69,14 +70,12 @@ describe('public organization resolution', () => {
       hostname: '127.0.0.1',
     };
 
-    await expect(getCurrentOrganizationId(request, pool, logger)).resolves.toBe(3);
+    await expect(getOrganizationId(request, pool)).resolves.toBe(3);
     expect(pool.query).not.toHaveBeenCalled();
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Ignoring organization header override'),
-    );
+
   });
 
-  test('ignores a stale session token when authentication is disabled', async () => {
+  test('public resolution ignores a stale session token', async () => {
     const pool = {
       query: jest.fn().mockResolvedValue({ rows: [] }),
     };
@@ -93,7 +92,6 @@ describe('public organization resolution', () => {
       request,
       pool,
       logger,
-      { allowAuthentication: false },
     )).resolves.toBe(4);
     expect(pool.query).toHaveBeenCalledWith(
       'SELECT 1 FROM organizations WHERE id = $1 LIMIT 1',

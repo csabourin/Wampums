@@ -1,3 +1,4 @@
+const { adaptAuthorizationMock } = require('./mock-helpers');
 const express = require('express');
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
@@ -134,6 +135,7 @@ function createFixture() {
     connect: jest.fn(async () => client),
   };
 
+  adaptAuthorizationMock(pool);
   const app = express();
   app.locals.pool = pool;
   app.use(express.json());

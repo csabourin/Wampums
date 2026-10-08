@@ -453,7 +453,7 @@ describe('Parent vs Staff payment authorization', () => {
       }
       if (query.includes('permission_key')) {
         return Promise.resolve({
-          rows: [{ permission_key: 'payment.manage' }]
+          rows: [{ permission_key: 'finance.manage' }]
         });
       }
       if (query.includes('role_name')) {

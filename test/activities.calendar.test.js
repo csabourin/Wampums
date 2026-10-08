@@ -87,11 +87,11 @@ beforeEach(() => {
 
   // Override setupDefaultMocks for organization_domains lookup
   const originalImpl = __mPool.query.getMockImplementation();
-  __mPool.query.mockImplementation((text) => {
+  __mPool.query.mockImplementation((text, params) => {
     if (typeof text === 'string' && text.includes('organization_domains')) {
       return Promise.resolve({ rows: [{ organization_id: ORG_ID }] });
     }
-    return originalImpl ? originalImpl(text) : Promise.resolve({ rows: [] });
+    return originalImpl ? originalImpl(text, params) : Promise.resolve({ rows: [] });
   });
 });
 
@@ -121,8 +121,7 @@ describe('GET /api/v1/activities/calendar.ics', () => {
 
     __mPool.query
       .mockResolvedValueOnce({ rows: [{ organization_id: ORG_ID }] }) // authenticate membership check
-      .mockResolvedValueOnce({ rows: [{ permission_key: 'activities.view' }] })
-      .mockResolvedValueOnce({ rows: [{ role_name: 'parent', display_name: 'Parent' }] })
+      .mockResolvedValueOnce({ rows: [{ status: 'active', authorization_permissions: ['activities.view'], authorization_roles: [{ role_name: 'parent', data_scope: 'linked' }], authorization_forms: {} }] })
       .mockResolvedValueOnce({ rows: [{ name: 'Demo Organization' }] })
       .mockResolvedValueOnce({
         rows: [
@@ -161,7 +160,7 @@ describe('GET /api/v1/activities/calendar.ics', () => {
     expect(response.text).toContain('END:VCALENDAR');
 
     expect(__mPool.query).toHaveBeenNthCalledWith(
-      5,
+      4,
       expect.stringContaining('FROM activities'),
       [ORG_ID]
     );
@@ -174,12 +173,7 @@ describe('GET /api/v1/activities/calendar.ics', () => {
       .mockResolvedValueOnce({
         rows: [{ organization_id: ORG_ID }] // authenticate membership check
       })
-      .mockResolvedValueOnce({
-        rows: [{ permission_key: 'activities.view' }]
-      })
-      .mockResolvedValueOnce({
-        rows: [{ role_name: 'parent', display_name: 'Parent' }]
-      })
+      .mockResolvedValueOnce({ rows: [{ status: 'active', authorization_permissions: ['activities.view'], authorization_roles: [{ role_name: 'parent', data_scope: 'linked' }], authorization_forms: {} }] })
       .mockResolvedValueOnce({
         rows: []
       })
@@ -207,12 +201,7 @@ describe('GET /api/v1/activities/calendar.ics', () => {
       .mockResolvedValueOnce({
         rows: [{ organization_id: ORG_ID }] // authenticate membership check
       })
-      .mockResolvedValueOnce({
-        rows: [{ permission_key: 'activities.view' }]
-      })
-      .mockResolvedValueOnce({
-        rows: [{ role_name: 'parent', display_name: 'Parent' }]
-      })
+      .mockResolvedValueOnce({ rows: [{ status: 'active', authorization_permissions: ['activities.view'], authorization_roles: [{ role_name: 'parent', data_scope: 'linked' }], authorization_forms: {} }] })
       .mockResolvedValueOnce({
         rows: []
       })
@@ -255,12 +244,7 @@ describe('GET /api/v1/activities/calendar.ics', () => {
       .mockResolvedValueOnce({
         rows: [{ organization_id: ORG_ID }] // authenticate membership check
       })
-      .mockResolvedValueOnce({
-        rows: [{ permission_key: 'activities.view' }]
-      })
-      .mockResolvedValueOnce({
-        rows: [{ role_name: 'parent', display_name: 'Parent' }]
-      })
+      .mockResolvedValueOnce({ rows: [{ status: 'active', authorization_permissions: ['activities.view'], authorization_roles: [{ role_name: 'parent', data_scope: 'linked' }], authorization_forms: {} }] })
       .mockResolvedValueOnce({
         rows: []
       })

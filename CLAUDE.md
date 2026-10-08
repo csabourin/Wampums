@@ -112,6 +112,43 @@ or renamed role holding the right permissions would be refused. The role-based `
   (`getUserDataScope(req, pool)` → `'organization'` or `'linked'`).
 - ⚠️ Role names are only for describing the kind of account (demo, parent dashboard) and display.
 
+**Every protected route uses the shared authorization engine.** `authenticate`
+checks active membership, and `requirePermission` reads current permissions and
+role metadata from the database, once per request and organization. Membership,
+keys, role scope, demo status and per-form rights share one SQL snapshot, so
+concurrent role edits cannot combine privileges from different states. JWT claims
+are snapshots and never authorize a request. `req.userPermissions`,
+`req.userRoles`, and the refreshed `req.user.permissions` come from that context;
+`requireAnyPermission` and `userHasPermission` use the same engine.
+
+- `requirePermission('a', 'b')` requires both keys; `requireAnyPermission('a', 'b')`
+  requires either. A trusted request selector may choose additional required
+  keys for conditional operations, such as an alumni mailing or linking another
+  account. Request fields never select the authenticated organization.
+- `requirePermission()` checks active membership and loads metadata for
+  member-only operations, such as subscribing one's own device or listing
+  public form types. It is not a substitute for a protected resource's keys.
+- Ownership alternatives live in middleware policies, delegated through
+  `requirePermission`. `resourceScope` must check the resource belongs to the
+  authenticated unit even for staff; `resourceAccess` may then allow an explicit
+  ownership alternative. Medication signatures require live child access and
+  the named guardian relationship. A retained contact cannot bypass revoked
+  access. Scheduling medication requires `medication.manage`.
+- Per-form rights remain in `middleware/formAuthorization.js`; they use current
+  role metadata and the same permission engine. Form view, submit/edit, approval
+  and review confirmation retain their distinct rules. Collection filtering
+  and child ownership checks still restrict which records a user may reach.
+- All authorization 403 responses use `forbidden()` and include `required` and
+  `missing`, including membership, demo and resource-scope denials. Database
+  failures return 500, not a misleading permission denial or invalid-token 401.
+
+`verifyOrganizationMembership` and the role-based `requireOrganizationRole` have
+been removed. The `manual-auth` policy baseline is zero: do not add a route-local
+JWT verifier or membership/permission lookup. `getCurrentOrganizationId` is a
+public-only domain/header resolver and never reads bearer credentials; protected
+routes use `getOrganizationId`. Public bootstrap uses `optionalAuth` for session
+description, sharing the active-membership check with `authenticate`.
+
 **Permission Naming Convention:**
 - Format: `{resource}.{action}`
 - Examples: `users.view`, `users.manage`, `finance.manage`, `reports.view`, `carpools.view`

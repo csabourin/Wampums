@@ -2,6 +2,8 @@
 const winston = require('winston');
 const { OrganizationNotFoundError, respondWithOrganizationFallback } = require('../utils/api-helpers');
 const { requireJWTSecret, verifyJWTToken } = require('../utils/jwt-config');
+const { forbidden, error: errorResponse } = require('./response');
+const HTTP_STATUS = { UNAUTHORIZED: 401, INTERNAL_ERROR: 500 };
 const scoutYearService = require('../services/scoutYear');
 
 // Configure logger for auth middleware
@@ -18,101 +20,70 @@ const logger = winston.createLogger({
 requireJWTSecret();
 
 /**
- * Verify JWT token and attach user to request
+ * Authenticate both required and optional sessions through one membership check.
+ * Optional sessions treat absent, invalid and inactive credentials as signed out;
+ * database failures stay server errors rather than masquerading as bad tokens.
+ * @param {boolean} [optional] - Allow visitors to continue without a session
+ * @returns {Function} Express middleware
  */
-exports.authenticate = async (req, res, next) => {
-  try {
+function sessionAuthentication(optional = false) {
+  return async (req, res, next) => {
     const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-        timestamp: new Date().toISOString()
+    let decoded;
+    let organizationId;
+    try {
+      if (!authHeader?.startsWith('Bearer ')) {throw new Error('Missing bearer token');}
+      decoded = verifyJWTToken(authHeader.slice('Bearer '.length));
+      organizationId = Number(decoded.organizationId || decoded.organization_id);
+      if (!decoded.user_id || !Number.isSafeInteger(organizationId) || organizationId <= 0) {
+        throw new Error('A session must identify an account and organization');
+      }
+    } catch (_err) {
+      delete req.user;
+      if (optional) {return next();}
+      return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+        success: false, message: 'Authentication required: invalid or expired token',
+        timestamp: new Date().toISOString(),
       });
     }
-
-    const token = authHeader.split(' ')[1];
-    const decoded = verifyJWTToken(token);
-
-    // Attach user info to request
-    req.user = {
-      id: decoded.user_id,
-      role: decoded.user_role || decoded.role, // Legacy: kept for backward compatibility
-      roleIds: decoded.roleIds || [], // New: array of role IDs
-      roleNames: decoded.roleNames || [], // New: array of role names
-      permissions: decoded.permissions || [], // New: array of permission keys
-      organizationId: decoded.organizationId || decoded.organization_id
-    };
-
-    // JWT authorization claims are a snapshot. Re-check the membership on every
-    // protected request so disabling a member takes effect immediately instead
-    // of waiting for an otherwise valid token to expire.
-    if (req.user.organizationId) {
-      const pool = req.app?.locals?.pool;
-      if (!pool) {
-        logger.error('Database pool not available in authenticate middleware');
-        return res.status(500).json({
-          success: false,
-          message: 'Server configuration error',
-          timestamp: new Date().toISOString()
-        });
-      }
+    const pool = req.app?.locals?.pool;
+    if (!pool) {return errorResponse(res, 'Server configuration error', HTTP_STATUS.INTERNAL_ERROR);}
+    try {
       const membership = await pool.query(
         `SELECT organization_id FROM user_organizations
           WHERE user_id = $1 AND organization_id = $2 AND status = 'active'`,
-        [req.user.id, req.user.organizationId]
+        [decoded.user_id, organizationId]
       );
-      if (membership.rows.length === 0) {
-        return res.status(403).json({
-          success: false,
-          message: 'This account is no longer active in this organization',
+      if (!membership.rows.length) {
+        delete req.user;
+        if (optional) {return next();}
+        return forbidden(res, 'This account is no longer active in this organization', [], [], {
           membershipStatus: 'inactive_or_missing',
-          timestamp: new Date().toISOString()
         });
       }
-    }
-
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid or expired token',
-      timestamp: new Date().toISOString()
-    });
-  }
-};
-
-/**
- * Optional authentication - attaches user if token exists but doesn't require it
- */
-exports.optionalAuth = (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      const decoded = verifyJWTToken(token);
-
       req.user = {
-        id: decoded.user_id,
-        role: decoded.user_role,
-        organizationId: decoded.organizationId
+        id: decoded.user_id, role: decoded.user_role || decoded.role,
+        roleIds: decoded.roleIds || [], roleNames: decoded.roleNames || [],
+        permissions: decoded.permissions || [], organizationId,
       };
+      req.authenticatedMembership = { userId: req.user.id, organizationId: Number(organizationId), status: 'active' };
+      return next();
+    } catch (err) {
+      logger.error('Session membership lookup failed:', err);
+      return errorResponse(res, 'Authentication check failed', HTTP_STATUS.INTERNAL_ERROR);
     }
-  } catch (error) {
-    // Ignore errors for optional auth
-  }
+  };
+}
 
-  next();
-};
+exports.authenticate = sessionAuthentication();
+exports.optionalAuth = sessionAuthentication(true);
 
 /**
  * Get organization ID from request (header or user context)
  */
 exports.getOrganizationId = async (req, pool) => {
   const parseOrgId = (value) => {
-    if (value === undefined || value === null || value === '') return null;
+    if (value === undefined || value === null || value === '') {return null;}
     const parsed = parseInt(value, 10);
     return Number.isNaN(parsed) ? null : parsed;
   };
@@ -271,264 +242,117 @@ exports.withScoutYear = (pool) => async (req, res, next) => {
 };
 
 /**
- * Verify user belongs to organization with specific role
- * Use as middleware in routes that require organization membership
- *
- * @param {Array<string>} allowedRoles - Optional array of allowed roles (admin, leader, animation, etc.)
- * @returns {Function} Express middleware
- *
- * @example
- * router.get('/admin-data', authenticate, requireOrganizationRole(['admin', 'leader']), async (req, res) => {
- *   // req.organizationId and req.userRole are available
- * });
+ * Load current membership, permissions and role metadata once per request/unit.
+ * JWT role and permission claims are never used to authorize a request.
+ * @param {Object} req - Authenticated request
+ * @param {Object} pool - Database pool
+ * @param {number} [organizationId] - Trusted organization context
+ * @returns {Promise<Object>} Current authorization context
  */
-exports.requireOrganizationRole = (allowedRoles = null) => {
-  return async (req, res, next) => {
-    try {
-      if (!req.user || !req.user.id) {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required'
-        });
-      }
-
-      // Get pool from app locals (set by route factory)
-      const pool = req.app.locals.pool;
-      if (!pool) {
-        logger.error('Database pool not available in middleware');
-        return res.status(500).json({
-          success: false,
-          message: 'Server configuration error'
-        });
-      }
-
-      // Get organization ID
-      const organizationId = await exports.getOrganizationId(req, pool);
-      req.organizationId = organizationId;
-
-      // Verify user belongs to organization
+async function loadAuthorizationContext(req, pool, organizationId) {
+  const unit = organizationId ?? await exports.getOrganizationId(req, pool);
+  const key = `${req.user.id}:${unit}`;
+  req.authorizationContexts ||= new Map();
+  if (!req.authorizationContexts.has(key)) {
+    const pending = (async () => {
+      // One SQL snapshot prevents mixing old permissions with a new role scope
+      // or demo state while another request edits membership/role assignments.
       const result = await pool.query(
-        'SELECT role, status FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
-        [req.user.id, organizationId]
+        `WITH memberships AS (
+           SELECT status, role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2
+         ), role_metadata AS (
+           SELECT DISTINCT r.role_name, r.display_name, r.data_scope
+             FROM memberships uo
+             CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
+             JOIN roles r ON r.id = role_id_text::integer WHERE uo.status = 'active'
+         ), permission_metadata AS (
+           SELECT DISTINCT p.permission_key
+             FROM memberships uo
+             CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
+             JOIN role_permissions rp ON rp.role_id = role_id_text::integer
+             JOIN permissions p ON p.id = rp.permission_id WHERE uo.status = 'active'
+         ), form_metadata AS (
+           SELECT off.form_type, bool_or(fp.can_view) AS can_view,
+                  bool_or(fp.can_submit) AS can_submit, bool_or(fp.can_edit) AS can_edit,
+                  bool_or(fp.can_approve) AS can_approve
+             FROM memberships uo
+             CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
+             JOIN form_permissions fp ON fp.role_id = role_id_text::integer
+             JOIN organization_form_formats off ON off.id = fp.form_format_id
+            WHERE uo.status = 'active' AND off.organization_id = $2
+            GROUP BY off.form_type
+         )
+         SELECT uo.status,
+                ARRAY(SELECT permission_key FROM permission_metadata) AS authorization_permissions,
+                COALESCE((SELECT jsonb_agg(rm) FROM role_metadata rm), '[]'::jsonb) AS authorization_roles,
+                COALESCE((SELECT jsonb_object_agg(fm.form_type, to_jsonb(fm) - 'form_type')
+                            FROM form_metadata fm), '{}'::jsonb) AS authorization_forms
+           FROM memberships uo LIMIT 1`,
+        [req.user.id, unit]
       );
-
-      if (result.rows.length === 0) {
-        return res.status(403).json({
-          success: false,
-          message: 'User not a member of this organization'
-        });
-      }
-
-      // Deactivated memberships (e.g. a parent with no enrolled child) keep their
-      // account and history but lose access to the organization.
-      if (result.rows[0].status !== 'active') {
-        return res.status(403).json({
-          success: false,
-          message: 'This account is no longer active in this organization',
-          membershipStatus: result.rows[0].status
-        });
-      }
-
-      const userRole = result.rows[0].role;
-      req.userRole = userRole;
-
-      // Check role requirements if specified
-      if (allowedRoles && !allowedRoles.includes(userRole)) {
-        return res.status(403).json({
-          success: false,
-          message: 'Insufficient permissions'
-        });
-      }
-
-      next();
-    } catch (error) {
-      if (error instanceof OrganizationNotFoundError) {
-        return respondWithOrganizationFallback(res);
-      }
-
-      logger.error('Error in requireOrganizationRole middleware:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Authorization check failed'
-      });
-    }
-  };
-};
+      const member = result.rows[0];
+      return {
+        active: member?.status === 'active', membershipStatus: member?.status || 'missing', organizationId: unit,
+        permissions: member?.authorization_permissions || [],
+        roles: member?.authorization_roles || [], formPermissions: member?.authorization_forms || {},
+      };
+    })();
+    req.authorizationContexts.set(key, pending);
+  }
+  return req.authorizationContexts.get(key);
+}
 
 /**
- * Permission-based authorization middleware
- * Checks if user has specific permission(s)
- *
- * @param {...string} permissions - Required permission key(s) (e.g., 'finance.view', 'users.manage')
- * @returns {Function} Express middleware
- *
- * @example
- * router.post('/budgets', authenticate, requirePermission('budget.manage'), async (req, res) => {
- *   // User has budget.manage permission
- * });
- *
- * @example
- * // Multiple permissions (user needs ALL of them)
- * router.delete('/users/:id', authenticate, requirePermission('users.delete', 'users.manage'), async (req, res) => {
- *   // User has both users.delete AND users.manage permissions
- * });
+ * Require current database permissions, optionally allowing explicit ownership
+ * policies (for example a guardian signing for their own child). A function
+ * may select additional keys from the request for conditional operations.
+ * @param {...(string|Array<string>|Object|Function)} permissions - Keys or trusted policy
+ * @returns {Function} Express authorization middleware
  */
-exports.requirePermission = (...permissions) => {
-  return async (req, res, next) => {
-    try {
-      if (!req.user || !req.user.id) {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required'
-        });
-      }
-
-      // Get pool from app locals
-      const pool = req.app.locals.pool;
-      if (!pool) {
-        logger.error('Database pool not available in requirePermission middleware');
-        return res.status(500).json({
-          success: false,
-          message: 'Server configuration error'
-        });
-      }
-
-      // Get organization ID
-      const organizationId = await exports.getOrganizationId(req, pool);
-      req.organizationId = organizationId;
-
-      // Fetch user's permissions for this organization
-      const permissionsQuery = `
-        SELECT DISTINCT p.permission_key
-        FROM user_organizations uo
-        CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
-        JOIN role_permissions rp ON rp.role_id = role_id_text::integer
-        JOIN permissions p ON p.id = rp.permission_id
-        WHERE uo.user_id = $1 AND uo.organization_id = $2
-          AND uo.status = 'active'
-      `;
-
-      const result = await pool.query(permissionsQuery, [req.user.id, organizationId]);
-      const userPermissions = result.rows.map(row => row.permission_key);
-
-      // Store permissions in request for later use
-      req.userPermissions = userPermissions;
-
-      // Also fetch user's roles for context
-      const rolesQuery = `
-        SELECT DISTINCT r.role_name, r.display_name
-        FROM user_organizations uo
-        CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
-        JOIN roles r ON r.id = role_id_text::integer
-        WHERE uo.user_id = $1 AND uo.organization_id = $2
-          AND uo.status = 'active'
-      `;
-
-      const rolesResult = await pool.query(rolesQuery, [req.user.id, organizationId]);
-      req.userRoles = rolesResult.rows.map(row => row.role_name);
-      req.userRoleDisplayNames = rolesResult.rows.map(row => row.display_name);
-
-      // Check if user has all required permissions
-      const requiredPermissions = Array.isArray(permissions[0]) ? permissions[0] : permissions;
-      const hasAllPermissions = requiredPermissions.every(perm => userPermissions.includes(perm));
-
-      if (!hasAllPermissions) {
-        const missingPermissions = requiredPermissions.filter(perm => !userPermissions.includes(perm));
-
-        // A deactivated membership resolves to zero permissions. Say so, instead
-        // of reporting every permission as missing.
-        const membership = await pool.query(
-          'SELECT status FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
-          [req.user.id, organizationId]
-        );
-        const membershipStatus = membership.rows[0]?.status;
-
-        if (membershipStatus && membershipStatus !== 'active') {
-          logger.info(`Inactive membership blocked for user ${req.user.id} (status ${membershipStatus})`);
-          return res.status(403).json({
-            success: false,
-            message: 'This account is no longer active in this organization',
-            membershipStatus,
-            required: requiredPermissions,
-            missing: missingPermissions
-          });
-        }
-
-        logger.info(`Permission denied for user ${req.user.id}: missing ${missingPermissions.join(', ')}`);
-
-        return res.status(403).json({
-          success: false,
-          message: 'Insufficient permissions',
-          required: requiredPermissions,
-          missing: missingPermissions
-        });
-      }
-
-      next();
-    } catch (error) {
-      if (error instanceof OrganizationNotFoundError) {
-        return respondWithOrganizationFallback(res);
-      }
-
-      logger.error('Error in requirePermission middleware:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Permission check failed'
+exports.requirePermission = (...permissions) => async (req, res, next) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(HTTP_STATUS.UNAUTHORIZED).json({ success: false, message: 'Authentication required' });
+    }
+    const pool = req.app?.locals?.pool;
+    if (!pool) {return errorResponse(res, 'Server configuration error', HTTP_STATUS.INTERNAL_ERROR);}
+    const selected = typeof permissions[0] === 'function' ? await permissions[0](req) : permissions;
+    const policy = !Array.isArray(selected) ? selected : selected[0] && typeof selected[0] === 'object' && !Array.isArray(selected[0])
+      ? selected[0] : { permissions: Array.isArray(selected[0]) ? selected[0] : selected };
+    const required = policy.permissions || [];
+    const organizationId = await exports.getOrganizationId(req, pool);
+    req.organizationId = organizationId;
+    const context = await loadAuthorizationContext(req, pool, organizationId);
+    req.userPermissions = context.permissions;
+    req.userRoles = context.roles.map((row) => row.role_name);
+    req.userRoleDisplayNames = context.roles.map((row) => row.display_name);
+    req.formPermissions = context.formPermissions;
+    req.user.permissions = context.permissions;
+    if (!context.active) {
+      return forbidden(res, 'This account is no longer active in this organization', required, required, {
+        membershipStatus: context.membershipStatus,
       });
     }
-  };
+    const missing = required.filter((key) => !context.permissions.includes(key));
+    if (policy.resourceScope && await policy.resourceScope(req, { pool, organizationId, context }) !== true) {
+      return forbidden(res, 'Access denied to this resource', required, missing);
+    }
+    const hasPermission = policy.any ? missing.length < required.length : missing.length === 0;
+    const scopeMatches = !policy.organizationScope || await exports.getUserDataScope(req, pool) === 'organization';
+    if (hasPermission && scopeMatches) {return next();}
+    if (policy.resourceAccess && await policy.resourceAccess(req, { pool, organizationId, context }) === true) {return next();}
+    return forbidden(res, 'Insufficient permissions', required, missing, policy.any ? { requiredAny: required } : {});
+  } catch (err) {
+    if (err instanceof OrganizationNotFoundError) {return respondWithOrganizationFallback(res);}
+    logger.error('Permission check failed:', err);
+    return errorResponse(res, 'Permission check failed', HTTP_STATUS.INTERNAL_ERROR);
+  }
 };
 
-/**
- * Require at least one permission from the supplied list.
- */
-exports.requireAnyPermission = (...permissions) => {
-  const requiredPermissions = Array.isArray(permissions[0]) ? permissions[0] : permissions;
-  return async (req, res, next) => {
-    try {
-      if (!req.user?.id) {
-        return res.status(401).json({ success: false, message: 'Authentication required' });
-      }
-      const pool = req.app?.locals?.pool;
-      if (!pool) {
-        logger.error('Database pool not available in requireAnyPermission middleware');
-        return res.status(500).json({ success: false, message: 'Server configuration error' });
-      }
-      const organizationId = await exports.getOrganizationId(req, pool);
-      req.organizationId = organizationId;
-      const result = await pool.query(
-        `SELECT DISTINCT p.permission_key
-           FROM user_organizations uo
-           CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) role_id_text
-           JOIN role_permissions rp ON rp.role_id = role_id_text::integer
-           JOIN permissions p ON p.id = rp.permission_id
-          WHERE uo.user_id = $1
-            AND uo.organization_id = $2
-            AND uo.status = 'active'
-            AND p.permission_key = ANY($3::text[])`,
-        [req.user.id, organizationId, requiredPermissions]
-      );
-      if (result.rows.length === 0) {
-        // Holding any one would do, so every one of them is missing.
-        return res.status(403).json({
-          success: false,
-          message: 'Insufficient permissions',
-          requiredAny: requiredPermissions,
-          required: requiredPermissions,
-          missing: requiredPermissions
-        });
-      }
-      req.userPermissions = result.rows.map(row => row.permission_key);
-      return next();
-    } catch (error) {
-      if (error instanceof OrganizationNotFoundError) {
-        return respondWithOrganizationFallback(res);
-      }
-      logger.error('Error in requireAnyPermission middleware:', error);
-      return res.status(500).json({ success: false, message: 'Permission check failed' });
-    }
-  };
-};
+/** Require any one current permission, using the same context and denial path. */
+exports.requireAnyPermission = (...permissions) => exports.requirePermission({
+  permissions: Array.isArray(permissions[0]) ? permissions[0] : permissions, any: true,
+});
 
 /**
  * Block demo roles from making changes
@@ -563,29 +387,16 @@ exports.blockDemoRoles = async (req, res, next) => {
     // Get organization ID
     const organizationId = await exports.getOrganizationId(req, pool);
 
-    // Check if user has any demo roles
-    const demoRolesQuery = `
-      SELECT DISTINCT r.role_name
-      FROM user_organizations uo
-      CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
-      JOIN roles r ON r.id = role_id_text::integer
-      WHERE uo.user_id = $1
-        AND uo.organization_id = $2
-        -- policy-allow role-names: demo accounts are described by role (CLAUDE.md §3)
-        AND r.role_name IN ('demoadmin', 'demoparent')
-    `;
-
-    const result = await pool.query(demoRolesQuery, [req.user.id, organizationId]);
-
-    if (result.rows.length > 0) {
-      const demoRoles = result.rows.map(row => row.role_name);
-      logger.info(`Demo role blocked from ${req.method} ${req.path}: user ${req.user.id} has roles ${demoRoles.join(', ')}`);
-
-      return res.status(403).json({
-        success: false,
-        message: 'This feature is not available in demo mode. Demo accounts have read-only access.',
-        isDemo: true
+    const context = await loadAuthorizationContext(req, pool, organizationId);
+    if (!context.active) {
+      return forbidden(res, 'This account is no longer active in this organization', [], [], {
+        membershipStatus: context.membershipStatus,
       });
+    }
+    // policy-allow role-names: demo is an account descriptor, never a grant of authority (CLAUDE.md §3)
+    const demoRoles = context.roles.filter((role) => ['demoadmin', 'demoparent'].includes(role.role_name));
+    if (demoRoles.length) {
+      return forbidden(res, 'This feature is not available in demo mode. Demo accounts have read-only access.', [], [], { isDemo: true });
     }
 
     next();
@@ -622,20 +433,8 @@ exports.userHasPermission = async (req, pool, organizationId, permissionKey) => 
     return false;
   }
 
-  const result = await pool.query(
-    `SELECT 1
-     FROM user_organizations uo
-     CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
-     JOIN role_permissions rp ON rp.role_id = role_id_text::integer
-     JOIN permissions p ON p.id = rp.permission_id
-     WHERE uo.user_id = $1 AND uo.organization_id = $2
-       AND uo.status = 'active'
-       AND p.permission_key = $3
-     LIMIT 1`,
-    [req.user.id, organizationId, permissionKey]
-  );
-
-  return result.rows.length > 0;
+  const context = await loadAuthorizationContext(req, pool, organizationId);
+  return context.active && context.permissions.includes(permissionKey);
 };
 
 /**
@@ -696,33 +495,8 @@ exports.hasAllPermissions = (req, ...permissions) => {
  * }
  */
 exports.getUserDataScope = async (req, pool) => {
-  try {
-    if (!req.user || !req.user.id) {
-      return 'linked'; // Default to most restrictive
-    }
-
-    const organizationId = await exports.getOrganizationId(req, pool);
-
-    // Query user's roles and get their data scopes
-    // Order by data_scope ASC so 'linked' comes before 'organization'
-    // This way we can take the LAST (most permissive) scope
-    const result = await pool.query(`
-      SELECT DISTINCT r.data_scope
-      FROM user_organizations uo
-      CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
-      JOIN roles r ON r.id = role_id_text::integer
-      WHERE uo.user_id = $1 AND uo.organization_id = $2
-        AND uo.status = 'active'
-      ORDER BY r.data_scope DESC
-    `, [req.user.id, organizationId]);
-
-    // If user has ANY organization-scoped role, they get organization access
-    // Otherwise, they get linked access
-    // DESC order means 'organization' comes first if it exists
-    return result.rows[0]?.data_scope || 'linked';
-
-  } catch (error) {
-    logger.error('Error getting user data scope:', error);
-    return 'linked'; // Fail safely to most restrictive
-  }
+  if (!req.user?.id) {return 'linked';}
+  const context = await loadAuthorizationContext(req, pool);
+  if (!context.active) {return 'linked';}
+  return context.roles.some((role) => role.data_scope === 'organization') ? 'organization' : 'linked';
 };

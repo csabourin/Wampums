@@ -18,7 +18,7 @@ const { authenticate, requirePermission, blockDemoRoles } = require('../middlewa
 const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
 
 // Import utilities
-const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 
 /**
  * Export route factory function

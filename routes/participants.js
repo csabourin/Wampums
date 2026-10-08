@@ -3,7 +3,6 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, getUserDataScope, withScoutYear } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
-const { verifyOrganizationMembership } = require('../utils/api-helpers');
 const { ensureActiveScoutYear, flagRequiredFormsForReview } = require('../services/scoutYear');
 const {
   ACCESS_SOURCE,
@@ -424,14 +423,6 @@ module.exports = (pool) => {
       }
     }
 
-    // Verify user belongs to this organization
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: ['participants.edit'],
-    });
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
-
     // Verify participant exists and belongs to organization
     const participantCheck = await pool.query(
       `SELECT p.id FROM participants p
@@ -600,20 +591,13 @@ module.exports = (pool) => {
    *       409:
    *         description: Duplicate participant
    */
-  router.post('/save', authenticate, blockDemoRoles, requirePermission('participants.create'), asyncHandler(async (req, res) => {
+  router.post('/save', authenticate, blockDemoRoles, requirePermission((req) =>
+    req.body?.group_id !== undefined ? ['participants.create', 'participants.edit'] : ['participants.create']), asyncHandler(async (req, res) => {
     if (!isPlainBodyObject(req.body)) {
       return error(res, 'Invalid request body. Expected JSON object payload.', 400);
     }
 
     const organizationId = await getOrganizationId(req, pool);
-
-    // Verify user belongs to this organization
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: ['participants.create'],
-    });
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id, first_name, last_name, date_naissance, group_id, inscription_date: inscriptionDate = null } = req.body;
     if (inscriptionDate !== null && !isCalendarDate(inscriptionDate)) {
@@ -628,18 +612,7 @@ module.exports = (pool) => {
     // this route is reachable by parents as well as staff. Staff are the ones
     // who also hold participants.edit; everything below that could touch a
     // child the caller has no business with is decided by that difference.
-    const canEditAnyParticipant = authCheck.permissions.includes('participants.edit');
-
-    // Choosing a child's den is the unit's decision, not a family's. No parent
-    // screen sends one, and a crafted request must not be able to.
-    if (group_id !== undefined && !canEditAnyParticipant) {
-      return res.status(403).json({
-        success: false,
-        message: 'Insufficient permissions',
-        required: ['participants.edit'],
-        missing: ['participants.edit'],
-      });
-    }
+    const canEditAnyParticipant = req.userPermissions.includes('participants.edit');
 
     if (id && !/^\d+$/.test(String(id))) {
       return error(res, 'Invalid participant ID', 400);
@@ -853,14 +826,6 @@ module.exports = (pool) => {
 
     const organizationId = await getOrganizationId(req, pool);
 
-    // Verify user belongs to this organization
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: ['participants.edit'],
-    });
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
-
     const { participant_id, group_id, first_leader, second_leader, roles } = req.body;
 
     if (!participant_id) {
@@ -1023,36 +988,20 @@ module.exports = (pool) => {
    * POST /api/v1/participants/link-users
    * Link user to multiple participants (self-linking or admin linking)
    */
-  router.post('/link-users', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+  router.post('/link-users', authenticate, blockDemoRoles, requirePermission((req) =>
+    req.body?.user_id && req.body.user_id !== req.user.id
+      ? ['participants.edit', 'users.assign_roles'] : ['participants.edit']), asyncHandler(async (req, res) => {
     if (!isPlainBodyObject(req.body)) {
       return error(res, 'Invalid request body. Expected JSON object payload.', 400);
     }
 
     const organizationId = await getOrganizationId(req, pool);
 
-    // Verify user belongs to this organization
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: ['participants.edit'],
-    });
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
-
     let { user_id, participant_ids } = req.body;
 
     // If no user_id provided, use the current user (self-linking)
     if (!user_id) {
       user_id = req.user.id;
-    }
-
-    // If user is trying to link someone else, they need admin role
-    if (user_id !== req.user.id) {
-      const adminCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-        requiredPermissions: ['users.assign_roles'],
-      });
-      if (!adminCheck.authorized) {
-        return error(res, 'Only admins can link participants to other users', 403);
-      }
     }
 
     if (!participant_ids || !Array.isArray(participant_ids)) {
@@ -1432,84 +1381,74 @@ module.exports = (pool) => {
    *       404:
    *         description: Participant not found in this organization
    */
-  router.delete('/:id/erasure',
-    authenticate,
-    blockDemoRoles,
-    requirePermission('participants.erase'),
-    asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
-      const participantId = parseInt(req.params.id, 10);
+  router.delete('/:id/erasure', authenticate, blockDemoRoles, requirePermission('participants.erase'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const participantId = parseInt(req.params.id, 10);
 
-      if (Number.isNaN(participantId)) {
-        return error(res, 'Invalid participant identifier', 400);
-      }
+    if (Number.isNaN(participantId)) {
+      return error(res, 'Invalid participant identifier', 400);
+    }
 
-      // Checked again against the database rather than trusting the token, and
-      // with the permission spelled out: this is the one action nobody should
-      // reach by accident.
-      const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-        requiredPermissions: ['participants.erase'],
-      });
-      if (!authCheck.authorized) {
-        return error(res, authCheck.message, 403);
-      }
+    // Checked again against the database rather than trusting the token, and
+    // with the permission spelled out: this is the one action nobody should
+    // reach by accident.
 
-      // Any year, not just the current one — a family who left three years ago
-      // is exactly who asks to be forgotten.
-      const participantResult = await pool.query(
-        `SELECT DISTINCT p.id, p.first_name, p.last_name
+    // Any year, not just the current one — a family who left three years ago
+    // is exactly who asks to be forgotten.
+    const participantResult = await pool.query(
+      `SELECT DISTINCT p.id, p.first_name, p.last_name
            FROM participants p
            JOIN participant_enrollments pe ON pe.participant_id = p.id
           WHERE p.id = $1 AND pe.organization_id = $2`,
-        [participantId, organizationId]
-      );
+      [participantId, organizationId]
+    );
 
-      if (participantResult.rows.length === 0) {
-        return error(res, 'Participant not found in this organization', 404);
-      }
+    if (participantResult.rows.length === 0) {
+      return error(res, 'Participant not found in this organization', 404);
+    }
 
-      const participant = participantResult.rows[0];
-      const expectedName = `${participant.first_name} ${participant.last_name}`;
-      const confirmation = String(req.body?.confirm_full_name || '').trim();
+    const participant = participantResult.rows[0];
+    const expectedName = `${participant.first_name} ${participant.last_name}`;
+    const confirmation = String(req.body?.confirm_full_name || '').trim();
 
-      // Typing the name is the only thing standing between a mis-click and an
-      // irreversible deletion, so it is checked on the server, not just in the
-      // dialog.
-      if (confirmation.toLowerCase() !== expectedName.toLowerCase()) {
-        return error(res, 'Confirmation does not match the participant name', 400);
-      }
+    // Typing the name is the only thing standing between a mis-click and an
+    // irreversible deletion, so it is checked on the server, not just in the
+    // dialog.
+    if (confirmation.toLowerCase() !== expectedName.toLowerCase()) {
+      return error(res, 'Confirmation does not match the participant name', 400);
+    }
 
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-        const summary = await eraseParticipant(client, {
-          organizationId,
-          participant,
-          performedBy: req.user.id
-        });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const summary = await eraseParticipant(client, {
+        organizationId,
+        participant,
+        performedBy: req.user.id
+      });
 
-        // Keep this organization's approval. The last owning organization to
-        // approve will perform the global erasure in the same transaction.
-        if (summary.blocked) {
-          await client.query('COMMIT');
-          return error(
-            res,
-            'erasure_awaiting_organization_approvals',
-            409,
-            summary.organizations.map(org => ({ organization_id: org.id, organization_name: org.name }))
-          );
-        }
-
+      // Keep this organization's approval. The last owning organization to
+      // approve will perform the global erasure in the same transaction.
+      if (summary.blocked) {
         await client.query('COMMIT');
-
-        return success(res, summary, 'Participant and family data erased');
-      } catch (err) {
-        await client.query('ROLLBACK');
-        throw err;
-      } finally {
-        client.release();
+        return error(
+          res,
+          'erasure_awaiting_organization_approvals',
+          409,
+          summary.organizations.map(org => ({ organization_id: org.id, organization_name: org.name }))
+        );
       }
-    }));
+
+      await client.query('COMMIT');
+
+      return success(res, summary, 'Participant and family data erased');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }));
 
   // ============================================
   // CATCH-ALL ROUTES (Must be LAST to avoid intercepting specific routes)
