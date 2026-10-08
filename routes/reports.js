@@ -796,7 +796,7 @@ module.exports = (pool, logger) => {
 
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
-                fs.submission_data->>'vaccins_a_jour' as vaccines_up_to_date
+                fs.submission_data->'vaccins_a_jour' as vaccines_answer
          FROM participants p
          JOIN participant_enrollments po ON p.id = po.participant_id
            AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
@@ -809,7 +809,14 @@ module.exports = (pool, logger) => {
         ...formWindowFor(req.scoutYear)]
     );
 
-    res.json({ success: true, data: result.rows });
+    // The answer is stored as "oui", "1", true, "on"… depending on the form
+    // version; read it the way the health report does.
+    const rows = result.rows.map(({ vaccines_answer: answer, ...row }) => ({
+      ...row,
+      vaccines_up_to_date: isAffirmative(answer)
+    }));
+
+    res.json({ success: true, data: rows });
   }));
 
   /**
@@ -909,16 +916,18 @@ module.exports = (pool, logger) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
-      `SELECT h.honor_name, h.category, COUNT(*) as count,
-                array_agg(p.first_name || ' ' || p.last_name) as recipients
+      `SELECT h.date::text AS date, COUNT(*) AS count,
+                array_agg(p.first_name || ' ' || p.last_name
+                          ORDER BY p.last_name, p.first_name) AS recipients
          FROM honors h
          JOIN participants p ON h.participant_id = p.id
          JOIN participant_enrollments po ON p.id = po.participant_id
            AND po.scout_year_id = $2 AND po.status = ANY($5::text[])
          WHERE po.organization_id = $1
+           AND h.organization_id = $1
            AND h.date BETWEEN $3::date AND $4::date
-         GROUP BY h.honor_name, h.category
-         ORDER BY h.category, h.honor_name`,
+         GROUP BY h.date
+         ORDER BY h.date DESC`,
       [organizationId, req.scoutYear.id, req.scoutYear.start_date, req.scoutYear.end_date, req.rosterStatuses]
     );
 

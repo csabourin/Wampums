@@ -1914,6 +1914,19 @@ export async function getFicheMedications(cacheOptions = {}) {
 }
 
 /**
+ * Medication each participant on the roster declares on their health form
+ * @param {Object} cacheOptions - Cache options
+ * @returns {Promise<Object>} `{ declarations: [{ participant_id, medication }] }`
+ */
+export function getFicheMedicationDeclarations(cacheOptions = {}) {
+  return API.get('v1/medication/fiche-declarations', {}, {
+    cacheKey: 'fiche_medication_declarations',
+    cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+    ...cacheOptions
+  });
+}
+
+/**
  * Create or update a medication requirement
  */
 export async function saveMedicationRequirement(payload) {

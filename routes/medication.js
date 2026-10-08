@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope, requirePermission } = require('../middleware/auth');
+const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope, requirePermission, withScoutYear } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { medicationParticipantInUnit, familyMedicationAccess } = require('../middleware/medicationAuthorizationPolicy');
 const { areUnitLeaders } = require('../services/unitLeaders');
+const { declaresMedication, medicationText } = require('../utils/health-form');
 
 const MEDICATION_READ_PERMISSIONS = ['medication.view'];
 const MEDICATION_MANAGE_PERMISSIONS = ['medication.manage'];
@@ -78,6 +79,51 @@ module.exports = (pool, logger) => {
     );
 
     return success(res, { medications: result.rows.map((row) => row.medication) }, 'Fiche_sante medications loaded');
+  }));
+
+  /**
+   * GET /v1/medication/fiche-declarations
+   * Medication each participant on the roster declares on their current
+   * fiche_sante, read like the medication report so a child whose medication
+   * was written down but never planned still reaches the leader receiving it.
+   * Permission: medication.view; a linked-scope user sees only their children.
+   */
+  router.get('/v1/medication/fiche-declarations', authenticate, requirePermission(MEDICATION_READ_PERMISSIONS), withScoutYear(pool), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const linkedOnly = await getUserDataScope(req, pool) === 'linked';
+
+    const result = await pool.query(
+      `SELECT p.id AS participant_id, fs.submission_data AS health_data
+         FROM participants p
+         JOIN participant_enrollments pe ON pe.participant_id = p.id
+          AND pe.organization_id = $1
+          AND pe.scout_year_id = $2
+          AND pe.status = ANY($3::text[])
+         JOIN LATERAL (
+           SELECT sub.submission_data
+             FROM form_submissions sub
+             LEFT JOIN scout_years sub_year ON sub_year.id = sub.scout_year_id
+            WHERE sub.participant_id = p.id
+              AND sub.organization_id = $1
+              AND sub.form_type = 'fiche_sante'
+            ORDER BY sub_year.start_date DESC NULLS LAST, sub.updated_at DESC NULLS LAST, sub.id DESC
+            LIMIT 1
+         ) fs ON TRUE
+        WHERE (NOT $4::boolean OR EXISTS (
+          SELECT 1 FROM user_participants up
+           WHERE up.participant_id = p.id AND up.user_id = $5::uuid
+        ))`,
+      [organizationId, req.scoutYear.id, req.rosterStatuses, linkedOnly, req.user.id]
+    );
+
+    const declarations = result.rows
+      .filter((row) => declaresMedication(row.health_data))
+      .map((row) => ({
+        participant_id: row.participant_id,
+        medication: medicationText(row.health_data)
+      }));
+
+    return success(res, { declarations }, 'Fiche_sante medication declarations loaded');
   }));
 
   /**

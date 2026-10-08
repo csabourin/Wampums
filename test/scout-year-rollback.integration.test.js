@@ -698,6 +698,18 @@ describe.skipIf(!DATABASE_URL)('Scout year rollback', () => {
     expect(Number(amelie.total_points)).toBe(25);
     const beatrice = archived.body.data.find(row => row.first_name === 'Béatrice');
     expect(Number(beatrice.honors_count)).toBe(1);
+
+    const currentHonors = await request(app).get('/api/v1/reports/honors');
+    expect(currentHonors.status).toBe(200);
+    expect(currentHonors.body.data).toHaveLength(0);
+
+    const archivedHonors = await request(app)
+      .get('/api/v1/reports/honors')
+      .query({ scout_year_id: ids.currentYearId });
+    expect(archivedHonors.status).toBe(200);
+    expect(archivedHonors.body.data).toEqual([
+      { date: '2025-11-02', count: '1', recipients: ['Béatrice Roy'] }
+    ]);
   });
 
   test('a year belonging to nobody is refused rather than silently ignored', async () => {
