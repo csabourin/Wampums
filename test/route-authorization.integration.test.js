@@ -239,6 +239,37 @@ describe.skipIf(!DATABASE_URL)('Shared route authorization', () => {
     expect(foreign.status).toBe(403);
   });
 
+  test('a parent plans its own child’s medication; giving it stays with staff', async () => {
+    const sibling = await one("INSERT INTO participants (first_name, last_name, date_naissance) VALUES ('Other', 'Sibling', '2016-01-01') RETURNING id");
+    await pool.query(`INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id)
+      SELECT $1, $2, id FROM scout_years WHERE organization_id = $2 AND status = 'active'`, [sibling, ids.unit]);
+    const siblingRequirement = await one("INSERT INTO medication_requirements (organization_id, participant_id, medication_name) VALUES ($1, $2, 'Sibling syrup') RETURNING id", [ids.unit, sibling]);
+    await pool.query('INSERT INTO participant_medications (organization_id, medication_requirement_id, participant_id) VALUES ($1, $2, $3)', [ids.unit, siblingRequirement, sibling]);
+    const parent = await member(await role(['participants.view'], 'linked'));
+    await grantParticipantAccess(pool, { participantId: ids.child, userId: parent, sourceType: ACCESS_SOURCE.DIRECT });
+
+    const created = await call('post', '/api/v1/medication/requirements', parent,
+      { medication_name: 'Ventolin', participant_ids: [ids.child] });
+    expect(created.status).toBe(201);
+    expect(created.body.data.participant_id).toBe(ids.child);
+
+    const edited = await call('put', `/api/v1/medication/requirements/${created.body.data.id}`, parent,
+      { medication_name: 'Ventolin HFA', participant_ids: [ids.child] });
+    expect(edited.status).toBe(200);
+    expect(edited.body.data.medication_name).toBe('Ventolin HFA');
+
+    const [forSibling, takeOver, distribution, reception] = await Promise.all([
+      call('post', '/api/v1/medication/requirements', parent, { medication_name: 'X', participant_ids: [sibling] }),
+      call('put', `/api/v1/medication/requirements/${siblingRequirement}`, parent,
+        { medication_name: 'Sibling syrup', participant_ids: [ids.child] }),
+      call('post', '/api/v1/medication/distributions', parent, { medication_requirement_id: created.body.data.id }),
+      call('post', '/api/v1/medication/receptions', parent, { medication_requirement_id: created.body.data.id }),
+    ]);
+    expect([forSibling.status, takeOver.status, distribution.status, reception.status]).toEqual([403, 403, 403, 403]);
+    expect(await one('SELECT participant_id FROM medication_requirements WHERE id = $1', [siblingRequirement])).toBe(sibling);
+    await pool.query('DELETE FROM medication_requirements WHERE id = $1', [created.body.data.id]);
+  });
+
   test('read-only medication access cannot schedule a distribution', async () => {
     expect((await call('post', '/api/v1/medication/distributions', ids.family)).status).toBe(403);
   });

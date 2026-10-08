@@ -100,7 +100,64 @@ const MEDICATION_LIST_READ_POLICY = {
   },
 };
 
+/**
+ * The one child a medication requirement is written for (`participant_ids`).
+ * @param {Object} req - Request
+ * @returns {number|null} Participant ID, or null unless exactly one valid ID
+ */
+function requirementChild(req) {
+  const ids = req.body?.participant_ids;
+  return Array.isArray(ids) && ids.length === 1 ? validId(ids[0]) : null;
+}
+
+/**
+ * Write policy for a planned medication. Staff holding `medication.manage`
+ * with an organization-wide scope plan for any child of the unit. A parent
+ * plans for a child they are linked to; when editing, the medication must
+ * already belong to one of their children, so an edit cannot take over
+ * another child's medication. Giving a dose stays with staff: distributions
+ * and receptions do not use this policy.
+ */
+const MEDICATION_REQUIREMENT_WRITE_POLICY = {
+  permissions: ['medication.manage'],
+  organizationScope: true,
+  resourceScope: async (req, { pool, organizationId }) => {
+    const id = requirementChild(req);
+    // No single valid child: the handler answers 400, and a parent is refused
+    // below because resourceAccess needs that child.
+    if (!id) {return true;}
+    const result = await pool.query(
+      'SELECT 1 FROM participant_enrollments WHERE participant_id = $1 AND organization_id = $2 LIMIT 1',
+      [id, organizationId]
+    );
+    return result.rows.length > 0;
+  },
+  resourceAccess: async (req, { pool, organizationId }) => {
+    const id = requirementChild(req);
+    if (!id) {return false;}
+    const requirementId = req.params.id === undefined ? null : validId(req.params.id);
+    if (req.params.id !== undefined && !requirementId) {return false;}
+    const result = await pool.query(
+      `SELECT EXISTS (
+         SELECT 1 FROM user_participants WHERE participant_id = $1 AND user_id = $2
+       ) AND ($3::int IS NULL OR EXISTS (
+         SELECT 1 FROM medication_requirements mr
+          WHERE mr.id = $3 AND mr.organization_id = $4
+            AND mr.participant_id IN (SELECT participant_id FROM user_participants WHERE user_id = $2)
+            AND NOT EXISTS (
+              SELECT 1 FROM participant_medications pm
+               WHERE pm.medication_requirement_id = mr.id
+                 AND pm.participant_id NOT IN (SELECT participant_id FROM user_participants WHERE user_id = $2)
+            )
+       )) AS allowed`,
+      [id, req.user.id, requirementId, organizationId]
+    );
+    return result.rows[0]?.allowed === true;
+  },
+};
+
 module.exports = {
+  MEDICATION_REQUIREMENT_WRITE_POLICY,
   medicationParticipantInUnit,
   familyMedicationAccess,
   MEDICATION_LIST_READ_POLICY,
