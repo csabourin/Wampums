@@ -224,4 +224,41 @@ describe.skipIf(!DATABASE_URL)('Granting only what one holds', () => {
     expect(response.body.missing).toEqual(['finance.manage']);
     expect(await one('SELECT count(*)::int FROM roles WHERE id = $1', [ids.high])).toBe(1);
   });
+
+  test('a role holding every permission receives new ones and can grant any role (migration 016)', async () => {
+    const allPermissions = await createRole('all_permissions', 'organization', ['users.assign_roles']);
+    await pool.query('UPDATE roles SET grants_all_permissions = TRUE WHERE id = $1', [allPermissions]);
+
+    // A permission created afterwards, the way production gained some outside
+    // the repository, reaches the role through the trigger.
+    await pool.query(
+      `SELECT setval(pg_get_serial_sequence('public.permissions', 'id'),
+                     COALESCE((SELECT MAX(id) FROM public.permissions), 0) + 1, false)`
+    );
+    const newKey = `grants_test.feature_${suffix}`;
+    await pool.query(
+      `INSERT INTO permissions (permission_key, permission_name, category) VALUES ($1, $1, 'grants_test')`,
+      [newKey]
+    );
+    expect(await one(
+      `SELECT count(*)::int FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id
+        WHERE rp.role_id = $1 AND p.permission_key = $2`,
+      [allPermissions, newKey]
+    )).toBe(1);
+
+    const carriesNewPermission = await createRole('carries_new', 'organization', [newKey]);
+    const caller = await createMember([allPermissions]);
+    const target = await createMember([ids.plain]);
+    const previousCaller = mockContext.userId;
+    mockContext.userId = caller;
+    try {
+      const response = await request(app)
+        .put(`/api/v1/users/${target}/roles`)
+        .send({ roleIds: [ids.plain, carriesNewPermission] });
+
+      expect(response.status).toBe(200);
+    } finally {
+      mockContext.userId = previousCaller;
+    }
+  });
 });

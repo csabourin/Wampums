@@ -67,7 +67,8 @@ export class RoleManagement {
   }
 
   async fetchRoles() {
-    const result = await getRoleCatalog();
+    // Which roles are assignable depends on the viewer's current permissions.
+    const result = await getRoleCatalog({ forceRefresh: true });
     this.roles = result.data || [];
     debugLog('Fetched roles:', this.roles.length);
   }
