@@ -2397,9 +2397,9 @@ module.exports = (pool) => {
           : null;
 
         const createdSlips = [];
-        // An answered slip is the record of what a guardian consented to: a
-        // reissue never rewrites it. Archiving it first frees the date for a
-        // new request, which then starts with no signature or email history.
+        // A reissue refreshes only a slip still awaiting an answer. Any other
+        // slip is the record of what a guardian answered and is left as it is;
+        // archiving it frees the date, and the new request is a separate row.
         const answeredParticipantIds = [];
 
         // Create permission slips for each participant
@@ -2412,7 +2412,7 @@ module.exports = (pool) => {
               activity_id, activity_title, activity_description, authorization_text, deadline_date,
               consent_payload, status)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-             ON CONFLICT (organization_id, participant_id, meeting_date)
+             ON CONFLICT (organization_id, participant_id, meeting_date) WHERE status <> 'archived'
              DO UPDATE SET consent_payload = EXCLUDED.consent_payload,
                            guardian_id = EXCLUDED.guardian_id,
                            meeting_id = EXCLUDED.meeting_id,
@@ -2422,24 +2422,8 @@ module.exports = (pool) => {
                            authorization_text = EXCLUDED.authorization_text,
                            deadline_date = EXCLUDED.deadline_date,
                            status = EXCLUDED.status,
-                           signed_at = NULL,
-                           signed_by = NULL,
-                           signature_hash = NULL,
-                           contact_confirmation = NULL,
-                           declined_at = NULL,
-                           declined_by = NULL,
-                           email_sent = CASE WHEN permission_slips.status = 'pending'
-                                             THEN permission_slips.email_sent ELSE FALSE END,
-                           email_sent_at = CASE WHEN permission_slips.status = 'pending'
-                                                THEN permission_slips.email_sent_at ELSE NULL END,
-                           reminder_sent = CASE WHEN permission_slips.status = 'pending'
-                                                THEN permission_slips.reminder_sent ELSE FALSE END,
-                           reminder_sent_at = CASE WHEN permission_slips.status = 'pending'
-                                                   THEN permission_slips.reminder_sent_at ELSE NULL END,
-                           guardians_emailed = CASE WHEN permission_slips.status = 'pending'
-                                                    THEN permission_slips.guardians_emailed ELSE '[]'::jsonb END,
                            updated_at = CURRENT_TIMESTAMP
-             WHERE permission_slips.status NOT IN ('signed', 'declined')
+             WHERE permission_slips.status = 'pending'
              RETURNING *, (SELECT first_name FROM participants WHERE id = $2) as first_name, (SELECT last_name FROM participants WHERE id = $2) as last_name`,
             [
               organizationId,

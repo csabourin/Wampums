@@ -738,7 +738,7 @@ module.exports = (pool) => {
       );
 
       // A slip's date is part of its uniqueness key: move it only when the
-      // participant has no other slip on the new date.
+      // participant has no other open slip on the new date.
       const slipResult = await client.query(
         `UPDATE permission_slips ps
             SET activity_title = $1,
@@ -750,6 +750,7 @@ module.exports = (pool) => {
                      WHERE other.organization_id = ps.organization_id
                        AND other.participant_id = ps.participant_id
                        AND other.meeting_date = $4::date
+                       AND other.status <> 'archived'
                        AND other.id <> ps.id
                   ) THEN $4::date
                   ELSE ps.meeting_date

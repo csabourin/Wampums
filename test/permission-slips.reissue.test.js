@@ -2,9 +2,11 @@
  * Reissuing a permission slip never rewrites a guardian's answer.
  *
  * Creating slips for participants who already hold one on the same date goes
- * through an upsert. A signed or declined slip is the record of what was
- * consented to, so the upsert leaves it alone and the response says which
- * participants were kept.
+ * through an upsert. Only a slip still awaiting an answer is refreshed; any
+ * other slip is the record of what a guardian answered, so the upsert leaves it
+ * alone and the response says which participants were kept. Archived slips sit
+ * outside the uniqueness rule (migration 019), so a new request never reuses
+ * them.
  */
 
 const request = require('supertest');
@@ -52,7 +54,7 @@ afterAll((done) => {
 });
 
 describe('POST /api/v1/resources/permission-slips — reissue', () => {
-  test('keeps answered slips and clears signatures on reissued ones', async () => {
+  test('refreshes only pending slips and never reuses archived ones', async () => {
     const { __mClient, __mPool } = require('pg');
     let upsertSql = null;
 
@@ -85,8 +87,7 @@ describe('POST /api/v1/resources/permission-slips — reissue', () => {
     expect(res.body.data.count).toBe(1);
     expect(res.body.data.permission_slips[0].participant_id).toBe(NEW_PARTICIPANT);
     expect(res.body.data.answered_participant_ids).toEqual([SIGNED_PARTICIPANT]);
-    expect(upsertSql).toContain("WHERE permission_slips.status NOT IN ('signed', 'declined')");
-    expect(upsertSql).toContain('signed_at = NULL');
-    expect(upsertSql).toContain('declined_by = NULL');
+    expect(upsertSql).toContain("ON CONFLICT (organization_id, participant_id, meeting_date) WHERE status <> 'archived'");
+    expect(upsertSql).toContain("WHERE permission_slips.status = 'pending'");
   });
 });
