@@ -3,6 +3,7 @@ import { escapeHTML } from "./utils/SecurityUtils.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { formatDate, getTodayISO, parseDate } from "./utils/DateUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { isSameMedication, splitDeclaredMedications } from './utils/MedicationTextUtils.js';
 import {
   getActivities,
   getParticipants,
@@ -518,6 +519,11 @@ export class MedicationReception {
       return reception && reception.status === 'received';
     });
 
+    const unplanned = this.getUnplannedDeclarations(participant.id, medications);
+    const planLink = `<a href="/medication-planning/${participant.id}" class="btn btn-small secondary">
+          + ${translate("manage_medications")}
+        </a>`;
+
     const headerActions = medications.length > 0
       ? `
         <button class="btn btn-small secondary mark-all-received" data-participant-id="${participant.id}">
@@ -526,10 +532,9 @@ export class MedicationReception {
         ${allReceived ? `<span class="pill" style="background: #10b981; color: white;">
           ${translate("med_reception_all_received")}
         </span>` : ''}
+        ${unplanned.length > 0 ? planLink : ''}
       `
-      : `<a href="/medication-planning/${participant.id}" class="btn btn-small secondary">
-          + ${translate("manage_medications")}
-        </a>`;
+      : planLink;
 
     return `
       <div class="participant-reception-card" data-participant-id="${participant.id}">
@@ -540,30 +545,39 @@ export class MedicationReception {
           </div>
         </div>
         <div class="medication-reception-list">
-          ${medications.length > 0
-            ? medications.map(med => this.renderMedicationItem(participant, med)).join('')
-            : this.renderUnplannedDeclaration(participant.id)
-          }
+          ${medications.map(med => this.renderMedicationItem(participant, med)).join('')}
+          ${this.renderUnplannedDeclaration(unplanned, medications.length > 0)}
         </div>
       </div>
     `;
   }
 
   /**
-   * What to show for a participant with nothing planned: the medication their
-   * health form declares, if any, since a reception can only be recorded
-   * against a planned medication.
+   * Medications the participant's health form declares that no planned
+   * medication covers yet, one entry each.
    * @param {number} participantId - Participant ID
+   * @param {Array<Object>} medications - The participant's planned medications
+   * @returns {Array<string>} Declared medication names not planned yet
+   */
+  getUnplannedDeclarations(participantId, medications) {
+    return splitDeclaredMedications(this.ficheDeclarations.get(participantId))
+      .filter((name) => !medications.some((med) => isSameMedication(med.requirement.medication_name, name)));
+  }
+
+  /**
+   * Declared medications not planned yet. A reception can only be recorded
+   * against a planned medication, so they come with a prompt to plan them.
+   * @param {Array<string>} unplanned - Declared medication names not planned yet
+   * @param {boolean} hasPlanned - Whether the participant has planned medications
    * @returns {string} HTML
    */
-  renderUnplannedDeclaration(participantId) {
-    if (!this.ficheDeclarations.has(participantId)) {
-      return `<p class="subtitle">${translate('med_reception_no_medications')}</p>`;
+  renderUnplannedDeclaration(unplanned, hasPlanned) {
+    if (unplanned.length === 0) {
+      return hasPlanned ? '' : `<p class="subtitle">${translate('med_reception_no_medications')}</p>`;
     }
-    const medication = this.ficheDeclarations.get(participantId);
     return `
-      <p><strong>${translate('med_reception_fiche_declared')}</strong>
-        ${medication ? escapeHTML(medication) : ''}</p>
+      <p><strong>${translate('med_reception_fiche_declared')}</strong></p>
+      <ul>${unplanned.map((name) => `<li>${escapeHTML(name)}</li>`).join('')}</ul>
       <p class="subtitle">${translate('med_reception_plan_to_receive')}</p>
     `;
   }

@@ -3740,5 +3740,7 @@
   "permission_slip_answered_kept": "{count} participant(s) already answered this slip; their answer was kept. Archive a slip to issue a new one.",
   "med_reception_fiche_declared": "Declared on the health form:",
   "med_reception_plan_to_receive": "Not planned yet. Plan this medication to record its reception.",
-  "medication_prefilled_from_fiche": "Prefilled from the health form. Check the dose before saving."
+  "medication_prefilled_from_fiche": "Prefilled from the health form. Check the dose before saving.",
+  "medication_declared_list_label": "Declared on the health form (choose one to plan it):",
+  "medication_declared_planned": "planned"
 }
