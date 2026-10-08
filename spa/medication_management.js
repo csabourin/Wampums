@@ -15,6 +15,7 @@ import {
   recordMedicationDistribution,
   markMedicationDistributionAsGiven,
   getFicheMedications,
+  getFicheMedicationDeclarations,
   getMedicationReceptions,
   getFirstAidSupplies,
   getMedicationAuthorizations,
@@ -29,6 +30,11 @@ import { offlineManager } from "./modules/OfflineManager.js";
  * Provides a mobile-first interface to capture medication requirements and
  * efficiently record distribution events with aggregated alerts for time slots.
  */
+/** Matches the `maxlength` of the medication name field. */
+const MEDICATION_NAME_MAX_LENGTH = 200;
+/** Matches the `maxlength` of the general notes field. */
+const MEDICATION_NOTES_MAX_LENGTH = 1000;
+
 export class MedicationManagement {
   constructor(app, options = {}) {
     this.app = app;
@@ -37,6 +43,8 @@ export class MedicationManagement {
     this.participantMedications = [];
     this.distributions = [];
     this.ficheMedications = [];
+    this.ficheDeclarations = new Map();
+    this.lastPrefill = null;
     this.receptions = [];
     this.view = options.view || "planning";
     this.enableAlerts = options.enableAlerts ?? this.view === "dispensing";
@@ -137,12 +145,18 @@ export class MedicationManagement {
     }
 
     const cacheOptions = forceRefresh ? { forceRefresh: true } : {};
-    const [participantsResponse, requirementsResponse, assignmentsResponse, distributionsResponse, ficheMedicationsResponse] = await Promise.all([
+    const [participantsResponse, requirementsResponse, assignmentsResponse, distributionsResponse, ficheMedicationsResponse, declarationsResponse] = await Promise.all([
       getParticipants(),
       getMedicationRequirements(cacheOptions),
       getParticipantMedications({}, cacheOptions),
       getMedicationDistributions({ upcoming_only: true }, cacheOptions),
-      getFicheMedications(cacheOptions)
+      getFicheMedications(cacheOptions),
+      this.view === 'planning'
+        ? getFicheMedicationDeclarations(cacheOptions).catch((error) => {
+          debugError('Failed to load health form medications', error);
+          return null;
+        })
+        : null
     ]);
 
     this.participants = participantsResponse?.data || participantsResponse?.participants || [];
@@ -152,6 +166,8 @@ export class MedicationManagement {
       || [];
     this.distributions = distributionsResponse?.data?.distributions || distributionsResponse?.distributions || [];
     this.ficheMedications = ficheMedicationsResponse?.data?.medications || ficheMedicationsResponse?.medications || [];
+    const declarations = declarationsResponse?.data?.declarations || declarationsResponse?.declarations || [];
+    this.ficheDeclarations = new Map(declarations.map((d) => [d.participant_id, d.medication]));
 
     // Filter data if participantId is specified (parent view)
     this.filterDataByParticipant();
@@ -1033,6 +1049,7 @@ export class MedicationManagement {
             <span>${escapeHTML(translate("medication_name_label"))}</span>
             <input type="text" name="medication_name" list="ficheMedicationsList" required maxlength="200" />
             ${medicationSuggestions ? `<p class="help-text">${escapeHTML(translate("medication_fiche_suggestions_hint"))}</p>` : ""}
+            <p class="help-text" id="medicationPrefillHint" hidden>${escapeHTML(translate('medication_prefilled_from_fiche'))}</p>
             ${suggestionList}
           </label>
           <label class="field-group">
@@ -1918,6 +1935,60 @@ export class MedicationManagement {
       .sort((a, b) => a.time.getTime() - b.time.getTime());
   }
 
+  /**
+   * The medication a participant's health form declares that is not planned
+   * yet: its first unplanned line as the name, the whole declaration as notes.
+   * @param {number} participantId - Participant ID
+   * @returns {{name: string, notes: string}|null} Values to prefill, or null
+   */
+  getDeclaredPrefill(participantId) {
+    const declared = this.ficheDeclarations.get(participantId);
+    if (!declared) {
+      return null;
+    }
+    const plannedIds = new Set(this.participantMedications
+      .filter((pm) => pm.participant_id === participantId)
+      .map((pm) => pm.medication_requirement_id));
+    const plannedNames = new Set(this.requirements
+      .filter((req) => plannedIds.has(req.id))
+      .map((req) => (req.medication_name || '').trim().toLowerCase()));
+    const name = declared.split('\n')
+      .map((line) => line.trim())
+      .find((line) => line && !plannedNames.has(line.toLowerCase()));
+    if (!name) {
+      return null;
+    }
+    return {
+      name: name.slice(0, MEDICATION_NAME_MAX_LENGTH),
+      notes: declared.slice(0, MEDICATION_NOTES_MAX_LENGTH)
+    };
+  }
+
+  /**
+   * Prefill the planning form from the participant's health form, without
+   * overwriting anything the user typed.
+   * @param {HTMLFormElement} form - The requirement form
+   * @param {number} participantId - Participant ID
+   */
+  applyDeclaredPrefill(form, participantId) {
+    const prefill = this.getDeclaredPrefill(participantId);
+    const previous = this.lastPrefill || { name: '', notes: '' };
+    const fields = { name: form.elements.medication_name, notes: form.elements.general_notes };
+    let applied = false;
+    Object.entries(fields).forEach(([key, field]) => {
+      if (!field || (field.value && field.value !== previous[key])) {
+        return;
+      }
+      field.value = prefill ? prefill[key] : '';
+      applied = applied || Boolean(prefill);
+    });
+    this.lastPrefill = prefill || { name: '', notes: '' };
+    const hint = document.getElementById('medicationPrefillHint');
+    if (hint) {
+      hint.hidden = !applied;
+    }
+  }
+
   attachEventListeners() {
     const requirementForm = document.getElementById("medicationRequirementForm");
     const alertContainer = document.getElementById("medication-alerts");
@@ -1939,6 +2010,13 @@ export class MedicationManagement {
     });
 
     requirementForm?.addEventListener("submit", (event) => this.handleRequirementSubmit(event));
+
+    if (requirementForm && this.participantId) {
+      this.applyDeclaredPrefill(requirementForm, this.participantId);
+    }
+    document.getElementById('requirementParticipantSelect')?.addEventListener('change', (event) => {
+      this.applyDeclaredPrefill(requirementForm, Number(event.target.value));
+    });
 
     document.getElementById("treatmentAuthForm")?.addEventListener("submit", (event) => {
       event.preventDefault();
