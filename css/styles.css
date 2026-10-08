@@ -738,7 +738,7 @@ input[type="radio"] {
   position: fixed;
   inset-block-start: var(--safe-area-top, 10px);
   inset-inline-end: 10px;
-  z-index: var(--z-modal);
+  z-index: var(--z-fixed);
   background-image: var(--gradient-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
