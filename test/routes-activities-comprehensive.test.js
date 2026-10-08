@@ -700,6 +700,24 @@ describe('PUT /api/v1/activities/:id', () => {
     expect(res.body.message).toContain('meeting_time_going');
   });
 
+  test.each([
+    ['meeting_time_going', '25:00'],
+    ['departure_time_going', '08:99'],
+    ['activity_end_date', '2026-02-30']
+  ])('rejects out-of-range %s (%s) before the database sees it', async (field, value) => {
+    const captured = mockUpdateTransaction();
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ [field]: value });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain(field);
+    expect(captured.activityUpdate).toBeNull();
+  });
+
   test('returns 404 when activity not found', async () => {
     const captured = mockUpdateTransaction(null);
     const token = generateToken({ permissions: ['activities.edit'] });

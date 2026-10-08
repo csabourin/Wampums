@@ -12,6 +12,9 @@ module.exports = (pool) => {
   const AUTHORIZATION_TEXT_MAX_LENGTH = 10000;
   const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
   const TIME_PATTERN = /^(\d{2}):(\d{2})(?::(\d{2}))?$/;
+  const HOURS_PER_DAY = 24;
+  const MINUTES_PER_HOUR = 60;
+  const SECONDS_PER_MINUTE = 60;
 
   // Editable activity fields, grouped by how an update reads them
   const REQUIRED_TEXT_FIELDS = ['meeting_location_going'];
@@ -396,7 +399,26 @@ module.exports = (pool) => {
       return null;
     }
     const [, hours, minutes, seconds = '00'] = match;
+    if (Number(hours) >= HOURS_PER_DAY || Number(minutes) >= MINUTES_PER_HOUR
+      || Number(seconds) >= SECONDS_PER_MINUTE) {
+      return null;
+    }
     return `${hours}:${minutes}:${seconds}`;
+  };
+
+  /**
+   * Whether a value is a real calendar date written YYYY-MM-DD.
+   * @param {*} value
+   * @returns {boolean}
+   */
+  const isValidDate = (value) => {
+    const text = String(value ?? '').trim();
+    if (!DATE_PATTERN.test(text)) {
+      return false;
+    }
+    const [year, month, day] = text.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
   };
 
   /**
@@ -495,7 +517,7 @@ module.exports = (pool) => {
 
     const invalidFields = [
       ...['activity_date', 'activity_start_date', 'activity_end_date']
-        .filter((field) => optionalText(req.body[field]) !== null && !DATE_PATTERN.test(String(req.body[field]).trim())),
+        .filter((field) => optionalText(req.body[field]) !== null && !isValidDate(req.body[field])),
       ...TIME_FIELDS
         .filter((field) => optionalText(req.body[field]) !== null && normalizeTime(req.body[field]) === null)
     ];
@@ -631,7 +653,7 @@ module.exports = (pool) => {
       });
       DATE_FIELDS.filter(has).forEach((field) => {
         const value = optionalText(body[field]);
-        if (value !== null && !DATE_PATTERN.test(value)) {
+        if (value !== null && !isValidDate(value)) {
           invalidFields.push(field);
         }
         activity[field] = value;
