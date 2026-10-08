@@ -256,12 +256,12 @@ async function getUserEmailLanguage(pool, userEmail, organizationId) {
  * spoofing.
  *
  * @param {string|{name?: string, email?: string|null, replyTo?: string|null}|null} sender
- * @returns {{ name: string, email: string, replyTo: string|null }}
+ * @returns {Promise<{ name: string, email: string, replyTo: string|null }>}
  */
-function resolveSender(sender) {
+async function resolveSender(sender) {
   const options = typeof sender === 'string' ? { name: sender } : sender || {};
   const name = String(options.name || senderName).replace(/[\r\n]+/g, ' ').trim();
-  const email = options.email && isAuthenticatedSenderAddress(options.email)
+  const email = options.email && await isAuthenticatedSenderAddress(options.email)
     ? options.email
     : senderEmail;
   if (options.email && email !== options.email) {
@@ -282,7 +282,7 @@ function resolveSender(sender) {
  */
 async function sendEmail(to, subject, message, html = null, sender = null) {
   try {
-    const from = resolveSender(sender);
+    const from = await resolveSender(sender);
     // Prefer Brevo transactional API when available
     if (brevoApiKeyValue) {
       if (!brevoTransactionalApi) {

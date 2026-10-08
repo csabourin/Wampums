@@ -60,7 +60,8 @@ an account at about 500 messages a day.
 This is checked twice. Before each batch, a stored From whose domain no
 longer belongs to the unit is replaced with the unit's default. Then `sendEmail`
 replaces any From outside the authenticated domains with `EMAIL_FROM` and logs
-a warning.
+a warning. A domain whose authentication is removed in Brevo stops being used
+within ten minutes.
 
 ## Setup for a unit with its own domain (Meute 6A)
 
@@ -75,10 +76,13 @@ through Cloudflare Email Routing, and its DMARC record is `p=none`.
    Domains*, `meute6a.app` must show as authenticated, with DKIM and DMARC
    green. If it does not, publish the records Brevo lists for it in Cloudflare
    DNS, with the proxy off for the CNAMEs.
-2. **Declare it to Wampums.** On the Railway service, set
-   `EMAIL_AUTHENTICATED_DOMAINS=meute6a.app`. Separate several domains with
-   commas. Only the platform operator can make this claim, because only the
-   operator controls the Brevo account.
+2. **Nothing to declare to Wampums.** The server asks Brevo
+   (`GET /v3/senders/domains`) which domains are authenticated and trusts
+   those, refreshing the list every ten minutes. All units share one host and
+   one Brevo account, so every unit's domain is authenticated in that same
+   account. `EMAIL_AUTHENTICATED_DOMAINS` (comma-separated) remains as a manual
+   addition, for a domain Brevo signs but does not list, or if the Brevo API
+   cannot be reached; when Brevo is unreachable, the last list it gave is kept.
 3. **Keep the platform sender on the platform domain.** `EMAIL_FROM` should be
    `info@wampums.app`. If it were `info@meute6a.app`, every unit without a
    domain of its own would appear to come from Meute 6A. And because the
@@ -104,7 +108,7 @@ through Cloudflare Email Routing, and its DMARC record is `p=none`.
    Replies written in Gmail then also go out signed for `meute6a.app`, instead
    of revealing the Gmail address.
 
-A unit without a domain of its own skips steps 1, 2, 4, 6 and 7. It sets only
+A unit without a domain of its own skips steps 1, 4, 6 and 7. It sets only
 a sender name and a Gmail reply-to. Its email comes from
 `Meute X <info@wampums.app>`, which passes DMARC on `wampums.app`.
 

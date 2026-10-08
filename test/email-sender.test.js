@@ -17,7 +17,19 @@ jest.mock('sib-api-v3-sdk', () => ({
   TransactionalEmailsApi: jest.fn(() => ({ sendTransacEmail: mockSendTransacEmail })),
 }));
 
+const mockFetch = jest.fn();
+global.fetch = mockFetch;
+
+/**
+ * Answer Brevo's GET /v3/senders/domains with the given domains.
+ * @param {Array<{domain_name: string, authenticated: boolean}>} domains
+ */
+function brevoDomains(domains) {
+  mockFetch.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({ domains }) });
+}
+
 const {
+  clearProviderDomainsCache,
   getUnitSenderDomains,
   resolveOrganizationEmailSender,
   validateEmailSenderSettings,
@@ -47,6 +59,12 @@ function senderPool({ setting = null, name = 'Meute 6A', domains = [], claimedEl
   };
 }
 
+beforeEach(() => {
+  clearProviderDomainsCache();
+  mockFetch.mockReset();
+  brevoDomains([]);
+});
+
 describe('getUnitSenderDomains', () => {
   test('keeps only the unit\'s own authenticated domains, never the platform domain', async () => {
     const pool = senderPool({ domains: ['meute6a.app', 'www.meute6a.app', 'meute6a.wampums.app', 'unverified.ca'] });
@@ -58,6 +76,50 @@ describe('getUnitSenderDomains', () => {
     const pool = senderPool({ domains: ['meute6a.app', 'other-unit.org'], claimedElsewhere: ['meute6a.app'] });
 
     await expect(getUnitSenderDomains(pool, 1)).resolves.toEqual(['other-unit.org']);
+  });
+});
+
+describe('domains authenticated in Brevo', () => {
+  test('a domain Brevo reports as authenticated is offered without EMAIL_AUTHENTICATED_DOMAINS', async () => {
+    brevoDomains([
+      { domain_name: 'Brevo-Unit.ca', authenticated: true },
+      { domain_name: 'pending-unit.ca', authenticated: false },
+    ]);
+    const pool = senderPool({ domains: ['www.brevo-unit.ca', 'pending-unit.ca'] });
+
+    await expect(getUnitSenderDomains(pool, 1)).resolves.toEqual(['brevo-unit.ca']);
+    expect(mockFetch).toHaveBeenCalledWith('https://api.brevo.com/v3/senders/domains', expect.objectContaining({
+      headers: expect.objectContaining({ 'api-key': 'test-brevo-key' }),
+    }));
+  });
+
+  test('asks Brevo once and reuses the answer', async () => {
+    brevoDomains([{ domain_name: 'brevo-unit.ca', authenticated: true }]);
+    const pool = senderPool({ domains: ['brevo-unit.ca'] });
+
+    await getUnitSenderDomains(pool, 1);
+    await getUnitSenderDomains(pool, 1);
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps EMAIL_AUTHENTICATED_DOMAINS when Brevo cannot be reached', async () => {
+    mockFetch.mockRejectedValue(new Error('network down'));
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const pool = senderPool({ domains: ['meute6a.app', 'brevo-unit.ca'] });
+
+    await expect(getUnitSenderDomains(pool, 1)).resolves.toEqual(['meute6a.app']);
+    warn.mockRestore();
+  });
+
+  test('sendEmail accepts a From on a Brevo-authenticated domain', async () => {
+    brevoDomains([{ domain_name: 'brevo-unit.ca', authenticated: true }]);
+    mockSendTransacEmail.mockReset();
+    mockSendTransacEmail.mockResolvedValue({ messageId: 'm1' });
+
+    await sendEmail('parent@example.org', 'Subject', 'Body', null, { name: 'Unit', email: 'info@brevo-unit.ca' });
+
+    expect(mockSendTransacEmail.mock.calls[0][0].sender.email).toBe('info@brevo-unit.ca');
   });
 });
 

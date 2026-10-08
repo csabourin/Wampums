@@ -7,10 +7,10 @@
  * - `from_name`: the display name (`"Meute 6A" <…>`). Always allowed.
  * - `reply_to`: where replies go. Any address, including a Gmail one: the
  *   Reply-To header is not checked by SPF, DKIM or DMARC.
- * - `from_email`: the From address itself. Allowed only on a domain that the
- *   platform operator has authenticated with the email provider (listed in
- *   EMAIL_AUTHENTICATED_DOMAINS) AND that is registered to this unit in
- *   organization_domains. A From on any other domain — gmail.com, or another
+ * - `from_email`: the From address itself. Allowed only on a domain that is
+ *   authenticated with the email provider (Brevo reports it as authenticated,
+ *   or the operator lists it in EMAIL_AUTHENTICATED_DOMAINS) AND that is
+ *   registered to this unit in organization_domains. A From on any other domain — gmail.com, or another
  *   unit's domain — would fail DMARC alignment and be treated as spoofing.
  *   Left blank, it defaults to the platform mailbox on the unit's own domain
  *   (`info@meute6a.app`), and to EMAIL_FROM only for a unit without one.
@@ -67,28 +67,92 @@ function getPlatformSenderEmail() {
   return normalizeAddress(process.env.EMAIL_FROM) || DEFAULT_PLATFORM_SENDER;
 }
 
+const BREVO_DOMAINS_URL = 'https://api.brevo.com/v3/senders/domains';
+const PROVIDER_DOMAINS_TTL_MS = 600000; // 10 minutes
+const PROVIDER_DOMAINS_RETRY_MS = 60000; // 1 minute
+const PROVIDER_REQUEST_TIMEOUT_MS = 5000;
+
+let providerDomainsCache = { domains: new Set(), expiresAt: 0 };
+let providerDomainsRequest = null;
+
 /**
- * Domains the email provider has authenticated (DKIM-signed for), and from
- * which a From address is therefore legitimate. The platform's own domain is
- * always included.
- * @returns {Set<string>} Lowercased domains
+ * Ask Brevo which sender domains it has authenticated (DKIM and DMARC set
+ * up and verified in the Brevo account).
+ * @returns {Promise<Set<string>>} Lowercased domains
  */
-function getAuthenticatedSenderDomains() {
+async function fetchProviderAuthenticatedDomains() {
+  const response = await fetch(BREVO_DOMAINS_URL, {
+    headers: { accept: 'application/json', 'api-key': process.env.BREVO_KEY || process.env.BREVO_API_KEY },
+    signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`Brevo domains request failed with status ${response.status}`);
+  }
+  const body = await response.json();
+  return new Set((body?.domains || [])
+    .filter((entry) => entry?.authenticated === true && typeof entry.domain_name === 'string')
+    .map((entry) => entry.domain_name.trim().toLowerCase()));
+}
+
+/**
+ * Domains Brevo has authenticated, cached for ten minutes so that a domain
+ * authenticated in Brevo is picked up without a redeploy. When Brevo cannot
+ * be reached, the last known list is kept and the request retried a minute
+ * later; with no API key, the list is empty.
+ * @returns {Promise<Set<string>>} Lowercased domains
+ */
+async function getProviderAuthenticatedDomains() {
+  if (!(process.env.BREVO_KEY || process.env.BREVO_API_KEY)) {
+    return new Set();
+  }
+  if (Date.now() < providerDomainsCache.expiresAt) {
+    return providerDomainsCache.domains;
+  }
+  providerDomainsRequest ||= fetchProviderAuthenticatedDomains()
+    .then((domains) => {
+      providerDomainsCache = { domains, expiresAt: Date.now() + PROVIDER_DOMAINS_TTL_MS };
+    })
+    .catch((err) => {
+      console.warn('Could not load authenticated sender domains from Brevo:', err.message);
+      providerDomainsCache = { ...providerDomainsCache, expiresAt: Date.now() + PROVIDER_DOMAINS_RETRY_MS };
+    })
+    .finally(() => {
+      providerDomainsRequest = null;
+    });
+  await providerDomainsRequest;
+  return providerDomainsCache.domains;
+}
+
+/**
+ * Forget the cached Brevo domains (tests, or after changing them in Brevo).
+ */
+function clearProviderDomainsCache() {
+  providerDomainsCache = { domains: new Set(), expiresAt: 0 };
+}
+
+/**
+ * Domains from which a From address is legitimate: those Brevo reports as
+ * authenticated, those the operator lists in EMAIL_AUTHENTICATED_DOMAINS, and
+ * the platform's own domain.
+ * @returns {Promise<Set<string>>} Lowercased domains
+ */
+async function getAuthenticatedSenderDomains() {
   const configured = (process.env.EMAIL_AUTHENTICATED_DOMAINS || '')
     .split(',')
     .map((domain) => domain.trim().toLowerCase().replace(/^@/, ''))
     .filter(Boolean);
-  return new Set([domainOf(getPlatformSenderEmail()), ...configured]);
+  const provider = await getProviderAuthenticatedDomains();
+  return new Set([domainOf(getPlatformSenderEmail()), ...configured, ...provider]);
 }
 
 /**
  * Whether an address may appear in the From header of mail we send.
  * @param {string} address - Candidate From address
- * @returns {boolean} True when its domain is authenticated with the provider
+ * @returns {Promise<boolean>} True when its domain is authenticated with the provider
  */
-function isAuthenticatedSenderAddress(address) {
+async function isAuthenticatedSenderAddress(address) {
   const normalized = normalizeAddress(address);
-  return isValidAddress(normalized) && getAuthenticatedSenderDomains().has(domainOf(normalized));
+  return isValidAddress(normalized) && (await getAuthenticatedSenderDomains()).has(domainOf(normalized));
 }
 
 /**
@@ -118,7 +182,7 @@ async function getUnitSenderDomains(pool, organizationId) {
     'SELECT domain FROM organization_domains WHERE organization_id = $1',
     [organizationId]
   );
-  const authenticated = getAuthenticatedSenderDomains();
+  const authenticated = await getAuthenticatedSenderDomains();
   const platformDomain = domainOf(getPlatformSenderEmail());
   const candidates = [...new Set(
     result.rows
@@ -256,6 +320,7 @@ async function resolveOrganizationEmailSender(pool, organizationId) {
 
 module.exports = {
   EMAIL_SENDER_SETTING_KEY,
+  clearProviderDomainsCache,
   getAuthenticatedSenderDomains,
   getDefaultSenderEmail,
   getPlatformSenderEmail,
