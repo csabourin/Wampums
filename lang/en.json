@@ -2420,6 +2420,7 @@
   "announcement_sending": "Preparing announcement...",
   "announcement_saved": "Announcement saved as draft.",
   "announcement_sent": "Announcement queued for delivery.",
+  "announcement_scheduled": "Announcement scheduled. It will be sent at the chosen time.",
   "announcement_send_failed": "Unable to send announcement.",
   "use_template": "Use template",
   "choose_template": "Choose a template",

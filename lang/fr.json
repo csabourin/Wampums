@@ -2415,6 +2415,7 @@
   "announcement_sending": "Préparation de l’annonce...",
   "announcement_saved": "Annonce enregistrée comme brouillon.",
   "announcement_sent": "Annonce mise en file d’envoi.",
+  "announcement_scheduled": "Annonce programmée. Elle sera envoyée à l’heure choisie.",
   "announcement_send_failed": "Impossible d’envoyer l’annonce.",
   "use_template": "Utiliser un modèle",
   "choose_template": "Choisir un modèle",

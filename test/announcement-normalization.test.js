@@ -26,3 +26,13 @@ test('caps string and collection bounds before processing them', () => {
   expect(normalized.roles).toEqual([]);
   expect(normalized.groups).toEqual([]);
 });
+
+test('keeps any role name for the unit check instead of a fixed list', () => {
+  const normalized = normalizeAnnouncementPayloadForTests({
+    subject: 'Test',
+    message: 'Hello',
+    recipient_roles: ['district', 'parent', 'district', 42, '']
+  });
+
+  expect(normalized.roles).toEqual(['district', 'parent']);
+});
