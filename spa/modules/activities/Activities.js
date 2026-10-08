@@ -2,35 +2,26 @@
 // Activity (outings/events) calendar module. Rewritten in the standard module
 // style: BaseModule cleanup, permission-gated UI, shared modal utility.
 import { translate } from '../../app.js';
-import {
-  getActivities,
-  createActivity,
-  updateActivity,
-  deleteActivity
-} from '../../api/api-activities.js';
+import { getActivities, deleteActivity } from '../../api/api-activities.js';
 import { clearActivityRelatedCaches } from '../../indexedDB.js';
 import { canViewActivities, hasPermission } from '../../utils/PermissionUtils.js';
 import { skeletonActivityList, setButtonLoading } from '../../utils/SkeletonUtils.js';
-import { debugError, debugLog } from '../../utils/DebugUtils.js';
+import { debugError } from '../../utils/DebugUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { parseDate } from '../../utils/DateUtils.js';
 import { debounce } from '../../utils/PerformanceUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
-import { openModal } from '../../utils/ModalUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
-import { aiGenerateText } from '../AI.js';
+import { openActivityFormModal } from './ActivityFormModal.js';
 import {
   formatActivityDateRange,
-  getActivityEndDate,
   getActivityEndDateObj,
   getActivityStartDate
 } from '../../utils/ActivityDateUtils.js';
 import { offlineManager } from '../OfflineManager.js';
 
 const SEARCH_DEBOUNCE_MS = 300;
-const DEFAULT_AI_DURATION_MINUTES = 120;
-const DEFAULT_AI_PARTICIPANT_COUNT = 12;
 
 export class Activities extends BaseModule {
   constructor(app) {
@@ -240,7 +231,7 @@ export class Activities extends BaseModule {
             </button>
           ` : ''}
           ${this.canEdit ? `
-            <button class="button button--small button--outline edit-activity-btn" data-activity-id="${activity.id}">
+            <button class="button button--small button--outline activity-edit-btn" data-activity-id="${activity.id}">
               ${translate('edit')}
             </button>
           ` : ''}
@@ -263,8 +254,8 @@ export class Activities extends BaseModule {
       this.showActivityModal();
     });
 
-    this.addEventListeners(document.querySelectorAll('.edit-activity-btn'), 'click', (e) => {
-      const activityId = parseInt(e.target.dataset.activityId);
+    this.addEventListeners(document.querySelectorAll('.activity-edit-btn'), 'click', (e) => {
+      const activityId = parseInt(e.currentTarget.dataset.activityId, 10);
       const activity = this.activities.find(a => a.id === activityId);
       if (activity) {
         this.showActivityModal(activity);
@@ -272,9 +263,10 @@ export class Activities extends BaseModule {
     });
 
     this.addEventListeners(document.querySelectorAll('.delete-activity-btn'), 'click', async (e) => {
-      const activityId = parseInt(e.target.dataset.activityId);
+      // Captured before the dialog: currentTarget is cleared once dispatch ends
+      const button = e.currentTarget;
+      const activityId = parseInt(button.dataset.activityId, 10);
       if (await confirmDestructive(translate('confirm_delete_activity'))) {
-        const button = e.target;
         setButtonLoading(button, true);
         try {
           await this.deleteActivity(activityId);
@@ -285,12 +277,12 @@ export class Activities extends BaseModule {
     });
 
     this.addEventListeners(document.querySelectorAll('.view-carpools-btn'), 'click', (e) => {
-      const activityId = parseInt(e.target.dataset.activityId);
+      const activityId = parseInt(e.currentTarget.dataset.activityId, 10);
       this.app.router.navigate(`/carpool/${activityId}`);
     });
 
     this.addEventListeners(document.querySelectorAll('.view-permission-slips-btn'), 'click', (e) => {
-      const activityId = parseInt(e.target.dataset.activityId);
+      const activityId = parseInt(e.currentTarget.dataset.activityId, 10);
       this.app.router.navigate(`/permission-slips/${activityId}`);
     });
 
@@ -328,285 +320,16 @@ export class Activities extends BaseModule {
   }
 
   // ==========================================================================
-  // CREATE / EDIT MODAL
+  // CREATE / EDIT
   // ==========================================================================
 
   showActivityModal(activity = null) {
-    const isEdit = activity !== null;
-
-    const body = `
-      <form id="activity-form">
-        <div class="form-group">
-          <label for="activity-name">${translate('activity_name')} <span class="required">*</span></label>
-          <input type="text" id="activity-name" name="activity_name"
-                 value="${escapeHTML(activity?.name || '')}" required
-                 class="form-control" maxlength="255">
-        </div>
-
-        <div class="form-group">
-          <label for="activity-description">${translate('description')}</label>
-          <textarea id="activity-description" name="description"
-                    class="form-control" rows="3">${escapeHTML(activity?.description || '')}</textarea>
-        </div>
-
-        <div class="form-group">
-          <label for="activity-start-date">${translate('activity_start_date')} <span class="required">*</span></label>
-          <input type="date" id="activity-start-date" name="activity_start_date"
-                 value="${escapeHTML(getActivityStartDate(activity) || '')}" required class="form-control">
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label for="activity-start-time">${translate('activity_start_time')} <span class="required">*</span></label>
-            <input type="time" id="activity-start-time" name="activity_start_time"
-                   value="${escapeHTML(activity?.activity_start_time || '')}" required class="form-control">
-          </div>
-          <div class="form-group">
-            <label for="activity-end-time">${translate('activity_end_time')} <span class="required">*</span></label>
-            <input type="time" id="activity-end-time" name="activity_end_time"
-                   value="${escapeHTML(activity?.activity_end_time || '')}" required class="form-control">
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="activity-end-date">${translate('activity_end_date')} <span class="required">*</span></label>
-          <input type="date" id="activity-end-date" name="activity_end_date"
-                 value="${escapeHTML(getActivityEndDate(activity) || '')}" required class="form-control">
-        </div>
-
-        <fieldset class="form-fieldset">
-          <legend>${translate('going_to_activity')}</legend>
-
-          <div class="form-group">
-            <label for="meeting-location-going">${translate('meeting_location')} <span class="required">*</span></label>
-            <input type="text" id="meeting-location-going" name="meeting_location_going"
-                   value="${escapeHTML(activity?.meeting_location_going || '')}" required
-                   class="form-control" placeholder="${translate('meeting_location_placeholder')}">
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="meeting-time-going">${translate('meeting_time')} <span class="required">*</span></label>
-              <input type="time" id="meeting-time-going" name="meeting_time_going"
-                     value="${escapeHTML(activity?.meeting_time_going || '')}" required class="form-control">
-            </div>
-            <div class="form-group">
-              <label for="departure-time-going">${translate('departure_time')} <span class="required">*</span></label>
-              <input type="time" id="departure-time-going" name="departure_time_going"
-                     value="${escapeHTML(activity?.departure_time_going || '')}" required class="form-control">
-            </div>
-          </div>
-        </fieldset>
-
-        <fieldset class="form-fieldset">
-          <legend>${translate('returning_from_activity')}</legend>
-
-          <div class="form-group">
-            <label for="meeting-location-return">${translate('meeting_location')}</label>
-            <input type="text" id="meeting-location-return" name="meeting_location_return"
-                   value="${escapeHTML(activity?.meeting_location_return || '')}"
-                   class="form-control" placeholder="${translate('meeting_location_placeholder')}">
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="meeting-time-return">${translate('meeting_time')}</label>
-              <input type="time" id="meeting-time-return" name="meeting_time_return"
-                     value="${escapeHTML(activity?.meeting_time_return || '')}" class="form-control">
-            </div>
-            <div class="form-group">
-              <label for="departure-time-return">${translate('departure_time')}</label>
-              <input type="time" id="departure-time-return" name="departure_time_return"
-                     value="${escapeHTML(activity?.departure_time_return || '')}" class="form-control">
-            </div>
-          </div>
-        </fieldset>
-
-        ${isEdit ? `
-        <div class="form-group">
-          <label>
-            <input type="checkbox" name="notify_participants" checked>
-            ${translate('activity_notify_updates_label')}
-          </label>
-          <small class="form-help">${translate('activity_notify_updates_help')}</small>
-        </div>
-        ` : ''}
-
-        <div class="modal-actions">
-          <button type="button" class="button button--secondary" id="magic-generate-btn">✨ ${translate('magic_generate')}</button>
-          <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
-          <button type="submit" class="button button--primary">
-            ${isEdit ? translate('save_changes') : translate('create_activity')}
-          </button>
-        </div>
-      </form>
-    `;
-
-    const { overlay, close } = openModal({
-      id: 'activity-modal',
-      title: isEdit ? translate('edit_activity') : translate('add_activity'),
-      body
-    });
-
-    const startDateInput = overlay.querySelector('#activity-start-date');
-    const endDateInput = overlay.querySelector('#activity-end-date');
-    if (startDateInput && endDateInput && !endDateInput.value) {
-      endDateInput.value = startDateInput.value;
-    }
-    startDateInput?.addEventListener('change', () => {
-      if (endDateInput && !endDateInput.value) {
-        endDateInput.value = startDateInput.value;
-      }
-    });
-
-    overlay.querySelector('#magic-generate-btn')?.addEventListener('click', () => {
-      this.showMagicGenerateModal();
-    });
-
-    overlay.querySelector('#activity-form')?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      await this.handleActivitySubmit(e, activity, isEdit, close);
-    });
-  }
-
-  async handleActivitySubmit(e, activity, isEdit, close) {
-    const submitButton = e.target.querySelector('button[type="submit"]');
-    const submitButtonLabel = submitButton?.textContent || '';
-    const formData = new FormData(e.target);
-    const data = Object.fromEntries(formData.entries());
-
-    debugLog('Activity form data:', data);
-
-    // Convert empty strings to null for optional fields only
-    if (!data.description) {
-      data.description = null;
-    }
-    if (!data.meeting_location_return) {
-      data.meeting_location_return = null;
-    }
-    if (!data.meeting_time_return) {
-      data.meeting_time_return = null;
-    }
-    if (!data.departure_time_return) {
-      data.departure_time_return = null;
-    }
-
-    // In edit mode, empty date/time fields mean "leave unchanged"
-    if (isEdit) {
-      ['activity_start_date', 'activity_start_time', 'activity_end_date', 'activity_end_time'].forEach(field => {
-        if (!data[field]) {
-          data[field] = null;
-        }
-      });
-      data.notify_participants = formData.get('notify_participants') === 'on';
-    }
-
-    // Legacy compatibility field
-    if (!data.activity_date && data.activity_start_date) {
-      data.activity_date = data.activity_start_date;
-    }
-
-    setButtonLoading(submitButton, true);
-    if (submitButton) {
-      submitButton.textContent = isEdit ? `${translate('save_changes')}...` : `${translate('create_activity')}...`;
-    }
-
-    try {
-      if (isEdit) {
-        await updateActivity(activity.id, data);
-        this.app.showMessage(translate('activity_updated_success'), 'success');
-      } else {
-        await createActivity(data);
-        this.app.showMessage(translate('activity_created_success'), 'success');
-      }
-
-      await clearActivityRelatedCaches();
-      close();
-      await this.loadActivities(true);
-      this.render();
-      this.attachEventListeners();
-    } catch (err) {
-      debugError('Error saving activity:', err);
-      this.app.showMessage(err.message || translate('error_saving_activity'), 'error');
-    } finally {
-      setButtonLoading(submitButton, false);
-      if (submitButton) {
-        submitButton.textContent = submitButtonLabel;
-      }
-    }
-  }
-
-  showMagicGenerateModal() {
-    const body = `
-      <form id="magic-form">
-        <div class="form-group">
-          <label>${translate('duration_minutes')}</label>
-          <input type="number" name="duration" value="${DEFAULT_AI_DURATION_MINUTES}" class="form-control">
-        </div>
-        <div class="form-group">
-          <label>${translate('badge_focus')}</label>
-          <input type="text" name="badge" placeholder="e.g. Pioneer, First Aid" class="form-control">
-        </div>
-        <div class="form-group">
-          <label>${translate('participants_count')}</label>
-          <input type="number" name="count" value="${DEFAULT_AI_PARTICIPANT_COUNT}" class="form-control">
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
-          <button type="submit" class="button button--primary">✨ ${translate('generate')}</button>
-        </div>
-      </form>
-    `;
-
-    const { overlay, close } = openModal({
-      id: 'magic-generate-modal',
-      title: `✨ ${translate('magic_generate_meeting')}`,
-      body
-    });
-
-    overlay.querySelector('#magic-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const btn = e.target.querySelector('button[type="submit"]');
-      setButtonLoading(btn, true);
-
-      try {
-        const formData = new FormData(e.target);
-        const payload = {
-          durationMinutes: parseInt(formData.get('duration')) || DEFAULT_AI_DURATION_MINUTES,
-          badgeFocus: formData.get('badge') || 'General',
-          participantsCount: parseInt(formData.get('count')) || DEFAULT_AI_PARTICIPANT_COUNT
-        };
-
-        const response = await aiGenerateText('meeting_plan', payload);
-        const plan = response.data?.data || response.data;
-
-        const nameInput = document.getElementById('activity-name');
-        const descInput = document.getElementById('activity-description');
-
-        if (nameInput) {
-          nameInput.value = plan.title || '';
-        }
-        if (descInput) {
-          let desc = `${plan.overview || ''}\n\nTimeline:\n`;
-          (plan.timeline || []).forEach(t => {
-            desc += `- ${t.minuteStart}-${t.minuteEnd}m: ${t.name} (${t.objective})\n`;
-          });
-          if (Array.isArray(plan.materialsMasterList)) {
-            desc += `\nMaterials: ${plan.materialsMasterList.join(', ')}`;
-          }
-          descInput.value = desc;
-        }
-
-        this.app.showMessage(translate('magic_generated_success'), 'success');
-        close();
-      } catch (err) {
-        let msg = translate('magic_generate_error');
-        if (err.error?.code === 'AI_BUDGET_EXCEEDED') {
-          msg = translate('ai_budget_exceeded');
-        }
-        this.app.showMessage(msg, 'error');
-      } finally {
-        setButtonLoading(btn, false);
+    openActivityFormModal(this.app, {
+      activity,
+      onSaved: async () => {
+        await this.loadActivities(true);
+        this.render();
+        this.attachEventListeners();
       }
     });
   }

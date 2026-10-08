@@ -2354,11 +2354,12 @@ module.exports = (pool) => {
         let finalMeetingDate = meeting_date;
         let finalActivityTitle = activity_title;
         let finalActivityDescription = activity_description;
+        let finalAuthorizationText = null;
 
         // If activity_id provided, fetch activity details and use them
         if (activity_id) {
           const activityResult = await pool.query(
-            'SELECT name, description, activity_date FROM activities WHERE id = $1 AND organization_id = $2',
+            'SELECT name, description, authorization_text, activity_date FROM activities WHERE id = $1 AND organization_id = $2 AND is_active = TRUE',
             [activity_id, organizationId]
           );
 
@@ -2370,6 +2371,7 @@ module.exports = (pool) => {
           finalMeetingDate = activity.activity_date;
           finalActivityTitle = activity.name;
           finalActivityDescription = activity.description;
+          finalAuthorizationText = activity.authorization_text;
         } else {
           // Legacy mode: require meeting_date if no activity_id
           if (!meeting_date) {
@@ -2403,8 +2405,9 @@ module.exports = (pool) => {
           const insertResult = await pool.query(
             `INSERT INTO permission_slips
              (organization_id, participant_id, guardian_id, meeting_id, meeting_date,
-              activity_id, activity_title, activity_description, deadline_date, consent_payload, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+              activity_id, activity_title, activity_description, authorization_text, deadline_date,
+              consent_payload, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
              ON CONFLICT (organization_id, participant_id, meeting_date)
              DO UPDATE SET consent_payload = EXCLUDED.consent_payload,
                            guardian_id = EXCLUDED.guardian_id,
@@ -2412,6 +2415,7 @@ module.exports = (pool) => {
                            activity_id = EXCLUDED.activity_id,
                            activity_title = EXCLUDED.activity_title,
                            activity_description = EXCLUDED.activity_description,
+                           authorization_text = EXCLUDED.authorization_text,
                            deadline_date = EXCLUDED.deadline_date,
                            status = EXCLUDED.status,
                            updated_at = CURRENT_TIMESTAMP
@@ -2425,6 +2429,7 @@ module.exports = (pool) => {
               activity_id || null,
               finalActivityTitle || null,
               finalActivityDescription || null,
+              finalAuthorizationText || null,
               normalizedDeadline,
               consent_payload,
               status,

@@ -8523,6 +8523,36 @@ details p {
   border-color: var(--color-primary);
 }
 
+/* Outline and danger variants, shared by every screen (cards, dialogs) */
+.button--outline {
+  background-color: var(--color-surface);
+  background-image: none;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  box-shadow: none;
+}
+
+.button--outline:hover:not(:disabled),
+.button--outline:focus-visible {
+  background-color: var(--color-primary);
+  background-image: none;
+  color: white;
+}
+
+.button--danger {
+  background-color: var(--color-error);
+  background-image: none;
+  color: white;
+  border-color: var(--color-error);
+}
+
+.button--danger:hover:not(:disabled),
+.button--danger:focus-visible {
+  background-color: var(--color-error-dark);
+  background-image: none;
+  border-color: var(--color-error-dark);
+}
+
 .button--ghost {
   background: transparent;
   color: var(--color-text-muted);
