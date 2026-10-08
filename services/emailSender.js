@@ -98,9 +98,11 @@ function bareDomain(domain) {
 
 /**
  * Authenticated domains a unit may send From: those registered to the unit
- * in organization_domains. The platform's own domain is excluded — every unit
- * is reachable under it, so letting one claim it would let it pose as the
- * platform or as another unit.
+ * in organization_domains, and to no other unit. The platform's own domain is
+ * excluded — every unit is reachable under it, so letting one claim it would
+ * let it pose as the platform or as another unit. A domain that another unit
+ * also lists (`meute6a.app` and `www.meute6a.app` count as the same) is
+ * withheld from both, since neither can then be told apart from the other.
  *
  * @param {Object} pool - Database pool
  * @param {number} organizationId - Unit id
@@ -113,12 +115,24 @@ async function getUnitSenderDomains(pool, organizationId) {
   );
   const authenticated = getAuthenticatedSenderDomains();
   const platformDomain = domainOf(getPlatformSenderEmail());
-  const domains = new Set(
+  const candidates = [...new Set(
     result.rows
       .map((row) => bareDomain(row.domain))
       .filter((domain) => domain !== platformDomain && authenticated.has(domain))
+  )];
+  if (candidates.length === 0) {
+    return [];
+  }
+
+  const shared = await pool.query(
+    `SELECT DISTINCT LOWER(REGEXP_REPLACE(TRIM(domain), '^(\\*\\.|www\\.)', '', 'i')) AS domain
+     FROM organization_domains
+     WHERE organization_id <> $1
+       AND LOWER(REGEXP_REPLACE(TRIM(domain), '^(\\*\\.|www\\.)', '', 'i')) = ANY($2::text[])`,
+    [organizationId, candidates]
   );
-  return [...domains].sort();
+  const claimedElsewhere = new Set(shared.rows.map((row) => row.domain));
+  return candidates.filter((domain) => !claimedElsewhere.has(domain)).sort();
 }
 
 /**

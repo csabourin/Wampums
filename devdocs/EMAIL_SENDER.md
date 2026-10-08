@@ -86,7 +86,9 @@ through Cloudflare Email Routing, and its DMARC record is `p=none`.
    not be offered its domain.
 4. **Register the domain to the unit.** `organization_domains` must hold
    `meute6a.app` (or `www.meute6a.app`) for that unit. A unit is offered only
-   its own domains, so it cannot send as another unit.
+   its own domains, so it cannot send as another unit. A domain that another unit
+   also lists (`www.` and letter case ignored) is offered to neither unit until
+   the duplicate is removed.
 5. **Fill in the unit settings.** Sender name `Meute 6A`, reply-to address
    `meute6a@gmail.com`. Leave the sender address blank to send from
    `info@meute6a.app`, or enter another `@meute6a.app` address such as

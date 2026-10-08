@@ -29,8 +29,10 @@ function formatEmailDate(dateValue, locale) {
  * Send email notifications to affected guardians when a ride is cancelled
  * @param {Object} pool - Database connection pool
  * @param {Array} affectedParticipants - Array of affected participants with guardian info
+ * @param {Number} organizationId - Organization ID, whose sender identity the emails use
  */
-async function sendRideCancellationNotifications(pool, affectedParticipants) {
+async function sendRideCancellationNotifications(pool, affectedParticipants, organizationId) {
+  const sender = await resolveOrganizationEmailSender(pool, organizationId);
   const emailPromises = affectedParticipants.map(async (participant) => {
     const subject = `Carpool Ride Cancelled - ${participant.activity_name}`;
     const message = `
@@ -63,7 +65,7 @@ Wampums Team
     `.trim();
 
     try {
-      await sendEmail(participant.guardian_email, subject, message, html);
+      await sendEmail(participant.guardian_email, subject, message, html, sender);
     } catch (err) {
       console.error(`Failed to send cancellation email to ${participant.guardian_email}:`, err);
     }

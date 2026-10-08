@@ -27,14 +27,20 @@ const { sendEmail } = require('../utils/index');
 const normalize = (sql) => sql.replace(/\s+/g, ' ').trim();
 
 /**
- * Pool answering the two queries the sender service makes.
- * @param {Object} options - Stored setting, unit name and unit domains
+ * Pool answering the queries the sender service makes.
+ * @param {Object} options - Stored setting, unit name, the unit's domains, and
+ *   bare domains other units also list
  */
-function senderPool({ setting = null, name = 'Meute 6A', domains = [] }) {
+function senderPool({ setting = null, name = 'Meute 6A', domains = [], claimedElsewhere = [] }) {
   return {
-    query: jest.fn((sql) => {
-      if (normalize(sql).startsWith('SELECT domain FROM organization_domains')) {
+    query: jest.fn((sql, params) => {
+      const text = normalize(sql);
+      if (text.startsWith('SELECT domain FROM organization_domains')) {
         return Promise.resolve({ rows: domains.map((domain) => ({ domain })) });
+      }
+      if (text.includes('organization_id <> $1')) {
+        const rows = claimedElsewhere.filter((domain) => params[1].includes(domain)).map((domain) => ({ domain }));
+        return Promise.resolve({ rows });
       }
       return Promise.resolve({ rows: [{ sender: setting, organization_name: name }] });
     }),
@@ -46,6 +52,12 @@ describe('getUnitSenderDomains', () => {
     const pool = senderPool({ domains: ['meute6a.app', 'www.meute6a.app', 'meute6a.wampums.app', 'unverified.ca'] });
 
     await expect(getUnitSenderDomains(pool, 1)).resolves.toEqual(['meute6a.app']);
+  });
+
+  test('withholds a domain that another unit also lists', async () => {
+    const pool = senderPool({ domains: ['meute6a.app', 'other-unit.org'], claimedElsewhere: ['meute6a.app'] });
+
+    await expect(getUnitSenderDomains(pool, 1)).resolves.toEqual(['other-unit.org']);
   });
 });
 

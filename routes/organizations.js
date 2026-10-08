@@ -760,8 +760,20 @@ module.exports = (pool, logger) => {
    */
   router.patch('/settings/email-sender', authenticate, blockDemoRoles, requirePermission('org.edit'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const allowedFromDomains = await getUnitSenderDomains(pool, organizationId);
-    const validation = validateEmailSenderSettings(req.body, allowedFromDomains);
+    const [allowedFromDomains, stored] = await Promise.all([
+      getUnitSenderDomains(pool, organizationId),
+      pool.query(
+        `SELECT setting_value FROM organization_settings
+         WHERE organization_id = $1 AND setting_key = $2`,
+        [organizationId, EMAIL_SENDER_SETTING_KEY]
+      )
+    ]);
+    // PATCH: a field the request leaves out keeps its stored value.
+    const input = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const validation = validateEmailSenderSettings(
+      { ...(stored.rows[0]?.setting_value || {}), ...input },
+      allowedFromDomains
+    );
 
     if (validation.errors.length > 0) {
       return errorResponse(res, 'Invalid email sender settings', HTTP_BAD_REQUEST, validation.errors);
