@@ -212,6 +212,14 @@ describe('writes that do not change the roster', () => {
     expect(plan.matchesPath('/api/v1/points/report')).toBe(true);
     expect(plan.matchesPath('/api/v1/points-archive')).toBe(false);
   });
+
+  test('changing a role refreshes the announcement composer, which lists them', () => {
+    const plan = planInvalidation('v1/roles/12');
+
+    expect(plan.matchesPath('/api/v1/roles')).toBe(true);
+    expect(plan.matchesPath('/api/v1/announcements')).toBe(true);
+    expect(plan.matchesPath('/api/v1/participants')).toBe(false);
+  });
 });
 
 describe('sending the write', () => {
