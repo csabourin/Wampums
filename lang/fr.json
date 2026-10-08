@@ -3737,5 +3737,8 @@
   "activity_form_missing_required": "Veuillez remplir tous les champs obligatoires.",
   "activity_form_end_before_start": "L’activité doit se terminer après son début.",
   "activity_form_departure_before_meeting": "L’heure de départ doit être après l’heure de rendez-vous.",
-  "permission_slip_answered_kept": "{count} participant(s) avaient déjà répondu à cette autorisation; leur réponse est conservée. Archivez une autorisation pour en émettre une nouvelle."
+  "permission_slip_answered_kept": "{count} participant(s) avaient déjà répondu à cette autorisation; leur réponse est conservée. Archivez une autorisation pour en émettre une nouvelle.",
+  "med_reception_fiche_declared": "Déclaré dans la fiche santé :",
+  "med_reception_plan_to_receive": "Pas encore planifié. Planifiez ce médicament pour en noter la réception.",
+  "medication_prefilled_from_fiche": "Prérempli à partir de la fiche santé. Vérifiez la posologie avant d’enregistrer."
 }

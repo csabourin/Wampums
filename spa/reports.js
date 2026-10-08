@@ -809,7 +809,7 @@ export class Reports {
 					{ key: "first_name", label: translate("first_name") },
 					{ key: "last_name", label: translate("last_name") },
 					{ key: "group_name", label: translate("group") },
-					{ key: "vaccines_up_to_date", label: translate("vaccines_up_to_date"), format: (v) => (v === '1' || v === true || v === 'true') ? translate("yes") : translate("no") }
+					{ key: "vaccines_up_to_date", label: translate("vaccines_up_to_date"), format: (v) => (v === true ? translate("yes") : translate("no")) }
 				];
 				break;
 			case "leave-alone":
@@ -1076,9 +1076,9 @@ export class Reports {
 				.map(
 					(item) => `
 						<tr>
-							<td>${item.first_name} ${item.last_name}</td>
-							<td>${item.group_name || translate("no_group")}</td>
-							<td>${item.vaccines_up_to_date === "on" || item.vaccines_up_to_date === "true" || item.vaccines_up_to_date === true ? translate("yes") : translate("no")}</td>
+							<td>${escapeHTML(`${item.first_name || ""} ${item.last_name || ""}`.trim())}</td>
+							<td>${escapeHTML(item.group_name || translate("no_group"))}</td>
+							<td>${item.vaccines_up_to_date === true ? translate("yes") : translate("no")}</td>
 						</tr>
 					`,
 				)
@@ -1373,8 +1373,7 @@ export class Reports {
 			<table>
 				<thead>
 					<tr>
-						<th>${translate("honor_name")}</th>
-						<th>${translate("category")}</th>
+						<th>${translate("date")}</th>
 						<th>${translate("count")}</th>
 						<th>${translate("recipients")}</th>
 					</tr>
@@ -1384,10 +1383,9 @@ export class Reports {
 				.map(
 					(item) => `
 						<tr>
-							<td>${item.honor_name}</td>
-							<td>${item.category || "-"}</td>
-							<td>${item.count}</td>
-							<td>${Array.isArray(item.recipients) ? item.recipients.join(", ") : item.recipients}</td>
+							<td>${escapeHTML(formatDateShort(item.date, this.app.lang))}</td>
+							<td>${escapeHTML(String(item.count))}</td>
+							<td>${escapeHTML(Array.isArray(item.recipients) ? item.recipients.join(", ") : String(item.recipients || ""))}</td>
 						</tr>
 					`,
 				)

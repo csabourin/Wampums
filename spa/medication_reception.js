@@ -9,6 +9,7 @@ import {
   getMedicationRequirements,
   getParticipantMedications,
   getMedicationReceptions,
+  getFicheMedicationDeclarations,
   saveMedicationReception,
   updateMedicationReception,
   saveMedicationRequirement
@@ -25,6 +26,7 @@ export class MedicationReception {
     this.participants = [];
     this.requirements = [];
     this.participantMedications = [];
+    this.ficheDeclarations = new Map();
     this.receptions = [];
     this.selectedActivityId = options.activityId || null;
     this.showAllParticipants = false;
@@ -46,17 +48,23 @@ export class MedicationReception {
   async loadData() {
     try {
       // Load activities, participants, requirements, and medications in parallel
-      const [activitiesRes, participantsRes, requirementsRes, medicationsRes] = await Promise.all([
+      const [activitiesRes, participantsRes, requirementsRes, medicationsRes, declarationsRes] = await Promise.all([
         getActivities(),
         getParticipants(),
         getMedicationRequirements(),
-        getParticipantMedications()
+        getParticipantMedications(),
+        getFicheMedicationDeclarations().catch((error) => {
+          debugError('Error loading health form medications', error);
+          return null;
+        })
       ]);
 
       this.activities = activitiesRes?.data || activitiesRes || [];
       this.participants = participantsRes?.data || participantsRes?.participants || [];
       this.requirements = requirementsRes?.data?.requirements || requirementsRes?.requirements || [];
       this.participantMedications = medicationsRes?.data?.participant_medications || medicationsRes?.participant_medications || [];
+      const declarations = declarationsRes?.data?.declarations || declarationsRes?.declarations || [];
+      this.ficheDeclarations = new Map(declarations.map(d => [d.participant_id, d.medication]));
 
       // Preselect today's activity if not already selected
       if (!this.selectedActivityId) {
@@ -477,10 +485,12 @@ export class MedicationReception {
     if (this.showAllParticipants) {
       filteredParticipants = [...this.participants];
     } else {
-      // Only show participants with medication requirements
-      const participantIdsWithMeds = new Set(
-        this.participantMedications.map(pm => pm.participant_id)
-      );
+      // Show participants with planned medications, and those whose health
+      // form declares one that has not been planned yet
+      const participantIdsWithMeds = new Set([
+        ...this.participantMedications.map(pm => pm.participant_id),
+        ...this.ficheDeclarations.keys()
+      ]);
       filteredParticipants = this.participants.filter(p =>
         participantIdsWithMeds.has(p.id)
       );
@@ -497,8 +507,9 @@ export class MedicationReception {
   renderParticipantCard(participant) {
     const participantName = escapeHTML(`${participant.first_name} ${participant.last_name}`);
     const medications = this.getParticipantMedications(participant.id);
+    const hasDeclaration = this.ficheDeclarations.has(participant.id);
 
-    if (medications.length === 0 && !this.showAllParticipants) {
+    if (medications.length === 0 && !hasDeclaration && !this.showAllParticipants) {
       return '';
     }
 
@@ -531,10 +542,29 @@ export class MedicationReception {
         <div class="medication-reception-list">
           ${medications.length > 0
             ? medications.map(med => this.renderMedicationItem(participant, med)).join('')
-            : `<p class="subtitle">${translate("med_reception_no_medications")}</p>`
+            : this.renderUnplannedDeclaration(participant.id)
           }
         </div>
       </div>
+    `;
+  }
+
+  /**
+   * What to show for a participant with nothing planned: the medication their
+   * health form declares, if any, since a reception can only be recorded
+   * against a planned medication.
+   * @param {number} participantId - Participant ID
+   * @returns {string} HTML
+   */
+  renderUnplannedDeclaration(participantId) {
+    if (!this.ficheDeclarations.has(participantId)) {
+      return `<p class="subtitle">${translate('med_reception_no_medications')}</p>`;
+    }
+    const medication = this.ficheDeclarations.get(participantId);
+    return `
+      <p><strong>${translate('med_reception_fiche_declared')}</strong>
+        ${medication ? escapeHTML(medication) : ''}</p>
+      <p class="subtitle">${translate('med_reception_plan_to_receive')}</p>
     `;
   }
 

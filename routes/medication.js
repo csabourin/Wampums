@@ -1,9 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope, requirePermission } = require('../middleware/auth');
+const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope, requirePermission, withScoutYear } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { medicationParticipantInUnit, familyMedicationAccess } = require('../middleware/medicationAuthorizationPolicy');
+const {
+  medicationParticipantInUnit,
+  familyMedicationAccess,
+  MEDICATION_LIST_READ_POLICY,
+  MEDICATION_REQUIREMENT_WRITE_POLICY,
+  listParticipantFilter
+} = require('../middleware/medicationAuthorizationPolicy');
 const { areUnitLeaders } = require('../services/unitLeaders');
+const { declaresMedication, medicationText } = require('../utils/health-form');
 
 const MEDICATION_READ_PERMISSIONS = ['medication.view'];
 const MEDICATION_MANAGE_PERMISSIONS = ['medication.manage'];
@@ -39,7 +46,7 @@ module.exports = (pool, logger) => {
    * List medication requirement definitions for the organization
    * Permission: participants.view
    */
-  router.get('/v1/medication/requirements', authenticate, requirePermission(MEDICATION_READ_PERMISSIONS), asyncHandler(async (req, res) => {
+  router.get('/v1/medication/requirements', authenticate, requirePermission(MEDICATION_LIST_READ_POLICY), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -48,10 +55,14 @@ module.exports = (pool, logger) => {
               frequency_interval_hours, frequency_interval_start,
               route, default_dose_amount, default_dose_unit, general_notes,
               start_date, end_date, created_by, created_at, updated_at
-       FROM medication_requirements
+       FROM medication_requirements mr
        WHERE organization_id = $1
+         AND ($2::int IS NULL OR mr.participant_id = $2 OR EXISTS (
+           SELECT 1 FROM participant_medications pm
+            WHERE pm.medication_requirement_id = mr.id AND pm.participant_id = $2
+         ))
        ORDER BY medication_name ASC, created_at DESC`,
-      [organizationId]
+      [organizationId, listParticipantFilter(req)]
     );
 
     return success(res, { requirements: result.rows }, 'Medication requirements loaded');
@@ -62,7 +73,9 @@ module.exports = (pool, logger) => {
    * List distinct medications captured in fiche_sante submissions
    * Permission: participants.view
    */
-  router.get('/v1/medication/fiche-medications', authenticate, requirePermission(MEDICATION_READ_PERMISSIONS), asyncHandler(async (req, res) => {
+  router.get('/v1/medication/fiche-medications', authenticate, requirePermission({
+    permissions: MEDICATION_READ_PERMISSIONS, organizationScope: true,
+  }), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -81,11 +94,52 @@ module.exports = (pool, logger) => {
   }));
 
   /**
+   * GET /v1/medication/fiche-declarations
+   * Medication each participant on the roster declares on their current
+   * fiche_sante, read like the medication report so a child whose medication
+   * was written down but never planned still reaches the leader receiving it.
+   * Permission: medication.view for the unit; a parent, for one linked child.
+   */
+  router.get('/v1/medication/fiche-declarations', authenticate, requirePermission(MEDICATION_LIST_READ_POLICY), withScoutYear(pool), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+
+    const result = await pool.query(
+      `SELECT p.id AS participant_id, fs.submission_data AS health_data
+         FROM participants p
+         JOIN participant_enrollments pe ON pe.participant_id = p.id
+          AND pe.organization_id = $1
+          AND pe.scout_year_id = $2
+          AND pe.status = ANY($3::text[])
+         JOIN LATERAL (
+           SELECT sub.submission_data
+             FROM form_submissions sub
+             LEFT JOIN scout_years sub_year ON sub_year.id = sub.scout_year_id
+            WHERE sub.participant_id = p.id
+              AND sub.organization_id = $1
+              AND sub.form_type = 'fiche_sante'
+            ORDER BY sub_year.start_date DESC NULLS LAST, sub.updated_at DESC NULLS LAST, sub.id DESC
+            LIMIT 1
+         ) fs ON TRUE
+        WHERE ($4::int IS NULL OR p.id = $4)`,
+      [organizationId, req.scoutYear.id, req.rosterStatuses, listParticipantFilter(req)]
+    );
+
+    const declarations = result.rows
+      .filter((row) => declaresMedication(row.health_data))
+      .map((row) => ({
+        participant_id: row.participant_id,
+        medication: medicationText(row.health_data)
+      }));
+
+    return success(res, { declarations }, 'Fiche_sante medication declarations loaded');
+  }));
+
+  /**
    * POST /v1/medication/requirements
    * Create a medication requirement and participant assignments
-   * Permission: participants.edit
+   * Permission: medication.manage for the unit; a parent, for a linked child
    */
-  router.post('/v1/medication/requirements', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), asyncHandler(async (req, res) => {
+  router.post('/v1/medication/requirements', authenticate, blockDemoRoles, requirePermission(MEDICATION_REQUIREMENT_WRITE_POLICY), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const {
@@ -135,8 +189,8 @@ module.exports = (pool, logger) => {
           frequency_preset_type, frequency_times, frequency_slots,
           frequency_interval_hours, frequency_interval_start,
           route, default_dose_amount, default_dose_unit, general_notes,
-          start_date, end_date, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+          start_date, end_date, created_by, participant_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         RETURNING *`,
         [
           organizationId,
@@ -154,7 +208,8 @@ module.exports = (pool, logger) => {
           normalizeText(general_notes),
           start_date || null,
           end_date || null,
-          req.user.id
+          req.user.id,
+          participants[0]
         ]
       );
 
@@ -199,9 +254,9 @@ module.exports = (pool, logger) => {
   /**
    * PUT /v1/medication/requirements/:id
    * Update a medication requirement and participant assignments
-   * Permission: participants.edit
+   * Permission: medication.manage for the unit; a parent, for a linked child
    */
-  router.put('/v1/medication/requirements/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), asyncHandler(async (req, res) => {
+  router.put('/v1/medication/requirements/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_REQUIREMENT_WRITE_POLICY), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const requirementId = Number.parseInt(req.params.id, 10);
@@ -276,6 +331,7 @@ module.exports = (pool, logger) => {
              general_notes = $12,
              start_date = $13,
              end_date = $14,
+             participant_id = $17,
              updated_at = NOW()
          WHERE id = $15 AND organization_id = $16
          RETURNING *`,
@@ -295,7 +351,8 @@ module.exports = (pool, logger) => {
           start_date || null,
           end_date || null,
           requirementId,
-          organizationId
+          organizationId,
+          participants[0]
         ]
       );
 
@@ -339,7 +396,7 @@ module.exports = (pool, logger) => {
    * List participant medication assignments
    * Permission: participants.view
    */
-  router.get('/v1/medication/participant-medications', authenticate, requirePermission(MEDICATION_READ_PERMISSIONS), asyncHandler(async (req, res) => {
+  router.get('/v1/medication/participant-medications', authenticate, requirePermission(MEDICATION_LIST_READ_POLICY), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -347,8 +404,9 @@ module.exports = (pool, logger) => {
               participant_notes, custom_dosage, custom_frequency, created_at, updated_at
        FROM participant_medications
        WHERE organization_id = $1
+         AND ($2::int IS NULL OR participant_id = $2)
        ORDER BY medication_requirement_id, participant_id`,
-      [organizationId]
+      [organizationId, listParticipantFilter(req)]
     );
 
     return success(res, { participant_medications: result.rows }, 'Participant medications loaded');
@@ -605,7 +663,7 @@ module.exports = (pool, logger) => {
    * Query params: activity_id (required)
    * Permission: participants.view
    */
-  router.get('/v1/medication/receptions', authenticate, requirePermission(MEDICATION_READ_PERMISSIONS), asyncHandler(async (req, res) => {
+  router.get('/v1/medication/receptions', authenticate, requirePermission(MEDICATION_LIST_READ_POLICY), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const activityId = req.query.activity_id ? Number.parseInt(req.query.activity_id, 10) : null;
@@ -625,12 +683,13 @@ module.exports = (pool, logger) => {
       LEFT JOIN participants p ON mr.participant_id = p.id
       LEFT JOIN users u ON mr.received_by = u.id
       WHERE mr.organization_id = $1
+        AND ($2::int IS NULL OR mr.participant_id = $2)
     `;
 
-    const params = [organizationId];
+    const params = [organizationId, listParticipantFilter(req)];
 
     if (activityId && Number.isInteger(activityId)) {
-      query += ` AND mr.activity_id = $2`;
+      query += ' AND mr.activity_id = $3';
       params.push(activityId);
     }
 
@@ -830,7 +889,7 @@ module.exports = (pool, logger) => {
    * GET /v1/medication/first-aid-supplies
      * Lists first aid supplies (for PDF A items)
      */
-  router.get('/v1/medication/first-aid-supplies', authenticate, requirePermission(MEDICATION_READ_PERMISSIONS), asyncHandler(async (req, res) => {
+  router.get('/v1/medication/first-aid-supplies', authenticate, requirePermission(MEDICATION_LIST_READ_POLICY), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
