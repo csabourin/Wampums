@@ -15,8 +15,9 @@ export class Register {
                 <div id="error-message" class="error hidden" role="alert" aria-live="assertive"></div>
                 <div id="success-message" class="message hidden" role="status" aria-live="polite"></div>
 
-                <label for="full_name">${translate("full_name")}:</label>
-                <input type="text" id="full_name" name="full_name" autocomplete="name" required>
+                <label for="full_name">${translate('register_full_name_label')}:</label>
+                <input type="text" id="full_name" name="full_name" autocomplete="name" aria-describedby="full_name_hint" required>
+                <small id="full_name_hint" class="password-hint">${translate('register_full_name_hint')}</small>
 
                 <label for="email">${translate("email")}:</label>
                 <input type="email" id="email" name="email" autocomplete="username" required>

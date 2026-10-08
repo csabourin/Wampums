@@ -966,7 +966,7 @@ module.exports = (pool) => {
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name,
               pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
-              u.id as user_id, u.email as user_email, u.full_name as user_full_name
+              u.id as user_id, u.email as user_email, an.display_name as user_full_name
        FROM participants p
        JOIN participant_enrollments pe ON pe.participant_id = p.id
         AND pe.organization_id = $1
@@ -977,6 +977,8 @@ module.exports = (pool) => {
        LEFT JOIN groups g ON pg.group_id = g.id
        LEFT JOIN user_participants up ON p.id = up.participant_id
        LEFT JOIN users u ON up.user_id = u.id
+       -- A family member's name is the one on their own contact record.
+       LEFT JOIN account_display_names an ON an.user_id = u.id
        ORDER BY p.first_name, p.last_name`,
       [organizationId, req.scoutYear.id, req.rosterStatuses]
     );

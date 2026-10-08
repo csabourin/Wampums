@@ -1003,6 +1003,8 @@
   "french": "Français",
   "frequency": "Fréquence",
   "full_name": "Nom complet",
+  "register_full_name_label": "Votre nom complet",
+  "register_full_name_hint": "Inscrivez votre propre nom. Parents : votre enfant est inscrit séparément, une fois votre compte créé.",
   "fundraiser": "Collecte de fonds",
   "fundraiser_archived": "Campagne archivée avec succès",
   "fundraiser_created": "Campagne créée avec succès",

@@ -18,6 +18,7 @@
 
 const bcrypt = require('bcryptjs');
 const { ROUTINE_DEACTIVATION_REASON } = require('./reactivation');
+const { syncAccountNamesForGuardians } = require('./accountNames');
 
 /**
  * What acceptance did.
@@ -158,6 +159,9 @@ async function upsertGuardianContact(client, {
     'INSERT INTO guardian_users (guardian_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
     [guardianId, userId]
   );
+
+  // The record this account owns names it (services/accountNames.js).
+  await syncAccountNamesForGuardians(client, [guardianId]);
 
   return guardianId;
 }

@@ -614,7 +614,8 @@ export class AccountInfoModule {
 
       if (response.success) {
         this.guardianProfile = response.data || { guardian: null, participantIds: [] };
-        await this.loadGuardianProfile();
+        // The guardian record names the account too, so both are reloaded.
+        await Promise.all([this.loadGuardianProfile(), this.loadUserData()]);
         this.app.showMessage(translate("guardian_save_success"), "success");
         this.render();
         this.attachEventListeners();
@@ -672,6 +673,12 @@ export class AccountInfoModule {
       if (response.success) {
         this.app.showMessage(translate("success_profile_updated") || translate("account_info_fullname_success"), "success");
         this.userData.full_name = response.data.full_name;
+        if (this.isParent) {
+          // A parent's guardian record carries the same name; show it changed.
+          await this.loadGuardianProfile();
+          this.render();
+          this.attachEventListeners();
+        }
 
         // Update stored user name if present
         const storedName = localStorage.getItem("userFullName");

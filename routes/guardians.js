@@ -29,6 +29,7 @@ const {
 const { success, error, asyncHandler } = require('../middleware/response');
 const { revokeGuardianAccess } = require('../services/participantAccess');
 const { splitFullName } = require('../services/accountProvisioning');
+const { syncAccountNamesForGuardians } = require('../services/accountNames');
 
 /** Shape of a user id (users.id is a UUID). */
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -612,6 +613,9 @@ module.exports = (pool) => {
           [guardianIdToLink, participant_id, lien || null]
         );
       }
+
+      // A record tied to an account names it (services/accountNames.js).
+      await syncAccountNamesForGuardians(client, [guardianIdToLink]);
 
       // Fields a unit added to the parent_guardian form belong to this child's
       // submission, per guardian (form_submissions is keyed by participant).
