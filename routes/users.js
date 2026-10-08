@@ -233,14 +233,16 @@ module.exports = (pool, logger) => {
     // account ever attached to the organization, including ones deactivated or
     // moved to alumni years ago, which made the picker unusable.
     const result = await pool.query(
-      `SELECT DISTINCT u.id, u.email, u.full_name
+      `SELECT DISTINCT u.id, u.email, an.display_name AS full_name
        FROM users u
+       -- A family member's name is the one on their own contact record.
+       JOIN account_display_names an ON an.user_id = u.id
        JOIN user_organizations uo ON u.id = uo.user_id
        JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
        WHERE uo.organization_id = $1
          AND uo.status = 'active'
          AND r.role_name IN ('parent', 'demoparent')
-       ORDER BY u.full_name`,
+       ORDER BY full_name`,
       [organizationId]
     );
 

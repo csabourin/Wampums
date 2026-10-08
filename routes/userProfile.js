@@ -11,13 +11,13 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
+const { check } = require('express-validator');
 
 // Import middleware
 const { authenticate, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
 const {
   validateEmail,
-  validateFullName,
   validatePassword,
   checkValidation,
   normalizeEmailInput,
@@ -25,6 +25,27 @@ const {
   validateNewPasswordForChange
 } = require('../middleware/validation');
 const { RATE_LIMITS } = require('../config/constants');
+const { renameAccount, syncAccountNames } = require('../services/accountNames');
+
+const HTTP_STATUS = { BAD_REQUEST: 400 };
+
+/** Longest name the profile accepts, in each field. */
+const PROFILE_NAME_MAX_LENGTH = 100;
+
+/** The apps send the profile name as `fullName`, not sign-up's `full_name`. */
+const validateProfileName = [
+  check('fullName')
+    .isString()
+    .trim()
+    .isLength({ min: 2, max: PROFILE_NAME_MAX_LENGTH })
+    .withMessage(`Full name must be between 2 and ${PROFILE_NAME_MAX_LENGTH} characters`),
+  check(['firstName', 'lastName'])
+    .optional({ values: 'falsy' })
+    .isString()
+    .trim()
+    .isLength({ max: PROFILE_NAME_MAX_LENGTH })
+    .withMessage(`Names must be ${PROFILE_NAME_MAX_LENGTH} characters or fewer`),
+];
 
 // Rate limiter for password change - prevent brute force
 const isProduction = process.env.NODE_ENV === 'production';
@@ -340,12 +361,12 @@ module.exports = (pool, logger) => {
   router.patch('/name',
     authenticate,
     blockDemoRoles,
-    [validateFullName],
+    validateProfileName,
     checkValidation,
     asyncHandler(async (req, res) => {
       const userId = req.user.id;
       const organizationId = req.user.organizationId;
-      const { fullName } = req.body;
+      const { fullName, firstName, lastName } = req.body;
 
       // Verify user belongs to organization
       const userCheck = await pool.query(
@@ -359,13 +380,27 @@ module.exports = (pool, logger) => {
         return errorResponse(res, 'User not found', 404);
       }
 
-      // Update full name
+      // A family member's own contact record carries their name too; both
+      // change together (services/accountNames.js).
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const outcome = await renameAccount(client, userId, { fullName, firstName, lastName });
+        if (!outcome.renamed) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 'First and last name are required', HTTP_STATUS.BAD_REQUEST);
+        }
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+
       const result = await pool.query(
-        `UPDATE users
-         SET full_name = $1
-         WHERE id = $2
-         RETURNING id, full_name, email`,
-        [fullName.trim(), userId]
+        'SELECT id, full_name, email FROM users WHERE id = $1',
+        [userId]
       );
 
       logger.info(`User ${userId} updated their name`);
@@ -663,8 +698,8 @@ module.exports = (pool, logger) => {
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
            RETURNING id`,
           [
-            trimmedFirstName,
             trimmedLastName,
+            trimmedFirstName,
             userEmail,
             homeValidation.sanitized,
             workValidation.sanitized,
@@ -690,8 +725,8 @@ module.exports = (pool, logger) => {
                user_uuid = $9
            WHERE id = ANY($10::int[])`,
           [
-            trimmedFirstName,
             trimmedLastName,
+            trimmedFirstName,
             userEmail,
             homeValidation.sanitized,
             workValidation.sanitized,
@@ -726,6 +761,9 @@ module.exports = (pool, logger) => {
           params
         );
       }
+
+      // The record now names the account too (services/accountNames.js).
+      await syncAccountNames(client, [userId]);
 
       await client.query('COMMIT');
 
