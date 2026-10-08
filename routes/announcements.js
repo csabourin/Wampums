@@ -26,7 +26,8 @@ const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { resolveDatabaseConnectionString } = require('../config/database-url');
 
-const ALLOWED_ROLES = ['admin', 'animation', 'parent'];
+/** Upper bound on roles one announcement may address; the unit's catalog is far smaller. */
+const MAX_ANNOUNCEMENT_ROLES = 50;
 /** Who an announcement can address. The two are mutually exclusive by design. */
 const MEMBERS_AUDIENCE = 'members';
 const ALUMNI_AUDIENCE = 'alumni';
@@ -45,9 +46,11 @@ const { Client } = pg;
 function normalizeAnnouncementPayload(body) {
   const payload = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
   const audience = ALLOWED_AUDIENCES.includes(payload.audience) ? payload.audience : MEMBERS_AUDIENCE;
+  // Role names are only shape-checked here; the route keeps those the unit
+  // may use (filterRolesInUnit), since a custom role belongs to one unit.
   const roles = Array.isArray(payload.recipient_roles)
-    && payload.recipient_roles.length <= ALLOWED_ROLES.length
-    ? payload.recipient_roles.filter((role) => ALLOWED_ROLES.includes(role))
+    && payload.recipient_roles.length <= MAX_ANNOUNCEMENT_ROLES
+    ? [...new Set(payload.recipient_roles.filter((role) => typeof role === 'string' && role))]
     : [];
   const groups = Array.isArray(payload.recipient_group_ids)
     && payload.recipient_group_ids.length <= MAX_ANNOUNCEMENT_GROUPS
@@ -79,6 +82,47 @@ function normalizeAnnouncementPayload(body) {
     saveAsDraft,
     sendNow,
   };
+}
+
+/**
+ * Keep the role names the unit may use: its own custom roles and the
+ * built-in ones.
+ *
+ * @param {Object} pool - Database pool
+ * @param {Array<string>} roleNames - Requested role names
+ * @param {number} organizationId - Organization ID
+ * @returns {Promise<Array<string>>} Role names known to the unit
+ */
+async function filterRolesInUnit(pool, roleNames, organizationId) {
+  if (!roleNames.length) {
+    return [];
+  }
+  const { rows } = await pool.query(
+    `SELECT role_name
+     FROM roles r
+     WHERE r.role_name = ANY($1::text[])
+       AND (r.organization_id = $2 OR (r.organization_id IS NULL AND r.is_system_role))`,
+    [roleNames, organizationId],
+  );
+  return rows.map((row) => row.role_name);
+}
+
+/**
+ * Roles the unit may address: its own custom roles and the built-in ones.
+ *
+ * @param {Object} pool - Database pool
+ * @param {number} organizationId - Organization ID
+ * @returns {Promise<Array<{role_name: string, display_name: string}>>} Roles, built-in first
+ */
+async function listUnitRoles(pool, organizationId) {
+  const { rows } = await pool.query(
+    `SELECT r.role_name, r.display_name
+     FROM roles r
+     WHERE r.organization_id = $1 OR (r.organization_id IS NULL AND r.is_system_role)
+     ORDER BY r.organization_id NULLS FIRST, r.id`,
+    [organizationId],
+  );
+  return rows;
 }
 
 /**
@@ -151,7 +195,7 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
     return buildAlumniRecipients(pool, organizationId);
   }
 
-  const roleFilter = roles.length ? roles : ALLOWED_ROLES;
+  const roleFilter = roles || [];
   const includeParents = roleFilter.includes('parent');
   const groupFilterClause = groupIds.length ? 'AND pgroups.group_id = ANY($2::int[])' : '';
   const groupParams = groupIds.length ? [organizationId, groupIds] : [organizationId];
@@ -706,7 +750,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
         .if((_value, { req }) => req.body?.audience !== ALUMNI_AUDIENCE)
         .isArray({ min: 1 }).withMessage('recipient_roles must include at least one role'),
       check('recipient_group_ids').optional().isArray().withMessage('recipient_group_ids must be an array'),
-      check('scheduled_at').optional().isISO8601().withMessage('scheduled_at must be a valid date'),
+      check('scheduled_at').optional({ values: 'falsy' }).isISO8601().withMessage('scheduled_at must be a valid date'),
       check('save_as_draft').optional().isBoolean(),
       check('send_now').optional().isBoolean(),
     ],
@@ -716,6 +760,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
 
         const organizationId = await getOrganizationId(req, pool);
         const normalized = normalizeAnnouncementPayload(req.body);
+        normalized.roles = await filterRolesInUnit(pool, normalized.roles, organizationId);
 
         if (normalized.audience !== ALUMNI_AUDIENCE && !normalized.roles.length) {
           return res.status(400).json({ success: false, message: 'No valid roles provided' });
@@ -798,7 +843,10 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
         }, {});
       }
 
-      const templates = await fetchAnnouncementTemplates(pool, organizationId);
+      const [templates, roles] = await Promise.all([
+        fetchAnnouncementTemplates(pool, organizationId),
+        listUnitRoles(pool, organizationId),
+      ]);
 
       res.json({
         success: true,
@@ -808,6 +856,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
           logs: logsByAnnouncement[row.id] || [],
         })),
         templates,
+        roles,
       });
     } catch (error) {
       if (handleOrganizationResolutionError(res, error, logger)) {

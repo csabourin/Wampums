@@ -15,6 +15,7 @@ export class MailingList {
                 this.announcements = [];
                 this.groups = [];
                 this.templates = [];
+                this.unitRoles = [];
                 this.isSubmitting = false;
         }
 
@@ -49,6 +50,7 @@ export class MailingList {
                 this.groups = groupsResponse?.data || groupsResponse?.groups || [];
                 this.announcements = announcementResponse?.data || [];
                 this.templates = announcementResponse?.templates || [];
+                this.unitRoles = announcementResponse?.roles || [];
         }
 
         render() {
@@ -69,17 +71,11 @@ export class MailingList {
         }
 
         renderAnnouncementComposer() {
-                const roles = [
-                        { key: "parent", label: translate("parents") },
-                        { key: "leader", label: translate("leader") },
-                        { key: "unitadmin", label: translate("unitadmin") || translate("admin") },
-                        { key: "district", label: translate("district") || translate("admin") },
-                        { key: "finance", label: translate("finance") },
-                        { key: "equipment", label: translate("equipment") || translate("inventory") },
-                        { key: "administration", label: translate("administration") || translate("reports") },
-                        { key: "demoparent", label: translate("demoparent") || translate("parent") },
-                        { key: "demoadmin", label: translate("demoadmin") || translate("admin") },
-                ];
+                // The parent role also reaches guardians, as in the list below.
+                const roles = this.unitRoles.map(({ role_name: key }) => ({
+                        key,
+                        label: key === "parent" ? translate("parents") : this.roleLabel(key),
+                }));
 
                 const templateOptions = this.templates?.length
                         ? `
@@ -138,8 +134,8 @@ export class MailingList {
                                 .map(
                                         (role) => `
                                                                         <label>
-                                                                                <input type="checkbox" name="recipient-role" value="${role.key}" checked />
-                                                                                ${role.label}
+                                                                                <input type="checkbox" name="recipient-role" value="${escapeHTML(role.key)}" ${role.key === 'parent' ? 'checked' : ''} />
+                                                                                ${escapeHTML(role.label)}
                                                                         </label>
                                                                 `
                                 )
@@ -224,7 +220,7 @@ export class MailingList {
                                                                 </div>
                                                                 <div class="announcement-details">
                                                                         <div>${translate("recipient_roles")}: ${announcement.recipient_roles
-                                                        ?.map((role) => translate(role) || role)
+                                                        ?.map((role) => escapeHTML(this.roleLabel(role)))
                                                         .join(", ") || translate("no_data_available")
                                                 }</div>
                                                                         ${groups.length
@@ -354,8 +350,9 @@ export class MailingList {
                 if (translated && translated !== role) {
                         return translated;
                 }
+                const unitRole = this.unitRoles.find((entry) => entry.role_name === role);
                 const displayNames = this.mailingList?.role_display_names || {};
-                return displayNames[role] || role.replace(/_/g, " ");
+                return unitRole?.display_name || displayNames[role] || role.replace(/_/g, " ");
         }
 
         renderEmails(data) {
@@ -522,9 +519,9 @@ export class MailingList {
                                 audience,
                                 recipient_roles: recipientRoles,
                                 recipient_group_ids: recipientGroupIds,
-                                scheduled_at: scheduledAt || null,
+                                scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
                                 save_as_draft: saveAsDraft,
-                                send_now: !saveAsDraft,
+                                send_now: !saveAsDraft && !scheduledAt,
                         });
 
                         if (!response?.success) {
