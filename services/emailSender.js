@@ -24,7 +24,10 @@ const EMAIL_SENDER_SETTING_KEY = 'email_sender';
 const MAX_EMAIL_LENGTH = 254;
 const MAX_FROM_NAME_LENGTH = 100;
 const DEFAULT_PLATFORM_SENDER = 'info@wampums.app';
-const EMAIL_PATTERN = /^[^\s@<>"(),;:\\[\]]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
+// Dot-atom local part (no leading, trailing or doubled dots) and a domain of
+// hostname labels that neither start nor end with a hyphen, ending in a TLD.
+const EMAIL_PATTERN = /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
+const MAX_LOCAL_PART_LENGTH = 64;
 // eslint-disable-next-line no-control-regex -- header injection guard
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
 
@@ -42,7 +45,9 @@ function normalizeAddress(value) {
  * @returns {boolean} Whether it is a plausible single mailbox
  */
 function isValidAddress(address) {
-  return address.length <= MAX_EMAIL_LENGTH && EMAIL_PATTERN.test(address);
+  return address.length <= MAX_EMAIL_LENGTH
+    && EMAIL_PATTERN.test(address)
+    && address.indexOf('@') <= MAX_LOCAL_PART_LENGTH;
 }
 
 /**

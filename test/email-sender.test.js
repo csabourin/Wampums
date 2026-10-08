@@ -95,6 +95,28 @@ describe('validateEmailSenderSettings', () => {
     expect(errors.map((e) => e.field)).toEqual(['from_name']);
   });
 
+  test.each([
+    'a..b@meute6a.app',
+    '.user@meute6a.app',
+    'user.@meute6a.app',
+    'user@example-.com',
+    'user@-example.com',
+    'user@example',
+    'two@at@example.com',
+    'name <user@example.com>',
+  ])('refuses the malformed address %s', (address) => {
+    const { errors } = validateEmailSenderSettings({ reply_to: address, from_email: address }, ['meute6a.app']);
+
+    expect(errors.map((e) => e.field).sort()).toEqual(['from_email', 'reply_to']);
+  });
+
+  test.each(['first.last+scouts@gmail.com', 'o\'brien@example.ca', 'chef@sub.meute6a.app'])(
+    'accepts the well-formed reply-to %s',
+    (address) => {
+      expect(validateEmailSenderSettings({ reply_to: address }, []).errors).toEqual([]);
+    }
+  );
+
   test('refuses a malformed reply-to', () => {
     const { errors } = validateEmailSenderSettings({ reply_to: 'not an address' }, []);
 
