@@ -3716,5 +3716,15 @@
   "family_registration_partial": "Certains renseignements ont été enregistrés, mais l’inscription n’est pas terminée. Vos réponses sont toujours ici. Enregistrez de nouveau pour terminer la mise à jour des mêmes dossiers de l’enfant et des parents ou tuteurs.",
   "family_saved_not_sent_refresh_failed": "Vos modifications ont été enregistrées, mais le courriel n’a pas pu être envoyé et la liste n’a pas pu être actualisée. Réessayez de charger la liste, puis renvoyez l’invitation.",
   "family_operation_online_required": "Connectez-vous à Internet pour enregistrer cette modification. Aucune demande n’a été envoyée.",
-  "family_operation_unconfirmed": "Nous n’avons pas pu confirmer si cette modification a été enregistrée. Vérifiez votre connexion et actualisez la liste avant de réessayer."
+  "family_operation_unconfirmed": "Nous n’avons pas pu confirmer si cette modification a été enregistrée. Vérifiez votre connexion et actualisez la liste avant de réessayer.",
+  "email_sender_title": "Expéditeur des courriels",
+  "email_sender_description": "Comment les courriels envoyés au nom de votre unité (annonces, autorisations, invitations) apparaissent aux familles.",
+  "email_sender_from_name": "Nom de l'expéditeur",
+  "email_sender_from_email": "Adresse d'expédition",
+  "email_sender_from_email_help": "Laissez vide pour utiliser l'adresse de la plateforme. Doit se terminer par {domains}.",
+  "email_sender_no_domain": "Les courriels sont envoyés depuis {address}. Pour envoyer depuis votre propre domaine, demandez à l'administrateur de la plateforme de l'authentifier auprès du fournisseur de courriel.",
+  "email_sender_reply_to": "Adresse de réponse",
+  "email_sender_reply_to_help": "Les réponses des familles arrivent ici. Toute adresse fonctionne, y compris Gmail.",
+  "email_sender_saved": "Expéditeur des courriels enregistré.",
+  "email_sender_from_rejected": "Cette adresse d'expédition n'est pas sur un domaine authentifié pour votre unité. Mettez plutôt les adresses comme Gmail dans le champ « Adresse de réponse »."
 }

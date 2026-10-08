@@ -9,6 +9,7 @@ const nodemailer = require("nodemailer");
 const winston = require("winston");
 const { getDefaultPointSystemRules } = require('./api-helpers');
 const { verifyJWTToken } = require("./jwt-config");
+const { isAuthenticatedSenderAddress } = require('../services/emailSender');
 
 // Configure logger for utilities
 const logger = winston.createLogger({
@@ -249,16 +250,39 @@ async function getUserEmailLanguage(pool, userEmail, organizationId) {
 }
 
 /**
+ * Turn sendEmail's sender argument into the identity actually used. A From
+ * address outside the domains authenticated with the provider is dropped in
+ * favour of the platform address: sending it would fail DMARC and read as
+ * spoofing.
+ *
+ * @param {string|{name?: string, email?: string|null, replyTo?: string|null}|null} sender
+ * @returns {{ name: string, email: string, replyTo: string|null }}
+ */
+function resolveSender(sender) {
+  const options = typeof sender === 'string' ? { name: sender } : sender || {};
+  const name = String(options.name || senderName).replace(/[\r\n]+/g, ' ').trim();
+  const email = options.email && isAuthenticatedSenderAddress(options.email)
+    ? options.email
+    : senderEmail;
+  if (options.email && email !== options.email) {
+    logger.warn('Ignoring unauthenticated sender address', { requested: options.email });
+  }
+  return { name, email, replyTo: options.replyTo || null };
+}
+
+/**
  * Send email using Brevo
  * @param {string} to - Recipient email
  * @param {string} subject - Email subject
  * @param {string} message - Email message (plain text)
  * @param {string} html - Optional HTML content
+ * @param {string|Object|null} sender - Display name, or a unit identity
+ *   `{ name, email, replyTo }` from resolveOrganizationEmailSender()
  * @returns {Promise<boolean>} Success status
  */
-async function sendEmail(to, subject, message, html = null, fromNameOverride = null) {
+async function sendEmail(to, subject, message, html = null, sender = null) {
   try {
-    const activeSenderName = fromNameOverride || senderName;
+    const from = resolveSender(sender);
     // Prefer Brevo transactional API when available
     if (brevoApiKeyValue) {
       if (!brevoTransactionalApi) {
@@ -267,12 +291,13 @@ async function sendEmail(to, subject, message, html = null, fromNameOverride = n
         brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
       }
 
-      logger.info("Sending email via Brevo API", { to, from: senderEmail, fromName: activeSenderName });
+      logger.info('Sending email via Brevo API', { to, from: from.email, fromName: from.name, replyTo: from.replyTo });
       const apiPayload = {
-        sender: { email: senderEmail, name: activeSenderName },
+        sender: { email: from.email, name: from.name },
         to: [{ email: to }],
         subject,
         textContent: message,
+        ...(from.replyTo ? { replyTo: { email: from.replyTo, name: from.name } } : {}),
         ...(html ? { htmlContent: html } : {}),
       };
       const result = await brevoTransactionalApi.sendTransacEmail(apiPayload);
@@ -298,11 +323,12 @@ async function sendEmail(to, subject, message, html = null, fromNameOverride = n
 
       logger.info("Sending email via Brevo SMTP relay", {
         to,
-        from: senderEmail,
+        from: from.email,
         user: brevoSmtpUser,
       });
       const smtpResult = await brevoSmtpTransport.sendMail({
-        from: `${senderName} <${senderEmail}>`,
+        from: { name: from.name, address: from.email },
+        ...(from.replyTo ? { replyTo: from.replyTo } : {}),
         to,
         subject,
         text: message,

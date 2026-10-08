@@ -6,6 +6,7 @@ const {
   sanitizeInput
 } = require('./index');
 const { escapeHtml } = require('./api-helpers');
+const { resolveOrganizationEmailSender } = require('../services/emailSender');
 
 const fallbackTranslations = getTranslationsByCode('en');
 
@@ -124,6 +125,7 @@ async function sendActivityUpdateNotifications(pool, activityId, organizationId)
 
   const activity = result.rows[0]; // Activity details are the same for all rows
 
+  const sender = await resolveOrganizationEmailSender(pool, organizationId);
   const emailPromises = result.rows.map(async (user) => {
     const preferredLanguage = await getUserEmailLanguage(pool, user.email, organizationId);
     const translations = getTranslationsByCode(preferredLanguage);
@@ -229,7 +231,7 @@ ${signature}
     `.trim();
 
     try {
-      await sendEmail(user.email, subject, message, html);
+      await sendEmail(user.email, subject, message, html, sender);
     } catch (err) {
       console.error(`Failed to send update email to ${user.email}:`, err);
     }
@@ -279,6 +281,7 @@ async function sendActivityCancellationNotifications(pool, activityId, organizat
 
   const activity = result.rows[0]; // Activity details are the same for all rows
 
+  const sender = await resolveOrganizationEmailSender(pool, organizationId);
   const emailPromises = result.rows.map(async (user) => {
     const subject = `Activity Cancelled - ${activity.activity_name}`;
     const message = `
@@ -310,7 +313,7 @@ Wampums Team
     `.trim();
 
     try {
-      await sendEmail(user.email, subject, message, html);
+      await sendEmail(user.email, subject, message, html, sender);
     } catch (err) {
       console.error(`Failed to send cancellation email to ${user.email}:`, err);
     }

@@ -36,6 +36,7 @@ const {
 const { sendEmail, getTranslationsByCode } = require('../utils/index');
 const { escapeHtml } = require('../utils/api-helpers');
 const { getOrganizationName } = require('./alumni');
+const { resolveOrganizationEmailSender } = require('./emailSender');
 const {
   ACCEPTANCE_RESULT,
   insertParentMembership,
@@ -366,7 +367,13 @@ async function deliverFamilyLinkRequest(pool, { request, token, baseUrl, logger 
     reviewLink,
   });
 
-  const sent = await sendEmail(request.target_email, subject, text, html, organizationName);
+  const sent = await sendEmail(
+    request.target_email,
+    subject,
+    text,
+    html,
+    await resolveOrganizationEmailSender(pool, request.organization_id)
+  );
   if (sent) {
     await pool.query(
       'UPDATE family_link_requests SET sent_at = now(), updated_at = now() WHERE id = $1',

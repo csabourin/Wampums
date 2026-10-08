@@ -23,6 +23,7 @@
 
 const { signJWTToken, verifyJWTToken } = require('../utils/jwt-config');
 const { sendEmail, getTranslationsByCode, getUserEmailLanguage } = require('../utils/index');
+const { resolveOrganizationEmailSender } = require('./emailSender');
 
 /** Roles that make an account "a parent and nothing more". */
 const PARENT_ONLY_ROLES = ['parent', 'guardian', 'demoparent'];
@@ -284,6 +285,7 @@ async function sendAlumniInvitations(pool, logger, { organizationId, membershipI
 
   const skipped = requested ? requested.size - targets.length : 0;
   const organizationName = await getOrganizationName(pool, organizationId);
+  const sender = await resolveOrganizationEmailSender(pool, organizationId);
 
   const outcomes = await Promise.all(
     targets.map(async (candidate) => {
@@ -295,7 +297,7 @@ async function sendAlumniInvitations(pool, logger, { organizationId, membershipI
         consentLink,
       });
 
-      const sent = await sendEmail(candidate.email, subject, text, html, organizationName);
+      const sent = await sendEmail(candidate.email, subject, text, html, sender);
       if (!sent) {
         logger?.error('Alumni invitation failed to send', {
           membershipId: candidate.membership_id,

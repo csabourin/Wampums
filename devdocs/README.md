@@ -8,6 +8,7 @@ This directory contains durable material that is not better expressed by code, t
 - [`../AGENTS.md`](../AGENTS.md) — concise coding-agent instructions
 - [`../readme.md`](../readme.md) — setup, commands, project map, and source-of-truth order
 - [`FAMILY_ACCESS.md`](./FAMILY_ACCESS.md) — invitations, parent onboarding, family links, and who can see which child
+- [`EMAIL_SENDER.md`](./EMAIL_SENDER.md) — a unit's email sender name, From and Reply-To, and the DNS that keeps them from being marked as spoofed
 - [`oas-catalog-pipeline.md`](./oas-catalog-pipeline.md) — versioned bilingual program catalog workflow
 - [`go-to-market/pilot-playbook.md`](./go-to-market/pilot-playbook.md) — pilot operating guide
 - [`go-to-market/positioning-en.md`](./go-to-market/positioning-en.md) — English positioning

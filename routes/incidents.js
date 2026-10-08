@@ -26,6 +26,7 @@ const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { sendEmail } = require('../utils/index');
+const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { escapeHtml } = require('../utils/api-helpers');
 
 // Incident escalation email queue
@@ -178,11 +179,23 @@ async function processEmailQueue(pool, logger, organizationId = null, incidentId
     params
   );
 
+  // A batch can span units; each email goes out under its own unit's identity.
+  const unitIds = [...new Set(claimed.rows.map((item) => item.organization_id))];
+  const senders = new Map(await Promise.all(
+    unitIds.map(async (unitId) => [unitId, await resolveOrganizationEmailSender(pool, unitId)])
+  ));
+
   for (const item of claimed.rows) {
     try {
       // sendEmail reports failure by returning false rather than throwing.
       // eslint-disable-next-line no-await-in-loop -- one send at a time keeps the provider's rate limit
-      const sent = await sendEmail(item.recipient_email, item.subject, item.body_text, item.body_html);
+      const sent = await sendEmail(
+        item.recipient_email,
+        item.subject,
+        item.body_text,
+        item.body_html,
+        senders.get(item.organization_id)
+      );
       if (!sent) {
         throw new Error('Email provider did not accept the message');
       }

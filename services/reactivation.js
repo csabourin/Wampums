@@ -37,6 +37,7 @@ const {
   getUserEmailLanguage,
 } = require('../utils/index');
 const { getOrganizationName } = require('./alumni');
+const { resolveOrganizationEmailSender } = require('./emailSender');
 
 /**
  * Token purpose. Distinct from the alumni purposes so that an opt-in link can
@@ -274,7 +275,7 @@ async function requestReactivation(pool, { email, organizationId, baseUrl, logge
     isJoining: outcome === 'joining',
   });
 
-  const sent = await sendEmail(standing.email, subject, text, html, organizationName);
+  const sent = await sendEmail(standing.email, subject, text, html, await resolveOrganizationEmailSender(pool, organizationId));
   if (!sent) {
     logger?.error('Reactivation email failed to send', {
       organizationId,

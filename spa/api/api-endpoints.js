@@ -2738,6 +2738,26 @@ export async function updateUnitVocabulary(vocabulary) {
     return response;
 }
 
+/** Read the unit's email sender identity and the From domains it may use. */
+export function getEmailSenderSettings() {
+  return API.getNoCache('v1/organizations/settings/email-sender');
+}
+
+/**
+ * Update the unit's email sender identity.
+ *
+ * @param {{from_name: string, from_email: string, reply_to: string}} sender - Form values
+ */
+export async function updateEmailSenderSettings(sender) {
+  const response = await API.patch('v1/organizations/settings/email-sender', sender);
+  try {
+    await deleteCachedData('org_settings');
+  } catch (cacheError) {
+    debugWarn('Failed to invalidate organization settings cache', cacheError);
+  }
+  return response;
+}
+
 /** Update organization-wide dashboard tile visibility. */
 export async function updateDashboardConfiguration(configuration) {
     const response = await API.patch('v1/organizations/settings/dashboard', configuration);
