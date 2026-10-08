@@ -22,7 +22,7 @@ const {
 } = require('../utils/unitCustomization');
 
 // Import utilities
-const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { ensureProgramSectionsSeeded, getProgramSections } = require('../utils/programSections');
 const { installDefaultFormFormats } = require('../services/defaultFormFormats');
 
@@ -83,7 +83,7 @@ function validateOrganizationInfo(input) {
   ];
 
   for (const [field, maximumLength] of textFields) {
-    if (!Object.prototype.hasOwnProperty.call(input, field)) continue;
+    if (!Object.prototype.hasOwnProperty.call(input, field)) {continue;}
 
     if (typeof input[field] !== 'string') {
       errors.push({ field, msg: 'Must be a string' });

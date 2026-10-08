@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
+const { authenticate, blockDemoRoles, getOrganizationId, requirePermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { verifyOrganizationMembership } = require('../utils/api-helpers');
 const {
   toNumeric,
   validateMoney,
@@ -15,15 +14,9 @@ module.exports = (pool, logger) => {
    * List external revenue entries (donations, sponsorships, grants, other)
    * Permission: finance.view
    */
-  router.get('/v1/revenue/external', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/revenue/external', authenticate, requirePermission(['finance.view']), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const permissionCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: ['finance.view'],
-    });
 
-    if (!permissionCheck.authorized) {
-      return error(res, permissionCheck.message, 403);
-    }
     const { start_date, end_date, revenue_type, category_id } = req.query;
 
     const hasCategoryFilter = category_id && category_id !== 'all';
@@ -104,18 +97,11 @@ module.exports = (pool, logger) => {
    * Create a new external revenue entry
    * Permission: finance.manage
    */
-  router.post('/v1/revenue/external', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.post('/v1/revenue/external', authenticate, blockDemoRoles, requirePermission(['finance.manage']), asyncHandler(async (req, res) => {
     try {
       logger.info('[external-revenue] POST request received:', { body: req.body, user: req.user?.id });
 
       const organizationId = await getOrganizationId(req, pool);
-      const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-        requiredPermissions: ['finance.manage'],
-      });
-
-      if (!authCheck.authorized) {
-        return error(res, authCheck.message, 403);
-      }
 
       const {
         budget_category_id,
@@ -200,15 +186,8 @@ module.exports = (pool, logger) => {
    * Update an external revenue entry
    * Permission: finance.manage
    */
-  router.put('/v1/revenue/external/:id', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.put('/v1/revenue/external/:id', authenticate, blockDemoRoles, requirePermission(['finance.manage']), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: ['finance.manage'],
-    });
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
     const {
@@ -296,15 +275,8 @@ module.exports = (pool, logger) => {
    * Delete an external revenue entry
    * Permission: finance.manage
    */
-  router.delete('/v1/revenue/external/:id', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.delete('/v1/revenue/external/:id', authenticate, blockDemoRoles, requirePermission(['finance.manage']), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: ['finance.manage'],
-    });
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
 
@@ -328,15 +300,9 @@ module.exports = (pool, logger) => {
    * Get summary of external revenue by category and type
    * Permission: finance.view
    */
-  router.get('/v1/revenue/external/summary', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/revenue/external/summary', authenticate, requirePermission(['finance.view']), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const permissionCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: ['finance.view'],
-    });
 
-    if (!permissionCheck.authorized) {
-      return error(res, permissionCheck.message, 403);
-    }
     const { start_date, end_date } = req.query;
 
     let query = `
@@ -395,7 +361,7 @@ module.exports = (pool, logger) => {
       const categoryName = row.category_name || 'Uncategorized';
       const categoryId = row.budget_category_id || 0;
       const key = `${categoryId}-${categoryName}`;
-      
+
       if (!byCategory[key]) {
         byCategory[key] = {
           budget_category_id: categoryId,

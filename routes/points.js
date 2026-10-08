@@ -16,7 +16,7 @@ const { asyncHandler } = require('../middleware/response');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 
 // Import utilities and middleware
-const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { success, error: errorResponse } = require('../middleware/response');
 
 /**

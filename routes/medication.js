@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope } = require('../middleware/auth');
+const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope, requirePermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { verifyOrganizationMembership } = require('../utils/api-helpers');
+const { medicationParticipantInUnit, familyMedicationAccess } = require('../middleware/medicationAuthorizationPolicy');
 const { areUnitLeaders } = require('../services/unitLeaders');
 
 const MEDICATION_READ_PERMISSIONS = ['medication.view'];
@@ -39,15 +39,8 @@ module.exports = (pool, logger) => {
    * List medication requirement definitions for the organization
    * Permission: participants.view
    */
-  router.get('/v1/medication/requirements', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/medication/requirements', authenticate, requirePermission(MEDICATION_READ_PERMISSIONS), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: MEDICATION_READ_PERMISSIONS,
-    });
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const result = await pool.query(
       `SELECT id, organization_id, medication_name, dosage_instructions,
@@ -69,15 +62,8 @@ module.exports = (pool, logger) => {
    * List distinct medications captured in fiche_sante submissions
    * Permission: participants.view
    */
-  router.get('/v1/medication/fiche-medications', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/medication/fiche-medications', authenticate, requirePermission(MEDICATION_READ_PERMISSIONS), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: MEDICATION_READ_PERMISSIONS,
-    });
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const result = await pool.query(
       `SELECT DISTINCT TRIM(medication) AS medication
@@ -99,15 +85,8 @@ module.exports = (pool, logger) => {
    * Create a medication requirement and participant assignments
    * Permission: participants.edit
    */
-  router.post('/v1/medication/requirements', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.post('/v1/medication/requirements', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
-    });
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const {
       medication_name,
@@ -222,15 +201,8 @@ module.exports = (pool, logger) => {
    * Update a medication requirement and participant assignments
    * Permission: participants.edit
    */
-  router.put('/v1/medication/requirements/:id', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.put('/v1/medication/requirements/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
-    });
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const requirementId = Number.parseInt(req.params.id, 10);
     if (!Number.isInteger(requirementId) || requirementId <= 0) {
@@ -367,15 +339,8 @@ module.exports = (pool, logger) => {
    * List participant medication assignments
    * Permission: participants.view
    */
-  router.get('/v1/medication/participant-medications', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/medication/participant-medications', authenticate, requirePermission(MEDICATION_READ_PERMISSIONS), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: MEDICATION_READ_PERMISSIONS,
-    });
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const result = await pool.query(
       `SELECT id, organization_id, medication_requirement_id, participant_id,
@@ -394,15 +359,8 @@ module.exports = (pool, logger) => {
    * List scheduled and historical medication distributions
    * Permission: participants.edit
    */
-  router.get('/v1/medication/distributions', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/medication/distributions', authenticate, requirePermission(MEDICATION_MANAGE_PERMISSIONS), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
-    });
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const filters = ['organization_id = $1'];
     const params = [organizationId];
@@ -430,15 +388,8 @@ module.exports = (pool, logger) => {
    * Schedule or update medication distributions for a single participant per entry
    * Permission: participants.edit
    */
-  router.post('/v1/medication/distributions', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.post('/v1/medication/distributions', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: MEDICATION_READ_PERMISSIONS,
-    });
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const {
       medication_requirement_id,
@@ -586,15 +537,8 @@ module.exports = (pool, logger) => {
    * Update the status of a medication distribution entry
    * Permission: participants.edit
    */
-  router.patch('/v1/medication/distributions/:id', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.patch('/v1/medication/distributions/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
-    });
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const distributionId = Number.parseInt(req.params.id, 10);
     if (!Number.isInteger(distributionId) || distributionId <= 0) {
@@ -661,15 +605,8 @@ module.exports = (pool, logger) => {
    * Query params: activity_id (required)
    * Permission: participants.view
    */
-  router.get('/v1/medication/receptions', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/medication/receptions', authenticate, requirePermission(MEDICATION_READ_PERMISSIONS), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: MEDICATION_READ_PERMISSIONS,
-    });
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const activityId = req.query.activity_id ? Number.parseInt(req.query.activity_id, 10) : null;
 
@@ -709,15 +646,8 @@ module.exports = (pool, logger) => {
    * Create or update medication reception record
    * Permission: participants.edit
    */
-  router.post('/v1/medication/receptions', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.post('/v1/medication/receptions', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
-    });
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const {
       activity_id,
@@ -821,15 +751,8 @@ module.exports = (pool, logger) => {
    * Update medication reception record
    * Permission: participants.edit
    */
-  router.patch('/v1/medication/receptions/:id', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.patch('/v1/medication/receptions/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
-    });
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const receptionId = Number.parseInt(req.params.id, 10);
     if (!Number.isInteger(receptionId)) {
@@ -883,15 +806,8 @@ module.exports = (pool, logger) => {
    * Delete medication reception record
    * Permission: participants.edit
    */
-  router.delete('/v1/medication/receptions/:id', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.delete('/v1/medication/receptions/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
-    });
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const receptionId = Number.parseInt(req.params.id, 10);
     if (!Number.isInteger(receptionId)) {
@@ -914,17 +830,13 @@ module.exports = (pool, logger) => {
    * GET /v1/medication/first-aid-supplies
      * Lists first aid supplies (for PDF A items)
      */
-  router.get('/v1/medication/first-aid-supplies', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/medication/first-aid-supplies', authenticate, requirePermission(MEDICATION_READ_PERMISSIONS), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: MEDICATION_READ_PERMISSIONS,
-    });
-    if (!authCheck.authorized) return error(res, authCheck.message, 403);
 
     const result = await pool.query(
-      `SELECT id, name, description, administrable_medication 
-       FROM first_aid_supplies 
-       WHERE organization_id = $1 AND is_active = true 
+      `SELECT id, name, description, administrable_medication
+       FROM first_aid_supplies
+       WHERE organization_id = $1 AND is_active = true
        ORDER BY id ASC`,
       [organizationId]
     );
@@ -942,7 +854,7 @@ module.exports = (pool, logger) => {
    *
    * Parents see their own children only; staff see the whole unit.
    */
-  router.get('/v1/medication/authorizations/pending-signature', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/medication/authorizations/pending-signature', authenticate, requirePermission(), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Organization-wide visibility requires the medication permission, exactly
@@ -950,10 +862,8 @@ module.exports = (pool, logger) => {
     // enough: without this, any organization-scoped custom role could learn
     // which children have authorizations pending. Anyone else still sees the
     // children they are linked to.
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: MEDICATION_READ_PERMISSIONS,
-    });
-    const isStaff = authCheck.authorized;
+    const isStaff = req.userPermissions.includes('medication.view')
+      && await getUserDataScope(req, pool) === 'organization';
 
     const result = await pool.query(
       `WITH linked_participants AS (
@@ -995,7 +905,10 @@ module.exports = (pool, logger) => {
 
   // Declared before /:participantId: Express matches in order, so a literal
   // path placed after a parameterised one is never reached.
-  router.get('/v1/medication/authorizations/:participantId', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/medication/authorizations/:participantId', authenticate, requirePermission({
+    permissions: MEDICATION_READ_PERMISSIONS, organizationScope: true,
+    resourceScope: medicationParticipantInUnit, resourceAccess: familyMedicationAccess,
+  }), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const participantId = Number.parseInt(req.params.participantId, 10);
 
@@ -1003,27 +916,9 @@ module.exports = (pool, logger) => {
       return error(res, 'Invalid participant ID', 400);
     }
 
-    // Check membership and parent linkage
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
-      requiredPermissions: MEDICATION_READ_PERMISSIONS,
-    });
-
-    if (!authCheck.authorized) {
-      // Also check if they are a parent linked to this participant
-      const parentCheck = await pool.query(
-        `SELECT 1 FROM participant_guardians pg
-          JOIN guardian_users gu ON pg.guardian_id = gu.guardian_id
-          WHERE pg.participant_id = $1 AND gu.user_id = $2`,
-        [participantId, req.user.id]
-      );
-      if (parentCheck.rowCount === 0) {
-        return error(res, 'Unauthorized access to participant authorizations', 403);
-      }
-    }
-
     // PDF A (Treatment) latest
     const treatmentRes = await pool.query(
-      `SELECT mta.*, 
+      `SELECT mta.*,
               json_agg(json_build_object('id', mtas.first_aid_supply_id, 'is_allowed', mtas.is_allowed)) as supplies
        FROM medication_treatment_authorizations mta
        LEFT JOIN medication_treatment_authorization_supplies mtas ON mta.id = mtas.authorization_id
@@ -1061,12 +956,14 @@ module.exports = (pool, logger) => {
     });
   }));
 
-
   /**
    * POST /v1/medication/authorizations/treatment
    * Saves or updates a PDF A authorization
    */
-  router.post('/v1/medication/authorizations/treatment', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.post('/v1/medication/authorizations/treatment', authenticate, blockDemoRoles, requirePermission({
+    permissions: MEDICATION_MANAGE_PERMISSIONS, organizationScope: true,
+    resourceScope: medicationParticipantInUnit, resourceAccess: familyMedicationAccess,
+  }), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const {
       participant_id, guardian_id,
@@ -1075,22 +972,6 @@ module.exports = (pool, logger) => {
       signature_parent_tuteur, nom_en_caractere_d_imprimerie, date_signature, signature_type,
       supplies // array of { id, is_allowed }
     } = req.body;
-
-    // Auth check parent
-    const parentCheck = await pool.query(
-      `SELECT pg.guardian_id FROM participant_guardians pg
-          JOIN guardian_users gu ON pg.guardian_id = gu.guardian_id
-          WHERE pg.participant_id = $1 AND gu.user_id = $2 AND pg.guardian_id = $3`,
-      [participant_id, req.user.id, guardian_id]
-    );
-
-    const isParent = parentCheck.rowCount > 0;
-    if (!isParent) {
-      const authAdmin = await verifyOrganizationMembership(pool, req.user.id, organizationId, { requiredPermissions: MEDICATION_MANAGE_PERMISSIONS });
-      if (!authAdmin.authorized) {
-        return error(res, 'Unauthorized to save for this participant/guardian', 403);
-      }
-    }
 
     const client = await pool.connect();
     try {
@@ -1141,7 +1022,10 @@ module.exports = (pool, logger) => {
    * POST /v1/medication/authorizations/administration
    * Saves or updates a PDF B authorization
    */
-  router.post('/v1/medication/authorizations/administration', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.post('/v1/medication/authorizations/administration', authenticate, blockDemoRoles, requirePermission({
+    permissions: MEDICATION_MANAGE_PERMISSIONS, organizationScope: true,
+    resourceScope: medicationParticipantInUnit, resourceAccess: familyMedicationAccess,
+  }), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const {
       participant_id, guardian_id,
@@ -1151,22 +1035,6 @@ module.exports = (pool, logger) => {
       nom_parent_ou_tuteur_legal, signature_parent_ou_tuteur_legal, date_signature, signature_type,
       requirements // array of { requirement_id, initials }
     } = req.body;
-
-    // Auth check parent
-    const parentCheck = await pool.query(
-      `SELECT pg.guardian_id FROM participant_guardians pg
-          JOIN guardian_users gu ON pg.guardian_id = gu.guardian_id
-          WHERE pg.participant_id = $1 AND gu.user_id = $2 AND pg.guardian_id = $3`,
-      [participant_id, req.user.id, guardian_id]
-    );
-
-    const isParent = parentCheck.rowCount > 0;
-    if (!isParent) {
-      const authAdmin = await verifyOrganizationMembership(pool, req.user.id, organizationId, { requiredPermissions: MEDICATION_MANAGE_PERMISSIONS });
-      if (!authAdmin.authorized) {
-        return error(res, 'Unauthorized to save for this participant/guardian', 403);
-      }
-    }
 
     if (!(await areUnitLeaders(pool, organizationId, [admin_user_id_1, admin_user_id_2]))) {
       return error(res, 'Medication may only be entrusted to leaders of this unit', 400);

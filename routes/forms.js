@@ -9,17 +9,17 @@
 
 const express = require('express');
 const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope, requireAnyPermission, requirePermission } = require('../middleware/auth');
-const { success, error, asyncHandler } = require('../middleware/response');
+const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const { findRolesInUnit } = require('../services/roleAssignment');
 
 // Import utilities
-const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership, getFormPermissionsForRoles, checkFormPermission } = require('../utils/api-helpers');
+const { handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { FORM_READ_PERMISSIONS, resolveFormSubmission, requireFormPermission } = require('../middleware/formAuthorization');
 
 /** Largest value of a PostgreSQL integer column. */
 const MAX_INTEGER_ID = 2147483647;
 
 /** Unit-wide permissions that open any form's submissions for reading. */
-const FORM_READ_PERMISSIONS = ['forms.view', 'forms.submit', 'forms.manage'];
 
 /** Unit-wide permission that sets any submission's review status. */
 const FORM_APPROVE_PERMISSIONS = ['forms.manage'];
@@ -50,7 +50,6 @@ module.exports = (pool, logger) => {
     }
   };
 
-
   /**
    * Resolve an enrolled participant for a form request while respecting the
    * authenticated user's organization or participant-level data scope.
@@ -78,7 +77,7 @@ module.exports = (pool, logger) => {
       [participantId, organizationId, hasOrganizationScope, req.user.id],
     );
 
-    if (!result.rows[0]) return null;
+    if (!result.rows[0]) {return null;}
     return { organizationId, scoutYearId: result.rows[0].scout_year_id };
   };
 
@@ -109,120 +108,25 @@ module.exports = (pool, logger) => {
    * (a role with organization scope) reaches every child there; an account
    * limited to its own children reaches only the children linked to it.
    *
-   * @param {string} userId - Acting user (UUID)
-   * @param {number} organizationId - Unit
+   * @param {Object} req - Authenticated request
    * @param {number} participantId - Participant
    * @returns {Promise<boolean>} True when the account reaches the child
    */
-  const mayReachParticipant = async (userId, organizationId, participantId) => {
+  const mayReachParticipant = async (req, participantId) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const wholeUnit = await getUserDataScope(req, pool) === 'organization';
     const result = await pool.query(
       `SELECT EXISTS (
-                SELECT 1 FROM participant_enrollments pe
-                 WHERE pe.participant_id = $1 AND pe.organization_id = $2
-                   AND pe.status = 'active'
-              )
-          AND (
-                EXISTS (
-                  SELECT 1
-                    FROM user_organizations uo
-                    CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
-                    JOIN roles r ON r.id = role_id_text::integer
-                   WHERE uo.user_id = $3 AND uo.organization_id = $2
-                     AND uo.status = 'active'
-                     AND r.data_scope = 'organization'
-                )
-                OR EXISTS (
-                  SELECT 1 FROM user_participants up
-                   WHERE up.user_id = $3 AND up.participant_id = $1
-                )
-              ) AS reachable`,
-      [participantId, organizationId, userId]
+         SELECT 1 FROM participant_enrollments
+          WHERE participant_id = $1 AND organization_id = $2 AND status = 'active'
+       ) AND ($4::boolean OR EXISTS (
+         SELECT 1 FROM user_participants WHERE participant_id = $1 AND user_id = $3
+       )) AS reachable`,
+      [participantId, organizationId, req.user.id, wholeUnit]
     );
     return result.rows[0]?.reachable === true;
   };
 
-  /**
-   * Whether an account sees the whole unit: a role with organization scope
-   * in an active membership.
-   *
-   * @param {string} userId - Acting user (UUID)
-   * @param {number} organizationId - Unit
-   * @returns {Promise<boolean>} True when it does
-   */
-  const seesWholeUnit = async (userId, organizationId) => {
-    const result = await pool.query(
-      `SELECT 1
-         FROM user_organizations uo
-         CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
-         JOIN roles r ON r.id = role_id_text::integer
-        WHERE uo.user_id = $1 AND uo.organization_id = $2
-          AND uo.status = 'active'
-          AND r.data_scope = 'organization'
-        LIMIT 1`,
-      [userId, organizationId]
-    );
-    return result.rows.length > 0;
-  };
-
-  /**
-   * Whether an account may read submissions of a form type: a unit-wide forms
-   * permission, or the view right the unit gave one of its roles on that form
-   * type -- the same per-form rights that let it save the form.
-   *
-   * @param {string} userId - Acting user (UUID)
-   * @param {number} organizationId - Unit
-   * @param {string[]} roleNames - The account's role names in the unit
-   * @param {string} formType - Form type
-   * @returns {Promise<boolean>} True when it may
-   */
-  const mayReadFormType = async (userId, organizationId, roleNames, formType) => (
-    await holdsAnyPermission(userId, organizationId, FORM_READ_PERMISSIONS)
-    || checkFormPermission(pool, organizationId, roleNames, formType, 'view')
-  );
-
-  /**
-   * Whether an account holds any of the given permissions in a unit, through
-   * an active membership.
-   *
-   * @param {string} userId - Acting user (UUID)
-   * @param {number} organizationId - Unit
-   * @param {string[]} permissionKeys - Permissions, any of which will do
-   * @returns {Promise<boolean>} True when one is held
-   */
-  const holdsAnyPermission = async (userId, organizationId, permissionKeys) => {
-    const result = await pool.query(
-      `SELECT 1
-         FROM user_organizations uo
-         CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
-         JOIN role_permissions rp ON rp.role_id = role_id_text::integer
-         JOIN permissions p ON p.id = rp.permission_id
-        WHERE uo.user_id = $1 AND uo.organization_id = $2
-          AND uo.status = 'active'
-          AND p.permission_key = ANY($3::text[])
-        LIMIT 1`,
-      [userId, organizationId, permissionKeys]
-    );
-    return result.rows.length > 0;
-  };
-
-  /**
-   * Refuse a request on a form type the account holds no right on.
-   *
-   * @param {Object} res - Express response
-   * @param {string} action - 'view' or 'approve'
-   * @returns {Object} The 403 response, naming the unit-wide permissions that would do
-   */
-  const refuseFormType = (res, action) => {
-    const permissions = action === 'approve' ? FORM_APPROVE_PERMISSIONS : FORM_READ_PERMISSIONS;
-    return res.status(403).json({
-      success: false,
-      message: `You do not have permission to ${action} this form type`,
-      required: permissions,
-      missing: permissions
-    });
-  };
-
-  // Compatibility REST endpoints used by comprehensive API tests
   router.get('/', authenticate, requireAnyPermission('forms.view', 'forms.manage'), asyncHandler(async (req, res) => {
     try {
       const organizationId = await getOrganizationId(req, pool);
@@ -269,16 +173,10 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/types', authenticate, asyncHandler(async (req, res) => {
+  router.get('/types', authenticate, requirePermission(), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const organizationId = await getOrganizationId(req, pool);
 
       const result = await pool.query(
         "SELECT DISTINCT form_type FROM organization_form_formats WHERE organization_id = $1 AND display_type = 'public' ORDER BY form_type",
@@ -319,7 +217,7 @@ module.exports = (pool, logger) => {
       );
 
       if (!result.rows[0]) {
-        return error(res, 'Forbidden', 403);
+        return forbidden(res, 'Forbidden');
       }
 
       return success(res, {
@@ -354,22 +252,12 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/formats', authenticate, asyncHandler(async (req, res) => {
+  router.get('/formats', authenticate, requirePermission(), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const organizationId = await getOrganizationId(req, pool);
 
       // Verify user belongs to this organization and get their roles
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
 
       // Get context filter from query parameter
       const { context } = req.query;
@@ -388,8 +276,7 @@ module.exports = (pool, logger) => {
       const result = await pool.query(query, params);
 
       // Get form permissions for user's roles
-      const userRoles = authCheck.roles || [];
-      const formPermissions = await getFormPermissionsForRoles(pool, organizationId, userRoles);
+      const formPermissions = req.formPermissions;
 
       // Transform and filter the data based on permissions
       const formatsObject = {};
@@ -451,22 +338,12 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Access denied
    */
-  router.get('/submissions', authenticate, asyncHandler(async (req, res) => {
+  router.get('/submissions', authenticate, requirePermission(), requireFormPermission(pool, { formType: (req) => req.query.form_type, actions: ['view'], globalPermissions: FORM_READ_PERMISSIONS }), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const organizationId = await getOrganizationId(req, pool);
 
       // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
 
       const { form_type } = req.query;
       const participant_id = parseIntegerId(req.query.participant_id);
@@ -475,12 +352,8 @@ module.exports = (pool, logger) => {
         return res.status(400).json({ success: false, message: 'Participant ID and form_type are required' });
       }
 
-      if (!(await mayReadFormType(decoded.user_id, organizationId, authCheck.roles || [], form_type))) {
-        return refuseFormType(res, 'view');
-      }
-
-      if (!(await mayReachParticipant(decoded.user_id, organizationId, participant_id))) {
-        return res.status(403).json({ success: false, message: 'Access denied to this participant' });
+      if (!(await mayReachParticipant(req, participant_id))) {
+        return forbidden(res, 'Access denied to this participant');
       }
 
       // Get form submission with participant basic information
@@ -599,8 +472,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Submissions waiting for a review
    */
-  router.get('/submissions/needs-review', authenticate,
-    asyncHandler(async (req, res) => {
+  router.get('/submissions/needs-review', authenticate, requirePermission(), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const dataScope = await getUserDataScope(req, pool);
     const isStaff = dataScope === 'organization';
@@ -608,9 +480,9 @@ module.exports = (pool, logger) => {
     // A unit-wide forms permission covers every form type; otherwise, only the
     // form types the unit let one of the account's roles view.
     let viewableTypes = null;
-    if (!(await holdsAnyPermission(req.user.id, organizationId, FORM_READ_PERMISSIONS))) {
-      const membership = await verifyOrganizationMembership(pool, req.user.id, organizationId);
-      const formRights = await getFormPermissionsForRoles(pool, organizationId, membership.roles || []);
+    if (!(FORM_READ_PERMISSIONS.some((key) => req.userPermissions.includes(key)))) {
+
+      const formRights = req.formPermissions;
       viewableTypes = Object.keys(formRights).filter((formType) => formRights[formType].can_view);
     }
 
@@ -642,7 +514,7 @@ module.exports = (pool, logger) => {
     );
 
     return success(res, result.rows);
-    }));
+  }));
 
   /**
    * @swagger
@@ -664,8 +536,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Submission not found
    */
-  router.post('/submissions/:submissionId/confirm-review', authenticate, blockDemoRoles,
-    asyncHandler(async (req, res) => {
+  router.post('/submissions/:submissionId/confirm-review', authenticate, blockDemoRoles, requirePermission(), resolveFormSubmission(pool, (req) => req.params.submissionId), requireFormPermission(pool, { formType: (req) => req.formSubmission.form_type, actions: ['edit', 'submit'], familyReview: true }), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const submissionId = parseIntegerId(req.params.submissionId);
 
@@ -673,50 +544,9 @@ module.exports = (pool, logger) => {
       return error(res, 'Invalid submission identifier', 400);
     }
 
-    const existing = await pool.query(
-      'SELECT id, participant_id, form_type FROM form_submissions WHERE id = $1 AND organization_id = $2',
-      [submissionId, organizationId]
-    );
-
-    if (existing.rows.length === 0) {
-      return error(res, 'Form submission not found', 404);
-    }
-
-    const { participant_id: participantId, form_type: formType } = existing.rows[0];
-    const dataScope = await getUserDataScope(req, pool);
-
-    if (dataScope === 'organization') {
-      // Organization scope alone is not authority over a form: without this
-      // check, any organization-scoped role could clear the review flag of any
-      // participant and record itself as the reviewer.
-      const membership = await verifyOrganizationMembership(pool, req.user.id, organizationId);
-      const userRoles = membership.roles || [];
-      const canEdit = await checkFormPermission(pool, organizationId, userRoles, formType, 'edit');
-      const canSubmit = await checkFormPermission(pool, organizationId, userRoles, formType, 'submit');
-
-      if (!canEdit && !canSubmit) {
-        return error(res, 'You do not have permission to review this form type', 403);
-      }
-    } else {
-      // A family confirms its own children's forms, on a form type it may
-      // fill: a unit-wide forms permission, or the submit or edit right the
-      // unit gave one of its roles on that form.
-      const membership = await verifyOrganizationMembership(pool, req.user.id, organizationId);
-      const userRoles = membership.roles || [];
-      const mayConfirm = await holdsAnyPermission(req.user.id, organizationId, FORM_READ_PERMISSIONS)
-        || await checkFormPermission(pool, organizationId, userRoles, formType, 'submit')
-        || await checkFormPermission(pool, organizationId, userRoles, formType, 'edit');
-      if (!mayConfirm) {
-        return error(res, 'You do not have permission to review this form type', 403);
-      }
-
-      const accessCheck = await pool.query(
-        'SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2',
-        [req.user.id, participantId]
-      );
-      if (accessCheck.rows.length === 0) {
-        return error(res, 'Access denied to this participant', 403);
-      }
+    const { participant_id: participantId } = req.formSubmission;
+    if (!(await mayReachParticipant(req, participantId))) {
+      return forbidden(res, 'Access denied to this participant');
     }
 
     const result = await pool.query(
@@ -733,24 +563,14 @@ module.exports = (pool, logger) => {
     logger.info(`Form submission ${submissionId} confirmed as reviewed by ${req.user.id}`);
 
     return success(res, result.rows[0], 'Form confirmed as up to date');
-    }));
+  }));
 
-  router.post('/submissions', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.post('/submissions', authenticate, blockDemoRoles, requirePermission(), requireFormPermission(pool, { formType: (req) => req.body?.form_type, actions: ['submit', 'edit'] }), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const organizationId = await getOrganizationId(req, pool);
 
       // Verify user belongs to this organization and get their roles
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
 
       const { form_type, submission_data, status } = req.body;
       const participant_id = parseIntegerId(req.body.participant_id);
@@ -759,22 +579,10 @@ module.exports = (pool, logger) => {
         return res.status(400).json({ success: false, message: 'Participant ID, form_type, and submission_data are required' });
       }
 
-      // Check if user has permission to submit/edit this form type
-      const userRoles = authCheck.roles || [];
-      const canSubmit = await checkFormPermission(pool, organizationId, userRoles, form_type, 'submit');
-      const canEdit = await checkFormPermission(pool, organizationId, userRoles, form_type, 'edit');
-
-      if (!canSubmit && !canEdit) {
-        return res.status(403).json({
-          success: false,
-          message: 'You do not have permission to submit or edit this form type'
-        });
-      }
-
       // The right to fill a form type is not a right over every child's copy:
       // a family writes only the forms of its own children.
-      if (!(await mayReachParticipant(decoded.user_id, organizationId, participant_id))) {
-        return res.status(403).json({ success: false, message: 'Access denied to this participant' });
+      if (!(await mayReachParticipant(req, participant_id))) {
+        return forbidden(res, 'Access denied to this participant');
       }
 
       const client = await pool.connect();
@@ -824,7 +632,7 @@ module.exports = (pool, logger) => {
                  last_reviewed_by = $2::uuid
              WHERE participant_id = $7 AND organization_id = $8 AND form_type = $9
              RETURNING *`,
-            [JSON.stringify(submission_data), decoded.user_id, formVersionId, submissionStatus,
+            [JSON.stringify(submission_data), req.user.id, formVersionId, submissionStatus,
               ipAddress, userAgent, participant_id, organizationId, form_type]
           );
         } else {
@@ -837,7 +645,7 @@ module.exports = (pool, logger) => {
                      CASE WHEN $7::varchar = 'submitted' THEN NOW() ELSE NULL END, $8, $9)
              RETURNING *`,
             [participant_id, organizationId, form_type, JSON.stringify(submission_data),
-              decoded.user_id, formVersionId, submissionStatus, ipAddress, userAgent]
+              req.user.id, formVersionId, submissionStatus, ipAddress, userAgent]
           );
         }
 
@@ -878,21 +686,10 @@ module.exports = (pool, logger) => {
    *     security:
    *       - bearerAuth: []
    */
-  router.delete('/submissions', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.delete('/submissions', authenticate, blockDemoRoles, requirePermission(), requireFormPermission(pool, { formType: (req) => req.query.form_type || req.body?.form_type, actions: ['edit'] }), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
+      const organizationId = await getOrganizationId(req, pool);
 
       const form_type = req.query.form_type || req.body?.form_type;
       const participant_id = parseIntegerId(req.query.participant_id || req.body?.participant_id);
@@ -901,18 +698,8 @@ module.exports = (pool, logger) => {
         return res.status(400).json({ success: false, message: 'Participant ID and form_type are required' });
       }
 
-      const userRoles = authCheck.roles || [];
-      const canManage = await checkFormPermission(pool, organizationId, userRoles, form_type, 'edit');
-
-      if (!canManage) {
-        return res.status(403).json({
-          success: false,
-          message: 'You do not have permission to delete this form type'
-        });
-      }
-
-      if (!(await mayReachParticipant(decoded.user_id, organizationId, participant_id))) {
-        return res.status(403).json({ success: false, message: 'Access denied to this participant' });
+      if (!(await mayReachParticipant(req, participant_id))) {
+        return forbidden(res, 'Access denied to this participant');
       }
 
       const client = await pool.connect();
@@ -972,14 +759,10 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Form structure not found
    */
-  router.get('/structure/:form_type', authenticate, asyncHandler(async (req, res) => {
+  router.get('/structure/:form_type', authenticate, requirePermission(), requireFormPermission(pool, {
+    formType: (req) => req.params.form_type, actions: ['view'], globalPermissions: FORM_READ_PERMISSIONS,
+  }), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
 
       const { form_type } = req.params;
 
@@ -987,10 +770,10 @@ module.exports = (pool, logger) => {
         return res.status(400).json({ success: false, message: 'Form type is required' });
       }
 
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const organizationId = await getOrganizationId(req, pool);
 
       const result = await pool.query(
-        "SELECT form_structure FROM organization_form_formats WHERE form_type = $1 AND organization_id = $2",
+        'SELECT form_structure FROM organization_form_formats WHERE form_type = $1 AND organization_id = $2',
         [form_type, organizationId]
       );
 
@@ -1042,14 +825,8 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: No submission data found
    */
-  router.get('/submissions/list', authenticate, asyncHandler(async (req, res) => {
+  router.get('/submissions/list', authenticate, requirePermission(), requireFormPermission(pool, { formType: (req) => req.query.form_type, actions: ['view'], globalPermissions: FORM_READ_PERMISSIONS }), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
 
       const { form_type } = req.query;
       const hasParticipant = req.query.participant_id !== undefined;
@@ -1062,23 +839,15 @@ module.exports = (pool, logger) => {
         return res.status(400).json({ success: false, message: 'Invalid participant ID' });
       }
 
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
-      if (!(await mayReadFormType(decoded.user_id, organizationId, authCheck.roles || [], form_type))) {
-        return refuseFormType(res, 'view');
-      }
+      const organizationId = await getOrganizationId(req, pool);
 
       if (participant_id) {
-        if (!(await mayReachParticipant(decoded.user_id, organizationId, participant_id))) {
-          return res.status(403).json({ success: false, message: 'Access denied to this participant' });
+        if (!(await mayReachParticipant(req, participant_id))) {
+          return forbidden(res, 'Access denied to this participant');
         }
 
         const result = await pool.query(
-          "SELECT submission_data FROM form_submissions WHERE participant_id = $1 AND form_type = $2 AND organization_id = $3",
+          'SELECT submission_data FROM form_submissions WHERE participant_id = $1 AND form_type = $2 AND organization_id = $3',
           [participant_id, form_type, organizationId]
         );
 
@@ -1094,7 +863,7 @@ module.exports = (pool, logger) => {
       } else {
         // The unit's list, or only the account's own children when it does
         // not see the whole unit.
-        const unitWide = await seesWholeUnit(decoded.user_id, organizationId);
+        const unitWide = await getUserDataScope(req, pool) === 'organization';
         const result = await pool.query(
           `SELECT fs.participant_id, fs.submission_data, p.first_name, p.last_name
            FROM form_submissions fs
@@ -1107,7 +876,7 @@ module.exports = (pool, logger) => {
                     WHERE up.user_id = $4 AND up.participant_id = fs.participant_id
                  ))
            ORDER BY p.first_name, p.last_name`,
-          [organizationId, form_type, unitWide, decoded.user_id]
+          [organizationId, form_type, unitWide, req.user.id]
         );
 
         res.json({
@@ -1156,7 +925,9 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Risk acceptance not found
    */
-  router.get('/risk-acceptance', authenticate, asyncHandler(async (req, res) => {
+  router.get('/risk-acceptance', authenticate, requirePermission(), requireFormPermission(pool, {
+    formType: () => 'acceptation_risque', actions: ['view'], globalPermissions: FORM_READ_PERMISSIONS,
+  }), asyncHandler(async (req, res) => {
     try {
       const participantId = Number(req.query.participant_id);
       if (!Number.isSafeInteger(participantId) || participantId <= 0) {
@@ -1164,7 +935,7 @@ module.exports = (pool, logger) => {
       }
 
       const access = await resolveParticipantFormAccess(req, participantId);
-      if (!access) return error(res, 'Risk acceptance not found', 404);
+      if (!access) {return error(res, 'Risk acceptance not found', 404);}
 
       const result = await pool.query(
         `SELECT submission_data
@@ -1238,7 +1009,9 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.post('/risk-acceptance', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.post('/risk-acceptance', authenticate, blockDemoRoles, requirePermission(), requireFormPermission(pool, {
+    formType: () => 'acceptation_risque', actions: ['submit', 'edit'], globalPermissions: ['forms.submit', 'forms.manage'],
+  }), asyncHandler(async (req, res) => {
     try {
       // The COVID-19, fourteen-day-symptom and travel-outside-Canada
       // declarations were dropped when this form was aligned with the current
@@ -1259,7 +1032,7 @@ module.exports = (pool, logger) => {
       }
 
       const access = await resolveParticipantFormAccess(req, participantId);
-      if (!access) return error(res, 'Risk acceptance not found', 404);
+      if (!access) {return error(res, 'Risk acceptance not found', 404);}
 
       const submissionData = {
         participant_id: participantId,
@@ -1322,46 +1095,20 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Access denied
    */
-  router.get('/form-submission-history/:submissionId', authenticate, asyncHandler(async (req, res) => {
+  router.get('/form-submission-history/:submissionId', authenticate, requirePermission(), resolveFormSubmission(pool, (req) => req.params.submissionId), requireFormPermission(pool, { formType: (req) => req.formSubmission.form_type, actions: ['view'], globalPermissions: FORM_READ_PERMISSIONS }), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const organizationId = await getOrganizationId(req, pool);
       const submissionId = parseIntegerId(req.params.submissionId);
       if (!submissionId) {
         return res.status(400).json({ success: false, message: 'Invalid submission ID' });
       }
 
       // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
 
-      // Verify the submission belongs to this organization
-      const submissionCheck = await pool.query(
-        'SELECT organization_id, participant_id, form_type FROM form_submissions WHERE id = $1',
-        [submissionId]
-      );
-
-      if (submissionCheck.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Submission not found' });
-      }
-
-      const submission = submissionCheck.rows[0];
-      if (submission.organization_id !== organizationId) {
-        return res.status(403).json({ success: false, message: 'Access denied to this submission' });
-      }
-      if (!(await mayReadFormType(decoded.user_id, organizationId, authCheck.roles || [], submission.form_type))) {
-        return refuseFormType(res, 'view');
-      }
-      if (!(await mayReachParticipant(decoded.user_id, organizationId, submission.participant_id))) {
-        return res.status(403).json({ success: false, message: 'Access denied to this participant' });
+      const submission = req.formSubmission;
+      if (!(await mayReachParticipant(req, submission.participant_id))) {
+        return forbidden(res, 'Access denied to this participant');
       }
 
       // Get the history
@@ -1424,22 +1171,12 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.put('/form-submission-status', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.put('/form-submission-status', authenticate, blockDemoRoles, requirePermission(), resolveFormSubmission(pool, (req) => req.body?.submission_id), requireFormPermission(pool, { formType: (req) => req.formSubmission.form_type, actions: ['approve'], globalPermissions: FORM_APPROVE_PERMISSIONS }), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const organizationId = await getOrganizationId(req, pool);
 
       // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
 
       const { submission_id, status, review_notes } = req.body;
 
@@ -1458,24 +1195,9 @@ module.exports = (pool, logger) => {
         return res.status(400).json({ success: false, message: 'Invalid submission ID' });
       }
 
-      const existing = await pool.query(
-        'SELECT participant_id, form_type FROM form_submissions WHERE id = $1 AND organization_id = $2',
-        [submissionId, organizationId]
-      );
-      if (existing.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Submission not found' });
-      }
-
-      // Setting a review status is a reviewer's act: forms.manage, or the
-      // approve right the unit gave one of the account's roles on this form.
-      const { participant_id: participantId, form_type: formType } = existing.rows[0];
-      const mayApprove = await holdsAnyPermission(decoded.user_id, organizationId, FORM_APPROVE_PERMISSIONS)
-        || await checkFormPermission(pool, organizationId, authCheck.roles || [], formType, 'approve');
-      if (!mayApprove) {
-        return refuseFormType(res, 'approve');
-      }
-      if (!(await mayReachParticipant(decoded.user_id, organizationId, participantId))) {
-        return res.status(403).json({ success: false, message: 'Access denied to this participant' });
+      const { participant_id: participantId } = req.formSubmission;
+      if (!(await mayReachParticipant(req, participantId))) {
+        return forbidden(res, 'Access denied to this participant');
       }
 
       const result = await pool.query(
@@ -1487,14 +1209,14 @@ module.exports = (pool, logger) => {
              updated_at = NOW()
          WHERE id = $4 AND organization_id = $5
          RETURNING *`,
-        [status, decoded.user_id, review_notes, submissionId, organizationId]
+        [status, req.user.id, review_notes, submissionId, organizationId]
       );
 
       if (result.rows.length === 0) {
         return res.status(404).json({ success: false, message: 'Submission not found' });
       }
 
-      logger.info(`Form submission ${submission_id} status changed to ${status} by ${decoded.user_id}`);
+      logger.info(`Form submission ${submission_id} status changed to ${status} by ${req.user.id}`);
 
       res.json({
         success: true,
@@ -1532,23 +1254,15 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/form-versions/:formType', authenticate, asyncHandler(async (req, res) => {
+  router.get('/form-versions/:formType', authenticate, requirePermission(), requireFormPermission(pool, {
+    formType: (req) => req.params.formType, actions: ['view'], globalPermissions: FORM_READ_PERMISSIONS,
+  }), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const organizationId = await getOrganizationId(req, pool);
       const formType = req.params.formType;
 
       // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
 
       const result = await pool.query(
         `SELECT
@@ -1600,20 +1314,10 @@ module.exports = (pool, logger) => {
    */
   router.get('/form-permissions', authenticate, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const organizationId = await getOrganizationId(req, pool);
 
       // Verify user belongs to this organization and has admin access
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
 
       // Get all form permissions for this organization (including display_context)
       const result = await pool.query(
@@ -1686,20 +1390,10 @@ module.exports = (pool, logger) => {
    */
   router.put('/form-display-context', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const organizationId = await getOrganizationId(req, pool);
 
       // Verify user belongs to this organization and has admin access
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
 
       const { form_format_id, display_context } = req.body;
 
@@ -1731,7 +1425,7 @@ module.exports = (pool, logger) => {
       }
 
       if (formCheck.rows[0].organization_id !== organizationId) {
-        return res.status(403).json({ success: false, message: 'Access denied to this form' });
+        return forbidden(res, 'Access denied to this form');
       }
 
       // Update the display_context
@@ -1743,7 +1437,7 @@ module.exports = (pool, logger) => {
         [display_context, form_format_id]
       );
 
-      logger.info(`User ${decoded.user_id} updated display context for form ${formCheck.rows[0].form_type}`);
+      logger.info(`User ${req.user.id} updated display context for form ${formCheck.rows[0].form_type}`);
 
       res.json({
         success: true,
@@ -1800,20 +1494,10 @@ module.exports = (pool, logger) => {
    */
   router.put('/form-permissions', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const organizationId = await getOrganizationId(req, pool);
 
       // Verify user belongs to this organization and has admin access
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
 
       const { form_format_id, role_id, can_view, can_submit, can_edit, can_approve } = req.body;
 
@@ -1835,7 +1519,7 @@ module.exports = (pool, logger) => {
       }
 
       if (formCheck.rows[0].organization_id !== organizationId) {
-        return res.status(403).json({ success: false, message: 'Access denied to this form' });
+        return forbidden(res, 'Access denied to this form');
       }
 
       // The role must be one this unit may use.
@@ -1857,7 +1541,7 @@ module.exports = (pool, logger) => {
         [form_format_id, role_id, can_view || false, can_submit || false, can_edit || false, can_approve || false]
       );
 
-      logger.info(`User ${decoded.user_id} updated form permissions for form ${form_format_id} and role ${role_id}`);
+      logger.info(`User ${req.user.id} updated form permissions for form ${form_format_id} and role ${role_id}`);
 
       res.json({
         success: true,
@@ -1939,7 +1623,7 @@ module.exports = (pool, logger) => {
         );
 
         if (childAccess.rows.length === 0) {
-          return error(res, 'Access denied', 403);
+          return forbidden(res, 'Access denied');
         }
       }
 

@@ -1,6 +1,7 @@
+const { authenticate, blockDemoRoles, requirePermission, getOrganizationId } = require('../middleware/auth');
 const express = require('express');
 const { checkRolesGrantable } = require('../services/roleAssignment');
-const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { asyncHandler, error: errorResponse } = require('../middleware/response');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 const { ACCESS_SOURCE, grantParticipantAccess } = require('../services/participantAccess');
@@ -17,7 +18,7 @@ module.exports = function (pool, logger) {
   };
 
   function parseDate(dateStr) {
-    if (!dateStr || dateStr.length !== 8) return null;
+    if (!dateStr || dateStr.length !== 8) {return null;}
     const year = dateStr.substring(0, 4);
     const month = dateStr.substring(4, 6);
     const day = dateStr.substring(6, 8);
@@ -25,7 +26,7 @@ module.exports = function (pool, logger) {
   }
 
   function cleanPhone(phone) {
-    if (!phone) return null;
+    if (!phone) {return null;}
     return phone.replace(/[^0-9]/g, '');
   }
 
@@ -49,7 +50,7 @@ module.exports = function (pool, logger) {
     return result;
   }
 
-  router.post('/sisc', asyncHandler(async (req, res) => {
+  router.post('/sisc', authenticate, blockDemoRoles, requirePermission(['org.edit']), asyncHandler(async (req, res) => {
     logger.info('Starting SISC import...');
     logger.info('Database pool config:', {
       host: pool.options?.host || 'default',
@@ -61,21 +62,8 @@ module.exports = function (pool, logger) {
     logger.info('Database client connected successfully');
 
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, {
-        requiredPermissions: ['org.edit'],
-      });
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: 'Admin access required' });
-      }
+      const organizationId = await getOrganizationId(req, pool);
 
       const { csvContent } = req.body;
       if (!csvContent) {
@@ -102,7 +90,7 @@ module.exports = function (pool, logger) {
       logger.info(`Organization ${organizationId} has form types: ${orgFormTypes.join(', ')}`);
 
       // Mapping of SISC CSV fields to form submission data by form type
-      // SISC columns: nom, prenom, naissance, sexe, adresse, ville, province, code_postal, 
+      // SISC columns: nom, prenom, naissance, sexe, adresse, ville, province, code_postal,
       // courriel, tel_res, tel_tra, tel_autre, totem, ecole, annees_scoutes, photos, quitter
       const buildFormData = (get, formType) => {
         const firstName = get('prenom');
@@ -190,8 +178,8 @@ module.exports = function (pool, logger) {
           throw new Error(`Role '${roleName}' not found in roles table`);
         }
       }
-      const animationGrant = await checkRolesGrantable(client, [importRoleIds.animation], authCheck.permissions);
-      const parentGrant = await checkRolesGrantable(client, [importRoleIds.parent], authCheck.permissions);
+      const animationGrant = await checkRolesGrantable(client, [importRoleIds.animation], req.userPermissions);
+      const parentGrant = await checkRolesGrantable(client, [importRoleIds.parent], req.userPermissions);
       const cannotGrant = (roleName, grant) => (
         `You cannot grant the ${roleName} role: it carries ${grant.missing.join(', ')}, which you do not hold`
       );
@@ -274,8 +262,8 @@ module.exports = function (pool, logger) {
           const existingParticipant = await client.query(
             `SELECT p.id FROM participants p
              JOIN participant_organizations po ON p.id = po.participant_id
-             WHERE LOWER(p.first_name) = LOWER($1) 
-             AND LOWER(p.last_name) = LOWER($2) 
+             WHERE LOWER(p.first_name) = LOWER($1)
+             AND LOWER(p.last_name) = LOWER($2)
              AND (p.date_naissance IS NOT DISTINCT FROM $3)
              AND po.organization_id = $4`,
             [firstName, lastName, birthDate, organizationId]
@@ -309,7 +297,7 @@ module.exports = function (pool, logger) {
 
             // Check if submission already exists for this participant/form type
             const existingSubmission = await client.query(
-              `SELECT id FROM form_submissions 
+              `SELECT id FROM form_submissions
                WHERE participant_id = $1 AND organization_id = $2 AND form_type = $3`,
               [participantId, organizationId, formType]
             );
@@ -336,7 +324,7 @@ module.exports = function (pool, logger) {
           if (!orgFormTypes.includes('participant_registration') && !orgFormTypes.includes('inscription')) {
             const regData = buildFormData(get, 'participant_registration');
             const existingReg = await client.query(
-              `SELECT id FROM form_submissions 
+              `SELECT id FROM form_submissions
                WHERE participant_id = $1 AND organization_id = $2 AND form_type = 'participant_registration'`,
               [participantId, organizationId]
             );
@@ -358,7 +346,7 @@ module.exports = function (pool, logger) {
             const gLienRaw = get(`${prefix}lien`);
             const gLien = RELATIONSHIP_MAP[gLienRaw] || gLienRaw || 'Autre';
 
-            if (!gNom && !gPrenom) continue;
+            if (!gNom && !gPrenom) {continue;}
 
             let guardianId;
             let existingGuardian = null;
@@ -372,7 +360,7 @@ module.exports = function (pool, logger) {
 
             if (!existingGuardian?.rows?.length && gNom && gPrenom) {
               existingGuardian = await client.query(
-                `SELECT id FROM parents_guardians 
+                `SELECT id FROM parents_guardians
                  WHERE LOWER(nom) = LOWER($1) AND LOWER(prenom) = LOWER($2)`,
                 [gNom, gPrenom]
               );
@@ -498,8 +486,8 @@ module.exports = function (pool, logger) {
       const verification = {};
       try {
         const participantCount = await pool.query(
-          `SELECT COUNT(*) as count FROM participants p 
-           JOIN participant_organizations po ON p.id = po.participant_id 
+          `SELECT COUNT(*) as count FROM participants p
+           JOIN participant_organizations po ON p.id = po.participant_id
            WHERE po.organization_id = $1`,
           [organizationId]
         );

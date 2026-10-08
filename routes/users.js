@@ -22,7 +22,7 @@ const { listUnitLeaders } = require('../services/unitLeaders');
 const { checkRoleChange, findRolesInUnit, normalizeRoleIds } = require('../services/roleAssignment');
 
 // Import utilities
-const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 
 /**
  * Export route factory function

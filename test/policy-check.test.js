@@ -105,6 +105,9 @@ describe('manual-auth', () => {
   test('flags hand-rolled token and membership checks in routes', () => {
     writeSource('routes/sample.js', [
       'const payload = verifyJWT(token);',
+      'const user = getUserIdFromToken(token);',
+      'const form = await checkFormPermission(pool, org, roles, type);',
+      'const rights = await getFormPermissionsForRoles(pool, org, roles);',
       'const ok = await verifyOrganizationMembership(pool, id, org, {});',
       'const org = await getCurrentOrganizationId(req, pool, logger);',
     ].join('\n'));
@@ -112,7 +115,7 @@ describe('manual-auth', () => {
     const { status, output } = runPolicy('manual-auth');
 
     expect(status).toBe(1);
-    expect(output).toContain('3 found, 0 allowed');
+    expect(output).toContain('6 found, 0 allowed');
   });
 });
 

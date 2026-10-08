@@ -1,3 +1,4 @@
+const { adaptAuthorizationMock } = require('./mock-helpers');
 /**
  * Tenant and role-escalation guards on user and role management.
  *
@@ -68,6 +69,7 @@ function mockDatabase({ permissions, handle = () => undefined }) {
   };
   __mPool.query.mockImplementation(respond);
   __mClient.query.mockImplementation(respond);
+  adaptAuthorizationMock(__mPool);
 }
 
 beforeAll(() => {

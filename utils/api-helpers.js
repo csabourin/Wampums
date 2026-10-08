@@ -91,44 +91,20 @@ function handleOrganizationResolutionError(res, error, loggerInstance = logger) 
 /**
  * Get current organization ID from request
  * Tries multiple sources in priority order:
- * 1. Authenticated JWT claim (a differing x-organization-id is ignored)
- * 2. x-organization-id header for unauthenticated requests, if the tenant exists
- * 3. Domain mapping from database
- * 4. Throws when no organization mapping is available
+ * 1. Validated public organization header
+ * 2. Domain mapping (or local development fallback)
+ * 3. Throws when no public organization mapping is available
+ * This helper never reads credentials. Protected routes use middleware/auth.getOrganizationId.
  *
  * @param {Object} req - Express request object
  * @param {Object} pool - Database pool
  * @param {Object} logger - Winston logger instance
- * @param {Object} [options] - Organization resolution options
- * @param {boolean} [options.allowAuthentication=true] - Whether JWT claims may select the organization
  * @returns {Promise<number>} Organization ID
  *
  * @example
  * const organizationId = await getCurrentOrganizationId(req, pool, logger);
  */
-async function getCurrentOrganizationId(req, pool, logger, { allowAuthentication = true } = {}) {
-  // Authenticated requests are scoped to the organization signed into the JWT,
-  // matching getOrganizationId in middleware/auth.js. requirePermission checks
-  // permissions in that organization, so honouring a header here would let a
-  // handler act in a tenant the caller's permissions were never checked in.
-  // Switching organizations goes through POST /api/v1/organizations/switch.
-  const bearerToken = req.headers.authorization?.split(' ')[1];
-  if (allowAuthentication && bearerToken) {
-    try {
-      const decoded = verifyJWTToken(bearerToken);
-      const tokenOrganizationId = parseInt(decoded?.organizationId ?? decoded?.organization_id, 10);
-      if (!Number.isNaN(tokenOrganizationId)) {
-        const headerOrganizationId = parseInt(req.headers['x-organization-id'], 10);
-        if (!Number.isNaN(headerOrganizationId) && headerOrganizationId !== tokenOrganizationId) {
-          logger?.warn(`Ignoring organization header override for authenticated request. Header=${headerOrganizationId}, Token=${tokenOrganizationId}, User=${decoded.user_id}`);
-        }
-        return tokenOrganizationId;
-      }
-    } catch {
-      // Ignore token parsing errors here; endpoint-specific auth will handle invalid JWTs.
-    }
-  }
-
+async function getCurrentOrganizationId(req, pool, logger) {
   // Unauthenticated requests may identify the organization via header, but a
   // stale browser cache must not be allowed to select a tenant that no longer
   // exists. This commonly happens after rebuilding a local database.
@@ -307,10 +283,10 @@ function calculateAttendancePoints(previousStatus, newStatus, rules) {
   // Rules may store either a plain number ({present: 1}) or an object
   // ({present: {label, points: 1}}) depending on where they were saved from.
   const getStatusPoints = (status) => {
-    if (!status) return 0;
+    if (!status) {return 0;}
     const rule = attendanceRules[status];
-    if (typeof rule === 'number') return rule;
-    if (rule && typeof rule.points === 'number') return rule.points;
+    if (typeof rule === 'number') {return rule;}
+    if (rule && typeof rule.points === 'number') {return rule.points;}
     return 0;
   };
 
@@ -337,102 +313,6 @@ function jsonResponse(res, success, data = null, message = '') {
     data,
     message,
   });
-}
-
-/**
- * Verify user belongs to an organization with required permissions or roles.
- *
- * Regression note: prefer permission keys (e.g., communications.send, org.edit).
- * Legacy role arrays (admin/animation) are mapped to district/leader role names
- * to maintain compatibility with the permission-driven system.
- *
- * @param {Object} pool - Database pool
- * @param {number} userId - User ID
- * @param {number} organizationId - Organization ID
- * @param {Object|Array<string>|null} requirements - Permission/role requirements
- * @param {Array<string>} [requirements.requiredRoles] - Optional role names to allow
- * @param {Array<string>} [requirements.requiredPermissions] - Permission keys the user must have
- * @returns {Promise<Object>} { authorized: boolean, role: string|null, roles: string[], permissions: string[], message?: string }
- */
-async function verifyOrganizationMembership(pool, userId, organizationId, requirements = null) {
-  try {
-    const options = Array.isArray(requirements)
-      ? { requiredRoles: requirements }
-      : (requirements || {});
-
-    const requiredRoles = (options.requiredRoles || []).map((roleName) => {
-      if (roleName === 'admin') return 'district';
-      if (roleName === 'animation') return 'leader';
-      return roleName;
-    });
-
-    const requiredPermissions = options.requiredPermissions || [];
-
-    const membershipResult = await pool.query(
-      `SELECT role_ids
-       FROM user_organizations
-       WHERE user_id = $1 AND organization_id = $2
-         AND status = 'active'`,
-      [userId, organizationId]
-    );
-
-    if (membershipResult.rows.length === 0) {
-      return { authorized: false, role: null, roles: [], permissions: [], message: 'User is not an active member of this organization' };
-    }
-
-    // Resolve role names from role IDs for permission-aware checks
-    const rolesResult = await pool.query(
-      `SELECT DISTINCT r.role_name
-       FROM user_organizations uo
-       CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
-       JOIN roles r ON r.id = role_id_text::integer
-       WHERE uo.user_id = $1 AND uo.organization_id = $2
-         AND uo.status = 'active'`,
-      [userId, organizationId]
-    );
-
-    const resolvedRoles = rolesResult.rows.map((row) => row.role_name);
-    const primaryRole = resolvedRoles[0] || null;
-
-    if (requiredRoles.length) {
-      const hasRole = requiredRoles.some((role) => resolvedRoles.includes(role));
-      if (!hasRole) {
-        return { authorized: false, role: primaryRole, roles: resolvedRoles, permissions: [], message: 'Insufficient permissions' };
-      }
-    }
-
-    let userPermissions = [];
-    if (requiredPermissions.length) {
-      const permissionsResult = await pool.query(
-        `SELECT DISTINCT p.permission_key
-         FROM user_organizations uo
-         CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
-         JOIN role_permissions rp ON rp.role_id = role_id_text::integer
-         JOIN permissions p ON p.id = rp.permission_id
-         WHERE uo.user_id = $1 AND uo.organization_id = $2
-           AND uo.status = 'active'`,
-        [userId, organizationId]
-      );
-
-      userPermissions = permissionsResult.rows.map((row) => row.permission_key);
-
-      const hasAllPermissions = requiredPermissions.every((permission) => userPermissions.includes(permission));
-      if (!hasAllPermissions) {
-        return {
-          authorized: false,
-          role: primaryRole,
-          roles: resolvedRoles,
-          permissions: userPermissions,
-          message: 'Insufficient permissions'
-        };
-      }
-    }
-
-    return { authorized: true, role: primaryRole, roles: resolvedRoles, permissions: userPermissions };
-  } catch (error) {
-    logger.error('Error verifying organization membership:', error);
-    return { authorized: false, role: null, roles: [], permissions: [], message: 'Authorization check failed' };
-  }
 }
 
 /**
@@ -502,7 +382,7 @@ async function getFormPermissionsForRoles(pool, organizationId, userRoles) {
     return permissionsMap;
   } catch (error) {
     logger.error('Error getting form permissions for roles:', error);
-    return {};
+    throw error;
   }
 }
 
@@ -541,7 +421,7 @@ async function checkFormPermission(pool, organizationId, userRoles, formType, pe
     return result.rows[0]?.has_permission || false;
   } catch (error) {
     logger.error('Error checking form permission:', error);
-    return false;
+    throw error;
   }
 }
 
@@ -576,7 +456,6 @@ module.exports = {
   getPointSystemRules,
   calculateAttendancePoints,
   jsonResponse,
-  verifyOrganizationMembership,
   escapeHtml,
   getFormPermissionsForRoles,
   checkFormPermission,

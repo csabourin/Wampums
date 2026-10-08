@@ -59,7 +59,7 @@ const DATE_LOCALES = {
  * @returns {string} Escaped text
  */
 function escapeHtml(text) {
-  if (!text) return '';
+  if (!text) {return '';}
   const map = {
     '&': '&amp;',
     '<': '&lt;',
@@ -554,8 +554,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
         const organizationId = await getCurrentOrganizationId(
           req,
           pool,
-          logger,
-          { allowAuthentication: false }
+          logger
         );
         const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
 

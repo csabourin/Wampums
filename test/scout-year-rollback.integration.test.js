@@ -33,7 +33,7 @@ jest.mock('../middleware/auth', () => {
       req.user = { id: mockContext.userId, roleNames: ['animation'] };
       next();
     },
-    requirePermission: () => (_req, _res, next) => next(),
+    requirePermission: actual.requirePermission,
     authorize: () => (_req, _res, next) => next(),
     blockDemoRoles: (_req, _res, next) => next(),
     getOrganizationId: async () => mockContext.organizationId,
@@ -165,14 +165,15 @@ describe.skipIf(!DATABASE_URL)('Scout year rollback', () => {
     );
 
     // The leader's own membership and permissions are real, not stubbed: the
-    // handlers check them through verifyOrganizationMembership, and a test that
-    // mocked that away would stop proving the endpoints are reachable at all.
+    // shared middleware checks them against the database. The test operator
+    // holds the keys for each lifecycle and reporting API this suite exercises.
     ids.leaderRoleId = await one(
       `INSERT INTO roles (role_name, display_name) VALUES ('animation', 'Animation')
        ON CONFLICT (role_name) DO UPDATE SET display_name = EXCLUDED.display_name
        RETURNING id`
     );
-    for (const permissionKey of ['participants.view', 'participants.edit', 'participants.delete']) {
+    for (const permissionKey of ['participants.view', 'participants.edit', 'participants.delete', 'scout_year.view', 'scout_year.manage',
+      'attendance.view', 'honors.view', 'reports.view']) {
       const permissionId = await one(
         `INSERT INTO permissions (permission_key, permission_name, category)
          VALUES ($1, $1, 'participants')
@@ -357,6 +358,7 @@ describe.skipIf(!DATABASE_URL)('Scout year rollback', () => {
     pool = new Pool({ connectionString: DATABASE_URL });
     app = express();
     app.use(express.json());
+    app.locals.pool = pool;
     app.use('/api/v1/scout-years', require('../routes/scoutYears')(pool, logger));
     app.use('/api/v1/participants', require('../routes/participants')(pool, logger));
     app.use('/api/v1/attendance', require('../routes/attendance')(pool, logger));
@@ -383,7 +385,7 @@ describe.skipIf(!DATABASE_URL)('Scout year rollback', () => {
 
     // The transition did what it says before we undo it.
     expect(await one(
-      "SELECT status FROM participant_enrollments WHERE participant_id = $1 AND scout_year_id = $2",
+      'SELECT status FROM participant_enrollments WHERE participant_id = $1 AND scout_year_id = $2',
       [ids.leavingId, ids.currentYearId]
     )).toBe('graduated');
     expect(await one(

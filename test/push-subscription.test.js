@@ -23,7 +23,7 @@ jest.mock('pg', () => {
 
 let app;
 const { Pool } = require('pg');
-const { setupDefaultMocks } = require('./mock-helpers');
+const { setupDefaultMocks, mockQueryImplementation } = require('./mock-helpers');
 
 beforeAll(() => {
   process.env.JWT_SECRET_KEY = 'testsecret';
@@ -43,6 +43,15 @@ beforeEach(() => {
   __mClient.release.mockClear();
   __mPool.connect.mockClear();
   __mPool.query.mockClear();
+  mockQueryImplementation(__mClient, __mPool, (sql) => {
+    if (sql.includes("r.role_name IN ('demoadmin', 'demoparent')")) {return { rows: [] };}
+    if (sql.includes('SELECT DISTINCT p.permission_key')) {return { rows: [] };}
+    if (sql.includes('SELECT DISTINCT r.role_name')) {
+      return { rows: [{ role_name: 'leader', display_name: 'Leader', data_scope: 'organization' }] };
+    }
+    if (sql.includes('INSERT INTO subscribers')) {return { rows: [] };}
+    return undefined;
+  });
 });
 
 afterEach(() => {
@@ -56,11 +65,6 @@ afterAll((done) => {
 describe('POST /api/v1/notifications/subscription', () => {
   test('saves subscription with authenticated user context', async () => {
     const { __mPool } = require('pg');
-
-    __mPool.query
-      .mockResolvedValueOnce({ rows: [{ role_ids: [1], role: 'leader' }] }) // membership
-      .mockResolvedValueOnce({ rows: [{ role_name: 'leader' }] }) // resolved roles
-      .mockResolvedValueOnce({ rows: [] }); // upsert
 
     const token = jwt.sign({ user_id: 'user-123', organizationId: 5 }, 'testsecret');
 
@@ -100,6 +104,7 @@ describe('POST /api/v1/notifications/subscription', () => {
     expect(res.statusCode).toBe(400);
     expect(res.body.success).toBe(false);
     expect(res.body.message).toMatch(/endpoint.*required|keys.*required/i);
-    expect(__mPool.query).not.toHaveBeenCalled();
+    // Authorization runs first, but malformed data never reaches a write.
+    expect(__mPool.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO subscribers'))).toBe(false);
   });
 });

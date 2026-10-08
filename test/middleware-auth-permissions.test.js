@@ -375,9 +375,9 @@ describe('requireAnyPermission middleware', () => {
     'allows form review access with %s',
     async (permission) => {
       const pool = {
-        query: jest.fn().mockResolvedValue({
-          rows: [{ permission_key: permission }]
-        })
+        query: jest.fn(() => Promise.resolve({ rows: [{ status: 'active',
+          authorization_permissions: [permission], authorization_roles: [], authorization_forms: {},
+        }] }))
       };
       const req = {
         user: { id: USER_ID, organizationId: ORG_ID },
@@ -394,13 +394,15 @@ describe('requireAnyPermission middleware', () => {
       expect(next).toHaveBeenCalledTimes(1);
       expect(pool.query).toHaveBeenCalledWith(
         expect.stringContaining("uo.status = 'active'"),
-        [USER_ID, ORG_ID, ['forms.view', 'forms.submit', 'forms.manage']]
+        [USER_ID, ORG_ID]
       );
     }
   );
 
   test('denies form review access when none of the accepted permissions is active', async () => {
-    const pool = { query: jest.fn().mockResolvedValue({ rows: [] }) };
+    const pool = { query: jest.fn(() => Promise.resolve({ rows: [{ status: 'active',
+      authorization_permissions: [], authorization_roles: [], authorization_forms: {},
+    }] })) };
     const req = {
       user: { id: USER_ID, organizationId: ORG_ID },
       headers: {},
