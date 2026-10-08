@@ -1613,7 +1613,6 @@
   "activity_date_label": "Tanggal kegiatan",
   "activity_title_label": "Judul kegiatan",
   "activity_description_label": "Deskripsi aktivitas",
-  "activity_authorization_text_label": "Teks izin",
   "permission_slip_archive": "Arsip",
   "permission_slip_archive_confirm": "Arsipkan otorisasi ini?",
   "deadline_date_label": "Batas waktu penandatanganan (opsional)",

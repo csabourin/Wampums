@@ -1731,7 +1731,6 @@
   "activity_date_label": "Activity date",
   "activity_title_label": "Activity title",
   "activity_description_label": "Activity description",
-  "activity_authorization_text_label": "Authorization text",
   "permission_slip_archive": "Archive",
   "permission_slip_archive_confirm": "Archive this authorization?",
   "deadline_date_label": "Signature deadline (optional)",

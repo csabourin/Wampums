@@ -1767,7 +1767,6 @@
   "activity_date_label": "Date de l'activité",
   "activity_title_label": "Titre de l'activité",
   "activity_description_label": "Description de l'activité",
-  "activity_authorization_text_label": "Texte d'autorisation",
   "permission_slip_archive": "Archiver",
   "permission_slip_archive_confirm": "Archiver cette autorisation ?",
   "deadline_date_label": "Date limite de signature (optionnel)",

@@ -1603,7 +1603,6 @@
   "activity_date_label": "Дата діяльності",
   "activity_title_label": "Назва діяльності",
   "activity_description_label": "Опис діяльності",
-  "activity_authorization_text_label": "Текст дозволу",
   "permission_slip_archive": "Архів",
   "permission_slip_archive_confirm": "Архівувати цей дозвіл?",
   "deadline_date_label": "Кінцевий термін підписання (необов'язково)",

@@ -244,13 +244,6 @@ const PermissionSlipSignScreen = ({ route, navigation }) => {
             </View>
           )}
 
-          {slip.authorization_text && (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>{t('activity_authorization_text_label')}:</Text>
-              <Text style={styles.detailValue}>{slip.authorization_text}</Text>
-            </View>
-          )}
-
           {slip.deadline_date && (
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>{t('deadline_date')}:</Text>
