@@ -531,10 +531,8 @@ export class MailingList {
                         this.announcements = [response.data, ...this.announcements];
                         this.render();
                         this.attachEventListeners();
-                        this.showFeedback(
-                                saveAsDraft ? translate("announcement_saved") : translate("announcement_sent"),
-                                "success"
-                        );
+                        const feedbackKeys = { draft: "announcement_saved", scheduled: "announcement_scheduled" };
+                        this.showFeedback(translate(feedbackKeys[response.data?.status] || "announcement_sent"), "success");
                         this.clearForm();
                 } catch (error) {
                         debugError("Error sending announcement:", error);
