@@ -35,6 +35,8 @@ const ALLOWED_AUDIENCES = [MEMBERS_AUDIENCE, ALUMNI_AUDIENCE];
 const MAX_ANNOUNCEMENT_SUBJECT_LENGTH = 255;
 const MAX_ANNOUNCEMENT_MESSAGE_LENGTH = 10000;
 const MAX_ANNOUNCEMENT_GROUPS = 200;
+/** How often the scheduler re-checks with nothing else to wake it. */
+const FALLBACK_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const pg = require('pg');
 const { Client } = pg;
 
@@ -547,6 +549,20 @@ async function processScheduledAnnouncements(pool, logger, whatsappService = nul
   }
 }
 
+/**
+ * When the next scheduled announcement falls due, across every unit: the
+ * scheduler is one process serving them all.
+ *
+ * @param {Object} pool - Database pool
+ * @returns {Promise<Date|null>} Earliest due time, or null when none waits
+ */
+async function findNextScheduledAt(pool) {
+  const { rows } = await pool.query(
+    `SELECT MIN(scheduled_at) AS next_at FROM announcements WHERE status = 'scheduled'`,
+  );
+  return rows[0]?.next_at ? new Date(rows[0].next_at) : null;
+}
+
 module.exports = (pool, logger, whatsappService = null, googleChatService = null) => {
   // ==============================================
   // PostgreSQL LISTEN/NOTIFY for Scheduled Announcements
@@ -559,6 +575,57 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
   let isProcessing = false;
   let reconnectAttempts = 0;
   let fallbackInterval = null;
+  let nextDueTimeout = null;
+
+  /**
+   * Send what is due, then wake again when the next announcement falls due.
+   *
+   * A NOTIFY arrives when an announcement is saved, not when it is due, so
+   * without this timer a future send waited for the hourly fallback. The
+   * timer is capped at that interval, so a far-off send is re-checked rather
+   * than held in one long timer.
+   *
+   * @param {string} reason - Why the check runs, for the log
+   * @returns {Promise<void>}
+   */
+  async function runScheduledCheck(reason) {
+    if (isProcessing) {
+      return;
+    }
+    isProcessing = true;
+    try {
+      await processScheduledAnnouncements(pool, logger, whatsappService, googleChatService);
+    } catch (error) {
+      logger.error(`Scheduled announcement check failed (${reason}):`, error);
+    } finally {
+      isProcessing = false;
+    }
+    await armNextDueTimer();
+  }
+
+  /**
+   * Replace the timer with one for the earliest scheduled announcement.
+   * @returns {Promise<void>}
+   */
+  async function armNextDueTimer() {
+    if (nextDueTimeout) {
+      clearTimeout(nextDueTimeout);
+      nextDueTimeout = null;
+    }
+    try {
+      const nextAt = await findNextScheduledAt(pool);
+      if (!nextAt) {
+        return;
+      }
+      const delay = Math.min(Math.max(nextAt.getTime() - Date.now(), 0), FALLBACK_CHECK_INTERVAL_MS);
+      nextDueTimeout = setTimeout(() => {
+        nextDueTimeout = null;
+        runScheduledCheck('due time');
+      }, delay).unref();
+    } catch (error) {
+      logger.error('Could not find the next scheduled announcement:', error);
+    }
+  }
 
   /**
    * Setup PostgreSQL LISTEN connection for announcement notifications
@@ -605,17 +672,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
             logger.warn('Failed to parse announcement notification payload:', msg.payload, parseError);
           }
 
-          // Prevent concurrent processing
-          if (!isProcessing) {
-            isProcessing = true;
-            try {
-              await processScheduledAnnouncements(pool, logger, whatsappService, googleChatService);
-            } catch (error) {
-              logger.error('Error processing scheduled announcements:', error);
-            } finally {
-              isProcessing = false;
-            }
-          }
+          await runScheduledCheck('notification');
         }
       });
 
@@ -633,7 +690,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
 
       // Check for any overdue announcements on startup (in case server was down)
       logger.info('Checking for overdue announcements on startup...');
-      await processScheduledAnnouncements(pool, logger, whatsappService, googleChatService);
+      await runScheduledCheck('startup');
 
     } catch (error) {
       logger.error('Failed to setup announcement listener:', error);
@@ -690,6 +747,11 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
       fallbackInterval = null;
     }
 
+    if (nextDueTimeout) {
+      clearTimeout(nextDueTimeout);
+      nextDueTimeout = null;
+    }
+
     // Clear reconnect timeout
     if (reconnectTimeout) {
       clearTimeout(reconnectTimeout);
@@ -720,13 +782,9 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
   // SAFETY NET: Periodic fallback check (once per hour) in case notifications are missed
   // This provides defense-in-depth while still reducing queries by 99.8% vs 1-minute polling
   fallbackInterval = setInterval(() => {
-    if (!isProcessing) {
-      logger.info('Running hourly fallback check for scheduled announcements...');
-      processScheduledAnnouncements(pool, logger, whatsappService, googleChatService).catch((error) =>
-        logger.error('Fallback announcement check failed:', error),
-      );
-    }
-  }, 60 * 60 * 1000).unref(); // 1 hour
+    logger.info('Running hourly fallback check for scheduled announcements...');
+    runScheduledCheck('fallback');
+  }, FALLBACK_CHECK_INTERVAL_MS).unref();
 
   // Cleanup on process termination (use once to avoid duplicate listeners)
   process.once('SIGTERM', shutdownListener);
