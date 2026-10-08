@@ -666,7 +666,7 @@ describe('GET /api/v1/medication/requirements', () => {
 
       }
       if (query.includes('JOIN roles r')) {
-        return Promise.resolve({ rows: [{ role_name: 'district' }] });
+        return Promise.resolve({ rows: [{ role_name: 'district', data_scope: 'organization' }] });
       }
       if (query.includes('FROM user_organizations')) {
         return Promise.resolve({ rows: [{ role_ids: [1], organization_id: ORG_ID }] });

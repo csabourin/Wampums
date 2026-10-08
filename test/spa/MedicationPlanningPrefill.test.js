@@ -25,6 +25,10 @@ jest.mock('../../spa/utils/OptimisticUpdateManager.js', () => ({
   OptimisticUpdateManager: jest.fn()
 }));
 jest.mock('../../spa/api/api-endpoints.js', () => ({}));
+jest.mock('../../spa/utils/PermissionUtils.js', () => ({
+  canManageMedication: () => false,
+  canViewMedication: () => false
+}));
 jest.mock('../../spa/utils/OfflineCacheKeys.js', () => ({ buildApiCacheKey: jest.fn() }));
 jest.mock('../../spa/modules/OfflineManager.js', () => ({ offlineManager: {} }));
 

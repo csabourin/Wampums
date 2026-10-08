@@ -206,6 +206,39 @@ describe.skipIf(!DATABASE_URL)('Shared route authorization', () => {
     expect((await call('get', '/api/v1/medication/authorizations/:child', unlinked)).status).toBe(403);
   });
 
+  test('a family reads the medications of its own child, and only that child', async () => {
+    const sibling = await one("INSERT INTO participants (first_name, last_name, date_naissance) VALUES ('Unlinked', 'Child', '2016-01-01') RETURNING id");
+    await pool.query(`INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id)
+      SELECT $1, $2, id FROM scout_years WHERE organization_id = $2 AND status = 'active'`, [sibling, ids.unit]);
+    await pool.query("INSERT INTO medication_requirements (organization_id, participant_id, medication_name) VALUES ($1, $2, 'Sibling medicine')", [ids.unit, sibling]);
+    // A parent role without any medication key still reads its own child.
+    const parentRole = await role(['participants.view'], 'linked');
+    const parent = await member(parentRole);
+    await grantParticipantAccess(pool, { participantId: ids.child, userId: parent, sourceType: ACCESS_SOURCE.DIRECT });
+
+    const unitWide = ['/api/v1/medication/requirements', '/api/v1/medication/participant-medications',
+      '/api/v1/medication/receptions', '/api/v1/medication/fiche-declarations', '/api/v1/medication/fiche-medications'];
+    const ownChild = ['/api/v1/medication/participant-medications', '/api/v1/medication/receptions',
+      '/api/v1/medication/fiche-declarations', '/api/v1/medication/first-aid-supplies'];
+    const checks = [ids.family, parent].flatMap((userId) => [
+      call('get', `/api/v1/medication/requirements?participant_id=${ids.child}`, userId).then((own) => {
+        expect(own.status).toBe(200);
+        expect(own.body.data.requirements.map((row) => row.medication_name)).toEqual(['Unit A medicine']);
+      }),
+      ...unitWide.flatMap((path) => [path, `${path}?participant_id=${sibling}`]).map((path) =>
+        call('get', path, userId).then((response) => expect([path, response.status]).toEqual([path, 403]))),
+      ...ownChild.map((path) => `${path}?participant_id=${ids.child}`).map((path) =>
+        call('get', path, userId).then((response) => expect([path, response.status]).toEqual([path, 200]))),
+    ]);
+    await Promise.all(checks);
+
+    const staff = await call('get', '/api/v1/medication/requirements', ids.full);
+    expect(staff.body.data.requirements.map((row) => row.medication_name).sort())
+      .toEqual(['Sibling medicine', 'Unit A medicine']);
+    const foreign = await call('get', `/api/v1/medication/requirements?participant_id=${ids.foreignChild}`, ids.full);
+    expect(foreign.status).toBe(403);
+  });
+
   test('read-only medication access cannot schedule a distribution', async () => {
     expect((await call('post', '/api/v1/medication/distributions', ids.family)).status).toBe(403);
   });

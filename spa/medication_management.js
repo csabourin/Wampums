@@ -5,6 +5,7 @@ import { formatDate, getTodayISO } from "./utils/DateUtils.js";
 import { deleteCachedData, getCachedData, getCachedDataIgnoreExpiration, setCachedData } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { OptimisticUpdateManager } from "./utils/OptimisticUpdateManager.js";
+import { canManageMedication, canViewMedication } from './utils/PermissionUtils.js';
 import { getGuardiansForParticipant, getLeaders } from "./api/api-endpoints.js";
 import {
   getParticipants,
@@ -145,17 +146,24 @@ export class MedicationManagement {
     }
 
     const cacheOptions = forceRefresh ? { forceRefresh: true } : {};
+    // One child's page asks only for that child, which is all a parent may read.
+    const scope = this.participantId ? { participant_id: this.participantId } : {};
+    const optional = (label, request) => request.catch((error) => {
+      debugError(`Failed to load ${label}`, error);
+      return null;
+    });
     const [participantsResponse, requirementsResponse, assignmentsResponse, distributionsResponse, ficheMedicationsResponse, declarationsResponse] = await Promise.all([
       getParticipants(),
-      getMedicationRequirements(cacheOptions),
-      getParticipantMedications({}, cacheOptions),
-      getMedicationDistributions({ upcoming_only: true }, cacheOptions),
-      getFicheMedications(cacheOptions),
+      getMedicationRequirements(cacheOptions, scope),
+      getParticipantMedications(scope, cacheOptions),
+      canManageMedication()
+        ? getMedicationDistributions({ upcoming_only: true }, cacheOptions)
+        : null,
+      canViewMedication()
+        ? optional('health form medication suggestions', getFicheMedications(cacheOptions))
+        : null,
       this.view === 'planning'
-        ? getFicheMedicationDeclarations(cacheOptions).catch((error) => {
-          debugError('Failed to load health form medications', error);
-          return null;
-        })
+        ? optional('health form medications', getFicheMedicationDeclarations(cacheOptions, scope))
         : null
     ]);
 
@@ -2661,7 +2669,7 @@ export class MedicationManagement {
         });
 
       const [suppliesRes, authsRes, guardianRes, leadersRes] = await Promise.all([
-        getFirstAidSupplies(),
+        getFirstAidSupplies({ participant_id: this.participantId }),
         getMedicationAuthorizations(this.participantId),
         safeFetch("guardians", () => getGuardiansForParticipant(this.participantId)),
         safeFetch("leaders", () => getLeaders()),

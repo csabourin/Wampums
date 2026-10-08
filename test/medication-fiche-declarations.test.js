@@ -14,9 +14,6 @@ process.env.JWT_SECRET_KEY = process.env.JWT_SECRET_KEY || 'medication-fiche-tes
 const express = require('express');
 const request = require('supertest');
 
-const USER_ID = '00000000-0000-0000-0000-000000000001';
-let dataScope = 'organization';
-
 jest.mock('../middleware/auth', () => ({
   authenticate: (req, _res, next) => {
     req.user = { id: '00000000-0000-0000-0000-000000000001' };
@@ -25,17 +22,11 @@ jest.mock('../middleware/auth', () => ({
   requirePermission: () => (_req, _res, next) => next(),
   blockDemoRoles: (_req, _res, next) => next(),
   getOrganizationId: () => Promise.resolve(1),
-  getUserDataScope: () => Promise.resolve(dataScope),
   withScoutYear: () => (req, _res, next) => {
     req.scoutYear = { id: 7, status: 'active' };
     req.rosterStatuses = ['active'];
     next();
   }
-}));
-
-jest.mock('../middleware/medicationAuthorizationPolicy', () => ({
-  medicationParticipantInUnit: () => (_req, _res, next) => next(),
-  familyMedicationAccess: () => (_req, _res, next) => next()
 }));
 
 /** Rows the stubbed roster query returns. */
@@ -58,7 +49,6 @@ describe('GET /v1/medication/fiche-declarations', () => {
   beforeEach(() => {
     rosterRows = [];
     lastParams = null;
-    dataScope = 'organization';
     app = express();
     app.use(express.json());
     app.use('/api', medicationRoute(pool, { info: () => {}, warn: () => {}, error: () => {} }));
@@ -81,11 +71,15 @@ describe('GET /v1/medication/fiche-declarations', () => {
     ]);
   });
 
-  it('confines a linked-scope user to their own children', async () => {
-    dataScope = 'linked';
-
+  it('reads the whole roster when no child is named', async () => {
     await request(app).get('/api/v1/medication/fiche-declarations');
 
-    expect(lastParams).toEqual([1, 7, ['active'], true, USER_ID]);
+    expect(lastParams).toEqual([1, 7, ['active'], null]);
+  });
+
+  it('narrows to the child named in the query', async () => {
+    await request(app).get('/api/v1/medication/fiche-declarations').query({ participant_id: 2 });
+
+    expect(lastParams).toEqual([1, 7, ['active'], 2]);
   });
 });

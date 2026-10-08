@@ -1892,11 +1892,14 @@ export async function fetchMedicationReport() {
 // ============================================================================
 
 /**
- * Get medication requirements for the organization
+ * Get medication requirements for the organization, or for one participant
+ * with `{ participant_id }` (the only form a parent may use)
+ * @param {Object} cacheOptions - Cache options
+ * @param {Object} params - Optional `{ participant_id }`
  */
-export async function getMedicationRequirements(cacheOptions = {}) {
-    return API.get('v1/medication/requirements', {}, {
-        cacheKey: 'medication_requirements',
+export async function getMedicationRequirements(cacheOptions = {}, params = {}) {
+    return API.get('v1/medication/requirements', params, {
+        cacheKey: params.participant_id ? buildApiCacheKey('medication_requirements', params) : 'medication_requirements',
         cacheDuration: CONFIG.CACHE_DURATION.SHORT,
         ...cacheOptions
     });
@@ -1916,11 +1919,12 @@ export async function getFicheMedications(cacheOptions = {}) {
 /**
  * Medication each participant on the roster declares on their health form
  * @param {Object} cacheOptions - Cache options
+ * @param {Object} params - Optional `{ participant_id }`
  * @returns {Promise<Object>} `{ declarations: [{ participant_id, medication }] }`
  */
-export function getFicheMedicationDeclarations(cacheOptions = {}) {
-  return API.get('v1/medication/fiche-declarations', {}, {
-    cacheKey: 'fiche_medication_declarations',
+export function getFicheMedicationDeclarations(cacheOptions = {}, params = {}) {
+  return API.get('v1/medication/fiche-declarations', params, {
+    cacheKey: buildApiCacheKey('fiche_medication_declarations', params),
     cacheDuration: CONFIG.CACHE_DURATION.SHORT,
     ...cacheOptions
   });
@@ -2045,9 +2049,9 @@ export async function deleteMedicationReception(receptionId) {
 /**
  * Get first aid supplies for the organization
  */
-export async function getFirstAidSupplies() {
-    return API.get('v1/medication/first-aid-supplies', {}, {
-        cacheKey: 'first_aid_supplies',
+export async function getFirstAidSupplies(params = {}) {
+    return API.get('v1/medication/first-aid-supplies', params, {
+        cacheKey: buildApiCacheKey('first_aid_supplies', params),
         cacheDuration: CONFIG.CACHE_DURATION.LONG
     });
 }
