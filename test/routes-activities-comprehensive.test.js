@@ -718,6 +718,19 @@ describe('PUT /api/v1/activities/:id', () => {
     expect(captured.activityUpdate).toBeNull();
   });
 
+  test('rejects a partially numeric id instead of updating another activity', async () => {
+    const captured = mockUpdateTransaction();
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put('/api/v1/activities/1abc')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Wrong target' });
+
+    expect(res.status).toBe(404);
+    expect(captured.activityUpdate).toBeNull();
+  });
+
   test('returns 404 when activity not found', async () => {
     const captured = mockUpdateTransaction(null);
     const token = generateToken({ permissions: ['activities.edit'] });

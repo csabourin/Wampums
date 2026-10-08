@@ -3735,5 +3735,6 @@
   "activity_pending_slips_updated": "{count} pending permission slip(s) updated.",
   "activity_form_missing_required": "Please fill in all required fields.",
   "activity_form_end_before_start": "The activity must end after it starts.",
-  "activity_form_departure_before_meeting": "The departure time must be after the meeting time."
+  "activity_form_departure_before_meeting": "The departure time must be after the meeting time.",
+  "permission_slip_answered_kept": "{count} participant(s) already answered this slip; their answer was kept. Archive a slip to issue a new one."
 }

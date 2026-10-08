@@ -2397,6 +2397,10 @@ module.exports = (pool) => {
           : null;
 
         const createdSlips = [];
+        // An answered slip is the record of what a guardian consented to: a
+        // reissue never rewrites it. Archiving it first frees the date for a
+        // new request, which then starts with no signature or email history.
+        const answeredParticipantIds = [];
 
         // Create permission slips for each participant
         for (const pid of participantIdsList) {
@@ -2418,7 +2422,24 @@ module.exports = (pool) => {
                            authorization_text = EXCLUDED.authorization_text,
                            deadline_date = EXCLUDED.deadline_date,
                            status = EXCLUDED.status,
+                           signed_at = NULL,
+                           signed_by = NULL,
+                           signature_hash = NULL,
+                           contact_confirmation = NULL,
+                           declined_at = NULL,
+                           declined_by = NULL,
+                           email_sent = CASE WHEN permission_slips.status = 'pending'
+                                             THEN permission_slips.email_sent ELSE FALSE END,
+                           email_sent_at = CASE WHEN permission_slips.status = 'pending'
+                                                THEN permission_slips.email_sent_at ELSE NULL END,
+                           reminder_sent = CASE WHEN permission_slips.status = 'pending'
+                                                THEN permission_slips.reminder_sent ELSE FALSE END,
+                           reminder_sent_at = CASE WHEN permission_slips.status = 'pending'
+                                                   THEN permission_slips.reminder_sent_at ELSE NULL END,
+                           guardians_emailed = CASE WHEN permission_slips.status = 'pending'
+                                                    THEN permission_slips.guardians_emailed ELSE '[]'::jsonb END,
                            updated_at = CURRENT_TIMESTAMP
+             WHERE permission_slips.status NOT IN ('signed', 'declined')
              RETURNING *, (SELECT first_name FROM participants WHERE id = $2) as first_name, (SELECT last_name FROM participants WHERE id = $2) as last_name`,
             [
               organizationId,
@@ -2436,7 +2457,11 @@ module.exports = (pool) => {
             ],
           );
 
-          createdSlips.push(insertResult.rows[0]);
+          if (insertResult.rows.length === 0) {
+            answeredParticipantIds.push(pid);
+          } else {
+            createdSlips.push(insertResult.rows[0]);
+          }
         }
 
         return success(
@@ -2444,6 +2469,7 @@ module.exports = (pool) => {
           {
             permission_slips: createdSlips,
             count: createdSlips.length,
+            answered_participant_ids: answeredParticipantIds,
           },
           "Permission slip(s) saved",
           201,

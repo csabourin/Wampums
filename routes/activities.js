@@ -12,6 +12,8 @@ module.exports = (pool) => {
   const AUTHORIZATION_TEXT_MAX_LENGTH = 10000;
   const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
   const TIME_PATTERN = /^(\d{2}):(\d{2})(?::(\d{2}))?$/;
+  const ACTIVITY_ID_PATTERN = /^[1-9]\d{0,9}$/;
+  const HTTP_NOT_FOUND = 404;
   const HOURS_PER_DAY = 24;
   const MINUTES_PER_HOUR = 60;
   const SECONDS_PER_MINUTE = 60;
@@ -291,6 +293,9 @@ module.exports = (pool) => {
    */
   router.get('/:id/participants', authenticate, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const { id } = req.params;
+    if (!ACTIVITY_ID_PATTERN.test(id)) {
+      return error(res, 'Activity not found', HTTP_NOT_FOUND);
+    }
     const organizationId = await getOrganizationId(req, pool);
 
     // Verify activity exists and belongs to organization
@@ -355,6 +360,9 @@ module.exports = (pool) => {
    */
   router.get('/:id', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
     const { id } = req.params;
+    if (!ACTIVITY_ID_PATTERN.test(id)) {
+      return error(res, 'Activity not found', HTTP_NOT_FOUND);
+    }
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -593,14 +601,13 @@ module.exports = (pool) => {
    * Accessible by: animation, admin only
    */
   router.put('/:id', authenticate, blockDemoRoles, requirePermission('activities.edit'), asyncHandler(async (req, res) => {
-    const activityId = parseInt(req.params.id, 10);
+    if (!ACTIVITY_ID_PATTERN.test(req.params.id)) {
+      return error(res, 'Activity not found', HTTP_NOT_FOUND);
+    }
+    const activityId = Number(req.params.id);
     const organizationId = await getOrganizationId(req, pool);
     const body = req.body || {};
     const has = (field) => Object.prototype.hasOwnProperty.call(body, field);
-
-    if (!Number.isInteger(activityId) || activityId <= 0) {
-      return error(res, 'Activity not found', 404);
-    }
 
     const client = await pool.connect();
     try {
@@ -794,6 +801,9 @@ module.exports = (pool) => {
    */
   router.delete('/:id', authenticate, blockDemoRoles, requirePermission('activities.delete'), asyncHandler(async (req, res) => {
     const { id } = req.params;
+    if (!ACTIVITY_ID_PATTERN.test(id)) {
+      return error(res, 'Activity not found', HTTP_NOT_FOUND);
+    }
     const organizationId = await getOrganizationId(req, pool);
 
     // First verify activity exists and belongs to organization

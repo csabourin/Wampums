@@ -974,7 +974,15 @@ export class PermissionSlipDashboard {
 
       await this.clearPermissionSlipCaches();
 
-      this.app.showMessage(translate("permission_slip_saved"), "success");
+      const answeredCount = (result?.data?.answered_participant_ids || []).length;
+      if (answeredCount > 0) {
+        this.app.showMessage(
+          translate('permission_slip_answered_kept').replace('{count}', answeredCount),
+          'warning',
+        );
+      } else {
+        this.app.showMessage(translate("permission_slip_saved"), "success");
+      }
       this.showCreateForm = false;
 
       // Refresh with real data from server
