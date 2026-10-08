@@ -164,7 +164,7 @@ function buildFormHTML(activity) {
       ${isEdit ? `
         <div class="form-group">
           <label>
-            <input type="checkbox" name="notify_participants" checked>
+            <input type="checkbox" name="notify_participants">
             ${translate('activity_notify_updates_label')}
           </label>
           <small class="form-help">${translate('activity_notify_updates_help')}</small>
