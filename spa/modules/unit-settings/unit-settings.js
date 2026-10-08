@@ -63,7 +63,7 @@ export class UnitSettings extends BaseModule {
     this.organizationInfo = {};
     this.leaders = [];
     this.emailLanguage = "fr";
-    /** @type {{email_sender: Object, allowed_from_domains: string[], platform_sender: string}|null} */
+    /** @type {{email_sender: Object, allowed_from_domains: string[], default_sender: string}|null} */
     this.emailSender = null;
     this.twoFactorDisabled = false;
     this.canManageOrg = false;
@@ -528,7 +528,7 @@ export class UnitSettings extends BaseModule {
   }
 
   renderEmailSenderSection() {
-    const { email_sender: sender = {}, allowed_from_domains: domains = [], platform_sender: platformSender = '' }
+    const { email_sender: sender = {}, allowed_from_domains: domains = [], default_sender: defaultSender = '' }
       = this.emailSender;
     const domainList = domains.map((domain) => `@${domain}`).join(', ');
     const fromField = domains.length > 0
@@ -536,10 +536,10 @@ export class UnitSettings extends BaseModule {
           <div class="form-group">
             <label for="email-sender-from">${translate('email_sender_from_email')}</label>
             <input type="email" id="email-sender-from" class="form-control" value="${escapeHTML(sender.from_email || '')}"
-              maxlength="${EMAIL_MAX_LENGTH}" placeholder="${escapeHTML(platformSender)}" autocomplete="off">
-            <p class="muted-text">${escapeHTML(translate('email_sender_from_email_help').replace('{domains}', domainList))}</p>
+              maxlength="${EMAIL_MAX_LENGTH}" placeholder="${escapeHTML(defaultSender)}" autocomplete="off">
+            <p class="muted-text">${escapeHTML(translate('email_sender_from_email_help').replace('{default}', defaultSender).replace('{domains}', domainList))}</p>
           </div>`
-      : `<p class="muted-text">${escapeHTML(translate('email_sender_no_domain').replace('{address}', platformSender))}</p>`;
+      : `<p class="muted-text">${escapeHTML(translate('email_sender_no_domain').replace('{address}', defaultSender))}</p>`;
 
     return `
       <section class="account-section">

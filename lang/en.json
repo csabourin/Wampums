@@ -3721,7 +3721,7 @@
   "email_sender_description": "How emails sent on behalf of your unit (announcements, permission slips, invitations) appear to families.",
   "email_sender_from_name": "Sender name",
   "email_sender_from_email": "Sender address",
-  "email_sender_from_email_help": "Leave blank to use the platform address. Must end with {domains}.",
+  "email_sender_from_email_help": "Leave blank to send from {default}. Must end with {domains}.",
   "email_sender_no_domain": "Emails are sent from {address}. To send from your own domain, ask the platform administrator to authenticate it with the email provider.",
   "email_sender_reply_to": "Reply-to address",
   "email_sender_reply_to_help": "Replies from families go here. Any address works, including Gmail.",

@@ -3721,7 +3721,7 @@
   "email_sender_description": "Comment les courriels envoyés au nom de votre unité (annonces, autorisations, invitations) apparaissent aux familles.",
   "email_sender_from_name": "Nom de l'expéditeur",
   "email_sender_from_email": "Adresse d'expédition",
-  "email_sender_from_email_help": "Laissez vide pour utiliser l'adresse de la plateforme. Doit se terminer par {domains}.",
+  "email_sender_from_email_help": "Laissez vide pour envoyer depuis {default}. Doit se terminer par {domains}.",
   "email_sender_no_domain": "Les courriels sont envoyés depuis {address}. Pour envoyer depuis votre propre domaine, demandez à l'administrateur de la plateforme de l'authentifier auprès du fournisseur de courriel.",
   "email_sender_reply_to": "Adresse de réponse",
   "email_sender_reply_to_help": "Les réponses des familles arrivent ici. Toute adresse fonctionne, y compris Gmail.",

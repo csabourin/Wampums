@@ -9,11 +9,18 @@ stored in `organization_settings.email_sender`.
 | Field | What it changes | Restriction |
 |---|---|---|
 | `from_name` | Display name: `"Meute 6A" <…>` | One line, 100 characters at most. Defaults to the unit's name. |
-| `from_email` | The From address | Must be on a domain that is **authenticated with the email provider** and **registered to this unit**. Blank means the platform address (`EMAIL_FROM`). |
+| `from_email` | The From address | Must be on a domain that is **authenticated with the email provider** and **registered to this unit**. Blank means the default below. |
 | `reply_to` | Where replies go | Any valid address, including Gmail. |
 
 A Gmail address cannot be the From address, and the API refuses it. It can be
 the Reply-To, which is where a unit's Gmail address belongs.
+
+**Default From address.** `EMAIL_FROM` (`info@wampums.app`) is only the
+fallback. A unit with an authenticated domain of its own sends from the same
+mailbox name on that domain (`info@meute6a.app`) without setting anything. If
+it has several, the first in alphabetical order is used; to pick another, fill
+in `from_email`. Only a unit without an authenticated domain sends from
+`EMAIL_FROM`.
 
 ## Which emails use it
 
@@ -50,12 +57,14 @@ Google's own servers, logged in to that Google account. Wampums does not do
 this. It would mean storing a Google credential for each unit, and Gmail caps
 an account at about 500 messages a day.
 
-`sendEmail` enforces this again at send time. A From address outside the
-authenticated domains is replaced with `EMAIL_FROM`, and a warning is logged.
+This is checked twice. Before each batch, a stored From whose domain no
+longer belongs to the unit is replaced with the unit's default. Then `sendEmail`
+replaces any From outside the authenticated domains with `EMAIL_FROM` and logs
+a warning.
 
 ## Setup for a unit with its own domain (Meute 6A)
 
-The goal: families see **Meute 6A <meute6a@meute6a.app>**, the message passes
+The goal: families see **Meute 6A <info@meute6a.app>**, the message passes
 DMARC on `meute6a.app`, and replies arrive in `meute6a@gmail.com`.
 
 DNS as of 2026-10-08: `meute6a.app` already has the `brevo-code` TXT record and
@@ -71,21 +80,25 @@ through Cloudflare Email Routing, and its DMARC record is `p=none`.
    commas. Only the platform operator can make this claim, because only the
    operator controls the Brevo account.
 3. **Keep the platform sender on the platform domain.** `EMAIL_FROM` should be
-   `info@wampums.app`. If it is `info@meute6a.app`, every unit's email appears
-   to come from Meute 6A. And because the platform's own domain can never be
-   claimed by a unit, Meute 6A would then not be offered its domain.
+   `info@wampums.app`. If it were `info@meute6a.app`, every unit without a
+   domain of its own would appear to come from Meute 6A. And because the
+   platform's own domain can never be claimed by a unit, Meute 6A would then
+   not be offered its domain.
 4. **Register the domain to the unit.** `organization_domains` must hold
    `meute6a.app` (or `www.meute6a.app`) for that unit. A unit is offered only
    its own domains, so it cannot send as another unit.
-5. **Fill in the unit settings.** Sender name `Meute 6A`, sender address
-   `meute6a@meute6a.app`, reply-to address `meute6a@gmail.com`.
+5. **Fill in the unit settings.** Sender name `Meute 6A`, reply-to address
+   `meute6a@gmail.com`. Leave the sender address blank to send from
+   `info@meute6a.app`, or enter another `@meute6a.app` address such as
+   `meute6a@meute6a.app`.
 6. **Route the From address to Gmail.** In Cloudflare, under *Email → Email
-   Routing*, add a rule `meute6a@meute6a.app → meute6a@gmail.com` and verify
-   the destination. Some mail clients ignore Reply-To, and automatic replies
+   Routing*, add a rule from the From address (`info@meute6a.app`, or the one
+   you entered) to `meute6a@gmail.com`, and verify the destination. Some mail clients ignore Reply-To, and automatic replies
    go to the From address; this rule makes sure they still reach the leaders.
 7. **Optional: answer as the unit from Gmail.** In Gmail, under *Settings →
-   Accounts → Send mail as*, add `meute6a@meute6a.app` using the Brevo SMTP
+   Accounts → Send mail as*, add the From address using the Brevo SMTP
    relay (`smtp-relay.brevo.com`, port 587, the Brevo SMTP login and key).
+   Use the same address as the From.
    Replies written in Gmail then also go out signed for `meute6a.app`, instead
    of revealing the Gmail address.
 

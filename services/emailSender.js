@@ -12,6 +12,8 @@
  *   EMAIL_AUTHENTICATED_DOMAINS) AND that is registered to this unit in
  *   organization_domains. A From on any other domain — gmail.com, or another
  *   unit's domain — would fail DMARC alignment and be treated as spoofing.
+ *   Left blank, it defaults to the platform mailbox on the unit's own domain
+ *   (`info@meute6a.app`), and to EMAIL_FROM only for a unit without one.
  *
  * The setting is stored as `organization_settings.email_sender`.
  *
@@ -120,6 +122,23 @@ async function getUnitSenderDomains(pool, organizationId) {
 }
 
 /**
+ * The From address a unit gets when it has not chosen one: the platform
+ * mailbox name (`info` in `info@wampums.app`) on the unit's own authenticated
+ * domain, or the platform address itself when the unit has none. When a unit
+ * has several domains, the first in alphabetical order is used.
+ *
+ * @param {string[]} unitDomains - Result of getUnitSenderDomains()
+ * @returns {string} Default From address
+ */
+function getDefaultSenderEmail(unitDomains) {
+  const platformSender = getPlatformSenderEmail();
+  if (unitDomains.length === 0) {
+    return platformSender;
+  }
+  return `${platformSender.slice(0, platformSender.lastIndexOf('@'))}@${unitDomains[0]}`;
+}
+
+/**
  * Validate an email_sender payload. Ownership of the From domain is checked
  * against `allowedFromDomains`, which the caller loads for the unit.
  *
@@ -178,12 +197,12 @@ function parseStoredSetting(raw) {
 /**
  * Resolve the identity a unit's email is sent with, for `sendEmail`'s sender
  * argument. The From address is re-checked here, so a domain removed from the
- * unit or from EMAIL_AUTHENTICATED_DOMAINS falls back to the platform address
- * instead of sending unauthenticated mail.
+ * unit or from EMAIL_AUTHENTICATED_DOMAINS falls back to the unit's default
+ * address instead of sending unauthenticated mail.
  *
  * @param {Object} pool - Database pool
  * @param {number} organizationId - Unit id
- * @returns {Promise<{name: string, email: (string|null), replyTo: (string|null)}>}
+ * @returns {Promise<{name: string, email: string, replyTo: (string|null)}>}
  */
 async function resolveOrganizationEmailSender(pool, organizationId) {
   const result = await pool.query(
@@ -200,12 +219,11 @@ async function resolveOrganizationEmailSender(pool, organizationId) {
   const row = result.rows[0] || {};
   const stored = parseStoredSetting(row.sender);
 
-  let email = null;
+  const allowed = await getUnitSenderDomains(pool, organizationId);
   const fromEmail = normalizeAddress(stored.from_email);
-  if (fromEmail) {
-    const allowed = await getUnitSenderDomains(pool, organizationId);
-    email = allowed.includes(domainOf(fromEmail)) ? fromEmail : null;
-  }
+  const email = fromEmail && allowed.includes(domainOf(fromEmail))
+    ? fromEmail
+    : getDefaultSenderEmail(allowed);
 
   const replyTo = normalizeAddress(stored.reply_to);
   return {
@@ -220,6 +238,7 @@ async function resolveOrganizationEmailSender(pool, organizationId) {
 module.exports = {
   EMAIL_SENDER_SETTING_KEY,
   getAuthenticatedSenderDomains,
+  getDefaultSenderEmail,
   getPlatformSenderEmail,
   getUnitSenderDomains,
   isAuthenticatedSenderAddress,

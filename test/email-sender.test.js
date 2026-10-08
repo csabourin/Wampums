@@ -104,7 +104,7 @@ describe('resolveOrganizationEmailSender', () => {
     });
   });
 
-  test('drops a From whose domain no longer belongs to the unit', async () => {
+  test('falls back to EMAIL_FROM when the From domain no longer belongs to the unit', async () => {
     const pool = senderPool({
       setting: { from_email: 'meute6a@meute6a.app', reply_to: 'meute6a@gmail.com' },
       domains: [],
@@ -112,8 +112,26 @@ describe('resolveOrganizationEmailSender', () => {
 
     await expect(resolveOrganizationEmailSender(pool, 1)).resolves.toEqual({
       name: 'Meute 6A',
-      email: null,
+      email: 'info@wampums.app',
       replyTo: 'meute6a@gmail.com',
+    });
+  });
+
+  test('defaults to the platform mailbox on the unit\'s own domain', async () => {
+    const pool = senderPool({ setting: null, domains: ['meute6a.app'] });
+
+    await expect(resolveOrganizationEmailSender(pool, 1)).resolves.toEqual({
+      name: 'Meute 6A',
+      email: 'info@meute6a.app',
+      replyTo: null,
+    });
+  });
+
+  test('uses EMAIL_FROM for a unit without an authenticated domain', async () => {
+    const pool = senderPool({ setting: null, domains: ['meute6a.wampums.app', 'unverified.ca'] });
+
+    await expect(resolveOrganizationEmailSender(pool, 1)).resolves.toMatchObject({
+      email: 'info@wampums.app',
     });
   });
 });

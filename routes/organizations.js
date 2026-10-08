@@ -27,7 +27,7 @@ const { ensureProgramSectionsSeeded, getProgramSections } = require('../utils/pr
 const { installDefaultFormFormats } = require('../services/defaultFormFormats');
 const {
   EMAIL_SENDER_SETTING_KEY,
-  getPlatformSenderEmail,
+  getDefaultSenderEmail,
   getUnitSenderDomains,
   validateEmailSenderSettings
 } = require('../services/emailSender');
@@ -729,7 +729,7 @@ module.exports = (pool, logger) => {
 
   /**
    * Current email sender identity, plus the From domains this unit may use.
-   * `platform_sender` is what From shows when no unit address is set.
+   * `default_sender` is what From shows when no unit address is set.
    */
   router.get('/settings/email-sender', authenticate, requirePermission('org.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
@@ -750,7 +750,7 @@ module.exports = (pool, logger) => {
         reply_to: current.reply_to || ''
       },
       allowed_from_domains: allowedFromDomains,
-      platform_sender: getPlatformSenderEmail()
+      default_sender: getDefaultSenderEmail(allowedFromDomains)
     });
   }));
 
@@ -784,7 +784,7 @@ module.exports = (pool, logger) => {
       {
         email_sender: validation.value,
         allowed_from_domains: allowedFromDomains,
-        platform_sender: getPlatformSenderEmail()
+        default_sender: getDefaultSenderEmail(allowedFromDomains)
       },
       'Email sender updated'
     );
