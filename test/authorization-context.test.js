@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const request = require('supertest');
 process.env.JWT_SECRET_KEY ||= 'authorization-context-test-secret';
 const { signJWTToken } = require('../utils/jwt-config');
@@ -16,6 +17,8 @@ function signed(claims = {}) {
 function server(pool) {
   const app = express();
   app.locals.pool = pool;
+  // Mirrors production, where every API route sits behind a limiter.
+  app.use(rateLimit({ windowMs: 60000, limit: 1000 }));
   app.get('/member', authenticate, requirePermission('first'), (_req, res) => res.json({ success: true }));
   app.get('/visitor', optionalAuth, (req, res) => res.json({ signedIn: Boolean(req.user) }));
   app.get('/composed', authenticate, requirePermission('first'), requireAnyPermission('second', 'third'), async (req, res) => {

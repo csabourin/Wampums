@@ -31,7 +31,7 @@ jest.mock('pg', () => {
 });
 
 const { Pool } = require('pg');
-const { setupDefaultMocks, mockQueryImplementation } = require('./mock-helpers');
+const { setupDefaultMocks, mockQueryImplementation, authorizationContextRow, DEFAULT_SCOUT_YEAR } = require('./mock-helpers');
 let app;
 
 const TEST_SECRET = 'testsecret';
@@ -222,9 +222,7 @@ describe('Authorization & Permission Checks', () => {
 
     __mPool.query
       .mockResolvedValueOnce({ rows: [{ organization_id: ORG_ID }] }) // active membership
-      .mockResolvedValueOnce({ rows: [] }) // no matching permissions
-      .mockResolvedValueOnce({ rows: [] }) // no roles
-      .mockResolvedValueOnce({ rows: [{ status: 'active' }] }); // denial context
+      .mockResolvedValueOnce(authorizationContextRow()); // no permissions or roles
 
     const res = await request(app)
       .get('/api/v1/participants')
@@ -243,18 +241,13 @@ describe('Authorization & Permission Checks', () => {
     __mPool.query.mockResolvedValueOnce({
       rows: [{ organization_id: ORG_ID }]
     });
-    // Mock permission query
-    __mPool.query.mockResolvedValueOnce({
-      rows: [{ permission_key: 'participants.view' }]
-    });
-    // Mock roles query
-    __mPool.query.mockResolvedValueOnce({
-      rows: [{ role_name: 'admin', display_name: 'Admin' }]
-    });
-    // Mock data scope query
-    __mPool.query.mockResolvedValueOnce({
-      rows: [{ data_scope: 'organization' }]
-    });
+    // Mock authorization context
+    __mPool.query.mockResolvedValueOnce(authorizationContextRow({
+      permissions: ['participants.view'],
+      roles: [{ role_name: 'admin', display_name: 'Admin', data_scope: 'organization' }],
+    }));
+    // Mock scout year resolution
+    __mPool.query.mockResolvedValueOnce({ rows: [{ ...DEFAULT_SCOUT_YEAR, organization_id: ORG_ID }] });
     // Mock participants list
     __mPool.query.mockResolvedValueOnce({ rows: [] });
     // Mock count
@@ -275,10 +268,10 @@ describe('Authorization & Permission Checks', () => {
     __mPool.query.mockResolvedValueOnce({
       rows: [{ organization_id: ORG_ID }]
     });
-    // Mock blockDemoRoles check - user has demo role
-    __mPool.query.mockResolvedValueOnce({
-      rows: [{ role_name: 'demoadmin' }]
-    });
+    // Mock authorization context - user has demo role
+    __mPool.query.mockResolvedValueOnce(authorizationContextRow({
+      roles: [{ role_name: 'demoadmin', display_name: 'Demo admin' }],
+    }));
 
     const res = await request(app)
       .post('/api/v1/participants')

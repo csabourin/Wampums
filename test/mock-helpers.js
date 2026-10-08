@@ -100,6 +100,25 @@ function mockRegistrationStandingQuery(query) {
 }
 
 /**
+ * Build the result of the atomic authorization query for ordered
+ * `mockResolvedValueOnce` queues.
+ * @param {Object} [context] - Authorization fixture
+ * @param {Array<string>} [context.permissions] - Permission keys held
+ * @param {Array<Object>} [context.roles] - Rows of { role_name, display_name, data_scope }
+ * @param {Object} [context.forms] - Per-form rights keyed by form type
+ * @param {string} [context.status] - Membership status
+ * @returns {{rows: Array<Object>}} Query result
+ */
+function authorizationContextRow({ permissions = [], roles = [], forms = {}, status = 'active' } = {}) {
+  return { rows: [{
+    status,
+    authorization_permissions: permissions,
+    authorization_roles: roles.map((role) => ({ data_scope: 'linked', ...role })),
+    authorization_forms: forms,
+  }] };
+}
+
+/**
  * Assemble the atomic authorization row from the same logical fixture queries
  * used by route tests. This adapter keeps business-query fixtures independent
  * of authorization SQL layout; the production query remains a single snapshot.
@@ -255,6 +274,7 @@ function adaptAuthorizationMock(pool) {
 
 module.exports = {
   adaptAuthorizationMock,
+  authorizationContextRow,
   setupDefaultMocks,
   mockQueryImplementation,
   resetMockFactory,

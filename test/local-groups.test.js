@@ -22,7 +22,7 @@ jest.mock('pg', () => {
 });
 
 const { Pool } = require('pg');
-const { setupDefaultMocks } = require('./mock-helpers');
+const { setupDefaultMocks, authorizationContextRow } = require('./mock-helpers');
 let app;
 
 beforeAll(() => {
@@ -55,8 +55,10 @@ describe('Local groups API', () => {
 
     __mPool.query
       .mockResolvedValueOnce({ rows: [{ organization_id: 5 }] }) // active membership
-      .mockResolvedValueOnce({ rows: [{ permission_key: 'org.view' }] }) // permissions
-      .mockResolvedValueOnce({ rows: [{ role_name: 'admin', display_name: 'Admin' }] }) // roles
+      .mockResolvedValueOnce(authorizationContextRow({
+        permissions: ['org.view'],
+        roles: [{ role_name: 'admin', display_name: 'Admin' }],
+      }))
       .mockResolvedValueOnce({ rows: [{ id: 1, name: 'Groupe 6 Aylmer', slug: 'groupe-6-aylmer' }] }); // memberships
 
     const res = await request(app)
@@ -76,10 +78,7 @@ describe('Local groups API', () => {
 
     __mPool.query
       .mockResolvedValueOnce({ rows: [{ organization_id: 7 }] }) // active membership
-      .mockResolvedValueOnce({ rows: [] }) // demo roles
-      .mockResolvedValueOnce({ rows: [] }) // permissions missing org.edit
-      .mockResolvedValueOnce({ rows: [] }) // roles
-      .mockResolvedValueOnce({ rows: [{ status: 'active' }] }); // denial context
+      .mockResolvedValueOnce(authorizationContextRow()); // no demo role, missing org.edit
 
     const res = await request(app)
       .post('/api/v1/local-groups/memberships')
@@ -97,9 +96,10 @@ describe('Local groups API', () => {
 
     __mPool.query
       .mockResolvedValueOnce({ rows: [{ organization_id: 9 }] }) // active membership
-      .mockResolvedValueOnce({ rows: [] }) // demo roles
-      .mockResolvedValueOnce({ rows: [{ permission_key: 'org.edit' }] }) // permissions
-      .mockResolvedValueOnce({ rows: [{ role_name: 'admin', display_name: 'Admin' }] }) // roles
+      .mockResolvedValueOnce(authorizationContextRow({
+        permissions: ['org.edit'],
+        roles: [{ role_name: 'admin', display_name: 'Admin' }],
+      }))
       .mockResolvedValueOnce({ rows: [{ id: 2, name: 'Hull', slug: 'hull' }] }) // group exists
       .mockResolvedValueOnce({ rows: [] }) // insert membership
       .mockResolvedValueOnce({ rows: [{ id: 2, name: 'Hull', slug: 'hull' }] }); // memberships

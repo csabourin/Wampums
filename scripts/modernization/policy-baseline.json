@@ -263,7 +263,7 @@
     "test/parent-invitations.integration.test.js": 3,
     "test/participant-duplicates.integration.test.js": 3,
     "test/permission-slip-email.test.js": 44,
-    "test/permission-slips.security.test.js": 138,
+    "test/permission-slips.security.test.js": 136,
     "test/public-url.test.js": 4,
     "test/railway-storage.test.js": 66,
     "test/reactivation.test.js": 4,
