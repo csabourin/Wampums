@@ -6,6 +6,7 @@ import { deleteCachedData, getCachedData, getCachedDataIgnoreExpiration, setCach
 import { setContent } from "./utils/DOMUtils.js";
 import { OptimisticUpdateManager } from "./utils/OptimisticUpdateManager.js";
 import { canManageMedication, canViewMedication } from './utils/PermissionUtils.js';
+import { isSameMedication, splitDeclaredMedications } from './utils/MedicationTextUtils.js';
 import { getGuardiansForParticipant, getLeaders } from "./api/api-endpoints.js";
 import {
   getParticipants,
@@ -33,8 +34,6 @@ import { offlineManager } from "./modules/OfflineManager.js";
  */
 /** Matches the `maxlength` of the medication name field. */
 const MEDICATION_NAME_MAX_LENGTH = 200;
-/** Matches the `maxlength` of the general notes field. */
-const MEDICATION_NOTES_MAX_LENGTH = 1000;
 
 export class MedicationManagement {
   constructor(app, options = {}) {
@@ -45,7 +44,7 @@ export class MedicationManagement {
     this.distributions = [];
     this.ficheMedications = [];
     this.ficheDeclarations = new Map();
-    this.lastPrefill = null;
+    this.lastPrefill = '';
     this.receptions = [];
     this.view = options.view || "planning";
     this.enableAlerts = options.enableAlerts ?? this.view === "dispensing";
@@ -446,6 +445,27 @@ export class MedicationManagement {
         color: #0b3c5d;
         font-weight: 600;
         font-size: 0.85rem;
+      }
+
+      .declared-medications {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      .declared-medications button.pill {
+        min-height: 44px;
+        border: 1px solid #7dd3fc;
+        cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .declared-medications button.pill:disabled {
+        background: #ecfdf5;
+        border-color: #a7f3d0;
+        color: #065f46;
+        cursor: default;
       }
 
       .table-container {
@@ -1058,6 +1078,7 @@ export class MedicationManagement {
             <input type="text" name="medication_name" list="ficheMedicationsList" required maxlength="200" />
             ${medicationSuggestions ? `<p class="help-text">${escapeHTML(translate("medication_fiche_suggestions_hint"))}</p>` : ""}
             <p class="help-text" id="medicationPrefillHint" hidden>${escapeHTML(translate('medication_prefilled_from_fiche'))}</p>
+            <div class="field-group" id="declaredMedications" hidden></div>
             ${suggestionList}
           </label>
           <label class="field-group">
@@ -1944,56 +1965,59 @@ export class MedicationManagement {
   }
 
   /**
-   * The medication a participant's health form declares that is not planned
-   * yet: its first unplanned line as the name, the whole declaration as notes.
+   * The medications a participant's health form declares, one entry each,
+   * marked when a planned medication of that participant already has the name.
    * @param {number} participantId - Participant ID
-   * @returns {{name: string, notes: string}|null} Values to prefill, or null
+   * @returns {Array<{name: string, planned: boolean}>} Declared medications
    */
-  getDeclaredPrefill(participantId) {
-    const declared = this.ficheDeclarations.get(participantId);
-    if (!declared) {
-      return null;
-    }
+  getDeclaredMedications(participantId) {
     const plannedIds = new Set(this.participantMedications
       .filter((pm) => pm.participant_id === participantId)
       .map((pm) => pm.medication_requirement_id));
-    const plannedNames = new Set(this.requirements
+    const plannedNames = this.requirements
       .filter((req) => plannedIds.has(req.id))
-      .map((req) => (req.medication_name || '').trim().toLowerCase()));
-    const name = declared.split('\n')
-      .map((line) => line.trim())
-      .find((line) => line && !plannedNames.has(line.toLowerCase()));
-    if (!name) {
-      return null;
-    }
-    return {
-      name: name.slice(0, MEDICATION_NAME_MAX_LENGTH),
-      notes: declared.slice(0, MEDICATION_NOTES_MAX_LENGTH)
-    };
+      .map((req) => req.medication_name);
+    return splitDeclaredMedications(this.ficheDeclarations.get(participantId))
+      .map((name) => ({
+        name: name.slice(0, MEDICATION_NAME_MAX_LENGTH),
+        planned: plannedNames.some((planned) => isSameMedication(planned, name))
+      }));
   }
 
   /**
-   * Prefill the planning form from the participant's health form, without
+   * Offer the participant's declared medications in the planning form: list
+   * each one, and fill the name with the first not planned yet, without
    * overwriting anything the user typed.
    * @param {HTMLFormElement} form - The requirement form
    * @param {number} participantId - Participant ID
    */
   applyDeclaredPrefill(form, participantId) {
-    const prefill = this.getDeclaredPrefill(participantId);
-    const previous = this.lastPrefill || { name: '', notes: '' };
-    const fields = { name: form.elements.medication_name, notes: form.elements.general_notes };
-    let applied = false;
-    Object.entries(fields).forEach(([key, field]) => {
-      if (!field || (field.value && field.value !== previous[key])) {
-        return;
-      }
-      field.value = prefill ? prefill[key] : '';
-      applied = applied || Boolean(prefill);
-    });
-    this.lastPrefill = prefill || { name: '', notes: '' };
+    const declared = this.getDeclaredMedications(participantId);
+    const next = declared.find((med) => !med.planned);
+    const field = form.elements.medication_name;
+    const canFill = field && (!field.value || field.value === this.lastPrefill);
+    if (canFill) {
+      field.value = next ? next.name : '';
+      this.lastPrefill = field.value;
+    }
     const hint = document.getElementById('medicationPrefillHint');
     if (hint) {
-      hint.hidden = !applied;
+      hint.hidden = !(canFill && next);
+    }
+    const list = document.getElementById('declaredMedications');
+    if (list) {
+      list.hidden = declared.length === 0;
+      setContent(list, declared.length === 0 ? '' : `
+        <span>${escapeHTML(translate('medication_declared_list_label'))}</span>
+        <div class="declared-medications">
+          ${declared.map((med) => `
+            <button type="button" class="pill" data-declared-medication="${escapeHTML(med.name)}"
+              ${med.planned ? 'disabled' : ''}>
+              ${med.planned ? '✓ ' : ''}${escapeHTML(med.name)}${med.planned ? ` (${escapeHTML(translate('medication_declared_planned'))})` : ''}
+            </button>
+          `).join('')}
+        </div>
+      `);
     }
   }
 
@@ -2024,6 +2048,15 @@ export class MedicationManagement {
     }
     document.getElementById('requirementParticipantSelect')?.addEventListener('change', (event) => {
       this.applyDeclaredPrefill(requirementForm, Number(event.target.value));
+    });
+    document.getElementById('declaredMedications')?.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-declared-medication]');
+      if (!button || !requirementForm) {
+        return;
+      }
+      requirementForm.elements.medication_name.value = button.dataset.declaredMedication;
+      this.lastPrefill = button.dataset.declaredMedication;
+      requirementForm.elements.medication_name.focus();
     });
 
     document.getElementById("treatmentAuthForm")?.addEventListener("submit", (event) => {
