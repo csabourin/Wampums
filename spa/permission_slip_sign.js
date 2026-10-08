@@ -101,6 +101,13 @@ export class PermissionSlipSign {
               </div>
             ` : ''}
 
+            ${this.slip.authorization_text ? `
+              <div class="mb-3 permission-slip-authorization">
+                <strong>${translate('activity_authorization_text_label')}:</strong>
+                <div class="mt-2 permission-slip-authorization__text">${escapeHTML(this.slip.authorization_text)}</div>
+              </div>
+            ` : ''}
+
             ${deadlineDate ? `
               <div class="mb-3">
                 <strong>${translate('deadline_date')}:</strong> ${deadlineDate}

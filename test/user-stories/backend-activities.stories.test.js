@@ -196,7 +196,7 @@ describe('US-ACT-006 — Planning a camp makes its days selectable everywhere', 
         return { rows: [] };
       }
       if (query.includes('INSERT INTO activities')) {
-        createdRanges.push({ start: params[3], end: params[5] });
+        createdRanges.push({ start: params[4], end: params[6] });
         return { rows: [{ id: 9 }] };
       }
       if (query.includes('generate_series')) {

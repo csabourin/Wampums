@@ -81,28 +81,33 @@ Wampums Team
  * @param {Number} organizationId - Organization ID
  */
 async function sendActivityUpdateNotifications(pool, activityId, organizationId) {
-  // Get all users who have carpool assignments for this activity
+  // Everyone the activity concerns: guardians of children riding in its
+  // carpools or holding one of its permission slips, and its drivers. A child
+  // can be enrolled in several units, so only accounts that are active members
+  // of this activity's unit hear about it.
   const result = await pool.query(
-    `SELECT DISTINCT
-      u.email,
-      u.full_name as guardian_name,
-      a.name as activity_name,
-      a.activity_date,
-      a.meeting_location_going,
-      a.meeting_time_going,
-      a.departure_time_going,
-      a.meeting_location_return,
-      a.meeting_time_return,
-      a.departure_time_return
-     FROM users u
-     JOIN user_participants up ON u.id = up.user_id
-     JOIN carpool_assignments ca ON up.participant_id = ca.participant_id
-     JOIN carpool_offers co ON ca.carpool_offer_id = co.id
-     JOIN activities a ON co.activity_id = a.id
-     WHERE a.id = $1 AND a.organization_id = $2
+    `WITH recipients AS (
+       SELECT up.user_id
+         FROM user_participants up
+         JOIN carpool_assignments ca ON ca.participant_id = up.participant_id
+         JOIN carpool_offers co ON co.id = ca.carpool_offer_id
+        WHERE co.activity_id = $1
 
-     UNION
+       UNION
 
+       SELECT co.user_id
+         FROM carpool_offers co
+        WHERE co.activity_id = $1 AND co.is_active = TRUE
+
+       UNION
+
+       SELECT up.user_id
+         FROM user_participants up
+         JOIN permission_slips ps ON ps.participant_id = up.participant_id
+        WHERE ps.activity_id = $1
+          AND ps.organization_id = $2
+          AND ps.status IN ('pending', 'signed')
+     )
      SELECT DISTINCT
       u.email,
       u.full_name as guardian_name,
@@ -114,10 +119,12 @@ async function sendActivityUpdateNotifications(pool, activityId, organizationId)
       a.meeting_location_return,
       a.meeting_time_return,
       a.departure_time_return
-     FROM users u
-     JOIN carpool_offers co ON u.id = co.user_id
-     JOIN activities a ON co.activity_id = a.id
-     WHERE a.id = $1 AND a.organization_id = $2 AND co.is_active = TRUE`,
+     FROM recipients r
+     JOIN users u ON u.id = r.user_id
+     JOIN user_organizations uo
+       ON uo.user_id = u.id AND uo.organization_id = $2 AND uo.status = 'active'
+     JOIN activities a ON a.id = $1 AND a.organization_id = $2
+     WHERE u.email IS NOT NULL AND u.email <> ''`,
     [activityId, organizationId]
   );
 

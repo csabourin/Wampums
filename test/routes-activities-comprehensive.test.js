@@ -527,101 +527,221 @@ describe('POST /api/v1/activities', () => {
 // ============================================
 
 describe('PUT /api/v1/activities/:id', () => {
-  test('updates activity with provided fields', async () => {
-    const { __mClient, __mPool } = require('pg');
-    const token = generateToken({
-      permissions: ['activities.edit']
-    });
+  const EXISTING_ACTIVITY = {
+    name: 'Canoe outing',
+    description: 'Paddling on the lake',
+    authorization_text: 'I authorize my child to go canoeing.',
+    is_active: true,
+    activity_date: '2026-06-13',
+    activity_start_date: '2026-06-13',
+    activity_start_time: '09:00:00',
+    activity_end_date: '2026-06-13',
+    activity_end_time: '16:00:00',
+    meeting_location_going: 'Scout hall',
+    meeting_time_going: '08:30:00',
+    departure_time_going: '08:45:00',
+    meeting_location_return: 'Lake parking',
+    meeting_time_return: '15:30:00',
+    departure_time_return: '15:45:00'
+  };
 
-    let updateQuery = '';
+  /**
+   * Mock the update transaction and record the statements it runs.
+   * @param {Object|null} existing - Row the locked SELECT returns (null for none)
+   * @param {number} pendingSlips - Rows the permission slip refresh touches
+   * @returns {Object} Captured statements
+   */
+  function mockUpdateTransaction(existing = EXISTING_ACTIVITY, pendingSlips = 0) {
+    const { __mClient, __mPool } = require('pg');
+    const captured = { statements: [], activityUpdate: null, slipUpdate: null };
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (typeof query !== 'string') {
+        return undefined;
+      }
+      if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(query)) {
+        captured.statements.push(query);
+        return { rows: [] };
+      }
+      if (query.includes('FROM activities') && query.includes('FOR UPDATE')) {
+        return { rows: existing ? [{ ...existing }] : [] };
+      }
       if (query.includes('UPDATE activities')) {
-        updateQuery = query;
-        return Promise.resolve({
-          rows: [{
-            id: ACTIVITY_ID,
-            name: 'Updated Activity',
-            organization_id: ORG_ID
-          }]
-        });
+        captured.activityUpdate = params;
+        return { rows: [{ id: ACTIVITY_ID, organization_id: ORG_ID, name: params[0], is_active: params[14] === 'f' ? false : params[14] }] };
       }
-      if (query.includes('FROM role_permissions')) {
-        return Promise.resolve({
-          rows: [{ permission_key: 'activities.edit' }]
-        });
+      if (query.includes('UPDATE permission_slips')) {
+        captured.slipUpdate = params;
+        return { rows: [], rowCount: pendingSlips };
       }
-      // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
     });
+
+    return captured;
+  }
+
+  test('updates provided fields and clears emptied optional fields', async () => {
+    const captured = mockUpdateTransaction(EXISTING_ACTIVITY, 3);
+    const token = generateToken({ permissions: ['activities.edit'] });
 
     const res = await request(app)
       .put(`/api/v1/activities/${ACTIVITY_ID}`)
       .set('Authorization', `Bearer ${token}`)
       .send({
-        name: 'Updated Activity',
-        description: 'New description'
+        activity_name: 'Canoe and picnic',
+        description: '',
+        authorization_text: 'I authorize my child to go canoeing and picnic.',
+        meeting_location_return: '',
+        meeting_time_return: '',
+        departure_time_return: ''
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.data.name).toBe('Updated Activity');
-    expect(updateQuery).toContain('UPDATE activities');
+    expect(res.body.data.name).toBe('Canoe and picnic');
+    expect(res.body.data.pending_permission_slips_updated).toBe(3);
+
+    const [name, description, authorizationText] = captured.activityUpdate;
+    expect(name).toBe('Canoe and picnic');
+    expect(description).toBeNull();
+    expect(authorizationText).toBe('I authorize my child to go canoeing and picnic.');
+    expect(captured.activityUpdate.slice(11, 14)).toEqual([null, null, null]);
+    expect(captured.slipUpdate.slice(0, 3)).toEqual([
+      'Canoe and picnic',
+      null,
+      'I authorize my child to go canoeing and picnic.'
+    ]);
+    expect(captured.statements).toEqual(['BEGIN', 'COMMIT']);
   });
 
-  test('allows partial updates (only provided fields)', async () => {
-    const { __mClient, __mPool } = require('pg');
-    const token = generateToken({
-      permissions: ['activities.edit']
-    });
-
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
-      if (query.includes('UPDATE activities')) {
-        // Should only update name, not other fields
-        return Promise.resolve({
-          rows: [{
-            id: ACTIVITY_ID,
-            name: 'Just Name Changed',
-            organization_id: ORG_ID
-          }]
-        });
-      }
-      // Return undefined to fall back to default mocks (permissions, roles, etc.)
-      return undefined;
-    });
+  test('keeps fields that are not sent', async () => {
+    const captured = mockUpdateTransaction();
+    const token = generateToken({ permissions: ['activities.edit'] });
 
     const res = await request(app)
       .put(`/api/v1/activities/${ACTIVITY_ID}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: 'Just Name Changed'
-        // Don't send other fields
-      });
+      .send({ name: 'Just Name Changed' });
 
     expect(res.status).toBe(200);
+    expect(captured.activityUpdate.slice(0, 3)).toEqual([
+      'Just Name Changed',
+      EXISTING_ACTIVITY.description,
+      EXISTING_ACTIVITY.authorization_text
+    ]);
+    expect(captured.activityUpdate[10]).toBe(EXISTING_ACTIVITY.departure_time_going);
+  });
+
+  test('moves the legacy activity_date with the start date', async () => {
+    const captured = mockUpdateTransaction();
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ activity_start_date: '2026-06-12', activity_end_date: '2026-06-14' });
+
+    expect(res.status).toBe(200);
+    expect(captured.activityUpdate[3]).toBe('2026-06-12');
+    expect(captured.slipUpdate[3]).toBe('2026-06-12');
+  });
+
+  test('rejects clearing a required field', async () => {
+    const captured = mockUpdateTransaction();
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ meeting_location_going: '  ' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('meeting_location_going');
+    expect(captured.activityUpdate).toBeNull();
+    expect(captured.statements).toEqual(['BEGIN', 'ROLLBACK']);
+  });
+
+  test('validates the resulting schedule', async () => {
+    const captured = mockUpdateTransaction();
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ departure_time_going: '08:00' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('Departure time must be after meeting time');
+    expect(captured.activityUpdate).toBeNull();
+  });
+
+  test('rejects an end before the start', async () => {
+    mockUpdateTransaction();
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ activity_end_date: '2026-06-12' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('Activity must end after it starts');
+  });
+
+  test('rejects malformed times', async () => {
+    mockUpdateTransaction();
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ meeting_time_going: 'noon' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('meeting_time_going');
+  });
+
+  test.each([
+    ['meeting_time_going', '25:00'],
+    ['departure_time_going', '08:99'],
+    ['activity_end_date', '2026-02-30']
+  ])('rejects out-of-range %s (%s) before the database sees it', async (field, value) => {
+    const captured = mockUpdateTransaction();
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ [field]: value });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain(field);
+    expect(captured.activityUpdate).toBeNull();
+  });
+
+  test('rejects a partially numeric id instead of updating another activity', async () => {
+    const captured = mockUpdateTransaction();
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put('/api/v1/activities/1abc')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Wrong target' });
+
+    expect(res.status).toBe(404);
+    expect(captured.activityUpdate).toBeNull();
   });
 
   test('returns 404 when activity not found', async () => {
-    const { __mClient, __mPool } = require('pg');
-    const token = generateToken({
-      permissions: ['activities.edit']
-    });
-
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
-      if (query.includes('UPDATE activities')) {
-        return Promise.resolve({ rows: [] }); // Not found
-      }
-      // Return undefined to fall back to default mocks (permissions, roles, etc.)
-      return undefined;
-    });
+    const captured = mockUpdateTransaction(null);
+    const token = generateToken({ permissions: ['activities.edit'] });
 
     const res = await request(app)
       .put('/api/v1/activities/999')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: 'Updated Activity'
-      });
+      .send({ name: 'Updated Activity' });
 
     expect(res.status).toBe(404);
+    expect(captured.activityUpdate).toBeNull();
   });
 
   test('requires activities.edit permission', async () => {
@@ -678,33 +798,16 @@ describe('PUT /api/v1/activities/:id', () => {
   });
 
   test('allows toggling is_active flag for soft delete', async () => {
-    const { __mClient, __mPool } = require('pg');
-    const token = generateToken({
-      permissions: ['activities.edit']
-    });
-
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
-      if (query.includes('UPDATE activities')) {
-        return Promise.resolve({
-          rows: [{
-            id: ACTIVITY_ID,
-            is_active: false,
-            organization_id: ORG_ID
-          }]
-        });
-      }
-      // Return undefined to fall back to default mocks (permissions, roles, etc.)
-      return undefined;
-    });
+    const captured = mockUpdateTransaction();
+    const token = generateToken({ permissions: ['activities.edit'] });
 
     const res = await request(app)
       .put(`/api/v1/activities/${ACTIVITY_ID}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        is_active: false
-      });
+      .send({ is_active: false });
 
     expect(res.status).toBe(200);
+    expect(captured.activityUpdate[14]).toBe('f');
     expect(res.body.data.is_active).toBe(false);
   });
 });
@@ -787,6 +890,37 @@ describe('DELETE /api/v1/activities/:id', () => {
 
     expect(res.status).toBe(200);
     expect(carpoolUpdateCalled).toBe(true);
+  });
+
+  test('archives unanswered permission slips when deleting activity', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.delete']
+    });
+
+    let slipQuery = null;
+
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('SELECT id FROM activities')) {
+        return Promise.resolve({ rows: [{ id: ACTIVITY_ID }] });
+      }
+      if (query.includes('UPDATE permission_slips')) {
+        slipQuery = query;
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('UPDATE activities') && query.includes('is_active = FALSE')) {
+        return Promise.resolve({ rows: [{ id: ACTIVITY_ID, is_active: false }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .delete(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(slipQuery).toContain("status = 'archived'");
+    expect(slipQuery).toContain("status = 'pending'");
   });
 
   test('returns 404 when activity not found', async () => {

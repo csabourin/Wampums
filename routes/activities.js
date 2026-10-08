@@ -4,10 +4,43 @@ const { authenticate, getOrganizationId, requirePermission, blockDemoRoles } = r
 const { toBool } = require('../utils');
 const { success, error, asyncHandler } = require('../middleware/response');
 const logger = require('../config/logger');
+const { sendActivityUpdateNotifications } = require('../utils/carpool-notifications');
 
 module.exports = (pool) => {
   const ICAL_PROD_ID = '-//Wampums//Activities Calendar//EN';
   const ICAL_MAX_LINE_OCTETS = 75;
+  const AUTHORIZATION_TEXT_MAX_LENGTH = 10000;
+  const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+  const TIME_PATTERN = /^(\d{2}):(\d{2})(?::(\d{2}))?$/;
+  const ACTIVITY_ID_PATTERN = /^[1-9]\d{0,9}$/;
+  const HTTP_NOT_FOUND = 404;
+  const HOURS_PER_DAY = 24;
+  const MINUTES_PER_HOUR = 60;
+  const SECONDS_PER_MINUTE = 60;
+
+  // Editable activity fields, grouped by how an update reads them
+  const REQUIRED_TEXT_FIELDS = ['meeting_location_going'];
+  const OPTIONAL_TEXT_FIELDS = ['description', 'authorization_text', 'meeting_location_return'];
+  const DATE_FIELDS = ['activity_date', 'activity_start_date', 'activity_end_date'];
+  const TIME_FIELDS = [
+    'activity_start_time',
+    'activity_end_time',
+    'meeting_time_going',
+    'departure_time_going',
+    'meeting_time_return',
+    'departure_time_return'
+  ];
+  const REQUIRED_FIELDS = [
+    'name',
+    'activity_date',
+    'activity_start_date',
+    'activity_start_time',
+    'activity_end_date',
+    'activity_end_time',
+    'meeting_location_going',
+    'meeting_time_going',
+    'departure_time_going'
+  ];
 
   /**
    * Escape iCalendar text values according to RFC 5545.
@@ -260,6 +293,9 @@ module.exports = (pool) => {
    */
   router.get('/:id/participants', authenticate, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const { id } = req.params;
+    if (!ACTIVITY_ID_PATTERN.test(id)) {
+      return error(res, 'Activity not found', HTTP_NOT_FOUND);
+    }
     const organizationId = await getOrganizationId(req, pool);
 
     // Verify activity exists and belongs to organization
@@ -324,6 +360,9 @@ module.exports = (pool) => {
    */
   router.get('/:id', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
     const { id } = req.params;
+    if (!ACTIVITY_ID_PATTERN.test(id)) {
+      return error(res, 'Activity not found', HTTP_NOT_FOUND);
+    }
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -343,6 +382,76 @@ module.exports = (pool) => {
 
     return success(res, result.rows[0]);
   }));
+
+  /**
+   * Turn an optional text field into the value stored: trimmed, or null when blank.
+   * @param {*} value
+   * @returns {string|null}
+   */
+  const optionalText = (value) => {
+    if (value === undefined || value === null) {
+      return null;
+    }
+    const trimmed = String(value).trim();
+    return trimmed === '' ? null : trimmed;
+  };
+
+  /**
+   * Normalize a time to HH:MM:SS so values from forms and the database compare.
+   * @param {*} value
+   * @returns {string|null} Normalized time, or null when absent or malformed
+   */
+  const normalizeTime = (value) => {
+    const match = String(value ?? '').trim().match(TIME_PATTERN);
+    if (!match) {
+      return null;
+    }
+    const [, hours, minutes, seconds = '00'] = match;
+    if (Number(hours) >= HOURS_PER_DAY || Number(minutes) >= MINUTES_PER_HOUR
+      || Number(seconds) >= SECONDS_PER_MINUTE) {
+      return null;
+    }
+    return `${hours}:${minutes}:${seconds}`;
+  };
+
+  /**
+   * Whether a value is a real calendar date written YYYY-MM-DD.
+   * @param {*} value
+   * @returns {boolean}
+   */
+  const isValidDate = (value) => {
+    const text = String(value ?? '').trim();
+    if (!DATE_PATTERN.test(text)) {
+      return false;
+    }
+    const [year, month, day] = text.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+  };
+
+  /**
+   * Check an activity's schedule is coherent.
+   * @param {Object} activity - Activity with normalized dates and times
+   * @returns {string|null} Error message, or null when the schedule is valid
+   */
+  const validateSchedule = (activity) => {
+    if (activity.meeting_time_going >= activity.departure_time_going) {
+      return 'Departure time must be after meeting time';
+    }
+    if (activity.meeting_time_return && activity.departure_time_return
+      && activity.meeting_time_return >= activity.departure_time_return) {
+      return 'Return departure time must be after return meeting time';
+    }
+    const start = `${activity.activity_start_date}T${activity.activity_start_time}`;
+    const end = `${activity.activity_end_date}T${activity.activity_end_time}`;
+    if (end < start) {
+      return 'Activity must end after it starts';
+    }
+    if (activity.authorization_text && activity.authorization_text.length > AUTHORIZATION_TEXT_MAX_LENGTH) {
+      return `Authorization text must be at most ${AUTHORIZATION_TEXT_MAX_LENGTH} characters`;
+    }
+    return null;
+  };
 
   /**
    * Create a new activity
@@ -367,10 +476,11 @@ module.exports = (pool) => {
     });
 
     // Accept both 'activity_name' (new) and 'name' (legacy) field names
-    const activityName = req.body.activity_name || req.body.name;
+    const activityName = optionalText(req.body.activity_name || req.body.name);
 
     const {
       description,
+      authorization_text,
       activity_date,
       activity_start_date,
       activity_start_time,
@@ -394,20 +504,18 @@ module.exports = (pool) => {
 
     // Validation with specific error messages
     const missingFields = [];
-    if (!activityName) missingFields.push('name');
-    if (!normalizedStartDate) missingFields.push('activity_start_date (or activity_date as fallback)');
-    if (!normalizedEndDate) missingFields.push('activity_end_date');
-    if (!meeting_location_going) missingFields.push('meeting_location_going');
+    if (!activityName) {missingFields.push('name');}
+    if (!normalizedStartDate) {missingFields.push('activity_start_date (or activity_date as fallback)');}
+    if (!normalizedEndDate) {missingFields.push('activity_end_date');}
+    if (!optionalText(meeting_location_going)) {missingFields.push('meeting_location_going');}
     // Core carpool fields are always required
-    if (!meeting_time_going) missingFields.push('meeting_time_going');
-    if (!departure_time_going) missingFields.push('departure_time_going');
+    if (!meeting_time_going) {missingFields.push('meeting_time_going');}
+    if (!departure_time_going) {missingFields.push('departure_time_going');}
     // Normalized times depend on the above required fields as fallbacks
     if (!normalizedStartTime) {
-      // This should never happen if meeting_time_going validation passes above
       missingFields.push('activity_start_time (meeting_time_going can be used as fallback)');
     }
     if (!normalizedEndTime) {
-      // This should never happen if departure_time_going validation passes above
       missingFields.push('activity_end_time (departure times can be used as fallback)');
     }
 
@@ -415,132 +523,287 @@ module.exports = (pool) => {
       return error(res, `Missing required fields: ${missingFields.join(', ')}`, 400);
     }
 
-    // Validate that departure time is after meeting time
-    if (meeting_time_going >= departure_time_going) {
-      return error(res, 'Departure time must be after meeting time', 400);
+    const invalidFields = [
+      ...['activity_date', 'activity_start_date', 'activity_end_date']
+        .filter((field) => optionalText(req.body[field]) !== null && !isValidDate(req.body[field])),
+      ...TIME_FIELDS
+        .filter((field) => optionalText(req.body[field]) !== null && normalizeTime(req.body[field]) === null)
+    ];
+    if (invalidFields.length > 0) {
+      return error(res, `Invalid values: ${invalidFields.join(', ')}`, 400);
     }
 
-    // If return trip is specified, validate those times too
-    if (meeting_time_return && departure_time_return && meeting_time_return >= departure_time_return) {
-      return error(res, 'Return departure time must be after return meeting time', 400);
+    const activity = {
+      name: activityName,
+      description: optionalText(description),
+      authorization_text: optionalText(authorization_text),
+      activity_date: normalizedActivityDate,
+      activity_start_date: normalizedStartDate,
+      activity_start_time: normalizeTime(normalizedStartTime),
+      activity_end_date: normalizedEndDate,
+      activity_end_time: normalizeTime(normalizedEndTime),
+      meeting_location_going: optionalText(meeting_location_going),
+      meeting_time_going: normalizeTime(meeting_time_going),
+      departure_time_going: normalizeTime(departure_time_going),
+      meeting_location_return: optionalText(meeting_location_return),
+      meeting_time_return: normalizeTime(meeting_time_return),
+      departure_time_return: normalizeTime(departure_time_return)
+    };
+
+    const scheduleError = validateSchedule(activity);
+    if (scheduleError) {
+      return error(res, scheduleError, 400);
     }
 
-    // Insert activity
-    const query = `
-      INSERT INTO activities (
-        name, description, activity_date, activity_start_date, activity_start_time,
+    const result = await pool.query(
+      `INSERT INTO activities (
+        name, description, authorization_text, activity_date, activity_start_date, activity_start_time,
         activity_end_date, activity_end_time, meeting_location_going, meeting_time_going,
         departure_time_going, meeting_location_return, meeting_time_return,
         departure_time_return, created_by, organization_id
       ) VALUES (
-        $1, $2, $3, $4, $5,
-        $6, $7, $8, $9,
-        $10, $11, $12,
-        $13, $14, $15
-      ) RETURNING *
-    `;
-
-    const values = [
-      activityName,
-      description,
-      normalizedActivityDate,
-      normalizedStartDate,
-      normalizedStartTime,
-      normalizedEndDate,
-      normalizedEndTime,
-      meeting_location_going,
-      meeting_time_going,
-      departure_time_going,
-      meeting_location_return || '',
-      meeting_time_return || '',
-      departure_time_return || '',
-      userId,
-      organizationId
-    ];
-
-    const result = await pool.query(query, values);
+        $1, $2, $3, $4, $5, $6,
+        $7, $8, $9, $10,
+        $11, $12, $13,
+        $14, $15, $16
+      ) RETURNING *`,
+      [
+        activity.name,
+        activity.description,
+        activity.authorization_text,
+        activity.activity_date,
+        activity.activity_start_date,
+        activity.activity_start_time,
+        activity.activity_end_date,
+        activity.activity_end_time,
+        activity.meeting_location_going,
+        activity.meeting_time_going,
+        activity.departure_time_going,
+        activity.meeting_location_return,
+        activity.meeting_time_return,
+        activity.departure_time_return,
+        userId,
+        organizationId
+      ]
+    );
 
     return success(res, result.rows[0], 'Activity created successfully', 201);
   }));
 
   /**
-   * Update an activity
+   * Update an activity.
+   *
+   * Only the fields present in the body change; an optional field sent empty is
+   * cleared. The resulting activity is validated as a whole, and the wording of
+   * permission slips still awaiting an answer follows the activity. Answered
+   * slips keep the text that was signed.
+   *
    * Accessible by: animation, admin only
    */
   router.put('/:id', authenticate, blockDemoRoles, requirePermission('activities.edit'), asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const organizationId = await getOrganizationId(req, pool);
-
-    const {
-      name,
-      description,
-      activity_date,
-      activity_start_date,
-      activity_start_time,
-      activity_end_date,
-      activity_end_time,
-      meeting_location_going,
-      meeting_time_going,
-      departure_time_going,
-      meeting_location_return,
-      meeting_time_return,
-      departure_time_return,
-      is_active
-    } = req.body;
-
-    const result = await pool.query(
-      `UPDATE activities
-       SET
-         name = COALESCE($1, name),
-         description = COALESCE($2, description),
-         activity_date = COALESCE($3, activity_date),
-         activity_start_date = COALESCE($4, activity_start_date),
-         activity_start_time = COALESCE($5, activity_start_time),
-         activity_end_date = COALESCE($6, activity_end_date),
-         activity_end_time = COALESCE($7, activity_end_time),
-         meeting_location_going = COALESCE($8, meeting_location_going),
-         meeting_time_going = COALESCE($9, meeting_time_going),
-         departure_time_going = COALESCE($10, departure_time_going),
-         meeting_location_return = COALESCE($11, meeting_location_return),
-         meeting_time_return = COALESCE($12, meeting_time_return),
-         departure_time_return = COALESCE($13, departure_time_return),
-         is_active = COALESCE($14, is_active),
-         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $15 AND organization_id = $16
-       RETURNING *`,
-      [
-        name,
-        description,
-        activity_date,
-        activity_start_date,
-        activity_start_time,
-        activity_end_date,
-        activity_end_time,
-        meeting_location_going,
-        meeting_time_going,
-        departure_time_going,
-        meeting_location_return,
-        meeting_time_return,
-        departure_time_return,
-        toBool(is_active),
-        id,
-        organizationId
-      ]
-    );
-
-    if (result.rows.length === 0) {
-      return error(res, 'Activity not found', 404);
+    if (!ACTIVITY_ID_PATTERN.test(req.params.id)) {
+      return error(res, 'Activity not found', HTTP_NOT_FOUND);
     }
+    const activityId = Number(req.params.id);
+    const organizationId = await getOrganizationId(req, pool);
+    const body = req.body || {};
+    const has = (field) => Object.prototype.hasOwnProperty.call(body, field);
 
-    return success(res, result.rows[0], 'Activity updated successfully');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const existingResult = await client.query(
+        `SELECT name, description, authorization_text, is_active,
+                activity_date::text AS activity_date,
+                activity_start_date::text AS activity_start_date,
+                activity_start_time::text AS activity_start_time,
+                activity_end_date::text AS activity_end_date,
+                activity_end_time::text AS activity_end_time,
+                meeting_location_going,
+                meeting_time_going::text AS meeting_time_going,
+                departure_time_going::text AS departure_time_going,
+                meeting_location_return,
+                meeting_time_return::text AS meeting_time_return,
+                departure_time_return::text AS departure_time_return
+           FROM activities
+          WHERE id = $1 AND organization_id = $2
+          FOR UPDATE`,
+        [activityId, organizationId]
+      );
+
+      if (existingResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return error(res, 'Activity not found', 404);
+      }
+
+      const existing = existingResult.rows[0];
+      const activity = {
+        ...existing,
+        activity_start_time: normalizeTime(existing.activity_start_time),
+        activity_end_time: normalizeTime(existing.activity_end_time),
+        meeting_time_going: normalizeTime(existing.meeting_time_going),
+        departure_time_going: normalizeTime(existing.departure_time_going),
+        meeting_time_return: normalizeTime(existing.meeting_time_return),
+        departure_time_return: normalizeTime(existing.departure_time_return)
+      };
+      const invalidFields = [];
+
+      if (has('activity_name') || has('name')) {
+        activity.name = optionalText(has('activity_name') ? body.activity_name : body.name);
+      }
+      OPTIONAL_TEXT_FIELDS.filter(has).forEach((field) => {
+        activity[field] = optionalText(body[field]);
+      });
+      REQUIRED_TEXT_FIELDS.filter(has).forEach((field) => {
+        activity[field] = optionalText(body[field]);
+      });
+      DATE_FIELDS.filter(has).forEach((field) => {
+        const value = optionalText(body[field]);
+        if (value !== null && !isValidDate(value)) {
+          invalidFields.push(field);
+        }
+        activity[field] = value;
+      });
+      TIME_FIELDS.filter(has).forEach((field) => {
+        const value = normalizeTime(body[field]);
+        if (value === null && optionalText(body[field]) !== null) {
+          invalidFields.push(field);
+        }
+        activity[field] = value;
+      });
+      // activity_date is the legacy copy of the start date
+      if (has('activity_start_date') && !has('activity_date')) {
+        activity.activity_date = activity.activity_start_date;
+      }
+      if (has('is_active')) {
+        activity.is_active = toBool(body.is_active);
+      }
+
+      const missingFields = REQUIRED_FIELDS.filter((field) => !activity[field]);
+      if (invalidFields.length > 0 || missingFields.length > 0) {
+        await client.query('ROLLBACK');
+        const problems = [
+          ...(missingFields.length > 0 ? [`Missing required fields: ${missingFields.join(', ')}`] : []),
+          ...(invalidFields.length > 0 ? [`Invalid values: ${invalidFields.join(', ')}`] : [])
+        ];
+        return error(res, problems.join('; '), 400);
+      }
+
+      const scheduleError = validateSchedule(activity);
+      if (scheduleError) {
+        await client.query('ROLLBACK');
+        return error(res, scheduleError, 400);
+      }
+
+      const result = await client.query(
+        `UPDATE activities
+            SET name = $1,
+                description = $2,
+                authorization_text = $3,
+                activity_date = $4,
+                activity_start_date = $5,
+                activity_start_time = $6,
+                activity_end_date = $7,
+                activity_end_time = $8,
+                meeting_location_going = $9,
+                meeting_time_going = $10,
+                departure_time_going = $11,
+                meeting_location_return = $12,
+                meeting_time_return = $13,
+                departure_time_return = $14,
+                is_active = $15,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = $16 AND organization_id = $17
+          RETURNING *`,
+        [
+          activity.name,
+          activity.description,
+          activity.authorization_text,
+          activity.activity_date,
+          activity.activity_start_date,
+          activity.activity_start_time,
+          activity.activity_end_date,
+          activity.activity_end_time,
+          activity.meeting_location_going,
+          activity.meeting_time_going,
+          activity.departure_time_going,
+          activity.meeting_location_return,
+          activity.meeting_time_return,
+          activity.departure_time_return,
+          activity.is_active,
+          activityId,
+          organizationId
+        ]
+      );
+
+      // A slip's date is part of its uniqueness key: move it only when the
+      // participant has no other slip on the new date.
+      const slipResult = await client.query(
+        `UPDATE permission_slips ps
+            SET activity_title = $1,
+                activity_description = $2,
+                authorization_text = $3,
+                meeting_date = CASE
+                  WHEN NOT EXISTS (
+                    SELECT 1 FROM permission_slips other
+                     WHERE other.organization_id = ps.organization_id
+                       AND other.participant_id = ps.participant_id
+                       AND other.meeting_date = $4::date
+                       AND other.id <> ps.id
+                  ) THEN $4::date
+                  ELSE ps.meeting_date
+                END,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE ps.activity_id = $5 AND ps.organization_id = $6 AND ps.status = 'pending'`,
+        [
+          activity.name,
+          activity.description,
+          activity.authorization_text,
+          activity.activity_date,
+          activityId,
+          organizationId
+        ]
+      );
+
+      await client.query('COMMIT');
+
+      // Explicit opt-in: only the edit forms ask for it, never other API callers
+      if (toBool(body.notify_participants) === 't') {
+        try {
+          await sendActivityUpdateNotifications(pool, activityId, organizationId);
+        } catch (notifyError) {
+          logger.error('[Activity Update] Failed to send update notifications', {
+            activityId,
+            organizationId,
+            error: notifyError.message
+          });
+        }
+      }
+
+      return success(res, {
+        ...result.rows[0],
+        pending_permission_slips_updated: slipResult.rowCount || 0
+      }, 'Activity updated successfully');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
   }));
 
   /**
-   * Delete an activity (soft delete)
+   * Delete an activity (soft delete).
+   * Its carpool offers are cancelled and its unanswered permission slips are
+   * archived, so guardians can no longer sign for an activity that is gone.
    * Accessible by: animation, admin only
    */
   router.delete('/:id', authenticate, blockDemoRoles, requirePermission('activities.delete'), asyncHandler(async (req, res) => {
     const { id } = req.params;
+    if (!ACTIVITY_ID_PATTERN.test(id)) {
+      return error(res, 'Activity not found', HTTP_NOT_FOUND);
+    }
     const organizationId = await getOrganizationId(req, pool);
 
     // First verify activity exists and belongs to organization
@@ -557,6 +820,13 @@ module.exports = (pool) => {
     await pool.query(
       'UPDATE carpool_offers SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE activity_id = $1 AND is_active = TRUE',
       [id]
+    );
+
+    await pool.query(
+      `UPDATE permission_slips
+          SET status = 'archived', updated_at = CURRENT_TIMESTAMP
+        WHERE activity_id = $1 AND organization_id = $2 AND status = 'pending'`,
+      [id, organizationId]
     );
 
     // Soft delete activity

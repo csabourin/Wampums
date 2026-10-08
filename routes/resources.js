@@ -2354,11 +2354,12 @@ module.exports = (pool) => {
         let finalMeetingDate = meeting_date;
         let finalActivityTitle = activity_title;
         let finalActivityDescription = activity_description;
+        let finalAuthorizationText = null;
 
         // If activity_id provided, fetch activity details and use them
         if (activity_id) {
           const activityResult = await pool.query(
-            'SELECT name, description, activity_date FROM activities WHERE id = $1 AND organization_id = $2',
+            'SELECT name, description, authorization_text, activity_date FROM activities WHERE id = $1 AND organization_id = $2 AND is_active = TRUE',
             [activity_id, organizationId]
           );
 
@@ -2370,6 +2371,7 @@ module.exports = (pool) => {
           finalMeetingDate = activity.activity_date;
           finalActivityTitle = activity.name;
           finalActivityDescription = activity.description;
+          finalAuthorizationText = activity.authorization_text;
         } else {
           // Legacy mode: require meeting_date if no activity_id
           if (!meeting_date) {
@@ -2395,6 +2397,10 @@ module.exports = (pool) => {
           : null;
 
         const createdSlips = [];
+        // An answered slip is the record of what a guardian consented to: a
+        // reissue never rewrites it. Archiving it first frees the date for a
+        // new request, which then starts with no signature or email history.
+        const answeredParticipantIds = [];
 
         // Create permission slips for each participant
         for (const pid of participantIdsList) {
@@ -2403,8 +2409,9 @@ module.exports = (pool) => {
           const insertResult = await pool.query(
             `INSERT INTO permission_slips
              (organization_id, participant_id, guardian_id, meeting_id, meeting_date,
-              activity_id, activity_title, activity_description, deadline_date, consent_payload, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+              activity_id, activity_title, activity_description, authorization_text, deadline_date,
+              consent_payload, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
              ON CONFLICT (organization_id, participant_id, meeting_date)
              DO UPDATE SET consent_payload = EXCLUDED.consent_payload,
                            guardian_id = EXCLUDED.guardian_id,
@@ -2412,9 +2419,27 @@ module.exports = (pool) => {
                            activity_id = EXCLUDED.activity_id,
                            activity_title = EXCLUDED.activity_title,
                            activity_description = EXCLUDED.activity_description,
+                           authorization_text = EXCLUDED.authorization_text,
                            deadline_date = EXCLUDED.deadline_date,
                            status = EXCLUDED.status,
+                           signed_at = NULL,
+                           signed_by = NULL,
+                           signature_hash = NULL,
+                           contact_confirmation = NULL,
+                           declined_at = NULL,
+                           declined_by = NULL,
+                           email_sent = CASE WHEN permission_slips.status = 'pending'
+                                             THEN permission_slips.email_sent ELSE FALSE END,
+                           email_sent_at = CASE WHEN permission_slips.status = 'pending'
+                                                THEN permission_slips.email_sent_at ELSE NULL END,
+                           reminder_sent = CASE WHEN permission_slips.status = 'pending'
+                                                THEN permission_slips.reminder_sent ELSE FALSE END,
+                           reminder_sent_at = CASE WHEN permission_slips.status = 'pending'
+                                                   THEN permission_slips.reminder_sent_at ELSE NULL END,
+                           guardians_emailed = CASE WHEN permission_slips.status = 'pending'
+                                                    THEN permission_slips.guardians_emailed ELSE '[]'::jsonb END,
                            updated_at = CURRENT_TIMESTAMP
+             WHERE permission_slips.status NOT IN ('signed', 'declined')
              RETURNING *, (SELECT first_name FROM participants WHERE id = $2) as first_name, (SELECT last_name FROM participants WHERE id = $2) as last_name`,
             [
               organizationId,
@@ -2425,13 +2450,18 @@ module.exports = (pool) => {
               activity_id || null,
               finalActivityTitle || null,
               finalActivityDescription || null,
+              finalAuthorizationText || null,
               normalizedDeadline,
               consent_payload,
               status,
             ],
           );
 
-          createdSlips.push(insertResult.rows[0]);
+          if (insertResult.rows.length === 0) {
+            answeredParticipantIds.push(pid);
+          } else {
+            createdSlips.push(insertResult.rows[0]);
+          }
         }
 
         return success(
@@ -2439,6 +2469,7 @@ module.exports = (pool) => {
           {
             permission_slips: createdSlips,
             count: createdSlips.length,
+            answered_participant_ids: answeredParticipantIds,
           },
           "Permission slip(s) saved",
           201,

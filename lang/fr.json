@@ -2590,7 +2590,7 @@
   "activity_created_success": "Activité créée avec succès",
   "activity_updated_success": "Activité mise à jour avec succès",
   "activity_deleted_success": "Activité supprimée avec succès",
-  "confirm_delete_activity": "Êtes-vous sûr de vouloir supprimer cette activité ? Tous les arrangements de covoiturage seront annulés.",
+  "confirm_delete_activity": "Êtes-vous sûr de vouloir supprimer cette activité ? Tous les arrangements de covoiturage seront annulés et les autorisations sans réponse seront retirées.",
   "error_loading_activities": "Erreur lors du chargement des activités",
   "error_saving_activity": "Erreur lors de la sauvegarde de l’activité",
   "error_deleting_activity": "Erreur lors de la suppression de l’activité",
@@ -3726,5 +3726,15 @@
   "email_sender_reply_to": "Adresse de réponse",
   "email_sender_reply_to_help": "Les réponses des familles arrivent ici. Toute adresse fonctionne, y compris Gmail.",
   "email_sender_saved": "Expéditeur des courriels enregistré.",
-  "email_sender_from_rejected": "Cette adresse d'expédition n'est pas sur un domaine authentifié pour votre unité. Mettez plutôt les adresses comme Gmail dans le champ « Adresse de réponse »."
+  "email_sender_from_rejected": "Cette adresse d'expédition n'est pas sur un domaine authentifié pour votre unité. Mettez plutôt les adresses comme Gmail dans le champ « Adresse de réponse ».",
+  "activity_permission_slip_section": "Autorisation parentale",
+  "activity_authorization_text_label": "Texte d’autorisation",
+  "activity_authorization_text_placeholder": "p. ex. J’autorise mon enfant à participer à cette sortie, y compris le transport par des conducteurs bénévoles.",
+  "activity_authorization_text_help": "Les parents lisent ce texte sur l’autorisation avant de signer. L’enregistrement met à jour les autorisations encore sans réponse; celles déjà répondues gardent le texte signé.",
+  "activity_authorization_text_empty": "Aucun texte d’autorisation pour l’instant. Les parents verront seulement la description de l’activité et la déclaration de consentement standard.",
+  "activity_pending_slips_updated": "{count} autorisation(s) en attente mise(s) à jour.",
+  "activity_form_missing_required": "Veuillez remplir tous les champs obligatoires.",
+  "activity_form_end_before_start": "L’activité doit se terminer après son début.",
+  "activity_form_departure_before_meeting": "L’heure de départ doit être après l’heure de rendez-vous.",
+  "permission_slip_answered_kept": "{count} participant(s) avaient déjà répondu à cette autorisation; leur réponse est conservée. Archivez une autorisation pour en émettre une nouvelle."
 }

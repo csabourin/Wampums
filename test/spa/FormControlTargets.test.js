@@ -157,7 +157,7 @@ describe('focus ring colour', () => {
 
   test('every focus outline takes the focus-ring token, which a dark surface can override', () => {
     expect(declarationsFor('*:focus-visible')).toMatch(/outline:\s*2px solid var\(--color-focus-ring\)/);
-    expect(STYLES).not.toMatch(/outline(-color)?:[^;]*var\(--color-primary\)/);
+    expect(STYLES).not.toMatch(/(^|[\s;{])outline(-color)?\s*:[^;]*var\(--color-primary\)/);
   });
 
   test('the default ring is at least 3:1 on the light surfaces', () => {

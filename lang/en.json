@@ -2595,7 +2595,7 @@
   "activity_created_success": "Activity created successfully",
   "activity_updated_success": "Activity updated successfully",
   "activity_deleted_success": "Activity deleted successfully",
-  "confirm_delete_activity": "Are you sure you want to delete this activity? All carpool arrangements will be cancelled.",
+  "confirm_delete_activity": "Are you sure you want to delete this activity? All carpool arrangements will be cancelled and unanswered permission slips will be withdrawn.",
   "error_loading_activities": "Error loading activities",
   "error_saving_activity": "Error saving activity",
   "error_deleting_activity": "Error deleting activity",
@@ -3726,5 +3726,15 @@
   "email_sender_reply_to": "Reply-to address",
   "email_sender_reply_to_help": "Replies from families go here. Any address works, including Gmail.",
   "email_sender_saved": "Email sender saved.",
-  "email_sender_from_rejected": "This sender address is not on an authenticated domain for your unit. Put addresses such as Gmail in the reply-to field instead."
+  "email_sender_from_rejected": "This sender address is not on an authenticated domain for your unit. Put addresses such as Gmail in the reply-to field instead.",
+  "activity_permission_slip_section": "Permission slip",
+  "activity_authorization_text_label": "Authorization text",
+  "activity_authorization_text_placeholder": "e.g. I authorize my child to take part in this outing, including transportation by volunteer drivers.",
+  "activity_authorization_text_help": "Guardians read this text on the permission slip before they sign. Saving updates slips still awaiting an answer; slips already answered keep the text they were signed with.",
+  "activity_authorization_text_empty": "No authorization text yet. Guardians will see the activity description and the standard consent statement only.",
+  "activity_pending_slips_updated": "{count} pending permission slip(s) updated.",
+  "activity_form_missing_required": "Please fill in all required fields.",
+  "activity_form_end_before_start": "The activity must end after it starts.",
+  "activity_form_departure_before_meeting": "The departure time must be after the meeting time.",
+  "permission_slip_answered_kept": "{count} participant(s) already answered this slip; their answer was kept. Archive a slip to issue a new one."
 }

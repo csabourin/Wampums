@@ -30,6 +30,9 @@ import { deleteCachedData } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { withButtonLoading } from "./utils/PerformanceUtils.js";
 import { QuickCreateActivityModal } from "./modules/modals/QuickCreateActivityModal.js";
+import { openActivityFormModal } from './modules/activities/ActivityFormModal.js';
+import { deleteActivity } from './api/api-activities.js';
+import { hasPermission } from './utils/PermissionUtils.js';
 
 export class PermissionSlipDashboard {
   constructor(app, options = {}) {
@@ -135,6 +138,13 @@ export class PermissionSlipDashboard {
             ${`<span style="margin-left: 0.75rem;"><strong>${translate("activity_end")}:</strong> ${formatDate(getActivityEndDate(this.activity), this.app.lang || 'fr')}${getActivityEndTime(this.activity) ? ` ${escapeHTML(getActivityEndTime(this.activity))}` : ''}</span>`}
           </p>
           ${this.activity.description ? `<p>${escapeHTML(this.activity.description)}</p>` : ''}
+          ${this.renderActivityActions()}
+        </div>
+
+        <div class="card permission-slip-authorization">
+          <h2>${escapeHTML(translate('activity_authorization_text_label'))}</h2>
+          ${this.renderAuthorizationText()}
+          <p class="form-help">${escapeHTML(translate('activity_authorization_text_help'))}</p>
         </div>
 
         <div class="card">
@@ -167,6 +177,35 @@ export class PermissionSlipDashboard {
         </div>
       </section>
     `);
+  }
+
+  renderAuthorizationText() {
+    if (!this.activity.authorization_text) {
+      return `<p class="empty-state">${escapeHTML(translate('activity_authorization_text_empty'))}</p>`;
+    }
+    return `<p class="permission-slip-authorization__text">${escapeHTML(this.activity.authorization_text)}</p>`;
+  }
+
+  renderActivityActions() {
+    const canEdit = hasPermission('activities.edit');
+    const canDelete = hasPermission('activities.delete');
+    if (!canEdit && !canDelete) {
+      return '';
+    }
+    return `
+      <div class="activity-card__actions">
+        ${canEdit ? `
+          <button type="button" id="editActivityBtn" class="button button--small button--outline">
+            ${escapeHTML(translate('edit_activity'))}
+          </button>
+        ` : ''}
+        ${canDelete ? `
+          <button type="button" id="deleteActivityBtn" class="button button--small button--danger">
+            ${escapeHTML(translate('delete'))}
+          </button>
+        ` : ''}
+      </div>
+    `;
   }
 
   renderActivityListView(container) {
@@ -497,6 +536,36 @@ export class PermissionSlipDashboard {
         await this.showQuickCreateActivity();
       });
     }
+
+    document.getElementById('editActivityBtn')?.addEventListener('click', () => {
+      openActivityFormModal(this.app, {
+        activity: this.activity,
+        onSaved: async () => {
+          await this.clearPermissionSlipCaches();
+          await this.loadActivity();
+          await this.refreshData(true);
+        }
+      });
+    });
+
+    document.getElementById('deleteActivityBtn')?.addEventListener('click', async (event) => {
+      // Captured before the dialog: currentTarget is cleared once dispatch ends
+      const trigger = event.currentTarget;
+      if (!(await confirmDestructive(translate('confirm_delete_activity')))) {
+        return;
+      }
+      withButtonLoading(trigger, async () => {
+        try {
+          await deleteActivity(this.activityId);
+          await this.clearPermissionSlipCaches();
+          this.app.showMessage(translate('activity_deleted_success'), 'success');
+          this.app.router.navigate('/permission-slips');
+        } catch (error) {
+          debugError('Error deleting activity', error);
+          this.app.showMessage(error.message || translate('error_deleting_activity'), 'error');
+        }
+      });
+    });
 
     // Activity card hover effects (main dashboard)
     document.querySelectorAll('.activity-card').forEach(card => {
@@ -905,7 +974,15 @@ export class PermissionSlipDashboard {
 
       await this.clearPermissionSlipCaches();
 
-      this.app.showMessage(translate("permission_slip_saved"), "success");
+      const answeredCount = (result?.data?.answered_participant_ids || []).length;
+      if (answeredCount > 0) {
+        this.app.showMessage(
+          translate('permission_slip_answered_kept').replace('{count}', answeredCount),
+          'warning',
+        );
+      } else {
+        this.app.showMessage(translate("permission_slip_saved"), "success");
+      }
       this.showCreateForm = false;
 
       // Refresh with real data from server
