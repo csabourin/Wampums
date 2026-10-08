@@ -63,6 +63,7 @@ export class Reports {
 			this.escKeyHandler = null;
 		}
 		this.closeReportModal();
+    this.removeReportModal();
 	}
 
 	async init() {
@@ -274,8 +275,29 @@ export class Reports {
                                 </div>
                         </div>
                 `;
+    this.removeReportModal();
 		setContent(document.getElementById("app"), content);
+    this.mountReportModal();
 	}
+
+  /**
+   * Move the report modal out of #app and onto <body>.
+   *
+   * #app is its own stacking context at --z-base, so a modal inside it can
+   * never rise above body-level fixed elements such as the global settings
+   * icon, which would otherwise cover the modal's close button.
+   */
+  mountReportModal() {
+    const modal = document.getElementById('report-modal');
+    if (modal) {
+      document.body.appendChild(modal);
+    }
+  }
+
+  /** Remove the body-level report modal so it does not outlive this page. */
+  removeReportModal() {
+    document.getElementById('report-modal')?.remove();
+  }
 
 	attachEventListeners() {
 		document.querySelectorAll(".report-btn").forEach((button) => {
