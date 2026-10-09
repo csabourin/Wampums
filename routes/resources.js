@@ -2885,7 +2885,8 @@ module.exports = (pool) => {
   router.get(
     "/status/dashboard",
     authenticate,
-    requirePermission("activities.view"),
+    // Unit-wide slip and reservation figures: not for a family role.
+    requirePermission({ permissions: ["activities.view"], organizationScope: true }),
     [query("meeting_date").optional().isISO8601()],
     checkValidation,
     asyncHandler(async (req, res) => {

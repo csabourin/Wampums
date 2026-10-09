@@ -21,6 +21,7 @@ import {
 } from './api/api-endpoints.js';
 import { API } from './api/api-core.js';
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class RoleManagement {
   constructor(appInstance) {
     this.app = appInstance;
@@ -56,7 +57,7 @@ export class RoleManagement {
       this.render();
     } catch (error) {
       debugError('Error initializing role management:', error);
-      this.renderError(error.message);
+      this.renderError(apiErrorMessage(error, 'error_loading_data'));
     }
   }
 
@@ -451,7 +452,7 @@ export class RoleManagement {
           setContent(container, this.renderPermissionsList(permissions));
         } catch (error) {
           debugError('Error loading role permissions:', error);
-          setContent(container, `<p class="error-message">${escapeHTML(error.message)}</p>`);
+          setContent(container, `<p class="error-message">${escapeHTML(apiErrorMessage(error, 'error_loading_data'))}</p>`);
         }
       }
     }

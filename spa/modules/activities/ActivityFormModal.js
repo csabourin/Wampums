@@ -13,6 +13,7 @@ import { openModal } from '../../utils/ModalUtils.js';
 import { getActivityEndDate, getActivityStartDate } from '../../utils/ActivityDateUtils.js';
 import { aiGenerateText } from '../AI.js';
 
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 const DEFAULT_AI_DURATION_MINUTES = 120;
 const DEFAULT_AI_PARTICIPANT_COUNT = 12;
 const ACTIVITY_NAME_MAX_LENGTH = 255;
@@ -387,7 +388,7 @@ export function openActivityFormModal(app, { activity = null, onSaved = null } =
       }
     } catch (err) {
       debugError('Error saving activity:', err);
-      app.showMessage(err.message || translate('error_saving_activity'), 'error');
+      app.showMessage(apiErrorMessage(err, 'error_saving_activity'), 'error');
     } finally {
       saving = false;
       setButtonLoading(submitButton, false);

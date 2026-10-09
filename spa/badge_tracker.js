@@ -1139,7 +1139,7 @@ export class BadgeTracker {
         this.render();
         this.attachSearchListener();
       } else {
-        this.showToast(result?.message || translate("error"), "error");
+        this.showToast(translate('error'), 'error');
       }
     } catch (error) {
       debugError("[BadgeTracker] Approve error:", error);
@@ -1167,7 +1167,7 @@ export class BadgeTracker {
         this.render();
         this.attachSearchListener();
       } else {
-        this.showToast(result?.message || translate("error"), "error");
+        this.showToast(translate('error'), 'error');
       }
     } catch (error) {
       debugError("[BadgeTracker] Reject error:", error);
@@ -1188,7 +1188,7 @@ export class BadgeTracker {
         this.render();
         this.attachSearchListener();
       } else {
-        this.showToast(result?.message || translate("error"), "error");
+        this.showToast(translate('error'), 'error');
       }
     } catch (error) {
       debugError("[BadgeTracker] Deliver error:", error);
@@ -1220,7 +1220,7 @@ export class BadgeTracker {
         this.render();
         this.attachSearchListener();
       } else {
-        this.showToast(result?.message || translate("error"), "error");
+        this.showToast(translate('error'), 'error');
       }
     } catch (error) {
       debugError("[BadgeTracker] Deliver all error:", error);
@@ -1273,7 +1273,7 @@ export class BadgeTracker {
         this.render();
         this.attachSearchListener();
       } else {
-        this.showToast(result?.message || translate("error"), "error");
+        this.showToast(translate('error'), 'error');
       }
     } catch (error) {
       debugError("[BadgeTracker] Add star error:", error);

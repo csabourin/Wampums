@@ -14,6 +14,7 @@ import {
 	campaignTypeCapabilities,
 } from "./modules/fundraising/campaignModel.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 /**
  * Payload field names that cannot be used verbatim as control names.
  *
@@ -687,7 +688,7 @@ export class Fundraisers {
 
 			if (!response?.success) {
 				this.showFormErrors(
-					response?.message || translate('error_saving_fundraiser'),
+					translate('error_saving_fundraiser'),
 					response?.errors,
 				);
 				this.app.showMessage('error_saving_fundraiser', 'error');
@@ -707,7 +708,7 @@ export class Fundraisers {
 		} catch (error) {
 			debugError('Error saving fundraiser:', error);
 			this.showFormErrors(
-				error?.data?.message || error?.message || translate('error_saving_fundraiser'),
+				apiErrorMessage(error, 'error_saving_fundraiser'),
 				error?.data?.errors || error?.errors,
 			);
 			this.app.showMessage('error_saving_fundraiser', 'error');
@@ -776,7 +777,7 @@ export class Fundraisers {
 			const response = await deleteFundraiser(fundraiserId);
 			if (!response?.success) {
 				// 409 means results were recorded between rendering and clicking.
-				this.app.showMessage(response?.message || translate('error_deleting_fundraiser'), 'error');
+				this.app.showMessage(translate('error_deleting_fundraiser'), 'error');
 				return;
 			}
 
@@ -788,7 +789,7 @@ export class Fundraisers {
 		} catch (error) {
 			debugError('Error deleting fundraiser:', error);
 			this.app.showMessage(
-				error?.data?.message || translate('error_deleting_fundraiser'),
+				apiErrorMessage(error, 'error_deleting_fundraiser'),
 				'error',
 			);
 		}

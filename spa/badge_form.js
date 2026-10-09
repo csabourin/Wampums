@@ -19,6 +19,7 @@ import {
   getBadgeSystemSettings,
 } from "./ajax-functions.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class BadgeForm {
   constructor(app) {
     this.app = app;
@@ -486,7 +487,7 @@ export class BadgeForm {
         }
       } catch (error) {
         debugError("Error saving badge progress:", error);
-        this.app.showMessage(`${translate("error_saving_badge_progress")}: ${error.message}`, "error");
+        this.app.showMessage(apiErrorMessage(error, 'error_saving_badge_progress'), 'error');
       }
     }
   }

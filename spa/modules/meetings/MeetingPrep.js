@@ -46,6 +46,7 @@ import {
 } from '../../api/api-endpoints.js';
 import { createReminder, getMeetingReminders } from '../../api/api-yearly-planner.js';
 
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 const DEFAULT_MEETING_LENGTH_MINUTES = 90;
 
 const SAVE_STATUS_TRANSLATIONS = {
@@ -1124,11 +1125,7 @@ export class MeetingPrep extends BaseModule {
 
       this.app.showMessage(translate('plan_generated_success'), 'success');
     } catch (err) {
-      let msg = err.message;
-      if (err.error?.code === 'AI_BUDGET_EXCEEDED') {
-        msg = translate('ai_budget_exceeded');
-      }
-      this.app.showMessage(`${translate('error_generating_plan')}: ${msg}`, 'error');
+      this.app.showMessage(apiErrorMessage(err, 'error_generating_plan'), 'error');
       debugError('Magic Generate failed', err);
     } finally {
       setButtonLoading(btn, false);

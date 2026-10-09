@@ -35,6 +35,7 @@ import { exportToCSV } from "./utils/ExportUtils.js";
 import { CONFIG } from "./config.js";
 import { lockBodyScroll, unlockBodyScroll } from "./utils/ScrollLockUtils.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 const REPORT_CURRENCY = "CAD";
 
 /** Owner key for the report modal's body scroll lock. */
@@ -533,7 +534,7 @@ export class Reports {
 		} catch (error) {
 			debugError(`Error loading ${reportType} report:`, error);
 			setContent(document.getElementById("report-content"), `
-				<p class="error-message">${translate("error_loading_report")}: ${escapeHTML(error.message)}</p>
+				<p class="error-message">${escapeHTML(apiErrorMessage(error, 'error_loading_report'))}</p>
 			`);
 		}
 	}
@@ -574,7 +575,7 @@ export class Reports {
 			return this.renderHealthReport(sortedParticipants);
 		} catch (error) {
 			debugError("Error fetching and rendering health report:", error);
-			return `<p class="error-message">${translate("error_loading_report")}: ${escapeHTML(error.message)}</p>`;
+			return `<p class="error-message">${escapeHTML(apiErrorMessage(error, 'error_loading_report'))}</p>`;
 		}
 	}
 
@@ -737,7 +738,7 @@ export class Reports {
 			return missingFieldsReport;
 		} catch (error) {
 			debugError("Error fetching or rendering missing fields report:", error);
-			return `<p>${translate("error_loading_report")}: ${escapeHTML(error.message)}</p>`;
+			return `<p>${escapeHTML(apiErrorMessage(error, 'error_loading_report'))}</p>`;
 		}
 	}
 
@@ -1836,7 +1837,7 @@ export class Reports {
 					return this.renderParticipantProgressReport(cached.progress, true);
 				}
 			}
-			return `<p class="error-message">${translate("error_loading_report")}: ${escapeHTML(error.message)}</p>`;
+			return `<p class="error-message">${escapeHTML(apiErrorMessage(error, 'error_loading_report'))}</p>`;
 		}
 	}
 

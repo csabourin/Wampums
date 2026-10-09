@@ -5,6 +5,7 @@ const { toBool } = require('../utils');
 const { success, error, asyncHandler } = require('../middleware/response');
 const logger = require('../config/logger');
 const { sendActivityUpdateNotifications } = require('../utils/carpool-notifications');
+const { carpoolRosterRestriction } = require('../services/carpoolAccess');
 
 module.exports = (pool) => {
   const ICAL_PROD_ID = '-//Wampums//Activities Calendar//EN';
@@ -308,6 +309,8 @@ module.exports = (pool) => {
       return error(res, 'Activity not found', 404);
     }
 
+    // A family sees its own children, not the unit's roster and contacts.
+    const onlyChildrenOf = await carpoolRosterRestriction(req, pool);
     const result = await pool.query(
       `SELECT
         p.id,
@@ -333,7 +336,10 @@ module.exports = (pool) => {
         END as has_ride_return
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
+       -- user_participants has no unit: only guardians active in this unit.
        LEFT JOIN user_participants up ON p.id = up.participant_id
+         AND EXISTS (SELECT 1 FROM user_organizations uo
+                      WHERE uo.user_id = up.user_id AND uo.organization_id = $2 AND uo.status = 'active')
        LEFT JOIN users u ON up.user_id = u.id
        LEFT JOIN carpool_assignments ca_going ON p.id = ca_going.participant_id
          AND ca_going.trip_direction IN ('both', 'to_activity')
@@ -346,9 +352,10 @@ module.exports = (pool) => {
            SELECT co.id FROM carpool_offers co WHERE co.activity_id = $1 AND co.is_active = TRUE
          )
        WHERE po.organization_id = $2
+         AND ($3::uuid IS NULL OR p.id IN (SELECT participant_id FROM user_participants WHERE user_id = $3))
        GROUP BY p.id, ca_going.participant_id, ca_return.participant_id
        ORDER BY p.last_name, p.first_name`,
-      [id, organizationId]
+      [id, organizationId, onlyChildrenOf]
     );
 
     return success(res, result.rows);

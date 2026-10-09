@@ -12,6 +12,7 @@ import { canViewUsers, hasPermission } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { confirmDestructive, prompt, alert as alertDialog } from "./utils/DialogUtils.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class ManageUsersParticipants {
   constructor(app) {
     this.app = app;
@@ -359,10 +360,8 @@ export class ManageUsersParticipants {
       this.attachEventListeners();
     } catch (error) {
       debugError("Erasure failed:", error);
-      const message = error?.message === "erasure_awaiting_organization_approvals"
-        ? translate(error.message)
-        : (error?.message || translate("erase_participant_failed"));
-      this.showError(message);
+      // erasure_awaiting_organization_approvals arrives as a translation key.
+      this.showError(apiErrorMessage(error, 'erase_participant_failed'));
     }
   }
 
@@ -380,7 +379,7 @@ export class ManageUsersParticipants {
           this.render();
           this.attachEventListeners();
         } else {
-          this.showError(result.message || translate("error_removing_participant_from_organization"));
+          this.showError(translate('error_removing_participant_from_organization'));
         }
       } catch (error) {
         debugError("Error:", error);
@@ -425,7 +424,7 @@ export class ManageUsersParticipants {
         this.render();
         this.attachEventListeners();
       } else {
-        this.showError(result?.message || translate("error_unlinking_parent"));
+        this.showError(translate('error_unlinking_parent'));
       }
     } catch (error) {
       debugError("Error unlinking parent:", error);
@@ -448,7 +447,7 @@ export class ManageUsersParticipants {
           this.render();
           this.attachEventListeners();
         } else {
-          this.showError(result.message || translate("error_associating_user"));
+          this.showError(translate('error_associating_user'));
         }
       } catch (error) {
         debugError("Error:", error);

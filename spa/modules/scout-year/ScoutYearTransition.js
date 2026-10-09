@@ -32,6 +32,7 @@ import {
 } from '../../api/api-scout-years.js';
 import { sendAlumniInvitations } from '../../api/api-alumni.js';
 
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 const STEP_ROSTER = 1;
 const STEP_CONSEQUENCES = 2;
 const STEP_CONFIRM = 3;
@@ -84,7 +85,7 @@ export class ScoutYearTransition extends BaseModule {
       this.loadError = null;
     } catch (error) {
       debugError('Failed to load scout year transition:', error);
-      this.loadError = error?.message || translate('scout_year_load_failed');
+      this.loadError = apiErrorMessage(error, 'scout_year_load_failed');
     }
 
     this.isLoading = false;
@@ -847,7 +848,7 @@ export class ScoutYearTransition extends BaseModule {
       });
     } catch (error) {
       debugError('Transition failed:', error);
-      this.app?.showMessage?.(error?.message || translate('scout_year_execute_failed'), 'error');
+      this.app?.showMessage?.(apiErrorMessage(error, 'scout_year_execute_failed'), 'error');
       this.isSubmitting = false;
       this.rerender();
       return;
@@ -909,7 +910,7 @@ export class ScoutYearTransition extends BaseModule {
       succeeded = true;
     } catch (error) {
       debugError('Rollback failed:', error);
-      this.app?.showMessage?.(error?.message || translate('scout_year_rollback_failed'), 'error');
+      this.app?.showMessage?.(apiErrorMessage(error, 'scout_year_rollback_failed'), 'error');
     }
 
     // Either way the page is now showing a state that no longer exists: on
@@ -924,7 +925,7 @@ export class ScoutYearTransition extends BaseModule {
       this.loadError = null;
     } catch (error) {
       debugError('Failed to reload after rollback:', error);
-      this.loadError = error?.message || translate('scout_year_load_failed');
+      this.loadError = apiErrorMessage(error, 'scout_year_load_failed');
     }
 
     if (succeeded) {

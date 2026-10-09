@@ -407,7 +407,8 @@ describe('US-INT-007 — Every failure path restores the exact pre-action state'
     const cachedAfter = await getCachedData('manage_points_data');
     expect(cachedAfter.participants.find((p) => String(p.id) === '1').total_points)
       .toBe(cachedBefore.participants.find((p) => String(p.id) === '1').total_points);
-    expect(appStub.showMessage).toHaveBeenCalledWith(expect.stringContaining('rejected'), 'error');
+    expect(appStub.showMessage).toHaveBeenCalledWith(tr('error_updating_points'), 'error');
+    expect(appStub.showMessage).not.toHaveBeenCalledWith(expect.stringContaining('rejected'), 'error');
   });
 
   it('attendance: the chip and the data map match the pre-tap state after a failure', async () => {
@@ -434,7 +435,8 @@ describe('US-INT-007 — Every failure path restores the exact pre-action state'
 
     expect(page.attendanceData['1']).toBe('late');
     expect(document.querySelector('.participant-status').textContent.trim()).toBe(tr('late'));
-    expect(appStub.showMessage).toHaveBeenCalledWith('rejected', 'error');
+    expect(appStub.showMessage).toHaveBeenCalledWith(tr('error_updating_attendance'), 'error');
+    expect(appStub.showMessage).not.toHaveBeenCalledWith('rejected', 'error');
   });
 });
 

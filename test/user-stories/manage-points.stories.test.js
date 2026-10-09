@@ -253,7 +253,8 @@ describe('US-PTS-005 — A rejected award undoes itself exactly', () => {
       expect.stringContaining(tr('error_updating_points')),
       'error'
     );
-    expect(appStub.showMessage).toHaveBeenCalledWith(
+    // Explained in the page's language; the server's own text is not shown.
+    expect(appStub.showMessage).not.toHaveBeenCalledWith(
       expect.stringContaining('boom'),
       'error'
     );

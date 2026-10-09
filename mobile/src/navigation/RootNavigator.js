@@ -18,6 +18,8 @@ import StorageUtils from '../utils/StorageUtils';
 import CONFIG from '../config';
 import { LoadingSpinner } from '../components';
 import { debugLog, debugError } from '../utils/DebugUtils.js';
+import { refreshStoredAccess } from '../utils/AccessRefresh';
+import { getCurrentAccess } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import {
   clearOrganizationCustomization,
@@ -78,8 +80,30 @@ const RootNavigator = () => {
         await initializeOrganizationCustomization();
         // Load user data
         const permissions = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_PERMISSIONS);
+        const roles = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ROLES);
 
-        setUserPermissions(permissions || []);
+        // Permissions may have changed since sign-in (a role edited, a
+        // migration granting a key); screens read the stored copy.
+        const access = await refreshStoredAccess({
+          fetchAccess: getCurrentAccess,
+          storedRoles: roles,
+          storedPermissions: permissions,
+          store: ({ roles: currentRoles, permissions: currentPermissions }) => StorageUtils.setStorageMultiple({
+            [CONFIG.STORAGE_KEYS.USER_ROLES]: currentRoles,
+            [CONFIG.STORAGE_KEYS.USER_PERMISSIONS]: currentPermissions,
+          }),
+          onError: (error) => debugError('🔴 [RootNavigator] Could not refresh access:', error),
+        });
+
+        // The server no longer accepts this token (revoked, key rotated):
+        // the API client has cleared the session, so go back to sign-in.
+        if (access.sessionRejected) {
+          setUserPermissions([]);
+          setIsAuthenticated(false);
+          return;
+        }
+
+        setUserPermissions(access.permissions);
         setIsAuthenticated(true);
       } else {
         debugLog('🔵 [RootNavigator] No valid token, user not authenticated');

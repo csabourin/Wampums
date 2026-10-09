@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { carpoolRosterRestriction } = require('../services/carpoolAccess');
 
 module.exports = (pool) => {
   /**
@@ -12,12 +13,16 @@ module.exports = (pool) => {
   router.get('/activity/:activityId', authenticate, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const { activityId } = req.params;
     const organizationId = await getOrganizationId(req, pool);
+    // Every family of the unit sees who rides in each car (children want to
+    // ride with their friends): the child's name and their guardians' names.
+    // Contact details stay with staff.
+    const familyView = (await carpoolRosterRestriction(req, pool)) !== null;
 
     const result = await pool.query(
       `SELECT
         co.*,
         u.full_name as driver_name,
-        u.email as driver_email,
+        CASE WHEN $3::boolean THEN NULL ELSE u.email END as driver_email,
         COUNT(DISTINCT ca.participant_id) FILTER (WHERE ca.trip_direction IN ('both', 'to_activity')) as seats_used_going,
         COUNT(DISTINCT ca.participant_id) FILTER (WHERE ca.trip_direction IN ('both', 'from_activity')) as seats_used_return,
         json_agg(
@@ -25,6 +30,15 @@ module.exports = (pool) => {
             'assignment_id', ca.id,
             'participant_id', ca.participant_id,
             'participant_name', p.first_name || ' ' || p.last_name,
+            'guardian_names', COALESCE((
+              SELECT jsonb_agg(gu.full_name ORDER BY gu.full_name)
+                FROM user_participants gup
+                JOIN users gu ON gu.id = gup.user_id
+                -- user_participants has no unit: only accounts active in this unit.
+                JOIN user_organizations guo ON guo.user_id = gu.id
+                 AND guo.organization_id = $2 AND guo.status = 'active'
+               WHERE gup.participant_id = ca.participant_id
+            ), '[]'::jsonb),
             'trip_direction', ca.trip_direction,
             'assigned_by', ca.assigned_by,
             'assigned_by_name', assigner.full_name
@@ -38,7 +52,7 @@ module.exports = (pool) => {
        WHERE co.activity_id = $1 AND co.organization_id = $2 AND co.is_active = TRUE
        GROUP BY co.id, u.full_name, u.email
        ORDER BY co.created_at DESC`,
-      [activityId, organizationId]
+      [activityId, organizationId, familyView]
     );
 
     return success(res, result.rows);
@@ -263,10 +277,14 @@ module.exports = (pool) => {
        JOIN participants p ON ca.participant_id = p.id
        JOIN user_participants up ON p.id = up.participant_id
        JOIN users u ON up.user_id = u.id
+       -- user_participants has no unit: only guardians active in this unit
+       -- hear about this unit's activity.
+       JOIN user_organizations uo
+         ON uo.user_id = u.id AND uo.organization_id = $2 AND uo.status = 'active'
        JOIN carpool_offers co ON ca.carpool_offer_id = co.id
        JOIN activities a ON co.activity_id = a.id
-       WHERE ca.carpool_offer_id = $1`,
-      [id]
+       WHERE ca.carpool_offer_id = $1 AND co.organization_id = $2`,
+      [id, organizationId]
     );
 
     // Deactivate the offer
@@ -528,6 +546,8 @@ module.exports = (pool) => {
   router.get('/activity/:activityId/unassigned', authenticate, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const { activityId } = req.params;
     const organizationId = await getOrganizationId(req, pool);
+    // A family sees its own children, not the unit's roster and contacts.
+    const onlyChildrenOf = await carpoolRosterRestriction(req, pool);
 
     const result = await pool.query(
       `SELECT
@@ -554,7 +574,10 @@ module.exports = (pool) => {
         END as has_ride_return
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
+       -- user_participants has no unit: only guardians active in this unit.
        LEFT JOIN user_participants up ON p.id = up.participant_id
+         AND EXISTS (SELECT 1 FROM user_organizations uo
+                      WHERE uo.user_id = up.user_id AND uo.organization_id = $2 AND uo.status = 'active')
        LEFT JOIN users u ON up.user_id = u.id
        LEFT JOIN carpool_assignments ca_going ON p.id = ca_going.participant_id
          AND ca_going.trip_direction IN ('both', 'to_activity')
@@ -567,10 +590,11 @@ module.exports = (pool) => {
            SELECT id FROM carpool_offers WHERE activity_id = $1 AND is_active = TRUE
          )
        WHERE po.organization_id = $2
+         AND ($3::uuid IS NULL OR p.id IN (SELECT participant_id FROM user_participants WHERE user_id = $3))
        GROUP BY p.id, ca_going.participant_id, ca_return.participant_id
        HAVING ca_going.participant_id IS NULL OR ca_return.participant_id IS NULL
        ORDER BY p.last_name, p.first_name`,
-      [activityId, organizationId]
+      [activityId, organizationId, onlyChildrenOf]
     );
 
     return success(res, result.rows);

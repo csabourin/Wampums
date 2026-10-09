@@ -12,6 +12,7 @@ import {
 } from "./api/api-endpoints.js";
 import { deleteCachedData } from "./indexedDB.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 /**
  * Label a reservation status in the reader's language.
  *
@@ -297,7 +298,7 @@ export class ResourceDashboard {
         } catch (error) {
           debugError("Error saving equipment", error);
           this.app.showMessage(
-            error.message || translate("resource_dashboard_error_loading"),
+            apiErrorMessage(error, 'error_saving'),
             "error",
           );
         }
@@ -364,7 +365,7 @@ export class ResourceDashboard {
         } catch (error) {
           debugError("Error saving reservation", error);
           this.app.showMessage(
-            error.message || translate("resource_dashboard_error_loading"),
+            apiErrorMessage(error, 'error_saving'),
             "error",
           );
 

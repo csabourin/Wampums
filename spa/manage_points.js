@@ -23,6 +23,7 @@ import { getTodayISO } from "./utils/DateUtils.js";
 import { PointsStore } from "./modules/points/PointsStore.js";
 import { PointActionBar } from "./modules/points/PointActionBar.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 const POINTS_CACHE_KEY = "manage_points_data";
 
 export class ManagePoints {
@@ -726,8 +727,8 @@ export class ManagePoints {
         // Server error: undo the optimistic deltas
         this.store.rollbackBatch(txns);
         this.app.showMessage(
-          `${translate("error_updating_points")}: ${error.message}`,
-          "error"
+          apiErrorMessage(error, 'error_updating_points'),
+          'error'
         );
       }
     } finally {

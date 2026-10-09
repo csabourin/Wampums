@@ -34,6 +34,7 @@ import { openActivityFormModal } from './modules/activities/ActivityFormModal.js
 import { deleteActivity } from './api/api-activities.js';
 import { hasPermission } from './utils/PermissionUtils.js';
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class PermissionSlipDashboard {
   constructor(app, options = {}) {
     this.app = app;
@@ -562,7 +563,7 @@ export class PermissionSlipDashboard {
           this.app.router.navigate('/permission-slips');
         } catch (error) {
           debugError('Error deleting activity', error);
-          this.app.showMessage(error.message || translate('error_deleting_activity'), 'error');
+          this.app.showMessage(apiErrorMessage(error, 'error_deleting_activity'), 'error');
         }
       });
     });

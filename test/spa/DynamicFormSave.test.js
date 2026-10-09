@@ -52,4 +52,33 @@ describe('dynamic form save', () => {
     await expect(handler.saveFormData({ allergie: 'aucune' })).resolves.toEqual({ success: true, data: { id: 3 } });
     expect(app.showMessage).toHaveBeenCalledWith('form_saved_successfully', 'success');
   });
+
+  test('a refused save is explained in the page language, not the server\'s English', async () => {
+    saveFormSubmission.mockRejectedValue(
+      Object.assign(new Error('API request failed: Insufficient permissions'), { status: 403 })
+    );
+    const app = { showMessage: jest.fn() };
+    const handler = new DynamicFormHandler(app);
+    handler.formType = 'fiche_sante';
+    handler.participantId = CHILD_ID;
+
+    await expect(handler.saveFormData({ allergie: 'aucune' })).rejects.toThrow();
+    expect(app.showMessage).toHaveBeenCalledWith('api_error_forbidden', 'error');
+  });
+
+  test('the standalone form reports a failed submit the same way', async () => {
+    saveFormSubmission.mockRejectedValue(
+      Object.assign(new Error('API request failed: Participant ID, form_type, and submission_data are required'), { status: 400 })
+    );
+    const app = { showMessage: jest.fn(), router: { navigate: jest.fn() } };
+    const handler = new DynamicFormHandler(app);
+    handler.formType = 'fiche_sante';
+    handler.participantId = CHILD_ID;
+    document.getElementById('app').innerHTML = '<form id="f"><input name="a" value="1"></form>';
+
+    await handler.handleSubmit({ preventDefault: jest.fn(), target: document.getElementById('f') });
+
+    expect(app.showMessage).toHaveBeenCalledWith('api_error_invalid', 'error');
+    expect(app.router.navigate).not.toHaveBeenCalled();
+  });
 });

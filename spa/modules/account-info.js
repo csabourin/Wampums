@@ -11,6 +11,7 @@ import { makeApiRequest } from "../api/api-core.js";
 import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
 import { translate, app as appInstance } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
+import { apiErrorMessage } from "../utils/ApiErrorUtils.js";
 import { isParent } from "../utils/PermissionUtils.js";
 import { setContent, loadStylesheet } from "../utils/DOMUtils.js";
 import { confirm as confirmDialog } from "../utils/DialogUtils.js";
@@ -125,14 +126,14 @@ export class AccountInfoModule {
         this.guardianProfile = response.data || { guardian: null, participantIds: [] };
         this.guardianError = null;
       } else {
-        this.guardianError = response.message || translate("guardian_load_error");
+        this.guardianError = translate('guardian_load_error');
       }
     } catch (error) {
       debugError("Error loading guardian profile:", error);
       const errorMessage = typeof error.message === "string" && error.message.toLowerCase().includes("no linked participants")
         ? translate("guardian_no_participants")
-        : error.message;
-      this.guardianError = errorMessage || translate("guardian_load_error");
+        : apiErrorMessage(error, 'guardian_load_error');
+      this.guardianError = errorMessage;
       this.guardianProfile = { guardian: null, participantIds: [] };
     }
   }
@@ -627,8 +628,8 @@ export class AccountInfoModule {
       debugError("Error updating guardian info:", error);
       const errorMessage = typeof error.message === "string" && error.message.toLowerCase().includes("no linked participants")
         ? translate("guardian_no_participants")
-        : error.message;
-      this.app.showMessage(errorMessage || translate("guardian_save_error"), "error");
+        : apiErrorMessage(error, 'guardian_save_error');
+      this.app.showMessage(errorMessage, "error");
     } finally {
       this.isLoading = false;
       if (!rerendered && submitButton) {
@@ -752,7 +753,8 @@ export class AccountInfoModule {
       }
     } catch (error) {
       debugError("Error updating email:", error);
-      this.app.showMessage(error.message || translate("account_info_email_error"), "error");
+      const emailTaken = typeof error.message === 'string' && error.message.includes('already in use');
+      this.app.showMessage(emailTaken ? translate('email_already_exists') : apiErrorMessage(error, 'account_info_email_error'), 'error');
       this.isLoading = false;
       submitButton.disabled = false;
       submitButton.textContent = translate("account_info_email_button");
@@ -823,7 +825,8 @@ export class AccountInfoModule {
       }
     } catch (error) {
       debugError("Error changing password:", error);
-      this.app.showMessage(error.message || translate("error_password_change_failed") || translate("account_info_password_error"), "error");
+      const wrongCurrent = typeof error.message === 'string' && error.message.includes('incorrect');
+      this.app.showMessage(wrongCurrent ? translate('account_info_password_wrong_current') : apiErrorMessage(error, 'account_info_password_error'), 'error');
     } finally {
       this.isLoading = false;
       submitButton.disabled = false;

@@ -1214,6 +1214,14 @@ export const getUserProfile = async () => {
 };
 
 /**
+ * The signed-in user's current roles and permissions, read from the database
+ * (never cached: it exists to correct the copy stored at sign-in).
+ */
+export const getCurrentAccess = async () => {
+  return API.get('/api/v1/users/me/access', null, { useCache: false });
+};
+
+/**
  * Update current user profile
  */
 export const updateUserProfile = async (profileData) => {

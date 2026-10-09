@@ -9,6 +9,7 @@ import { openModal } from "./utils/ModalUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { BaseModule } from "./utils/BaseModule.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class ViewParticipantDocuments extends BaseModule {
   constructor(app) {
     super(app);
@@ -32,7 +33,7 @@ export class ViewParticipantDocuments extends BaseModule {
       this.attachEventListeners();
     } catch (error) {
       debugError("Error initializing view participant documents:", error);
-      this.renderError(error.message);
+      this.renderError(apiErrorMessage(error, 'error_loading_participant_documents'));
     }
   }
 

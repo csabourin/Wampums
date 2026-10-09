@@ -45,7 +45,7 @@ module.exports = (pool, logger) => {
      */
     router.post('/prepare-activity',
         authenticate,
-        requirePermission('activities.view'),
+        requirePermission({ permissions: ['activities.view'], organizationScope: true }), // the whole unit's records: unit-wide roles only
         asyncHandler(async (req, res) => {
             const organizationId = await getOrganizationId(req, pool);
             const { activity_id, start_date, end_date } = req.body;

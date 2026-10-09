@@ -14,6 +14,7 @@ import { offlineManager } from "./modules/OfflineManager.js";
 import { setContent, clearElement, createElement } from "./utils/DOMUtils.js";
 import { applyPalette as applyDashboardPalette } from "./utils/DashboardPreferences.js";
 import { checkForStaleClient, installChunkErrorRecovery } from "./modules/app-recovery/StaleClientRecovery.js";
+import { localizeStaticChrome } from './utils/StaticChromeUtils.js';
 import {
         getDirectVocabularyTermKey,
         getUnitVocabulary,
@@ -208,6 +209,7 @@ export const app = {
                         try {
                                 await this.loadTranslation(normalizedLang);
                                 debugLog(`Translations loaded for ${normalizedLang}`);
+                                localizeStaticChrome(this.translate.bind(this));
                         } catch (error) {
                                 debugWarn("Failed to load translations offline:", error);
                         }
@@ -593,6 +595,7 @@ export const app = {
 
                 // Update page title
                 this.updatePageTitle();
+                localizeStaticChrome(this.translate.bind(this));
 
                 if (this.router && this.initCompleted) {
                         this.router.reloadCurrentRoute();
@@ -664,14 +667,14 @@ export const app = {
         },
 
         showLoading() {
-                let loadingIndicator = document.getElementById("loading-indicator");
+                const loadingIndicator = document.getElementById("loading-indicator");
                 if (loadingIndicator) {
                         loadingIndicator.classList.remove("hidden");
                 }
         },
 
         hideLoading() {
-                let loadingIndicator = document.getElementById("loading-indicator");
+                const loadingIndicator = document.getElementById("loading-indicator");
                 if (loadingIndicator) {
                         loadingIndicator.classList.add("hidden");
                 }

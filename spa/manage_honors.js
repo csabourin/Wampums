@@ -9,6 +9,7 @@ import { sanitizeHTML } from "./utils/SecurityUtils.js";
 import { confirmDestructive } from "./utils/DialogUtils.js";
 import { offlineManager } from "./modules/OfflineManager.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class ManageHonors {
   constructor(app) {
     this.app = app;
@@ -626,7 +627,7 @@ export class ManageHonors {
       await this.clearHonorsCaches();
     } catch (error) {
       debugError("Error:", error);
-      this.app.showMessage(`${translate("error_awarding_honor")}: ${error.message}`, "error");
+      this.app.showMessage(apiErrorMessage(error, 'error_awarding_honor'), 'error');
       // Refresh data to undo optimistic update on error
       await this.fetchData();
       this.processHonors();

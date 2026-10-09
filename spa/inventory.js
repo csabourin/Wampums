@@ -16,6 +16,7 @@ import { deleteCachedData } from "./indexedDB.js";
 import { canViewInventory } from "./utils/PermissionUtils.js";
 import { lockBodyScroll, unlockBodyScroll } from "./utils/ScrollLockUtils.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 /** Owner key for the inventory overlays' body scroll lock. */
 const INVENTORY_SCROLL_LOCK = "inventory:overlay";
 
@@ -2063,7 +2064,7 @@ export class Inventory {
       this.attachEventHandlers();
     } catch (error) {
       debugError("Error saving equipment", error);
-      this.app.showMessage(error.message || translate("resource_dashboard_error_loading"), "error");
+      this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
     }
   }
 
@@ -2127,7 +2128,7 @@ export class Inventory {
       this.attachEventHandlers();
     } catch (error) {
       debugError("Error updating equipment", error);
-      this.app.showMessage(error.message || translate("resource_dashboard_error_loading"), "error");
+      this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
     }
   }
 
@@ -2147,8 +2148,7 @@ export class Inventory {
       this.attachEventHandlers();
     } catch (error) {
       debugError("Error deleting equipment", error);
-      const errorMessage = error.message || translate("resource_dashboard_error_loading");
-      this.app.showMessage(errorMessage, "error");
+      this.app.showMessage(apiErrorMessage(error, 'error_occurred'), 'error');
       this.closeDeleteModal();
     }
   }

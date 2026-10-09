@@ -7,6 +7,7 @@ import { WhatsAppConnectionModule } from "./modules/whatsapp-connection.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { canSendCommunications, canAccessAdminPanel } from "./utils/PermissionUtils.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class CommunicationSettings extends BaseModule {
   constructor(app) {
     super(app);
@@ -30,7 +31,7 @@ export class CommunicationSettings extends BaseModule {
       this.attachGoogleChatListeners();
     } catch (error) {
       debugError("Error loading communication settings:", error);
-      this.googleChatError = error.message;
+      this.googleChatError = apiErrorMessage(error, 'error_loading_data');
       this.isLoading = false;
       this.render();
     }
@@ -54,7 +55,7 @@ export class CommunicationSettings extends BaseModule {
 
       this.googleChatSpaces = spacesResponse?.data || [];
     } catch (error) {
-      this.googleChatError = error.message;
+      this.googleChatError = apiErrorMessage(error, 'error_loading_data');
       throw error;
     }
   }
@@ -222,7 +223,7 @@ export class CommunicationSettings extends BaseModule {
       this.attachGoogleChatListeners();
     } catch (error) {
       debugError("Failed to save Google Chat credentials:", error);
-      this.app?.showMessage?.(error.message || translate("google_chat_credentials_error") || "Failed to save credentials", "error");
+      this.app?.showMessage?.(apiErrorMessage(error, 'google_chat_credentials_error'), "error");
     } finally {
       button.disabled = false;
       button.textContent = translate("save") || "Save";
@@ -259,7 +260,7 @@ export class CommunicationSettings extends BaseModule {
       this.attachGoogleChatListeners();
     } catch (error) {
       debugError("Failed to save Google Chat space:", error);
-      this.app?.showMessage?.(error.message || translate("google_chat_space_error") || "Failed to save space", "error");
+      this.app?.showMessage?.(apiErrorMessage(error, 'google_chat_space_error'), "error");
     } finally {
       submitButton.disabled = false;
       submitButton.textContent = translate("save") || "Save";
@@ -292,7 +293,7 @@ export class CommunicationSettings extends BaseModule {
       form.reset();
     } catch (error) {
       debugError("Failed to send Google Chat test:", error);
-      this.app?.showMessage?.(error.message || translate("google_chat_test_error") || "Failed to send test", "error");
+      this.app?.showMessage?.(apiErrorMessage(error, 'google_chat_test_error'), "error");
     } finally {
       submitButton.disabled = false;
       submitButton.textContent = translate("google_chat_send_test") || "Send test";

@@ -44,7 +44,7 @@ every migration through the project's own runner. `seed.mjs` adds one unit with:
 |---|---|---|
 | `admin@run.test` | `Wampums2026!` | every permission in the unit |
 | `leader@run.test` | `Wampums2026!` | leader: participants, attendance, points, badges, walk-ins; no `users.invite` |
-| `parent@run.test` | `Wampums2026!` | parent role (`linked` scope), one child enrolled this year |
+| `parent@run.test` | `Wampums2026!` | parent role (`linked` scope) with the real parent permissions; guardian of one child enrolled this year; standard forms installed |
 
 Two-factor sign-in is off for this unit only. `seed.json` is written to the
 cache for `start.sh`.

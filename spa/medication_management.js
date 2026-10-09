@@ -25,6 +25,7 @@ import {
   saveAdministrationAuthorization
 } from "./api/api-endpoints.js";
 import { buildApiCacheKey } from "./utils/OfflineCacheKeys.js";
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 import { offlineManager } from "./modules/OfflineManager.js";
 
 /**
@@ -272,7 +273,7 @@ export class MedicationManagement {
       this.app.showMessage(translate("medication_reloaded_after_reconnect"), "success");
     } catch (error) {
       debugError("Error refreshing medication data after reconnect", error);
-      this.app.showMessage(error.message || translate("error_loading_data"), "error");
+      this.app.showMessage(apiErrorMessage(error, 'error_loading_data'), 'error');
     }
   }
 
@@ -1141,7 +1142,7 @@ export class MedicationManagement {
 
     const guardianOptions = (this.authGuardians || []).map(g =>
       `<option value="${g.id}" ${String(this.treatmentAuth?.guardian_id) === String(g.id) ? 'selected' : ''}>
-        ${escapeHTML(`${g.first_name || ''} ${g.last_name || ''}`.trim())} — ${escapeHTML(g.phone_mobile || g.phone_home || '')}
+        ${escapeHTML(`${g.prenom || ''} ${g.nom || ''}`.trim())}${g.telephone_cellulaire || g.telephone_residence ? ` — ${escapeHTML(g.telephone_cellulaire || g.telephone_residence)}` : ''}
       </option>`
     ).join('');
 
@@ -1196,7 +1197,7 @@ export class MedicationManagement {
           </fieldset>
 
           <fieldset style="border:1px solid #e5e7eb;border-radius:8px;padding:1rem;">
-            <legend style="font-weight:600;padding:0 0.5rem;">Consentements</legend>
+            <legend style="font-weight:600;padding:0 0.5rem;">${escapeHTML(translate('medication_auth_consents'))}</legend>
             <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:0.5rem;">
               ${[
         { n: 1, field: 'autorise_gestes_securite_bien_etre' },
@@ -2242,7 +2243,7 @@ export class MedicationManagement {
       this.participantMedications = previousAssignments;
       this.render();
       this.attachEventListeners();
-      this.app.showMessage(error.message || translate("error_saving"), "error");
+      this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
     }
   }
 
@@ -2326,7 +2327,7 @@ export class MedicationManagement {
       this.renderAlertArea();
       this.updateUpcomingTable();
       this.updateSplitCards();
-      this.app.showMessage(error.message || translate("error_saving"), "error");
+      this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
     }
   }
 
@@ -2407,7 +2408,7 @@ export class MedicationManagement {
         if (isDuplicate) {
           this.app.showMessage(translate("medication_dose_already_given"), "warning");
         } else {
-          this.app.showMessage(err.message || translate("error_saving"), "error");
+          this.app.showMessage(apiErrorMessage(err, 'error_saving'), 'error');
         }
       },
 
@@ -2667,7 +2668,7 @@ export class MedicationManagement {
           this.renderAlertArea();
           this.updateUpcomingTable();
           this.attachEventListeners();
-          this.app.showMessage(err.message || translate("error_saving"), "error");
+          this.app.showMessage(apiErrorMessage(err, 'error_saving'), 'error');
           // Reopen modal on non-duplicate error
           if (modal) modal.style.display = "flex";
         }
@@ -2711,7 +2712,8 @@ export class MedicationManagement {
       this.firstAidSupplies = suppliesRes?.data?.supplies || suppliesRes?.supplies || [];
       this.treatmentAuth = authsRes?.data?.treatment || null;
       this.adminAuth = authsRes?.data?.administration || null;
-      this.authGuardians = guardianRes?.data?.guardians || guardianRes?.guardians || [];
+      // GET /v1/guardians answers with the list itself as `data`.
+      this.authGuardians = Array.isArray(guardianRes?.data) ? guardianRes.data : [];
       this.authLeaders = leadersRes?.data?.users || leadersRes?.users || [];
 
       this.render();
@@ -2754,7 +2756,7 @@ export class MedicationManagement {
       await this.loadAuthorizationData();
     } catch (err) {
       debugError("Error saving treatment authorization", err);
-      this.app.showMessage(translate("error_saving"), "error");
+      this.app.showMessage(apiErrorMessage(err, 'error_saving'), 'error');
     } finally {
       const btn = form.querySelector('[type="submit"]');
       if (btn) btn.disabled = false;
@@ -2797,7 +2799,7 @@ export class MedicationManagement {
       await this.loadAuthorizationData();
     } catch (err) {
       debugError("Error saving admin authorization", err);
-      this.app.showMessage(translate("error_saving"), "error");
+      this.app.showMessage(apiErrorMessage(err, 'error_saving'), 'error');
     } finally {
       const btn = form.querySelector('[type="submit"]');
       if (btn) btn.disabled = false;

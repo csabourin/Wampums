@@ -240,7 +240,9 @@ describe('US-ATT-005 — A failed save never leaves a phantom status', () => {
 
     expect(statusChip(3)).toBe(tr('late'));
     expect(page.attendanceData['3']).toBe('late');
-    expect(appStub.showMessage).toHaveBeenCalledWith('nope', 'error');
+    // Explained in the page's language; the server's own text is not shown.
+    expect(appStub.showMessage).toHaveBeenCalledWith(tr('error_updating_attendance'), 'error');
+    expect(appStub.showMessage).not.toHaveBeenCalledWith('nope', 'error');
   });
 });
 
