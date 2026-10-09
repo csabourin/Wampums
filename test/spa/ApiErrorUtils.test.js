@@ -83,6 +83,19 @@ describe('reasons that already explain themselves', () => {
   });
 });
 
+describe('browsers the build targets (ES2020)', () => {
+  test('works without Object.hasOwn (Safari before 15.4)', () => {
+    const { hasOwn } = Object;
+    delete Object.hasOwn;
+    try {
+      expect(apiErrorMessageKey(apiError({ status: 403 }))).toBe('api_error_forbidden');
+      expect(apiErrorMessageKey(apiError({ code: 'online_required' }))).toBe('family_operation_online_required');
+    } finally {
+      Object.hasOwn = hasOwn;
+    }
+  });
+});
+
 describe('apiErrorMessage', () => {
   test('never returns the English server message', () => {
     const message = apiErrorMessage(apiError({ status: 403 }), 'error_saving');

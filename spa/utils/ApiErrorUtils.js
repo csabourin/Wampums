@@ -63,7 +63,7 @@ export function apiErrorMessageKey(error, fallbackKey = 'error_occurred') {
     return 'scout_year_read_only';
   }
   const code = error?.code ?? error?.cause?.code ?? error?.error?.code;
-  if (code && Object.hasOwn(CODE_MESSAGE_KEYS, code)) {
+  if (code && Object.prototype.hasOwnProperty.call(CODE_MESSAGE_KEYS, code)) {
     return CODE_MESSAGE_KEYS[code];
   }
   const serverKey = serverMessageKey(error);
@@ -74,7 +74,7 @@ export function apiErrorMessageKey(error, fallbackKey = 'error_occurred') {
     return 'api_error_network';
   }
   const status = Number(error?.status ?? error?.cause?.status);
-  if (Object.hasOwn(STATUS_MESSAGE_KEYS, status)) {
+  if (Object.prototype.hasOwnProperty.call(STATUS_MESSAGE_KEYS, status)) {
     return STATUS_MESSAGE_KEYS[status];
   }
   return fallbackKey;
