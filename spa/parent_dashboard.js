@@ -243,7 +243,7 @@ export class ParentDashboard {
         async fetchParticipants() {
                 try {
                         const response = await fetchParticipants(
-                                getCurrentOrganizationId(),
+                                getCurrentOrganizationId(), { includeMedication: true },
                         );
 
                         // Use a Map to store unique participants

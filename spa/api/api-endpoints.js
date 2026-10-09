@@ -1,7 +1,7 @@
 // api-endpoints.js
 // All API endpoint functions organized by category
 import { API, makeApiRequestWithCache } from "./api-core.js";
-import { debugLog, debugError, debugWarn, debugInfo } from "../utils/DebugUtils.js";
+import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
 import { CONFIG } from "../config.js";
 import { fetchPublic, getCurrentOrganizationId, getAuthHeader } from "./api-helpers.js";
 import { handleResponse } from "./api-core.js";
@@ -869,10 +869,11 @@ export async function linkUserToParticipants(participantIds, userId = null) {
  * Fetch participants for parent dashboard
  * Uses RESTful endpoint with role-based access control
  */
-export async function fetchParticipants(organizationId) {
+export async function fetchParticipants(organizationId, { includeMedication = false } = {}) {
     const response = await API.get('v1/participants', {
         organization_id: organizationId,
-        limit: 1000 // High limit to get all participants
+        limit: 1000, // High limit to get all participants
+        ...(includeMedication ? { include: 'medication' } : {}) // per-child flags, parent dashboard only
     });
 
     // Extract data array from paginated response

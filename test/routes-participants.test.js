@@ -242,7 +242,7 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
     });
 
     const res = await request(app)
-      .get('/api/v1/participants')
+      .get('/api/v1/participants?include=medication')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -277,7 +277,7 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
     });
 
     const res = await request(app)
-      .get('/api/v1/participants')
+      .get('/api/v1/participants?include=medication')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -310,12 +310,43 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
     });
 
     const res = await request(app)
-      .get('/api/v1/participants')
+      .get('/api/v1/participants?include=medication')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data[0].declares_medication).toBe(true);
     expect(res.body.data[0].has_planned_medication).toBe(false);
+  });
+
+  test('skips the medication lookups unless the caller asks for them', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ roleNames: ['parent'], permissions: ['participants.view'] });
+    let medicationQueried = false;
+
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes('FROM participants p') && !query.includes('COUNT(')) {
+        return Promise.resolve({ rows: [{ id: 60, first_name: 'Léa', last_name: 'Parent' }] });
+      }
+      if (query.includes("form_type = 'fiche_sante'") || query.includes('FROM medication_requirements')) {
+        medicationQueried = true;
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('data_scope')) {
+        return Promise.resolve({ rows: [{ data_scope: 'linked' }] });
+      }
+      if (query.includes('permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'participants.view' }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .get('/api/v1/participants')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0]).not.toHaveProperty('declares_medication');
+    expect(medicationQueried).toBe(false);
   });
 
   test('filters by group_id parameter', async () => {

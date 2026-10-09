@@ -12,7 +12,11 @@
 
 import axe from 'axe-core';
 
-jest.mock('../../spa/ajax-functions.js', () => ({ getPublicOrganizationSettings: jest.fn() }));
+jest.mock('../../spa/ajax-functions.js', () => ({
+  getPublicOrganizationSettings: jest.fn(),
+  fetchParticipants: jest.fn(() => Promise.resolve([])),
+  getCurrentOrganizationId: jest.fn(() => 7),
+}));
 jest.mock('../../spa/api/api-endpoints.js', () => ({
   declinePermissionSlip: jest.fn(),
   getPermissionSlips: jest.fn(),
@@ -123,6 +127,11 @@ describe('parent dashboard buttons', () => {
     // A plan made earlier stays reachable even once the form says "no".
     expect(render({ ...CHILD, declares_medication: false, has_planned_medication: true }))
       .toContain('/medication-planning/4');
+  });
+
+  test('asks the roster for the medication flags it renders', async () => {
+    await new ParentDashboard({}).fetchParticipants();
+    expect(ajax.fetchParticipants).toHaveBeenCalledWith(7, { includeMedication: true });
   });
 
   test('carpool coordination follows activities.view and carpools.view', () => {

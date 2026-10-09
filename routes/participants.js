@@ -13,6 +13,8 @@ const {
 } = require('../services/participantAccess');
 const { isCalendarDate } = require('../utils/calendar-date');
 const { declaresMedication } = require('../utils/health-form');
+/** `GET /participants?include=medication` adds the per-child medication flags. */
+const MEDICATION_FLAGS_INCLUDE = 'medication';
 const BAD_REQUEST_STATUS = 400;
 const { eraseParticipant } = require('../services/erasure');
 
@@ -308,10 +310,12 @@ module.exports = (pool) => {
 
     // Whether a child takes medication is health information. Unit-wide it
     // follows medication.view, like the medication routes; a linked account
-    // reads it only for the children this query already limited it to.
+    // reads it only for the children this query already limited it to. Only
+    // callers that ask for it (the parent dashboard) pay for the lookups.
+    const wantsMedication = req.query.include === MEDICATION_FLAGS_INCLUDE;
     const mayReadMedication = dataScope !== 'organization'
       || (req.userPermissions || []).includes('medication.view');
-    if (mayReadMedication) {
+    if (wantsMedication && mayReadMedication) {
       const participantIds = participants.map((participant) => participant.id);
       const [medicationDeclared, medicationPlanned] = await Promise.all([
         findDeclaredMedication(pool, organizationId, participantIds),
