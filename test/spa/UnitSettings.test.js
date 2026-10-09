@@ -38,6 +38,7 @@ jest.mock('../../spa/utils/MeetingDateUtils.js', () => ({
 const mockUpdateOrganizationInfo = jest.fn();
 const mockUpdateUnitVocabulary = jest.fn();
 const mockUpdateDashboardConfiguration = jest.fn();
+const mockUpdateParentDashboardConfiguration = jest.fn();
 const mockGetLocalGroups = jest.fn();
 const mockGetLocalGroupMemberships = jest.fn();
 const mockJoinLocalGroup = jest.fn();
@@ -57,6 +58,7 @@ jest.mock('../../spa/api/api-endpoints.js', () => ({
   updateOrganizationInfo: (...args) => mockUpdateOrganizationInfo(...args),
   updateUnitVocabulary: (...args) => mockUpdateUnitVocabulary(...args),
   updateDashboardConfiguration: (...args) => mockUpdateDashboardConfiguration(...args),
+  updateParentDashboardConfiguration: (...args) => mockUpdateParentDashboardConfiguration(...args),
   getLocalGroups: (...args) => mockGetLocalGroups(...args),
   getLocalGroupMemberships: (...args) => mockGetLocalGroupMemberships(...args),
   joinLocalGroup: (...args) => mockJoinLocalGroup(...args),
@@ -72,6 +74,7 @@ jest.mock('../../spa/utils/DialogUtils.js', () => ({
   confirmDestructive: (...args) => mockConfirmDestructive(...args)
 }));
 
+import axe from 'axe-core';
 import { UnitSettings } from '../../spa/modules/unit-settings/unit-settings.js';
 import { canManageForms, hasPermission } from '../../spa/utils/PermissionUtils.js';
 
@@ -88,6 +91,8 @@ beforeEach(() => {
   });
   mockUpdateUnitVocabulary.mockResolvedValue({ data: {} });
   mockUpdateDashboardConfiguration.mockResolvedValue({ data: {} });
+  mockUpdateParentDashboardConfiguration.mockImplementation((payload) =>
+    Promise.resolve({ data: { parent_dashboard_configuration: payload } }));
   canManageForms.mockReturnValue(false);
   hasPermission.mockImplementation((permission) => ['org.view', 'org.edit'].includes(permission));
   mockGetLocalGroups.mockResolvedValue({ data: LOCAL_GROUP_CATALOG });
@@ -120,7 +125,7 @@ test('renders vocabulary and dashboard tabs with organization-level controls', a
   const module = new UnitSettings(app);
   await module.init();
 
-  expect(document.querySelectorAll('[data-settings-tab]')).toHaveLength(4);
+  expect(document.querySelectorAll('[data-settings-tab]')).toHaveLength(5);
   const generalTab = document.getElementById('unit-settings-tab-general');
   const vocabularyTab = document.getElementById('unit-settings-tab-vocabulary');
   const tabPanel = document.getElementById('unit-settings-tab-panel');
@@ -228,7 +233,7 @@ test('hides the group tab from users without organization read access', async ()
   const module = new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} });
   await module.init();
 
-  expect(document.querySelectorAll('[data-settings-tab]')).toHaveLength(3);
+  expect(document.querySelectorAll('[data-settings-tab]')).toHaveLength(4);
   expect(document.getElementById('unit-settings-tab-group')).toBeNull();
 });
 
@@ -307,4 +312,81 @@ test('shows a localized validation message instead of the English API detail', a
   await module.handleSaveUnitDetails({ preventDefault: jest.fn() });
 
   expect(app.showMessage).toHaveBeenCalledWith('unit_settings_invalid_settings', 'error');
+});
+
+const AXE_OPTIONS = {
+  runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+  // jsdom does no layout, so contrast cannot be computed here.
+  rules: { 'color-contrast': { enabled: false } }
+};
+
+describe('parent dashboard tab', () => {
+  /**
+   * Open Unit settings on the parent dashboard tab with the keyboard.
+   *
+   * @param {Object} app - App stub
+   * @returns {Promise<UnitSettings>} The page
+   */
+  async function openParentDashboardTab(app) {
+    const module = new UnitSettings(app);
+    await module.init();
+    const dashboardTab = document.getElementById('unit-settings-tab-dashboard');
+    dashboardTab.focus();
+    dashboardTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    return module;
+  }
+
+  test('is reached with the keyboard and names every optional button', async () => {
+    await openParentDashboardTab({ showMessage: jest.fn(), organizationSettings: {} });
+
+    const tab = document.getElementById('unit-settings-tab-parent_dashboard');
+    expect(document.activeElement).toBe(tab);
+    expect(tab.getAttribute('aria-selected')).toBe('true');
+    expect(document.getElementById('unit-settings-tab-panel').getAttribute('aria-labelledby'))
+      .toBe('unit-settings-tab-parent_dashboard');
+
+    const switches = [...document.querySelectorAll('.unit-parent-dashboard-button')];
+    expect(switches.map((input) => input.dataset.buttonKey)).toEqual(expect.arrayContaining([
+      'request_badge', 'program_progress'
+    ]));
+    switches.forEach((input) => {
+      expect(input.getAttribute('role')).toBe('switch');
+      expect(input.checked).toBe(true);
+      expect(document.querySelector(`label[for="${input.id}"]`).textContent.trim()).not.toBe('');
+    });
+    expect(document.querySelector('[data-button-key="add_child"]')).toBeNull();
+  });
+
+  test('saves the buttons switched off and shares them with the app', async () => {
+    const app = { showMessage: jest.fn(), organizationSettings: {} };
+    const module = await openParentDashboardTab(app);
+
+    document.getElementById('parent-dashboard-button-request_badge').checked = false;
+    document.getElementById('parent-dashboard-button-program_progress').checked = false;
+    await module.handleSaveParentDashboard({ preventDefault: jest.fn() });
+
+    expect(mockUpdateParentDashboardConfiguration).toHaveBeenCalledWith({
+      version: 1,
+      hidden_button_keys: ['program_progress', 'request_badge']
+    });
+    expect(app.organizationSettings.parent_dashboard_configuration.hidden_button_keys)
+      .toEqual(['program_progress', 'request_badge']);
+    expect(app.showMessage).toHaveBeenCalledWith('unit_parent_dashboard_saved', 'success');
+  });
+
+  test('is read-only without org.edit', async () => {
+    hasPermission.mockImplementation((permission) => permission === 'org.view');
+    await openParentDashboardTab({ showMessage: jest.fn(), organizationSettings: {} });
+
+    expect(document.getElementById('save-parent-dashboard-btn')).toBeNull();
+    document.querySelectorAll('.unit-parent-dashboard-button').forEach((input) => {
+      expect(input.disabled).toBe(true);
+    });
+  });
+
+  test('has no WCAG A/AA violations', async () => {
+    await openParentDashboardTab({ showMessage: jest.fn(), organizationSettings: {} });
+    const results = await axe.run(document.querySelector('.unit-settings-page'), AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
 });

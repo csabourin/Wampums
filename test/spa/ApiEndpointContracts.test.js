@@ -66,6 +66,7 @@ jest.mock('../../spa/utils/OfflineCacheKeys.js', () => ({
 import {
   approveUser,
   archiveFundraiser,
+  fetchParticipants,
   getCalendarsForFundraiser,
   getFundraiser,
   getUserOrganizations,
@@ -140,4 +141,24 @@ test('public registration does not send a stale authenticated session', async ()
     })
   );
   expect(mockHandleResponse).toHaveBeenCalledWith(response);
+});
+
+test('the parent dashboard roster with medication flags always asks the server', async () => {
+  // Medication plan writes do not clear roster caches, so a cached copy
+  // could keep "Gérer les médicaments" wrong for the cache's lifetime.
+  mockApiGet.mockResolvedValue({ data: [] });
+
+  await fetchParticipants(3, { includeMedication: true });
+  expect(mockApiGet).toHaveBeenLastCalledWith(
+    'v1/participants',
+    { organization_id: 3, limit: 1000, include: 'medication' },
+    { forceRefresh: true }
+  );
+
+  await fetchParticipants(3);
+  expect(mockApiGet).toHaveBeenLastCalledWith(
+    'v1/participants',
+    { organization_id: 3, limit: 1000 },
+    { forceRefresh: false }
+  );
 });

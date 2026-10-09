@@ -16,6 +16,7 @@ const dashboardFeatureKeys = new Set(customizationConfig.dashboardFeatureKeys);
 const requiredDashboardFeatureKeys = new Set(
   customizationConfig.requiredDashboardFeatureKeys
 );
+const parentDashboardButtonKeys = new Set(customizationConfig.parentDashboardButtonKeys);
 
 /**
  * Normalize and validate organization vocabulary submitted by an administrator.
@@ -141,6 +142,43 @@ function validateDashboardConfiguration(input) {
   };
 }
 
+/**
+ * Normalize and validate which optional buttons the unit hides on the parent
+ * dashboard. Adding a child, account settings and sign-out are not listed, so
+ * they can never be hidden.
+ *
+ * @param {unknown} input - Candidate parent dashboard configuration.
+ * @returns {{value: object, errors: Array<{field: string, msg: string}>}}
+ */
+function validateParentDashboardConfiguration(input) {
+  const errors = [];
+  const candidate = input && typeof input === 'object' && !Array.isArray(input)
+    ? input
+    : {};
+  const hiddenKeys = candidate.hidden_button_keys;
+
+  if (!Array.isArray(hiddenKeys)) {
+    errors.push({ field: 'hidden_button_keys', msg: 'Hidden button keys must be an array' });
+  }
+
+  const normalizedHiddenKeys = [];
+  new Set(Array.isArray(hiddenKeys) ? hiddenKeys : []).forEach((buttonKey) => {
+    if (typeof buttonKey !== 'string' || !parentDashboardButtonKeys.has(buttonKey)) {
+      errors.push({ field: 'hidden_button_keys', msg: `Unknown parent dashboard button: ${String(buttonKey)}` });
+    } else {
+      normalizedHiddenKeys.push(buttonKey);
+    }
+  });
+
+  return {
+    value: {
+      version: customizationConfig.version,
+      hidden_button_keys: normalizedHiddenKeys.sort()
+    },
+    errors
+  };
+}
+
 /** Resolve the program section associated with a built-in profile. */
 function getProgramSectionForProfile(profile) {
   return customizationConfig.profiles[profile]?.programSection || null;
@@ -150,5 +188,6 @@ module.exports = {
   customizationConfig,
   validateUnitVocabulary,
   validateDashboardConfiguration,
+  validateParentDashboardConfiguration,
   getProgramSectionForProfile
 };

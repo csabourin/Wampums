@@ -12,6 +12,9 @@ const {
   isAssociationInUnit,
 } = require('../services/participantAccess');
 const { isCalendarDate } = require('../utils/calendar-date');
+const { declaresMedication } = require('../utils/health-form');
+/** `GET /participants?include=medication` adds the per-child medication flags. */
+const MEDICATION_FLAGS_INCLUDE = 'medication';
 const BAD_REQUEST_STATUS = 400;
 const { eraseParticipant } = require('../services/erasure');
 
@@ -67,6 +70,94 @@ function isPlainBodyObject(payload) {
 function birthDateFromBody(body) {
   const value = body.date_naissance ?? body.date_of_birth;
   return value === '' || value === undefined ? null : value;
+}
+
+/**
+ * Participants whose health form (fiche_sante) declares a medication. A unit
+ * keeps one fiche_sante row per child, updated in place.
+ *
+ * Read with `declaresMedication`, like the medication report, so the parent
+ * dashboard offers medication planning to exactly the children the leaders
+ * see on that report, whatever shape the answer was stored in.
+ *
+ * @param {Object} pool - Database pool
+ * @param {number} organizationId - Unit the forms belong to
+ * @param {number[]} participantIds - Participants on the current page
+ * @returns {Promise<Set<number>>} Ids of participants declaring a medication
+ */
+async function findDeclaredMedication(pool, organizationId, participantIds) {
+  if (participantIds.length === 0) {
+    return new Set();
+  }
+  const result = await pool.query(
+    `SELECT participant_id, submission_data
+       FROM form_submissions
+      WHERE organization_id = $1
+        AND form_type = 'fiche_sante'
+        AND participant_id = ANY($2::int[])`,
+    [organizationId, participantIds]
+  );
+  return new Set((result?.rows || [])
+    .filter((row) => declaresMedication(row.submission_data))
+    .map((row) => row.participant_id));
+}
+
+/**
+ * The participants among `participantIds` linked to this account, as
+ * `user_participants` records them for the medication routes.
+ *
+ * @param {Object} pool - Database pool
+ * @param {string} userId - Account UUID
+ * @param {number[]} participantIds - Participants on the current page
+ * @returns {Promise<number[]>} Linked participant ids
+ */
+async function findLinkedParticipants(pool, userId, participantIds) {
+  if (participantIds.length === 0) {
+    return [];
+  }
+  const result = await pool.query(
+    `SELECT DISTINCT participant_id
+       FROM user_participants
+      WHERE user_id = $1
+        AND participant_id = ANY($2::int[])`,
+    [userId, participantIds]
+  );
+  return (result?.rows || []).map((row) => row.participant_id);
+}
+
+/**
+ * Participants with a medication already planned that has not ended. Their
+ * parents keep the way back to that plan even when the health form no
+ * longer declares a medication.
+ *
+ * @param {Object} pool - Database pool
+ * @param {number} organizationId - Unit the plans belong to
+ * @param {number[]} participantIds - Participants on the current page
+ * @returns {Promise<Set<number>>} Ids of participants with a current plan
+ */
+async function findPlannedMedication(pool, organizationId, participantIds) {
+  if (participantIds.length === 0) {
+    return new Set();
+  }
+  // A plan belongs to a child directly or through an assignment, as the
+  // medication requirements list reads it.
+  const result = await pool.query(
+    `SELECT mr.participant_id
+       FROM medication_requirements mr
+      WHERE mr.organization_id = $1
+        AND mr.participant_id = ANY($2::int[])
+        AND (mr.end_date IS NULL OR mr.end_date >= CURRENT_DATE)
+     UNION
+     SELECT pm.participant_id
+       FROM participant_medications pm
+       JOIN medication_requirements mr ON mr.id = pm.medication_requirement_id
+        AND mr.organization_id = pm.organization_id
+      WHERE pm.organization_id = $1
+        AND pm.participant_id = ANY($2::int[])
+        AND (mr.end_date IS NULL OR mr.end_date >= CURRENT_DATE)`,
+    [organizationId, participantIds]
+  );
+  return new Set((result?.rows || []).map((row) => row.participant_id));
 }
 
 module.exports = (pool) => {
@@ -249,6 +340,31 @@ module.exports = (pool) => {
     const countResult = await pool.query(countQuery, countParams);
     const totalRow = countResult && Array.isArray(countResult.rows) ? countResult.rows[0] : null;
     const total = Number.parseInt(totalRow?.total ?? totalRow?.count ?? 0, 10) || 0;
+
+    // Whether a child takes medication is health information, read per child
+    // like MEDICATION_LIST_READ_POLICY: unit-wide staff holding medication.view
+    // read every child; anyone else only the children linked to them, which a
+    // linked-scope query already limited itself to. Only callers that ask for
+    // it (the parent dashboard) pay for the lookups.
+    if (req.query.include === MEDICATION_FLAGS_INCLUDE) {
+      const participantIds = participants.map((participant) => participant.id);
+      const readsWholeUnit = dataScope !== 'organization'
+        || (req.userPermissions || []).includes('medication.view');
+      const readableIds = readsWholeUnit
+        ? participantIds
+        : await findLinkedParticipants(pool, userId, participantIds);
+      const [medicationDeclared, medicationPlanned] = await Promise.all([
+        findDeclaredMedication(pool, organizationId, readableIds),
+        findPlannedMedication(pool, organizationId, readableIds)
+      ]);
+      const readable = new Set(readableIds);
+      participants
+        .filter((participant) => readable.has(participant.id))
+        .forEach((participant) => {
+          participant.declares_medication = medicationDeclared.has(participant.id);
+          participant.has_planned_medication = medicationPlanned.has(participant.id);
+        });
+    }
 
     return paginated(res, participants, page, limit, total);
   }));

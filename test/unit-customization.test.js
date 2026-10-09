@@ -2,6 +2,7 @@ const {
   customizationConfig,
   validateUnitVocabulary,
   validateDashboardConfiguration,
+  validateParentDashboardConfiguration,
   getProgramSectionForProfile
 } = require('../utils/unitCustomization');
 
@@ -60,5 +61,25 @@ describe('unit customization validation', () => {
     expect(validateDashboardConfiguration({
       hidden_tile_keys: ['communications']
     }).errors).toHaveLength(1);
+  });
+
+  test('accepts known parent dashboard buttons and rejects the ones that always stay', () => {
+    expect(validateParentDashboardConfiguration({
+      hidden_button_keys: ['request_badge', 'program_progress', 'request_badge']
+    })).toEqual({
+      value: { version: 1, hidden_button_keys: ['program_progress', 'request_badge'] },
+      errors: []
+    });
+
+    const invalid = validateParentDashboardConfiguration({
+      hidden_button_keys: ['add_child', 'logout', 42]
+    });
+    expect(invalid.errors).toHaveLength(3);
+    expect(validateParentDashboardConfiguration({}).errors).toHaveLength(1);
+    // Malformed input is a validation error, never a thrown TypeError (a 500).
+    [42, true, 'ab', { request_badge: true }].forEach((hiddenButtonKeys) => {
+      expect(validateParentDashboardConfiguration({ hidden_button_keys: hiddenButtonKeys }).errors)
+        .toEqual([{ field: 'hidden_button_keys', msg: 'Hidden button keys must be an array' }]);
+    });
   });
 });

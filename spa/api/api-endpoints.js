@@ -1,7 +1,7 @@
 // api-endpoints.js
 // All API endpoint functions organized by category
 import { API, makeApiRequestWithCache } from "./api-core.js";
-import { debugLog, debugError, debugWarn, debugInfo } from "../utils/DebugUtils.js";
+import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
 import { CONFIG } from "../config.js";
 import { fetchPublic, getCurrentOrganizationId, getAuthHeader } from "./api-helpers.js";
 import { handleResponse } from "./api-core.js";
@@ -868,12 +868,22 @@ export async function linkUserToParticipants(participantIds, userId = null) {
 /**
  * Fetch participants for parent dashboard
  * Uses RESTful endpoint with role-based access control
+ *
+ * With `includeMedication`, each child carries its medication flags. Those
+ * change with medication plans, whose writes do not clear roster caches, so
+ * the request always goes to the network; offline, the cached copy is the
+ * fallback.
+ *
+ * @param {number} organizationId - Unit
+ * @param {{includeMedication?: boolean}} [options] - Add per-child medication flags
+ * @returns {Promise<Array<Object>>} Participants
  */
-export async function fetchParticipants(organizationId) {
+export async function fetchParticipants(organizationId, { includeMedication = false } = {}) {
     const response = await API.get('v1/participants', {
         organization_id: organizationId,
-        limit: 1000 // High limit to get all participants
-    });
+        limit: 1000, // High limit to get all participants
+        ...(includeMedication ? { include: 'medication' } : {}) // per-child flags, parent dashboard only
+    }, { forceRefresh: includeMedication });
 
     // Extract data array from paginated response
     return response.data || [];
@@ -2784,6 +2794,17 @@ export async function updateDashboardConfiguration(configuration) {
         debugWarn('Failed to invalidate organization settings cache', cacheError);
     }
     return response;
+}
+
+/** Update which optional buttons the parent dashboard shows. */
+export async function updateParentDashboardConfiguration(configuration) {
+  const response = await API.patch('v1/organizations/settings/parent-dashboard', configuration);
+  try {
+    await deleteCachedData('org_settings');
+  } catch (cacheError) {
+    debugWarn('Failed to invalidate organization settings cache', cacheError);
+  }
+  return response;
 }
 
 // ============================================================================

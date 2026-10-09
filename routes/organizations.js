@@ -18,6 +18,7 @@ const { requireJWTSecret, signJWTToken } = require('../utils/jwt-config');
 const {
   validateUnitVocabulary,
   validateDashboardConfiguration,
+  validateParentDashboardConfiguration,
   getProgramSectionForProfile
 } = require('../utils/unitCustomization');
 
@@ -34,7 +35,8 @@ const {
 
 // Settings that have their own validated endpoint and must not be written
 // through the generic PUT /settings.
-const DEDICATED_SETTING_KEYS = new Set([EMAIL_SENDER_SETTING_KEY]);
+const PARENT_DASHBOARD_SETTING_KEY = 'parent_dashboard_configuration';
+const DEDICATED_SETTING_KEYS = new Set([EMAIL_SENDER_SETTING_KEY, PARENT_DASHBOARD_SETTING_KEY]);
 const HTTP_BAD_REQUEST = 400;
 
 // Validate JWT secret at startup
@@ -46,7 +48,10 @@ const PUBLIC_ORGANIZATION_SETTING_KEYS = [
   'program_sections',
   'meeting_sections',
   'branding',
-  'equipment_categories'
+  'equipment_categories',
+  // Parents may not hold org.view, so the buttons their dashboard hides must
+  // reach them through the public settings. It only lists button keys.
+  PARENT_DASHBOARD_SETTING_KEY
 ];
 
 // PERFORMANCE OPTIMIZATION: In-memory cache for organization settings
@@ -625,6 +630,32 @@ module.exports = (pool, logger) => {
       res,
       { dashboard_configuration: validation.value },
       'Dashboard configuration updated'
+    );
+  }));
+
+  /** Update which optional buttons the parent dashboard shows. */
+  router.patch('/settings/parent-dashboard', authenticate, blockDemoRoles, requirePermission('org.edit'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const validation = validateParentDashboardConfiguration(req.body);
+
+    if (validation.errors.length > 0) {
+      return errorResponse(res, 'Invalid parent dashboard configuration', HTTP_BAD_REQUEST, validation.errors);
+    }
+
+    await pool.query(
+      `INSERT INTO organization_settings
+         (organization_id, setting_key, setting_value, created_at, updated_at)
+       VALUES ($1, $2, $3::jsonb, NOW(), NOW())
+       ON CONFLICT (organization_id, setting_key)
+       DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = NOW()`,
+      [organizationId, PARENT_DASHBOARD_SETTING_KEY, JSON.stringify(validation.value)]
+    );
+
+    orgSettingsCache.delete(`org_${organizationId}`);
+    return success(
+      res,
+      { parent_dashboard_configuration: validation.value },
+      'Parent dashboard configuration updated'
     );
   }));
 

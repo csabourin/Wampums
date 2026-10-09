@@ -4,45 +4,45 @@ import {
         fetchParticipants,
         getOrganizationFormFormats,
         getOrganizationSettings,
+        getPublicOrganizationSettings,
         getParticipantStatement,
         linkUserParticipants,
         getCurrentUser,
-} from "./ajax-functions.js";
+} from './ajax-functions.js';
 import {
         declinePermissionSlip,
         getPermissionSlips,
         signPermissionSlip,
-} from "./api/api-endpoints.js";
-import { getActivities } from "./api/api-activities.js";
-import { formTypeLabel } from "./utils/FormLabelUtils.js";
+} from './api/api-endpoints.js';
+import { getActivities } from './api/api-activities.js';
+import { formTypeLabel } from './utils/FormLabelUtils.js';
+import { loadHiddenParentDashboardButtons } from './config/parent-dashboard-buttons.js';
 import {
         getFormsNeedingReview,
         confirmFormReview,
         getAuthorizationsPendingSignature,
-} from "./api/api-scout-years.js";
-import { buildApiUrl } from "./api/api-core.js";
+} from './api/api-scout-years.js';
+import { buildApiUrl } from './api/api-core.js';
 import {
         debugLog,
         debugError,
         debugWarn,
-        debugInfo,
-} from "./utils/DebugUtils.js";
-import { translate, registerPushSubscription } from "./app.js";
-import { hexStringToUint8Array, base64UrlEncode } from "./functions.js";
-import { CONFIG } from "./config.js";
-import { escapeHTML } from "./utils/SecurityUtils.js";
-import { apiErrorMessage, apiErrorMessageKey } from "./utils/ApiErrorUtils.js";
-import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
-import { isParent, hasPermission, canViewFinance, canManageFinance, canViewBudget, canManageBudget, canViewBadges, canApproveBadges, canViewReports, canViewActivities, canViewCarpools } from "./utils/PermissionUtils.js";
-import { formatDateShort, parseDate } from "./utils/DateUtils.js";
+} from './utils/DebugUtils.js';
+import { translate, registerPushSubscription } from './app.js';
+import { CONFIG } from './config.js';
+import { escapeHTML } from './utils/SecurityUtils.js';
+import { apiErrorMessage, apiErrorMessageKey } from './utils/ApiErrorUtils.js';
+import { setContent, loadStylesheet } from './utils/DOMUtils.js';
+import { isParent, hasPermission, canViewFinance, canManageFinance, canViewBudget, canManageBudget, canViewBadges, canApproveBadges, canViewReports, canViewActivities, canViewCarpools } from './utils/PermissionUtils.js';
+import { formatDateShort, parseDate } from './utils/DateUtils.js';
 import {
         formatActivityDateRange,
         getActivityEndDateObj,
-} from "./utils/ActivityDateUtils.js";
+} from './utils/ActivityDateUtils.js';
 import {
         confirm as confirmDialog,
         prompt as promptDialog,
-} from "./utils/DialogUtils.js";
+} from './utils/DialogUtils.js';
 
 export class ParentDashboard {
         constructor(app) {
@@ -54,6 +54,7 @@ export class ParentDashboard {
                 this.permissionSlipHandlerBound = false;
                 this.formsToReview = [];
                 this.authorizationsToSign = [];
+                this.hiddenButtons = new Set();
         }
 
         canAccessFinanceWorkspace() {
@@ -71,7 +72,7 @@ export class ParentDashboard {
                 try {
                         await this.fetchParticipants();
                 } catch (error) {
-                        debugError("Error fetching participants:", error);
+                        debugError('Error fetching participants:', error);
                         hasErrors = true;
                         // Continue with empty participants
                 }
@@ -79,7 +80,7 @@ export class ParentDashboard {
                 try {
                         await this.fetchFormFormats();
                 } catch (error) {
-                        debugError("Error fetching form formats:", error);
+                        debugError('Error fetching form formats:', error);
                         hasErrors = true;
                         // Continue with empty form formats
                 }
@@ -88,7 +89,7 @@ export class ParentDashboard {
                         await this.fetchParticipantStatements();
                 } catch (error) {
                         debugError(
-                                "Error fetching participant statements:",
+                                'Error fetching participant statements:',
                                 error,
                         );
                         hasErrors = true;
@@ -98,9 +99,11 @@ export class ParentDashboard {
                 try {
                         await this.fetchPermissionSlips();
                 } catch (error) {
-                        debugError("Error fetching permission slips:", error);
+                        debugError('Error fetching permission slips:', error);
                         hasErrors = true;
                 }
+
+                this.hiddenButtons = await loadHiddenParentDashboardButtons(this.app?.organizationSettings, getPublicOrganizationSettings);
 
                 // The two reminder lists are independent: one failing must not hide
                 // the other, and neither may hide the dashboard.
@@ -109,25 +112,25 @@ export class ParentDashboard {
                         getAuthorizationsPendingSignature(),
                 ]);
 
-                if (reviewResult.status === "fulfilled") {
+                if (reviewResult.status === 'fulfilled') {
                         this.formsToReview = reviewResult.value;
                 } else {
-                        debugError("Error fetching forms to review:", reviewResult.reason);
+                        debugError('Error fetching forms to review:', reviewResult.reason);
                         this.formsToReview = [];
                 }
 
-                if (signatureResult.status === "fulfilled") {
+                if (signatureResult.status === 'fulfilled') {
                         this.authorizationsToSign = signatureResult.value;
                 } else {
                         debugError(
-                                "Error fetching authorizations to sign:",
+                                'Error fetching authorizations to sign:',
                                 signatureResult.reason,
                         );
                         this.authorizationsToSign = [];
                 }
 
                 if (this.formsToReview.length || this.authorizationsToSign.length) {
-                        await loadStylesheet("/css/form-review.css");
+                        await loadStylesheet('/css/form-review.css');
                 }
 
                 // Always render the page, even with partial data
@@ -138,32 +141,32 @@ export class ParentDashboard {
 
                         if (hasErrors) {
                                 this.app.showMessage(
-                                        translate("error_loading_data"),
-                                        "warning",
+                                        translate('error_loading_data'),
+                                        'warning',
                                 );
                         }
                 } catch (error) {
-                        debugError("Error rendering parent dashboard:", error);
+                        debugError('Error rendering parent dashboard:', error);
                         this.app.renderError(
-                                translate("error_loading_parent_dashboard"),
+                                translate('error_loading_parent_dashboard'),
                         );
                 }
         }
 
         checkAndShowLinkParticipantsDialog() {
                 const guardianParticipants = JSON.parse(
-                        localStorage.getItem("guardianParticipants"),
+                        localStorage.getItem('guardianParticipants'),
                 );
                 if (guardianParticipants && guardianParticipants.length > 0) {
                         this.showLinkParticipantsDialog(guardianParticipants);
-                        localStorage.removeItem("guardianParticipants"); // Clear after showing
+                        localStorage.removeItem('guardianParticipants'); // Clear after showing
                 }
         }
 
         showLinkParticipantsDialog(guardianParticipants) {
                 const dialogContent = `
-                                        <h2>${translate("link_existing_participants")}</h2>
-                                        <p>${translate("existing_participants_found")}</p>
+                                        <h2>${translate('link_existing_participants')}</h2>
+                                        <p>${translate('existing_participants_found')}</p>
                                         <form id="link-participants-form">
                                                         ${guardianParticipants
                                                                 .map(
@@ -176,31 +179,31 @@ export class ParentDashboard {
                                                                         </label>
                                                         `,
                                                                 )
-                                                                .join("")}
-                                                        <button type="submit">${translate("link_selected_participants")}</button>                                                       <button id="cancel" type="button">${translate("cancel")}</button>
+                                                                .join('')}
+                                                        <button type="submit">${translate('link_selected_participants')}</button>                                                       <button id="cancel" type="button">${translate('cancel')}</button>
                                         </form>
                         `;
 
-                const dialog = document.createElement("div");
+                const dialog = document.createElement('div');
                 setContent(dialog, dialogContent);
                 dialog.style.cssText =
-                        "position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border: 1px solid black; z-index: 1000;";
+                        'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border: 1px solid black; z-index: 1000;';
                 document.body.appendChild(dialog);
 
-                document.querySelector("#cancel").addEventListener(
-                        "click",
+                document.querySelector('#cancel').addEventListener(
+                        'click',
                         () => {
                                 dialog.remove();
                         },
                 );
 
                 document.getElementById(
-                        "link-participants-form",
-                ).addEventListener("submit", async (e) => {
+                        'link-participants-form',
+                ).addEventListener('submit', async (e) => {
                         e.preventDefault();
                         const formData = new FormData(e.target);
                         const selectedParticipants =
-                                formData.getAll("link_participants");
+                                formData.getAll('link_participants');
 
                         try {
                                 const result = await linkUserParticipants({
@@ -209,7 +212,7 @@ export class ParentDashboard {
                                 if (result.success) {
                                         this.app.showMessage(
                                                 translate(
-                                                        "participants_linked_successfully",
+                                                        'participants_linked_successfully',
                                                 ),
                                         );
                                         await this.fetchParticipants(); // Refresh the participants list
@@ -217,19 +220,19 @@ export class ParentDashboard {
                                 } else {
                                         this.app.showMessage(
                                                 translate(
-                                                        "error_linking_participants",
+                                                        'error_linking_participants',
                                                 ),
-                                                "error",
+                                                'error',
                                         );
                                 }
                         } catch (error) {
                                 debugError(
-                                        "Error linking participants:",
+                                        'Error linking participants:',
                                         error,
                                 );
                                 this.app.showMessage(
-                                        translate("error_linking_participants"),
-                                        "error",
+                                        translate('error_linking_participants'),
+                                        'error',
                                 );
                         }
 
@@ -240,7 +243,7 @@ export class ParentDashboard {
         async fetchParticipants() {
                 try {
                         const response = await fetchParticipants(
-                                getCurrentOrganizationId(),
+                                getCurrentOrganizationId(), { includeMedication: true },
                         );
 
                         // Use a Map to store unique participants
@@ -268,9 +271,9 @@ export class ParentDashboard {
                                 uniqueParticipants.values(),
                         );
 
-                        debugLog("Fetched participants:", this.participants);
+                        debugLog('Fetched participants:', this.participants);
                 } catch (error) {
-                        debugError("Error fetching participants:", error);
+                        debugError('Error fetching participants:', error);
                         this.participants = [];
                         throw error;
                 }
@@ -307,7 +310,7 @@ export class ParentDashboard {
                         }
                 } catch (error) {
                         debugWarn(
-                                "Unable to load participant statement",
+                                'Unable to load participant statement',
                                 error,
                         );
                 }
@@ -343,7 +346,7 @@ export class ParentDashboard {
                         this.permissionSlips.set(participantId, slips);
                         return slips;
                 } catch (error) {
-                        debugError("Error loading permission slips", error);
+                        debugError('Error loading permission slips', error);
                         this.permissionSlips.set(participantId, []);
                         return [];
                 }
@@ -354,35 +357,35 @@ export class ParentDashboard {
                         // Request only participant-context forms (excludes organization_info, etc.)
                         const result = await getOrganizationFormFormats(
                                 null,
-                                "participant",
+                                'participant',
                                 { includeMeta: true },
                         );
                         const response = result?.formats || null;
                         this.formMeta = result?.meta || {};
-                        debugLog("Form formats response:", response);
+                        debugLog('Form formats response:', response);
                         debugLog(
-                                "Form formats response type:",
+                                'Form formats response type:',
                                 typeof response,
                         );
                         debugLog(
-                                "Form formats response keys:",
-                                response ? Object.keys(response) : "null",
+                                'Form formats response keys:',
+                                response ? Object.keys(response) : 'null',
                         );
 
-                        if (response && typeof response === "object") {
+                        if (response && typeof response === 'object') {
                                 this.formFormats = response;
                                 debugLog(
-                                        "Stored form formats:",
+                                        'Stored form formats:',
                                         this.formFormats,
                                 );
                         } else {
                                 debugError(
-                                        "Invalid form formats response:",
+                                        'Invalid form formats response:',
                                         response,
                                 );
                         }
                 } catch (error) {
-                        debugError("Error fetching form formats:", error);
+                        debugError('Error fetching form formats:', error);
                         this.formFormats = {};
                         throw error;
                 }
@@ -405,17 +408,17 @@ export class ParentDashboard {
                                                 organizationInfo.name;
                                 } else {
                                         this.organizationName = translate(
-                                                "organization_name_default",
+                                                'organization_name_default',
                                         );
                                 }
                         } else {
                                 debugError(
-                                        "Invalid organization info response:",
+                                        'Invalid organization info response:',
                                         response,
                                 );
                         }
                 } catch (error) {
-                        debugError("Error fetching organization info:", error);
+                        debugError('Error fetching organization info:', error);
                 }
         }
 
@@ -433,13 +436,13 @@ export class ParentDashboard {
                                         this.app.userFullName = fullName;
                                 } else {
                                         debugError(
-                                                "Failed to fetch user full name: missing full name",
+                                                'Failed to fetch user full name: missing full name',
                                                 result,
                                         );
                                 }
                         } catch (error) {
                                 debugError(
-                                        "Error fetching user full name:",
+                                        'Error fetching user full name:',
                                         error,
                                 );
                         }
@@ -449,49 +452,49 @@ export class ParentDashboard {
         render() {
                 const organizationName =
                         this.app.organizationSettings?.organization_info
-                                ?.name || "Scouts";
+                                ?.name || 'Scouts';
                 const notificationButton = this.shouldShowNotificationButton()
                         ? `<button id="enableNotifications" class="dashboard-button dashboard-button--secondary">
-                                                ${translate("enable_notifications")}
+                                                ${translate('enable_notifications')}
                                         </button>`
-                        : ""; // Only render the button if needed
+                        : ''; // Only render the button if needed
 
                 const installButton = `<button id="installPwaButton" class="hidden dashboard-button dashboard-button--secondary">
-                                                ${translate("install_app")}
+                                                ${translate('install_app')}
                                         </button>`; // Initially hidden
 
                 const calendarDownloadAction = `
                         <div class="parent-dashboard__calendar-download" style="margin-top: 1rem;">
-                                <p class="muted-text" style="margin-top: 0.5rem;">${translate("calendar_download_description")}</p>
+                                <p class="muted-text" style="margin-top: 0.5rem;">${translate('calendar_download_description')}</p>
                         </div>
                 `;
 
                 // Only show staff back link when accessed outside the parent context
                 const backLink = isParent()
                         ? ``
-                        : `<a href="/dashboard" class="back-link">${translate("back_to_dashboard")}</a>`;
+                        : `<a href="/dashboard" class="back-link">${translate('back_to_dashboard')}</a>`;
 
                 // Parents who can register their own children go through the
                 // short step that links the child to their family, then on to
                 // the paperwork. It is the only path that guarantees the link.
-                const managesOwnFamily = hasPermission("participants.create_own");
-                const addChildHref = managesOwnFamily ? "/parent-onboarding" : "/formulaire-inscription";
-                const familySharingLink = managesOwnFamily
-                        ? `<a href="/family-access" class="dashboard-button dashboard-button--secondary">${translate("family_access_title")}</a>`
-                        : "";
+                const managesOwnFamily = hasPermission('participants.create_own');
+                const addChildHref = managesOwnFamily ? '/parent-onboarding' : '/formulaire-inscription';
+                const familySharingLink = managesOwnFamily && !this.hiddenButtons.has('family_access')
+                        ? `<a href="/family-access" class="dashboard-button dashboard-button--secondary">${translate('family_access_title')}</a>`
+                        : '';
                 const financeWorkspaceLink = this.canAccessFinanceWorkspace()
-                        ? `<a href="/main-dashboard" class="dashboard-button dashboard-button--secondary">${translate("dashboard_finance_section")}</a>`
-                        : "";
+                        ? `<a href="/main-dashboard" class="dashboard-button dashboard-button--secondary">${translate('dashboard_finance_section')}</a>`
+                        : '';
 
                 // Dynamically replace the title with the organization name
                 const userName =
                         this.app.userFullName ||
-                        localStorage.getItem("userFullName") ||
-                        "";
+                        localStorage.getItem('userFullName') ||
+                        '';
                 const content = `
                         <div class="parent-dashboard">
                                 <header class="parent-dashboard__header">
-                                        <h1 class="parent-dashboard__title">${translate("bienvenue")}${userName ? " " + userName : ""}</h1>
+                                        <h1 class="parent-dashboard__title">${translate('bienvenue')}${userName ? ` ${userName}` : ''}</h1>
                                         <p class="parent-dashboard__subtitle">${organizationName}</p>
                                         ${backLink}
                                 </header>
@@ -500,32 +503,29 @@ export class ParentDashboard {
                                 ${this.renderFormsToReview()}
 
                                 <section class="parent-dashboard__actions">
-                                        <h2 class="visually-hidden">${translate("main_actions")}</h2>
+                                        <h2 class="visually-hidden">${translate('main_actions')}</h2>
                                         <div class="parent-dashboard__actions-grid">
-                                                <a href="${addChildHref}" class="dashboard-button dashboard-button--primary">
-                                                        ${translate("ajouter_participant")}
-                                                </a>
-                                                <a href="/parent-finance" class="dashboard-button dashboard-button--primary">
-                                                        ${translate("my_finances")}
-                                                </a>
+                                                ${this.hiddenButtons.has('finances') ? '' : `<a href="/parent-finance" class="dashboard-button dashboard-button--primary">
+                                                        ${translate('my_finances')}
+                                                </a>`}
                                                 ${financeWorkspaceLink}
                                                 ${familySharingLink}
                                                 <a href="/account-info" class="dashboard-button dashboard-button--secondary">
-                                                        ${translate("account_settings")}
+                                                        ${translate('account_settings')}
                                                 </a>
-                                                <a href="/parent-program-progress" class="dashboard-button dashboard-button--secondary">
-                                                        ${translate("program_progress_parent_link")}
-                                                </a>
-                                                ${canViewActivities() ? `<button id="downloadCalendarButton" type="button" class="dashboard-button dashboard-button--secondary">
-                                                        ${translate("download_activities_calendar")}
-                                                </button>` : ""}
+                                                ${this.hiddenButtons.has('program_progress') ? '' : `<a href="/parent-program-progress" class="dashboard-button dashboard-button--secondary">
+                                                        ${translate('program_progress_parent_link')}
+                                                </a>`}
+                                                ${canViewActivities() && !this.hiddenButtons.has('download_calendar') ? `<button id="downloadCalendarButton" type="button" class="dashboard-button dashboard-button--secondary">
+                                                        ${translate('download_activities_calendar')}
+                                                </button>` : ''}
                                         </div>
-                                        ${canViewActivities() ? calendarDownloadAction : ""}
+                                        ${canViewActivities() && !this.hiddenButtons.has('download_calendar') ? calendarDownloadAction : ''}
                                         ${this.renderCarpoolButton()}
                                 </section>
 
                                 <section class="parent-dashboard__participants">
-                                        <h2 class="visually-hidden">${translate("participants_list")}</h2>
+                                        <h2 class="visually-hidden">${translate('participants_list')}</h2>
                                         ${this.renderParticipantsList()}
                                 </section>
 
@@ -534,13 +534,18 @@ export class ParentDashboard {
                                                 ${notificationButton}
                                                 ${installButton}
                                         </div>
-                                        <a href="/logout" class="dashboard-button dashboard-button--logout">
-                                                ${translate("deconnexion")}
-                                        </a>
+                                        <div class="parent-dashboard__footer-account">
+                                                <a href="${addChildHref}" class="dashboard-button dashboard-button--primary">
+                                                        ${translate('ajouter_participant')}
+                                                </a>
+                                                <a href="/logout" class="dashboard-button dashboard-button--logout">
+                                                        ${translate('deconnexion')}
+                                                </a>
+                                        </div>
                                 </footer>
                         </div>
                 `;
-                setContent(document.getElementById("app"), content);
+                setContent(document.getElementById('app'), content);
                 this.bindStatementHandlers();
                 this.bindPermissionSlipHandlers();
                 this.bindFormReviewHandlers();
@@ -559,7 +564,7 @@ export class ParentDashboard {
          */
         renderAuthorizationsToSign() {
                 if (!this.authorizationsToSign.length) {
-                        return "";
+                        return '';
                 }
 
                 const items = this.authorizationsToSign
@@ -568,12 +573,12 @@ export class ParentDashboard {
                                         `${authorization.first_name} ${authorization.last_name}`,
                                 );
                                 const kind =
-                                        authorization.kind === "treatment"
+                                        authorization.kind === 'treatment'
                                                 ? translate(
-                                                                "authorization_kind_treatment",
+                                                                'authorization_kind_treatment',
                                                         )
                                                 : translate(
-                                                                "authorization_kind_administration",
+                                                                'authorization_kind_administration',
                                                         );
                                 return `
                                         <li class="form-review__item">
@@ -584,17 +589,17 @@ export class ParentDashboard {
                                                 <div class="form-review__actions">
                                                         <a href="/medication-authorizations/${authorization.participant_id}"
                                                            class="dashboard-button dashboard-button--primary">
-                                                                ${translate("authorization_sign_again")}
+                                                                ${translate('authorization_sign_again')}
                                                         </a>
                                                 </div>
                                         </li>`;
                         })
-                        .join("");
+                        .join('');
 
                 return `
                         <section class="parent-dashboard__form-review form-review form-review--signature" aria-live="polite">
-                                <h2 class="form-review__title">${translate("authorization_signature_title")}</h2>
-                                <p class="form-review__description">${translate("authorization_signature_description")}</p>
+                                <h2 class="form-review__title">${translate('authorization_signature_title')}</h2>
+                                <p class="form-review__description">${translate('authorization_signature_description')}</p>
                                 <ul class="form-review__list">${items}</ul>
                         </section>`;
         }
@@ -611,7 +616,7 @@ export class ParentDashboard {
          */
         renderFormsToReview() {
                 if (!this.formsToReview.length) {
-                        return "";
+                        return '';
                 }
 
                 const items = this.formsToReview
@@ -635,30 +640,30 @@ export class ParentDashboard {
                                                         <button type="button"
                                                                 class="dashboard-button dashboard-button--secondary js-confirm-review"
                                                                 data-submission-id="${form.id}">
-                                                                ${translate("form_review_confirm")}
+                                                                ${translate('form_review_confirm')}
                                                         </button>
                                                         <a href="/dynamic-form/${encodeURIComponent(form.form_type)}/${form.participant_id}"
                                                            class="dashboard-button dashboard-button--primary">
-                                                                ${translate("form_review_update")}
+                                                                ${translate('form_review_update')}
                                                         </a>
                                                 </div>
                                         </li>`;
                         })
-                        .join("");
+                        .join('');
 
                 return `
                         <section class="parent-dashboard__form-review form-review" aria-live="polite">
-                                <h2 class="form-review__title">${translate("form_review_title")}</h2>
-                                <p class="form-review__description">${translate("form_review_description")}</p>
+                                <h2 class="form-review__title">${translate('form_review_title')}</h2>
+                                <p class="form-review__description">${translate('form_review_description')}</p>
                                 <ul class="form-review__list">${items}</ul>
                         </section>`;
         }
 
         bindFormReviewHandlers() {
                 document
-                        .querySelectorAll(".js-confirm-review")
+                        .querySelectorAll('.js-confirm-review')
                         .forEach((button) => {
-                                button.addEventListener("click", () =>
+                                button.addEventListener('click', () =>
                                         this.handleConfirmReview(button),
                                 );
                         });
@@ -684,17 +689,17 @@ export class ParentDashboard {
                                 (form) => form.id !== submissionId,
                         );
                         this.app.showMessage(
-                                translate("form_review_confirmed"),
-                                "success",
+                                translate('form_review_confirmed'),
+                                'success',
                         );
                         this.render();
                         this.attachEventListeners();
                 } catch (error) {
-                        debugError("Failed to confirm form review:", error);
+                        debugError('Failed to confirm form review:', error);
                         button.disabled = false;
                         this.app.showMessage(
-                                translate("form_review_failed"),
-                                "error",
+                                translate('form_review_failed'),
+                                'error',
                         );
                 }
         }
@@ -702,8 +707,8 @@ export class ParentDashboard {
         renderCarpoolButton() {
                 // Show a carpooling link for parents to coordinate rides; it
                 // lists the unit's activities, then opens their carpools.
-                if (!canViewActivities() || !canViewCarpools()) {
-                        return "";
+                if (!canViewActivities() || !canViewCarpools() || this.hiddenButtons.has('carpool')) {
+                        return '';
                 }
                 return `
                         <div class="parent-dashboard__carpool-section" style="margin-top: 1.5rem;">
@@ -714,7 +719,7 @@ export class ParentDashboard {
                                                 <circle cx="18.5" cy="15.5" r="2.5"></circle>
                                                 <circle cx="5.5" cy="15.5" r="2.5"></circle>
                                         </svg>
-                                        ${translate("carpool_coordination")}
+                                        ${translate('carpool_coordination')}
                                 </a>
                         </div>
                 `;
@@ -727,11 +732,11 @@ export class ParentDashboard {
                 }
 
                 const locale =
-                        this.app?.language || CONFIG.DEFAULT_LANG || "en";
-                const currency = CONFIG.DEFAULT_CURRENCY || "USD";
+                        this.app?.language || CONFIG.DEFAULT_LANG || 'en';
+                const currency = CONFIG.DEFAULT_CURRENCY || 'USD';
 
                 return new Intl.NumberFormat(locale, {
-                        style: "currency",
+                        style: 'currency',
                         currency,
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
@@ -745,14 +750,14 @@ export class ParentDashboard {
                 const outstanding = statement?.totals?.total_outstanding ?? 0;
 
                 if (!statement || outstanding <= 0) {
-                        return "";
+                        return '';
                 }
 
                 return `
                         <button type="button" class="participant-card__statement" data-participant-id="${participant.id}">
-                                <span class="participant-card__statement-label">${translate("view_statement")}</span>
+                                <span class="participant-card__statement-label">${translate('view_statement')}</span>
                                 <span class="participant-card__statement-amount">
-                                        ${translate("amount_due")}: ${this.formatCurrency(outstanding)}
+                                        ${translate('amount_due')}: ${this.formatCurrency(outstanding)}
                                 </span>
                         </button>
                 `;
@@ -760,10 +765,10 @@ export class ParentDashboard {
 
         // Check notification permission and decide whether to show the button
         shouldShowNotificationButton() {
-                if ("Notification" in window) {
+                if ('Notification' in window) {
                         return (
-                                Notification.permission === "default" ||
-                                Notification.permission === "denied"
+                                Notification.permission === 'default' ||
+                                Notification.permission === 'denied'
                         );
                 }
                 return false;
@@ -774,7 +779,7 @@ export class ParentDashboard {
                         !Array.isArray(this.participants) ||
                         this.participants.length === 0
                 ) {
-                        return `<p class="parent-dashboard__empty">${translate("no_participants")}</p>`;
+                        return `<p class="parent-dashboard__empty">${translate('no_participants')}</p>`;
                 }
 
                 return this.participants
@@ -790,27 +795,27 @@ export class ParentDashboard {
                                 <header class="participant-card__header">
                                         <h3 class="participant-card__name">${participantName}</h3>
                                         <a href="/formulaire-inscription/${participant.id}" class="participant-card__edit-btn">
-                                                ${translate("modifier")}
+                                                ${translate('modifier')}
                                         </a>
                                 </header>
                                 <div class="participant-card__forms">
                                         ${this.renderFormButtons(participant)}
                                 </div>
-                                ${statementLink ? `<div class="participant-card__section">${statementLink}</div>` : ""}
+                                ${statementLink ? `<div class="participant-card__section">${statementLink}</div>` : ''}
                                 ${this.renderPermissionSlipSection(participant)}
                         </article>
                 `;
                         })
-                        .join("");
+                        .join('');
         }
 
         renderFormButtons(participant) {
                 debugLog(
-                        "renderFormButtons called for participant:",
+                        'renderFormButtons called for participant:',
                         participant.id,
                 );
-                debugLog("this.formFormats:", this.formFormats);
-                debugLog("Form format keys:", Object.keys(this.formFormats));
+                debugLog('this.formFormats:', this.formFormats);
+                debugLog('Form format keys:', Object.keys(this.formFormats));
 
                 // The backend now filters forms based on user permissions
                 // We no longer need to hardcode exclusions here
@@ -824,9 +829,9 @@ export class ParentDashboard {
                                         participant[`has_${formType}`] === 1 ||
                                         participant[`has_${formType}`] === true;
                                 const statusClass = isCompleted
-                                        ? "form-btn--completed"
-                                        : "form-btn--incomplete";
-                                const statusIcon = isCompleted ? "✅" : "❌";
+                                        ? 'form-btn--completed'
+                                        : 'form-btn--incomplete';
+                                const statusIcon = isCompleted ? '✅' : '❌';
 
                                 debugLog(
                                         `Rendering form button for: ${formType}, label: ${formLabel}`,
@@ -839,37 +844,38 @@ export class ParentDashboard {
                 </a>
             `;
                         })
-                        .join("");
+                        .join('');
 
                 // Badges and reports are unit-wide pages: offering them to an
                 // account that cannot open them only leads to a refusal.
-                const badgeButton = canViewBadges() || canApproveBadges() ? `
+                const badgeButton = (canViewBadges() || canApproveBadges()) && !this.hiddenButtons.has('request_badge') ? `
                 <a href="/badge-form/${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">🏅</span>
-                        <span class="form-btn__label">${translate("manage_badge_progress")}</span>
+                        <span class="form-btn__label">${translate('manage_badge_progress')}</span>
                 </a>
-        ` : "";
+        ` : '';
 
-                const progressReportButton = canViewReports() ? `
+                const progressReportButton = canViewReports() && !this.hiddenButtons.has('progress_report') ? `
                 <a href="/reports?participantId=${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">📊</span>
-                        <span class="form-btn__label">${translate("view_progress_report")}</span>
+                        <span class="form-btn__label">${translate('view_progress_report')}</span>
                 </a>
-        ` : "";
+        ` : '';
 
-                const programProgressButton = `
+                const programProgressButton = !this.hiddenButtons.has('program_progress') ? `
                 <a href="/parent-program-progress" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">🧭</span>
-                        <span class="form-btn__label">${translate("program_progress_parent_link")}</span>
+                        <span class="form-btn__label">${translate('program_progress_parent_link')}</span>
                 </a>
-        `;
+        ` : '';
 
-                const medicationButton = `
+                // Offered when the health form declares a medication, or a plan is already under way.
+                const medicationButton = (participant.declares_medication === true || participant.has_planned_medication === true) && !this.hiddenButtons.has('medications') ? `
                 <a href="/medication-planning/${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">💊</span>
-                        <span class="form-btn__label">${translate("manage_medications")}</span>
+                        <span class="form-btn__label">${translate('manage_medications')}</span>
                 </a>
-        `;
+        ` : '';
 
                 debugLog(
                         `Total form buttons HTML length: ${formButtons.length}, with badge, progress, and medications: ${(formButtons + badgeButton + progressReportButton + programProgressButton + medicationButton).length}`,
@@ -888,8 +894,8 @@ export class ParentDashboard {
                 return `
                         <div class="participant-card__section">
                                 <div class="participant-card__section-header">
-                                        <h4>${translate("permission_slip_section_title")}</h4>
-                                        <p class="muted-text">${translate("permission_slip_parent_hint")}</p>
+                                        <h4>${translate('permission_slip_section_title')}</h4>
+                                        <p class="muted-text">${translate('permission_slip_parent_hint')}</p>
                                 </div>
                                 <div class="permission-slip-section" data-permission-slips-for="${participant.id}">
                                         ${this.renderPermissionSlipItems(participant.id)}
@@ -902,7 +908,7 @@ export class ParentDashboard {
                 const slips = this.permissionSlips.get(participantId) || [];
 
                 if (!Array.isArray(slips) || slips.length === 0) {
-                        return `<p class="muted-text">${translate("no_permission_slips")}</p>`;
+                        return `<p class="muted-text">${translate('no_permission_slips')}</p>`;
                 }
 
                 return `
@@ -926,12 +932,12 @@ export class ParentDashboard {
                                                                                   slip.signed_at,
                                                                           ),
                                                                   )
-                                                                : "";
+                                                                : '';
                                                 const signer = slip.signed_by
                                                         ? escapeHTML(
                                                                   slip.signed_by,
                                                           )
-                                                        : "";
+                                                        : '';
                                                 const declinedDate =
                                                         slip.declined_at
                                                                 ? escapeHTML(
@@ -939,41 +945,41 @@ export class ParentDashboard {
                                                                                   slip.declined_at,
                                                                           ),
                                                                   )
-                                                                : "";
+                                                                : '';
                                                 const declinedBy =
                                                         slip.declined_by
                                                                 ? escapeHTML(
                                                                           slip.declined_by,
                                                                   )
-                                                                : "";
+                                                                : '';
                                                 const canSign =
                                                         slip.status ===
-                                                        "pending";
+                                                        'pending';
 
                                                 const signedMeta =
                                                         signedDate || signer
-                                                                ? `<p class="muted-text">${[signedDate ? `${translate("permission_slip_signed_at")}: ${signedDate}` : "", signer ? `${translate("permission_slip_signer")}: ${signer}` : ""].filter(Boolean).join(" · ")}</p>`
+                                                                ? `<p class="muted-text">${[signedDate ? `${translate('permission_slip_signed_at')}: ${signedDate}` : '', signer ? `${translate('permission_slip_signer')}: ${signer}` : ''].filter(Boolean).join(' · ')}</p>`
                                                                 : declinedDate || declinedBy
-                                                                  ? `<p class="muted-text">${[declinedDate ? `${translate("permission_slip_declined_at")}: ${declinedDate}` : "", declinedBy ? `${translate("permission_slip_declined_by")}: ${declinedBy}` : ""].filter(Boolean).join(" · ")}</p>`
-                                                                  : "";
+                                                                  ? `<p class="muted-text">${[declinedDate ? `${translate('permission_slip_declined_at')}: ${declinedDate}` : '', declinedBy ? `${translate('permission_slip_declined_by')}: ${declinedBy}` : ''].filter(Boolean).join(' · ')}</p>`
+                                                                  : '';
 
                                                 const actionArea = canSign
-                                                        ? `<button type="button" class="dashboard-button dashboard-button--secondary permission-slip-sign-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate("permission_slip_sign")}</button>
-                                                           <button type="button" class="dashboard-button dashboard-button--danger permission-slip-decline-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate("permission_slip_decline")}</button>`
+                                                        ? `<button type="button" class="dashboard-button dashboard-button--secondary permission-slip-sign-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate('permission_slip_sign')}</button>
+                                                           <button type="button" class="dashboard-button dashboard-button--danger permission-slip-decline-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate('permission_slip_decline')}</button>`
                                                         : `<span class="status-badge status-${escapeHTML(slip.status)}">${statusLabel}</span>`;
 
                                                 return `
                                                 <li class="permission-slip-item">
                                                         <div>
-                                                                <p class="permission-slip-meeting">${translate("meeting_date_label")}: ${meetingLabel}</p>
-                                                                <p class="permission-slip-status">${translate("status")}: ${statusLabel}</p>
+                                                                <p class="permission-slip-meeting">${translate('meeting_date_label')}: ${meetingLabel}</p>
+                                                                <p class="permission-slip-status">${translate('status')}: ${statusLabel}</p>
                                                                 ${signedMeta}
                                                         </div>
                                                         <div class="permission-slip-actions">${actionArea}</div>
                                                 </li>
                                         `;
                                         })
-                                        .join("")}
+                                        .join('')}
                         </ul>
                 `;
         }
@@ -994,7 +1000,7 @@ export class ParentDashboard {
 
         getPermissionSlipStatusLabel(status) {
                 if (!status) {
-                        return translate("unknown") || "-";
+                        return translate('unknown') || '-';
                 }
 
                 const localized = translate(`permission_slip_status_${status}`);
@@ -1005,33 +1011,33 @@ export class ParentDashboard {
 
         formatDateSafe(dateString) {
                 if (!dateString) {
-                        return translate("meeting_date_label");
+                        return translate('meeting_date_label');
                 }
 
                 const parsed = parseDate(dateString);
                 if (!parsed || Number.isNaN(parsed.getTime())) {
-                        return translate("meeting_date_label");
+                        return translate('meeting_date_label');
                 }
 
                 const locale =
                         this.app?.currentLanguage ||
                         this.app?.language ||
                         CONFIG.DEFAULT_LANG ||
-                        "en";
+                        'en';
                 return new Intl.DateTimeFormat(locale, {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
                 }).format(parsed);
         }
 
         attachEventListeners() {
                 const notificationButton = document.getElementById(
-                        "enableNotifications",
+                        'enableNotifications',
                 );
                 if (notificationButton) {
                         notificationButton.addEventListener(
-                                "click",
+                                'click',
                                 async () => {
                                         await this.requestNotificationPermission();
                                 },
@@ -1040,21 +1046,21 @@ export class ParentDashboard {
 
                 // Carpool activities button
                 const carpoolButton = document.getElementById(
-                        "view-carpool-activities",
+                        'view-carpool-activities',
                 );
                 if (carpoolButton) {
-                        carpoolButton.addEventListener("click", async (e) => {
+                        carpoolButton.addEventListener('click', async (e) => {
                                 e.preventDefault();
                                 await this.showCarpoolActivitiesModal();
                         });
                 }
 
                 const downloadCalendarButton = document.getElementById(
-                        "downloadCalendarButton",
+                        'downloadCalendarButton',
                 );
                 if (downloadCalendarButton) {
                         downloadCalendarButton.addEventListener(
-                                "click",
+                                'click',
                                 async () => {
                                         await this.handleCalendarDownload();
                                 },
@@ -1063,20 +1069,20 @@ export class ParentDashboard {
 
                 // Install PWA button logic
                 const installButton =
-                        document.getElementById("installPwaButton");
+                        document.getElementById('installPwaButton');
                 let deferredPrompt;
 
                 // Keep references so destroy() can remove them; otherwise each
                 // visit stacks window listeners referencing detached buttons.
                 if (this.beforeInstallPromptHandler) {
-                        window.removeEventListener("beforeinstallprompt", this.beforeInstallPromptHandler);
+                        window.removeEventListener('beforeinstallprompt', this.beforeInstallPromptHandler);
                 }
                 if (this.appInstalledHandler) {
-                        window.removeEventListener("appinstalled", this.appInstalledHandler);
+                        window.removeEventListener('appinstalled', this.appInstalledHandler);
                 }
 
                 this.beforeInstallPromptHandler = (e) => {
-                        debugLog("beforeinstallprompt event fired");
+                        debugLog('beforeinstallprompt event fired');
                         // Prevent the default prompt
                         e.preventDefault();
                         deferredPrompt = e;
@@ -1086,10 +1092,10 @@ export class ParentDashboard {
                         }
 
                         // Show the install button
-                        installButton.style.display = "block";
+                        installButton.style.display = 'block';
 
                         // Add click event to the install button
-                        installButton.addEventListener("click", async () => {
+                        installButton.addEventListener('click', async () => {
                                 if (deferredPrompt) {
                                         // Show the install prompt
                                         deferredPrompt.prompt();
@@ -1099,14 +1105,14 @@ export class ParentDashboard {
                                                 await deferredPrompt.userChoice;
                                         if (
                                                 choiceResult.outcome ===
-                                                "accepted"
+                                                'accepted'
                                         ) {
                                                 debugLog(
-                                                        "User accepted the install prompt",
+                                                        'User accepted the install prompt',
                                                 );
                                         } else {
                                                 debugLog(
-                                                        "User dismissed the install prompt",
+                                                        'User dismissed the install prompt',
                                                 );
                                         }
 
@@ -1114,16 +1120,16 @@ export class ParentDashboard {
                                         deferredPrompt = null;
 
                                         // Hide the install button after interaction
-                                        installButton.style.display = "none";
+                                        installButton.style.display = 'none';
                                 }
                         });
                 };
-                window.addEventListener("beforeinstallprompt", this.beforeInstallPromptHandler);
+                window.addEventListener('beforeinstallprompt', this.beforeInstallPromptHandler);
 
                 this.appInstalledHandler = () => {
-                        debugLog("App has been installed");
+                        debugLog('App has been installed');
                 };
-                window.addEventListener("appinstalled", this.appInstalledHandler);
+                window.addEventListener('appinstalled', this.appInstalledHandler);
         }
 
         /**
@@ -1131,29 +1137,29 @@ export class ParentDashboard {
          */
         destroy() {
                 if (this.beforeInstallPromptHandler) {
-                        window.removeEventListener("beforeinstallprompt", this.beforeInstallPromptHandler);
+                        window.removeEventListener('beforeinstallprompt', this.beforeInstallPromptHandler);
                         this.beforeInstallPromptHandler = null;
                 }
                 if (this.appInstalledHandler) {
-                        window.removeEventListener("appinstalled", this.appInstalledHandler);
+                        window.removeEventListener('appinstalled', this.appInstalledHandler);
                         this.appInstalledHandler = null;
                 }
         }
 
         async handleCalendarDownload() {
                 this.app.showMessage(
-                        translate("calendar_download_loading"),
-                        "info",
+                        translate('calendar_download_loading'),
+                        'info',
                 );
 
                 try {
                         const response = await fetch(
-                                buildApiUrl("v1/activities/calendar.ics"),
+                                buildApiUrl('v1/activities/calendar.ics'),
                                 {
-                                        method: "GET",
+                                        method: 'GET',
                                         headers: {
                                                 ...getAuthHeader(),
-                                                Accept: "text/calendar",
+                                                Accept: 'text/calendar',
                                         },
                                 },
                         );
@@ -1166,14 +1172,14 @@ export class ParentDashboard {
 
                         const calendarText = await response.text();
                         const calendarBlob = new Blob([calendarText], {
-                                type: "text/calendar;charset=utf-8",
+                                type: 'text/calendar;charset=utf-8',
                         });
                         const downloadUrl = URL.createObjectURL(calendarBlob);
-                        const downloadLink = document.createElement("a");
+                        const downloadLink = document.createElement('a');
 
                         downloadLink.href = downloadUrl;
-                        downloadLink.download = "activities-calendar.ics";
-                        downloadLink.style.display = "none";
+                        downloadLink.download = 'activities-calendar.ics';
+                        downloadLink.style.display = 'none';
 
                         document.body.appendChild(downloadLink);
                         downloadLink.click();
@@ -1181,31 +1187,31 @@ export class ParentDashboard {
                         URL.revokeObjectURL(downloadUrl);
 
                         debugLog(
-                                "Parent dashboard calendar downloaded successfully",
+                                'Parent dashboard calendar downloaded successfully',
                         );
                         this.app.showMessage(
-                                translate("calendar_download_success"),
-                                "success",
+                                translate('calendar_download_success'),
+                                'success',
                         );
                 } catch (error) {
                         debugError(
-                                "Error downloading parent dashboard calendar:",
+                                'Error downloading parent dashboard calendar:',
                                 error,
                         );
                         this.app.showMessage(
-                                translate("calendar_download_error"),
-                                "error",
+                                translate('calendar_download_error'),
+                                'error',
                         );
                 }
         }
 
         bindStatementHandlers() {
                 const statementButtons = document.querySelectorAll(
-                        ".participant-card__statement",
+                        '.participant-card__statement',
                 );
 
                 statementButtons.forEach((button) => {
-                        button.addEventListener("click", async (event) => {
+                        button.addEventListener('click', async (event) => {
                                 const participantId =
                                         event.currentTarget?.dataset
                                                 ?.participantId;
@@ -1219,14 +1225,14 @@ export class ParentDashboard {
                         return;
                 }
 
-                const appContainer = document.getElementById("app");
+                const appContainer = document.getElementById('app');
                 if (!appContainer) {
                         return;
                 }
 
-                appContainer.addEventListener("click", async (event) => {
+                appContainer.addEventListener('click', async (event) => {
                         const button = event.target.closest(
-                                ".permission-slip-sign-btn, .permission-slip-decline-btn",
+                                '.permission-slip-sign-btn, .permission-slip-decline-btn',
                         );
                         if (!button) {
                                 return;
@@ -1246,21 +1252,21 @@ export class ParentDashboard {
                         }
 
                         const signerName = (await promptDialog({
-                                title: translate("permission_slip_signer"),
-                                message: translate("permission_slip_signer"),
+                                title: translate('permission_slip_signer'),
+                                message: translate('permission_slip_signer'),
                         }))?.trim();
                         if (!signerName) {
                                 return;
                         }
 
                         const isDecline = button.classList.contains(
-                                "permission-slip-decline-btn",
+                                'permission-slip-decline-btn',
                         );
                         if (
                                 isDecline &&
                                 !(await confirmDialog(
                                         translate(
-                                                "permission_slip_decline_confirm",
+                                                'permission_slip_decline_confirm',
                                         ),
                                 ))
                         ) {
@@ -1283,10 +1289,10 @@ export class ParentDashboard {
                                 this.app.showMessage(
                                         translate(
                                                 isDecline
-                                                        ? "permission_slip_declined"
-                                                        : "permission_slip_signed",
+                                                        ? 'permission_slip_declined'
+                                                        : 'permission_slip_signed',
                                         ),
-                                        "success",
+                                        'success',
                                 );
                                 await this.loadPermissionSlips(
                                         participantId,
@@ -1297,36 +1303,36 @@ export class ParentDashboard {
                                 );
                         } catch (error) {
                                 debugError(
-                                        "Error responding to permission slip",
+                                        'Error responding to permission slip',
                                         error,
                                 );
 
-                                const errorMessage = error?.message || "";
+                                const errorMessage = error?.message || '';
                                 if (
-                                        apiErrorMessageKey(error) === "api_error_conflict" ||
-                                        errorMessage.includes("already been answered")
+                                        apiErrorMessageKey(error) === 'api_error_conflict' ||
+                                        errorMessage.includes('already been answered')
                                 ) {
                                         this.app.showMessage(
-                                                translate("permission_slip_already_answered"),
-                                                "warning",
+                                                translate('permission_slip_already_answered'),
+                                                'warning',
                                         );
                                         // Refresh the section to show current state
                                         await this.loadPermissionSlips(participantId, true);
                                         this.refreshPermissionSlipSection(participantId);
                                 } else if (
                                         errorMessage.includes(
-                                                "only respond to permission slips for your own children",
+                                                'only respond to permission slips for your own children',
                                         )
                                 ) {
                                         this.app.showMessage(
-                                                translate("permission_slip_not_your_child"),
-                                                "error",
+                                                translate('permission_slip_not_your_child'),
+                                                'error',
                                         );
                                 } else {
                                         // The server's message is English; explain in the page's language.
                                         this.app.showMessage(
-                                                apiErrorMessage(error, "error_saving"),
-                                                "error",
+                                                apiErrorMessage(error, 'error_saving'),
+                                                'error',
                                         );
                                 }
                         }
@@ -1345,8 +1351,8 @@ export class ParentDashboard {
 
                 if (!existingStatement) {
                         this.app.showMessage(
-                                translate("statement_unavailable"),
-                                "error",
+                                translate('statement_unavailable'),
+                                'error',
                         );
                         return;
                 }
@@ -1366,60 +1372,60 @@ export class ParentDashboard {
                                                           fee.year_end
                                                                   ? `${fee.year_start} – ${fee.year_end}`
                                                                   : translate(
-                                                                            "membership_period",
+                                                                            'membership_period',
                                                                     );
                                                   const safeStatus = escapeHTML(
                                                           fee.status ||
                                                                   translate(
-                                                                          "status",
+                                                                          'status',
                                                                   ),
                                                   );
 
                                                   return `
                                         <div class="statement-line">
                                                 <div>
-                                                        <p class="muted-text">${translate("membership_period")}: ${escapeHTML(yearRange)}</p>
-                                                        <p>${translate("status")}: ${safeStatus}</p>
+                                                        <p class="muted-text">${translate('membership_period')}: ${escapeHTML(yearRange)}</p>
+                                                        <p>${translate('status')}: ${safeStatus}</p>
                                                 </div>
                                                 <div class="statement-amounts">
-                                                        <span>${translate("total_billed")}: ${this.formatCurrency(fee.total_amount)}</span>
-                                                        <span>${translate("payments_to_date")}: ${this.formatCurrency(fee.total_paid)}</span>
-                                                        <span class="${fee.outstanding > 0 ? "text-warning" : "text-success"}">${translate("amount_due")}: ${this.formatCurrency(fee.outstanding)}</span>
+                                                        <span>${translate('total_billed')}: ${this.formatCurrency(fee.total_amount)}</span>
+                                                        <span>${translate('payments_to_date')}: ${this.formatCurrency(fee.total_paid)}</span>
+                                                        <span class="${fee.outstanding > 0 ? 'text-warning' : 'text-success'}">${translate('amount_due')}: ${this.formatCurrency(fee.outstanding)}</span>
                                                 </div>
                                         </div>
                                 `;
                                           })
-                                          .join("")
-                                : `<p class="muted-text">${translate("no_financial_activity")}</p>`;
+                                          .join('')
+                                : `<p class="muted-text">${translate('no_financial_activity')}</p>`;
 
                 const participantName = escapeHTML(
                         `${existingStatement.participant.first_name} ${existingStatement.participant.last_name}`,
                 );
 
-                const modal = document.createElement("div");
-                modal.className = "modal-screen";
+                const modal = document.createElement('div');
+                modal.className = 'modal-screen';
                 setContent(
                         modal,
                         `
                         <div class="modal">
                                 <div class="modal__header">
                                         <div>
-                                                <p class="muted-text">${translate("membership_statement_title")}</p>
+                                                <p class="muted-text">${translate('membership_statement_title')}</p>
                                                 <h3>${participantName}</h3>
                                         </div>
-                                        <button type="button" class="ghost-button" id="close-statement-modal">${translate("close")}</button>
+                                        <button type="button" class="ghost-button" id="close-statement-modal">${translate('close')}</button>
                                 </div>
                                 <div class="statement-summary">
                                         <div>
-                                                <span>${translate("total_billed")}</span>
+                                                <span>${translate('total_billed')}</span>
                                                 <strong>${this.formatCurrency(totals.total_billed)}</strong>
                                         </div>
                                         <div>
-                                                <span>${translate("payments_to_date")}</span>
+                                                <span>${translate('payments_to_date')}</span>
                                                 <strong>${this.formatCurrency(totals.total_paid)}</strong>
                                         </div>
                                         <div>
-                                                <span>${translate("amount_due")}</span>
+                                                <span>${translate('amount_due')}</span>
                                                 <strong>${this.formatCurrency(totals.total_outstanding)}</strong>
                                         </div>
                                 </div>
@@ -1431,15 +1437,15 @@ export class ParentDashboard {
                 document.body.appendChild(modal);
 
                 const closeButton = modal.querySelector(
-                        "#close-statement-modal",
+                        '#close-statement-modal',
                 );
                 if (closeButton) {
-                        closeButton.addEventListener("click", () =>
+                        closeButton.addEventListener('click', () =>
                                 modal.remove(),
                         );
                 }
 
-                modal.addEventListener("click", (event) => {
+                modal.addEventListener('click', (event) => {
                         if (event.target === modal) {
                                 modal.remove();
                         }
@@ -1462,24 +1468,24 @@ export class ParentDashboard {
 
                         if (upcomingActivities.length === 0) {
                                 this.app.showMessage(
-                                        translate("no_upcoming_activities"),
-                                        "info",
+                                        translate('no_upcoming_activities'),
+                                        'info',
                                 );
                                 return;
                         }
 
-                        const modal = document.createElement("div");
-                        modal.className = "modal-screen";
+                        const modal = document.createElement('div');
+                        modal.className = 'modal-screen';
                         setContent(
                                 modal,
                                 `
                                 <div class="modal">
                                         <div class="modal__header">
-                                                <h3>${translate("carpool_coordination")}</h3>
-                                                <button type="button" class="ghost-button" id="close-carpool-modal">${translate("close")}</button>
+                                                <h3>${translate('carpool_coordination')}</h3>
+                                                <button type="button" class="ghost-button" id="close-carpool-modal">${translate('close')}</button>
                                         </div>
                                         <div style="padding: 1.5rem;">
-                                                <p style="margin-bottom: 1rem; color: #666;">${translate("select_activity_for_carpool")}</p>
+                                                <p style="margin-bottom: 1rem; color: #666;">${translate('select_activity_for_carpool')}</p>
                                                 <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                                                         ${upcomingActivities
                                                                 .map(
@@ -1491,7 +1497,7 @@ export class ParentDashboard {
                                                                                 <div style="flex: 1;">
                                                                                         <h4 style="margin: 0 0 0.5rem 0; color: #333;">${escapeHTML(activity.name)}</h4>
                                                                                         <p style="margin: 0; font-size: 0.9rem; color: #666;">
-                                                                                                ${formatActivityDateRange(activity, this.app.lang || "fr")}
+                                                                                                ${formatActivityDateRange(activity, this.app.lang || 'fr')}
                                                                                         </p>
                                                                                         <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: #999;">
                                                                                                 ${escapeHTML(activity.meeting_location_going)}
@@ -1499,17 +1505,17 @@ export class ParentDashboard {
                                                                                 </div>
                                                                                 <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; font-size: 0.85rem;">
                                                                                         <span style="background: #667eea; color: white; padding: 0.25rem 0.75rem; border-radius: 20px;">
-                                                                                                ${activity.carpool_offer_count || 0} ${translate("vehicles")}
+                                                                                                ${activity.carpool_offer_count || 0} ${translate('vehicles')}
                                                                                         </span>
                                                                                         <span style="color: #666;">
-                                                                                                ${activity.assigned_participant_count || 0} ${translate("assigned")}
+                                                                                                ${activity.assigned_participant_count || 0} ${translate('assigned')}
                                                                                         </span>
                                                                                 </div>
                                                                         </div>
                                                                 </a>
                                                         `,
                                                                 )
-                                                                .join("")}
+                                                                .join('')}
                                                 </div>
                                         </div>
                                 </div>
@@ -1519,15 +1525,15 @@ export class ParentDashboard {
                         document.body.appendChild(modal);
 
                         const closeButton = modal.querySelector(
-                                "#close-carpool-modal",
+                                '#close-carpool-modal',
                         );
                         if (closeButton) {
-                                closeButton.addEventListener("click", () =>
+                                closeButton.addEventListener('click', () =>
                                         modal.remove(),
                                 );
                         }
 
-                        modal.addEventListener("click", (event) => {
+                        modal.addEventListener('click', (event) => {
                                 if (event.target === modal) {
                                         modal.remove();
                                 }
@@ -1535,36 +1541,36 @@ export class ParentDashboard {
 
                         // Add hover effect to activity links
                         const activityLinks =
-                                modal.querySelectorAll(".activity-link");
+                                modal.querySelectorAll('.activity-link');
                         activityLinks.forEach((link) => {
-                                link.addEventListener("mouseenter", (e) => {
-                                        e.target.style.borderColor = "#667eea";
+                                link.addEventListener('mouseenter', (e) => {
+                                        e.target.style.borderColor = '#667eea';
                                         e.target.style.boxShadow =
-                                                "0 4px 8px rgba(0,0,0,0.1)";
+                                                '0 4px 8px rgba(0,0,0,0.1)';
                                 });
-                                link.addEventListener("mouseleave", (e) => {
-                                        e.target.style.borderColor = "#e0e0e0";
-                                        e.target.style.boxShadow = "none";
+                                link.addEventListener('mouseleave', (e) => {
+                                        e.target.style.borderColor = '#e0e0e0';
+                                        e.target.style.boxShadow = 'none';
                                 });
                         });
                 } catch (error) {
-                        debugError("Error loading carpool activities:", error);
+                        debugError('Error loading carpool activities:', error);
                         this.app.showMessage(
-                                translate("error_loading_activities"),
-                                "error",
+                                translate('error_loading_activities'),
+                                'error',
                         );
                 }
         }
 
         async requestNotificationPermission() {
-                if ("Notification" in window) {
+                if ('Notification' in window) {
                         // Proceed with Notification logic
-                        if (Notification.permission === "granted") {
+                        if (Notification.permission === 'granted') {
                                 registerPushSubscription();
-                        } else if (Notification.permission === "default") {
+                        } else if (Notification.permission === 'default') {
                                 Notification.requestPermission().then(
                                         (permission) => {
-                                                if (permission === "granted") {
+                                                if (permission === 'granted') {
                                                         registerPushSubscription();
                                                 }
                                         },
@@ -1572,16 +1578,16 @@ export class ParentDashboard {
                         }
                 } else {
                         debugError(
-                                "This browser does not support notifications.",
+                                'This browser does not support notifications.',
                         );
                 }
         }
 
         renderError() {
                 const errorMessage = `
-                                <h1>${translate("error")}</h1>
-                                <p>${translate("error_loading_parent_dashboard")}</p>
+                                <h1>${translate('error')}</h1>
+                                <p>${translate('error_loading_parent_dashboard')}</p>
                         `;
-                setContent(document.getElementById("app"), errorMessage);
+                setContent(document.getElementById('app'), errorMessage);
         }
 }

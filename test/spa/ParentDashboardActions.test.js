@@ -10,14 +10,23 @@
  * explained in the page's language.
  */
 
-jest.mock('../../spa/ajax-functions.js', () => ({}));
+import axe from 'axe-core';
+
+jest.mock('../../spa/ajax-functions.js', () => ({
+  getPublicOrganizationSettings: jest.fn(),
+  fetchParticipants: jest.fn(() => Promise.resolve([])),
+  getCurrentOrganizationId: jest.fn(() => 7),
+}));
 jest.mock('../../spa/api/api-endpoints.js', () => ({
   declinePermissionSlip: jest.fn(),
   getPermissionSlips: jest.fn(),
   signPermissionSlip: jest.fn(),
 }));
 jest.mock('../../spa/api/api-activities.js', () => ({ getActivities: jest.fn() }));
-jest.mock('../../spa/api/api-scout-years.js', () => ({}));
+jest.mock('../../spa/api/api-scout-years.js', () => ({
+  getFormsNeedingReview: jest.fn(() => Promise.resolve([])),
+  getAuthorizationsPendingSignature: jest.fn(() => Promise.resolve([])),
+}));
 jest.mock('../../spa/api/api-core.js', () => ({ buildApiUrl: (path) => path }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn(),
@@ -56,13 +65,15 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
 }));
 
 const endpoints = require('../../spa/api/api-endpoints.js');
+const ajax = require('../../spa/ajax-functions.js');
+const { setContent } = require('../../spa/utils/DOMUtils.js');
 const { prompt } = require('../../spa/utils/DialogUtils.js');
 const { ParentDashboard } = require('../../spa/parent_dashboard.js');
 
 const PARENT_PERMISSIONS = [
   'participants.view', 'participants.create_own', 'permission_slips.sign', 'activities.view', 'carpools.view',
 ];
-const CHILD = { id: 4, first_name: 'Léa', last_name: 'Parent' };
+const CHILD = { id: 4, first_name: 'Léa', last_name: 'Parent', declares_medication: true };
 
 /**
  * Hrefs of the per-child buttons for an account holding these permissions.
@@ -70,10 +81,11 @@ const CHILD = { id: 4, first_name: 'Léa', last_name: 'Parent' };
  * @param {string[]} permissions - Permission keys held
  * @returns {string[]} Hrefs
  */
-function childButtonHrefs(permissions) {
+function childButtonHrefs(permissions, hiddenButtons = []) {
   mockHeld.clear();
   permissions.forEach((key) => mockHeld.add(key));
   const page = new ParentDashboard({ showMessage: jest.fn() });
+  page.hiddenButtons = new Set(hiddenButtons);
   page.formFormats = { fiche_sante: {} };
   document.body.innerHTML = page.renderFormButtons(CHILD);
   return [...document.querySelectorAll('a')].map((link) => link.getAttribute('href'));
@@ -97,6 +109,29 @@ describe('parent dashboard buttons', () => {
     const hrefs = childButtonHrefs([...PARENT_PERMISSIONS, 'badges.view', 'reports.view']);
     expect(hrefs).toContain('/badge-form/4');
     expect(hrefs).toContain('/reports?participantId=4');
+  });
+
+  test('medication planning is offered when the health form declares a medication or one is planned', () => {
+    mockHeld.clear();
+    PARENT_PERMISSIONS.forEach((key) => mockHeld.add(key));
+    const page = new ParentDashboard({});
+    page.formFormats = {};
+    const render = (child) => {
+      document.body.innerHTML = page.renderFormButtons(child);
+      return [...document.querySelectorAll('a')].map((link) => link.getAttribute('href'));
+    };
+
+    expect(render(CHILD)).toContain('/medication-planning/4');
+    expect(render({ ...CHILD, declares_medication: false })).not.toContain('/medication-planning/4');
+    expect(render({ id: 4, first_name: 'Léa' })).not.toContain('/medication-planning/4');
+    // A plan made earlier stays reachable even once the form says "no".
+    expect(render({ ...CHILD, declares_medication: false, has_planned_medication: true }))
+      .toContain('/medication-planning/4');
+  });
+
+  test('asks the roster for the medication flags it renders', async () => {
+    await new ParentDashboard({}).fetchParticipants();
+    expect(ajax.fetchParticipants).toHaveBeenCalledWith(7, { includeMedication: true });
   });
 
   test('carpool coordination follows activities.view and carpools.view', () => {
@@ -141,5 +176,128 @@ describe('answering a permission slip', () => {
   test('a slip answered meanwhile says so and refreshes', async () => {
     const app = await signWith(Object.assign(new Error('API request failed: Permission slip has already been answered'), { status: 409 }));
     expect(app.showMessage).toHaveBeenCalledWith('permission_slip_already_answered', 'warning');
+  });
+});
+
+describe('buttons the unit hides', () => {
+  beforeEach(() => {
+    // Nothing hidden unless a test says otherwise; mock implementations
+    // survive clearAllMocks, so reset this one explicitly.
+    ajax.getPublicOrganizationSettings.mockReset();
+    ajax.getPublicOrganizationSettings.mockResolvedValue({ success: true, data: {} });
+  });
+
+  /**
+   * Render the whole dashboard into the document.
+   *
+   * @param {Object} app - App stub
+   * @returns {Promise<ParentDashboard>} The page
+   */
+  async function renderDashboard(app) {
+    mockHeld.clear();
+    [...PARENT_PERMISSIONS, 'badges.view'].forEach((key) => mockHeld.add(key));
+    setContent.mockImplementation((element, html) => {
+      // eslint-disable-next-line no-param-reassign
+      element.innerHTML = html;
+    });
+    document.body.innerHTML = '<div id="app"></div>';
+    const page = new ParentDashboard(app);
+    page.fetchParticipants = jest.fn(() => { page.participants = [CHILD]; });
+    page.fetchFormFormats = jest.fn(() => { page.formFormats = {}; });
+    page.fetchParticipantStatements = jest.fn();
+    page.fetchPermissionSlips = jest.fn();
+    page.attachEventListeners = jest.fn();
+    page.checkAndShowLinkParticipantsDialog = jest.fn();
+    await page.init();
+    return page;
+  }
+
+  const hrefs = () => [...document.querySelectorAll('a')].map((link) => link.getAttribute('href'));
+
+  test('hidden buttons disappear from the actions and the child card', async () => {
+    ajax.getPublicOrganizationSettings.mockResolvedValue({
+      success: true,
+      data: { parent_dashboard_configuration: { hidden_button_keys: ['request_badge', 'program_progress'] } },
+    });
+    await renderDashboard({ organizationSettings: {} });
+
+    expect(hrefs()).not.toContain('/badge-form/4');
+    expect(hrefs()).not.toContain('/parent-program-progress');
+    expect(hrefs()).toContain('/medication-planning/4');
+  });
+
+  test('a change made elsewhere wins over the app copy of the settings', async () => {
+    // The app's settings can come from a day-old cache; the unit has since
+    // restored the badge button and hidden program progress instead.
+    ajax.getPublicOrganizationSettings.mockResolvedValue({
+      success: true,
+      data: { parent_dashboard_configuration: { hidden_button_keys: ['program_progress'] } },
+    });
+    await renderDashboard({
+      organizationSettings: { parent_dashboard_configuration: { hidden_button_keys: ['request_badge'] } },
+    });
+
+    expect(ajax.getPublicOrganizationSettings).toHaveBeenCalledTimes(1);
+    expect(hrefs()).toContain('/badge-form/4');
+    expect(hrefs()).not.toContain('/parent-program-progress');
+  });
+
+  test('a parent without org.view gets the choice from the public settings', async () => {
+    ajax.getPublicOrganizationSettings.mockResolvedValue({
+      success: true,
+      data: { parent_dashboard_configuration: { hidden_button_keys: ['request_badge'] } },
+    });
+    await renderDashboard({ organizationSettings: { organization_info: { name: 'Meute' } } });
+
+    expect(hrefs()).not.toContain('/badge-form/4');
+    expect(hrefs()).toContain('/parent-program-progress');
+  });
+
+  test('offline, the app copy of the settings is used', async () => {
+    ajax.getPublicOrganizationSettings.mockRejectedValue(new Error('offline'));
+    await renderDashboard({
+      organizationSettings: { parent_dashboard_configuration: { hidden_button_keys: ['request_badge'] } },
+    });
+
+    expect(hrefs()).not.toContain('/badge-form/4');
+    expect(hrefs()).toContain('/parent-program-progress');
+  });
+
+  test('a failed read with no copy shows every button rather than breaking the page', async () => {
+    ajax.getPublicOrganizationSettings.mockRejectedValue(new Error('offline'));
+    await renderDashboard({ organizationSettings: {} });
+
+    expect(hrefs()).toContain('/badge-form/4');
+    expect(hrefs()).toContain('/logout');
+  });
+
+  test('every button shows when nothing is configured', async () => {
+    ajax.getPublicOrganizationSettings.mockResolvedValue({ success: true, data: {} });
+    await renderDashboard({ organizationSettings: {} });
+
+    expect(hrefs()).toEqual(expect.arrayContaining([
+      '/badge-form/4', '/parent-program-progress', '/parent-finance', '/medication-planning/4',
+    ]));
+  });
+
+  test('adding a child sits right above sign-out', async () => {
+    await renderDashboard({ organizationSettings: { parent_dashboard_configuration: { hidden_button_keys: [] } } });
+
+    const footerLinks = [...document.querySelectorAll('.parent-dashboard__footer-account a')];
+    expect(footerLinks.map((link) => link.getAttribute('href'))).toEqual(['/parent-onboarding', '/logout']);
+    expect(document.querySelectorAll('a[href="/parent-onboarding"]')).toHaveLength(1);
+    expect(document.querySelector('.parent-dashboard__actions a[href="/parent-onboarding"]')).toBeNull();
+  });
+
+  test('has no WCAG A/AA violations', async () => {
+    await renderDashboard({
+      organizationSettings: { parent_dashboard_configuration: { hidden_button_keys: ['request_badge'] } },
+    });
+    const results = await axe.run(document.querySelector('.parent-dashboard'), {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      // jsdom does no layout, so contrast cannot be computed here.
+      rules: { 'color-contrast': { enabled: false } },
+    });
+    expect(results.violations).toEqual([]);
   });
 });
