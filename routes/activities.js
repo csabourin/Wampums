@@ -5,6 +5,7 @@ const { toBool } = require('../utils');
 const { success, error, asyncHandler } = require('../middleware/response');
 const logger = require('../config/logger');
 const { sendActivityUpdateNotifications } = require('../utils/carpool-notifications');
+const { carpoolRosterRestriction } = require('../services/carpoolAccess');
 
 module.exports = (pool) => {
   const ICAL_PROD_ID = '-//Wampums//Activities Calendar//EN';
@@ -308,6 +309,8 @@ module.exports = (pool) => {
       return error(res, 'Activity not found', 404);
     }
 
+    // A family sees its own children, not the unit's roster and contacts.
+    const onlyChildrenOf = await carpoolRosterRestriction(req, pool);
     const result = await pool.query(
       `SELECT
         p.id,
@@ -346,9 +349,10 @@ module.exports = (pool) => {
            SELECT co.id FROM carpool_offers co WHERE co.activity_id = $1 AND co.is_active = TRUE
          )
        WHERE po.organization_id = $2
+         AND ($3::uuid IS NULL OR p.id IN (SELECT participant_id FROM user_participants WHERE user_id = $3))
        GROUP BY p.id, ca_going.participant_id, ca_return.participant_id
        ORDER BY p.last_name, p.first_name`,
-      [id, organizationId]
+      [id, organizationId, onlyChildrenOf]
     );
 
     return success(res, result.rows);

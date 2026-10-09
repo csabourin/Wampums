@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { carpoolRosterRestriction } = require('../services/carpoolAccess');
 
 module.exports = (pool) => {
   /**
@@ -12,6 +13,9 @@ module.exports = (pool) => {
   router.get('/activity/:activityId', authenticate, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const { activityId } = req.params;
     const organizationId = await getOrganizationId(req, pool);
+    // Seat counts cover everyone. Which children ride where, a family sees for
+    // its own children, and a driver for the car they offered.
+    const onlyChildrenOf = await carpoolRosterRestriction(req, pool);
 
     const result = await pool.query(
       `SELECT
@@ -29,7 +33,10 @@ module.exports = (pool) => {
             'assigned_by', ca.assigned_by,
             'assigned_by_name', assigner.full_name
           )
-        ) FILTER (WHERE ca.id IS NOT NULL) as assignments
+        ) FILTER (WHERE ca.id IS NOT NULL
+          AND ($3::uuid IS NULL OR co.user_id = $3
+               OR ca.participant_id IN (SELECT participant_id FROM user_participants WHERE user_id = $3))
+        ) as assignments
        FROM carpool_offers co
        JOIN users u ON co.user_id = u.id
        LEFT JOIN carpool_assignments ca ON co.id = ca.carpool_offer_id
@@ -38,7 +45,7 @@ module.exports = (pool) => {
        WHERE co.activity_id = $1 AND co.organization_id = $2 AND co.is_active = TRUE
        GROUP BY co.id, u.full_name, u.email
        ORDER BY co.created_at DESC`,
-      [activityId, organizationId]
+      [activityId, organizationId, onlyChildrenOf]
     );
 
     return success(res, result.rows);
@@ -528,6 +535,8 @@ module.exports = (pool) => {
   router.get('/activity/:activityId/unassigned', authenticate, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const { activityId } = req.params;
     const organizationId = await getOrganizationId(req, pool);
+    // A family sees its own children, not the unit's roster and contacts.
+    const onlyChildrenOf = await carpoolRosterRestriction(req, pool);
 
     const result = await pool.query(
       `SELECT
@@ -567,10 +576,11 @@ module.exports = (pool) => {
            SELECT id FROM carpool_offers WHERE activity_id = $1 AND is_active = TRUE
          )
        WHERE po.organization_id = $2
+         AND ($3::uuid IS NULL OR p.id IN (SELECT participant_id FROM user_participants WHERE user_id = $3))
        GROUP BY p.id, ca_going.participant_id, ca_return.participant_id
        HAVING ca_going.participant_id IS NULL OR ca_return.participant_id IS NULL
        ORDER BY p.last_name, p.first_name`,
-      [activityId, organizationId]
+      [activityId, organizationId, onlyChildrenOf]
     );
 
     return success(res, result.rows);
