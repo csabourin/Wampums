@@ -180,6 +180,13 @@ describe('answering a permission slip', () => {
 });
 
 describe('buttons the unit hides', () => {
+  beforeEach(() => {
+    // Nothing hidden unless a test says otherwise; mock implementations
+    // survive clearAllMocks, so reset this one explicitly.
+    ajax.getPublicOrganizationSettings.mockReset();
+    ajax.getPublicOrganizationSettings.mockResolvedValue({ success: true, data: {} });
+  });
+
   /**
    * Render the whole dashboard into the document.
    *
@@ -208,16 +215,31 @@ describe('buttons the unit hides', () => {
   const hrefs = () => [...document.querySelectorAll('a')].map((link) => link.getAttribute('href'));
 
   test('hidden buttons disappear from the actions and the child card', async () => {
-    await renderDashboard({
-      organizationSettings: {
-        parent_dashboard_configuration: { hidden_button_keys: ['request_badge', 'program_progress'] },
-      },
+    ajax.getPublicOrganizationSettings.mockResolvedValue({
+      success: true,
+      data: { parent_dashboard_configuration: { hidden_button_keys: ['request_badge', 'program_progress'] } },
     });
+    await renderDashboard({ organizationSettings: {} });
 
     expect(hrefs()).not.toContain('/badge-form/4');
     expect(hrefs()).not.toContain('/parent-program-progress');
     expect(hrefs()).toContain('/medication-planning/4');
-    expect(ajax.getPublicOrganizationSettings).not.toHaveBeenCalled();
+  });
+
+  test('a change made elsewhere wins over the app copy of the settings', async () => {
+    // The app's settings can come from a day-old cache; the unit has since
+    // restored the badge button and hidden program progress instead.
+    ajax.getPublicOrganizationSettings.mockResolvedValue({
+      success: true,
+      data: { parent_dashboard_configuration: { hidden_button_keys: ['program_progress'] } },
+    });
+    await renderDashboard({
+      organizationSettings: { parent_dashboard_configuration: { hidden_button_keys: ['request_badge'] } },
+    });
+
+    expect(ajax.getPublicOrganizationSettings).toHaveBeenCalledTimes(1);
+    expect(hrefs()).toContain('/badge-form/4');
+    expect(hrefs()).not.toContain('/parent-program-progress');
   });
 
   test('a parent without org.view gets the choice from the public settings', async () => {
@@ -231,7 +253,17 @@ describe('buttons the unit hides', () => {
     expect(hrefs()).toContain('/parent-program-progress');
   });
 
-  test('a failed read shows every button rather than breaking the page', async () => {
+  test('offline, the app copy of the settings is used', async () => {
+    ajax.getPublicOrganizationSettings.mockRejectedValue(new Error('offline'));
+    await renderDashboard({
+      organizationSettings: { parent_dashboard_configuration: { hidden_button_keys: ['request_badge'] } },
+    });
+
+    expect(hrefs()).not.toContain('/badge-form/4');
+    expect(hrefs()).toContain('/parent-program-progress');
+  });
+
+  test('a failed read with no copy shows every button rather than breaking the page', async () => {
     ajax.getPublicOrganizationSettings.mockRejectedValue(new Error('offline'));
     await renderDashboard({ organizationSettings: {} });
 

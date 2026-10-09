@@ -42,24 +42,23 @@ export function getHiddenParentDashboardButtons(settings) {
 }
 
 /**
- * Read which buttons the unit hid. Parents may not hold org.view, in which
- * case the app's settings lack the choice and the public settings carry it.
- * Failing to read it shows every button: hiding is a convenience, never a
- * reason to break the page.
+ * Read which buttons the unit hid, fresh on every visit. The public settings
+ * carry the choice to every account (parents may not hold org.view) and are
+ * not cached in the browser, whereas the app's copy of the settings can be a
+ * day old. That copy is the fallback when the request fails (offline); with
+ * neither, every button shows: hiding is a convenience, never a reason to
+ * break the page.
  *
  * @param {Object} [settings] - Organization settings already loaded by the app
  * @param {Function} fetchPublicSettings - Loads the public organization settings
  * @returns {Promise<Set<string>>} Hidden button keys
  */
 export async function loadHiddenParentDashboardButtons(settings, fetchPublicSettings) {
-  if (settings?.parent_dashboard_configuration) {
-    return getHiddenParentDashboardButtons(settings);
-  }
   try {
     const response = await fetchPublicSettings();
     return getHiddenParentDashboardButtons(response?.data || response);
   } catch (error) {
     debugError('Failed to load parent dashboard buttons:', error);
-    return new Set();
+    return getHiddenParentDashboardButtons(settings);
   }
 }
