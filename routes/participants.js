@@ -139,12 +139,22 @@ async function findPlannedMedication(pool, organizationId, participantIds) {
   if (participantIds.length === 0) {
     return new Set();
   }
+  // A plan belongs to a child directly or through an assignment, as the
+  // medication requirements list reads it.
   const result = await pool.query(
-    `SELECT DISTINCT participant_id
-       FROM medication_requirements
-      WHERE organization_id = $1
-        AND participant_id = ANY($2::int[])
-        AND (end_date IS NULL OR end_date >= CURRENT_DATE)`,
+    `SELECT mr.participant_id
+       FROM medication_requirements mr
+      WHERE mr.organization_id = $1
+        AND mr.participant_id = ANY($2::int[])
+        AND (mr.end_date IS NULL OR mr.end_date >= CURRENT_DATE)
+     UNION
+     SELECT pm.participant_id
+       FROM participant_medications pm
+       JOIN medication_requirements mr ON mr.id = pm.medication_requirement_id
+        AND mr.organization_id = pm.organization_id
+      WHERE pm.organization_id = $1
+        AND pm.participant_id = ANY($2::int[])
+        AND (mr.end_date IS NULL OR mr.end_date >= CURRENT_DATE)`,
     [organizationId, participantIds]
   );
   return new Set((result?.rows || []).map((row) => row.participant_id));

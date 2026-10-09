@@ -249,7 +249,9 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
     expect(res.body.data.map((child) => [child.id, child.declares_medication, child.has_planned_medication]))
       .toEqual([[60, true, false], [61, false, true], [62, false, false]]);
     expect(plannedQuery.params).toEqual([ORG_ID, [60, 61, 62]]);
-    expect(plannedQuery.query).toContain('end_date IS NULL OR end_date >= CURRENT_DATE');
+    expect(plannedQuery.query).toContain('mr.end_date IS NULL OR mr.end_date >= CURRENT_DATE');
+    // Plans assigned through participant_medications count as well.
+    expect(plannedQuery.query).toContain('FROM participant_medications pm');
     expect(healthQuery.params[1]).toEqual([60, 61, 62]);
     expect(healthQuery.query).toContain('organization_id = $1');
   });
