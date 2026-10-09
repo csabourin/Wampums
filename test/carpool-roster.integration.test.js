@@ -2,9 +2,10 @@
 
 /**
  * carpools.view lets a family offer rides and seat its own children. It is not
- * a right to the unit's roster: a linked-scope member sees only their own
- * children (and, as a driver, the children in their own car). Seat counts stay
- * unit-wide. Staff keep the whole roster.
+ * a right to the unit's roster: in the children lists a linked-scope member
+ * sees only their own children. In the list of cars, every family sees who
+ * rides where (child and guardian names, so children can ride with friends),
+ * without email addresses. Staff see everything.
  */
 
 const express = require('express');
@@ -150,12 +151,23 @@ describe.skipIf(!DATABASE_URL)('Carpool roster visibility', () => {
     expect(names(unassigned.body.data)).toEqual(['Own', 'Unseated']);
   });
 
-  test('another car shows its seat count but not who rides in it', async () => {
+  test('a family sees who rides in another car, by name only', async () => {
     const response = await get(`/api/v1/carpools/activity/${ids.activity}`, ids.family);
     expect(response.status).toBe(200);
     const otherCar = response.body.data.find((row) => row.id === ids.otherCar);
     expect(Number(otherCar.seats_used_going)).toBe(1);
-    expect(otherCar.assignments || []).toEqual([]);
+    expect(otherCar.assignments.map((a) => a.participant_name)).toEqual(['Foreign Carpool']);
+    expect(otherCar.assignments[0].guardian_names).toEqual(['Other Family']);
+    // No contact details: neither the driver's nor any guardian's address.
+    expect(otherCar.driver_email).toBeNull();
+    expect(JSON.stringify(response.body.data)).not.toMatch(/@example\.test/);
+  });
+
+  test('staff also see the driver\'s email address', async () => {
+    const response = await get(`/api/v1/carpools/activity/${ids.activity}`, ids.staff);
+    const otherCar = response.body.data.find((row) => row.id === ids.otherCar);
+    expect(otherCar.driver_email).toMatch(/@example\.test$/);
+    expect(otherCar.assignments[0].guardian_names).toEqual(['Other Family']);
   });
 
   test('a driver sees every child seated in their own car', async () => {

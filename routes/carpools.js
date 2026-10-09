@@ -13,15 +13,16 @@ module.exports = (pool) => {
   router.get('/activity/:activityId', authenticate, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const { activityId } = req.params;
     const organizationId = await getOrganizationId(req, pool);
-    // Seat counts cover everyone. Which children ride where, a family sees for
-    // its own children, and a driver for the car they offered.
-    const onlyChildrenOf = await carpoolRosterRestriction(req, pool);
+    // Every family of the unit sees who rides in each car (children want to
+    // ride with their friends): the child's name and their guardians' names.
+    // Contact details stay with staff.
+    const familyView = (await carpoolRosterRestriction(req, pool)) !== null;
 
     const result = await pool.query(
       `SELECT
         co.*,
         u.full_name as driver_name,
-        u.email as driver_email,
+        CASE WHEN $3::boolean THEN NULL ELSE u.email END as driver_email,
         COUNT(DISTINCT ca.participant_id) FILTER (WHERE ca.trip_direction IN ('both', 'to_activity')) as seats_used_going,
         COUNT(DISTINCT ca.participant_id) FILTER (WHERE ca.trip_direction IN ('both', 'from_activity')) as seats_used_return,
         json_agg(
@@ -29,14 +30,17 @@ module.exports = (pool) => {
             'assignment_id', ca.id,
             'participant_id', ca.participant_id,
             'participant_name', p.first_name || ' ' || p.last_name,
+            'guardian_names', COALESCE((
+              SELECT jsonb_agg(gu.full_name ORDER BY gu.full_name)
+                FROM user_participants gup
+                JOIN users gu ON gu.id = gup.user_id
+               WHERE gup.participant_id = ca.participant_id
+            ), '[]'::jsonb),
             'trip_direction', ca.trip_direction,
             'assigned_by', ca.assigned_by,
             'assigned_by_name', assigner.full_name
           )
-        ) FILTER (WHERE ca.id IS NOT NULL
-          AND ($3::uuid IS NULL OR co.user_id = $3
-               OR ca.participant_id IN (SELECT participant_id FROM user_participants WHERE user_id = $3))
-        ) as assignments
+        ) FILTER (WHERE ca.id IS NOT NULL) as assignments
        FROM carpool_offers co
        JOIN users u ON co.user_id = u.id
        LEFT JOIN carpool_assignments ca ON co.id = ca.carpool_offer_id
@@ -45,7 +49,7 @@ module.exports = (pool) => {
        WHERE co.activity_id = $1 AND co.organization_id = $2 AND co.is_active = TRUE
        GROUP BY co.id, u.full_name, u.email
        ORDER BY co.created_at DESC`,
-      [activityId, organizationId, onlyChildrenOf]
+      [activityId, organizationId, familyView]
     );
 
     return success(res, result.rows);
