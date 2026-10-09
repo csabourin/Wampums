@@ -532,6 +532,32 @@ describe('GET /api/v1/organizations/settings', () => {
   });
 });
 
+describe('PATCH /api/v1/organizations/settings/dashboard', () => {
+  test('answers a non-array value with 400, not 500', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes("r.role_name IN ('demoadmin', 'demoparent')")) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('SELECT DISTINCT p.permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'org.edit' }] });
+      }
+      if (query.includes('SELECT DISTINCT r.role_name, r.display_name')) {
+        return Promise.resolve({ rows: [{ role_name: 'unitadmin', display_name: 'Unit admin' }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .patch('/api/v1/organizations/settings/dashboard')
+      .set('Authorization', `Bearer ${generateToken({ organizationId: ORG_ID })}`)
+      .send({ hidden_tile_keys: 42 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors[0].field).toBe('hidden_tile_keys');
+  });
+});
+
 describe('PATCH /api/v1/organizations/settings/parent-dashboard', () => {
   /**
    * Answer the authorization queries for a unit admin holding these keys.

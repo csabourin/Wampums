@@ -123,7 +123,7 @@ function validateDashboardConfiguration(input) {
   }
 
   const normalizedHiddenKeys = [];
-  new Set(hiddenKeys || []).forEach((featureKey) => {
+  new Set(Array.isArray(hiddenKeys) ? hiddenKeys : []).forEach((featureKey) => {
     if (typeof featureKey !== 'string' || !dashboardFeatureKeys.has(featureKey)) {
       errors.push({ field: 'hidden_tile_keys', msg: `Unknown dashboard feature: ${String(featureKey)}` });
     } else if (requiredDashboardFeatureKeys.has(featureKey)) {
