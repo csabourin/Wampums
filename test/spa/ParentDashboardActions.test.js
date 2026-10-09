@@ -107,7 +107,7 @@ describe('parent dashboard buttons', () => {
     expect(hrefs).toContain('/reports?participantId=4');
   });
 
-  test('medication planning is offered only when the health form declares a medication', () => {
+  test('medication planning is offered when the health form declares a medication or one is planned', () => {
     mockHeld.clear();
     PARENT_PERMISSIONS.forEach((key) => mockHeld.add(key));
     const page = new ParentDashboard({});
@@ -120,6 +120,9 @@ describe('parent dashboard buttons', () => {
     expect(render(CHILD)).toContain('/medication-planning/4');
     expect(render({ ...CHILD, declares_medication: false })).not.toContain('/medication-planning/4');
     expect(render({ id: 4, first_name: 'Léa' })).not.toContain('/medication-planning/4');
+    // A plan made earlier stays reachable even once the form says "no".
+    expect(render({ ...CHILD, declares_medication: false, has_planned_medication: true }))
+      .toContain('/medication-planning/4');
   });
 
   test('carpool coordination follows activities.view and carpools.view', () => {

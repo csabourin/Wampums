@@ -869,8 +869,8 @@ export class ParentDashboard {
                 </a>
         ` : '';
 
-                // Only children whose health form declares a medication have one to plan.
-                const medicationButton = participant.declares_medication === true && !this.hiddenButtons.has('medications') ? `
+                // Offered when the health form declares a medication, or a plan is already under way.
+                const medicationButton = (participant.declares_medication === true || participant.has_planned_medication === true) && !this.hiddenButtons.has('medications') ? `
                 <a href="/medication-planning/${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">💊</span>
                         <span class="form-btn__label">${translate('manage_medications')}</span>

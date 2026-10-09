@@ -100,6 +100,31 @@ async function findDeclaredMedication(pool, organizationId, participantIds) {
     .map((row) => row.participant_id));
 }
 
+/**
+ * Participants with a medication already planned that has not ended. Their
+ * parents keep the way back to that plan even when the health form no
+ * longer declares a medication.
+ *
+ * @param {Object} pool - Database pool
+ * @param {number} organizationId - Unit the plans belong to
+ * @param {number[]} participantIds - Participants on the current page
+ * @returns {Promise<Set<number>>} Ids of participants with a current plan
+ */
+async function findPlannedMedication(pool, organizationId, participantIds) {
+  if (participantIds.length === 0) {
+    return new Set();
+  }
+  const result = await pool.query(
+    `SELECT DISTINCT participant_id
+       FROM medication_requirements
+      WHERE organization_id = $1
+        AND participant_id = ANY($2::int[])
+        AND (end_date IS NULL OR end_date >= CURRENT_DATE)`,
+    [organizationId, participantIds]
+  );
+  return new Set((result?.rows || []).map((row) => row.participant_id));
+}
+
 module.exports = (pool) => {
   /**
    * @swagger
@@ -281,11 +306,14 @@ module.exports = (pool) => {
     const totalRow = countResult && Array.isArray(countResult.rows) ? countResult.rows[0] : null;
     const total = Number.parseInt(totalRow?.total ?? totalRow?.count ?? 0, 10) || 0;
 
-    const medicationDeclared = await findDeclaredMedication(
-      pool, organizationId, participants.map((participant) => participant.id)
-    );
+    const participantIds = participants.map((participant) => participant.id);
+    const [medicationDeclared, medicationPlanned] = await Promise.all([
+      findDeclaredMedication(pool, organizationId, participantIds),
+      findPlannedMedication(pool, organizationId, participantIds)
+    ]);
     participants.forEach((participant) => {
       participant.declares_medication = medicationDeclared.has(participant.id);
+      participant.has_planned_medication = medicationPlanned.has(participant.id);
     });
 
     return paginated(res, participants, page, limit, total);

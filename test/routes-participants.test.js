@@ -206,10 +206,11 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
     expect(queryDidJoinUserParticipants).toBe(true);
   });
 
-  test('flags children whose health form declares a medication', async () => {
+  test('flags children whose health form declares a medication or who have one planned', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({ roleNames: ['parent'], permissions: ['participants.view'] });
     let healthQuery = null;
+    let plannedQuery = null;
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM participants p') && !query.includes('COUNT(')) {
@@ -227,6 +228,10 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
           { participant_id: 61, submission_data: { has_medication: 'no', medicament: 'aucun' } }
         ] });
       }
+      if (query.includes('FROM medication_requirements')) {
+        plannedQuery = { query, params };
+        return Promise.resolve({ rows: [{ participant_id: 61 }] });
+      }
       if (query.includes('data_scope')) {
         return Promise.resolve({ rows: [{ data_scope: 'linked' }] });
       }
@@ -241,8 +246,10 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.map((child) => [child.id, child.declares_medication]))
-      .toEqual([[60, true], [61, false], [62, false]]);
+    expect(res.body.data.map((child) => [child.id, child.declares_medication, child.has_planned_medication]))
+      .toEqual([[60, true, false], [61, false, true], [62, false, false]]);
+    expect(plannedQuery.params).toEqual([ORG_ID, [60, 61, 62]]);
+    expect(plannedQuery.query).toContain('end_date IS NULL OR end_date >= CURRENT_DATE');
     expect(healthQuery.params[1]).toEqual([60, 61, 62]);
     expect(healthQuery.query).toContain('organization_id = $1');
   });
