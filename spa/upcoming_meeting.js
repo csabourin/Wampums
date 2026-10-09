@@ -588,7 +588,7 @@ export class UpcomingMeeting {
       return `
                     <div class="award-row" style="margin-bottom: 15px; padding: 10px; background: #f9f9f9; border-left: 4px solid #4CAF50;">
                             <div style="font-weight: bold;">${badgeName} <span class="badge" style="font-size: 0.8em; background: #ddd; padding: 2px 6px; border-radius: 4px;">${typeLabel}</span></div>
-                            <div style="font-size: 0.9em; color: #666; margin-top: 5px;">${translate("awarding_to")}: ${targetNames}</div>
+                            <div style="font-size: 0.9em; color: #666; margin-top: 5px;">${translate("awarding_to")}: ${escapeHTML(targetNames)}</div>
                             <label style="display: block; margin-top: 5px;">
                                     <input type="checkbox" checked class="award-confirm-checkbox" data-index="${index}" data-targets='${JSON.stringify(targets)}'>
                                     ${translate("confirm_award")}

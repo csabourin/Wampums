@@ -288,7 +288,7 @@ export class ActivityManager {
                                 ${this.animateurs
                                         .map(
                                                 (animateur) => `
-                                        <option value="${animateur.full_name}" ${animateur.full_name === a.responsable ? "selected" : ""}>${animateur.full_name}</option>
+                                        <option value="${escapeAttribute(animateur.full_name)}" ${animateur.full_name === a.responsable ? "selected" : ""}>${escapeHTML(animateur.full_name)}</option>
                                 `,
                                         )
                                         .join("")}
@@ -1064,7 +1064,7 @@ export class ActivityManager {
                                 <div class="achievement-summary__details">
                                         <span class="achievement-summary__badge">${escapeHTML(badgeName)}</span>
                                         <span class="achievement-summary__type">(${typeLabel})</span>
-                                        ${participantNames ? `<span class="achievement-summary__participants">→ ${participantNames}</span>` : ""}
+                                        ${participantNames ? `<span class="achievement-summary__participants">→ ${escapeHTML(participantNames)}</span>` : ""}
                                 </div>
                         </div>
                 `;

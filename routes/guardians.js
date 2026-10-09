@@ -28,6 +28,7 @@ const {
 } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { revokeGuardianAccess } = require('../services/participantAccess');
+const { hasNameMarkup } = require('../middleware/validation');
 const { splitFullName } = require('../services/accountProvisioning');
 const { syncAccountNamesForGuardians } = require('../services/accountNames');
 
@@ -446,6 +447,9 @@ module.exports = (pool) => {
 
     if (!participant_id || !nom || !prenom) {
       return error(res, 'Participant ID, nom, and prenom are required', 400);
+    }
+    if (hasNameMarkup(nom) || hasNameMarkup(prenom)) {
+      return error(res, 'Names cannot contain < or >', HTTP_STATUS.BAD_REQUEST);
     }
     // Present at all means it must be valid: 0 or '' is not "no guardian".
     const hasGuardianId = guardian_id !== undefined && guardian_id !== null;

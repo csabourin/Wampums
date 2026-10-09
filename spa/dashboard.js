@@ -52,7 +52,7 @@ import {
 } from "./utils/DashboardPreferences.js";
 import { CommandPalette } from "./modules/CommandPalette.js";
 import { DashboardSettingsModal } from "./modules/DashboardSettingsModal.js";
-import { escapeHTML } from "./utils/SecurityUtils.js";
+import { escapeAttribute, escapeHTML } from "./utils/SecurityUtils.js";
 import { offlineManager } from "./modules/OfflineManager.js";
 
 export class Dashboard extends BaseModule {
@@ -1085,9 +1085,9 @@ export class Dashboard extends BaseModule {
                data-type="individual"
                data-group-id="${p.group_id || "none"}"
                data-points="${pts}"
-              data-name="${p.first_name}">
+              data-name="${escapeAttribute(p.first_name)}">
             <span class="participant-name">
-              ${p.first_name} ${p.last_name}
+              ${escapeHTML(p.first_name)} ${escapeHTML(p.last_name)}
               ${p.first_leader ? ` <span class="badge leader">${translate("leader")}</span>` : ""}
               ${p.second_leader ? ` <span class="badge second-leader">${translate("second_leader")}</span>` : ""}
             </span>

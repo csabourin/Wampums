@@ -7,6 +7,7 @@ import { translate } from "./app.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { formatDateShort } from "./utils/DateUtils.js";
+import { escapeHTML } from './utils/SecurityUtils.js';
 
 export class TimeSinceRegistration {
   constructor(app) {
@@ -112,7 +113,7 @@ export class TimeSinceRegistration {
 
       return `
         <tr>
-          <td>${fullName}</td>
+          <td>${escapeHTML(fullName)}</td>
           <td>${groupName}</td>
           <td>${inscriptionDate}</td>
           <td>${timeWithGroup}</td>

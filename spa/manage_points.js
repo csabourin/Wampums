@@ -24,6 +24,7 @@ import { PointsStore } from "./modules/points/PointsStore.js";
 import { PointActionBar } from "./modules/points/PointActionBar.js";
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
+import { escapeHTML } from './utils/SecurityUtils.js';
 const POINTS_CACHE_KEY = "manage_points_data";
 
 export class ManagePoints {
@@ -343,7 +344,7 @@ export class ManagePoints {
       <button type="button" class="list-item" data-participant-id="${participant.id}"
         data-type="individual" data-group-id="${participant.group_id ?? "null"}"
         aria-pressed="false">
-        <span class="participant-name">${participant.first_name} ${participant.last_name}</span>
+        <span class="participant-name">${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}</span>
         <span class="participant-points" id="name-points-${participant.id}">${this.store.getParticipantTotal(participant.id)}</span>
       </button>
     `;

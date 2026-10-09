@@ -246,6 +246,22 @@ const validateDateRange = [
 // ============================================
 
 /**
+ * A person's name never holds `<` or `>`. Names are shown on many screens;
+ * one inserted as markup somewhere it is not escaped could lay a form over
+ * the page, so the characters are refused where names are written.
+ */
+const NAME_MARKUP_PATTERN = /[<>]/;
+
+/**
+ * Whether a submitted name carries markup characters.
+ * @param {*} value - Submitted name
+ * @returns {boolean} True when it holds `<` or `>`
+ */
+function hasNameMarkup(value) {
+  return typeof value === 'string' && NAME_MARKUP_PATTERN.test(value);
+}
+
+/**
  * Validate first name
  */
 const validateFirstName = check('first_name')
@@ -253,7 +269,9 @@ const validateFirstName = check('first_name')
   .notEmpty()
   .withMessage('First name is required')
   .isLength({ min: 1, max: 100 })
-  .withMessage('First name must be between 1 and 100 characters');
+  .withMessage('First name must be between 1 and 100 characters')
+  .not().matches(NAME_MARKUP_PATTERN)
+  .withMessage('Names cannot contain < or >');
 
 /**
  * Validate last name
@@ -263,7 +281,9 @@ const validateLastName = check('last_name')
   .notEmpty()
   .withMessage('Last name is required')
   .isLength({ min: 1, max: 100 })
-  .withMessage('Last name must be between 1 and 100 characters');
+  .withMessage('Last name must be between 1 and 100 characters')
+  .not().matches(NAME_MARKUP_PATTERN)
+  .withMessage('Names cannot contain < or >');
 
 /**
  * Validate full name (combined)
@@ -273,7 +293,9 @@ const validateFullName = check('full_name')
   .notEmpty()
   .withMessage('Full name is required')
   .isLength({ min: 1, max: 200 })
-  .withMessage('Full name must be between 1 and 200 characters');
+  .withMessage('Full name must be between 1 and 200 characters')
+  .not().matches(NAME_MARKUP_PATTERN)
+  .withMessage('Names cannot contain < or >');
 
 // ============================================
 // PAGINATION VALIDATIONS
@@ -369,6 +391,8 @@ module.exports = {
   validateFirstName,
   validateLastName,
   validateFullName,
+  NAME_MARKUP_PATTERN,
+  hasNameMarkup,
 
   // Pagination
   validatePagination,

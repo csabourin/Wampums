@@ -1045,7 +1045,7 @@ export class Reports {
 				.map(
 					(item) => `
 						<tr>
-							<td>${item.first_name} ${item.last_name}</td>
+							<td>${escapeHTML(item.first_name)} ${escapeHTML(item.last_name)}</td>
 							<td>${item.group_name || translate("no_group")}</td>
 							<td>${item.medication || "-"}</td>
 						</tr>
@@ -1157,7 +1157,7 @@ export class Reports {
 				.map(
 					(item) => `
 						<tr>
-							<td>${item.first_name} ${item.last_name}</td>
+							<td>${escapeHTML(item.first_name)} ${escapeHTML(item.last_name)}</td>
 							<td>${item.group_name || translate("no_group")}</td>
 							<td>${item.can_leave_alone === "on" || item.can_leave_alone === "true" || item.can_leave_alone === true ? translate("yes") : translate("no")}</td>
 						</tr>
@@ -1189,7 +1189,7 @@ export class Reports {
 				.map(
 					(item) => `
 						<tr>
-							<td>${item.first_name} ${item.last_name}</td>
+							<td>${escapeHTML(item.first_name)} ${escapeHTML(item.last_name)}</td>
 							<td>${item.group_name || translate("no_group")}</td>
 							<td>${item.media_authorized === "on" || item.media_authorized === "true" || item.media_authorized === true ? translate("yes") : translate("no")}</td>
 						</tr>
@@ -1221,7 +1221,7 @@ export class Reports {
 				.map(
 					(item) => `
 						<tr>
-							<td>${item.first_name} ${item.last_name}</td>
+							<td>${escapeHTML(item.first_name)} ${escapeHTML(item.last_name)}</td>
 							<td>${item.group_name || translate("no_group")}</td>
 							<td>${this.formatMissingDocuments(item.missing_documents)}</td>
 						</tr>
@@ -1339,7 +1339,7 @@ export class Reports {
 				// Create a row for each participant
 				return `
 							<tr>
-									<td>${item.first_name} ${item.last_name}</td>
+									<td>${escapeHTML(item.first_name)} ${escapeHTML(item.last_name)}</td>
 									<td>${item.group_name || translate("no_group")}</td>
 									${uniqueDates
 						.map(
@@ -1430,7 +1430,7 @@ export class Reports {
 							.map(
 								(participant) => `
 							<tr>
-								<td>${participant.first_name} ${participant.last_name}</td>
+								<td>${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}</td>
 								<td>${participant.total_points}</td>
 								<td>${participant.honors_count}</td>
 							</tr>
@@ -1525,7 +1525,7 @@ export class Reports {
 					participant.id === Number(this.selectedParticipantId)
 						? "selected"
 						: "";
-				return `<option value="${participant.id}" ${selected}>${label}</option>`;
+				return `<option value="${participant.id}" ${selected}>${escapeHTML(label)}</option>`;
 			})
 			.join("");
 
@@ -1644,7 +1644,7 @@ export class Reports {
                                                 <header class="report-card__header">
                                                         <div>
                                                                 <p class="eyebrow">${progressData.participant.group_name || translate("no_group")}</p>
-                                                                <h2>${progressData.participant.first_name} ${progressData.participant.last_name}</h2>
+                                                                <h2>${escapeHTML(progressData.participant.first_name)} ${escapeHTML(progressData.participant.last_name)}</h2>
                                                         </div>
                                                         <div class="chip chip--primary">${translate("participant_progress")}</div>
                                                 </header>

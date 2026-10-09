@@ -22,7 +22,8 @@ const {
   checkValidation,
   normalizeEmailInput,
   validateCurrentPassword,
-  validateNewPasswordForChange
+  validateNewPasswordForChange,
+  hasNameMarkup
 } = require('../middleware/validation');
 const { RATE_LIMITS } = require('../config/constants');
 const { renameAccount, syncAccountNames } = require('../services/accountNames');
@@ -367,6 +368,9 @@ module.exports = (pool, logger) => {
       const userId = req.user.id;
       const organizationId = req.user.organizationId;
       const { fullName, firstName, lastName } = req.body;
+      if ([fullName, firstName, lastName].some(hasNameMarkup)) {
+        return errorResponse(res, 'Names cannot contain < or >', HTTP_STATUS.BAD_REQUEST);
+      }
 
       // Verify user belongs to organization
       const userCheck = await pool.query(

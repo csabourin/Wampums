@@ -23,7 +23,7 @@ const {
   getOrganizationId,
 } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { checkValidation } = require('../middleware/validation');
+const { checkValidation, NAME_MARKUP_PATTERN } = require('../middleware/validation');
 const { registerFamilyChildManagement } = require('./familyChildManagement');
 const {
   CHILD_RESULT,
@@ -79,8 +79,8 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('participants.create_own'),
-    body('first_name').isString().trim().notEmpty(),
-    body('last_name').isString().trim().notEmpty(),
+    body('first_name').isString().trim().notEmpty().not().matches(NAME_MARKUP_PATTERN),
+    body('last_name').isString().trim().notEmpty().not().matches(NAME_MARKUP_PATTERN),
     body('date_naissance').isISO8601({ strict: true }),
     body('inscription_date').optional({ nullable: true }).matches(/^\d{4}-\d{2}-\d{2}$/).isISO8601({ strict: true }),
     body('confirm_similar').optional({ nullable: true }).isBoolean(),

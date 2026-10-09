@@ -288,7 +288,6 @@
     "test/schema-parser.js": 1,
     "test/scout-year-rollback.integration.test.js": 8,
     "test/security.test.js": 11,
-    "test/services-ai-budget.test.js": 3,
     "test/setupJest.js": 6,
     "test/spa/ApiCacheInvalidation.test.js": 2,
     "test/spa/DomPurifyClobbering.test.js": 2,

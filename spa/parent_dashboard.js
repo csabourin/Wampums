@@ -172,7 +172,7 @@ export class ParentDashboard {
                                                                         ) => `
                                                                         <label>
                                                                                         <input type="checkbox" name="link_participants" value="${participant.participant_id}">
-                                                                                        ${participant.first_name} ${participant.last_name}
+                                                                                        ${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}
                                                                         </label>
                                                         `,
                                                                 )
