@@ -691,7 +691,7 @@ export class AccountInfoModule {
       }
     } catch (error) {
       debugError("Error updating full name:", error);
-      this.app.showMessage(translate("account_info_fullname_error"), "error");
+      this.app.showMessage(apiErrorMessage(error, 'account_info_fullname_error'), 'error');
     } finally {
       this.isLoading = false;
       submitButton.disabled = false;

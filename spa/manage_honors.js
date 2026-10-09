@@ -5,7 +5,7 @@ import { translate } from "./app.js";
 import { getTodayISO, formatDate, isValidDate, isPastDate as isDateInPast } from "./utils/DateUtils.js";
 import { setContent, insertHTML } from "./utils/DOMUtils.js";
 import { deleteCachedData, getCachedData } from "./indexedDB.js";
-import { sanitizeHTML } from "./utils/SecurityUtils.js";
+import { escapeHTML, sanitizeHTML } from "./utils/SecurityUtils.js";
 import { confirmDestructive } from "./utils/DialogUtils.js";
 import { offlineManager } from "./modules/OfflineManager.js";
 
@@ -302,7 +302,7 @@ export class ManageHonors {
         </div>
         <div class="honors-table__cell honors-table__cell--name">
           <label for="participant-${participant.participant_id}">
-            <div class="participant-name">${participant.first_name} ${participant.last_name}</div>
+            <div class="participant-name">${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}</div>
             ${reasonText ? `<div class="participant-reason">${translate("honor_reason_label")}: ${reasonText}</div>` : ''}
             <div class="participant-last-honor">${translate("last_honor_date")}: ${lastHonorDateFormatted}</div>
           </label>

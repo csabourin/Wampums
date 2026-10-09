@@ -11,7 +11,7 @@
 
 import { translate } from "./app.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
-import { sanitizeHTML } from "./utils/SecurityUtils.js";
+import { escapeHTML, sanitizeHTML } from "./utils/SecurityUtils.js";
 import { confirm as confirmDialog, confirmDestructive } from "./utils/DialogUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
@@ -1331,7 +1331,7 @@ export class BadgeTracker {
             return `
                 <div class="award-row" style="margin-left: 20px; border-left: 2px solid #ccc; padding-left: 10px; margin-bottom: 10px;">
                     <div><strong>${badgeName}</strong> <small>(${typeLabel})</small></div>
-                    <div style="font-size:0.9em; color:#666;">${targetText}</div>
+                    <div style="font-size:0.9em; color:#666;">${escapeHTML(targetText)}</div>
                     <label>
                         <input type="checkbox" checked class="award-confirm-checkbox"
                                data-meeting-id="${a.meetingId}"

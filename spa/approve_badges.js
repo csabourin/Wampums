@@ -66,12 +66,12 @@ export class ApproveBadges {
           const levelLabel = translate("badge_level_label") || translate("badge_star_label") || translate("stars");
           return `
             <div class="badge-request">
-                <h2>${badge.first_name} ${badge.last_name}</h2>
+                <h2>${escapeHTML(badge.first_name)} ${escapeHTML(badge.last_name)}</h2>
                 <p>${translate("badge_select_badge") || translate("badge")}: ${escapeHTML(badgeLabel)}</p>
-                ${badge.badge_section ? `<p>${translate("badge_section_label") || translate("section") || "Section"}: ${badge.badge_section}</p>` : ""}
+                ${badge.badge_section ? `<p>${translate("badge_section_label") || translate("section") || "Section"}: ${escapeHTML(badge.badge_section)}</p>` : ""}
                 <p>${levelLabel}: ${badge.etoiles}</p>
-                <p>${translate("objectif")}: ${badge.objectif}</p>
-                <p>${translate("description")}: ${badge.description}</p>
+                <p>${translate("objectif")}: ${escapeHTML(badge.objectif)}</p>
+                <p>${translate("description")}: ${escapeHTML(badge.description)}</p>
                 <p>${translate("date")}: ${badge.date_obtention}</p>
                 <button class="approve-btn" data-badge-id="${
                   badge.id

@@ -1902,10 +1902,14 @@ module.exports = (pool) => {
             `SELECT DISTINCT u.id, u.email, u.full_name
              FROM user_participants up
              JOIN users u ON u.id = up.user_id
+             -- user_participants has no unit: only accounts active in this
+             -- unit receive this unit's slip and its signing link.
+             JOIN user_organizations uo
+               ON uo.user_id = u.id AND uo.organization_id = $2 AND uo.status = 'active'
              WHERE up.participant_id = $1
                AND u.email IS NOT NULL
                AND u.email != ''`,
-            [slip.participant_id]
+            [slip.participant_id, organizationId]
           );
 
           // Collect all unique email addresses
@@ -2164,10 +2168,14 @@ module.exports = (pool) => {
             `SELECT DISTINCT u.id, u.email, u.full_name
              FROM user_participants up
              JOIN users u ON u.id = up.user_id
+             -- user_participants has no unit: only accounts active in this
+             -- unit receive this unit's slip and its signing link.
+             JOIN user_organizations uo
+               ON uo.user_id = u.id AND uo.organization_id = $2 AND uo.status = 'active'
              WHERE up.participant_id = $1
                AND u.email IS NOT NULL
                AND u.email != ''`,
-            [slip.participant_id]
+            [slip.participant_id, organizationId]
           );
 
           // Collect all unique email addresses

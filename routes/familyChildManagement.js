@@ -4,7 +4,7 @@ const { body, param } = require('express-validator');
 const HTTP_STATUS = { OK: 200, CREATED: 201, BAD_REQUEST: 400, FORBIDDEN: 403, NOT_FOUND: 404, CONFLICT: 409, INTERNAL_ERROR: 500 };
 const { authenticate, blockDemoRoles, requirePermission, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { checkValidation } = require('../middleware/validation');
+const { checkValidation, NAME_MARKUP_PATTERN } = require('../middleware/validation');
 const { manageFamilyChild } = require('../services/familyChildManagement');
 
 /**
@@ -31,8 +31,8 @@ function registerFamilyChildManagement(router, pool, { prefix, permission, walkI
     return success(res, outcome, editing ? 'Child updated' : 'Enrollment withdrawn');
   });
   router.put(`${prefix}/:id`, ...protection,
-    body('first_name').isString().trim().notEmpty(),
-    body('last_name').isString().trim().notEmpty(),
+    body('first_name').isString().trim().notEmpty().not().matches(NAME_MARKUP_PATTERN),
+    body('last_name').isString().trim().notEmpty().not().matches(NAME_MARKUP_PATTERN),
     body('date_naissance').matches(/^\d{4}-\d{2}-\d{2}$/).isISO8601({ strict: true }),
     body('inscription_date').optional({ nullable: true }).matches(/^\d{4}-\d{2}-\d{2}$/).isISO8601({ strict: true }),
     checkValidation, handle(true));

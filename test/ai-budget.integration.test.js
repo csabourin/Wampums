@@ -1,22 +1,28 @@
 /**
  * AI Budget Service Test Suite (Integration Test)
  *
- * IMPORTANT: This test suite requires a real database connection.
- * It will only run if DATABASE_URL environment variable is set.
+ * Runs only against TEST_DATABASE_URL, like every other integration suite:
+ * it deletes this month's AI usage rows, so it must never reach the database
+ * DATABASE_URL names (a developer's .env may point it at production).
  *
  * To run these tests locally:
- *   DATABASE_URL=postgresql://... npm test -- services-ai-budget.test.js
- *
- * In CI/GitHub, skip these tests when DATABASE_URL is not available.
- * They will be skipped automatically.
+ *   TEST_DATABASE_URL=postgresql://... npx jest test/ai-budget.integration.test.js
  *
  * Tests the AI budget reservation system for atomic transactions and
  * rate limiting enforcement at $5.00 per month cap.
  *
- * @module test/services-ai-budget
+ * @module test/ai-budget.integration
  */
 
-const HAS_DATABASE = !!process.env.DATABASE_URL;
+const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
+const HAS_DATABASE = !!TEST_DATABASE_URL;
+
+// The service reads its pool from config/database (DATABASE_URL). Give it the
+// test database instead, without touching process.env for other suites.
+jest.mock('../config/database', () => {
+  const { Pool } = require('pg');
+  return { pool: new Pool({ connectionString: process.env.TEST_DATABASE_URL }) };
+});
 
 // Skip entire test suite if database not available
 // This allows npm test to run on CI without database access
@@ -26,7 +32,7 @@ describe.skipIf(!HAS_DATABASE)('AI Budget Service (Integration Tests)', () => {
 
   beforeAll(async () => {
     if (!HAS_DATABASE) {
-      console.log('⏭️  Skipping AI Budget tests - DATABASE_URL not set');
+      console.log('⏭️  Skipping AI Budget tests - TEST_DATABASE_URL not set');
       return;
     }
 
@@ -45,7 +51,7 @@ describe.skipIf(!HAS_DATABASE)('AI Budget Service (Integration Tests)', () => {
   });
 
   beforeEach(async () => {
-    if (!HAS_DATABASE) return;
+    if (!HAS_DATABASE) {return;}
 
     // Reset budget for test month - clean slate for each test
     const date = new Date();
@@ -60,15 +66,8 @@ describe.skipIf(!HAS_DATABASE)('AI Budget Service (Integration Tests)', () => {
   });
 
   afterAll(async () => {
-    if (!HAS_DATABASE || !pool) return;
-
-    try {
-      // Don't close the pool - it might be shared by other processes
-      // Just verify it's still responsive
-      await pool.query('SELECT 1');
-    } catch (err) {
-      console.warn('Pool already closed or unreachable');
-    }
+    // The pool is this suite's own (see the config/database mock above).
+    if (pool) {await pool.end();}
   });
 
   // ===================================
@@ -219,10 +218,10 @@ describe.skipIf(!HAS_DATABASE)('AI Budget Service (Integration Tests)', () => {
     const status = await aiBudgetService.getBudgetStatus();
 
     expect(status).toHaveProperty('currentUsageUsd');
-    expect(status).toHaveProperty('limitUsd', 5.00);
+    expect(status).toHaveProperty('capUsd', 5.00);
     expect(status).toHaveProperty('remainingUsd');
 
-    // Verify math: remaining = limit - used
+    // Verify math: remaining = cap - used
     const expected = 5.00 - 2.34;
     expect(Math.abs(status.remainingUsd - expected)).toBeLessThan(0.01);
   });
@@ -244,7 +243,7 @@ describe.skipIf(!HAS_DATABASE)('AI Budget Service (Integration Tests)', () => {
   test('should reject negative budget amounts', async () => {
     // Negative cost should be rejected or treated as zero
     try {
-      const allowed = await aiBudgetService.checkAndReserveBudget(-1.00);
+      await aiBudgetService.checkAndReserveBudget(-1.00);
       // If it allows it, budget shouldn't move backward
       const status = await aiBudgetService.getBudgetStatus();
       expect(status.currentUsageUsd).toBeGreaterThanOrEqual(0);

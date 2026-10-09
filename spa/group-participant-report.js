@@ -3,6 +3,7 @@ import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.j
 import { translate } from "./app.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
 import { setContent, insertHTML } from "./utils/DOMUtils.js";
+import { escapeHTML } from './utils/SecurityUtils.js';
 
 export class PrintableGroupParticipantReport {
 		constructor(app) {
@@ -119,7 +120,7 @@ export class PrintableGroupParticipantReport {
 						return groupParticipants.map((participant, index) => `
 								<tr>
 										${index === 0 ? `<td rowspan="${groupParticipants.length}">${group.name}</td>` : ''}
-										<td>${participant.first_name} ${participant.last_name}</td>
+										<td>${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}</td>
 										<td>
 												${participant.first_leader ? `<strong>${translate("leader")}</strong>` : 
 													participant.second_leader ? `<strong>${translate("second_leader")}</strong>` : ""}

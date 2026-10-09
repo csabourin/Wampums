@@ -949,6 +949,7 @@
   "error_no_fundraiser_id": "No fundraiser ID provided",
   "error_no_token": "Error: No token found. Please log in.",
   "error_occurred": "An error occurred",
+  "name_markup_not_allowed": "Names cannot contain the characters < or >.",
   "api_error_invalid": "Some information is missing or not valid. Check the form and try again.",
   "api_error_forbidden": "You do not have permission to make this change. If you think this is a mistake, contact your unit's leaders.",
   "api_error_not_found": "This item no longer exists. Refresh the page and try again.",

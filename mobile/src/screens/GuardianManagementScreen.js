@@ -126,7 +126,7 @@ const GuardianManagementScreen = ({ route, navigation }) => {
       }
     } catch (err) {
       debugError('[GuardianManagement] Error saving guardian:', err);
-      toast.show(err.message || t('error_saving_guardian'), 'error');
+      toast.show(t(err.message || 'error_saving_guardian'), 'error');
     }
   };
 

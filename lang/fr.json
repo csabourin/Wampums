@@ -919,6 +919,7 @@
   "error_no_fundraiser_id": "Aucun identifiant de campagne fourni",
   "error_no_token": "Erreur : Aucun jeton trouvé. Veuillez vous connecter.",
   "error_occurred": "Une erreur s’est produite",
+  "name_markup_not_allowed": "Les noms ne peuvent pas contenir les caractères < ou >.",
   "api_error_invalid": "Des renseignements sont manquants ou invalides. Vérifiez le formulaire et réessayez.",
   "api_error_forbidden": "Vous n’avez pas la permission d’effectuer cette modification. Si vous croyez qu’il s’agit d’une erreur, communiquez avec l’équipe d’animation de votre unité.",
   "api_error_not_found": "Cet élément n’existe plus. Actualisez la page et réessayez.",
