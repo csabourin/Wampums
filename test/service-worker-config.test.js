@@ -84,6 +84,16 @@ describe('Service Worker Configuration', () => {
         /url\.pathname\.startsWith\('\/lang\/'\)[^;]*new NetworkFirst\(\{\s*cacheName: 'translations-cache'/s
       );
     });
+
+    test('should never answer translations from cache on a timeout, and fall back to it on HTTP errors', () => {
+      const translationsRoute = serviceWorkerSource.match(
+        /cacheName: 'translations-cache',[\s\S]*?\n {2}\}\)\n\);/
+      )[0];
+      // A timeout would serve the previous build's cached bundle
+      expect(translationsRoute).not.toContain('networkTimeoutSeconds');
+      // A 404/5xx must reject so NetworkFirst uses the cached bundle instead
+      expect(translationsRoute).toMatch(/fetchDidSucceed[\s\S]*!response\.ok[\s\S]*throw/);
+    });
   });
 
   describe('Navigation Route Configuration', () => {

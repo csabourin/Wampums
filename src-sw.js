@@ -150,14 +150,22 @@ registerRoute(
 // 4c. Translation files (NetworkFirst - cache only as the offline fallback).
 // The URL carries no build hash, so serving the cached copy first would pair a
 // freshly deployed bundle with the previous build's keys and show raw key names
-// until the next load.
-const TRANSLATIONS_NETWORK_TIMEOUT_SECONDS = 4;
+// until the next load. No network timeout, for the same reason: a timeout would
+// answer from that same previous-build cache. An HTTP error falls back to the
+// cache instead of reaching the app, which would otherwise load no keys at all.
 registerRoute(
   ({ url }) => url.pathname.startsWith('/lang/') && url.pathname.endsWith('.json'),
   new NetworkFirst({
     cacheName: 'translations-cache',
-    networkTimeoutSeconds: TRANSLATIONS_NETWORK_TIMEOUT_SECONDS,
     plugins: [
+      {
+        fetchDidSucceed: ({ response }) => {
+          if (!response.ok) {
+            throw new Error(`Translation fetch failed with HTTP ${response.status}`);
+          }
+          return response;
+        },
+      },
       new ExpirationPlugin({ maxEntries: 10, maxAgeSeconds: 7 * 24 * 60 * 60 }),
       new CacheableResponsePlugin({ statuses: [0, 200] }),
     ],
