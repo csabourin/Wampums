@@ -14,6 +14,7 @@ import {
   updateDashboardConfiguration,
   updateEmailSenderSettings,
   updateOrganizationInfo,
+  updateParentDashboardConfiguration,
   updateUnitVocabulary,
 } from '../../api/api-endpoints.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
@@ -27,6 +28,11 @@ import {
   canManageForms,
 } from '../../utils/PermissionUtils.js';
 import { DASHBOARD_TILES, TOOL_GROUP_ORDER } from '../../config/dashboard-tiles.js';
+import {
+  PARENT_DASHBOARD_BUTTONS,
+  PARENT_DASHBOARD_BUTTON_SECTIONS,
+  getHiddenParentDashboardButtons,
+} from '../../config/parent-dashboard-buttons.js';
 import {
   createVocabularyFromProfile,
   getVocabularyProfile,
@@ -51,7 +57,7 @@ const LOGO_URL_MAX_LENGTH = 2048;
 const SENDER_NAME_MAX_LENGTH = 100;
 const EMAIL_MAX_LENGTH = 254;
 const VOCABULARY_TERM_MAX_LENGTH = 80;
-const BASE_SETTINGS_TABS = ['general', 'vocabulary', 'dashboard'];
+const BASE_SETTINGS_TABS = ['general', 'vocabulary', 'dashboard', 'parent_dashboard'];
 const GROUP_TAB = 'group';
 
 export class UnitSettings extends BaseModule {
@@ -72,6 +78,7 @@ export class UnitSettings extends BaseModule {
     this.activeTab = 'general';
     this.vocabulary = createVocabularyFromProfile('cubs');
     this.dashboardConfiguration = { version: 1, hidden_tile_keys: [] };
+    this.parentDashboardConfiguration = { version: 1, hidden_button_keys: [] };
     this.localGroups = [];
     this.localGroupMemberships = [];
     this.localGroupsLoaded = false;
@@ -139,6 +146,10 @@ export class UnitSettings extends BaseModule {
       hidden_tile_keys: Array.isArray(data.dashboard_configuration?.hidden_tile_keys)
         ? [...data.dashboard_configuration.hidden_tile_keys]
         : [],
+    };
+    this.parentDashboardConfiguration = {
+      version: UNIT_CUSTOMIZATION_CONFIG.version,
+      hidden_button_keys: [...getHiddenParentDashboardButtons(data)],
     };
 
     const security = data.security || {};
@@ -215,6 +226,7 @@ export class UnitSettings extends BaseModule {
           ` : ''}
           ${this.activeTab === 'vocabulary' ? this.renderVocabularySection() : ''}
           ${this.activeTab === 'dashboard' ? this.renderDashboardSection() : ''}
+          ${this.activeTab === 'parent_dashboard' ? this.renderParentDashboardSection() : ''}
           ${this.activeTab === GROUP_TAB ? this.renderGroupSection() : ''}
         </div>
       </div>`
@@ -416,6 +428,45 @@ export class UnitSettings extends BaseModule {
         <form id="unit-dashboard-form" class="unit-settings-form">
           <div class="unit-dashboard-groups">${groups}</div>
           ${this.canEditOrg ? `<button type="submit" id="save-dashboard-btn" class="button button--primary">
+            ${escapeHTML(translate('save'))}
+          </button>` : ''}
+        </form>
+      </section>`;
+  }
+
+  /**
+   * Render the switches choosing which optional buttons parents see on their
+   * dashboard. Adding a child, account settings and sign-out are not listed:
+   * they always stay.
+   *
+   * @returns {string} Section markup
+   */
+  renderParentDashboardSection() {
+    const hiddenKeys = new Set(this.parentDashboardConfiguration.hidden_button_keys || []);
+    const groups = PARENT_DASHBOARD_BUTTON_SECTIONS.map((section) => {
+      const buttons = PARENT_DASHBOARD_BUTTONS.filter((button) => button.section === section);
+      return `
+        <fieldset class="unit-dashboard-group">
+          <legend>${escapeHTML(translate(`unit_parent_dashboard_section_${section}`))}</legend>
+          ${buttons.map((button) => `
+            <label class="unit-dashboard-toggle" for="parent-dashboard-button-${button.key}">
+              <span><strong>${escapeHTML(translate(button.label))}</strong></span>
+              <input type="checkbox" role="switch" class="unit-parent-dashboard-button"
+                id="parent-dashboard-button-${button.key}" data-button-key="${button.key}"
+                ${hiddenKeys.has(button.key) ? '' : 'checked'} ${this.canEditOrg ? '' : 'disabled'}>
+            </label>`).join('')}
+        </fieldset>`;
+    }).join('');
+
+    return `
+      <section class="account-section">
+        <h2>${escapeHTML(translate('unit_parent_dashboard_title'))}</h2>
+        <p class="section-description">${escapeHTML(translate('unit_parent_dashboard_description'))}</p>
+        <p class="unit-dashboard-note">${escapeHTML(translate('unit_parent_dashboard_visibility_note'))}</p>
+        ${!this.canEditOrg ? `<p class="unit-settings-read-only">${translate('unit_settings_read_only')}</p>` : ''}
+        <form id="unit-parent-dashboard-form" class="unit-settings-form">
+          <div class="unit-dashboard-groups">${groups}</div>
+          ${this.canEditOrg ? `<button type="submit" id="save-parent-dashboard-btn" class="button button--primary">
             ${escapeHTML(translate('save'))}
           </button>` : ''}
         </form>
@@ -716,6 +767,11 @@ export class UnitSettings extends BaseModule {
       this.addEventListener(dashboardForm, 'submit', (event) => this.handleSaveDashboard(event));
     }
 
+    const parentDashboardForm = document.getElementById('unit-parent-dashboard-form');
+    if (parentDashboardForm && this.canEditOrg) {
+      this.addEventListener(parentDashboardForm, 'submit', (event) => this.handleSaveParentDashboard(event));
+    }
+
     const groupJoinForm = document.getElementById('unit-group-join-form');
     if (groupJoinForm && this.canEditOrg) {
       this.addEventListener(groupJoinForm, 'submit', (event) => this.handleJoinGroup(event));
@@ -971,6 +1027,40 @@ export class UnitSettings extends BaseModule {
       this.app?.showMessage?.(translate('unit_dashboard_saved'), 'success');
     } catch (error) {
       debugError('Failed to save dashboard configuration:', error);
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = translate('save');
+    }
+  }
+
+  async handleSaveParentDashboard(event) {
+    event.preventDefault();
+    const btn = document.getElementById('save-parent-dashboard-btn');
+    if (!btn) {return;}
+
+    const hiddenButtonKeys = Array.from(document.querySelectorAll('.unit-parent-dashboard-button'))
+      .filter((input) => !input.checked)
+      .map((input) => input.dataset.buttonKey);
+    const payload = {
+      version: UNIT_CUSTOMIZATION_CONFIG.version,
+      hidden_button_keys: hiddenButtonKeys,
+    };
+
+    btn.disabled = true;
+    btn.textContent = translate('saving');
+    try {
+      const response = await updateParentDashboardConfiguration(payload);
+      this.parentDashboardConfiguration = response?.data?.parent_dashboard_configuration || payload;
+      if (this.app) {
+        this.app.organizationSettings = {
+          ...(this.app.organizationSettings || {}),
+          parent_dashboard_configuration: this.parentDashboardConfiguration,
+        };
+      }
+      this.app?.showMessage?.(translate('unit_parent_dashboard_saved'), 'success');
+    } catch (error) {
+      debugError('Failed to save parent dashboard configuration:', error);
       this.app?.showMessage?.(this.getLocalizedSaveError(error), 'error');
     } finally {
       btn.disabled = false;

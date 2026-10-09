@@ -4490,6 +4490,13 @@ tr:hover {
   gap: var(--space-sm);
 }
 
+/* Adding a child sits directly above sign-out, at every width. */
+.parent-dashboard__footer-account {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
 /* Visually hidden but accessible to screen readers */
 .visually-hidden {
   position: absolute;

@@ -532,6 +532,93 @@ describe('GET /api/v1/organizations/settings', () => {
   });
 });
 
+describe('PATCH /api/v1/organizations/settings/parent-dashboard', () => {
+  /**
+   * Answer the authorization queries for a unit admin holding these keys.
+   *
+   * @param {string[]} permissionKeys - Permissions held
+   * @returns {Array<{query: string, params: Array}>} Queries the request ran
+   */
+  function mockUnitAdmin(permissionKeys) {
+    const { __mClient, __mPool } = require('pg');
+    const queries = [];
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      queries.push({ query, params });
+      if (query.includes("r.role_name IN ('demoadmin', 'demoparent')")) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('SELECT DISTINCT p.permission_key')) {
+        return Promise.resolve({ rows: permissionKeys.map((key) => ({ permission_key: key })) });
+      }
+      if (query.includes('SELECT DISTINCT r.role_name, r.display_name')) {
+        return Promise.resolve({ rows: [{ role_name: 'unitadmin', display_name: 'Unit admin' }] });
+      }
+      if (query.includes('INSERT INTO organization_settings')) {
+        return Promise.resolve({ rows: [] });
+      }
+      return undefined;
+    });
+    return queries;
+  }
+
+  test('stores the hidden buttons for the unit', async () => {
+    const queries = mockUnitAdmin(['org.edit']);
+
+    const res = await request(app)
+      .patch('/api/v1/organizations/settings/parent-dashboard')
+      .set('Authorization', `Bearer ${generateToken({ organizationId: ORG_ID })}`)
+      .send({ hidden_button_keys: ['request_badge', 'program_progress'] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.parent_dashboard_configuration).toEqual({
+      version: 1,
+      hidden_button_keys: ['program_progress', 'request_badge']
+    });
+    const insert = queries.find(({ query }) => query.includes('INSERT INTO organization_settings'));
+    expect(insert.params).toEqual([
+      ORG_ID,
+      'parent_dashboard_configuration',
+      JSON.stringify({ version: 1, hidden_button_keys: ['program_progress', 'request_badge'] })
+    ]);
+  });
+
+  test('refuses buttons that must always stay', async () => {
+    mockUnitAdmin(['org.edit']);
+
+    const res = await request(app)
+      .patch('/api/v1/organizations/settings/parent-dashboard')
+      .set('Authorization', `Bearer ${generateToken({ organizationId: ORG_ID })}`)
+      .send({ hidden_button_keys: ['logout'] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors[0].field).toBe('hidden_button_keys');
+  });
+
+  test('requires org.edit', async () => {
+    const queries = mockUnitAdmin(['org.view']);
+
+    const res = await request(app)
+      .patch('/api/v1/organizations/settings/parent-dashboard')
+      .set('Authorization', `Bearer ${generateToken({ organizationId: ORG_ID })}`)
+      .send({ hidden_button_keys: [] });
+
+    expect(res.status).toBe(403);
+    expect(res.body.missing).toEqual(['org.edit']);
+    expect(queries.some(({ query }) => query.includes('INSERT INTO organization_settings'))).toBe(false);
+  });
+
+  test('cannot be written around its validation through the generic setter', async () => {
+    mockUnitAdmin(['organization.manage']);
+
+    const res = await request(app)
+      .put('/api/v1/organizations/settings')
+      .set('Authorization', `Bearer ${generateToken({ organizationId: ORG_ID })}`)
+      .send({ setting_key: 'parent_dashboard_configuration', setting_value: { hidden_button_keys: ['<b>'] } });
+
+    expect(res.status).toBe(400);
+  });
+});
+
 // ============================================
 // ORGANIZATION DOMAIN MAPPING TESTS
 // ============================================

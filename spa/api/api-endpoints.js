@@ -2786,6 +2786,17 @@ export async function updateDashboardConfiguration(configuration) {
     return response;
 }
 
+/** Update which optional buttons the parent dashboard shows. */
+export async function updateParentDashboardConfiguration(configuration) {
+  const response = await API.patch('v1/organizations/settings/parent-dashboard', configuration);
+  try {
+    await deleteCachedData('org_settings');
+  } catch (cacheError) {
+    debugWarn('Failed to invalidate organization settings cache', cacheError);
+  }
+  return response;
+}
+
 // ============================================================================
 // LOCAL GROUPS (cross-unit sharing)
 // ============================================================================

@@ -4,6 +4,7 @@ import {
         fetchParticipants,
         getOrganizationFormFormats,
         getOrganizationSettings,
+        getPublicOrganizationSettings,
         getParticipantStatement,
         linkUserParticipants,
         getCurrentUser,
@@ -15,6 +16,7 @@ import {
 } from './api/api-endpoints.js';
 import { getActivities } from './api/api-activities.js';
 import { formTypeLabel } from './utils/FormLabelUtils.js';
+import { loadHiddenParentDashboardButtons } from './config/parent-dashboard-buttons.js';
 import {
         getFormsNeedingReview,
         confirmFormReview,
@@ -25,10 +27,8 @@ import {
         debugLog,
         debugError,
         debugWarn,
-        debugInfo,
 } from './utils/DebugUtils.js';
 import { translate, registerPushSubscription } from './app.js';
-import { hexStringToUint8Array, base64UrlEncode } from './functions.js';
 import { CONFIG } from './config.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
 import { apiErrorMessage, apiErrorMessageKey } from './utils/ApiErrorUtils.js';
@@ -54,6 +54,7 @@ export class ParentDashboard {
                 this.permissionSlipHandlerBound = false;
                 this.formsToReview = [];
                 this.authorizationsToSign = [];
+                this.hiddenButtons = new Set();
         }
 
         canAccessFinanceWorkspace() {
@@ -101,6 +102,8 @@ export class ParentDashboard {
                         debugError('Error fetching permission slips:', error);
                         hasErrors = true;
                 }
+
+                this.hiddenButtons = await loadHiddenParentDashboardButtons(this.app?.organizationSettings, getPublicOrganizationSettings);
 
                 // The two reminder lists are independent: one failing must not hide
                 // the other, and neither may hide the dashboard.
@@ -476,7 +479,7 @@ export class ParentDashboard {
                 // the paperwork. It is the only path that guarantees the link.
                 const managesOwnFamily = hasPermission('participants.create_own');
                 const addChildHref = managesOwnFamily ? '/parent-onboarding' : '/formulaire-inscription';
-                const familySharingLink = managesOwnFamily
+                const familySharingLink = managesOwnFamily && !this.hiddenButtons.has('family_access')
                         ? `<a href="/family-access" class="dashboard-button dashboard-button--secondary">${translate('family_access_title')}</a>`
                         : '';
                 const financeWorkspaceLink = this.canAccessFinanceWorkspace()
@@ -502,25 +505,22 @@ export class ParentDashboard {
                                 <section class="parent-dashboard__actions">
                                         <h2 class="visually-hidden">${translate('main_actions')}</h2>
                                         <div class="parent-dashboard__actions-grid">
-                                                <a href="${addChildHref}" class="dashboard-button dashboard-button--primary">
-                                                        ${translate('ajouter_participant')}
-                                                </a>
-                                                <a href="/parent-finance" class="dashboard-button dashboard-button--primary">
+                                                ${this.hiddenButtons.has('finances') ? '' : `<a href="/parent-finance" class="dashboard-button dashboard-button--primary">
                                                         ${translate('my_finances')}
-                                                </a>
+                                                </a>`}
                                                 ${financeWorkspaceLink}
                                                 ${familySharingLink}
                                                 <a href="/account-info" class="dashboard-button dashboard-button--secondary">
                                                         ${translate('account_settings')}
                                                 </a>
-                                                <a href="/parent-program-progress" class="dashboard-button dashboard-button--secondary">
+                                                ${this.hiddenButtons.has('program_progress') ? '' : `<a href="/parent-program-progress" class="dashboard-button dashboard-button--secondary">
                                                         ${translate('program_progress_parent_link')}
-                                                </a>
-                                                ${canViewActivities() ? `<button id="downloadCalendarButton" type="button" class="dashboard-button dashboard-button--secondary">
+                                                </a>`}
+                                                ${canViewActivities() && !this.hiddenButtons.has('download_calendar') ? `<button id="downloadCalendarButton" type="button" class="dashboard-button dashboard-button--secondary">
                                                         ${translate('download_activities_calendar')}
                                                 </button>` : ''}
                                         </div>
-                                        ${canViewActivities() ? calendarDownloadAction : ''}
+                                        ${canViewActivities() && !this.hiddenButtons.has('download_calendar') ? calendarDownloadAction : ''}
                                         ${this.renderCarpoolButton()}
                                 </section>
 
@@ -534,9 +534,14 @@ export class ParentDashboard {
                                                 ${notificationButton}
                                                 ${installButton}
                                         </div>
-                                        <a href="/logout" class="dashboard-button dashboard-button--logout">
-                                                ${translate('deconnexion')}
-                                        </a>
+                                        <div class="parent-dashboard__footer-account">
+                                                <a href="${addChildHref}" class="dashboard-button dashboard-button--primary">
+                                                        ${translate('ajouter_participant')}
+                                                </a>
+                                                <a href="/logout" class="dashboard-button dashboard-button--logout">
+                                                        ${translate('deconnexion')}
+                                                </a>
+                                        </div>
                                 </footer>
                         </div>
                 `;
@@ -702,7 +707,7 @@ export class ParentDashboard {
         renderCarpoolButton() {
                 // Show a carpooling link for parents to coordinate rides; it
                 // lists the unit's activities, then opens their carpools.
-                if (!canViewActivities() || !canViewCarpools()) {
+                if (!canViewActivities() || !canViewCarpools() || this.hiddenButtons.has('carpool')) {
                         return '';
                 }
                 return `
@@ -843,33 +848,33 @@ export class ParentDashboard {
 
                 // Badges and reports are unit-wide pages: offering them to an
                 // account that cannot open them only leads to a refusal.
-                const badgeButton = canViewBadges() || canApproveBadges() ? `
+                const badgeButton = (canViewBadges() || canApproveBadges()) && !this.hiddenButtons.has('request_badge') ? `
                 <a href="/badge-form/${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">🏅</span>
                         <span class="form-btn__label">${translate('manage_badge_progress')}</span>
                 </a>
         ` : '';
 
-                const progressReportButton = canViewReports() ? `
+                const progressReportButton = canViewReports() && !this.hiddenButtons.has('progress_report') ? `
                 <a href="/reports?participantId=${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">📊</span>
                         <span class="form-btn__label">${translate('view_progress_report')}</span>
                 </a>
         ` : '';
 
-                const programProgressButton = `
+                const programProgressButton = !this.hiddenButtons.has('program_progress') ? `
                 <a href="/parent-program-progress" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">🧭</span>
                         <span class="form-btn__label">${translate('program_progress_parent_link')}</span>
                 </a>
-        `;
+        ` : '';
 
-                const medicationButton = `
+                const medicationButton = !this.hiddenButtons.has('medications') ? `
                 <a href="/medication-planning/${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">💊</span>
                         <span class="form-btn__label">${translate('manage_medications')}</span>
                 </a>
-        `;
+        ` : '';
 
                 debugLog(
                         `Total form buttons HTML length: ${formButtons.length}, with badge, progress, and medications: ${(formButtons + badgeButton + progressReportButton + programProgressButton + medicationButton).length}`,

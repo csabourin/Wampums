@@ -143,5 +143,15 @@
   ],
   "requiredDashboardFeatureKeys": [
     "account_info"
+  ],
+  "parentDashboardButtonKeys": [
+    "finances",
+    "family_access",
+    "program_progress",
+    "download_calendar",
+    "carpool",
+    "request_badge",
+    "progress_report",
+    "medications"
   ]
 }
