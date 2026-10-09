@@ -254,18 +254,28 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
     expect(healthQuery.query).toContain('organization_id = $1');
   });
 
-  test('withholds medication flags from unit-wide staff without medication.view', async () => {
+  test('gives unit-wide staff without medication.view the flags only for their own children', async () => {
     const { __mClient, __mPool } = require('pg');
-    const token = generateToken({ roleNames: ['leader'], permissions: ['participants.view'] });
-    let medicationQueried = false;
+    const token = generateToken({ roleNames: ['administration'], permissions: ['participants.view'] });
+    let medicationParams = null;
 
-    mockQueryImplementation(__mClient, __mPool, (query) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM participants p') && !query.includes('COUNT(')) {
-        return Promise.resolve({ rows: [{ id: 60, first_name: 'Léa', last_name: 'Parent' }] });
+        return Promise.resolve({ rows: [
+          { id: 60, first_name: 'Léa', last_name: 'Parent' },
+          { id: 61, first_name: 'Noé', last_name: 'Voisin' }
+        ] });
       }
-      if (query.includes("form_type = 'fiche_sante'") || query.includes('FROM medication_requirements')) {
-        medicationQueried = true;
+      if (query.includes('FROM user_participants') && query.includes('ANY($2::int[])')) {
+        // Linked to Léa only.
+        return Promise.resolve({ rows: [{ participant_id: 60 }] });
+      }
+      if (query.includes("form_type = 'fiche_sante'")) {
+        medicationParams = params;
         return Promise.resolve({ rows: [{ participant_id: 60, submission_data: { has_medication: 'yes' } }] });
+      }
+      if (query.includes('FROM medication_requirements')) {
+        return Promise.resolve({ rows: [] });
       }
       if (query.includes('data_scope')) {
         return Promise.resolve({ rows: [{ data_scope: 'organization' }] });
@@ -281,9 +291,13 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data[0]).not.toHaveProperty('declares_medication');
-    expect(res.body.data[0]).not.toHaveProperty('has_planned_medication');
-    expect(medicationQueried).toBe(false);
+    const [own, other] = res.body.data;
+    expect(own.declares_medication).toBe(true);
+    expect(own.has_planned_medication).toBe(false);
+    expect(other).not.toHaveProperty('declares_medication');
+    expect(other).not.toHaveProperty('has_planned_medication');
+    // The unlinked child's health form is never read.
+    expect(medicationParams[1]).toEqual([60]);
   });
 
   test('gives unit-wide staff holding medication.view the medication flags', async () => {
