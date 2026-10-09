@@ -162,7 +162,7 @@ function validateParentDashboardConfiguration(input) {
   }
 
   const normalizedHiddenKeys = [];
-  new Set(hiddenKeys || []).forEach((buttonKey) => {
+  new Set(Array.isArray(hiddenKeys) ? hiddenKeys : []).forEach((buttonKey) => {
     if (typeof buttonKey !== 'string' || !parentDashboardButtonKeys.has(buttonKey)) {
       errors.push({ field: 'hidden_button_keys', msg: `Unknown parent dashboard button: ${String(buttonKey)}` });
     } else {

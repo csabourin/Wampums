@@ -76,5 +76,10 @@ describe('unit customization validation', () => {
     });
     expect(invalid.errors).toHaveLength(3);
     expect(validateParentDashboardConfiguration({}).errors).toHaveLength(1);
+    // Malformed input is a validation error, never a thrown TypeError (a 500).
+    [42, true, 'ab', { request_badge: true }].forEach((hiddenButtonKeys) => {
+      expect(validateParentDashboardConfiguration({ hidden_button_keys: hiddenButtonKeys }).errors)
+        .toEqual([{ field: 'hidden_button_keys', msg: 'Hidden button keys must be an array' }]);
+    });
   });
 });

@@ -594,6 +594,17 @@ describe('PATCH /api/v1/organizations/settings/parent-dashboard', () => {
     expect(res.body.errors[0].field).toBe('hidden_button_keys');
   });
 
+  test('answers a non-array value with 400, not 500', async () => {
+    mockUnitAdmin(['org.edit']);
+
+    const res = await request(app)
+      .patch('/api/v1/organizations/settings/parent-dashboard')
+      .set('Authorization', `Bearer ${generateToken({ organizationId: ORG_ID })}`)
+      .send({ hidden_button_keys: 42 });
+
+    expect(res.status).toBe(400);
+  });
+
   test('requires org.edit', async () => {
     const queries = mockUnitAdmin(['org.view']);
 
