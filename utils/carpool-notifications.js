@@ -265,6 +265,9 @@ async function sendActivityCancellationNotifications(pool, activityId, organizat
       a.activity_date
      FROM users u
      JOIN user_participants up ON u.id = up.user_id
+     -- user_participants has no unit: only guardians active in this unit.
+     JOIN user_organizations uo
+       ON uo.user_id = u.id AND uo.organization_id = $2 AND uo.status = 'active'
      JOIN carpool_assignments ca ON up.participant_id = ca.participant_id
      JOIN carpool_offers co ON ca.carpool_offer_id = co.id
      JOIN activities a ON co.activity_id = a.id

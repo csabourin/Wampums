@@ -336,7 +336,10 @@ module.exports = (pool) => {
         END as has_ride_return
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
+       -- user_participants has no unit: only guardians active in this unit.
        LEFT JOIN user_participants up ON p.id = up.participant_id
+         AND EXISTS (SELECT 1 FROM user_organizations uo
+                      WHERE uo.user_id = up.user_id AND uo.organization_id = $2 AND uo.status = 'active')
        LEFT JOIN users u ON up.user_id = u.id
        LEFT JOIN carpool_assignments ca_going ON p.id = ca_going.participant_id
          AND ca_going.trip_direction IN ('both', 'to_activity')

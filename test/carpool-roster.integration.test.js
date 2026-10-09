@@ -20,6 +20,14 @@ const { grantParticipantAccess, ACCESS_SOURCE } = require('../services/participa
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 
+// Capture who would be emailed instead of sending anything.
+jest.mock('../utils/carpool-notifications', () => ({
+  sendRideCancellationNotifications: jest.fn().mockResolvedValue(undefined),
+  sendActivityUpdateNotifications: jest.fn().mockResolvedValue(undefined),
+  sendActivityCancellationNotifications: jest.fn().mockResolvedValue(undefined),
+}));
+const notifications = require('../utils/carpool-notifications');
+
 describe.skipIf(!DATABASE_URL)('Carpool roster visibility', () => {
   let pool;
   let app;
@@ -164,6 +172,9 @@ describe.skipIf(!DATABASE_URL)('Carpool roster visibility', () => {
   test('staff keep the whole roster', async () => {
     const roster = await get(`/api/v1/activities/${ids.activity}/participants`, ids.staff);
     expect(names(roster.body.data)).toEqual(['Foreign', 'Own', 'Unseated']);
+    // Guardians are this unit's accounts only, not the other unit's.
+    const foreign = roster.body.data.find((row) => row.first_name === 'Foreign');
+    expect(foreign.guardians.map((g) => g.guardian_name)).toEqual(['Other Family']);
     const unassigned = await get(`/api/v1/carpools/activity/${ids.activity}/unassigned`, ids.staff);
     expect(names(unassigned.body.data)).toEqual(['Own', 'Unseated']);
   });
@@ -221,5 +232,18 @@ describe.skipIf(!DATABASE_URL)('Carpool roster visibility', () => {
       const dashboard = await get('/api/v1/resources/status/dashboard', ids.staff);
       expect(dashboard.status).toBe(200);
     });
+  });
+
+  test('cancelling a ride emails only guardians active in this unit', async () => {
+    const car = await offer(ids.family);
+    await seat(car, ids.foreign, ids.staff);
+    notifications.sendRideCancellationNotifications.mockClear();
+
+    const response = await request(app).delete(`/api/v1/carpools/offers/${car}`)
+      .set('Authorization', auth(ids.family)).send({ reason: 'Car broke down' });
+
+    expect(response.status).toBe(200);
+    const [, recipients] = notifications.sendRideCancellationNotifications.mock.calls[0];
+    expect(recipients.map((row) => row.guardian_name)).toEqual(['Other Family']);
   });
 });
