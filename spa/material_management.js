@@ -21,6 +21,7 @@ import { deleteCachedData } from "./indexedDB.js";
 import { CONFIG } from "./config.js";
 import { setContent } from "./utils/DOMUtils.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 /**
  * What a leader can do to a reservation, given where it currently stands.
  *
@@ -220,7 +221,7 @@ export class MaterialManagement {
     } catch (error) {
       debugError('Failed to update reservation status:', error);
       this.app.showMessage(
-        error.message || translate('reservation_status_update_failed'),
+        apiErrorMessage(error, 'reservation_status_update_failed'),
         'error'
       );
     }
@@ -569,7 +570,7 @@ export class MaterialManagement {
           }
         } catch (error) {
           debugError("Error saving bulk reservations", error);
-          this.app.showMessage(error.message || translate("resource_dashboard_error_loading"), "error");
+          this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
 
           // Revert optimistic update on error
           await this.refreshData();

@@ -3,6 +3,7 @@ import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.j
 import { getApiUrl } from "./ajax-functions.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 /** Status the server answers with when a reset token is invalid or expired. */
 const HTTP_BAD_REQUEST = 400;
 /** How long the reset form waits to learn which account a link belongs to. */
@@ -201,7 +202,7 @@ export class ResetPassword {
 						const errorMessages = result.errors.map(err => this.translateValidationError(err.msg)).join('. ');
 						messageDiv.textContent = errorMessages;
 					} else {
-						messageDiv.textContent = result.message || translate("error_resetting_password");
+						messageDiv.textContent = apiErrorMessage({ message: result.message, status: response.status }, 'error_resetting_password');
 					}
 				}
 			} catch (error) {
@@ -226,7 +227,7 @@ export class ResetPassword {
 				if (result.success) {
 					messageDiv.textContent = translate("reset_link_sent");
 				} else {
-					messageDiv.textContent = result.message || translate("error_sending_reset_link");
+					messageDiv.textContent = apiErrorMessage({ message: result.message, status: response.status }, 'error_sending_reset_link');
 				}
 			} catch (error) {
 				debugError("Error:", error);

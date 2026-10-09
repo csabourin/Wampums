@@ -5,7 +5,15 @@
  * is English, so screens ask ApiErrorUtils for a translation key instead.
  */
 
-jest.mock('../../spa/app.js', () => ({ translate: (key) => `t:${key}` }));
+// Like the app: a known key is translated, an unknown one comes back as is.
+const mockKnownKeys = new Set([
+  'api_error_invalid', 'api_error_forbidden', 'api_error_not_found', 'api_error_conflict',
+  'api_error_too_large', 'api_error_network', 'error_occurred', 'error_saving',
+  'invalid_or_expired_token', 'internal_server_error', 'scout_year_read_only', 'ai_budget_exceeded',
+]);
+jest.mock('../../spa/app.js', () => ({
+  translate: (key) => (mockKnownKeys.has(key) ? `t:${key}` : key),
+}));
 
 import { apiErrorMessage, apiErrorMessageKey } from '../../spa/utils/ApiErrorUtils.js';
 
@@ -49,6 +57,29 @@ describe('apiErrorMessageKey', () => {
   test('anything else uses the fallback, and the default fallback is generic', () => {
     expect(apiErrorMessageKey(new Error('boom'), 'error_saving_form')).toBe('error_saving_form');
     expect(apiErrorMessageKey(undefined)).toBe('error_occurred');
+  });
+});
+
+describe('reasons that already explain themselves', () => {
+  test('a server message that is a known translation key is used', () => {
+    expect(apiErrorMessageKey(apiError({ status: 400, message: 'API request failed: invalid_or_expired_token' })))
+      .toBe('invalid_or_expired_token');
+    expect(apiErrorMessageKey({ message: 'invalid_or_expired_token', status: 400 })).toBe('invalid_or_expired_token');
+  });
+
+  test('an unknown key-like message, or the generic server error, falls through', () => {
+    expect(apiErrorMessageKey({ message: 'token_not_found', status: 400 })).toBe('api_error_invalid');
+    expect(apiErrorMessageKey({ message: 'internal_server_error', status: 500 }, 'error_saving')).toBe('error_saving');
+  });
+
+  test('an archived year keeps its own explanation rather than "no permission"', () => {
+    const archived = Object.assign(new Error('Vous consultez une année archivée'), { status: 403, isArchiveReadOnly: true });
+    expect(apiErrorMessageKey(archived)).toBe('scout_year_read_only');
+  });
+
+  test('the AI budget limit is recognised from the AI endpoints\' error object', () => {
+    const aiError = Object.assign(new Error('Budget exceeded'), { error: { code: 'AI_BUDGET_EXCEEDED' } });
+    expect(apiErrorMessageKey(aiError, 'error_generating_plan')).toBe('ai_budget_exceeded');
   });
 });
 

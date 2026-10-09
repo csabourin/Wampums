@@ -30,6 +30,7 @@ import { OptimisticUpdateManager } from "./utils/OptimisticUpdateManager.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { withButtonLoading, debounce } from "./utils/PerformanceUtils.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class Attendance {
   constructor(app) {
     this.app = app;
@@ -1049,7 +1050,7 @@ export class Attendance {
           );
           debugError("Error updating attendance:", error);
           this.app.showMessage(
-            error.message || translate("error_updating_attendance"),
+            apiErrorMessage(error, 'error_updating_attendance'),
             "error",
           );
         },

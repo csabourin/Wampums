@@ -14,6 +14,7 @@ import { escapeHTML } from "../utils/SecurityUtils.js";
 import { confirmDestructive } from "../utils/DialogUtils.js";
 import { loadSocketIOClient } from "../utils/SocketIOClient.js";
 
+import { apiErrorMessage } from '../utils/ApiErrorUtils.js';
 /**
  * WhatsApp Connection Management Class
  */
@@ -297,7 +298,7 @@ export class WhatsAppConnectionModule {
     } catch (error) {
       debugError("Error connecting WhatsApp:", error);
       this.app.showMessage(
-        error.message || translate("whatsapp_connect_error") || "Failed to connect WhatsApp",
+        apiErrorMessage(error, 'whatsapp_connect_error'),
         "error"
       );
     } finally {
@@ -376,7 +377,7 @@ export class WhatsAppConnectionModule {
     } catch (error) {
       debugError("Error disconnecting WhatsApp:", error);
       this.app.showMessage(
-        error.message || translate("whatsapp_disconnect_error") || "Failed to disconnect WhatsApp",
+        apiErrorMessage(error, 'whatsapp_disconnect_error'),
         "error"
       );
     } finally {
@@ -425,7 +426,7 @@ export class WhatsAppConnectionModule {
     } catch (error) {
       debugError("Error sending test message:", error);
       this.app.showMessage(
-        error.message || translate("test_message_error") || "Failed to send test message",
+        apiErrorMessage(error, 'test_message_error'),
         "error"
       );
     } finally {

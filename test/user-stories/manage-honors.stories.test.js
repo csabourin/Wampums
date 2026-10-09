@@ -264,10 +264,8 @@ describe('US-HON-003 — A failed award rolls the board back', () => {
       .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await flushPromises();
 
-    expect(appStub.showMessage).toHaveBeenCalledWith(
-      `${tr('error_awarding_honor')}: Server exploded`,
-      'error'
-    );
+    // Explained in the page's language; the server's own text is not shown.
+    expect(appStub.showMessage).toHaveBeenCalledWith(tr('error_awarding_honor'), 'error');
     // Board refetched: Sam is not honored
     expect(ajax.getHonorsAndParticipants.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(row(2).classList.contains('selected')).toBe(false);

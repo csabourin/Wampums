@@ -15,6 +15,7 @@ import { canViewParticipants } from "./utils/PermissionUtils.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class ManageParticipants {
   constructor(app) {
     this.app = app;
@@ -355,7 +356,7 @@ export class ManageParticipants {
           debugError("Error updating group membership:", error);
           // Revert the select to its previous value if there was an error
           event.target.value = event.target.getAttribute("data-previous-value") || "none";
-          this.app.showMessage(error.message || translate("error_updating_group"), "error");
+          this.app.showMessage(apiErrorMessage(error, 'error_updating_group'), 'error');
       }
   }
 
@@ -402,7 +403,7 @@ export class ManageParticipants {
           this.attachEventListeners();
         }, 500);
       } else {
-        this.app.showMessage(result.message || translate("error_updating_role"), "error");
+        this.app.showMessage(translate('error_updating_role'), 'error');
       }
     } catch (error) {
       debugError("Error updating participant role:", error);
@@ -452,11 +453,11 @@ export class ManageParticipants {
           this.attachEventListeners();
         }, 500);
       } else {
-        this.app.showMessage(result.message || translate("error_updating_role"), "error");
+        this.app.showMessage(translate('error_updating_role'), 'error');
       }
     } catch (error) {
       debugError("Error updating participant roles:", error);
-      this.app.showMessage(error.message || translate("error_updating_role"), "error");
+      this.app.showMessage(apiErrorMessage(error, 'error_updating_role'), 'error');
     }
   }
 

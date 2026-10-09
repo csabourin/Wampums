@@ -8,6 +8,7 @@ import { canSendCommunications } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { setButtonLoading } from './utils/SkeletonUtils.js';
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class MailingList {
         constructor(app) {
                 this.app = app;
@@ -434,9 +435,7 @@ export class MailingList {
                                         msgArea.value = res.data.text;
                                         this.showFeedback(translate("rewrite_success"), "success");
                                 } catch (err) {
-                                        let msg = err.message;
-                                        if (err.error?.code === 'AI_BUDGET_EXCEEDED') msg = translate('ai_budget_exceeded');
-                                        this.showFeedback(translate("error") + ": " + msg, "error");
+                                        this.showFeedback(apiErrorMessage(err, 'error_occurred'), 'error');
                                 } finally {
                                         setButtonLoading(rewriteBtn, false);
                                 }
@@ -461,9 +460,7 @@ export class MailingList {
                                         msgArea.value = res.data.text;
                                         this.showFeedback(translate("translate_success"), "success");
                                 } catch (err) {
-                                        let msg = err.message;
-                                        if (err.error?.code === 'AI_BUDGET_EXCEEDED') msg = translate('ai_budget_exceeded');
-                                        this.showFeedback(translate("error") + ": " + msg, "error");
+                                        this.showFeedback(apiErrorMessage(err, 'error_occurred'), 'error');
                                 } finally {
                                         setButtonLoading(translateBtn, false);
                                 }
@@ -536,7 +533,7 @@ export class MailingList {
                         this.clearForm();
                 } catch (error) {
                         debugError("Error sending announcement:", error);
-                        this.showFeedback(error.message || translate("announcement_send_failed"), "error");
+                        this.showFeedback(apiErrorMessage(error, 'announcement_send_failed'), 'error');
                 } finally {
                         this.isSubmitting = false;
                         this.toggleFormDisabled(false);

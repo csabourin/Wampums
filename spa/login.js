@@ -7,6 +7,7 @@ import { isParent, hasPermission } from "./utils/PermissionUtils.js";
 import { getOnboardingContext } from "./api/api-family.js";
 import { setContent } from "./utils/DOMUtils.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class Login {
   constructor(app) {
     this.app = app;
@@ -197,7 +198,7 @@ export class Login {
         }
       } catch (error) {
         debugError("Login error:", error);
-        setStatus(`${translate("error_logging_in")}: ${error.message}`, "error");
+        setStatus(apiErrorMessage(error, 'error_logging_in'), 'error');
       } finally {
         if (submitButton) {
           submitButton.disabled = false;
@@ -471,7 +472,7 @@ export class Login {
         }
       } catch (error) {
         debugError("2FA verification error:", error);
-        setStatus(`${translate("verification_error") || "Verification failed"}: ${error.message}`, "error");
+        setStatus(apiErrorMessage(error, 'verification_error'), 'error');
       } finally {
         if (submitButton) {
           submitButton.disabled = false;

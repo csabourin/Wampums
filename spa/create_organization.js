@@ -8,6 +8,7 @@ import {
 import { canCreateOrganization } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class CreateOrganization {
 		constructor(app) {
 				this.app = app;
@@ -87,7 +88,7 @@ export class CreateOrganization {
 								throw new Error(response.message || translate("error_creating_unit"));
 						}
 				} catch (error) {
-						this.app.showMessage(error.message, "error");
+						this.app.showMessage(apiErrorMessage(error, 'error_creating_unit'), 'error');
 				}
 		}
 }

@@ -862,7 +862,7 @@ export class FormBuilder extends BaseModule {
             if (response.success) {
                 this.app.showMessage(translate("translation_saved"), "success");
             } else {
-                this.app.showMessage(response.message || translate("error_saving_translation"), "error");
+                this.app.showMessage(translate('error_saving_translation'), 'error');
             }
         } catch (error) {
             debugError("Error saving translation:", error);
@@ -1074,7 +1074,7 @@ export class FormBuilder extends BaseModule {
                 this.attachEventListeners();
                 this.editFormat(response.data.id);
             } else {
-                this.app.showMessage(response.message || translate("error_creating_format"), "error");
+                this.app.showMessage(translate('error_creating_format'), 'error');
             }
         } catch (error) {
             debugError("Error creating format:", error);
@@ -1117,7 +1117,7 @@ export class FormBuilder extends BaseModule {
                     this.attachEventListeners();
                 }
             } else {
-                this.app.showMessage(response.message || translate("error_deleting_format"), "error");
+                this.app.showMessage(translate('error_deleting_format'), 'error');
             }
         } catch (error) {
             debugError("Error deleting format:", error);
@@ -1140,7 +1140,7 @@ export class FormBuilder extends BaseModule {
                 this.app.showMessage(translate("format_saved"), "success");
                 this.currentFormat.form_structure = response.data.form_structure;
             } else {
-                this.app.showMessage(response.message || translate("error_saving_format"), "error");
+                this.app.showMessage(translate('error_saving_format'), 'error');
             }
         } catch (error) {
             debugError("Error saving format:", error);
@@ -1241,7 +1241,7 @@ export class FormBuilder extends BaseModule {
             if (response.success) {
                 this.app.showMessage(translate("format_copied"), "success");
             } else {
-                this.app.showMessage(response.message || translate("error_copying_format"), "error");
+                this.app.showMessage(translate('error_copying_format'), 'error');
             }
         } catch (error) {
             debugError("Error copying format:", error);

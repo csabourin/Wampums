@@ -380,7 +380,8 @@ describe('execution', () => {
     mockExecuteTransition.mockRejectedValue(new Error('boom'));
     await module.handleNext();
 
-    expect(app.showMessage).toHaveBeenCalledWith('boom', 'error');
+    // The server's English message is never shown; the page's language is.
+    expect(app.showMessage).toHaveBeenCalledWith('scout_year_execute_failed', 'error');
     expect(module.step).toBe(3);
     expect(document.querySelector('.scout-year-report')).toBeNull();
   });
@@ -490,7 +491,9 @@ describe('undoing the last transition', () => {
 
     await module.handleRollback(7);
 
-    expect(app.showMessage).toHaveBeenCalledWith('The new year already holds data', 'error');
+    // The toast is in the page's language; the reloaded page lists the blockers.
+    expect(app.showMessage).toHaveBeenCalledWith('scout_year_rollback_failed', 'error');
+    expect(app.showMessage).not.toHaveBeenCalledWith('The new year already holds data', 'error');
     expect(app.showMessage).not.toHaveBeenCalledWith('scout_year_rollback_success', 'success');
     expect(document.querySelector('#rollback-btn')).toBeNull();
     expect(document.querySelector('.scout-year-rollback__blockers')).not.toBeNull();

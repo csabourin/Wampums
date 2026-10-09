@@ -11,6 +11,7 @@ import { formatDate } from './utils/DateUtils.js';
 import { skeletonList } from './utils/SkeletonUtils.js';
 import { confirmDestructive } from './utils/DialogUtils.js';
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class OfflinePreparation {
     constructor(app) {
         this.app = app;
@@ -281,7 +282,7 @@ export class OfflinePreparation {
             this.attachEventListeners();
         } catch (error) {
             debugError('OfflinePreparation: Prepare failed', error);
-            this.app.showMessage(translate('preparation_failed') + ': ' + error.message, 'error');
+            this.app.showMessage(apiErrorMessage(error, 'preparation_failed'), 'error');
             this.preparingActivityId = null;
             btn.disabled = false;
             btn.textContent = translate('prepare_for_offline');
@@ -330,7 +331,7 @@ export class OfflinePreparation {
             this.attachEventListeners();
         } catch (error) {
             debugError('OfflinePreparation: Manual prepare failed', error);
-            this.app.showMessage(translate('preparation_failed') + ': ' + error.message, 'error');
+            this.app.showMessage(apiErrorMessage(error, 'preparation_failed'), 'error');
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = translate('prepare_date_range');

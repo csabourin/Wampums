@@ -31,6 +31,7 @@ import { setStorageMultiple } from "./utils/StorageUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { getMountPoint, resolveMountOptions } from "./utils/PageMount.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 const CACHE_KEY = "district_management_state";
 const CACHE_DURATION = CONFIG.CACHE_DURATION.SHORT;
 const ADMIN_ROLES = ["district", "unitadmin", "demoadmin"];
@@ -916,18 +917,13 @@ export class DistrictManagement {
       });
       if (response?.success) {
         this.auditLogByUser[userId] = response.data || response.audit || [];
-      } else if (response?.message) {
-        this.auditPanelError = sanitizeHTML(response.message, { stripAll: true });
-        this.auditLogByUser[userId] = [];
       } else {
+        this.auditPanelError = translate('district_management_audit_error');
         this.auditLogByUser[userId] = [];
       }
     } catch (error) {
       debugError("district_management: failed to load audit log", error);
-      this.auditPanelError = sanitizeHTML(
-        error?.message || translate("district_management_audit_error"),
-        { stripAll: true },
-      );
+      this.auditPanelError = apiErrorMessage(error, 'district_management_audit_error');
     } finally {
       this.loadingAuditUserId = null;
       this.renderAndBind();
@@ -1176,11 +1172,7 @@ export class DistrictManagement {
       debugError("district_management: save failed", error);
       this.rollbackRoles(user, previousRoleIds);
       this.queueChange(user.id, selectedRoleIds, error?.message);
-      const safeMessage = sanitizeHTML(
-        error?.message || translate("district_management_assignment_failed"),
-        { stripAll: true },
-      );
-      this.formStatus = { type: "error", message: safeMessage };
+      this.formStatus = { type: 'error', message: apiErrorMessage(error, 'district_management_assignment_failed') };
       this.recordLocalAuditEntry(user.id, selectedRoleIds, "error");
       this.userMeta[user.id] = {
         lastSyncedAt: this.userMeta[user.id]?.lastSyncedAt || Date.now(),

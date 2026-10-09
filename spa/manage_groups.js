@@ -135,7 +135,7 @@ export class ManageGroups {
         // Clear the input field
         document.getElementById("group_name").value = "";
       } else {
-        this.showMessage(result.message || translate("error_adding_group"));
+        this.showMessage(translate('error_adding_group'));
       }
     } catch (error) {
       debugError("Error:", error);
@@ -168,7 +168,7 @@ export class ManageGroups {
           this.attachEventListeners();
           this.showMessage(translate("group_removed_successfully"));
         } else {
-          this.showMessage(result.message || translate("error_removing_group"));
+          this.showMessage(translate('error_removing_group'));
         }
       } catch (error) {
         debugError("Error:", error);

@@ -21,6 +21,7 @@ import { setContent, clearElement, insertHTML } from "./utils/DOMUtils.js";
 import { canAccessAdminPanel, canCreateOrganization, canManageUsers, canSendCommunications, canViewUsers } from "./utils/PermissionUtils.js";
 import { getMountPoint, resolveMountOptions } from "./utils/PageMount.js";
 
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class Admin {
         constructor(app, options = {}) {
                 this.app = app;
@@ -670,11 +671,11 @@ ${showNotifications ? `
                                                                 </div>
                                                         `);
                                                 } else {
-                                                        setContent(resultDiv, `<div class="error-message">${translate("import_failed")}: ${escapeHTML(result.message)}</div>`);
+                                                        setContent(resultDiv, `<div class="error-message">${translate('import_failed')}</div>`);
                                                 }
                                         } catch (error) {
                                                 progressDiv.style.display = "none";
-                                                setContent(resultDiv, `<div class="error-message">${translate("import_failed")}: ${escapeHTML(error.message)}</div>`);
+                                                setContent(resultDiv, `<div class="error-message">${escapeHTML(apiErrorMessage(error, 'import_failed'))}</div>`);
                                         }
                                         importBtn.disabled = false;
                                 };
@@ -688,7 +689,7 @@ ${showNotifications ? `
                                 reader.readAsArrayBuffer(selectedFile);
                         } catch (error) {
                                 progressDiv.style.display = "none";
-                                setContent(resultDiv, `<div class="error-message">${translate("import_failed")}: ${escapeHTML(error.message)}</div>`);
+                                setContent(resultDiv, `<div class="error-message">${escapeHTML(apiErrorMessage(error, 'import_failed'))}</div>`);
                                 importBtn.disabled = false;
                         }
                 });
@@ -726,10 +727,10 @@ ${showNotifications ? `
                                         ));
                                         notificationForm.reset();
                                 } else {
-                                        setContent(resultContainer, `${translate("failed_to_send_notification")}: ${escapeHTML(result.message || result.error || '')}`);
+                                        setContent(resultContainer, `${translate('failed_to_send_notification')}`);
                                 }
                         } catch (error) {
-                                setContent(resultContainer, `${translate("error")}: ${escapeHTML(error.message)}`);
+                                setContent(resultContainer, `${escapeHTML(apiErrorMessage(error, 'failed_to_send_notification'))}`);
                         }
                 });
         }

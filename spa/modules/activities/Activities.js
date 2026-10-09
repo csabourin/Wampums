@@ -21,6 +21,7 @@ import {
 } from '../../utils/ActivityDateUtils.js';
 import { offlineManager } from '../OfflineManager.js';
 
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 const SEARCH_DEBOUNCE_MS = 300;
 
 export class Activities extends BaseModule {
@@ -344,7 +345,7 @@ export class Activities extends BaseModule {
       this.attachEventListeners();
     } catch (err) {
       debugError('Error deleting activity:', err);
-      this.app.showMessage(err.message || translate('error_deleting_activity'), 'error');
+      this.app.showMessage(apiErrorMessage(err, 'error_deleting_activity'), 'error');
     }
   }
 }

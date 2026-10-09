@@ -115,13 +115,10 @@ export class Register {
         return;
       }
 
-      // Check if there are specific validation errors
+      // The server's validation details are English; the form already checks
+      // each rule in the page's language before sending.
       if (error.message && error.message.includes('Validation failed:')) {
-        // Extract the specific validation message after "Validation failed:"
-        const validationError = error.message.split('Validation failed:')[1];
-        if (validationError) {
-          errorMessage = validationError.trim();
-        }
+        errorMessage = translate('api_error_invalid');
       }
 
       this.showError(errorMessage);
