@@ -1,8 +1,8 @@
-import { BaseModule } from "../../utils/BaseModule.js";
-import { translate } from "../../app.js";
-import { loadStylesheet, setContent } from "../../utils/DOMUtils.js";
-import { debugError } from "../../utils/DebugUtils.js";
-import { makeApiRequest } from "../../api/api-core.js";
+import { BaseModule } from '../../utils/BaseModule.js';
+import { translate } from '../../app.js';
+import { loadStylesheet, setContent } from '../../utils/DOMUtils.js';
+import { debugError } from '../../utils/DebugUtils.js';
+import { makeApiRequest } from '../../api/api-core.js';
 import {
   fetchEditableOrganizationSettings,
   getEmailSenderSettings,
@@ -15,33 +15,33 @@ import {
   updateEmailSenderSettings,
   updateOrganizationInfo,
   updateUnitVocabulary,
-} from "../../api/api-endpoints.js";
-import { confirmDestructive } from "../../utils/DialogUtils.js";
-import { escapeHTML } from "../../utils/SecurityUtils.js";
-import { DAYS_OF_WEEK } from "../../utils/MeetingDateUtils.js";
+} from '../../api/api-endpoints.js';
+import { confirmDestructive } from '../../utils/DialogUtils.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { DAYS_OF_WEEK } from '../../utils/MeetingDateUtils.js';
 import {
   hasPermission,
   canSendCommunications,
   canAccessAdminPanel,
   canViewRoles,
   canManageForms,
-} from "../../utils/PermissionUtils.js";
-import { DASHBOARD_TILES, TOOL_GROUP_ORDER } from "../../config/dashboard-tiles.js";
+} from '../../utils/PermissionUtils.js';
+import { DASHBOARD_TILES, TOOL_GROUP_ORDER } from '../../config/dashboard-tiles.js';
 import {
   createVocabularyFromProfile,
   getVocabularyProfile,
   UNIT_CUSTOMIZATION_CONFIG,
-} from "../../utils/UnitVocabularyUtils.js";
+} from '../../utils/UnitVocabularyUtils.js';
 
 const SUPPORTED_LANGUAGES = [
-  { code: "fr", label: "Français" },
-  { code: "en", label: "English" },
-  { code: "uk", label: "Українська" },
-  { code: "it", label: "Italiano" },
+  { code: 'fr', label: 'Français' },
+  { code: 'en', label: 'English' },
+  { code: 'uk', label: 'Українська' },
+  { code: 'it', label: 'Italiano' },
 ];
 
-const DEFAULT_MEETING_DAY = "Wednesday";
-const DEFAULT_MEETING_TIME = "19:00";
+const DEFAULT_MEETING_DAY = 'Wednesday';
+const DEFAULT_MEETING_TIME = '19:00';
 const DEFAULT_MEETING_DURATION_MINUTES = 90;
 const MINIMUM_MEETING_DURATION_MINUTES = 15;
 const MAXIMUM_MEETING_DURATION_MINUTES = 720;
@@ -51,26 +51,26 @@ const LOGO_URL_MAX_LENGTH = 2048;
 const SENDER_NAME_MAX_LENGTH = 100;
 const EMAIL_MAX_LENGTH = 254;
 const VOCABULARY_TERM_MAX_LENGTH = 80;
-const BASE_SETTINGS_TABS = ["general", "vocabulary", "dashboard"];
-const GROUP_TAB = "group";
+const BASE_SETTINGS_TABS = ['general', 'vocabulary', 'dashboard'];
+const GROUP_TAB = 'group';
 
 export class UnitSettings extends BaseModule {
   constructor(app) {
     super(app);
     this.isLoading = true;
     this.loadError = null;
-    this.orgName = "";
+    this.orgName = '';
     this.organizationInfo = {};
     this.leaders = [];
-    this.emailLanguage = "fr";
+    this.emailLanguage = 'fr';
     /** @type {{email_sender: Object, allowed_from_domains: string[], default_sender: string}|null} */
     this.emailSender = null;
     this.twoFactorDisabled = false;
     this.canManageOrg = false;
     this.canEditOrg = false;
     this.canViewOrg = false;
-    this.activeTab = "general";
-    this.vocabulary = createVocabularyFromProfile("cubs");
+    this.activeTab = 'general';
+    this.vocabulary = createVocabularyFromProfile('cubs');
     this.dashboardConfiguration = { version: 1, hidden_tile_keys: [] };
     this.localGroups = [];
     this.localGroupMemberships = [];
@@ -93,13 +93,13 @@ export class UnitSettings extends BaseModule {
   }
 
   async init() {
-    const container = document.getElementById("app");
-    setContent(container, `<div class="page-loading">${translate("loading") || "Loading..."}</div>`);
-    await loadStylesheet("/css/unit-settings.css");
+    const container = document.getElementById('app');
+    setContent(container, `<div class="page-loading">${translate('loading') || 'Loading...'}</div>`);
+    await loadStylesheet('/css/unit-settings.css');
 
-    this.canManageOrg = hasPermission("organization.manage");
-    this.canEditOrg = hasPermission("org.edit");
-    this.canViewOrg = hasPermission("org.view");
+    this.canManageOrg = hasPermission('organization.manage');
+    this.canEditOrg = hasPermission('org.edit');
+    this.canViewOrg = hasPermission('org.view');
     try {
       await this.loadSettings();
       await Promise.all([this.loadLeaders(), this.loadEmailSender()]);
@@ -107,7 +107,7 @@ export class UnitSettings extends BaseModule {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Failed to load unit settings:", error);
+      debugError('Failed to load unit settings:', error);
       this.isLoading = false;
       this.loadError = error;
       this.render();
@@ -128,8 +128,8 @@ export class UnitSettings extends BaseModule {
       meeting_time: organizationInfo.meeting_time || DEFAULT_MEETING_TIME,
       meeting_duration: configuredDuration,
     };
-    this.orgName = this.organizationInfo.name || "";
-    this.emailLanguage = data.default_email_language || "fr";
+    this.orgName = this.organizationInfo.name || '';
+    this.emailLanguage = data.default_email_language || 'fr';
     const profile = getVocabularyProfile(data);
     this.vocabulary = data.unit_vocabulary
       ? JSON.parse(JSON.stringify(data.unit_vocabulary))
@@ -159,7 +159,7 @@ export class UnitSettings extends BaseModule {
       });
       this.leaders = Array.from(uniqueNames.values());
     } catch (error) {
-      debugError("Failed to load unit leader suggestions:", error);
+      debugError('Failed to load unit leader suggestions:', error);
       this.leaders = [];
     }
   }
@@ -180,15 +180,15 @@ export class UnitSettings extends BaseModule {
   }
 
   render() {
-    const container = document.getElementById("app");
+    const container = document.getElementById('app');
 
     if (this.loadError) {
       setContent(
         container,
         `<div class="page unit-settings-page">
-          <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-          <h1>${translate("unit_settings_title")}</h1>
-          <div class="error-message" role="alert">${escapeHTML(translate("error_loading_data"))}</div>
+          <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+          <h1>${translate('unit_settings_title')}</h1>
+          <div class="error-message" role="alert">${escapeHTML(translate('error_loading_data'))}</div>
         </div>`
       );
       return;
@@ -197,25 +197,25 @@ export class UnitSettings extends BaseModule {
     setContent(
       container,
       `<div class="page unit-settings-page">
-        <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-        <h1>${translate("unit_settings_title") || "Unit Settings"}</h1>
-        <p class="page-description">${translate("unit_settings_description") || "Manage settings specific to your organization."}</p>
+        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+        <h1>${translate('unit_settings_title') || 'Unit Settings'}</h1>
+        <p class="page-description">${translate('unit_settings_description') || 'Manage settings specific to your organization.'}</p>
 
-        ${this.orgName ? `<p class="unit-settings-org-name">${escapeHTML(this.orgName)}</p>` : ""}
+        ${this.orgName ? `<p class="unit-settings-org-name">${escapeHTML(this.orgName)}</p>` : ''}
 
         ${this.renderTabs()}
         <div class="unit-settings-tab-panel" id="unit-settings-tab-panel" role="tabpanel"
           aria-labelledby="unit-settings-tab-${this.activeTab}">
-          ${this.activeTab === "general" ? `
+          ${this.activeTab === 'general' ? `
             ${this.renderUnitDetailsSection()}
-            ${this.canEditOrg ? this.renderLanguageSection() : ""}
+            ${this.canEditOrg ? this.renderLanguageSection() : ''}
             ${this.canEditOrg && this.emailSender ? this.renderEmailSenderSection() : ''}
-            ${this.canManageOrg ? this.renderSecuritySection() : ""}
+            ${this.canManageOrg ? this.renderSecuritySection() : ''}
             ${this.renderQuickLinks()}
-          ` : ""}
-          ${this.activeTab === "vocabulary" ? this.renderVocabularySection() : ""}
-          ${this.activeTab === "dashboard" ? this.renderDashboardSection() : ""}
-          ${this.activeTab === GROUP_TAB ? this.renderGroupSection() : ""}
+          ` : ''}
+          ${this.activeTab === 'vocabulary' ? this.renderVocabularySection() : ''}
+          ${this.activeTab === 'dashboard' ? this.renderDashboardSection() : ''}
+          ${this.activeTab === GROUP_TAB ? this.renderGroupSection() : ''}
         </div>
       </div>`
     );
@@ -223,116 +223,116 @@ export class UnitSettings extends BaseModule {
 
   renderTabs() {
     return `
-      <nav class="unit-settings-tabs" role="tablist" aria-label="${escapeHTML(translate("unit_settings_title"))}">
+      <nav class="unit-settings-tabs" role="tablist" aria-label="${escapeHTML(translate('unit_settings_title'))}">
         ${this.getSettingsTabs().map((tab) => {
           const active = this.activeTab === tab;
-          return `<button type="button" role="tab" class="unit-settings-tab ${active ? "is-active" : ""}"
+          return `<button type="button" role="tab" class="unit-settings-tab ${active ? 'is-active' : ''}"
             id="unit-settings-tab-${tab}" data-settings-tab="${tab}"
             aria-controls="unit-settings-tab-panel" aria-selected="${active}"
-            tabindex="${active ? "0" : "-1"}">
+            tabindex="${active ? '0' : '-1'}">
             ${escapeHTML(translate(`unit_settings_tab_${tab}`))}
           </button>`;
-        }).join("")}
+        }).join('')}
       </nav>`;
   }
 
   renderUnitDetailsSection() {
     const info = this.organizationInfo;
-    const disabled = this.canEditOrg ? "" : "disabled";
+    const disabled = this.canEditOrg ? '' : 'disabled';
     const meetingDay = DAYS_OF_WEEK.includes(info.meeting_day)
       ? info.meeting_day
       : DEFAULT_MEETING_DAY;
     const dayOptions = DAYS_OF_WEEK.map(
-      (day) => `<option value="${day}" ${meetingDay === day ? "selected" : ""}>${escapeHTML(translate(day) || day)}</option>`
-    ).join("");
+      (day) => `<option value="${day}" ${meetingDay === day ? 'selected' : ''}>${escapeHTML(translate(day) || day)}</option>`
+    ).join('');
     const leaderOptions = this.leaders
       .map((leader) => `<option value="${escapeHTML(leader.full_name)}"></option>`)
-      .join("");
+      .join('');
 
     return `
       <section class="account-section">
-        <h2>${translate("unit_settings_details_title")}</h2>
-        <p class="section-description">${translate("unit_settings_details_description")}</p>
-        ${!this.canEditOrg ? `<p class="unit-settings-read-only">${translate("unit_settings_read_only")}</p>` : ""}
+        <h2>${translate('unit_settings_details_title')}</h2>
+        <p class="section-description">${translate('unit_settings_details_description')}</p>
+        ${!this.canEditOrg ? `<p class="unit-settings-read-only">${translate('unit_settings_read_only')}</p>` : ''}
 
         <form id="unit-details-form" class="unit-settings-form">
           <div class="unit-settings-form__grid">
             <div class="form-group">
-              <label for="unit-organization-name">${translate("organization_name")}</label>
+              <label for="unit-organization-name">${translate('organization_name')}</label>
               <input type="text" id="unit-organization-name" name="organization_name" class="form-control"
-                value="${escapeHTML(info.name || "")}" maxlength="${SHORT_TEXT_MAX_LENGTH}" required ${disabled}>
+                value="${escapeHTML(info.name || '')}" maxlength="${SHORT_TEXT_MAX_LENGTH}" required ${disabled}>
             </div>
 
             <div class="form-group">
-              <label for="unit-name">${translate("unit_settings_unit_name")}</label>
+              <label for="unit-name">${translate('unit_settings_unit_name')}</label>
               <input type="text" id="unit-name" name="unit" class="form-control"
-                value="${escapeHTML(info.unit || "")}" maxlength="${SHORT_TEXT_MAX_LENGTH}" ${disabled}>
+                value="${escapeHTML(info.unit || '')}" maxlength="${SHORT_TEXT_MAX_LENGTH}" ${disabled}>
             </div>
 
             <div class="form-group">
-              <label for="unit-district">${translate("District")}</label>
+              <label for="unit-district">${translate('District')}</label>
               <input type="text" id="unit-district" name="district" class="form-control"
-                value="${escapeHTML(info.district || "")}" maxlength="${SHORT_TEXT_MAX_LENGTH}" ${disabled}>
+                value="${escapeHTML(info.district || '')}" maxlength="${SHORT_TEXT_MAX_LENGTH}" ${disabled}>
             </div>
 
             <div class="form-group">
-              <label for="unit-group-leader">${translate("unit_settings_group_leader")}</label>
+              <label for="unit-group-leader">${translate('unit_settings_group_leader')}</label>
               <input type="text" id="unit-group-leader" name="animateur_responsable" class="form-control"
-                value="${escapeHTML(info.animateur_responsable || "")}" list="unit-leader-options"
+                value="${escapeHTML(info.animateur_responsable || '')}" list="unit-leader-options"
                 maxlength="${SHORT_TEXT_MAX_LENGTH}" ${disabled}>
               <datalist id="unit-leader-options">${leaderOptions}</datalist>
             </div>
 
             <div class="form-group unit-settings-form__wide">
-              <label for="unit-meeting-location">${translate("unit_settings_meeting_location")}</label>
+              <label for="unit-meeting-location">${translate('unit_settings_meeting_location')}</label>
               <input type="text" id="unit-meeting-location" name="endroit" class="form-control"
-                value="${escapeHTML(info.endroit || "")}" maxlength="${LOCATION_MAX_LENGTH}" ${disabled}>
+                value="${escapeHTML(info.endroit || '')}" maxlength="${LOCATION_MAX_LENGTH}" ${disabled}>
             </div>
 
             <div class="form-group">
-              <label for="unit-meeting-day">${translate("unit_settings_meeting_day")}</label>
+              <label for="unit-meeting-day">${translate('unit_settings_meeting_day')}</label>
               <select id="unit-meeting-day" name="meeting_day" class="form-control" required ${disabled}>
                 ${dayOptions}
               </select>
             </div>
 
             <div class="form-group">
-              <label for="unit-meeting-time">${translate("unit_settings_meeting_time")}</label>
+              <label for="unit-meeting-time">${translate('unit_settings_meeting_time')}</label>
               <input type="time" id="unit-meeting-time" name="meeting_time" class="form-control"
                 value="${escapeHTML(String(info.meeting_time || DEFAULT_MEETING_TIME).slice(0, 5))}" required ${disabled}>
             </div>
 
             <div class="form-group">
-              <label for="unit-meeting-duration">${translate("unit_settings_meeting_duration")}</label>
+              <label for="unit-meeting-duration">${translate('unit_settings_meeting_duration')}</label>
               <input type="number" id="unit-meeting-duration" name="meeting_duration" class="form-control"
                 value="${escapeHTML(String(info.meeting_duration || DEFAULT_MEETING_DURATION_MINUTES))}"
                 min="${MINIMUM_MEETING_DURATION_MINUTES}" max="${MAXIMUM_MEETING_DURATION_MINUTES}" step="1" required ${disabled}>
             </div>
 
             <div class="form-group unit-settings-form__wide">
-              <label for="unit-logo-url">${translate("unit_settings_logo_url")}</label>
+              <label for="unit-logo-url">${translate('unit_settings_logo_url')}</label>
               <input type="text" inputmode="url" id="unit-logo-url" name="logo" class="form-control"
-                value="${escapeHTML(info.logo || "")}" maxlength="${LOGO_URL_MAX_LENGTH}" ${disabled}>
+                value="${escapeHTML(info.logo || '')}" maxlength="${LOGO_URL_MAX_LENGTH}" ${disabled}>
             </div>
           </div>
 
           ${this.canEditOrg ? `
             <button id="save-unit-details-btn" type="submit" class="button button--primary">
-              ${translate("save")}
-            </button>` : ""}
+              ${translate('save')}
+            </button>` : ''}
         </form>
       </section>`;
   }
 
   renderVocabularySection() {
     const termKeys = Object.keys(UNIT_CUSTOMIZATION_CONFIG.profiles.generic.locales.en);
-    const profileOptions = ["cubs", "beavers", "generic", "custom"]
-      .map((profile) => `<option value="${profile}" ${this.vocabulary.profile === profile ? "selected" : ""}>
+    const profileOptions = ['cubs', 'beavers', 'generic', 'custom']
+      .map((profile) => `<option value="${profile}" ${this.vocabulary.profile === profile ? 'selected' : ''}>
         ${escapeHTML(translate(`unit_vocabulary_profile_${profile}`))}
       </option>`)
-      .join("");
+      .join('');
 
-    const localeColumns = ["fr", "en"].map((locale) => `
+    const localeColumns = ['fr', 'en'].map((locale) => `
       <fieldset class="unit-vocabulary-locale">
         <legend>${escapeHTML(translate(`unit_vocabulary_locale_${locale}`))}</legend>
         ${termKeys.map((termKey) => `
@@ -344,28 +344,28 @@ export class UnitSettings extends BaseModule {
               id="vocabulary-${locale}-${termKey}"
               data-locale="${locale}" data-term-key="${termKey}"
               maxlength="${VOCABULARY_TERM_MAX_LENGTH}"
-              value="${escapeHTML(this.vocabulary.locales?.[locale]?.[termKey] || "")}" required
-              ${this.canEditOrg ? "" : "disabled"}>
-          </div>`).join("")}
-      </fieldset>`).join("");
+              value="${escapeHTML(this.vocabulary.locales?.[locale]?.[termKey] || '')}" required
+              ${this.canEditOrg ? '' : 'disabled'}>
+          </div>`).join('')}
+      </fieldset>`).join('');
 
     return `
       <section class="account-section">
-        <h2>${escapeHTML(translate("unit_vocabulary_title"))}</h2>
-        <p class="section-description">${escapeHTML(translate("unit_vocabulary_description"))}</p>
-        ${!this.canEditOrg ? `<p class="unit-settings-read-only">${translate("unit_settings_read_only")}</p>` : ""}
+        <h2>${escapeHTML(translate('unit_vocabulary_title'))}</h2>
+        <p class="section-description">${escapeHTML(translate('unit_vocabulary_description'))}</p>
+        ${!this.canEditOrg ? `<p class="unit-settings-read-only">${translate('unit_settings_read_only')}</p>` : ''}
         <form id="unit-vocabulary-form" class="unit-settings-form">
           <div class="form-group unit-vocabulary-profile">
-            <label for="unit-vocabulary-profile">${escapeHTML(translate("unit_vocabulary_profile"))}</label>
-            <select id="unit-vocabulary-profile" class="form-control" ${this.canEditOrg ? "" : "disabled"}>
+            <label for="unit-vocabulary-profile">${escapeHTML(translate('unit_vocabulary_profile'))}</label>
+            <select id="unit-vocabulary-profile" class="form-control" ${this.canEditOrg ? '' : 'disabled'}>
               ${profileOptions}
             </select>
-            <small>${escapeHTML(translate("unit_vocabulary_profile_hint"))}</small>
+            <small>${escapeHTML(translate('unit_vocabulary_profile_hint'))}</small>
           </div>
           <div class="unit-vocabulary-grid">${localeColumns}</div>
           ${this.canEditOrg ? `<button type="submit" id="save-vocabulary-btn" class="button button--primary">
-            ${escapeHTML(translate("save"))}
-          </button>` : ""}
+            ${escapeHTML(translate('save'))}
+          </button>` : ''}
         </form>
       </section>`;
   }
@@ -378,7 +378,7 @@ export class UnitSettings extends BaseModule {
         tilesByFeature.set(tile.featureKey, tile);
       }
     });
-    const domainOrder = ["attendance", "people", "progression", "safety", ...TOOL_GROUP_ORDER];
+    const domainOrder = ['attendance', 'people', 'progression', 'safety', ...TOOL_GROUP_ORDER];
     const orderedDomains = Array.from(new Set([
       ...domainOrder,
       ...Array.from(tilesByFeature.values()).map((tile) => tile.domain),
@@ -386,7 +386,7 @@ export class UnitSettings extends BaseModule {
 
     const groups = orderedDomains.map((domain) => {
       const tiles = Array.from(tilesByFeature.values()).filter((tile) => tile.domain === domain);
-      if (!tiles.length) return "";
+      if (!tiles.length) return '';
       return `
         <fieldset class="unit-dashboard-group">
           <legend>${escapeHTML(translate(`domain_${domain}`))}</legend>
@@ -397,27 +397,27 @@ export class UnitSettings extends BaseModule {
               <label class="unit-dashboard-toggle" for="dashboard-feature-${tile.featureKey}">
                 <span>
                   <strong>${escapeHTML(translate(tile.label))}</strong>
-                  ${required ? `<small>${escapeHTML(translate("unit_dashboard_required"))}</small>` : ""}
+                  ${required ? `<small>${escapeHTML(translate('unit_dashboard_required'))}</small>` : ''}
                 </span>
                 <input type="checkbox" role="switch" class="unit-dashboard-feature"
                   id="dashboard-feature-${tile.featureKey}" data-feature-key="${tile.featureKey}"
-                  ${checked ? "checked" : ""} ${required || !this.canEditOrg ? "disabled" : ""}>
+                  ${checked ? 'checked' : ''} ${required || !this.canEditOrg ? 'disabled' : ''}>
               </label>`;
-          }).join("")}
+          }).join('')}
         </fieldset>`;
-    }).join("");
+    }).join('');
 
     return `
       <section class="account-section">
-        <h2>${escapeHTML(translate("unit_dashboard_title"))}</h2>
-        <p class="section-description">${escapeHTML(translate("unit_dashboard_description"))}</p>
-        <p class="unit-dashboard-note">${escapeHTML(translate("unit_dashboard_visibility_note"))}</p>
-        ${!this.canEditOrg ? `<p class="unit-settings-read-only">${translate("unit_settings_read_only")}</p>` : ""}
+        <h2>${escapeHTML(translate('unit_dashboard_title'))}</h2>
+        <p class="section-description">${escapeHTML(translate('unit_dashboard_description'))}</p>
+        <p class="unit-dashboard-note">${escapeHTML(translate('unit_dashboard_visibility_note'))}</p>
+        ${!this.canEditOrg ? `<p class="unit-settings-read-only">${translate('unit_settings_read_only')}</p>` : ''}
         <form id="unit-dashboard-form" class="unit-settings-form">
           <div class="unit-dashboard-groups">${groups}</div>
           ${this.canEditOrg ? `<button type="submit" id="save-dashboard-btn" class="button button--primary">
-            ${escapeHTML(translate("save"))}
-          </button>` : ""}
+            ${escapeHTML(translate('save'))}
+          </button>` : ''}
         </form>
       </section>`;
   }
@@ -431,34 +431,34 @@ export class UnitSettings extends BaseModule {
   renderGroupSection() {
     let body;
     if (this.localGroupsLoading) {
-      body = `<p class="unit-group-status">${escapeHTML(translate("loading"))}</p>`;
+      body = `<p class="unit-group-status">${escapeHTML(translate('loading'))}</p>`;
     } else if (this.localGroupsError) {
-      body = `<div class="error-message" role="alert">${escapeHTML(translate("error_loading_data"))}</div>`;
+      body = `<div class="error-message" role="alert">${escapeHTML(translate('error_loading_data'))}</div>`;
     } else {
-      body = `${this.renderGroupMemberships()}${this.canEditOrg ? this.renderGroupJoinForm() : ""}`;
+      body = `${this.renderGroupMemberships()}${this.canEditOrg ? this.renderGroupJoinForm() : ''}`;
     }
 
     return `
       <section class="account-section">
-        <h2>${escapeHTML(translate("unit_group_title"))}</h2>
-        <p class="section-description">${escapeHTML(translate("unit_group_description"))}</p>
-        <p class="unit-group-note">${escapeHTML(translate("unit_group_shared_note"))}</p>
-        ${!this.canEditOrg ? `<p class="unit-settings-read-only">${translate("unit_settings_read_only")}</p>` : ""}
+        <h2>${escapeHTML(translate('unit_group_title'))}</h2>
+        <p class="section-description">${escapeHTML(translate('unit_group_description'))}</p>
+        <p class="unit-group-note">${escapeHTML(translate('unit_group_shared_note'))}</p>
+        ${!this.canEditOrg ? `<p class="unit-settings-read-only">${translate('unit_settings_read_only')}</p>` : ''}
         ${body}
       </section>`;
   }
 
   renderGroupMemberships() {
     if (!this.localGroupMemberships.length) {
-      return `<p class="unit-group-status">${escapeHTML(translate("unit_group_none"))}</p>`;
+      return `<p class="unit-group-status">${escapeHTML(translate('unit_group_none'))}</p>`;
     }
 
     const items = this.localGroupMemberships
       .map((group) => {
         const peers = Array.isArray(group.peer_organizations) ? group.peer_organizations : [];
         const peerText = peers.length
-          ? translate("unit_group_shared_with").replace("{units}", peers.join(", "))
-          : translate("unit_group_no_peers");
+          ? translate('unit_group_shared_with').replace('{units}', peers.join(', '))
+          : translate('unit_group_no_peers');
 
         return `
           <li class="unit-group-item">
@@ -468,12 +468,12 @@ export class UnitSettings extends BaseModule {
             </div>
             ${this.canEditOrg ? `
               <button type="button" class="button button--danger unit-group-leave-btn"
-                data-local-group-id="${group.id}" ${this.localGroupPending ? "disabled" : ""}>
-                ${escapeHTML(translate("unit_group_leave"))}
-              </button>` : ""}
+                data-local-group-id="${group.id}" ${this.localGroupPending ? 'disabled' : ''}>
+                ${escapeHTML(translate('unit_group_leave'))}
+              </button>` : ''}
           </li>`;
       })
-      .join("");
+      .join('');
 
     return `<ul class="unit-group-list">${items}</ul>`;
   }
@@ -483,24 +483,24 @@ export class UnitSettings extends BaseModule {
     const available = this.localGroups.filter((group) => !joinedIds.has(group.id));
 
     if (!available.length) {
-      return `<p class="unit-group-status">${escapeHTML(translate("unit_group_no_available"))}</p>`;
+      return `<p class="unit-group-status">${escapeHTML(translate('unit_group_no_available'))}</p>`;
     }
 
     const options = available
       .map((group) => `<option value="${group.id}">${escapeHTML(group.name)}</option>`)
-      .join("");
+      .join('');
 
     return `
       <form id="unit-group-join-form" class="unit-settings-form unit-group-join">
         <div class="form-group">
-          <label for="unit-group-select">${escapeHTML(translate("unit_group_join_label"))}</label>
-          <select id="unit-group-select" class="form-control" ${this.localGroupPending ? "disabled" : ""} required>
+          <label for="unit-group-select">${escapeHTML(translate('unit_group_join_label'))}</label>
+          <select id="unit-group-select" class="form-control" ${this.localGroupPending ? 'disabled' : ''} required>
             ${options}
           </select>
         </div>
         <button type="submit" id="unit-group-join-btn" class="button button--primary"
-          ${this.localGroupPending ? "disabled" : ""}>
-          ${escapeHTML(translate("unit_group_join"))}
+          ${this.localGroupPending ? 'disabled' : ''}>
+          ${escapeHTML(translate('unit_group_join'))}
         </button>
       </form>`;
   }
@@ -508,20 +508,20 @@ export class UnitSettings extends BaseModule {
   renderLanguageSection() {
     const options = SUPPORTED_LANGUAGES.map(
       ({ code, label }) =>
-        `<option value="${code}" ${this.emailLanguage === code ? "selected" : ""}>${escapeHTML(label)}</option>`
-    ).join("");
+        `<option value="${code}" ${this.emailLanguage === code ? 'selected' : ''}>${escapeHTML(label)}</option>`
+    ).join('');
 
     return `
       <section class="account-section">
-        <h2>${translate("unit_settings_language_title") || "Language"}</h2>
-        <p class="section-description">${translate("unit_settings_language_description") || "Default language used for emails and notifications sent by the organization."}</p>
+        <h2>${translate('unit_settings_language_title') || 'Language'}</h2>
+        <p class="section-description">${translate('unit_settings_language_description') || 'Default language used for emails and notifications sent by the organization.'}</p>
         <div class="form-group">
-          <label for="email-language-select">${translate("default_email_language") || "Default email language"}</label>
+          <label for="email-language-select">${translate('default_email_language') || 'Default email language'}</label>
           <select id="email-language-select" class="form-control">
             ${options}
           </select>
           <button id="save-language-btn" class="button button--primary unit-settings-save-button">
-            ${translate("save") || "Save"}
+            ${translate('save') || 'Save'}
           </button>
         </div>
       </section>`;
@@ -566,23 +566,23 @@ export class UnitSettings extends BaseModule {
   }
 
   renderSecuritySection() {
-    const checked = this.twoFactorDisabled ? "checked" : "";
+    const checked = this.twoFactorDisabled ? 'checked' : '';
     return `
       <section class="account-section">
-        <h2>${translate("security_settings_title") || "Security"}</h2>
-        <p class="section-description">${translate("security_settings_description") || "Configure organization-wide security policies."}</p>
+        <h2>${translate('security_settings_title') || 'Security'}</h2>
+        <p class="section-description">${translate('security_settings_description') || 'Configure organization-wide security policies.'}</p>
 
         <div class="setting-row">
           <label class="toggle-label" for="disable-2fa-toggle">
             <div class="toggle-label__text">
-              <strong>${translate("two_factor_disable_label") || "Disable Two-Factor Authentication"}</strong>
-              <span class="muted-text">${translate("two_factor_disable_description") || "When disabled, users log in with password only. Not recommended for organizations with sensitive data."}</span>
+              <strong>${translate('two_factor_disable_label') || 'Disable Two-Factor Authentication'}</strong>
+              <span class="muted-text">${translate('two_factor_disable_description') || 'When disabled, users log in with password only. Not recommended for organizations with sensitive data.'}</span>
             </div>
             <input type="checkbox" id="disable-2fa-toggle" role="switch" ${checked} />
           </label>
           ${this.twoFactorDisabled
-            ? `<p class="warning-text">${translate("two_factor_disabled_warning") || "Warning: Two-factor authentication is currently disabled for this organization."}</p>`
-            : ""}
+            ? `<p class="warning-text">${translate('two_factor_disabled_warning') || 'Warning: Two-factor authentication is currently disabled for this organization.'}</p>`
+            : ''}
         </div>
       </section>`;
   }
@@ -590,42 +590,42 @@ export class UnitSettings extends BaseModule {
   renderQuickLinks() {
     const links = [
       (canSendCommunications() || canAccessAdminPanel()) && {
-        href: "/communications",
-        icon: "fa-comments",
-        label: translate("communications_title") || "Communication settings",
-        description: translate("unit_settings_link_communications") || "Configure WhatsApp, Google Chat, and messaging.",
+        href: '/communications',
+        icon: 'fa-comments',
+        label: translate('communications_title') || 'Communication settings',
+        description: translate('unit_settings_link_communications') || 'Configure WhatsApp, Google Chat, and messaging.',
       },
       canViewRoles() && {
-        href: "/role-management",
-        icon: "fa-user-tag",
-        label: translate("role_management") || "Role Management",
-        description: translate("unit_settings_link_roles") || "Manage roles and permissions for your members.",
+        href: '/role-management',
+        icon: 'fa-user-tag',
+        label: translate('role_management') || 'Role Management',
+        description: translate('unit_settings_link_roles') || 'Manage roles and permissions for your members.',
       },
       canManageForms() && {
-        href: "/form-builder",
-        icon: "fa-file-pen",
-        label: translate("form_builder_title") || "Form Builder",
-        description: translate("unit_settings_link_form_builder"),
+        href: '/form-builder',
+        icon: 'fa-file-pen',
+        label: translate('form_builder_title') || 'Form Builder',
+        description: translate('unit_settings_link_form_builder'),
       },
       canManageForms() && {
-        href: "/form-permissions",
-        icon: "fa-clipboard-check",
-        label: translate("form_permissions") || "Form Permissions",
-        description: translate("unit_settings_link_forms") || "Control which roles can access each form.",
+        href: '/form-permissions',
+        icon: 'fa-clipboard-check',
+        label: translate('form_permissions') || 'Form Permissions',
+        description: translate('unit_settings_link_forms') || 'Control which roles can access each form.',
       },
-      hasPermission("scout_year.view") && {
-        href: "/scout-year",
-        icon: "fa-calendar-days",
-        label: translate("scout_year_title") || "Scout Year",
-        description: translate("unit_settings_link_scout_year") || "Start a new scout year and consult past ones.",
+      hasPermission('scout_year.view') && {
+        href: '/scout-year',
+        icon: 'fa-calendar-days',
+        label: translate('scout_year_title') || 'Scout Year',
+        description: translate('unit_settings_link_scout_year') || 'Start a new scout year and consult past ones.',
       },
     ].filter(Boolean);
 
-    if (!links.length) return "";
+    if (!links.length) return '';
 
     return `
       <section class="account-section">
-        <h2>${translate("unit_settings_more_title") || "More Settings"}</h2>
+        <h2>${translate('unit_settings_more_title') || 'More Settings'}</h2>
         <div class="manage-items manage-items--cards">
           ${links
             .map(
@@ -638,13 +638,13 @@ export class UnitSettings extends BaseModule {
               </div>
             </a>`
             )
-            .join("")}
+            .join('')}
         </div>
       </section>`;
   }
 
   attachEventListeners() {
-    const tabButtons = Array.from(document.querySelectorAll("[data-settings-tab]"));
+    const tabButtons = Array.from(document.querySelectorAll('[data-settings-tab]'));
     const activateTab = (requestedTab, shouldFocus = false) => {
       if (!this.getSettingsTabs().includes(requestedTab)) return;
       if (requestedTab !== this.activeTab) {
@@ -659,27 +659,27 @@ export class UnitSettings extends BaseModule {
     };
 
     tabButtons.forEach((button, index) => {
-      this.addEventListener(button, "click", () => activateTab(button.dataset.settingsTab, true));
-      this.addEventListener(button, "keydown", (event) => {
+      this.addEventListener(button, 'click', () => activateTab(button.dataset.settingsTab, true));
+      this.addEventListener(button, 'keydown', (event) => {
         let targetIndex = null;
-        if (event.key === "ArrowRight") targetIndex = (index + 1) % tabButtons.length;
-        if (event.key === "ArrowLeft") targetIndex = (index - 1 + tabButtons.length) % tabButtons.length;
-        if (event.key === "Home") targetIndex = 0;
-        if (event.key === "End") targetIndex = tabButtons.length - 1;
+        if (event.key === 'ArrowRight') targetIndex = (index + 1) % tabButtons.length;
+        if (event.key === 'ArrowLeft') targetIndex = (index - 1 + tabButtons.length) % tabButtons.length;
+        if (event.key === 'Home') targetIndex = 0;
+        if (event.key === 'End') targetIndex = tabButtons.length - 1;
         if (targetIndex === null) return;
         event.preventDefault();
         activateTab(tabButtons[targetIndex].dataset.settingsTab, true);
       });
     });
 
-    const unitDetailsForm = document.getElementById("unit-details-form");
+    const unitDetailsForm = document.getElementById('unit-details-form');
     if (unitDetailsForm && this.canEditOrg) {
-      this.addEventListener(unitDetailsForm, "submit", (event) => this.handleSaveUnitDetails(event));
+      this.addEventListener(unitDetailsForm, 'submit', (event) => this.handleSaveUnitDetails(event));
     }
 
-    const saveLanguageBtn = document.getElementById("save-language-btn");
+    const saveLanguageBtn = document.getElementById('save-language-btn');
     if (saveLanguageBtn) {
-      this.addEventListener(saveLanguageBtn, "click", () => this.handleSaveLanguage());
+      this.addEventListener(saveLanguageBtn, 'click', () => this.handleSaveLanguage());
     }
 
     const emailSenderForm = document.getElementById('email-sender-form');
@@ -687,22 +687,22 @@ export class UnitSettings extends BaseModule {
       this.addEventListener(emailSenderForm, 'submit', (event) => this.handleSaveEmailSender(event));
     }
 
-    const twoFaToggle = document.getElementById("disable-2fa-toggle");
+    const twoFaToggle = document.getElementById('disable-2fa-toggle');
     if (twoFaToggle) {
-      this.addEventListener(twoFaToggle, "change", (e) => this.handleTwoFactorToggle(e.target.checked));
+      this.addEventListener(twoFaToggle, 'change', (e) => this.handleTwoFactorToggle(e.target.checked));
     }
 
-    const vocabularyForm = document.getElementById("unit-vocabulary-form");
+    const vocabularyForm = document.getElementById('unit-vocabulary-form');
     if (vocabularyForm && this.canEditOrg) {
-      this.addEventListener(vocabularyForm, "submit", (event) => this.handleSaveVocabulary(event));
+      this.addEventListener(vocabularyForm, 'submit', (event) => this.handleSaveVocabulary(event));
     }
 
-    const profileSelect = document.getElementById("unit-vocabulary-profile");
+    const profileSelect = document.getElementById('unit-vocabulary-profile');
     if (profileSelect && this.canEditOrg) {
-      this.addEventListener(profileSelect, "change", () => {
+      this.addEventListener(profileSelect, 'change', () => {
         const selectedProfile = profileSelect.value;
         const nextVocabulary = createVocabularyFromProfile(
-          selectedProfile === "custom" ? "generic" : selectedProfile,
+          selectedProfile === 'custom' ? 'generic' : selectedProfile,
         );
         nextVocabulary.profile = selectedProfile;
         this.vocabulary = nextVocabulary;
@@ -711,19 +711,19 @@ export class UnitSettings extends BaseModule {
       });
     }
 
-    const dashboardForm = document.getElementById("unit-dashboard-form");
+    const dashboardForm = document.getElementById('unit-dashboard-form');
     if (dashboardForm && this.canEditOrg) {
-      this.addEventListener(dashboardForm, "submit", (event) => this.handleSaveDashboard(event));
+      this.addEventListener(dashboardForm, 'submit', (event) => this.handleSaveDashboard(event));
     }
 
-    const groupJoinForm = document.getElementById("unit-group-join-form");
+    const groupJoinForm = document.getElementById('unit-group-join-form');
     if (groupJoinForm && this.canEditOrg) {
-      this.addEventListener(groupJoinForm, "submit", (event) => this.handleJoinGroup(event));
+      this.addEventListener(groupJoinForm, 'submit', (event) => this.handleJoinGroup(event));
     }
 
     if (this.canEditOrg) {
-      document.querySelectorAll(".unit-group-leave-btn").forEach((button) => {
-        this.addEventListener(button, "click", () =>
+      document.querySelectorAll('.unit-group-leave-btn').forEach((button) => {
+        this.addEventListener(button, 'click', () =>
           this.handleLeaveGroup(Number(button.dataset.localGroupId)));
       });
     }
@@ -754,7 +754,7 @@ export class UnitSettings extends BaseModule {
         this.localGroupMemberships = membershipResponse?.data || [];
         this.localGroupsLoaded = true;
       } catch (error) {
-        debugError("Failed to load local groups:", error);
+        debugError('Failed to load local groups:', error);
         this.localGroupsError = true;
       } finally {
         this.localGroupsLoading = false;
@@ -778,7 +778,7 @@ export class UnitSettings extends BaseModule {
 
   async handleJoinGroup(event) {
     event.preventDefault();
-    const select = document.getElementById("unit-group-select");
+    const select = document.getElementById('unit-group-select');
     const localGroupId = Number(select?.value);
     if (!Number.isInteger(localGroupId) || localGroupId <= 0) return;
 
@@ -788,10 +788,10 @@ export class UnitSettings extends BaseModule {
     try {
       const response = await joinLocalGroup(localGroupId);
       this.localGroupMemberships = response?.data?.memberships || this.localGroupMemberships;
-      this.app?.showMessage?.(translate("unit_group_joined"), "success");
+      this.app?.showMessage?.(translate('unit_group_joined'), 'success');
     } catch (error) {
-      debugError("Failed to join local group:", error);
-      this.app?.showMessage?.(this.getLocalizedSaveError(error), "error");
+      debugError('Failed to join local group:', error);
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), 'error');
     } finally {
       this.localGroupPending = false;
       this.refreshGroupPanel();
@@ -803,10 +803,10 @@ export class UnitSettings extends BaseModule {
 
     const group = this.localGroupMemberships.find((entry) => entry.id === localGroupId);
     const confirmed = await confirmDestructive({
-      title: translate("unit_group_leave"),
-      message: translate("unit_group_leave_confirm").replace("{group}", group?.name || ""),
-      confirmLabel: translate("unit_group_leave"),
-      cancelLabel: translate("cancel"),
+      title: translate('unit_group_leave'),
+      message: translate('unit_group_leave_confirm').replace('{group}', group?.name || ''),
+      confirmLabel: translate('unit_group_leave'),
+      cancelLabel: translate('cancel'),
     });
     if (!confirmed) return;
 
@@ -817,10 +817,10 @@ export class UnitSettings extends BaseModule {
       await leaveLocalGroup(localGroupId);
       this.localGroupMemberships = this.localGroupMemberships
         .filter((entry) => entry.id !== localGroupId);
-      this.app?.showMessage?.(translate("unit_group_left"), "success");
+      this.app?.showMessage?.(translate('unit_group_left'), 'success');
     } catch (error) {
-      debugError("Failed to leave local group:", error);
-      this.app?.showMessage?.(this.getLocalizedSaveError(error), "error");
+      debugError('Failed to leave local group:', error);
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), 'error');
     } finally {
       this.localGroupPending = false;
       this.refreshGroupPanel();
@@ -836,37 +836,37 @@ export class UnitSettings extends BaseModule {
    */
   getLocalizedSaveError(error) {
     if (error?.status === 400) {
-      return translate("unit_settings_invalid_settings");
+      return translate('unit_settings_invalid_settings');
     }
     if (error?.status === 401) {
-      return translate("authentication_required");
+      return translate('authentication_required');
     }
     if (error?.status === 403) {
-      return translate("insufficient_permissions");
+      return translate('insufficient_permissions');
     }
-    return translate("error_saving");
+    return translate('error_saving');
   }
 
   async handleSaveUnitDetails(event) {
     event.preventDefault();
-    const form = document.getElementById("unit-details-form");
-    const btn = document.getElementById("save-unit-details-btn");
+    const form = document.getElementById('unit-details-form');
+    const btn = document.getElementById('save-unit-details-btn');
     if (!form || !btn || !form.reportValidity()) return;
 
     const payload = {
-      name: String(document.getElementById("unit-organization-name")?.value || "").trim(),
-      unit: String(document.getElementById("unit-name")?.value || "").trim(),
-      district: String(document.getElementById("unit-district")?.value || "").trim(),
-      animateur_responsable: String(document.getElementById("unit-group-leader")?.value || "").trim(),
-      endroit: String(document.getElementById("unit-meeting-location")?.value || "").trim(),
-      meeting_day: String(document.getElementById("unit-meeting-day")?.value || ""),
-      meeting_time: String(document.getElementById("unit-meeting-time")?.value || ""),
-      meeting_duration: Number(document.getElementById("unit-meeting-duration")?.value),
-      logo: String(document.getElementById("unit-logo-url")?.value || "").trim(),
+      name: String(document.getElementById('unit-organization-name')?.value || '').trim(),
+      unit: String(document.getElementById('unit-name')?.value || '').trim(),
+      district: String(document.getElementById('unit-district')?.value || '').trim(),
+      animateur_responsable: String(document.getElementById('unit-group-leader')?.value || '').trim(),
+      endroit: String(document.getElementById('unit-meeting-location')?.value || '').trim(),
+      meeting_day: String(document.getElementById('unit-meeting-day')?.value || ''),
+      meeting_time: String(document.getElementById('unit-meeting-time')?.value || ''),
+      meeting_duration: Number(document.getElementById('unit-meeting-duration')?.value),
+      logo: String(document.getElementById('unit-logo-url')?.value || '').trim(),
     };
 
     btn.disabled = true;
-    btn.textContent = translate("saving");
+    btn.textContent = translate('saving');
 
     try {
       const response = await updateOrganizationInfo(payload);
@@ -885,39 +885,39 @@ export class UnitSettings extends BaseModule {
         };
       }
 
-      this.app?.showMessage?.(translate("unit_settings_details_saved"), "success");
+      this.app?.showMessage?.(translate('unit_settings_details_saved'), 'success');
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Failed to save unit details:", error);
-      this.app?.showMessage?.(this.getLocalizedSaveError(error), "error");
+      debugError('Failed to save unit details:', error);
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), 'error');
     } finally {
-      const saveButton = document.getElementById("save-unit-details-btn");
+      const saveButton = document.getElementById('save-unit-details-btn');
       if (saveButton) {
         saveButton.disabled = false;
-        saveButton.textContent = translate("save");
+        saveButton.textContent = translate('save');
       }
     }
   }
 
   async handleSaveVocabulary(event) {
     event.preventDefault();
-    const form = document.getElementById("unit-vocabulary-form");
-    const btn = document.getElementById("save-vocabulary-btn");
+    const form = document.getElementById('unit-vocabulary-form');
+    const btn = document.getElementById('save-vocabulary-btn');
     if (!form || !btn || !form.reportValidity()) return;
 
     const locales = { en: {}, fr: {} };
-    document.querySelectorAll(".unit-vocabulary-input").forEach((input) => {
+    document.querySelectorAll('.unit-vocabulary-input').forEach((input) => {
       locales[input.dataset.locale][input.dataset.termKey] = input.value.trim();
     });
     const payload = {
       version: UNIT_CUSTOMIZATION_CONFIG.version,
-      profile: document.getElementById("unit-vocabulary-profile")?.value || "custom",
+      profile: document.getElementById('unit-vocabulary-profile')?.value || 'custom',
       locales,
     };
 
     btn.disabled = true;
-    btn.textContent = translate("saving");
+    btn.textContent = translate('saving');
     try {
       const response = await updateUnitVocabulary(payload);
       this.vocabulary = response?.data?.unit_vocabulary || payload;
@@ -929,27 +929,27 @@ export class UnitSettings extends BaseModule {
             || this.app.organizationSettings?.program_section,
         };
       }
-      this.app?.showMessage?.(translate("unit_vocabulary_saved"), "success");
+      this.app?.showMessage?.(translate('unit_vocabulary_saved'), 'success');
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Failed to save unit vocabulary:", error);
-      this.app?.showMessage?.(this.getLocalizedSaveError(error), "error");
+      debugError('Failed to save unit vocabulary:', error);
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), 'error');
     } finally {
-      const saveButton = document.getElementById("save-vocabulary-btn");
+      const saveButton = document.getElementById('save-vocabulary-btn');
       if (saveButton) {
         saveButton.disabled = false;
-        saveButton.textContent = translate("save");
+        saveButton.textContent = translate('save');
       }
     }
   }
 
   async handleSaveDashboard(event) {
     event.preventDefault();
-    const btn = document.getElementById("save-dashboard-btn");
+    const btn = document.getElementById('save-dashboard-btn');
     if (!btn) return;
 
-    const hiddenTileKeys = Array.from(document.querySelectorAll(".unit-dashboard-feature"))
+    const hiddenTileKeys = Array.from(document.querySelectorAll('.unit-dashboard-feature'))
       .filter((input) => !input.checked && !input.disabled)
       .map((input) => input.dataset.featureKey);
     const payload = {
@@ -958,7 +958,7 @@ export class UnitSettings extends BaseModule {
     };
 
     btn.disabled = true;
-    btn.textContent = translate("saving");
+    btn.textContent = translate('saving');
     try {
       const response = await updateDashboardConfiguration(payload);
       this.dashboardConfiguration = response?.data?.dashboard_configuration || payload;
@@ -968,38 +968,38 @@ export class UnitSettings extends BaseModule {
           dashboard_configuration: this.dashboardConfiguration,
         };
       }
-      this.app?.showMessage?.(translate("unit_dashboard_saved"), "success");
+      this.app?.showMessage?.(translate('unit_dashboard_saved'), 'success');
     } catch (error) {
-      debugError("Failed to save dashboard configuration:", error);
-      this.app?.showMessage?.(this.getLocalizedSaveError(error), "error");
+      debugError('Failed to save dashboard configuration:', error);
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), 'error');
     } finally {
       btn.disabled = false;
-      btn.textContent = translate("save");
+      btn.textContent = translate('save');
     }
   }
 
   async handleSaveLanguage() {
-    const select = document.getElementById("email-language-select");
-    const btn = document.getElementById("save-language-btn");
+    const select = document.getElementById('email-language-select');
+    const btn = document.getElementById('save-language-btn');
     if (!select || !btn) return;
 
     const language = select.value;
     btn.disabled = true;
-    btn.textContent = translate("saving") || "Saving...";
+    btn.textContent = translate('saving') || 'Saving...';
 
     try {
-      await makeApiRequest("v1/organizations/settings/email-language", {
-        method: "PATCH",
+      await makeApiRequest('v1/organizations/settings/email-language', {
+        method: 'PATCH',
         body: { language },
       });
       this.emailLanguage = language;
-      this.app?.showMessage?.(translate("unit_settings_language_saved") || "Language saved.", "success");
+      this.app?.showMessage?.(translate('unit_settings_language_saved') || 'Language saved.', 'success');
     } catch (error) {
-      debugError("Failed to save email language:", error);
-      this.app?.showMessage?.(this.getLocalizedSaveError(error), "error");
+      debugError('Failed to save email language:', error);
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), 'error');
     } finally {
       btn.disabled = false;
-      btn.textContent = translate("save") || "Save";
+      btn.textContent = translate('save') || 'Save';
     }
   }
 
@@ -1037,24 +1037,24 @@ export class UnitSettings extends BaseModule {
   }
 
   async handleTwoFactorToggle(disabled) {
-    const toggle = document.getElementById("disable-2fa-toggle");
+    const toggle = document.getElementById('disable-2fa-toggle');
     if (toggle) toggle.disabled = true;
 
     try {
-      await makeApiRequest("v1/organizations/settings", {
-        method: "PUT",
-        body: { setting_key: "security", setting_value: { two_factor_disabled: disabled } },
+      await makeApiRequest('v1/organizations/settings', {
+        method: 'PUT',
+        body: { setting_key: 'security', setting_value: { two_factor_disabled: disabled } },
       });
       this.twoFactorDisabled = disabled;
-      this.app?.showMessage?.(translate("two_factor_setting_saved") || "Security setting saved.", "success");
+      this.app?.showMessage?.(translate('two_factor_setting_saved') || 'Security setting saved.', 'success');
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Failed to save 2FA setting:", error);
-      this.app?.showMessage?.(this.getLocalizedSaveError(error), "error");
+      debugError('Failed to save 2FA setting:', error);
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), 'error');
       if (toggle) toggle.checked = !disabled;
     } finally {
-      const t = document.getElementById("disable-2fa-toggle");
+      const t = document.getElementById('disable-2fa-toggle');
       if (t) t.disabled = false;
     }
   }
