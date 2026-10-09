@@ -77,6 +77,13 @@ describe('Service Worker Configuration', () => {
     test('should clean up outdated caches on activation', () => {
       expect(serviceWorkerSource).toContain('cleanupOutdatedCaches');
     });
+
+    test('should fetch translation files network-first so a new build never runs on old keys', () => {
+      // /lang/*.json has no build hash; a cache-first answer pairs new code with old keys
+      expect(serviceWorkerSource).toMatch(
+        /url\.pathname\.startsWith\('\/lang\/'\)[^;]*new NetworkFirst\(\{\s*cacheName: 'translations-cache'/s
+      );
+    });
   });
 
   describe('Navigation Route Configuration', () => {
