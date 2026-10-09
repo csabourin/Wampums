@@ -174,7 +174,7 @@ export const ROLE_BUNDLES = {
     displayName: "Parent",
     description:
       "Guardian-level access scoped to linked participants and household communications.",
-    permissions: ["participants.view", "participants.create_own", "permission_slips.sign"],
+    permissions: ['participants.view', 'participants.create_own', 'permission_slips.sign', 'activities.view', 'carpools.view'],
     level: 0,
     scope: "self",
     conflictsWith: ["demoparent"],
@@ -194,7 +194,7 @@ export const ROLE_BUNDLES = {
     displayName: "Demo Parent",
     description:
       "Read-only parent experience for demonstrations without the ability to modify records.",
-    permissions: ["participants.view"],
+    permissions: ['participants.view', 'activities.view', 'carpools.view'],
     level: 0,
     scope: "self",
     conflictsWith: ["district", "unitadmin", "leader", "finance", "equipment", "administration", "parent"],

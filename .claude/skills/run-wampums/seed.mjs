@@ -4,7 +4,8 @@
  *
  *   admin@run.test   -- holds every permission in the unit
  *   leader@run.test  -- leader: participants, attendance, points, walk-ins
- *   parent@run.test  -- parent role, one child (Léa) enrolled this year
+ *   parent@run.test  -- parent role (its real permissions), guardian of one
+ *                       child (Léa) enrolled this year; standard forms installed
  *
  * All three use the password printed at the end. Two-factor sign-in is switched off
  * for this unit only, through the unit's own `security` setting, so the login
@@ -94,10 +95,13 @@ try {
     'INSERT INTO role_permissions (role_id, permission_id) SELECT $1, id FROM permissions ON CONFLICT DO NOTHING',
     [adminRole]
   );
+  // Exactly the parent bundle in config/roles.js (and the migrations), so a
+  // save that would be refused to a real parent is refused here too.
   await pool.query(
     `INSERT INTO role_permissions (role_id, permission_id)
      SELECT $1, id FROM permissions
-      WHERE permission_key IN ('participants.view', 'participants.create', 'participants.create_own')
+      WHERE permission_key IN ('participants.view', 'participants.create_own', 'permission_slips.sign',
+                               'activities.view', 'carpools.view')
      ON CONFLICT DO NOTHING`,
     [parentRole]
   );
@@ -120,9 +124,9 @@ try {
   await member('leader@run.test', 'Baloo Leader', leaderRole);
   const parentId = await member('parent@run.test', 'Marie Parent', parentRole);
 
-  await pool.query(
+  const guardianId = await one(
     `INSERT INTO parents_guardians (nom, prenom, courriel, user_uuid) VALUES ('Parent', 'Marie', 'parent@run.test', $1)
-     ON CONFLICT (courriel) DO UPDATE SET user_uuid = EXCLUDED.user_uuid`,
+     ON CONFLICT (courriel) DO UPDATE SET user_uuid = EXCLUDED.user_uuid RETURNING id`,
     [parentId]
   );
   const childId = await one(
@@ -135,6 +139,21 @@ try {
   // Through the access service, as every link between an account and a child must be.
   const { grantParticipantAccess, ACCESS_SOURCE } = require(path.join(ROOT, 'services/participantAccess.js'));
   await grantParticipantAccess(pool, { participantId: childId, userId: parentId, sourceType: ACCESS_SOURCE.DIRECT });
+  // Marie is Léa's guardian: medication authorizations are signed by a named guardian.
+  await pool.query(
+    'INSERT INTO participant_guardians (participant_id, guardian_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+    [childId, guardianId]
+  );
+
+  // The standard forms (health, risk acceptance, registration...) with the
+  // per-role rights a new unit receives, so the parent dashboard lists them.
+  const { installDefaultFormFormats } = require(path.join(ROOT, 'services/defaultFormFormats.js'));
+  const formsClient = await pool.connect();
+  try {
+    await installDefaultFormFormats(formsClient, organizationId);
+  } finally {
+    formsClient.release();
+  }
 
   const seed = {
     organizationId,

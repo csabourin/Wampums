@@ -18,6 +18,7 @@ import { canManageCarpools, canViewCarpools, isParent } from './utils/Permission
 import { OptimisticUpdateManager, generateOptimisticId } from './utils/OptimisticUpdateManager.js';
 import { skeletonCarpoolDashboard, setButtonLoading } from './utils/SkeletonUtils.js';
 import { debugError, debugLog } from './utils/DebugUtils.js';
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 import { CONFIG } from './config.js';
 import { offlineManager } from './modules/OfflineManager.js';
 import { getCachedData, setCachedData } from './indexedDB.js';
@@ -1028,7 +1029,7 @@ export class CarpoolDashboard {
         this.render();
         this.attachEventListeners();
         debugError('Error cancelling ride:', error);
-        this.app.showMessage(error.message || translate('error_cancelling_ride'), 'error');
+        this.app.showMessage(apiErrorMessage(error, 'error_cancelling_ride'), 'error');
       }
     });
   }
@@ -1097,7 +1098,7 @@ export class CarpoolDashboard {
         this.carpoolOffers = originalOffers;
         this.render();
         this.attachEventListeners();
-        this.app.showMessage(error.message || translate('error_removing_assignment'), 'error');
+        this.app.showMessage(apiErrorMessage(error, 'error_removing_assignment'), 'error');
       }
     });
   }
@@ -1138,7 +1139,7 @@ export class CarpoolDashboard {
             await onSubmit(formData);
             closeModal();
           } catch (error) {
-            this.app.showMessage(error.message || translate('error_occurred'), 'error');
+            this.app.showMessage(apiErrorMessage(error, 'error_occurred'), 'error');
           }
         });
       });

@@ -10,6 +10,7 @@ import {
 } from "./ajax-functions.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { apiErrorMessage } from "./utils/ApiErrorUtils.js";
 
 /**
  * Every form control carrying a field name within one form.
@@ -154,7 +155,7 @@ export class DynamicFormHandler {
             }
         } catch (error) {
             debugError("Error saving form:", error);
-            this.showError(translate("error_saving_data") + ": " + error.message);
+            this.showError(apiErrorMessage(error, "error_saving_data"));
             throw error;
         }
     }
@@ -369,7 +370,7 @@ export class DynamicFormHandler {
             }
         } catch (error) {
             debugError("Error saving form:", error);
-            this.showError(error.message);
+            this.showError(apiErrorMessage(error, "error_saving_form"));
         }
     }
 

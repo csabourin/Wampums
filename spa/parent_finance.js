@@ -9,6 +9,7 @@ import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { CONFIG } from './config.js';
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 import { formatDateShort } from "./utils/DateUtils.js";
 import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.js";
 import { isParent } from "./utils/PermissionUtils.js";
@@ -529,6 +530,8 @@ export class ParentFinance {
       // Create Stripe Elements
       this.elements = this.stripe.elements({
         clientSecret,
+        // Card errors come from Stripe; ask for them in the page's language.
+        locale: this.app?.language || CONFIG.DEFAULT_LANG || 'auto',
         appearance: {
           theme: 'stripe',
           variables: {
@@ -553,7 +556,7 @@ export class ParentFinance {
       debugError("Error initializing payment:", error);
       const errorDiv = document.getElementById('payment-error-message');
       if (errorDiv) {
-        errorDiv.textContent = error.message || translate("payment_initialization_failed");
+        errorDiv.textContent = apiErrorMessage(error, 'payment_initialization_failed');
       }
       this.app.showMessage(translate("payment_initialization_failed"), "error");
     }

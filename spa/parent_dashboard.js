@@ -31,8 +31,9 @@ import { translate, registerPushSubscription } from "./app.js";
 import { hexStringToUint8Array, base64UrlEncode } from "./functions.js";
 import { CONFIG } from "./config.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { apiErrorMessage, apiErrorMessageKey } from "./utils/ApiErrorUtils.js";
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
-import { isParent, hasPermission, canViewFinance, canManageFinance, canViewBudget, canManageBudget } from "./utils/PermissionUtils.js";
+import { isParent, hasPermission, canViewFinance, canManageFinance, canViewBudget, canManageBudget, canViewBadges, canApproveBadges, canViewReports, canViewActivities, canViewCarpools } from "./utils/PermissionUtils.js";
 import { formatDateShort, parseDate } from "./utils/DateUtils.js";
 import {
         formatActivityDateRange,
@@ -515,11 +516,11 @@ export class ParentDashboard {
                                                 <a href="/parent-program-progress" class="dashboard-button dashboard-button--secondary">
                                                         ${translate("program_progress_parent_link")}
                                                 </a>
-                                                <button id="downloadCalendarButton" type="button" class="dashboard-button dashboard-button--secondary">
+                                                ${canViewActivities() ? `<button id="downloadCalendarButton" type="button" class="dashboard-button dashboard-button--secondary">
                                                         ${translate("download_activities_calendar")}
-                                                </button>
+                                                </button>` : ""}
                                         </div>
-                                        ${calendarDownloadAction}
+                                        ${canViewActivities() ? calendarDownloadAction : ""}
                                         ${this.renderCarpoolButton()}
                                 </section>
 
@@ -699,7 +700,11 @@ export class ParentDashboard {
         }
 
         renderCarpoolButton() {
-                // Show a carpooling link for parents to coordinate rides
+                // Show a carpooling link for parents to coordinate rides; it
+                // lists the unit's activities, then opens their carpools.
+                if (!canViewActivities() || !canViewCarpools()) {
+                        return "";
+                }
                 return `
                         <div class="parent-dashboard__carpool-section" style="margin-top: 1.5rem;">
                                 <a href="#" id="view-carpool-activities" class="dashboard-button dashboard-button--secondary" style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
@@ -836,19 +841,21 @@ export class ParentDashboard {
                         })
                         .join("");
 
-                const badgeButton = `
+                // Badges and reports are unit-wide pages: offering them to an
+                // account that cannot open them only leads to a refusal.
+                const badgeButton = canViewBadges() || canApproveBadges() ? `
                 <a href="/badge-form/${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">🏅</span>
                         <span class="form-btn__label">${translate("manage_badge_progress")}</span>
                 </a>
-        `;
+        ` : "";
 
-                const progressReportButton = `
+                const progressReportButton = canViewReports() ? `
                 <a href="/reports?participantId=${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">📊</span>
                         <span class="form-btn__label">${translate("view_progress_report")}</span>
                 </a>
-        `;
+        ` : "";
 
                 const programProgressButton = `
                 <a href="/parent-program-progress" class="form-btn form-btn--badge">
@@ -1294,51 +1301,31 @@ export class ParentDashboard {
                                         error,
                                 );
 
-                                // Show specific error message if available
-                                const errorMessage =
-                                        error?.message ||
-                                        translate(
-                                                "resource_dashboard_error_loading",
-                                        );
-
-                                // Check for specific error cases and provide user-friendly messages
+                                const errorMessage = error?.message || "";
                                 if (
-                                        errorMessage.includes(
-                                                "already been answered",
-                                        ) ||
-                                        errorMessage.includes("already signed")
+                                        apiErrorMessageKey(error) === "api_error_conflict" ||
+                                        errorMessage.includes("already been answered")
                                 ) {
                                         this.app.showMessage(
-                                                translate(
-                                                        "permission_slip_already_answered",
-                                                ),
+                                                translate("permission_slip_already_answered"),
                                                 "warning",
                                         );
                                         // Refresh the section to show current state
-                                        await this.loadPermissionSlips(
-                                                participantId,
-                                                true,
-                                        );
-                                        this.refreshPermissionSlipSection(
-                                                participantId,
-                                        );
+                                        await this.loadPermissionSlips(participantId, true);
+                                        this.refreshPermissionSlipSection(participantId);
                                 } else if (
                                         errorMessage.includes(
                                                 "only respond to permission slips for your own children",
-                                        ) ||
-                                        errorMessage.includes(
-                                                "only sign permission slips for your own children",
                                         )
                                 ) {
                                         this.app.showMessage(
-                                                translate(
-                                                        "permission_slip_not_your_child",
-                                                ),
+                                                translate("permission_slip_not_your_child"),
                                                 "error",
                                         );
                                 } else {
+                                        // The server's message is English; explain in the page's language.
                                         this.app.showMessage(
-                                                errorMessage,
+                                                apiErrorMessage(error, "error_saving"),
                                                 "error",
                                         );
                                 }
