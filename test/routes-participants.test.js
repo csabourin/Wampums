@@ -254,6 +254,70 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
     expect(healthQuery.query).toContain('organization_id = $1');
   });
 
+  test('withholds medication flags from unit-wide staff without medication.view', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ roleNames: ['leader'], permissions: ['participants.view'] });
+    let medicationQueried = false;
+
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes('FROM participants p') && !query.includes('COUNT(')) {
+        return Promise.resolve({ rows: [{ id: 60, first_name: 'Léa', last_name: 'Parent' }] });
+      }
+      if (query.includes("form_type = 'fiche_sante'") || query.includes('FROM medication_requirements')) {
+        medicationQueried = true;
+        return Promise.resolve({ rows: [{ participant_id: 60, submission_data: { has_medication: 'yes' } }] });
+      }
+      if (query.includes('data_scope')) {
+        return Promise.resolve({ rows: [{ data_scope: 'organization' }] });
+      }
+      if (query.includes('permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'participants.view' }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .get('/api/v1/participants')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0]).not.toHaveProperty('declares_medication');
+    expect(res.body.data[0]).not.toHaveProperty('has_planned_medication');
+    expect(medicationQueried).toBe(false);
+  });
+
+  test('gives unit-wide staff holding medication.view the medication flags', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ roleNames: ['leader'], permissions: ['participants.view', 'medication.view'] });
+
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes('FROM participants p') && !query.includes('COUNT(')) {
+        return Promise.resolve({ rows: [{ id: 60, first_name: 'Léa', last_name: 'Parent' }] });
+      }
+      if (query.includes("form_type = 'fiche_sante'")) {
+        return Promise.resolve({ rows: [{ participant_id: 60, submission_data: { has_medication: 'yes' } }] });
+      }
+      if (query.includes('FROM medication_requirements')) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('data_scope')) {
+        return Promise.resolve({ rows: [{ data_scope: 'organization' }] });
+      }
+      if (query.includes('permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'participants.view' }, { permission_key: 'medication.view' }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .get('/api/v1/participants')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].declares_medication).toBe(true);
+    expect(res.body.data[0].has_planned_medication).toBe(false);
+  });
+
   test('filters by group_id parameter', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({

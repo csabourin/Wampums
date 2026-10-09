@@ -306,15 +306,22 @@ module.exports = (pool) => {
     const totalRow = countResult && Array.isArray(countResult.rows) ? countResult.rows[0] : null;
     const total = Number.parseInt(totalRow?.total ?? totalRow?.count ?? 0, 10) || 0;
 
-    const participantIds = participants.map((participant) => participant.id);
-    const [medicationDeclared, medicationPlanned] = await Promise.all([
-      findDeclaredMedication(pool, organizationId, participantIds),
-      findPlannedMedication(pool, organizationId, participantIds)
-    ]);
-    participants.forEach((participant) => {
-      participant.declares_medication = medicationDeclared.has(participant.id);
-      participant.has_planned_medication = medicationPlanned.has(participant.id);
-    });
+    // Whether a child takes medication is health information. Unit-wide it
+    // follows medication.view, like the medication routes; a linked account
+    // reads it only for the children this query already limited it to.
+    const mayReadMedication = dataScope !== 'organization'
+      || (req.userPermissions || []).includes('medication.view');
+    if (mayReadMedication) {
+      const participantIds = participants.map((participant) => participant.id);
+      const [medicationDeclared, medicationPlanned] = await Promise.all([
+        findDeclaredMedication(pool, organizationId, participantIds),
+        findPlannedMedication(pool, organizationId, participantIds)
+      ]);
+      participants.forEach((participant) => {
+        participant.declares_medication = medicationDeclared.has(participant.id);
+        participant.has_planned_medication = medicationPlanned.has(participant.id);
+      });
+    }
 
     return paginated(res, participants, page, limit, total);
   }));
