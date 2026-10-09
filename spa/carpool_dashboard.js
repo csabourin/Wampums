@@ -26,7 +26,7 @@ import { confirm as confirmDialog, confirmDestructive, prompt as promptDialog } 
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { parseDate } from './utils/DateUtils.js';
-import { escapeHTML } from './utils/SecurityUtils.js';
+import { escapeAttribute, escapeHTML } from './utils/SecurityUtils.js';
 import { withButtonLoading } from './utils/PerformanceUtils.js';
 import {
   formatActivityDateRange,
@@ -199,7 +199,7 @@ export class CarpoolDashboard {
 
         <!-- Activity Info Card -->
         <div class="activity-info-card">
-          <h2>${this.activity.name}</h2>
+          <h2>${escapeHTML(this.activity.name)}</h2>
           <p class="activity-info-card__date">${activityDate ? activityDateLabel : ''}</p>
 
           <div class="activity-info-card__details">
@@ -319,7 +319,7 @@ export class CarpoolDashboard {
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
               <circle cx="12" cy="7" r="4"></circle>
             </svg>
-            <strong>${offer.driver_name}</strong>
+            <strong>${escapeHTML(offer.driver_name)}</strong>
             ${isOwner ? `<span class="badge badge--primary">${translate('you')}</span>` : ''}
           </div>
 
@@ -344,11 +344,11 @@ export class CarpoolDashboard {
             <circle cx="18.5" cy="15.5" r="2.5"></circle>
             <circle cx="5.5" cy="15.5" r="2.5"></circle>
           </svg>
-          ${offer.vehicle_color} ${offer.vehicle_make}
+          ${escapeHTML(offer.vehicle_color)} ${escapeHTML(offer.vehicle_make)}
         </div>
 
         ${offer.notes ? `
-          <p class="carpool-offer-card__notes">${offer.notes}</p>
+          <p class="carpool-offer-card__notes">${escapeHTML(offer.notes)}</p>
         ` : ''}
 
         <div class="carpool-offer-card__capacity">
@@ -379,7 +379,7 @@ export class CarpoolDashboard {
             <ul class="passenger-list">
               ${assignments.map(a => `
                 <li class="passenger-item">
-                  <span>${a.participant_name}</span>
+                  <span>${escapeHTML(a.participant_name)}</span>
                   <span class="badge badge--${a.trip_direction === 'both' ? 'primary' : 'secondary'}">
                     ${translate(a.trip_direction)}
                   </span>
@@ -410,7 +410,7 @@ export class CarpoolDashboard {
           ${this.unassignedParticipants.map(p => `
             <div class="unassigned-item">
               <div class="unassigned-item__info">
-                <strong>${p.first_name} ${p.last_name}</strong>
+                <strong>${escapeHTML(p.first_name)} ${escapeHTML(p.last_name)}</strong>
                 <div class="unassigned-item__status">
                   ${!p.has_ride_going ? `<span class="badge badge--warning">${translate('needs_ride_going')}</span>` : ''}
                   ${!p.has_ride_return && this.activity.meeting_location_return ?
@@ -468,7 +468,7 @@ export class CarpoolDashboard {
       return `
             <div class="assignment-card">
               <div class="assignment-card__header">
-                <strong>${firstAssignment.participant_name}</strong>
+                <strong>${escapeHTML(firstAssignment.participant_name)}</strong>
               </div>
               ${assignments.map(a => `
                 <div class="assignment-card__ride">
@@ -480,7 +480,7 @@ export class CarpoolDashboard {
                       <circle cx="5.5" cy="15.5" r="2.5"></circle>
                     </svg>
                     <div>
-                      <p><strong>${a.driver_name}</strong> - ${a.vehicle_color} ${a.vehicle_make}</p>
+                      <p><strong>${escapeHTML(a.driver_name)}</strong> - ${escapeHTML(a.vehicle_color)} ${escapeHTML(a.vehicle_make)}</p>
                       <p class="text-small">${translate(a.trip_direction)}</p>
                     </div>
                   </div>
@@ -597,14 +597,14 @@ export class CarpoolDashboard {
           <div class="form-group">
             <label for="vehicle-make">${translate('vehicle_make')} <span class="required">*</span></label>
             <input type="text" id="vehicle-make" name="vehicle_make"
-                   value="${offer?.vehicle_make || ''}" required
+                   value="${escapeAttribute(offer?.vehicle_make || '')}" required
                    class="form-control" placeholder="${translate('vehicle_make_placeholder')}">
           </div>
 
           <div class="form-group">
             <label for="vehicle-color">${translate('vehicle_color')} <span class="required">*</span></label>
             <input type="text" id="vehicle-color" name="vehicle_color"
-                   value="${offer?.vehicle_color || ''}" required
+                   value="${escapeAttribute(offer?.vehicle_color || '')}" required
                    class="form-control" placeholder="${translate('vehicle_color_placeholder')}">
           </div>
 
@@ -642,7 +642,7 @@ export class CarpoolDashboard {
           <div class="form-group">
             <label for="notes">${translate('additional_notes')}</label>
             <textarea id="notes" name="notes" class="form-control" rows="3"
-                      placeholder="${translate('notes_placeholder')}">${offer?.notes || ''}</textarea>
+                      placeholder="${translate('notes_placeholder')}">${escapeHTML(offer?.notes || '')}</textarea>
           </div>
 
           <div class="modal__actions">
@@ -716,7 +716,7 @@ export class CarpoolDashboard {
       return `
                 <div class="child-selection-card">
                   <div class="child-selection-card__info">
-                    <strong>${child.first_name} ${child.last_name}</strong>
+                    <strong>${escapeHTML(child.first_name)} ${escapeHTML(child.last_name)}</strong>
                     <div class="child-selection-card__status">
                       ${hasGoing ?
           `<span class="badge badge--success">✓ ${translate('has_ride_going')}</span>` :
@@ -806,7 +806,7 @@ export class CarpoolDashboard {
             <select id="participant-select" name="participant_id" class="form-control" required>
               <option value="">${translate('select_participant')}</option>
               ${participantsToAssign.map(p => `
-                <option value="${p.id}">${p.first_name} ${p.last_name}</option>
+                <option value="${p.id}">${escapeHTML(p.first_name)} ${escapeHTML(p.last_name)}</option>
               `).join('')}
             </select>
           </div>
@@ -817,7 +817,7 @@ export class CarpoolDashboard {
               <option value="">${translate('select_vehicle')}</option>
               ${offersToShow.map(o => `
                 <option value="${o.id}">
-                  ${o.driver_name} - ${o.vehicle_color} ${o.vehicle_make}
+                  ${escapeHTML(o.driver_name)} - ${escapeHTML(o.vehicle_color)} ${escapeHTML(o.vehicle_make)}
                   (${translate(o.trip_direction)})
                 </option>
               `).join('')}
