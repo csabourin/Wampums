@@ -9,7 +9,7 @@
 
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
-import { CacheFirst, NetworkFirst, NetworkOnly, StaleWhileRevalidate } from 'workbox-strategies';
+import { CacheFirst, NetworkFirst, NetworkOnly } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 
@@ -147,12 +147,25 @@ registerRoute(
   })
 );
 
-// 4c. Translation files (StaleWhileRevalidate - serve from cache, refresh in background)
+// 4c. Translation files (NetworkFirst - cache only as the offline fallback).
+// The URL carries no build hash, so serving the cached copy first would pair a
+// freshly deployed bundle with the previous build's keys and show raw key names
+// until the next load. No network timeout, for the same reason: a timeout would
+// answer from that same previous-build cache. An HTTP error falls back to the
+// cache instead of reaching the app, which would otherwise load no keys at all.
 registerRoute(
   ({ url }) => url.pathname.startsWith('/lang/') && url.pathname.endsWith('.json'),
-  new StaleWhileRevalidate({
+  new NetworkFirst({
     cacheName: 'translations-cache',
     plugins: [
+      {
+        fetchDidSucceed: ({ response }) => {
+          if (!response.ok) {
+            throw new Error(`Translation fetch failed with HTTP ${response.status}`);
+          }
+          return response;
+        },
+      },
       new ExpirationPlugin({ maxEntries: 10, maxAgeSeconds: 7 * 24 * 60 * 60 }),
       new CacheableResponsePlugin({ statuses: [0, 200] }),
     ],
