@@ -92,8 +92,16 @@ const RootNavigator = () => {
             [CONFIG.STORAGE_KEYS.USER_ROLES]: currentRoles,
             [CONFIG.STORAGE_KEYS.USER_PERMISSIONS]: currentPermissions,
           }),
-          onError: (error) => debugError('🔴 [RootNavigator] Could not refresh access; keeping the stored copy:', error),
+          onError: (error) => debugError('🔴 [RootNavigator] Could not refresh access:', error),
         });
+
+        // The server no longer accepts this token (revoked, key rotated):
+        // the API client has cleared the session, so go back to sign-in.
+        if (access.sessionRejected) {
+          setUserPermissions([]);
+          setIsAuthenticated(false);
+          return;
+        }
 
         setUserPermissions(access.permissions);
         setIsAuthenticated(true);

@@ -102,6 +102,23 @@ describe.skipIf(!DATABASE_URL)('Carpool roster visibility', () => {
     await grantParticipantAccess(pool, { participantId: ids.foreign, userId: ids.otherFamily, sourceType: ACCESS_SOURCE.DIRECT });
     await grantParticipantAccess(pool, { participantId: ids.unseated, userId: ids.otherFamily, sourceType: ACCESS_SOURCE.DIRECT });
 
+    // The foreign child is also enrolled in another unit, where an account
+    // outside this unit is linked to them. user_participants has no unit, so
+    // that account must not surface here.
+    const client2 = await pool.connect();
+    try {
+      await client2.query('BEGIN');
+      ids.elsewhere = (await client2.query("INSERT INTO organizations (name) VALUES ('Carpool roster other unit') RETURNING id")).rows[0].id;
+      await client2.query("INSERT INTO organization_program_sections (organization_id, section_key, display_name) VALUES ($1, 'general', 'General')", [ids.elsewhere]);
+      await client2.query('COMMIT');
+    } finally {
+      client2.release();
+    }
+    ids.outsider = await one("INSERT INTO users (email, password, full_name) VALUES ($1, 'x', 'Outside Unit') RETURNING id", [`${randomUUID()}@example.test`]);
+    await pool.query("INSERT INTO user_organizations (user_id, organization_id, role_ids, status) VALUES ($1, $2, $3::jsonb, 'active')",
+      [ids.outsider, ids.elsewhere, JSON.stringify([familyRole])]);
+    await grantParticipantAccess(pool, { participantId: ids.foreign, userId: ids.outsider, sourceType: ACCESS_SOURCE.DIRECT });
+
     ids.activity = await one(`INSERT INTO activities (organization_id, created_by, name, activity_date, activity_start_date,
         activity_start_time, activity_end_date, activity_end_time, meeting_location_going, meeting_time_going, departure_time_going)
       VALUES ($1, $2, 'Camp', '2026-10-24', '2026-10-24', '08:00', '2026-10-24', '16:00', 'Hall', '08:00', '08:30') RETURNING id`,
@@ -157,6 +174,7 @@ describe.skipIf(!DATABASE_URL)('Carpool roster visibility', () => {
     const otherCar = response.body.data.find((row) => row.id === ids.otherCar);
     expect(Number(otherCar.seats_used_going)).toBe(1);
     expect(otherCar.assignments.map((a) => a.participant_name)).toEqual(['Foreign Carpool']);
+    // Only guardians active in this unit; not the account from another unit.
     expect(otherCar.assignments[0].guardian_names).toEqual(['Other Family']);
     // No contact details: neither the driver's nor any guardian's address.
     expect(otherCar.driver_email).toBeNull();

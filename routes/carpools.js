@@ -34,6 +34,9 @@ module.exports = (pool) => {
               SELECT jsonb_agg(gu.full_name ORDER BY gu.full_name)
                 FROM user_participants gup
                 JOIN users gu ON gu.id = gup.user_id
+                -- user_participants has no unit: only accounts active in this unit.
+                JOIN user_organizations guo ON guo.user_id = gu.id
+                 AND guo.organization_id = $2 AND guo.status = 'active'
                WHERE gup.participant_id = ca.participant_id
             ), '[]'::jsonb),
             'trip_direction', ca.trip_direction,

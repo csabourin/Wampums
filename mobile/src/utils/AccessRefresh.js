@@ -35,7 +35,9 @@ function sameKeys(first, second) {
  *
  * Failure (offline, server error, unexpected answer) keeps the stored copy:
  * the API still decides every request, so a stale copy only affects what is
- * shown.
+ * shown. A 401 is different: the server no longer accepts the token (and the
+ * API client has already cleared the stored session), so the caller must
+ * return to sign-in; `sessionRejected` says so.
  *
  * @param {Object} deps - Injected calls
  * @param {Function} deps.fetchAccess - Resolves to GET /api/v1/users/me/access's body
@@ -43,10 +45,10 @@ function sameKeys(first, second) {
  * @param {string[]} deps.storedPermissions - Permissions stored at sign-in
  * @param {Function} deps.store - Persists ({ roles, permissions })
  * @param {Function} [deps.onError] - Receives a fetch error
- * @returns {Promise<{changed: boolean, roles: string[], permissions: string[]}>} Access to use now
+ * @returns {Promise<{changed: boolean, sessionRejected: boolean, roles: string[], permissions: string[]}>} Access to use now
  */
 export async function refreshStoredAccess({ fetchAccess, storedRoles, storedPermissions, store, onError }) {
-  const unchanged = { changed: false, roles: storedRoles || [], permissions: storedPermissions || [] };
+  const unchanged = { changed: false, sessionRejected: false, roles: storedRoles || [], permissions: storedPermissions || [] };
 
   let access;
   try {
@@ -55,6 +57,9 @@ export async function refreshStoredAccess({ fetchAccess, storedRoles, storedPerm
   } catch (error) {
     if (onError) {
       onError(error);
+    }
+    if (error?.requiresLogin === true || error?.status === 401) {
+      return { changed: false, sessionRejected: true, roles: [], permissions: [] };
     }
     return unchanged;
   }
@@ -68,5 +73,5 @@ export async function refreshStoredAccess({ fetchAccess, storedRoles, storedPerm
   }
 
   await store({ roles: access.roles, permissions: access.permissions });
-  return { changed: true, roles: access.roles, permissions: access.permissions };
+  return { changed: true, sessionRejected: false, roles: access.roles, permissions: access.permissions };
 }

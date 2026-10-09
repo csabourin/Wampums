@@ -15,7 +15,7 @@ describe('refreshing the access stored at sign-in', () => {
       store,
     });
 
-    expect(access).toEqual({ changed: true, roles: STORED_ROLES, permissions: current });
+    expect(access).toEqual({ changed: true, sessionRejected: false, roles: STORED_ROLES, permissions: current });
     expect(store).toHaveBeenCalledWith({ roles: STORED_ROLES, permissions: current });
   });
 
@@ -76,6 +76,31 @@ describe('refreshing the access stored at sign-in', () => {
       storedPermissions: undefined,
       store: jest.fn(),
     });
-    expect(access).toEqual({ changed: false, roles: [], permissions: [] });
+    expect(access).toEqual({ changed: false, sessionRejected: false, roles: [], permissions: [] });
+  });
+
+  test('a token the server rejects (401) sends the app back to sign-in', async () => {
+    const store = jest.fn();
+    const access = await refreshStoredAccess({
+      // What the mobile API client throws after clearing the stored session.
+      fetchAccess: jest.fn().mockRejectedValue({ success: false, status: 401, requiresLogin: true }),
+      storedRoles: STORED_ROLES,
+      storedPermissions: STORED_PERMISSIONS,
+      store,
+    });
+
+    expect(access).toEqual({ changed: false, sessionRejected: true, roles: [], permissions: [] });
+    expect(store).not.toHaveBeenCalled();
+  });
+
+  test('a server error is not mistaken for a rejected session', async () => {
+    const access = await refreshStoredAccess({
+      fetchAccess: jest.fn().mockRejectedValue({ success: false, status: 500 }),
+      storedRoles: STORED_ROLES,
+      storedPermissions: STORED_PERMISSIONS,
+      store: jest.fn(),
+    });
+    expect(access.sessionRejected).toBe(false);
+    expect(access.permissions).toEqual(STORED_PERMISSIONS);
   });
 });
