@@ -206,6 +206,47 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
     expect(queryDidJoinUserParticipants).toBe(true);
   });
 
+  test('flags children whose health form declares a medication', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ roleNames: ['parent'], permissions: ['participants.view'] });
+    let healthQuery = null;
+
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('FROM participants p') && !query.includes('COUNT(')) {
+        return Promise.resolve({ rows: [
+          { id: 60, first_name: 'Léa', last_name: 'Parent' },
+          { id: 61, first_name: 'Noé', last_name: 'Parent' },
+          { id: 62, first_name: 'Zoé', last_name: 'Parent' }
+        ] });
+      }
+      if (query.includes("form_type = 'fiche_sante'")) {
+        healthQuery = { query, params };
+        return Promise.resolve({ rows: [
+          // Stored the way an older form version did: "oui", not "yes".
+          { participant_id: 60, submission_data: { has_medication: 'oui', medicament: 'Ventolin' } },
+          { participant_id: 61, submission_data: { has_medication: 'no', medicament: 'aucun' } }
+        ] });
+      }
+      if (query.includes('data_scope')) {
+        return Promise.resolve({ rows: [{ data_scope: 'linked' }] });
+      }
+      if (query.includes('permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'participants.view' }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .get('/api/v1/participants')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.map((child) => [child.id, child.declares_medication]))
+      .toEqual([[60, true], [61, false], [62, false]]);
+    expect(healthQuery.params[1]).toEqual([60, 61, 62]);
+    expect(healthQuery.query).toContain('organization_id = $1');
+  });
+
   test('filters by group_id parameter', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({

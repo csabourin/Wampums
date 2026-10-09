@@ -69,7 +69,7 @@ const { ParentDashboard } = require('../../spa/parent_dashboard.js');
 const PARENT_PERMISSIONS = [
   'participants.view', 'participants.create_own', 'permission_slips.sign', 'activities.view', 'carpools.view',
 ];
-const CHILD = { id: 4, first_name: 'Léa', last_name: 'Parent' };
+const CHILD = { id: 4, first_name: 'Léa', last_name: 'Parent', declares_medication: true };
 
 /**
  * Hrefs of the per-child buttons for an account holding these permissions.
@@ -105,6 +105,21 @@ describe('parent dashboard buttons', () => {
     const hrefs = childButtonHrefs([...PARENT_PERMISSIONS, 'badges.view', 'reports.view']);
     expect(hrefs).toContain('/badge-form/4');
     expect(hrefs).toContain('/reports?participantId=4');
+  });
+
+  test('medication planning is offered only when the health form declares a medication', () => {
+    mockHeld.clear();
+    PARENT_PERMISSIONS.forEach((key) => mockHeld.add(key));
+    const page = new ParentDashboard({});
+    page.formFormats = {};
+    const render = (child) => {
+      document.body.innerHTML = page.renderFormButtons(child);
+      return [...document.querySelectorAll('a')].map((link) => link.getAttribute('href'));
+    };
+
+    expect(render(CHILD)).toContain('/medication-planning/4');
+    expect(render({ ...CHILD, declares_medication: false })).not.toContain('/medication-planning/4');
+    expect(render({ id: 4, first_name: 'Léa' })).not.toContain('/medication-planning/4');
   });
 
   test('carpool coordination follows activities.view and carpools.view', () => {

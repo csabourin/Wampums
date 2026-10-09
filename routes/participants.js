@@ -12,6 +12,7 @@ const {
   isAssociationInUnit,
 } = require('../services/participantAccess');
 const { isCalendarDate } = require('../utils/calendar-date');
+const { declaresMedication } = require('../utils/health-form');
 const BAD_REQUEST_STATUS = 400;
 const { eraseParticipant } = require('../services/erasure');
 
@@ -67,6 +68,36 @@ function isPlainBodyObject(payload) {
 function birthDateFromBody(body) {
   const value = body.date_naissance ?? body.date_of_birth;
   return value === '' || value === undefined ? null : value;
+}
+
+/**
+ * Participants whose health form (fiche_sante) declares a medication. A unit
+ * keeps one fiche_sante row per child, updated in place.
+ *
+ * Read with `declaresMedication`, like the medication report, so the parent
+ * dashboard offers medication planning to exactly the children the leaders
+ * see on that report, whatever shape the answer was stored in.
+ *
+ * @param {Object} pool - Database pool
+ * @param {number} organizationId - Unit the forms belong to
+ * @param {number[]} participantIds - Participants on the current page
+ * @returns {Promise<Set<number>>} Ids of participants declaring a medication
+ */
+async function findDeclaredMedication(pool, organizationId, participantIds) {
+  if (participantIds.length === 0) {
+    return new Set();
+  }
+  const result = await pool.query(
+    `SELECT participant_id, submission_data
+       FROM form_submissions
+      WHERE organization_id = $1
+        AND form_type = 'fiche_sante'
+        AND participant_id = ANY($2::int[])`,
+    [organizationId, participantIds]
+  );
+  return new Set((result?.rows || [])
+    .filter((row) => declaresMedication(row.submission_data))
+    .map((row) => row.participant_id));
 }
 
 module.exports = (pool) => {
@@ -249,6 +280,13 @@ module.exports = (pool) => {
     const countResult = await pool.query(countQuery, countParams);
     const totalRow = countResult && Array.isArray(countResult.rows) ? countResult.rows[0] : null;
     const total = Number.parseInt(totalRow?.total ?? totalRow?.count ?? 0, 10) || 0;
+
+    const medicationDeclared = await findDeclaredMedication(
+      pool, organizationId, participants.map((participant) => participant.id)
+    );
+    participants.forEach((participant) => {
+      participant.declares_medication = medicationDeclared.has(participant.id);
+    });
 
     return paginated(res, participants, page, limit, total);
   }));

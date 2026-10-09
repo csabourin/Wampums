@@ -494,7 +494,7 @@ export class ParentDashboard {
                 const content = `
                         <div class="parent-dashboard">
                                 <header class="parent-dashboard__header">
-                                        <h1 class="parent-dashboard__title">${translate('bienvenue')}${userName ? ' ' + userName : ''}</h1>
+                                        <h1 class="parent-dashboard__title">${translate('bienvenue')}${userName ? ` ${userName}` : ''}</h1>
                                         <p class="parent-dashboard__subtitle">${organizationName}</p>
                                         ${backLink}
                                 </header>
@@ -869,7 +869,8 @@ export class ParentDashboard {
                 </a>
         ` : '';
 
-                const medicationButton = !this.hiddenButtons.has('medications') ? `
+                // Only children whose health form declares a medication have one to plan.
+                const medicationButton = participant.declares_medication === true && !this.hiddenButtons.has('medications') ? `
                 <a href="/medication-planning/${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">💊</span>
                         <span class="form-btn__label">${translate('manage_medications')}</span>
