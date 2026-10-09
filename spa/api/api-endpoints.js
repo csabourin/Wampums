@@ -868,13 +868,22 @@ export async function linkUserToParticipants(participantIds, userId = null) {
 /**
  * Fetch participants for parent dashboard
  * Uses RESTful endpoint with role-based access control
+ *
+ * With `includeMedication`, each child carries its medication flags. Those
+ * change with medication plans, whose writes do not clear roster caches, so
+ * the request always goes to the network; offline, the cached copy is the
+ * fallback.
+ *
+ * @param {number} organizationId - Unit
+ * @param {{includeMedication?: boolean}} [options] - Add per-child medication flags
+ * @returns {Promise<Array<Object>>} Participants
  */
 export async function fetchParticipants(organizationId, { includeMedication = false } = {}) {
     const response = await API.get('v1/participants', {
         organization_id: organizationId,
         limit: 1000, // High limit to get all participants
         ...(includeMedication ? { include: 'medication' } : {}) // per-child flags, parent dashboard only
-    });
+    }, { forceRefresh: includeMedication });
 
     // Extract data array from paginated response
     return response.data || [];
