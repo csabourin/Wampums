@@ -449,7 +449,7 @@ module.exports = (pool) => {
       return error(res, 'Participant ID, nom, and prenom are required', 400);
     }
     if (hasNameMarkup(nom) || hasNameMarkup(prenom)) {
-      return error(res, 'Names cannot contain < or >', HTTP_STATUS.BAD_REQUEST);
+      return error(res, 'name_markup_not_allowed', HTTP_STATUS.BAD_REQUEST);
     }
     // Present at all means it must be valid: 0 or '' is not "no guardian".
     const hasGuardianId = guardian_id !== undefined && guardian_id !== null;

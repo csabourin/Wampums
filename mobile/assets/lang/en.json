@@ -478,6 +478,7 @@
   "error_no_fundraiser_id": "No fundraiser ID provided",
   "error_no_token": "Error: No token found. Please log in.",
   "error_occurred": "An error occurred",
+  "name_markup_not_allowed": "Names cannot contain the characters < or >.",
   "error_registering_for_organization": "Error registering for organization",
   "error_removing_group": "Error removing group",
   "error_removing_name": "Error removing name",

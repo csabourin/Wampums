@@ -271,7 +271,7 @@ const validateFirstName = check('first_name')
   .isLength({ min: 1, max: 100 })
   .withMessage('First name must be between 1 and 100 characters')
   .not().matches(NAME_MARKUP_PATTERN)
-  .withMessage('Names cannot contain < or >');
+  .withMessage('name_markup_not_allowed');
 
 /**
  * Validate last name
@@ -283,7 +283,7 @@ const validateLastName = check('last_name')
   .isLength({ min: 1, max: 100 })
   .withMessage('Last name must be between 1 and 100 characters')
   .not().matches(NAME_MARKUP_PATTERN)
-  .withMessage('Names cannot contain < or >');
+  .withMessage('name_markup_not_allowed');
 
 /**
  * Validate full name (combined)
@@ -295,7 +295,7 @@ const validateFullName = check('full_name')
   .isLength({ min: 1, max: 200 })
   .withMessage('Full name must be between 1 and 200 characters')
   .not().matches(NAME_MARKUP_PATTERN)
-  .withMessage('Names cannot contain < or >');
+  .withMessage('name_markup_not_allowed');
 
 // ============================================
 // PAGINATION VALIDATIONS

@@ -132,11 +132,14 @@ describe.skipIf(!DATABASE_URL)('Family input', () => {
         .set('Authorization', as(ids.family))
         .send({ participant_id: ids.child, nom: 'Input', prenom: FORM_NAME, lien: 'Mère' });
       expect(guardian.status).toBe(400);
+      // A translation key, so each screen explains it in its own language.
+      expect(guardian.body.message).toBe('name_markup_not_allowed');
 
       const account = await request(app).patch('/api/v1/users/me/name')
         .set('Authorization', as(ids.family))
-        .send({ firstName: FORM_NAME, lastName: 'Account' });
+        .send({ fullName: FORM_NAME, firstName: FORM_NAME, lastName: 'Account' });
       expect(account.status).toBe(400);
+      expect(account.body.message).toBe('name_markup_not_allowed');
       expect(await one('SELECT full_name FROM users WHERE id = $1', [ids.family])).toBe('Family Account');
     });
 

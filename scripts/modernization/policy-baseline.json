@@ -171,7 +171,7 @@
     "spa/modules/OfflineManager.js": 924,
     "spa/modules/PrintManager.js": 48,
     "spa/modules/TabbedPage.js": 42,
-    "spa/modules/account-info.js": 319,
+    "spa/modules/account-info.js": 317,
     "spa/modules/activities/Activities.js": 3,
     "spa/modules/app-recovery/StaleClientRecovery.js": 5,
     "spa/modules/family-access/AccountFields.js": 8,
