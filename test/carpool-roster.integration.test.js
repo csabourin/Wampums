@@ -64,10 +64,14 @@ describe.skipIf(!DATABASE_URL)('Carpool roster visibility', () => {
       VALUES ($1, $2, $3, $4, 'both')`, [offerId, participantId, assignedBy, ids.unit]);
   }
 
-  function get(path, userId) {
+  function auth(userId) {
     // The JWT claims everything; only the database may grant keys and scope.
     const token = signJWTToken({ user_id: userId, organizationId: ids.unit, roleNames: ['district'], permissions: ['carpools.manage'] });
-    return request(app).get(path).set('Authorization', `Bearer ${token}`);
+    return `Bearer ${token}`;
+  }
+
+  function get(path, userId) {
+    return request(app).get(path).set('Authorization', auth(userId));
   }
 
   const names = (rows) => rows.map((row) => row.first_name).sort();
@@ -113,6 +117,9 @@ describe.skipIf(!DATABASE_URL)('Carpool roster visibility', () => {
     app.locals.pool = pool;
     app.use('/api/v1/activities', require('../routes/activities')(pool));
     app.use('/api/v1/carpools', require('../routes/carpools')(pool));
+    const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+    app.use('/api/v1/offline', require('../routes/offline')(pool, logger));
+    app.use('/api/v1/resources', require('../routes/resources')(pool));
   });
 
   afterAll(async () => {
@@ -160,5 +167,29 @@ describe.skipIf(!DATABASE_URL)('Carpool roster visibility', () => {
     } finally {
       await pool.query('DELETE FROM carpool_assignments WHERE carpool_offer_id = $1', [ids.ownCar]);
     }
+  });
+
+  describe('unit-wide exports stay with unit-wide roles', () => {
+    test('a family holding activities.view cannot download the offline bundle', async () => {
+      const response = await request(app).post('/api/v1/offline/prepare-activity')
+        .set('Authorization', auth(ids.family))
+        .send({ start_date: '2026-10-24', end_date: '2026-10-25' });
+      expect(response.status).toBe(403);
+      expect(response.body.data).toBeUndefined();
+    });
+
+    test('nor read the unit\'s permission slip and reservation dashboard', async () => {
+      const response = await get('/api/v1/resources/status/dashboard', ids.family);
+      expect(response.status).toBe(403);
+    });
+
+    test('staff still can', async () => {
+      const bundle = await request(app).post('/api/v1/offline/prepare-activity')
+        .set('Authorization', auth(ids.staff))
+        .send({ start_date: '2026-10-24', end_date: '2026-10-25' });
+      expect(bundle.status).toBe(200);
+      const dashboard = await get('/api/v1/resources/status/dashboard', ids.staff);
+      expect(dashboard.status).toBe(200);
+    });
   });
 });
