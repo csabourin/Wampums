@@ -63,6 +63,14 @@ describe('unit customization validation', () => {
     }).errors).toHaveLength(1);
   });
 
+  test('answers a non-array tile list with a validation error, not a TypeError', () => {
+    // A thrown TypeError reaches the route as a 500 instead of a 400.
+    [42, true, 'ab', { points: true }].forEach((hiddenTileKeys) => {
+      expect(validateDashboardConfiguration({ hidden_tile_keys: hiddenTileKeys }).errors)
+        .toEqual([{ field: 'hidden_tile_keys', msg: 'Hidden tile keys must be an array' }]);
+    });
+  });
+
   test('accepts known parent dashboard buttons and rejects the ones that always stay', () => {
     expect(validateParentDashboardConfiguration({
       hidden_button_keys: ['request_badge', 'program_progress', 'request_badge']
