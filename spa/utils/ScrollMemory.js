@@ -185,6 +185,9 @@ export function restoreScrollPosition(token) {
   if (token !== navigationToken) {
     return;
   }
+  // The route may have redirected while rendering (an expired session sent
+  // to /login): restore the screen actually shown, not the one requested.
+  activeKey = currentLocationKey();
   const target = loadPositions().get(activeKey) || 0;
   const maxScroll = () => document.documentElement.scrollHeight - window.innerHeight;
 

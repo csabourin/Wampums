@@ -217,6 +217,22 @@ describe('ScrollMemory', () => {
     expect(window.scrollY).toBe(900);
   });
 
+  test('a redirect during the route restores the screen actually shown', () => {
+    visit('/participants');
+    scrollWindow(1500);
+    visit('/dashboard');
+
+    // Session expired: the router sends the private screen to /login.
+    const token = go('/participants');
+    history.pushState(null, '', '/login');
+    restoreScrollPosition(token);
+    expect(window.scrollY).toBe(0);
+
+    visit('/dashboard');
+    visit('/participants');
+    expect(window.scrollY).toBe(1500);
+  });
+
   test('ignores the hash when identifying a screen', () => {
     expect(scrollKeyFor('/help?topic=a#faq')).toBe('/help?topic=a');
     expect(scrollKeyFor(null)).toBeNull();
