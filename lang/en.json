@@ -1906,6 +1906,8 @@
   "select_participant_placeholder": "Choose a participant",
   "select_participant_prompt": "Choose a participant to see attendance, honors, badges, and points.",
   "select_recipients": "Select recipients",
+  "push_recipients_hint": "Leave every box unchecked to notify all subscribers.",
+  "push_device_count": "{count} devices",
   "select_role": "Select a role",
   "semaine_prochaine": "Next Week",
   "send_notification": "Send notification",

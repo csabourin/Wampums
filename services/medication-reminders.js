@@ -16,6 +16,7 @@
 'use strict';
 
 const { getTranslationsByCode } = require('../utils/index');
+const { getVapidKeys, isGoneSubscriptionError } = require('../utils/web-push');
 
 const REMINDER_WINDOW_MINUTES = 15; // notify this many minutes before a dose is due
 const POLL_INTERVAL_MS = 60_000;    // check every 60 seconds
@@ -130,8 +131,7 @@ class MedicationReminderService {
       return;
     }
 
-    const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
-    const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || process.env.VAPID_PRIVATE;
+    const { publicKey: vapidPublicKey, privateKey: vapidPrivateKey } = getVapidKeys();
 
     if (!vapidPublicKey || !vapidPrivateKey) {
       logger.warn('[MedicationReminders] VAPID keys not configured – skipping push notifications');
@@ -265,12 +265,12 @@ class MedicationReminderService {
   }
 
   /**
-   * Remove push subscriptions that returned HTTP 410 (subscription expired/unsubscribed).
+   * Remove push subscriptions that returned HTTP 404 or 410 (subscription expired/unsubscribed).
    * @param {PromiseSettledResult[]} failures - rejected send results
    */
   async _removeExpiredSubscriptions(failures) {
     const expiredEndpoints = failures
-      .filter(f => f.reason?.statusCode === 410 && f.reason?.endpoint)
+      .filter(f => isGoneSubscriptionError(f.reason) && f.reason?.endpoint)
       .map(f => f.reason.endpoint);
 
     if (expiredEndpoints.length === 0) return;

@@ -2933,10 +2933,14 @@ export async function getSubscribers(organizationId) {
 }
 
 /**
- * Send push notification to selected subscribers
+ * Send a push notification
+ * @param {string} title - Notification title
+ * @param {string} body - Notification text
+ * @param {string[]} [userIds=[]] - Members to notify; empty notifies every subscriber
+ * @returns {Promise<Object>} Counts of pushes sent, failed and removed
  */
-export async function sendPushNotification(title, body) {
-    return API.post('v1/notifications/send', { title, body });
+export async function sendPushNotification(title, body, userIds = []) {
+    return API.post('v1/notifications/send', { title, body, user_ids: userIds });
 }
 
 /**

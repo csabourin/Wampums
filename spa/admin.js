@@ -23,6 +23,7 @@ import { getMountPoint, resolveMountOptions } from "./utils/PageMount.js";
 import { roleLabel } from './utils/RoleLabelUtils.js';
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
+import { renderPushRecipients } from './modules/push/pushRecipients.js';
 export class Admin {
         constructor(app, options = {}) {
                 this.app = app;
@@ -185,10 +186,11 @@ ${showNotifications ? `
         <label for="notification-body">${this.app.translate("body")}</label>
         <textarea id="notification-body" name="notification_body" rows="4" cols="50" required></textarea><br><br>
 
-        <h3>${this.app.translate("select_recipients")}</h3>
-        <div id="subscribers-list">
+        <fieldset id="subscribers-list" aria-describedby="subscribers-hint">
+                <legend>${this.app.translate('select_recipients')}</legend>
+                <p id="subscribers-hint" class="muted-text">${this.app.translate('push_recipients_hint')}</p>
                 ${this.renderSubscribers()}
-        </div>
+        </fieldset>
 
         <button type="submit">${this.app.translate("send_notification")}</button>
 </form>
@@ -374,24 +376,7 @@ ${showNotifications ? `
         }
 
         renderSubscribers() {
-                const subscribers = Array.isArray(this.subscribers)
-                        ? this.subscribers
-                        : [];
-
-                if (!subscribers.length) {
-                        return `<div>${this.app.translate("no_subscribers_found")}</div>`;
-                }
-
-                return subscribers
-                        .map(
-                                (subscriber) => `
-                        <div>
-                                <input type="checkbox" id="subscriber-${subscriber.id}" name="subscribers" value="${subscriber.id}">
-                                <label for="subscriber-${subscriber.id}">${escapeHTML(subscriber.email || "")}</label>
-                        </div>
-                `,
-                        )
-                        .join("");
+                return renderPushRecipients(Array.isArray(this.subscribers) ? this.subscribers : []);
         }
 
         initEventListeners() {

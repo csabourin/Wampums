@@ -7,7 +7,7 @@ import { makeApiRequest } from "./api/api-core.js";
 import { CONFIG } from "./config.js";
 import { debugLog, debugError, debugWarn, isDebugMode } from "./utils/DebugUtils.js";
 import { getStorage, setStorage, setStorageMultiple } from "./utils/StorageUtils.js";
-import { urlBase64ToUint8Array } from "./functions.js";
+import { registerPushSubscription } from "./modules/push/PushSubscription.js";
 import updateManager from "./pwa-update-manager.js";
 import { initOfflineSupport } from "./offline-init.js";
 import { offlineManager } from "./modules/OfflineManager.js";
@@ -30,72 +30,7 @@ installChunkErrorRecovery();
 // Service worker registration: vite-plugin-pwa injects registration at build time,
 // with a fallback in registerServiceWorker() if the injection is missing.
 
-export async function registerPushSubscription() {
-        if ('serviceWorker' in navigator && 'PushManager' in window) {
-                try {
-                        const registration = await navigator.serviceWorker.ready;
-                        const applicationServerKey = urlBase64ToUint8Array(CONFIG.PUSH_NOTIFICATIONS.VAPID_PUBLIC_KEY);
-
-                        const subscription = await registration.pushManager.subscribe({
-                                userVisibleOnly: true,
-                                applicationServerKey: applicationServerKey,
-                        });
-
-                        // Log the full subscription object to see what it contains
-                        debugLog('Subscription object:', subscription);
-                        debugLog('Subscription JSON:', subscription.toJSON());
-
-                        const subscriptionData = subscription.toJSON();
-
-                        // Send the subscription object to the server
-                        await sendSubscriptionToServer(subscriptionData);
-
-                } catch (error) {
-                        debugError('Error during push subscription:', error);
-                }
-        }
-}
-
-// Function to send subscription to server (implement this based on your backend)
-async function sendSubscriptionToServer(subscription) {
-        const p256dh = subscription.keys?.p256dh || null;
-        const auth = subscription.keys?.auth || null;
-
-        if (!p256dh || !auth) {
-                debugError('Missing p256dh or auth keys in subscription:', subscription);
-                return;
-        }
-
-        const payload = {
-                endpoint: subscription.endpoint,
-                expirationTime: subscription.expirationTime,
-                keys: {
-                        p256dh: p256dh,
-                        auth: auth
-                }
-        };
-
-        debugLog('Sending payload to server:', payload);
-
-        try {
-                // Retrieve the JWT token from storage
-                const token = getStorage('jwtToken'); // Ensure the token is stored correctly after login
-
-                if (!token) {
-                        debugError('No token found in localStorage.');
-                        throw new Error('No token available');
-                }
-
-                await makeApiRequest('v1/notifications/subscription', {
-                        method: 'POST',
-                        body: payload
-                });
-
-                debugLog('Subscription saved on server');
-        } catch (error) {
-                debugError('Error saving subscription on server:', error);
-        }
-}
+export { registerPushSubscription };
 
 // Fallback wait before caching other languages where requestIdleCallback is missing.
 const OFFLINE_LANGUAGE_PREFETCH_DELAY_MS = 5000;
