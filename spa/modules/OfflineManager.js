@@ -821,8 +821,6 @@ export class OfflineManager {
 
             // Step 6: Cache badges
             this.updatePreparationProgress(6, this.getTranslation('offline.cachingBadges'));
-            await this.cacheData('badge_dashboard_settings', { success: true, data: { templates: bulkData.badges.templates } }, CACHE_DURATION.CAMP_MODE);
-            await this.cacheData('badge_dashboard_badges', { success: true, data: bulkData.badges.progress }, CACHE_DURATION.CAMP_MODE);
             await this.cacheData(buildApiCacheKey('v1/badges/settings'), { success: true, data: bulkData.badges.templates }, CACHE_DURATION.CAMP_MODE);
             await this.cacheData(buildApiCacheKey('v1/badges/summary'), { success: true, data: bulkData.badges.progress }, CACHE_DURATION.CAMP_MODE);
 
@@ -920,7 +918,6 @@ export class OfflineManager {
             () => import('./activities/Activities.js'),
             () => import('../medication_management.js'),
             () => import('../medication_reception.js'),
-            () => import('../badge_dashboard.js'),
             () => import('../badge_tracker.js'),
             () => import('../carpool.js'),
             () => import('../carpool_dashboard.js'),

@@ -211,7 +211,6 @@ body {
   overflow-wrap: break-word;
 }
 
-
 /* Main App Container */
 #app {
   position: relative;
@@ -2300,7 +2299,6 @@ tr:hover {
   box-shadow: var(--shadow-md);
   backdrop-filter: blur(8px);
 }
-
 
 #loading-indicator {
   position: fixed;
@@ -6033,7 +6031,6 @@ body.online .pending-update {
   }
 }
 
-
 /* Container Queries - Activities Grid responds to its own width */
 @container activities (min-width: 620px) {
 
@@ -7103,34 +7100,6 @@ details p {
   }
 }
 
-/* Badge Dashboard */
-.badge-dashboard {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-  padding: var(--space-lg);
-}
-
-.badge-dashboard__header {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-md);
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.badge-dashboard__actions {
-  display: flex;
-  gap: var(--space-sm);
-  align-items: center;
-}
-
-.badge-dashboard__stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--space-md);
-}
-
 .stat-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border-light);
@@ -7149,119 +7118,12 @@ details p {
   font-weight: var(--font-weight-bold);
 }
 
-.badge-dashboard__controls {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.badge-table {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-}
-
-.badge-table__header,
-.badge-table__row {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--space-sm);
-  padding: var(--space-xs) var(--space-md);
-  align-items: flex-start;
-}
-
 @media (max-width: 768px) {
-
-  .badge-table__header,
-  .badge-table__row {
-    grid-template-columns: 1fr;
-    gap: var(--space-xs);
-  }
-
-  .badge-table__header span:not(:first-child) {
-    display: none;
-  }
 
   .participant-header {
     min-width: 100%;
   }
 
-  .badge-table__cell--badges {
-    flex-direction: column;
-  }
-
-  .badge-chip,
-  .badge-chip-compact {
-    min-width: 100%;
-  }
-
-  .badge-chip-compact {
-    padding: var(--space-sm);
-  }
-}
-
-.badge-table__group {
-  background: #eef2ff;
-  border-block-start: 1px solid var(--color-border-light);
-  border-block-end: 1px solid var(--color-border-light);
-  padding: var(--space-xs) var(--space-md);
-}
-
-.badge-table__group-title {
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-primary-dark);
-}
-
-.badge-table__header {
-  background: var(--color-secondary);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-muted);
-}
-
-.badge-table__row:nth-of-type(odd) {
-  background: #fafafa;
-}
-
-.badge-table__cell {
-  font-size: var(--font-size-sm);
-}
-
-.badge-table__cell--actions {
-  display: flex;
-  gap: var(--space-sm);
-  justify-content: flex-end;
-  align-items: center;
-}
-
-/* Participant header - compact layout with name and edit button (badge dashboard specific) */
-.badge-table__row .participant-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-sm);
-  min-width: 180px;
-  padding-right: var(--space-sm);
-}
-
-.badge-table__row .participant-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.badge-table__row .participant-name {
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-base);
-  line-height: 1.3;
-}
-
-.badge-table__row .participant-actions {
-  display: flex;
-  gap: var(--space-xs);
-  align-items: center;
-  flex-shrink: 0;
 }
 
 .star-count {
@@ -7292,153 +7154,6 @@ details p {
 
 .icon-button svg {
   display: block;
-}
-
-.badge-table__group-tag {
-  display: inline-flex;
-  padding: 0.15rem 0.45rem;
-  background: var(--color-secondary);
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-}
-
-.badge-table__cell--badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm);
-}
-
-/* Compact badge chip */
-.badge-chip-compact {
-  background: #f4f6fb;
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-md);
-  padding: var(--space-xs) var(--space-sm);
-  min-width: 140px;
-  flex: 0 1 auto;
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  gap: var(--space-xs);
-  align-items: flex-start;
-}
-
-.badge-chip-compact .badge-chip__image {
-  width: 72px;
-  height: 72px;
-  object-fit: contain;
-  flex-shrink: 0;
-  border-radius: var(--radius-xs);
-}
-
-.badge-chip-compact .badge-chip__content {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.badge-chip-compact .badge-chip__name {
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-sm);
-  line-height: 1.2;
-}
-
-.badge-chip__stars-compact {
-  display: flex;
-  gap: 0.25rem;
-  flex-wrap: wrap;
-}
-
-.badge-chip__status {
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-  margin-top: -0.1rem;
-}
-
-.badge-chip__status .status-pill {
-  padding: 0.15rem 0.4rem;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-}
-
-.progress-compact {
-  width: 100%;
-  height: 3px;
-  background: var(--color-border-light);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-
-.progress-compact .progress__bar {
-  height: 100%;
-  background: var(--color-primary);
-  border-radius: var(--radius-full);
-  transition: width 0.3s;
-}
-
-/* Legacy badge chip (keep for compatibility) */
-.badge-chip {
-  background: #f4f6fb;
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-md);
-  padding: var(--space-sm);
-  min-width: 220px;
-  flex: 1 1 auto;
-  box-shadow: var(--shadow-sm);
-}
-
-.badge-chip__header {
-  display: flex;
-  gap: var(--space-sm);
-  align-items: flex-start;
-}
-
-.badge-chip__image {
-  width: 48px;
-  height: 48px;
-  object-fit: contain;
-  flex-shrink: 0;
-  border-radius: var(--radius-sm);
-}
-
-.badge-chip__content {
-  flex: 1;
-  min-width: 0;
-}
-
-.badge-chip__top {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-sm);
-  align-items: baseline;
-}
-
-.badge-chip__name {
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-sm);
-}
-
-.badge-chip__stars {
-  display: inline-flex;
-  gap: 0.35rem;
-  flex-shrink: 0;
-}
-
-.badge-chip__footer {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-sm);
-  align-items: center;
-  margin-top: var(--space-xs);
-  flex-wrap: wrap;
-}
-
-.badge-chip__actions {
-  display: flex;
-  gap: var(--space-xs);
 }
 
 .status-group {
@@ -7474,48 +7189,6 @@ details p {
   color: #8a1f1f;
 }
 
-.badge-chip--muted {
-  background: var(--color-secondary);
-  color: var(--color-text-muted);
-  min-width: 140px;
-}
-
-.badge-star-button {
-  border: 1px solid var(--color-border-light);
-  background: var(--color-surface);
-  border-radius: var(--radius-full);
-  width: 1.5rem;
-  height: 1.5rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-.badge-star-button.is-earned {
-  color: #f4b400;
-  box-shadow: var(--shadow-sm);
-}
-
-.badge-star-button.is-earned:hover,
-.badge-star-button.is-earned:focus-visible {
-  transform: scale(1.05);
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
-}
-
-.badge-star-button.is-locked {
-  color: var(--color-text-muted);
-  background: var(--color-secondary);
-  cursor: not-allowed;
-}
-
-.badge-table__cell--actions .text-button {
-  white-space: nowrap;
-}
-
 .progress {
   width: 100%;
   background: var(--color-border-light);
@@ -7530,19 +7203,6 @@ details p {
   height: 100%;
 }
 
-.badge-dashboard__modal {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  z-index: var(--z-modal);
-}
-
-.badge-dashboard__modal .modal {
-  display: block;
-  position: relative;
-}
-
 .modal__backdrop {
   position: absolute;
   inset: 0;
@@ -7553,7 +7213,6 @@ details p {
    modal-screen, modal-container, and the yearly planner's `.modal-overlay > .modal`).
    `.modal-overlay > .modal` matched no rule at all, so those panels inherited
    `display: none` from the base `.modal` and rendered as a bare backdrop. */
-.badge-dashboard__modal .modal,
 .modal-screen .modal,
 .modal-container .modal,
 .modal-overlay > .modal {
@@ -7728,54 +7387,9 @@ details p {
   z-index: -1;
 }
 
-.badge-history {
-  list-style: none;
-  display: grid;
-  gap: var(--space-sm);
-}
-
-.badge-history__row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-sm);
-  align-items: baseline;
-}
-
-.badge-history__title {
-  font-weight: var(--font-weight-semibold);
-}
-
-.badge-history__meta {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-}
-
-.badge-history__text {
-  font-size: var(--font-size-sm);
-}
-
-.badge-history__text.muted {
-  color: var(--color-text-muted);
-}
-
-.badge-history__stars {
-  font-weight: var(--font-weight-semibold);
-}
-
 .form-actions {
   display: flex;
   justify-content: flex-end;
-}
-
-.badge-dashboard textarea,
-.badge-dashboard select,
-.badge-dashboard input[type="number"],
-.badge-dashboard input[type="date"] {
-  width: 100%;
-  padding: var(--space-sm);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
-  font-size: var(--font-size-sm);
 }
 
 /* Modal tabs for compact navigation */
@@ -7813,92 +7427,10 @@ details p {
   display: block;
 }
 
-/* Compact form styling */
-.form-group-compact {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  margin-bottom: var(--space-sm);
-}
-
-.form-group-compact label {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-secondary);
-}
-
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-sm);
-}
-
-/* Compact badge history */
-.badge-history-toggle {
-  margin: var(--space-sm) 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-xs);
-}
-
-.badge-history-toggle summary {
-  cursor: pointer;
-  font-weight: var(--font-weight-medium);
-  font-size: var(--font-size-sm);
-  padding: var(--space-xs);
-  user-select: none;
-}
-
-.badge-history-toggle summary:hover {
-  color: var(--color-primary);
-}
-
-.badge-history-compact {
-  list-style: none;
-  padding: 0;
-  margin-top: var(--space-xs);
-}
-
-.badge-history-compact li {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: var(--space-xs);
-  align-items: center;
-  padding: var(--space-xs);
-  border-top: 1px solid var(--color-border-light);
-  font-size: var(--font-size-sm);
-}
-
-.badge-history-compact li:first-child {
-  border-top: none;
-}
-
-.badge-hist-status {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: var(--radius-xs);
-  background: var(--color-bg-secondary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-}
-
-.badge-hist-date {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-}
-
-.badge-hist-stars {
-  font-weight: var(--font-weight-semibold);
-}
-
-.badge-hist-text {
-  grid-column: 1 / -1;
-  margin: var(--space-xs) 0 0 0;
-  padding-top: var(--space-xs);
-  border-top: 1px dotted var(--color-border-light);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
 }
 
 /* Feedback messages */
@@ -8709,11 +8241,6 @@ details p {
 
 @media (max-width: 960px) {
 
-  .badge-table__header,
-  .badge-table__row {
-    grid-template-columns: 1fr;
-  }
-
   .reports-menu-grid {
     grid-template-columns: 1fr;
   }
@@ -8722,14 +8249,8 @@ details p {
     grid-template-columns: 1fr;
   }
 
-  .badge-table__cell {
-    border-top: 1px solid var(--color-border-light);
-    padding-top: var(--space-xs);
-  }
-
   /* Mobile optimizations for the nested modal *panel*. Unscoped, this also hit
      every full-screen overlay and left a 5vw strip of unpainted backdrop. */
-  .badge-dashboard__modal .modal,
   .modal-screen .modal,
   .modal-container .modal,
   .modal-overlay > .modal {
@@ -8774,7 +8295,6 @@ details p {
     margin-right: var(--space-xs);
   }
 }
-
 
 /* ============================================================================
    FUNDRAISERS & CALENDARS - Mobile-first Design

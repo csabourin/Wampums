@@ -1351,13 +1351,6 @@ export async function saveBadgeProgress(progressData) {
 }
 
 /**
- * Get pending badges for approval
- */
-export async function getPendingBadges() {
-    return API.getNoCache('v1/badges/pending');
-}
-
-/**
  * Get current stars for participant
  */
 export async function getCurrentStars(participantId, templateId = null, territoire = null) {

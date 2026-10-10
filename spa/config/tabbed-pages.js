@@ -105,6 +105,9 @@ export const TABBED_PAGES = {
  */
 export const MERGED_ROUTE_REDIRECTS = {
   "/badge-tracker": "/progression?tab=badges",
+  // Former standalone badge pages; the Badges tab covers both.
+  '/badge-dashboard': '/progression?tab=badges',
+  '/approve-badges': '/progression?tab=badges',
   "/program-progress": "/progression?tab=programme",
   "/upcoming-meeting": "/reunions?tab=prochaine",
   "/preparation-reunions": "/reunions?tab=preparation",

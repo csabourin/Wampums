@@ -500,7 +500,6 @@ export const OFFLINE_AVAILABLE_ROUTES = new Set([
   "/upcoming-meeting",
   "/reunions",
   "/badge-tracker",
-  "/badge-dashboard",
   "/program-progress",
   "/progression",
   "/activities",
