@@ -104,9 +104,13 @@ async function sendActivityUpdateNotifications(pool, activityId, organizationId)
        SELECT up.user_id
          FROM user_participants up
          JOIN permission_slips ps ON ps.participant_id = up.participant_id
+         JOIN activities sa ON sa.id = ps.activity_id
         WHERE ps.activity_id = $1
           AND ps.organization_id = $2
           AND ps.status IN ('pending', 'signed')
+          -- A signed slip outlives its child's invitation; only invitees hear
+          AND (sa.invites_everyone
+               OR ps.participant_id IN (SELECT participant_id FROM activity_invitees WHERE activity_id = $1))
      )
      SELECT DISTINCT
       u.email,

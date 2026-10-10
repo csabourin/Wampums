@@ -66,7 +66,9 @@ function readInvitation(body = {}, { isCreate = false } = {}) {
 /**
  * Record who an activity invites, inside the caller's transaction.
  *
- * Every listed participant must belong to the unit. Children who lose their
+ * Every listed participant must belong to the unit (or already be invited to
+ * this activity: a child who left the active scout year keeps their
+ * invitation when the list is saved again). Children who lose their
  * invitation leave the activity's cars, and their unanswered slips are archived.
  *
  * @param {Object} client - Database client inside a transaction
@@ -80,11 +82,17 @@ function readInvitation(body = {}, { isCreate = false } = {}) {
  */
 async function saveInvitation(client, { activityId, organizationId, invitesEveryone, participantIds }) {
   if (!invitesEveryone) {
+    // A child already invited stays invitable after leaving the active
+    // scout year; a newly invited child must be enrolled in the unit now.
     const known = await client.query(
-      `SELECT DISTINCT participant_id
+      `SELECT participant_id
          FROM participant_organizations
-        WHERE organization_id = $1 AND participant_id = ANY($2::int[])`,
-      [organizationId, participantIds]
+        WHERE organization_id = $1 AND participant_id = ANY($2::int[])
+       UNION
+       SELECT participant_id
+         FROM activity_invitees
+        WHERE activity_id = $3 AND organization_id = $1 AND participant_id = ANY($2::int[])`,
+      [organizationId, participantIds, activityId]
     );
     const knownIds = new Set(known.rows.map((row) => Number(row.participant_id)));
     const unknownParticipantIds = participantIds.filter((id) => !knownIds.has(id));

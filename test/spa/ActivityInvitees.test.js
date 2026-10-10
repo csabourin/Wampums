@@ -215,6 +215,30 @@ describe('activity invitations', () => {
     close();
   });
 
+  test('a child invited earlier but off this year\'s roster stays invited', async () => {
+    // Child 9 left the unit after being invited: the roster has no row for them
+    getActivity.mockResolvedValue({ id: 5, invites_everyone: false, invited_participant_ids: [2, 9] });
+    const activity = {
+      id: 5, name: 'Camp', invites_everyone: false,
+      activity_start_date: '2026-10-24', activity_start_time: '18:00:00',
+      activity_end_date: '2026-10-26', activity_end_time: '12:00:00',
+      meeting_location_going: 'Local', meeting_time_going: '17:30:00', departure_time_going: '17:45:00',
+    };
+    const { close } = openActivityFormModal(app, { activity });
+    const overlay = document.getElementById('activity-modal');
+    await flush();
+    await flush();
+    expect(overlay.querySelector('#activity-invitee-9')).toBeNull();
+
+    overlay.querySelector('#activity-form').dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    expect(updateActivity).toHaveBeenCalledWith(5, expect.objectContaining({
+      invites_everyone: false,
+      invited_participant_ids: [2, 9],
+    }));
+    close();
+  });
+
   test('a roster that fails to load offers a retry and blocks saving the list', async () => {
     fetchParticipants.mockRejectedValueOnce(new Error('offline'));
     const { close } = openActivityFormModal(app);

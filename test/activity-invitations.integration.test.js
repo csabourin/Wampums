@@ -21,6 +21,13 @@ const { grantParticipantAccess, ACCESS_SOURCE } = require('../services/participa
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 
+// No email leaves a test; the update notice's recipients are read from sendEmail.
+jest.mock('../utils/index', () => ({
+  ...jest.requireActual('../utils/index'),
+  sendEmail: jest.fn().mockResolvedValue(true),
+}));
+const { sendEmail } = require('../utils/index');
+
 jest.mock('../utils/carpool-notifications', () => ({
   sendRideCancellationNotifications: jest.fn().mockResolvedValue(undefined),
   sendActivityUpdateNotifications: jest.fn().mockResolvedValue(undefined),
@@ -251,6 +258,44 @@ describe.skipIf(!DATABASE_URL)('Activities for some participants', () => {
     const details = await call('get', `/api/v1/activities/${ids.camp}`, ids.staff);
     expect(details.body.data.invites_everyone).toBe(false);
     expect(details.body.data.invited_participant_ids).toEqual([ids.veteran]);
+  });
+
+  test('a child who left the active scout year keeps their invitation when the list is saved again', async () => {
+    await pool.query("UPDATE participant_enrollments SET status = 'left' WHERE participant_id = $1 AND organization_id = $2",
+      [ids.veteran, ids.unit]);
+    try {
+      const resaved = await call('put', `/api/v1/activities/${ids.camp}`, ids.staff)
+        .send({ invites_everyone: false, invited_participant_ids: [ids.veteran, ids.older] });
+      expect(resaved.status).toBe(200);
+      expect(resaved.body.data.invited_participant_ids).toEqual([ids.veteran, ids.older]);
+    } finally {
+      await pool.query("UPDATE participant_enrollments SET status = 'active' WHERE participant_id = $1 AND organization_id = $2",
+        [ids.veteran, ids.unit]);
+    }
+  });
+
+  test('the update notice reaches only guardians of children still invited', async () => {
+    const { sendActivityUpdateNotifications } = jest.requireActual('../utils/carpool-notifications');
+    const familyEmail = await one('SELECT email FROM users WHERE id = $1', [ids.family]);
+    await grantParticipantAccess(pool, { participantId: ids.older, userId: ids.family, sourceType: ACCESS_SOURCE.DIRECT });
+    // The older child's guardian signed, then the older child was uninvited
+    await pool.query("UPDATE permission_slips SET status = 'signed', signed_at = NOW() WHERE activity_id = $1 AND participant_id = $2",
+      [ids.camp, ids.older]);
+    await call('put', `/api/v1/activities/${ids.camp}`, ids.staff)
+      .send({ invites_everyone: false, invited_participant_ids: [ids.veteran] });
+
+    sendEmail.mockClear();
+    await sendActivityUpdateNotifications(pool, ids.camp, ids.unit);
+    const recipients = sendEmail.mock.calls.map(([to]) => to);
+    expect(recipients.length).toBeGreaterThan(0);
+    expect(recipients).not.toContain(familyEmail);
+
+    // Invited again, the same signed slip brings the guardian back
+    await call('put', `/api/v1/activities/${ids.camp}`, ids.staff)
+      .send({ invites_everyone: false, invited_participant_ids: [ids.veteran, ids.older] });
+    sendEmail.mockClear();
+    await sendActivityUpdateNotifications(pool, ids.camp, ids.unit);
+    expect(sendEmail.mock.calls.map(([to]) => to)).toContain(familyEmail);
   });
 
   test('inviting everyone again opens the activity to the whole unit', async () => {

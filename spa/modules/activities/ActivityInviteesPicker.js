@@ -312,7 +312,9 @@ export function attachInviteesPicker(root, {
       if (state !== 'ready') {
         return 'activity_invitees_not_loaded';
       }
-      return boxes().some((box) => box.checked) ? null : 'activity_invitees_none_selected';
+      const listed = new Set(boxes().map((box) => Number(box.value)));
+      const hasOffRoster = [...initiallyInvited].some((id) => !listed.has(id));
+      return boxes().some((box) => box.checked) || hasOffRoster ? null : 'activity_invitees_none_selected';
     },
 
     /**
@@ -325,7 +327,14 @@ export function attachInviteesPicker(root, {
       const some = Boolean(someRadio?.checked);
       data.invites_everyone = !some;
       if (some) {
-        data.invited_participant_ids = boxes().filter((box) => box.checked).map((box) => Number(box.value));
+        // A child invited earlier but no longer on this year's roster has no
+        // checkbox; keep them invited rather than uninvite them silently.
+        const listed = new Set(boxes().map((box) => Number(box.value)));
+        const offRoster = [...initiallyInvited].filter((id) => !listed.has(id));
+        data.invited_participant_ids = [
+          ...boxes().filter((box) => box.checked).map((box) => Number(box.value)),
+          ...offRoster
+        ];
       }
       return data;
     }
