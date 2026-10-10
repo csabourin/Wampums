@@ -449,7 +449,7 @@ ${showNotifications ? `
 
                 const checkboxes = roles.map((role) => {
                         const checked = currentRoleIds.includes(role.id) ? "checked" : "";
-                        const label = escapeHTML(role.display_name || translate(role.role_name) || role.role_name);
+                        const label = escapeHTML(roleLabel(role));
                         // A role carrying permissions the viewer does not hold cannot be
                         // granted or removed by them; it keeps its state and is sent back unchanged.
                         const locked = role.assignable === false;
