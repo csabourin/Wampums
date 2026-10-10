@@ -1,5 +1,4 @@
 import { translate } from "./app.js";
-import { buildApiCacheKey } from "./utils/OfflineCacheKeys.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDate } from "./utils/DateUtils.js";
@@ -26,7 +25,8 @@ import {
   prompt as promptDialog,
 } from "./utils/DialogUtils.js";
 import { getParticipants } from "./api/api-endpoints.js";
-import { deleteCachedData } from "./indexedDB.js";
+import { fetchParticipants, getCurrentOrganizationId } from './ajax-functions.js';
+import { clearActivityPermissionSlipCaches, deleteCachedData } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { withButtonLoading } from "./utils/PerformanceUtils.js";
 import { QuickCreateActivityModal } from "./modules/modals/QuickCreateActivityModal.js";
@@ -35,6 +35,10 @@ import { deleteActivity } from './api/api-activities.js';
 import { hasPermission } from './utils/PermissionUtils.js';
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
+
+// The server accepts at most this many participant_ids per request
+const SLIP_BATCH_SIZE = 200;
+
 export class PermissionSlipDashboard {
   constructor(app, options = {}) {
     this.app = app;
@@ -70,6 +74,12 @@ export class PermissionSlipDashboard {
       const { getActivity } = await import('./api/api-activities.js');
       this.activity = await getActivity(this.activityId);
       debugLog('Loaded activity:', this.activity);
+      // An activity for some participants offers its invitees first
+      if (this.getInvitedIds() && !this.selectedAudience) {
+        this.selectedAudience = 'invited';
+      } else if (!this.getInvitedIds() && this.selectedAudience === 'invited') {
+        this.selectedAudience = null;
+      }
     } catch (error) {
       debugError('Error loading activity:', error);
       throw error;
@@ -84,13 +94,14 @@ export class PermissionSlipDashboard {
         getPermissionSlips({ activity_id: this.activityId }, { forceRefresh }),
         getResourceDashboard(params, { forceRefresh }),
         getGroups(),
-        getParticipants()
+        // The whole roster: an invited child may be past the first page
+        fetchParticipants(getCurrentOrganizationId())
       ]);
 
       this.permissionSlips = slipsResponse?.data?.permission_slips || slipsResponse?.permission_slips || [];
       this.dashboardSummary = summaryResponse?.data || summaryResponse || { permission_summary: [] };
       this.groups = groupsResponse?.data || groupsResponse?.groups || [];
-      this.participants = participantsResponse?.data || participantsResponse?.participants || [];
+      this.participants = Array.isArray(participantsResponse) ? participantsResponse : [];
     } else {
       // Main dashboard mode: load activities with permission slip counts
       const { getActivitiesWithPermissionSlips } = await import('./api/api-activities.js');
@@ -361,9 +372,22 @@ export class PermissionSlipDashboard {
   }
 
 
+  /**
+   * The ids an activity invites, or null when it invites the whole unit.
+   * @returns {Set<number>|null}
+   */
+  getInvitedIds() {
+    if (this.activity?.invites_everyone !== false) {
+      return null;
+    }
+    return new Set((this.activity.invited_participant_ids || []).map(Number));
+  }
+
   renderCreateForm() {
     const selectedValue = this.selectedAudience || '';
+    const invitedOnly = this.getInvitedIds() !== null;
     const audienceOptions = [
+      ...(invitedOnly ? [{ value: 'invited', label: translate('permission_slip_audience_invited') }] : []),
       { value: 'all', label: translate('all_active_participants') },
       { value: 'first-year', label: translate('first_year_participants') },
       { value: 'second-year', label: translate('second_year_participants') },
@@ -382,6 +406,7 @@ export class PermissionSlipDashboard {
       <form id="permissionSlipForm" class="stacked" style="border: 1px solid #ddd; padding: 20px; border-radius: 4px; margin-bottom: 20px; background: #f9f9f9;">
         <div style="background: #e7f2ee; padding: 12px; border-radius: 4px; margin-bottom: 16px;">
           <p style="margin: 0; color: #0f7a5a;"><strong>${translate("activity_label")}:</strong> ${escapeHTML(this.activity.name)}</p>
+          ${invitedOnly ? `<p style="margin: 8px 0 0;">${escapeHTML(translate('permission_slip_invited_only_notice'))}</p>` : ''}
         </div>
 
         <label class="stacked">
@@ -795,11 +820,20 @@ export class PermissionSlipDashboard {
   }
 
   filterParticipantsByAudience(audience) {
+    const invitedIds = this.getInvitedIds();
+    const audienceParticipants = this.filterRosterByAudience(audience);
+    // Only the children the activity invites can receive its slip
+    return invitedIds === null
+      ? audienceParticipants
+      : audienceParticipants.filter((participant) => invitedIds.has(Number(participant.id)));
+  }
+
+  filterRosterByAudience(audience) {
     if (!audience) {
       return [];
     }
 
-    if (audience === 'all') {
+    if (audience === 'all' || audience === 'invited') {
       return this.participants;
     }
 
@@ -874,14 +908,11 @@ export class PermissionSlipDashboard {
   async clearPermissionSlipCaches() {
     try {
       if (this.activityId) {
-        const params = { activity_id: this.activityId };
-        const permissionCacheKey = buildApiCacheKey('v1/resources/permission-slips', params);
-        const dashboardCacheKey = buildApiCacheKey('v1/resources/status/dashboard', params);
-        await deleteCachedData(permissionCacheKey);
-        await deleteCachedData(dashboardCacheKey);
+        await clearActivityPermissionSlipCaches(this.activityId);
+      } else {
+        // Refresh the slip counts on the main dashboard
+        await deleteCachedData('v1/activities');
       }
-      // Also clear activities cache to refresh counts on main dashboard
-      await deleteCachedData('v1/activities');
     } catch (error) {
       debugError('Error clearing permission slip caches', error);
     }
@@ -964,8 +995,19 @@ export class PermissionSlipDashboard {
       this.render();
       this.attachEventHandlers();
 
-      // Save to server
-      const result = await savePermissionSlip(payload);
+      // Save to server, at most SLIP_BATCH_SIZE children per request
+      const batches = [];
+      for (let start = 0; start < participantIds.length; start += SLIP_BATCH_SIZE) {
+        batches.push(participantIds.slice(start, start + SLIP_BATCH_SIZE));
+      }
+      const settled = await Promise.allSettled(
+        batches.map((ids) => savePermissionSlip({ ...payload, participant_ids: ids }))
+      );
+      const failed = settled.filter((outcome) => outcome.status === 'rejected');
+      if (failed.length === settled.length) {
+        throw failed[0].reason;
+      }
+      const results = settled.filter((outcome) => outcome.status === 'fulfilled').map((outcome) => outcome.value);
 
       // Clear cache to ensure fresh data on next load
       if (window.storageUtils) {
@@ -975,8 +1017,21 @@ export class PermissionSlipDashboard {
 
       await this.clearPermissionSlipCaches();
 
-      const answeredCount = (result?.data?.answered_participant_ids || []).length;
-      if (answeredCount > 0) {
+      const answeredCount = results
+        .reduce((count, result) => count + (result?.data?.answered_participant_ids || []).length, 0);
+      if (failed.length > 0) {
+        // Some batches were saved: say so rather than report a full failure
+        debugError('Some permission slip batches failed', failed.map((outcome) => outcome.reason));
+        const savedCount = batches
+          .filter((_ids, index) => settled[index].status === 'fulfilled')
+          .reduce((count, ids) => count + ids.length, 0);
+        this.app.showMessage(
+          translate('permission_slip_partially_saved')
+            .replace('{saved}', savedCount)
+            .replace('{total}', participantIds.length),
+          'error',
+        );
+      } else if (answeredCount > 0) {
         this.app.showMessage(
           translate('permission_slip_answered_kept').replace('{count}', answeredCount),
           'warning',

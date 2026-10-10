@@ -12245,3 +12245,103 @@ body.modal-open {
     gap: 1rem;
   }
 }
+
+/* ----------------------------------------------------------------------------
+   Activity form: who is invited
+   ---------------------------------------------------------------------------- */
+.activity-invitees__picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-block-start: var(--space-sm);
+}
+
+.activity-invitees__picker[hidden],
+.activity-invitees__item[hidden],
+.activity-invitees__off-roster[hidden],
+.activity-invitees__empty[hidden] {
+  display: none;
+}
+
+.activity-invitees__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.activity-invitees__toolbar .button {
+  min-block-size: var(--touch-target-min);
+  touch-action: manipulation;
+}
+
+.activity-invitees__count,
+.activity-invitees__status {
+  margin: 0;
+}
+
+.activity-invitees__count {
+  font-weight: var(--font-weight-bold);
+}
+
+.activity-invitees__list-wrapper {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.activity-invitees__list {
+  max-block-size: 18rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.activity-invitees__item,
+.activity-invitees__off-roster {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-inline: var(--space-sm);
+  border-block-end: 1px solid var(--color-border);
+}
+
+.activity-invitees__item input[type="checkbox"],
+.activity-invitees__off-roster input[type="checkbox"] {
+  flex: none;
+  inline-size: var(--control-size-min);
+  block-size: var(--control-size-min);
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+.activity-invitees__item label,
+.activity-invitees__off-roster label {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-xs);
+  min-block-size: var(--touch-target-min);
+  margin: 0;
+  font-weight: var(--font-weight-normal);
+  cursor: pointer;
+}
+
+.activity-invitees__meta,
+.activity-invitees__empty {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.activity-invitees__empty {
+  margin: 0;
+  padding: var(--space-sm);
+}
+
+.activity-info-card__invited {
+  margin-block: var(--space-sm) 0;
+  font-size: var(--font-size-sm);
+}

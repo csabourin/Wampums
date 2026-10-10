@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { mayReadInviteeList } = require('../services/activityInvitations');
 const { DATE_LIMITS } = require('../config/constants');
 
 /**
@@ -213,10 +214,19 @@ module.exports = (pool, logger) => {
                             activity_end_date::text as activity_end_date,
                             activity_start_time::text as activity_start_time,
                             activity_end_time::text as activity_end_time,
-                            meeting_location_going
+                            meeting_location_going,
+                            invites_everyone,
+                            -- The invited list is for those who organize the activity ($3)
+                            CASE WHEN invites_everyone OR NOT $3::boolean THEN NULL ELSE COALESCE(
+                              (SELECT array_agg(ai.participant_id ORDER BY ai.participant_id)
+                                 FROM activity_invitees ai
+                                WHERE ai.activity_id = activities.id
+                                  AND ai.organization_id = activities.organization_id),
+                              '{}'
+                            ) END AS invited_participant_ids
                      FROM activities
                      WHERE id = $1 AND organization_id = $2 AND is_active = TRUE`,
-                    [activity_id, organizationId]
+                    [activity_id, organizationId, mayReadInviteeList(req)]
                 ) : { rows: [] };
 
                 const carpoolOffersResult = activity_id ? await client.query(

@@ -79,10 +79,15 @@ Wampums Team
  * @param {Object} pool - Database connection pool
  * @param {Number} activityId - ID of the updated activity
  * @param {Number} organizationId - Organization ID
+ * @param {Object} [options]
+ * @param {boolean} [options.wholeUnit=false] - Also reach every family of the
+ *   unit: the edit opened an activity for some participants to everyone, so
+ *   families who were not invited are newly concerned
  */
-async function sendActivityUpdateNotifications(pool, activityId, organizationId) {
+async function sendActivityUpdateNotifications(pool, activityId, organizationId, { wholeUnit = false } = {}) {
   // Everyone the activity concerns: guardians of children riding in its
-  // carpools or holding one of its permission slips, and its drivers. A child
+  // carpools, holding one of its permission slips or on its invitation list,
+  // and its drivers. A child
   // can be enrolled in several units, so only accounts that are active members
   // of this activity's unit hear about it.
   const result = await pool.query(
@@ -104,9 +109,30 @@ async function sendActivityUpdateNotifications(pool, activityId, organizationId)
        SELECT up.user_id
          FROM user_participants up
          JOIN permission_slips ps ON ps.participant_id = up.participant_id
+         JOIN activities sa ON sa.id = ps.activity_id
         WHERE ps.activity_id = $1
           AND ps.organization_id = $2
           AND ps.status IN ('pending', 'signed')
+          -- A signed slip outlives its child's invitation; only invitees hear
+          AND (sa.invites_everyone
+               OR ps.participant_id IN (SELECT participant_id FROM activity_invitees WHERE activity_id = $1))
+
+       UNION
+
+       -- An activity for some participants concerns every invited family,
+       -- including those invited by this very edit
+       SELECT up.user_id
+         FROM user_participants up
+         JOIN activity_invitees ai ON ai.participant_id = up.participant_id
+        WHERE ai.activity_id = $1 AND ai.organization_id = $2
+
+       UNION
+
+       -- Opened to the whole unit: every enrolled child's family
+       SELECT up.user_id
+         FROM user_participants up
+         JOIN participant_organizations po ON po.participant_id = up.participant_id
+        WHERE $3::boolean AND po.organization_id = $2
      )
      SELECT DISTINCT
       u.email,
@@ -125,7 +151,7 @@ async function sendActivityUpdateNotifications(pool, activityId, organizationId)
        ON uo.user_id = u.id AND uo.organization_id = $2 AND uo.status = 'active'
      JOIN activities a ON a.id = $1 AND a.organization_id = $2
      WHERE u.email IS NOT NULL AND u.email <> ''`,
-    [activityId, organizationId]
+    [activityId, organizationId, wholeUnit]
   );
 
   if (result.rows.length === 0) {

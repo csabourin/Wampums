@@ -1,5 +1,5 @@
 import { debugLog, debugError, debugWarn } from "./utils/DebugUtils.js";
-import { buildScopedCacheKey, normalizeApiPath } from "./utils/OfflineCacheKeys.js";
+import { buildApiCacheKey, buildScopedCacheKey, normalizeApiPath } from "./utils/OfflineCacheKeys.js";
 import { notePageCacheKey } from "./modules/live-sync/LiveSyncState.js";
 
 const DB_NAME = "WampumsAppDB";
@@ -868,6 +868,18 @@ export async function clearYearlyPlannerCaches({
   if (includeActivities) {
     await clearActivityRelatedCaches();
   }
+}
+
+/**
+ * Clear an activity's permission-slip list and status dashboard caches, and
+ * the activity list whose slip counts they feed.
+ * @param {number|string} activityId
+ */
+export async function clearActivityPermissionSlipCaches(activityId) {
+  const params = { activity_id: activityId };
+  await deleteCachedData(buildApiCacheKey('v1/resources/permission-slips', params));
+  await deleteCachedData(buildApiCacheKey('v1/resources/status/dashboard', params));
+  await deleteCachedData('v1/activities');
 }
 
 /**

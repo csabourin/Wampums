@@ -19,6 +19,7 @@ const { sendEmail, getUserEmailLanguage } = require("../utils/index");
 const { buildPermissionSlipEmailContent } = require("../utils/permission-slip-email");
 const { resolveOrganizationBaseUrl } = require("../utils/public-url");
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
+const { findUninvitedParticipants } = require('../services/activityInvitations');
 const {
   MAX_FILE_SIZE,
   OUTPUT_MIME_TYPE,
@@ -91,6 +92,7 @@ function parseDate(dateString) {
  * and `expired` have all released them.
  */
 const HOLDING_STATUSES = ["reserved", "confirmed"];
+const HTTP_BAD_REQUEST = 400;
 
 function activeReservationPredicate(alias = "") {
   const prefix = alias ? `${alias}.` : "";
@@ -2373,6 +2375,22 @@ module.exports = (pool) => {
 
           if (activityResult.rows.length === 0) {
             return error(res, 'Activity not found', 404);
+          }
+
+          // A slip is for a child the activity invites
+          const uninvited = await findUninvitedParticipants(
+            pool,
+            activity_id,
+            organizationId,
+            participantIdsList,
+          );
+          if (uninvited.length > 0) {
+            return error(
+              res,
+              'Some participants are not invited to this activity',
+              HTTP_BAD_REQUEST,
+              [{ field: 'participant_ids', value: uninvited }],
+            );
           }
 
           const activity = activityResult.rows[0];

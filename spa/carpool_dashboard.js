@@ -125,7 +125,7 @@ export class CarpoolDashboard {
               .filter(a => ['both', 'from_activity'].includes(a.trip_direction)).length
           }));
 
-          this.participants = cachedParticipants.data;
+          this.participants = this.invitedOnly(cachedParticipants.data);
           this.unassignedParticipants = []; // Skip when using cached data
           return;
         }
@@ -151,6 +151,20 @@ export class CarpoolDashboard {
       debugError('Error loading carpool data:', error);
       this.app.showMessage(translate('error_loading_carpool_data'), 'error');
     }
+  }
+
+  /**
+   * Keep only the children the activity invites. The cached roster is the
+   * whole unit's; the server's activity roster is already filtered.
+   * @param {Array<Object>} participants
+   * @returns {Array<Object>}
+   */
+  invitedOnly(participants) {
+    if (this.activity?.invites_everyone !== false) {
+      return participants;
+    }
+    const invited = new Set((this.activity.invited_participant_ids || []).map(Number));
+    return participants.filter((participant) => invited.has(Number(participant.id)));
   }
 
   render() {
@@ -218,6 +232,9 @@ export class CarpoolDashboard {
               </div>
             ` : ''}
           </div>
+          ${this.activity.invites_everyone === false ? `
+            <p class="activity-info-card__invited">${escapeHTML(translate('carpool_invited_only_notice'))}</p>
+          ` : ''}
         </div>
 
         <!-- Action Buttons -->
