@@ -1765,6 +1765,82 @@ tr:hover {
   overscroll-behavior: contain;
 }
 
+/* Carpool quick access (activity picker opened from /carpool and the dashboard) */
+.carpool-quick-access__intro,
+.carpool-quick-access__empty {
+  margin: 0 0 var(--space-md);
+  color: var(--color-text-muted);
+}
+
+.carpool-quick-access__empty {
+  text-align: center;
+}
+
+.carpool-quick-access__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.carpool-quick-access__activity {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-sm) var(--space-md);
+  min-block-size: var(--touch-target-min);
+  padding: var(--space-md);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: inherit;
+  text-decoration: none;
+}
+
+.carpool-quick-access__activity:hover,
+.carpool-quick-access__activity:focus-visible {
+  border-color: var(--color-primary);
+}
+
+.carpool-quick-access__activity:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.carpool-quick-access__details,
+.carpool-quick-access__counts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.carpool-quick-access__details {
+  flex: 1 1 12rem;
+}
+
+.carpool-quick-access__name {
+  font-weight: var(--font-weight-semibold);
+}
+
+.carpool-quick-access__date,
+.carpool-quick-access__location,
+.carpool-quick-access__counts {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.carpool-quick-access__badge {
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-full);
+  background-color: var(--color-primary);
+  color: var(--color-surface);
+}
+
+.carpool-quick-access__create {
+  inline-size: 100%;
+}
+
 /* Modal Content Container */
 .modal-overlay .modal-content {
   /* Layout */

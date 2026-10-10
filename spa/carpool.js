@@ -3,6 +3,7 @@ import { translate } from "./app.js";
 import { debugError } from "./utils/DebugUtils.js";
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { CarpoolQuickAccessModal } from "./modules/modals/CarpoolQuickAccessModal.js";
 
 /**
  * Landing view for the /carpool route.
@@ -122,15 +123,13 @@ export class CarpoolLanding {
   }
 
   /**
-   * Open the existing carpool quick access selector so users can pick an activity.
-   * Reuses the dashboard implementation to avoid duplicate logic.
+   * Open the carpool quick access selector so users can pick an activity.
+   * Shares the modal the dashboard's carpool tile opens.
    * @returns {Promise<void>}
    */
   async openActivityPicker() {
     try {
-      const { Dashboard } = await import("./dashboard.js");
-      const dashboard = new Dashboard(this.app);
-      await dashboard.showCarpoolQuickAccess();
+      await new CarpoolQuickAccessModal(this.app).show();
     } catch (error) {
       debugError("Error opening carpool selector:", error);
       if (typeof this.app?.showMessage === "function") {
