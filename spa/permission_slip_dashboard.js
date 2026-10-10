@@ -1,5 +1,4 @@
 import { translate } from "./app.js";
-import { buildApiCacheKey } from "./utils/OfflineCacheKeys.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDate } from "./utils/DateUtils.js";
@@ -27,7 +26,7 @@ import {
 } from "./utils/DialogUtils.js";
 import { getParticipants } from "./api/api-endpoints.js";
 import { fetchParticipants, getCurrentOrganizationId } from './ajax-functions.js';
-import { deleteCachedData } from "./indexedDB.js";
+import { clearActivityPermissionSlipCaches, deleteCachedData } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { withButtonLoading } from "./utils/PerformanceUtils.js";
 import { QuickCreateActivityModal } from "./modules/modals/QuickCreateActivityModal.js";
@@ -909,14 +908,11 @@ export class PermissionSlipDashboard {
   async clearPermissionSlipCaches() {
     try {
       if (this.activityId) {
-        const params = { activity_id: this.activityId };
-        const permissionCacheKey = buildApiCacheKey('v1/resources/permission-slips', params);
-        const dashboardCacheKey = buildApiCacheKey('v1/resources/status/dashboard', params);
-        await deleteCachedData(permissionCacheKey);
-        await deleteCachedData(dashboardCacheKey);
+        await clearActivityPermissionSlipCaches(this.activityId);
+      } else {
+        // Refresh the slip counts on the main dashboard
+        await deleteCachedData('v1/activities');
       }
-      // Also clear activities cache to refresh counts on main dashboard
-      await deleteCachedData('v1/activities');
     } catch (error) {
       debugError('Error clearing permission slip caches', error);
     }
@@ -1004,7 +1000,14 @@ export class PermissionSlipDashboard {
       for (let start = 0; start < participantIds.length; start += SLIP_BATCH_SIZE) {
         batches.push(participantIds.slice(start, start + SLIP_BATCH_SIZE));
       }
-      const results = await Promise.all(batches.map((ids) => savePermissionSlip({ ...payload, participant_ids: ids })));
+      const settled = await Promise.allSettled(
+        batches.map((ids) => savePermissionSlip({ ...payload, participant_ids: ids }))
+      );
+      const failed = settled.filter((outcome) => outcome.status === 'rejected');
+      if (failed.length === settled.length) {
+        throw failed[0].reason;
+      }
+      const results = settled.filter((outcome) => outcome.status === 'fulfilled').map((outcome) => outcome.value);
 
       // Clear cache to ensure fresh data on next load
       if (window.storageUtils) {
@@ -1016,7 +1019,19 @@ export class PermissionSlipDashboard {
 
       const answeredCount = results
         .reduce((count, result) => count + (result?.data?.answered_participant_ids || []).length, 0);
-      if (answeredCount > 0) {
+      if (failed.length > 0) {
+        // Some batches were saved: say so rather than report a full failure
+        debugError('Some permission slip batches failed', failed.map((outcome) => outcome.reason));
+        const savedCount = batches
+          .filter((_ids, index) => settled[index].status === 'fulfilled')
+          .reduce((count, ids) => count + ids.length, 0);
+        this.app.showMessage(
+          translate('permission_slip_partially_saved')
+            .replace('{saved}', savedCount)
+            .replace('{total}', participantIds.length),
+          'error',
+        );
+      } else if (answeredCount > 0) {
         this.app.showMessage(
           translate('permission_slip_answered_kept').replace('{count}', answeredCount),
           'warning',

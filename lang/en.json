@@ -3782,5 +3782,6 @@
   "activity_invited_count": "{count} invited",
   "permission_slip_audience_invited": "Participants invited to this activity",
   "permission_slip_invited_only_notice": "This activity invites only some participants; only they can receive a permission slip.",
-  "carpool_invited_only_notice": "This activity invites only some participants; only they are listed."
+  "carpool_invited_only_notice": "This activity invites only some participants; only they are listed.",
+  "permission_slip_partially_saved": "Only {saved} of {total} permission slips were saved. Try again for the others."
 }

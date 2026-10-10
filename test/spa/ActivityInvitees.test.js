@@ -54,12 +54,16 @@ jest.mock('../../spa/api/api-activities.js', () => ({
   getActivity: jest.fn(),
 }));
 
-jest.mock('../../spa/indexedDB.js', () => ({ clearActivityRelatedCaches: jest.fn() }));
+jest.mock('../../spa/indexedDB.js', () => ({
+  clearActivityRelatedCaches: jest.fn(),
+  clearActivityPermissionSlipCaches: jest.fn(),
+}));
 jest.mock('../../spa/modules/AI.js', () => ({ aiGenerateText: jest.fn() }));
 
 const { fetchParticipants } = require('../../spa/ajax-functions.js');
 const { getGroups } = require('../../spa/api/api-endpoints.js');
 const { createActivity, updateActivity, getActivity } = require('../../spa/api/api-activities.js');
+const { clearActivityPermissionSlipCaches } = require('../../spa/indexedDB.js');
 const { ageOn } = require('../../spa/modules/activities/ActivityInviteesPicker.js');
 const { openActivityFormModal } = require('../../spa/modules/activities/ActivityFormModal.js');
 
@@ -212,6 +216,29 @@ describe('activity invitations', () => {
       invites_everyone: false,
       invited_participant_ids: [2, 3],
     }));
+    // Nothing archived: the slip lists stay cached
+    expect(clearActivityPermissionSlipCaches).not.toHaveBeenCalled();
+    close();
+  });
+
+  test('archiving uninvited children\'s slips clears the slip caches', async () => {
+    getActivity.mockResolvedValue({ id: 5, invites_everyone: false, invited_participant_ids: [2, 3] });
+    updateActivity.mockResolvedValue({ id: 5, uninvited_permission_slips_archived: 1 });
+    const activity = {
+      id: 5, name: 'Camp', invites_everyone: false,
+      activity_start_date: '2026-10-24', activity_start_time: '18:00:00',
+      activity_end_date: '2026-10-26', activity_end_time: '12:00:00',
+      meeting_location_going: 'Local', meeting_time_going: '17:30:00', departure_time_going: '17:45:00',
+    };
+    const { close } = openActivityFormModal(app, { activity });
+    const overlay = document.getElementById('activity-modal');
+    await flush();
+    await flush();
+    overlay.querySelector('#activity-invitee-3').click();
+    overlay.querySelector('#activity-form').dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    await flush();
+    expect(clearActivityPermissionSlipCaches).toHaveBeenCalledWith(5);
     close();
   });
 

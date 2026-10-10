@@ -17,6 +17,8 @@
 
 const MAX_INVITEES = 1000;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d{0,9}$/;
+// Largest value of a PostgreSQL INTEGER id
+const MAX_INTEGER_ID = 2147483647;
 const TRUE_VALUES = [true, 'true', 1, '1'];
 const FALSE_VALUES = [false, 'false', 0, '0'];
 
@@ -61,7 +63,7 @@ function readInvitation(body = {}, { isCreate = false } = {}) {
   if (rawIds.length > MAX_INVITEES) {
     return { provided: true, problem: `At most ${MAX_INVITEES} participants may be invited` };
   }
-  if (rawIds.some((id) => !POSITIVE_INTEGER_PATTERN.test(String(id)))) {
+  if (rawIds.some((id) => !POSITIVE_INTEGER_PATTERN.test(String(id)) || Number(id) > MAX_INTEGER_ID)) {
     return { provided: true, problem: 'invited_participant_ids must contain participant ids' };
   }
   const participantIds = [...new Set(rawIds.map(Number))];

@@ -233,6 +233,9 @@ describe.skipIf(!DATABASE_URL)('Activities for some participants', () => {
     const malformed = await call('post', '/api/v1/activities', ids.staff)
       .send({ ...ACTIVITY, invites_everyone: false, invited_participant_ids: ['abc'] });
     expect(malformed.status).toBe(400);
+    const outOfRange = await call('post', '/api/v1/activities', ids.staff)
+      .send({ ...ACTIVITY, invites_everyone: false, invited_participant_ids: [2147483648] });
+    expect(outOfRange.status).toBe(400);
     // An unclear mode never falls back to inviting the whole unit
     const unclear = await Promise.all([null, '', 'False', {}].map((mode) =>
       call('put', `/api/v1/activities/${ids.camp}`, ids.staff).send({ invites_everyone: mode })));

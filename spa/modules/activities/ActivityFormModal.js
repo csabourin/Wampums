@@ -5,7 +5,7 @@
 // same wherever an activity is managed.
 import { translate } from '../../app.js';
 import { createActivity, getActivity, updateActivity } from '../../api/api-activities.js';
-import { clearActivityRelatedCaches } from '../../indexedDB.js';
+import { clearActivityPermissionSlipCaches, clearActivityRelatedCaches } from '../../indexedDB.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { setButtonLoading } from '../../utils/SkeletonUtils.js';
@@ -392,6 +392,9 @@ export function openActivityFormModal(app, { activity = null, onSaved = null } =
       const updatedSlips = saved?.pending_permission_slips_updated || 0;
       const freedSeats = saved?.uninvited_carpool_assignments_removed || 0;
       const archivedSlips = saved?.uninvited_permission_slips_archived || 0;
+      if (archivedSlips > 0) {
+        await clearActivityPermissionSlipCaches(activity.id);
+      }
       const message = [
         isEdit ? translate('activity_updated_success') : translate('activity_created_success'),
         updatedSlips > 0
