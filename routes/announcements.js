@@ -25,7 +25,7 @@ const {
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { resolveDatabaseConnectionString } = require('../config/database-url');
-const { getVapidKeys, isGoneSubscriptionError, removeGoneSubscriptions } = require('../utils/web-push');
+const { getVapidKeys, removeInvalidSubscriptions, sortPushResults } = require('../utils/web-push');
 
 /** Upper bound on roles one announcement may address; the unit's catalog is far smaller. */
 const MAX_ANNOUNCEMENT_ROLES = 50;
@@ -381,16 +381,12 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
         { successes: 0, failures: 0 },
       );
 
-      // Browsers that unsubscribed or reinstalled the app never receive again
-      const goneEndpoints = pushResults
-        .map((result, index) => (
-          result.status === 'rejected' && isGoneSubscriptionError(result.reason) ? subscribers[index].endpoint : null
-        ))
-        .filter(Boolean);
+      // Devices that can never receive again are forgotten
+      const { invalidEndpoints } = sortPushResults(pushResults, subscribers);
       try {
-        await removeGoneSubscriptions(pool, announcement.organization_id, goneEndpoints);
+        await removeInvalidSubscriptions(pool, announcement.organization_id, invalidEndpoints);
       } catch (cleanupError) {
-        logger.error('Error removing gone push subscriptions:', cleanupError);
+        logger.error('Error removing invalid push subscriptions:', cleanupError);
       }
 
       // Batch log failures for push notifications

@@ -97,7 +97,7 @@
     "services/familyLinks.js": 8,
     "services/google-chat.js": 11,
     "services/manager.js": 55,
-    "services/medication-reminders.js": 19,
+    "services/medication-reminders.js": 18,
     "services/openai.js": 174,
     "services/parentInvitations.js": 1,
     "services/parentOnboarding.js": 1,
