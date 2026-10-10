@@ -218,6 +218,9 @@ export class CarpoolDashboard {
               </div>
             ` : ''}
           </div>
+          ${this.activity.invites_everyone === false ? `
+            <p class="activity-info-card__invited">${escapeHTML(translate('carpool_invited_only_notice'))}</p>
+          ` : ''}
         </div>
 
         <!-- Action Buttons -->

@@ -4,6 +4,9 @@ const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { carpoolRosterRestriction } = require('../services/carpoolAccess');
+const { findUninvitedParticipants } = require('../services/activityInvitations');
+
+const HTTP_BAD_REQUEST = 400;
 
 module.exports = (pool) => {
   /**
@@ -379,6 +382,12 @@ module.exports = (pool) => {
       return error(res, 'Participant not found in this organization', 404);
     }
 
+    // A ride is for a child the activity invites
+    const uninvited = await findUninvitedParticipants(pool, offer.activity_id, organizationId, [req.body.participant_id]);
+    if (uninvited.length > 0) {
+      return error(res, 'Participant is not invited to this activity', HTTP_BAD_REQUEST);
+    }
+
     // Check for existing assignment that conflicts with this one
     const existingAssignment = await pool.query(
       `SELECT ca.id, co.trip_direction as offer_direction
@@ -591,6 +600,9 @@ module.exports = (pool) => {
          )
        WHERE po.organization_id = $2
          AND ($3::uuid IS NULL OR p.id IN (SELECT participant_id FROM user_participants WHERE user_id = $3))
+         -- Only the children the activity invites
+         AND (EXISTS (SELECT 1 FROM activities ia WHERE ia.id = $1 AND ia.organization_id = $2 AND ia.invites_everyone)
+              OR p.id IN (SELECT participant_id FROM activity_invitees WHERE activity_id = $1 AND organization_id = $2))
        GROUP BY p.id, ca_going.participant_id, ca_return.participant_id
        HAVING ca_going.participant_id IS NULL OR ca_return.participant_id IS NULL
        ORDER BY p.last_name, p.first_name`,

@@ -26,6 +26,7 @@ import {
   prompt as promptDialog,
 } from "./utils/DialogUtils.js";
 import { getParticipants } from "./api/api-endpoints.js";
+import { fetchParticipants, getCurrentOrganizationId } from './ajax-functions.js';
 import { deleteCachedData } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { withButtonLoading } from "./utils/PerformanceUtils.js";
@@ -70,6 +71,12 @@ export class PermissionSlipDashboard {
       const { getActivity } = await import('./api/api-activities.js');
       this.activity = await getActivity(this.activityId);
       debugLog('Loaded activity:', this.activity);
+      // An activity for some participants offers its invitees first
+      if (this.getInvitedIds() && !this.selectedAudience) {
+        this.selectedAudience = 'invited';
+      } else if (!this.getInvitedIds() && this.selectedAudience === 'invited') {
+        this.selectedAudience = null;
+      }
     } catch (error) {
       debugError('Error loading activity:', error);
       throw error;
@@ -84,13 +91,14 @@ export class PermissionSlipDashboard {
         getPermissionSlips({ activity_id: this.activityId }, { forceRefresh }),
         getResourceDashboard(params, { forceRefresh }),
         getGroups(),
-        getParticipants()
+        // The whole roster: an invited child may be past the first page
+        fetchParticipants(getCurrentOrganizationId())
       ]);
 
       this.permissionSlips = slipsResponse?.data?.permission_slips || slipsResponse?.permission_slips || [];
       this.dashboardSummary = summaryResponse?.data || summaryResponse || { permission_summary: [] };
       this.groups = groupsResponse?.data || groupsResponse?.groups || [];
-      this.participants = participantsResponse?.data || participantsResponse?.participants || [];
+      this.participants = Array.isArray(participantsResponse) ? participantsResponse : [];
     } else {
       // Main dashboard mode: load activities with permission slip counts
       const { getActivitiesWithPermissionSlips } = await import('./api/api-activities.js');
@@ -361,9 +369,22 @@ export class PermissionSlipDashboard {
   }
 
 
+  /**
+   * The ids an activity invites, or null when it invites the whole unit.
+   * @returns {Set<number>|null}
+   */
+  getInvitedIds() {
+    if (this.activity?.invites_everyone !== false) {
+      return null;
+    }
+    return new Set((this.activity.invited_participant_ids || []).map(Number));
+  }
+
   renderCreateForm() {
     const selectedValue = this.selectedAudience || '';
+    const invitedOnly = this.getInvitedIds() !== null;
     const audienceOptions = [
+      ...(invitedOnly ? [{ value: 'invited', label: translate('permission_slip_audience_invited') }] : []),
       { value: 'all', label: translate('all_active_participants') },
       { value: 'first-year', label: translate('first_year_participants') },
       { value: 'second-year', label: translate('second_year_participants') },
@@ -382,6 +403,7 @@ export class PermissionSlipDashboard {
       <form id="permissionSlipForm" class="stacked" style="border: 1px solid #ddd; padding: 20px; border-radius: 4px; margin-bottom: 20px; background: #f9f9f9;">
         <div style="background: #e7f2ee; padding: 12px; border-radius: 4px; margin-bottom: 16px;">
           <p style="margin: 0; color: #0f7a5a;"><strong>${translate("activity_label")}:</strong> ${escapeHTML(this.activity.name)}</p>
+          ${invitedOnly ? `<p style="margin: 8px 0 0;">${escapeHTML(translate('permission_slip_invited_only_notice'))}</p>` : ''}
         </div>
 
         <label class="stacked">
@@ -795,11 +817,20 @@ export class PermissionSlipDashboard {
   }
 
   filterParticipantsByAudience(audience) {
+    const invitedIds = this.getInvitedIds();
+    const audienceParticipants = this.filterRosterByAudience(audience);
+    // Only the children the activity invites can receive its slip
+    return invitedIds === null
+      ? audienceParticipants
+      : audienceParticipants.filter((participant) => invitedIds.has(Number(participant.id)));
+  }
+
+  filterRosterByAudience(audience) {
     if (!audience) {
       return [];
     }
 
-    if (audience === 'all') {
+    if (audience === 'all' || audience === 'invited') {
       return this.participants;
     }
 

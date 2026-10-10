@@ -4,7 +4,7 @@
 // fields, the validation and the permission-slip authorization text stay the
 // same wherever an activity is managed.
 import { translate } from '../../app.js';
-import { createActivity, updateActivity } from '../../api/api-activities.js';
+import { createActivity, getActivity, updateActivity } from '../../api/api-activities.js';
 import { clearActivityRelatedCaches } from '../../indexedDB.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
@@ -12,6 +12,7 @@ import { setButtonLoading } from '../../utils/SkeletonUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { getActivityEndDate, getActivityStartDate } from '../../utils/ActivityDateUtils.js';
 import { aiGenerateText } from '../AI.js';
+import { attachInviteesPicker, buildInviteesFieldsetHTML } from './ActivityInviteesPicker.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 const DEFAULT_AI_DURATION_MINUTES = 120;
@@ -101,6 +102,8 @@ function buildFormHTML(activity) {
                  value="${time('activity_end_time')}" required class="form-control">
         </div>
       </div>
+
+      ${buildInviteesFieldsetHTML(activity)}
 
       <fieldset class="form-fieldset">
         <legend>${translate('going_to_activity')}</legend>
@@ -335,6 +338,21 @@ export function openActivityFormModal(app, { activity = null, onSaved = null } =
   });
 
   const startDateInput = overlay.querySelector('#activity-start-date');
+  const invitees = attachInviteesPicker(overlay, {
+    activity,
+    getStartDate: () => startDateInput?.value || '',
+    // The activity list does not carry who is invited: its details do
+    loadInvitedIds: async () => {
+      if (!isEdit || activity.invites_everyone !== false) {
+        return [];
+      }
+      if (Array.isArray(activity.invited_participant_ids)) {
+        return activity.invited_participant_ids;
+      }
+      const details = await getActivity(activity.id);
+      return details?.invited_participant_ids || [];
+    }
+  });
   const endDateInput = overlay.querySelector('#activity-end-date');
   // Keep a one-day activity one day long when only its start date moves
   let previousStartDate = startDateInput?.value || '';
@@ -344,6 +362,7 @@ export function openActivityFormModal(app, { activity = null, onSaved = null } =
       endDateInput.value = startDateInput.value;
     }
     previousStartDate = startDateInput.value;
+    invitees.refreshAges();
   });
 
   overlay.querySelector('#magic-generate-btn')?.addEventListener('click', () => {
@@ -353,8 +372,8 @@ export function openActivityFormModal(app, { activity = null, onSaved = null } =
   overlay.querySelector('#activity-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const form = e.target;
-    const data = readForm(form, isEdit);
-    const problem = validate(data);
+    const data = invitees.readInto(readForm(form, isEdit));
+    const problem = validate(data) || invitees.validate();
     if (problem) {
       app.showMessage(translate(problem), 'error');
       return;
@@ -371,15 +390,20 @@ export function openActivityFormModal(app, { activity = null, onSaved = null } =
       await clearActivityRelatedCaches();
 
       const updatedSlips = saved?.pending_permission_slips_updated || 0;
-      const message = isEdit
-        ? translate('activity_updated_success')
-        : translate('activity_created_success');
-      app.showMessage(
+      const freedSeats = saved?.uninvited_carpool_assignments_removed || 0;
+      const archivedSlips = saved?.uninvited_permission_slips_archived || 0;
+      const message = [
+        isEdit ? translate('activity_updated_success') : translate('activity_created_success'),
         updatedSlips > 0
-          ? `${message} ${translate('activity_pending_slips_updated').replace('{count}', updatedSlips)}`
-          : message,
-        'success'
-      );
+          ? translate('activity_pending_slips_updated').replace('{count}', updatedSlips)
+          : '',
+        freedSeats > 0 || archivedSlips > 0
+          ? translate('activity_invitees_removed_notice')
+            .replace('{assignments}', freedSeats)
+            .replace('{slips}', archivedSlips)
+          : ''
+      ].filter(Boolean).join(' ');
+      app.showMessage(message, 'success');
 
       saving = false;
       close(true);

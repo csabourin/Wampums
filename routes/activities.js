@@ -6,6 +6,7 @@ const { success, error, asyncHandler } = require('../middleware/response');
 const logger = require('../config/logger');
 const { sendActivityUpdateNotifications } = require('../utils/carpool-notifications');
 const { carpoolRosterRestriction } = require('../services/carpoolAccess');
+const { readInvitation, saveInvitation } = require('../services/activityInvitations');
 
 module.exports = (pool) => {
   const ICAL_PROD_ID = '-//Wampums//Activities Calendar//EN';
@@ -15,6 +16,10 @@ module.exports = (pool) => {
   const TIME_PATTERN = /^(\d{2}):(\d{2})(?::(\d{2}))?$/;
   const ACTIVITY_ID_PATTERN = /^[1-9]\d{0,9}$/;
   const HTTP_NOT_FOUND = 404;
+  const HTTP_BAD_REQUEST = 400;
+  const HTTP_CREATED = 201;
+  // Who may see the list of invited children on an activity's details
+  const INVITEE_LIST_PERMISSIONS = ['activities.edit', 'carpools.manage'];
   const HOURS_PER_DAY = 24;
   const MINUTES_PER_HOUR = 60;
   const SECONDS_PER_MINUTE = 60;
@@ -179,7 +184,9 @@ module.exports = (pool) => {
         COUNT(DISTINCT ca.participant_id) as assigned_participant_count,
         COUNT(DISTINCT ps.id) FILTER (WHERE ps.status = 'pending') as pending_slip_count,
         COUNT(DISTINCT ps.id) FILTER (WHERE ps.status = 'signed') as signed_slip_count,
-        COUNT(DISTINCT ps.id) FILTER (WHERE ps.status = 'declined') as declined_slip_count
+        COUNT(DISTINCT ps.id) FILTER (WHERE ps.status = 'declined') as declined_slip_count,
+        (SELECT COUNT(*) FROM activity_invitees ai
+          WHERE ai.activity_id = a.id AND ai.organization_id = a.organization_id) AS invited_count
        FROM activities a
        LEFT JOIN users u ON a.created_by = u.id
        LEFT JOIN year_plan_meetings ypm
@@ -289,7 +296,7 @@ module.exports = (pool) => {
 
   /**
    * Get all participants for an activity (used by carpool dashboard)
-   * Returns organization participants with their carpool assignment status
+   * Returns the invited participants with their carpool assignment status
    * Accessible by: animation, admin, parent
    */
   router.get('/:id/participants', authenticate, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
@@ -353,6 +360,9 @@ module.exports = (pool) => {
          )
        WHERE po.organization_id = $2
          AND ($3::uuid IS NULL OR p.id IN (SELECT participant_id FROM user_participants WHERE user_id = $3))
+         -- Only the children the activity invites
+         AND (EXISTS (SELECT 1 FROM activities ia WHERE ia.id = $1 AND ia.invites_everyone)
+              OR p.id IN (SELECT participant_id FROM activity_invitees WHERE activity_id = $1))
        GROUP BY p.id, ca_going.participant_id, ca_return.participant_id
        ORDER BY p.last_name, p.first_name`,
       [id, organizationId, onlyChildrenOf]
@@ -376,7 +386,13 @@ module.exports = (pool) => {
       `SELECT
         a.*,
         u.full_name as created_by_name,
-        u.email as created_by_email
+        u.email as created_by_email,
+        CASE WHEN a.invites_everyone THEN NULL ELSE COALESCE(
+          (SELECT array_agg(ai.participant_id ORDER BY ai.participant_id)
+             FROM activity_invitees ai
+            WHERE ai.activity_id = a.id AND ai.organization_id = a.organization_id),
+          '{}'
+        ) END AS invited_participant_ids
        FROM activities a
        LEFT JOIN users u ON a.created_by = u.id
        WHERE a.id = $1 AND a.organization_id = $2 AND a.is_active = TRUE`,
@@ -387,7 +403,14 @@ module.exports = (pool) => {
       return error(res, 'Activity not found', 404);
     }
 
-    return success(res, result.rows[0]);
+    // The list of invited children is for those who organize the activity
+    const activity = result.rows[0];
+    const permissions = req.userPermissions || [];
+    if (!INVITEE_LIST_PERMISSIONS.some((key) => permissions.includes(key))) {
+      delete activity.invited_participant_ids;
+    }
+
+    return success(res, activity);
   }));
 
   /**
@@ -562,7 +585,57 @@ module.exports = (pool) => {
       return error(res, scheduleError, 400);
     }
 
-    const result = await pool.query(
+    const invitation = readInvitation(req.body, { isCreate: true });
+    if (invitation.problem) {
+      return error(res, invitation.problem, HTTP_BAD_REQUEST);
+    }
+
+    if (invitation.invitesEveryone) {
+      const created = await insertActivity(pool, activity, userId, organizationId);
+      return success(res, created, 'Activity created successfully', HTTP_CREATED);
+    }
+
+    // An activity for some participants is saved with its list, or not at all
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const created = await insertActivity(client, activity, userId, organizationId);
+      const saved = await saveInvitation(client, {
+        activityId: created.id,
+        organizationId,
+        invitesEveryone: false,
+        participantIds: invitation.participantIds
+      });
+      if (saved.unknownParticipantIds.length > 0) {
+        await client.query('ROLLBACK');
+        return error(res, 'Some invited participants are not in this unit', HTTP_BAD_REQUEST,
+          [{ field: 'invited_participant_ids', value: saved.unknownParticipantIds }]);
+      }
+      await client.query('COMMIT');
+      return success(res, {
+        ...created,
+        invites_everyone: false,
+        invited_participant_ids: invitation.participantIds,
+        invited_count: invitation.participantIds.length
+      }, 'Activity created successfully', HTTP_CREATED);
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+  }));
+
+  /**
+   * Insert a validated activity.
+   * @param {Object} db - Pool or transaction client
+   * @param {Object} activity - Normalized activity fields
+   * @param {string} userId - Creator's UUID
+   * @param {number} organizationId
+   * @returns {Promise<Object>} The created row
+   */
+  async function insertActivity(db, activity, userId, organizationId) {
+    const result = await db.query(
       `INSERT INTO activities (
         name, description, authorization_text, activity_date, activity_start_date, activity_start_time,
         activity_end_date, activity_end_time, meeting_location_going, meeting_time_going,
@@ -593,9 +666,8 @@ module.exports = (pool) => {
         organizationId
       ]
     );
-
-    return success(res, result.rows[0], 'Activity created successfully', 201);
-  }));
+    return result.rows[0];
+  }
 
   /**
    * Update an activity.
@@ -604,6 +676,10 @@ module.exports = (pool) => {
    * cleared. The resulting activity is validated as a whole, and the wording of
    * permission slips still awaiting an answer follows the activity. Answered
    * slips keep the text that was signed.
+   *
+   * `invites_everyone` and `invited_participant_ids` change who is invited;
+   * children no longer invited leave its cars and their unanswered slips are
+   * archived (see services/activityInvitations.js).
    *
    * Accessible by: animation, admin only
    */
@@ -703,6 +779,12 @@ module.exports = (pool) => {
         return error(res, scheduleError, 400);
       }
 
+      const invitation = readInvitation(body);
+      if (invitation.problem) {
+        await client.query('ROLLBACK');
+        return error(res, invitation.problem, HTTP_BAD_REQUEST);
+      }
+
       const result = await client.query(
         `UPDATE activities
             SET name = $1,
@@ -773,6 +855,22 @@ module.exports = (pool) => {
         ]
       );
 
+      let invitationChanges = { removedCarpoolAssignments: 0, archivedPermissionSlips: 0 };
+      if (invitation.provided) {
+        const saved = await saveInvitation(client, {
+          activityId,
+          organizationId,
+          invitesEveryone: invitation.invitesEveryone,
+          participantIds: invitation.participantIds
+        });
+        if (saved.unknownParticipantIds.length > 0) {
+          await client.query('ROLLBACK');
+          return error(res, 'Some invited participants are not in this unit', HTTP_BAD_REQUEST,
+            [{ field: 'invited_participant_ids', value: saved.unknownParticipantIds }]);
+        }
+        invitationChanges = saved;
+      }
+
       await client.query('COMMIT');
 
       // Explicit opt-in: only the edit forms ask for it, never other API callers
@@ -788,8 +886,19 @@ module.exports = (pool) => {
         }
       }
 
+      const invitationResponse = invitation.provided
+        ? {
+          invites_everyone: invitation.invitesEveryone,
+          invited_participant_ids: invitation.invitesEveryone ? null : invitation.participantIds,
+          invited_count: invitation.participantIds.length,
+          uninvited_carpool_assignments_removed: invitationChanges.removedCarpoolAssignments,
+          uninvited_permission_slips_archived: invitationChanges.archivedPermissionSlips
+        }
+        : {};
+
       return success(res, {
         ...result.rows[0],
+        ...invitationResponse,
         pending_permission_slips_updated: slipResult.rowCount || 0
       }, 'Activity updated successfully');
     } catch (err) {
