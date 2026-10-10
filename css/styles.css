@@ -2039,7 +2039,8 @@ tr:hover {
 
   .modal,
   .modal-overlay,
-  .modal-content {
+  .modal-content,
+  .modal-dialog {
     animation: none;
   }
 }
@@ -6793,7 +6794,7 @@ body.online .pending-update {
   display: flex;
   flex-direction: column;
   inline-size: 100%;
-  max-inline-size: 500px;
+  max-inline-size: 600px;
   max-block-size: var(--modal-max-block-size);
   overflow: hidden;
 
@@ -6801,6 +6802,18 @@ body.online .pending-update {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   animation: modalSlideIn 0.3s ease-out;
+}
+
+.modal-dialog:focus {
+  outline: none;
+}
+
+.modal-dialog--small {
+  max-inline-size: 420px;
+}
+
+.modal-dialog--large {
+  max-inline-size: 900px;
 }
 
 @keyframes modalSlideIn {
@@ -7866,46 +7879,12 @@ details p {
   color: var(--color-text-muted);
 }
 
-.dm-modal .dm-modal-header {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-md);
-  align-items: flex-start;
-}
-
-.dm-modal .dm-modal-body {
+/* The shared dialog scrolls its body and keeps the footer, with Save,
+   always in reach, even on a phone in landscape. */
+.dm-modal .modal-body {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  margin-top: var(--space-md);
-}
-
-.dm-modal .dm-modal-actions {
-  display: flex;
-  gap: var(--space-sm);
-  justify-content: flex-end;
-  padding-top: var(--space-md);
-}
-
-/* The shared .modal-content clips its overflow and expects a .modal-body to
-   scroll; this dialog has none, so on a short screen (a phone in landscape)
-   the roles and the save button were out of reach. The dialog scrolls as a
-   whole and keeps its actions pinned to the bottom, always reachable. */
-.modal-overlay .dm-modal {
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  /* The actions bar carries the bottom spacing, so nothing shows beneath it. */
-  padding-bottom: 0;
-}
-
-.modal-overlay .dm-modal .dm-modal-actions {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-  flex-wrap: wrap;
-  padding-bottom: var(--space-md);
-  background: var(--color-surface);
-  box-shadow: 0 -1px 0 var(--color-border);
 }
 
 .btn--danger,
@@ -7929,12 +7908,6 @@ details p {
   color: #3c4043;
   background: #f1f3f4;
   border: 1px solid #5f6368;
-}
-
-@media (max-height: 500px) {
-  .modal-overlay .dm-modal {
-    padding: var(--space-md) var(--space-md) 0;
-  }
 }
 
 .dm-modal .dm-section-title {
@@ -8039,7 +8012,7 @@ details p {
     margin-inline: 0;
   }
 
-  .dm-modal .dm-modal-actions {
+  .dm-modal .modal-footer {
     justify-content: space-between;
   }
 }

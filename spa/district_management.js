@@ -32,6 +32,7 @@ import {
 } from "./utils/RoleValidationUtils.js";
 import { setStorageMultiple } from "./utils/StorageUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { openModal } from "./utils/ModalUtils.js";
 import { getMountPoint, resolveMountOptions } from "./utils/PageMount.js";
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
@@ -365,7 +366,7 @@ export class DistrictManagement {
   renderAndBind() {
     // Every change in the dialog rebuilds it; keep the reader where they were
     // (scroll position, focused control) instead of sending them to the top.
-    const dialog = document.querySelector('.dm-modal');
+    const dialog = document.querySelector('.dm-modal .modal-body');
     const scrollTop = dialog ? dialog.scrollTop : null;
     const active = document.activeElement;
     const focusId = active?.id || null;
@@ -374,7 +375,7 @@ export class DistrictManagement {
     this.render();
     this.attachEventListeners();
 
-    const rebuilt = document.querySelector('.dm-modal');
+    const rebuilt = document.querySelector('.dm-modal .modal-body');
     if (rebuilt && scrollTop !== null) {
       rebuilt.scrollTop = scrollTop;
     }
@@ -481,10 +482,47 @@ export class DistrictManagement {
         </div>
       </section>
       ${actionBar}
-      ${this.renderAssignmentModal()}
     `;
 
     setContent(getMountPoint(this), content);
+    this.syncAssignmentModal();
+  }
+
+  /**
+   * Show the assignment dialog for the selected member, or close it. The
+   * dialog stays open across renders; only its contents are replaced, so
+   * focus and scroll stay where the person was.
+   */
+  syncAssignmentModal() {
+    const parts = this.renderAssignmentModal();
+    if (!parts) {
+      const modal = this.assignmentModal;
+      this.assignmentModal = null;
+      modal?.close(true);
+      return;
+    }
+    if (!this.assignmentModal?.overlay.isConnected) {
+      this.assignmentModal = openModal({
+        id: "dm-modal",
+        title: parts.title,
+        body: parts.body,
+        footer: parts.footer,
+        className: "dm-modal",
+        onClose: () => {
+          // Closed by Escape, the backdrop, the close button or by leaving
+          // the page: nothing else on the page depends on the selection.
+          if (this.assignmentModal) {
+            this.assignmentModal = null;
+            this.clearSelection();
+          }
+        },
+      });
+      return;
+    }
+    const { dialog, body } = this.assignmentModal;
+    setContent(dialog.querySelector(".modal-header h2"), parts.title);
+    setContent(body, parts.body);
+    setContent(dialog.querySelector(".modal-footer"), parts.footer);
   }
 
   getActiveOrganizationName() {
@@ -597,10 +635,14 @@ export class DistrictManagement {
       .join("");
   }
 
+  /**
+   * The assignment dialog's contents for the selected member.
+   * @returns {{ title: string, body: string, footer: string }|null} Null when nobody is selected
+   */
   renderAssignmentModal() {
-    if (!this.selectedUserId) return "";
+    if (!this.selectedUserId) return null;
     const user = this.users.find((u) => u.id === this.selectedUserId);
-    if (!user) return "";
+    if (!user) return null;
 
     const bundles = this.getRoleBundles();
     const mfaRequired = this.isHighRiskChange(user);
@@ -656,19 +698,10 @@ export class DistrictManagement {
         : "";
     const auditPanel = this.renderAuditPanel(user);
 
-    return `
-      <div class="modal-overlay show" role="dialog" aria-modal="true" aria-labelledby="dm-modal-title">
-        <div class="modal-content dm-modal">
-          <header class="dm-modal-header">
-            <div>
-              <p class="dm-modal-kicker">${translate("district_management_assignment_for")}</p>
-              <h2 id="dm-modal-title">${escapeHTML(user.full_name || user.email)}</h2>
-              <p class="dm-modal-subtitle">${translate("district_management_role_instruction")}</p>
-            </div>
-            <button id="dm-close" class="ghost-button" aria-label="${translate("close")}">✕</button>
-          </header>
-
-          <div class="dm-modal-body">
+    return {
+      title: `${translate("district_management_assignment_for")} ${escapeHTML(user.full_name || user.email)}`,
+      body: `
+            <p class="dm-modal-subtitle">${translate("district_management_role_instruction")}</p>
             ${isSaving ? `<p class="dm-helper" role="status" aria-live="polite">${translate("district_management_saving")}</p>` : ""}
             <div class="dm-modal-section">
               <p class="dm-section-title">${translate("district_management_bundles_title")}</p>
@@ -693,7 +726,7 @@ export class DistrictManagement {
                 <p class="dm-section-title">${translate("district_management_mfa_title")}</p>
                 <p>${translate("district_management_mfa_placeholder")}</p>
                 <div class="dm-mfa-actions">
-                  <button id="dm-mfa-start" class="btn btn--secondary">${translate("district_management_trigger_mfa")}</button>
+                  <button type="button" id="dm-mfa-start" class="btn btn--secondary">${translate("district_management_trigger_mfa")}</button>
                   ${incidentUrl ? `<a class="text-link" href="${incidentUrl}" target="_blank" rel="noopener noreferrer">${translate("district_management_incident_link")}</a>` : ""}
                 </div>
                 <label class="dm-checkbox">
@@ -706,13 +739,12 @@ export class DistrictManagement {
             ${warningContent}
             ${blockingMessage ? `<p class="error-text" role="alert">${escapeHTML(blockingMessage)}</p>` : ""}
             ${statusMessage}
-          </div>
-
-          <div class="dm-modal-actions">
-            <button id="dm-queue" class="btn btn--secondary" ${isSaving ? "disabled" : ""}>
+      `,
+      footer: `
+            <button type="button" id="dm-queue" class="btn btn--secondary" ${isSaving ? "disabled" : ""}>
               ${translate("district_management_queue_change")}
             </button>
-            <button id="dm-save" class="btn btn--primary" ${saveDisabled ? "disabled" : ""}>
+            <button type="button" id="dm-save" class="btn btn--primary" ${saveDisabled ? "disabled" : ""}>
               ${
                 this.isOffline
                   ? translate("district_management_offline_disabled")
@@ -721,10 +753,8 @@ export class DistrictManagement {
                     : translate("district_management_save")
               }
             </button>
-          </div>
-        </div>
-      </div>
-    `;
+      `,
+    };
   }
 
   /**
@@ -942,9 +972,6 @@ export class DistrictManagement {
     const retryButton = document.getElementById("dm-retry");
     retryButton?.addEventListener("click", () => this.retryQueuedChanges());
 
-    const closeButton = document.getElementById("dm-close");
-    closeButton?.addEventListener("click", () => this.closeModal());
-
     document.querySelectorAll(".dm-bundle-checkbox").forEach((checkbox) => {
       checkbox.addEventListener("change", (event) => {
         const roleId = parseInt(event.target.getAttribute("data-role-id"), 10);
@@ -1080,6 +1107,12 @@ export class DistrictManagement {
   }
 
   closeModal() {
+    this.clearSelection();
+    this.renderAndBind();
+  }
+
+  /** Forget the member whose roles were being edited. */
+  clearSelection() {
     this.selectedUserId = null;
     this.selectedRoleIds = new Set();
     this.auditNote = "";
@@ -1087,7 +1120,6 @@ export class DistrictManagement {
     this.loadingAuditUserId = null;
     this.auditPanelError = "";
     this.formStatus = { type: "", message: "" };
-    this.renderAndBind();
   }
 
   getRoleBundles() {

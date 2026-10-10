@@ -14,6 +14,7 @@ import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { escapeAttribute, escapeHTML } from "./utils/SecurityUtils.js";
 import { confirm as confirmDialog, confirmDestructive } from "./utils/DialogUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { openModal, closeModal } from "./utils/ModalUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import {
   canApproveBadges,
@@ -1358,33 +1359,19 @@ export class BadgeTracker {
       })
       .join("");
 
-    const modalContent = `
-            <div id="award-modal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
-                    <div class="modal-content" style="background-color: #fefefe; margin: 10% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 700px; border-radius: 8px;">
-                            <h2>${translate("unprocessed_achievements_title") || "Unprocessed Achievements"}</h2>
-                            <div class="award-list" style="max-height: 60vh; overflow-y: auto;">
-                                    ${rows}
-                            </div>
-                            <div style="margin-top: 20px; text-align: right;">
-                                    <button class="button button--ghost" id="close-award-modal">${translate("cancel")}</button>
-                                    <button class="button button--primary" id="confirm-award-btn">${translate("confirm")}</button>
-                            </div>
-                    </div>
-            </div>
-    `;
+    const { overlay } = openModal({
+      id: "award-modal",
+      title: translate("unprocessed_achievements_title") || "Unprocessed Achievements",
+      body: `<div class="award-list">${rows}</div>`,
+      footer: `
+        <button type="button" class="button button--ghost" data-modal-close>${translate("cancel")}</button>
+        <button type="button" class="button button--primary" id="confirm-award-btn">${translate("confirm")}</button>
+      `,
+    });
 
-    const modalContainer = document.createElement("div");
-    setContent(modalContainer, modalContent);
-    document.body.appendChild(modalContainer);
-
-    document
-      .getElementById("close-award-modal")
-      .addEventListener("click", () => modalContainer.remove());
-    document
-      .getElementById("confirm-award-btn")
-      .addEventListener("click", () => {
-        this.processUnprocessedAwards(modalContainer);
-      });
+    overlay.querySelector("#confirm-award-btn").addEventListener("click", () => {
+      this.processUnprocessedAwards(overlay);
+    });
   }
 
   async processUnprocessedAwards(modalContainer) {
@@ -1431,7 +1418,7 @@ export class BadgeTracker {
         await markMeetingActivitiesProcessed(processedActivityIds);
       }
 
-      modalContainer.remove();
+      closeModal("award-modal");
       this.showToast(
         translate("achievements_awarded_success") || "Success",
         "success",
@@ -1471,10 +1458,6 @@ export class BadgeTracker {
     }
 
     const modalContent = `
-      <div id="retroactive-award-modal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
-        <div class="modal-content" style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 90%; max-width: 700px; border-radius: 8px;">
-          <h2 style="margin-top: 0;">${translate("award_group_badge_retroactive") || "Attribuer badge de groupe (date passée)"}</h2>
-          
           <div class="form-group" style="margin-bottom: 20px;">
             <label for="retro-date-select" style="display: block; margin-bottom: 5px; font-weight: bold;">${translate("select_attendance_date") || "Sélectionner une date avec présence"}</label>
             <select id="retro-date-select" class="form-control" style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #ccc; font-size: 16px;">
@@ -1483,13 +1466,13 @@ export class BadgeTracker {
             </select>
           </div>
 
-          <div id="retro-presence-preview" style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px; display: none;">
+          <div id="retro-presence-preview" role="status" style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px; display: none;">
             <div id="retro-presence-count" style="font-weight: bold; margin-bottom: 10px;"></div>
             <div id="retro-presence-list" style="font-size: 0.9em; color: #666; max-height: 100px; overflow-y: auto;"></div>
           </div>
 
-          <div class="form-group" style="margin-bottom: 20px;">
-            <label style="display: block; margin-bottom: 5px; font-weight: bold;">${translate("badge")}</label>
+          <fieldset class="form-group" style="margin-bottom: 20px; border: 0; padding: 0;">
+            <legend style="margin-bottom: 5px; font-weight: bold;">${translate("badge")}</legend>
             <div class="badge-tracker__badge-selector" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; max-height: 300px; overflow-y: auto; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
               ${this.templates
                 .map(
@@ -1499,7 +1482,7 @@ export class BadgeTracker {
                   ${
                     template.image
                       ? `<img src="/images/${template.image}" alt="" style="width: 40px; height: 40px; object-fit: contain;">`
-                      : '<span style="font-size: 32px;">🏅</span>'
+                      : '<span style="font-size: 32px;" aria-hidden="true">🏅</span>'
                   }
                   <span style="font-size: 0.85em; display: inline-block;">${escapeHTML(template.name.replace("comme ", ""))}</span>
                 </label>
@@ -1507,14 +1490,7 @@ export class BadgeTracker {
                 )
                 .join("")}
             </div>
-          </div>
-
-          <div style="margin-top: 20px; text-align: right; display: flex; justify-content: flex-end; gap: 10px;">
-            <button class="button button--ghost" id="close-retro-modal">${translate("cancel")}</button>
-            <button class="button button--primary" id="confirm-retro-btn" disabled>${translate("confirm")}</button>
-          </div>
-        </div>
-      </div>
+          </fieldset>
     `;
 
     // Add styles for radio selection
@@ -1523,6 +1499,10 @@ export class BadgeTracker {
       const style = document.createElement("style");
       style.id = styleId;
       style.textContent = `
+        .badge-tracker__badge-option:has(input:focus-visible) {
+          outline: 3px solid var(--color-focus-ring, #1a73e8);
+          outline-offset: 2px;
+        }
         .badge-tracker__badge-option:has(input:checked) {
           border-color: #4CAF50 !important;
           background-color: #e8f5e9 !important;
@@ -1532,10 +1512,15 @@ export class BadgeTracker {
       document.head.appendChild(style);
     }
 
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "retro-modal-container";
-    setContent(modalContainer, modalContent);
-    document.body.appendChild(modalContainer);
+    const { overlay: modalContainer } = openModal({
+      id: "retroactive-award-modal",
+      title: translate("award_group_badge_retroactive") || "Attribuer badge de groupe (date passée)",
+      body: modalContent,
+      footer: `
+        <button type="button" class="button button--ghost" data-modal-close>${translate("cancel")}</button>
+        <button type="button" class="button button--primary" id="confirm-retro-btn" disabled>${translate("confirm")}</button>
+      `,
+    });
 
     const dateSelect = document.getElementById("retro-date-select");
     const confirmBtn = document.getElementById("confirm-retro-btn");
@@ -1610,9 +1595,6 @@ export class BadgeTracker {
       }
     });
 
-    document
-      .getElementById("close-retro-modal")
-      .addEventListener("click", () => modalContainer.remove());
     confirmBtn.addEventListener("click", () => {
       const templateRadio = document.querySelector(
         'input[name="retro_badge_template_id"]:checked',
@@ -1675,7 +1657,7 @@ export class BadgeTracker {
         );
       }
 
-      modalContainer.remove();
+      closeModal("retroactive-award-modal");
       await this.loadData(true);
       this.render();
     } catch (error) {

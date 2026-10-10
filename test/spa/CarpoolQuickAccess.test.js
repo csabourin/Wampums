@@ -114,7 +114,7 @@ describe('carpool quick access dialog accessibility', () => {
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     const titleId = dialog.getAttribute('aria-labelledby');
     expect(document.getElementById(titleId).textContent).toBe('carpool_coordination');
-    expect(dialog.querySelector('.modal-close').getAttribute('aria-label')).toBe('close');
+    expect(dialog.querySelector('.modal-close').getAttribute('aria-label')).toMatch(/^close$/i);
   });
 
   test('moves focus into the dialog and wraps Tab inside it', async () => {

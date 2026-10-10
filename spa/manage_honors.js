@@ -3,10 +3,11 @@ import { updateHonor, deleteHonor } from "./api/api-endpoints.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { getTodayISO, formatDate, isValidDate, isPastDate as isDateInPast } from "./utils/DateUtils.js";
-import { setContent, insertHTML } from "./utils/DOMUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 import { deleteCachedData, getCachedData } from "./indexedDB.js";
 import { escapeHTML, sanitizeHTML } from "./utils/SecurityUtils.js";
 import { confirmDestructive } from "./utils/DialogUtils.js";
+import { openModal, closeModal } from "./utils/ModalUtils.js";
 import { offlineManager } from "./modules/OfflineManager.js";
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
@@ -495,72 +496,46 @@ export class ManageHonors {
     }
 
     const currentHonor = this.pendingHonors[this.currentHonorIndex];
-    const modalHtml = `
-      <div class="modal-overlay" id="honor-reason-modal">
-        <div class="modal-dialog">
-          <div class="modal-header">
-            <h2>${translate("honor_reason_prompt")}</h2>
-            <button class="modal-close" id="close-modal">&times;</button>
+    const isLast = this.currentHonorIndex >= this.pendingHonors.length - 1;
+    const { overlay } = openModal({
+      id: 'honor-reason-modal',
+      title: translate("honor_reason_prompt"),
+      body: `
+        <p class="modal-participant-name">${escapeHTML(currentHonor.participantName)}</p>
+        <p class="modal-progress">${this.currentHonorIndex + 1} ${translate("of")} ${this.pendingHonors.length}</p>
+        <form id="honor-reason-form">
+          <div class="form-group">
+            <label for="honor-reason-input">${translate("honor_reason_label")}:</label>
+            <textarea
+              id="honor-reason-input"
+              class="form-control"
+              rows="3"
+              required
+              placeholder="${escapeHTML(translate("honor_reason_placeholder") || translate("honor_reason_prompt"))}"
+            ></textarea>
           </div>
-          <div class="modal-body">
-            <p class="modal-participant-name">${currentHonor.participantName}</p>
-            <p class="modal-progress">${this.currentHonorIndex + 1} ${translate("of")} ${this.pendingHonors.length}</p>
-            <form id="honor-reason-form">
-              <div class="form-group">
-                <label for="honor-reason-input">${translate("honor_reason_label")}:</label>
-                <textarea
-                  id="honor-reason-input"
-                  class="form-control"
-                  rows="3"
-                  required
-                  placeholder="${translate("honor_reason_placeholder") || translate("honor_reason_prompt")}"
-                  autofocus
-                ></textarea>
-              </div>
-              <div class="modal-actions">
-                <button type="button" class="button button--secondary" id="cancel-honors">
-                  ${translate("cancel")}
-                </button>
-                <button type="submit" class="button button--primary">
-                  ${this.currentHonorIndex < this.pendingHonors.length - 1 ? translate("next") : translate("submit")}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    `;
+        </form>
+      `,
+      footer: `
+        <button type="button" class="button button--secondary" data-modal-close>${translate("cancel")}</button>
+        <button type="submit" class="button button--primary" form="honor-reason-form">
+          ${isLast ? translate("submit") : translate("next")}
+        </button>
+      `,
+      initialFocus: '#honor-reason-input',
+      // Any way out other than moving to the next child cancels the batch
+      onClose: () => {
+        if (!this.advancingHonor) {
+          this.pendingHonors = [];
+          this.currentHonorIndex = 0;
+        }
+      },
+    });
 
-    // Add modal to page
-    const modalContainer = document.createElement('div');
-    setContent(modalContainer, modalHtml);
-    document.body.appendChild(modalContainer.firstElementChild);
-
-    // Attach event listeners
-    document.getElementById('honor-reason-form').addEventListener('submit', (e) => {
+    overlay.querySelector('#honor-reason-form').addEventListener('submit', (e) => {
       e.preventDefault();
       this.handleReasonSubmit();
     });
-
-    document.getElementById('close-modal').addEventListener('click', () => {
-      this.cancelHonorProcess();
-    });
-
-    document.getElementById('cancel-honors').addEventListener('click', () => {
-      this.cancelHonorProcess();
-    });
-
-    // Close on overlay click
-    document.getElementById('honor-reason-modal').addEventListener('click', (e) => {
-      if (e.target.id === 'honor-reason-modal') {
-        this.cancelHonorProcess();
-      }
-    });
-
-    // Focus the textarea
-    setTimeout(() => {
-      document.getElementById('honor-reason-input')?.focus();
-    }, 100);
   }
 
   handleReasonSubmit() {
@@ -582,17 +557,13 @@ export class ManageHonors {
   }
 
   closeReasonModal() {
-    const modal = document.getElementById('honor-reason-modal');
-    if (modal) {
-      modal.remove();
-    }
+    this.advancingHonor = true;
+    closeModal('honor-reason-modal');
+    this.advancingHonor = false;
   }
 
   cancelHonorProcess() {
-    const modal = document.getElementById('honor-reason-modal');
-    if (modal) {
-      modal.remove();
-    }
+    closeModal('honor-reason-modal');
     // Reset when cancelled
     this.pendingHonors = [];
     this.currentHonorIndex = 0;
@@ -786,47 +757,29 @@ export class ManageHonors {
     const honor = this.allHonors.find(h => h.id === honorId);
     if (!honor) return;
 
-    const modalHtml = `
-      <div class="modal-overlay" id="edit-reason-modal">
-        <div class="modal-dialog">
-          <div class="modal-header">
-            <h2>${translate("edit_reason")}</h2>
-            <button class="modal-close" id="close-edit-modal">&times;</button>
+    const { overlay, close: closeDialog } = openModal({
+      id: 'edit-reason-modal',
+      title: translate("edit_reason"),
+      body: `
+        <form id="edit-reason-form">
+          <div class="form-group">
+            <label for="edit-reason-input">${translate("honor_reason_label")}:</label>
+            <textarea
+              id="edit-reason-input"
+              class="form-control"
+              rows="3"
+              required
+            >${sanitizeHTML(honor.reason || '')}</textarea>
           </div>
-          <div class="modal-body">
-            <form id="edit-reason-form">
-              <div class="form-group">
-                <label for="edit-reason-input">${translate("honor_reason_label")}:</label>
-                <textarea
-                  id="edit-reason-input"
-                  class="form-control"
-                  rows="3"
-                  required
-                  autofocus
-                >${sanitizeHTML(honor.reason || '')}</textarea>
-              </div>
-              <div class="modal-actions">
-                <button type="button" class="button button--secondary" id="cancel-edit-reason">
-                  ${translate("cancel")}
-                </button>
-                <button type="submit" class="button button--primary">
-                  ${translate("save")}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    `;
-
-    insertHTML(document.body, 'beforeend', modalHtml);
-
-    const form = document.getElementById('edit-reason-form');
-    const closeBtn = document.getElementById('close-edit-modal');
-    const cancelBtn = document.getElementById('cancel-edit-reason');
-    const modal = document.getElementById('edit-reason-modal');
-
-    const closeModal = () => modal.remove();
+        </form>
+      `,
+      footer: `
+        <button type="button" class="button button--secondary" data-modal-close>${translate("cancel")}</button>
+        <button type="submit" class="button button--primary" form="edit-reason-form">${translate("save")}</button>
+      `,
+      initialFocus: '#edit-reason-input',
+    });
+    const form = overlay.querySelector('#edit-reason-form');
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -840,7 +793,7 @@ export class ManageHonors {
       try {
         await updateHonor(honorId, { reason: newReason });
         this.app.showMessage(translate("honor_updated_successfully"), "success");
-        closeModal();
+        closeDialog();
         await this.clearHonorsCaches();
         await this.fetchData();
         this.processHonors();
@@ -851,13 +804,6 @@ export class ManageHonors {
       }
     });
 
-    closeBtn.addEventListener('click', closeModal);
-    cancelBtn.addEventListener('click', closeModal);
-    modal.addEventListener('click', (e) => {
-      if (e.target.id === 'edit-reason-modal') closeModal();
-    });
-
-    setTimeout(() => document.getElementById('edit-reason-input')?.focus(), 100);
   }
 
   /**
@@ -867,49 +813,31 @@ export class ManageHonors {
     const honor = this.allHonors.find(h => h.id === honorId);
     if (!honor) return;
 
-    const modalHtml = `
-      <div class="modal-overlay" id="edit-date-modal">
-        <div class="modal-dialog">
-          <div class="modal-header">
-            <h2>${translate("change_date")}</h2>
-            <button class="modal-close" id="close-date-modal">&times;</button>
+    const { overlay, close: closeDialog } = openModal({
+      id: 'edit-date-modal',
+      title: translate("change_date"),
+      body: `
+        <p class="warning-text"><span aria-hidden="true">⚠️</span> ${translate("changing_date_warning")}</p>
+        <form id="edit-date-form">
+          <div class="form-group">
+            <label for="edit-date-input">${translate("new_date")}:</label>
+            <input
+              type="date"
+              id="edit-date-input"
+              class="form-control"
+              value="${escapeHTML(honor.date)}"
+              required
+            />
           </div>
-          <div class="modal-body">
-            <p class="warning-text">⚠️ ${translate("changing_date_warning")}</p>
-            <form id="edit-date-form">
-              <div class="form-group">
-                <label for="edit-date-input">${translate("new_date")}:</label>
-                <input
-                  type="date"
-                  id="edit-date-input"
-                  class="form-control"
-                  value="${honor.date}"
-                  required
-                  autofocus
-                />
-              </div>
-              <div class="modal-actions">
-                <button type="button" class="button button--secondary" id="cancel-edit-date">
-                  ${translate("cancel")}
-                </button>
-                <button type="submit" class="button button--primary">
-                  ${translate("save")}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    `;
-
-    insertHTML(document.body, 'beforeend', modalHtml);
-
-    const form = document.getElementById('edit-date-form');
-    const closeBtn = document.getElementById('close-date-modal');
-    const cancelBtn = document.getElementById('cancel-edit-date');
-    const modal = document.getElementById('edit-date-modal');
-
-    const closeModal = () => modal.remove();
+        </form>
+      `,
+      footer: `
+        <button type="button" class="button button--secondary" data-modal-close>${translate("cancel")}</button>
+        <button type="submit" class="button button--primary" form="edit-date-form">${translate("save")}</button>
+      `,
+      initialFocus: '#edit-date-input',
+    });
+    const form = overlay.querySelector('#edit-date-form');
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -923,7 +851,7 @@ export class ManageHonors {
       try {
         await updateHonor(honorId, { date: newDate });
         this.app.showMessage(translate("honor_date_updated_successfully"), "success");
-        closeModal();
+        closeDialog();
         await this.clearHonorsCaches();
         await this.fetchData();
         this.processHonors();
@@ -934,13 +862,6 @@ export class ManageHonors {
       }
     });
 
-    closeBtn.addEventListener('click', closeModal);
-    cancelBtn.addEventListener('click', closeModal);
-    modal.addEventListener('click', (e) => {
-      if (e.target.id === 'edit-date-modal') closeModal();
-    });
-
-    setTimeout(() => document.getElementById('edit-date-input')?.focus(), 100);
   }
 
   /**

@@ -13,7 +13,8 @@ import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 import { formatDateShort } from "./utils/DateUtils.js";
 import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.js";
 import { isParent } from "./utils/PermissionUtils.js";
-import { setContent, insertHTML } from "./utils/DOMUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
+import { openModal, closeModal } from "./utils/ModalUtils.js";
 
 export class ParentFinance {
   constructor(app) {
@@ -445,74 +446,53 @@ export class ParentFinance {
 
     this.currentFeeId = feeId;
 
-    // Render payment modal
-    const modalHTML = this.renderPaymentModal(feeId, amount, participantName);
-    insertHTML(document.body, 'beforeend', modalHTML);
-
-    // Attach modal event listeners
-    this.attachModalEventListeners(feeId, amount);
-  }
-
-  renderPaymentModal(feeId, amount, participantName) {
-    return `
-      <div class="modal-overlay" id="payment-modal">
-        <div class="modal-content payment-modal">
-          <div class="modal-header">
-            <h2>💳 ${translate("make_payment")}</h2>
-            <button class="modal-close" id="close-payment-modal">&times;</button>
-          </div>
-
-          <div class="modal-body">
-            <div class="payment-info">
-              <p><strong>${translate("participant")}:</strong> ${escapeHTML(participantName)}</p>
-              <p><strong>${translate("amount_to_pay")}:</strong> ${this.formatCurrency(amount)}</p>
-            </div>
-
-            <div class="payment-form-container">
-              <div id="payment-element"></div>
-              <div id="payment-error-message" class="error-message"></div>
-            </div>
-
-            <div class="payment-actions">
-              <button class="btn btn-secondary" id="cancel-payment">${translate("cancel")}</button>
-              <button class="btn btn-primary" id="submit-payment" disabled>
-                <span class="payment-btn-text">${translate("pay")} ${this.formatCurrency(amount)}</span>
-                <span class="payment-btn-spinner" style="display: none;">
-                  <span class="spinner"></span> ${translate("processing")}...
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  attachModalEventListeners(feeId, amount) {
-    const modal = document.getElementById('payment-modal');
-    const closeBtn = document.getElementById('close-payment-modal');
-    const cancelBtn = document.getElementById('cancel-payment');
-    const submitBtn = document.getElementById('submit-payment');
-
-    const closeModal = () => {
-      modal.remove();
-      this.elements = null;
-      this.paymentElement = null;
-      this.currentPaymentIntentId = null;
-      this.currentFeeId = null;
-    };
-
-    closeBtn.addEventListener('click', closeModal);
-    cancelBtn.addEventListener('click', closeModal);
-
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) {
-        closeModal();
-      }
-    });
-
-    // Initialize payment
+    const submitBtn = this.renderPaymentModal(amount, participantName);
     this.initializePayment(feeId, amount, submitBtn);
+  }
+
+  /**
+   * Open the payment dialog. It cannot be dismissed while a payment is being
+   * confirmed.
+   * @param {number} amount - Amount to pay
+   * @param {string} participantName - Child the fee belongs to
+   * @returns {HTMLButtonElement} The pay button, enabled once Stripe is ready
+   */
+  renderPaymentModal(amount, participantName) {
+    const { overlay } = openModal({
+      id: 'payment-modal',
+      title: `<span aria-hidden="true">💳</span> ${translate('make_payment')}`,
+      className: 'payment-modal',
+      body: `
+        <div class="payment-info">
+          <p><strong>${translate('participant')}:</strong> ${escapeHTML(participantName)}</p>
+          <p><strong>${translate('amount_to_pay')}:</strong> ${this.formatCurrency(amount)}</p>
+        </div>
+
+        <div class="payment-form-container">
+          <div id="payment-element"></div>
+          <div id="payment-error-message" class="error-message" role="alert"></div>
+        </div>
+      `,
+      footer: `
+        <button type="button" class="btn btn-secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="button" class="btn btn-primary" id="submit-payment" disabled>
+          <span class="payment-btn-text">${translate('pay')} ${this.formatCurrency(amount)}</span>
+          <span class="payment-btn-spinner" style="display: none;">
+            <span class="spinner" aria-hidden="true"></span> ${translate('processing')}...
+          </span>
+        </button>
+      `,
+      initialFocus: false,
+      canClose: () => !this.paymentProcessing,
+      onClose: () => {
+        this.elements = null;
+        this.paymentElement = null;
+        this.currentPaymentIntentId = null;
+        this.currentFeeId = null;
+        this.paymentProcessing = false;
+      },
+    });
+    return overlay.querySelector('#submit-payment');
   }
 
   async initializePayment(feeId, amount, submitBtn) {
@@ -564,6 +544,7 @@ export class ParentFinance {
 
   async handlePaymentSubmit(submitBtn) {
     // Disable submit button and show loading state
+    this.paymentProcessing = true;
     submitBtn.disabled = true;
     const btnText = submitBtn.querySelector('.payment-btn-text');
     const btnSpinner = submitBtn.querySelector('.payment-btn-spinner');
@@ -589,6 +570,7 @@ export class ParentFinance {
         btnText.style.display = 'inline-block';
         btnSpinner.style.display = 'none';
         submitBtn.disabled = false;
+        this.paymentProcessing = false;
         this.app.showMessage(error.message, "error");
         debugError("Payment error:", error);
       } else if (paymentIntent && paymentIntent.status === 'succeeded') {
@@ -599,11 +581,7 @@ export class ParentFinance {
         // CRITICAL: Invalidate finance caches immediately
         await clearFinanceRelatedCaches(this.currentFeeId);
 
-        // Close modal
-        const modal = document.getElementById('payment-modal');
-        if (modal) {
-          modal.remove();
-        }
+        closeModal('payment-modal');
 
         // Refresh data and re-render
         await this.fetchAllStatements();
@@ -617,6 +595,7 @@ export class ParentFinance {
       btnText.style.display = 'inline-block';
       btnSpinner.style.display = 'none';
       submitBtn.disabled = false;
+      this.paymentProcessing = false;
       this.app.showMessage(translate("payment_failed"), "error");
     }
   }

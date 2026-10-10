@@ -9,6 +9,7 @@ import { setContent } from "./utils/DOMUtils.js";
 import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { checkSession } from "./utils/SessionUtils.js";
 import { dismissActiveDialog } from "./utils/DialogUtils.js";
+import { closeAllModals } from './utils/ModalUtils.js';
 import { releaseAllScrollLocks } from "./utils/ScrollLockUtils.js";
 import { initScrollMemory, beginScrollNavigation, restoreScrollPosition } from './utils/ScrollMemory.js';
 import { resetPageReads } from "./modules/live-sync/LiveSyncState.js";
@@ -275,6 +276,7 @@ export class Router {
    */
   dismissTransientOverlays() {
     dismissActiveDialog();
+    closeAllModals();
 
     // Focus must leave the subtree before it is detached, otherwise it falls
     // back to <body> and screen readers lose their place.
