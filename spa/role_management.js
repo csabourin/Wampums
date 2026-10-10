@@ -190,7 +190,6 @@ export class RoleManagement {
         <div class="role-card-header">
           <div class="role-info">
             <h3 class="role-name">${this.escapeHtml(roleLabel(role))}</h3>
-            <span class="role-badge role-badge-${role.role_name}">${this.escapeHtml(role.role_name)}</span>
           </div>
           <button class="toggle-permissions-btn" data-role-id="${role.id}">
             <span class="icon">${isExpanded ? '▼' : '▶'}</span>
@@ -270,7 +269,7 @@ export class RoleManagement {
             ${roleNames ? `<div class="user-roles-summary">${this.escapeHtml(roleNames)}</div>` : ''}
           </div>
           <div class="user-action">
-            <button class="btn-small btn-manage-roles" data-user-id="${user.id}">
+            <button class="btn-small btn-manage-roles" data-user-id="${user.id}"${isSelected ? ' aria-current="true"' : ''}>
               ${translate('manage_roles') || 'Manage'}
             </button>
           </div>
@@ -298,7 +297,7 @@ export class RoleManagement {
     return `
       <div class="user-assignment">
         <div class="assignment-header">
-          <h2>${translate('manage_roles_for') || 'Manage Roles for'}:</h2>
+          <h2 id="user-assignment-heading" tabindex="-1">${translate('manage_roles_for') || 'Manage Roles for'}:</h2>
           <div class="user-details">
             <div class="user-name-large">${this.escapeHtml(user.full_name || user.email)}</div>
             <div class="user-email-small">${this.escapeHtml(user.email)}</div>
@@ -346,7 +345,6 @@ export class RoleManagement {
                     <div class="role-checkbox-content">
                       <div class="role-checkbox-header">
                         <strong>${this.escapeHtml(roleLabel(role))}</strong>
-                        <span class="role-badge-small role-badge-${role.role_name}">${role.role_name}</span>
                       </div>
                       <small class="role-checkbox-description">${this.escapeHtml(role.description || '')}</small>
                     </div>
@@ -412,15 +410,7 @@ export class RoleManagement {
   }
 
   attachUsersTabListeners() {
-    // User selection
-    const manageButtons = document.querySelectorAll('.btn-manage-roles');
-    manageButtons.forEach(button => {
-      button.addEventListener('click', async (e) => {
-        e.preventDefault();
-        const userId = e.currentTarget.dataset.userId;
-        await this.showUserRoleAssignment(userId);
-      });
-    });
+    this.attachUserListListeners();
 
     // User search
     const searchInput = document.getElementById('user-search-input');
@@ -434,6 +424,70 @@ export class RoleManagement {
     if (this.selectedUserId) {
       this.attachAssignmentFormListeners();
     }
+  }
+
+  /**
+   * Bind the "manage roles" button of each user in the list. Kept apart from
+   * the form listeners: re-rendering the list after a save must not bind the
+   * form a second time, which made the next save send the request twice.
+   */
+  attachUserListListeners() {
+    document.querySelectorAll('.btn-manage-roles').forEach(button => {
+      button.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const userId = e.currentTarget.dataset.userId;
+        await this.showUserRoleAssignment(userId);
+      });
+    });
+  }
+
+  /**
+   * Show which user is being edited: highlighted card, aria-current button.
+   *
+   * @param {?string} userId - Selected user's UUID, or null for none
+   */
+  markSelectedUser(userId) {
+    document.querySelectorAll('.user-item').forEach(item => {
+      const selected = item.dataset.userId === userId;
+      item.classList.toggle('selected', selected);
+      const button = item.querySelector('.btn-manage-roles');
+      if (selected) {
+        button?.setAttribute('aria-current', 'true');
+      } else {
+        button?.removeAttribute('aria-current');
+      }
+    });
+  }
+
+  /**
+   * Bring the role form into view and move focus to its heading.
+   *
+   * On a phone the form sits below the whole user list, so opening it showed
+   * no change and seemed to do nothing; a screen reader heard nothing either.
+   */
+  revealUserAssignment() {
+    const heading = document.getElementById('user-assignment-heading');
+    if (!heading) {
+      return;
+    }
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    heading.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    heading.focus({ preventScroll: true });
+  }
+
+  /**
+   * Return to the user whose roles were being edited.
+   *
+   * @param {string} userId - That user's UUID
+   */
+  returnToUser(userId) {
+    const button = Array.from(document.querySelectorAll('.btn-manage-roles'))
+      .find(candidate => candidate.dataset.userId === userId);
+    if (!button) {
+      return;
+    }
+    button.scrollIntoView?.({ block: 'center' });
+    button.focus({ preventScroll: true });
   }
 
   async toggleRolePermissions(roleId) {
@@ -502,6 +556,8 @@ export class RoleManagement {
     setContent(assignmentContent, html);
     // Attach form listener
     this.attachAssignmentFormListeners();
+    this.markSelectedUser(userId);
+    this.revealUserAssignment();
   }
 
   attachAssignmentFormListeners() {
@@ -511,12 +567,11 @@ export class RoleManagement {
     const cancelBtn = document.getElementById('cancel-assignment');
     if (cancelBtn) {
       cancelBtn.addEventListener('click', () => {
+        const userId = this.selectedUserId;
         this.selectedUserId = null;
         setContent(document.getElementById('user-assignment-content'), this.renderUserAssignmentPlaceholder());
-        // Remove selected state from users
-        document.querySelectorAll('.user-item').forEach(item => {
-          item.classList.remove('selected');
-        });
+        this.markSelectedUser(null);
+        this.returnToUser(userId);
       });
     }
 
@@ -539,7 +594,7 @@ export class RoleManagement {
         // Refresh user list
         await this.fetchUsers();
         setContent(document.getElementById('user-list'), this.renderUserList());
-        this.attachUsersTabListeners();
+        this.attachUserListListeners();
       } catch (error) {
         debugError('Error updating roles:', error);
         const FORBIDDEN = 403;

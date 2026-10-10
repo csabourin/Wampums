@@ -15,6 +15,11 @@
 import { getCurrentAccess } from '../../api/api-endpoints.js';
 import { setStorageMultiple } from '../../utils/StorageUtils.js';
 import { debugLog, debugError } from '../../utils/DebugUtils.js';
+import { isParent } from '../../utils/PermissionUtils.js';
+
+const PARENT_HOME = '/parent-dashboard';
+const UNIT_HOME = '/dashboard';
+const HOME_PATHS = new Set(['/', UNIT_HOME, PARENT_HOME]);
 
 /**
  * Whether two lists hold the same keys, in any order.
@@ -34,6 +39,8 @@ function sameKeys(first, second) {
 
 /**
  * Replace the stored roles and permissions with the server's when they differ.
+ * On a home page, the address becomes the home the new access calls for
+ * (see pathAfterAccessChange), so showing it again lands on the right one.
  *
  * Failure (offline, server error) leaves the stored copy as it is: the API
  * still decides every request, so a stale copy only affects what is shown.
@@ -71,5 +78,31 @@ export async function refreshAccess(app) {
     userPermissions: JSON.stringify(access.permissions),
     userDataScope: dataScope || '',
   });
+
+  // The caller shows the current address again; make it the right home.
+  const current = window.location.pathname + window.location.search;
+  const target = pathAfterAccessChange(window.location.pathname, window.location.search);
+  if (target !== current) {
+    window.history.replaceState(null, '', target);
+  }
   return true;
+}
+
+/**
+ * Where to show the person after their access changed.
+ *
+ * A parent given the leader role while signed in sat on the parent
+ * dashboard, where sign-in had sent them, and showing that screen again kept
+ * them there. On a home page they go to the home their roles now call for;
+ * any other screen is shown again under the new rules.
+ *
+ * @param {string} pathname - Current path
+ * @param {string} [search=''] - Current query string
+ * @returns {string} Path to route to
+ */
+export function pathAfterAccessChange(pathname, search = '') {
+  if (HOME_PATHS.has(pathname)) {
+    return isParent() ? PARENT_HOME : UNIT_HOME;
+  }
+  return pathname + search;
 }

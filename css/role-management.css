@@ -91,6 +91,24 @@
   box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
 }
 
+/* The user whose roles are open: a thick left edge, not colour alone. */
+.user-item.selected {
+  background: #e8f5e9;
+  border-color: #2e7d32;
+  border-left-width: 6px;
+}
+
+/* Opening a user's roles scrolls here and focuses the heading; keep it
+   clear of the fixed settings button. */
+#user-assignment-heading {
+  scroll-margin-top: 80px;
+}
+
+#user-assignment-heading:focus-visible {
+  outline: 3px solid #2e7d32;
+  outline-offset: 4px;
+}
+
 .user-info {
   margin-bottom: 5px;
 }
