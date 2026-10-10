@@ -179,7 +179,6 @@
     "spa/modules/incident-report/incident-report.js": 24,
     "spa/modules/meetings/MeetingAutosave.js": 14,
     "spa/modules/meetings/MeetingPrep.js": 5,
-    "spa/modules/modals/CarpoolQuickAccessModal.js": 40,
     "spa/modules/participant-duplicates/ParticipantDuplicates.js": 3,
     "spa/modules/points/PointActionBar.js": 30,
     "spa/modules/program-progress/ParentProgramProgress.js": 3,
