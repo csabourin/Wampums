@@ -1,3 +1,4 @@
+import carpoolStylesheetUrl from "../css/carpool.css?url";
 import { translate } from "./app.js";
 import { debugError } from "./utils/DebugUtils.js";
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
@@ -23,7 +24,7 @@ export class CarpoolLanding {
    */
   async init() {
     // Load page-specific CSS
-    await loadStylesheet("/css/carpool.css");
+    await loadStylesheet(carpoolStylesheetUrl);
     this.render();
     this.attachEventListeners();
   }

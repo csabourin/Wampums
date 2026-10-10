@@ -1,3 +1,4 @@
+import dashboardV2StylesheetUrl from "../css/dashboard-v2.css?url";
 import {
   getParticipants,
   getGroups,
@@ -81,7 +82,7 @@ export class Dashboard extends BaseModule {
       // Dashboard-specific styles aren't critical for the skeleton, but we
       // want them in place before the real render. Loaded on-demand so
       // non-dashboard pages don't pay for them.
-      loadStylesheet("/css/dashboard-v2.css").catch((error) => {
+      loadStylesheet(dashboardV2StylesheetUrl).catch((error) => {
         debugError("Failed to load dashboard-v2 stylesheet:", error);
       });
 
@@ -89,9 +90,17 @@ export class Dashboard extends BaseModule {
       this.isLoading = true;
       this.render();
 
-      // Parallelize independent data fetches for faster loading
+      // Parallelize independent data fetches for faster loading. The counters
+      // need only the unit's settings (which features are on), so they start
+      // as soon as those arrive rather than after the roster; their state is
+      // kept and shown by the render below, or re-rendered if they land later.
+      const organizationInfoReady = this.fetchOrganizationInfo();
+      organizationInfoReady
+        .then(() => this.refreshDashboardCounters())
+        .catch((error) => debugError('Error refreshing dashboard counters:', error));
+
       await Promise.all([
-        this.fetchOrganizationInfo(),
+        organizationInfoReady,
         this.preloadDashboardData()
       ]);
 
@@ -105,9 +114,6 @@ export class Dashboard extends BaseModule {
       // Prefetch critical pages data after dashboard is ready
       // This is non-blocking and runs in background
       this.prefetchCriticalPages();
-
-      // Counters / next-meeting fetch is non-blocking. Re-renders on arrival.
-      this.refreshDashboardCounters();
 
       this.loadNews();
     } catch (error) {
@@ -210,6 +216,9 @@ export class Dashboard extends BaseModule {
         this.groups = cached.groups;
       }
 
+      // Groups do not depend on the roster: request both at once.
+      const groupsRequest = cached.hasGroupsCache ? null : this.fetchData(false, true);
+
       const participantsResponse = await getParticipants();
       const freshParticipants =
         participantsResponse.data || participantsResponse.participants || [];
@@ -237,8 +246,8 @@ export class Dashboard extends BaseModule {
 
       this.participants = normalizeParticipantList(this.participants);
 
-      if (!cached.hasGroupsCache) {
-        await this.fetchData(false, true);
+      if (groupsRequest) {
+        await groupsRequest;
       }
 
       if (!cached.hasParticipantsCache) {

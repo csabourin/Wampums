@@ -97,6 +97,112 @@ async function sendSubscriptionToServer(subscription) {
         }
 }
 
+// Fallback wait before caching other languages where requestIdleCallback is missing.
+const OFFLINE_LANGUAGE_PREFETCH_DELAY_MS = 5000;
+
+/**
+ * URL of this build's version of a translation bundle (see
+ * earlyTranslationsPlugin in vite.config.mjs).
+ *
+ * @param {string} langCode - Language code, e.g. 'fr'
+ * @returns {string}
+ */
+function translationUrl(langCode) {
+  const version = window.__wampumsLangVersions?.[langCode];
+  return version ? `/lang/${langCode}.json?v=${version}` : `/lang/${langCode}.json`;
+}
+
+/**
+ * Load one language's translation bundle.
+ *
+ * index.html starts the visitor's language download before this code arrives
+ * (see earlyTranslationsPlugin in vite.config.mjs); that request is reused
+ * once. Other loads ask for the build's version of the bundle, which the
+ * server and service worker cache for good.
+ *
+ * @param {string} langCode - Language code, e.g. 'fr'
+ * @returns {Promise<Object>} Translation keys
+ */
+async function fetchTranslationBundle(langCode) {
+  const early = window.__wampumsTranslations;
+  if (early && early.lang === langCode) {
+    window.__wampumsTranslations = null;
+    try {
+      return await early.response;
+    } catch (error) {
+      debugWarn(`Early translation request for ${langCode} failed, retrying:`, error);
+    }
+  }
+
+  const response = await fetch(translationUrl(langCode));
+  if (!response.ok) {
+    throw new Error(`Failed to fetch translation file for ${langCode}`);
+  }
+  return response.json();
+}
+
+const ORGANIZATION_SETTINGS_PERMISSION = 'org.view';
+
+/**
+ * Whether this session may read the full organization settings. Parents and
+ * other accounts without `org.view` would get a 403 there; they read the
+ * public settings directly instead of after a failed round trip.
+ *
+ * @param {string[]} permissions - The session's permissions
+ * @returns {boolean}
+ */
+function canReadFullOrganizationSettings(permissions) {
+  return Array.isArray(permissions) && permissions.includes(ORGANIZATION_SETTINGS_PERMISSION);
+}
+
+/**
+ * Read the organization settings again, e.g. after the session's permissions
+ * changed and another settings endpoint now applies.
+ *
+ * @param {Object} application - The app object
+ * @returns {Promise<void>}
+ */
+async function refreshOrganizationSettings(application) {
+  // The startup request was chosen with the old permissions.
+  window.earlyOrgSettingsFetch = null;
+  // A request already under way would store its answer whenever it lands;
+  // let it finish first so the refreshed settings are the ones kept.
+  await application._settingsPromise?.catch(() => {});
+  application.isOrganizationSettingsFetched = false;
+  application._settingsPromise = null;
+  return application.fetchOrganizationSettings();
+}
+
+/**
+ * Keep this build's other interface languages available offline, so
+ * switching language works without a connection. Startup fetches only the
+ * visitor's own language; this runs once the browser is idle. Versioned
+ * bundles are immutable, so the HTTP cache answers them offline even on a
+ * first visit, before a service worker controls the page; once one does, its
+ * translation route keeps them too.
+ *
+ * @param {string} currentLang - The language already loaded
+ */
+function cacheOtherLanguagesForOffline(currentLang) {
+  // Without service workers the app does not work offline at all.
+  if (!('serviceWorker' in navigator)) {
+    return;
+  }
+  const prefetch = () => {
+    CONFIG.SUPPORTED_LANGS
+      .filter((langCode) => langCode !== currentLang && window.__wampumsLangVersions?.[langCode])
+      .forEach((langCode) => {
+        fetch(translationUrl(langCode), { priority: 'low' })
+          .catch((error) => debugLog(`Offline copy of ${langCode} translations skipped:`, error));
+      });
+  };
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(prefetch);
+  } else {
+    setTimeout(prefetch, OFFLINE_LANGUAGE_PREFETCH_DELAY_MS);
+  }
+}
+
 export const app = {
         isLoggedIn: false,
         userRole: null, // Primary role (for backward compatibility)
@@ -254,20 +360,20 @@ export const app = {
                         const token = getStorage('jwtToken');
                         if (!token && this.organizationId) {
                                 try {
-                                        debugLog("Fetching organization JWT...");
+                                        debugLog('Fetching organization JWT...');
                                         const data = await fetchOrganizationJwt(this.organizationId);
                                         if (data.success && data.token) {
                                                 setStorage('jwtToken', data.token);
-                                                debugLog("Organization JWT obtained");
+                                                debugLog('Organization JWT obtained');
                                         }
                                 } catch (error) {
-                                        debugError("Error getting organization JWT:", error);
+                                        debugError('Error getting organization JWT:', error);
                                 }
                         }
 
                         // Fetch organization settings (in background, with caching)
                         this.fetchOrganizationSettings().catch(error => {
-                                debugError("Failed to fetch organization settings:", error);
+                                debugError('Failed to fetch organization settings:', error);
                                 this.organizationSettings = { name: 'Scouts' };
                         });
 
@@ -281,46 +387,51 @@ export const app = {
                                         .then(({ refreshAccess }) => refreshAccess(this))
                                         .then((changed) => {
                                                 if (!changed) {
-                                                        return;
+                                                        return undefined;
                                                 }
-                                                this.router.route(window.location.pathname + window.location.search);
-                                                this.showMessage(this.translate('access_updated'), 'info');
+                                                // The settings endpoint follows the permissions: read them again.
+                                                return refreshOrganizationSettings(this).then(() => {
+                                                        this.router.route(window.location.pathname + window.location.search);
+                                                        this.showMessage(this.translate('access_updated'), 'info');
+                                                });
                                         })
-                                        .catch(error => debugError("Failed to refresh access:", error));
+                                        .catch(error => debugError('Failed to refresh access:', error));
 
                                 // The year selector sits outside #app so it survives navigation.
                                 // It draws nothing for a unit that has only ever had one year.
                                 import('./modules/scout-year/ScoutYearBanner.js')
                                         .then(({ initScoutYearBanner }) => initScoutYearBanner())
-                                        .catch(error => debugError("Failed to mount the scout year selector:", error));
+                                        .catch(error => debugError('Failed to mount the scout year selector:', error));
 
                                 // Pick up changes other leaders make while this session is open.
                                 import('./modules/live-sync/LiveDataSync.js')
                                         .then(({ liveDataSync }) => liveDataSync.start())
-                                        .catch(error => debugError("Failed to start live sync:", error));
+                                        .catch(error => debugError('Failed to start live sync:', error));
 
                                 // Grey out what cannot be changed while an archived year is shown.
                                 // The API layer already refuses those writes; this makes it visible.
                                 import('./modules/scout-year/ArchiveReadOnly.js')
                                         .then(({ initArchiveReadOnly }) => initArchiveReadOnly())
-                                        .catch(error => debugError("Failed to install the archive read-only guard:", error));
+                                        .catch(error => debugError('Failed to install the archive read-only guard:', error));
                         }
 
                         // Detect a client running against a different server build than
                         // its cached assets came from, and force a clean reload.
                         checkForStaleClient().catch(error => {
-                                debugError("Stale client check failed:", error);
+                                debugError('Stale client check failed:', error);
                         });
 
                         // Ensure service worker is registered (fallback if vite-plugin-pwa injection missed)
                         this.registerServiceWorker();
+
+                        cacheOtherLanguagesForOffline(this.lang);
 
                         // Initialize offline support
                         initOfflineSupport();
                         this.syncOfflineData();
 
                 } catch (error) {
-                        debugError("Background initialization error:", error);
+                        debugError('Background initialization error:', error);
                 }
         },
 
@@ -353,7 +464,8 @@ export const app = {
 
                         if (!response) {
                                 const hasJwtToken = !!getStorage('jwtToken');
-                                const isAuthenticatedContext = this.isLoggedIn && hasJwtToken;
+                                const isAuthenticatedContext = this.isLoggedIn && hasJwtToken
+                                        && canReadFullOrganizationSettings(this.userPermissions);
                                 response = isAuthenticatedContext
                                         ? await getOrganizationSettings()
                                         : await getPublicOrganizationSettings();
@@ -394,12 +506,7 @@ export const app = {
                 }
                 try {
                         debugLog(`Loading translation for ${langCode}...`);
-                        const response = await fetch(`/lang/${langCode}.json`);
-                        if (!response.ok) {
-                                throw new Error(`Failed to fetch translation file for ${langCode}`);
-                        }
-                        const data = await response.json();
-                        this.translations[langCode] = data;
+                        this.translations[langCode] = await fetchTranslationBundle(langCode);
                         debugLog(`Translation for ${langCode} loaded successfully`);
                 } catch (error) {
                         debugError(`Error loading translation for ${langCode}:`, error);
@@ -420,12 +527,7 @@ export const app = {
                                 if (this.translations[langCode]) {
                                         return [langCode, this.translations[langCode]];
                                 }
-                                const response = await fetch(`/lang/${langCode}.json`);
-                                if (!response.ok) {
-                                        throw new Error(`Failed to fetch translation file for ${langCode}`);
-                                }
-                                const data = await response.json();
-                                return [langCode, data];
+                                return [langCode, await fetchTranslationBundle(langCode)];
                         });
 
                         const resolvedTranslations = await Promise.all(translationFetches);
@@ -827,7 +929,8 @@ if (storedOrgId && storedOrgId !== '[object Object]' && !storedOrgId.startsWith(
 
         // Check if user is logged in to determine which endpoint to use
         const jwtToken = getStorage('jwtToken');
-        const isLoggedIn = !!jwtToken;
+        const useFullSettings = !!jwtToken
+                && canReadFullOrganizationSettings(checkSession().userPermissions);
 
         // Determine if we are on a public page (where we shouldn't force auth).
         // '/permission-slip/' keeps the trailing slash so the staff dashboard
@@ -837,7 +940,7 @@ if (storedOrgId && storedOrgId !== '[object Object]' && !storedOrgId.startsWith(
 
         // Use public endpoint for unauthenticated users OR if on a public page
         // to avoid 401 errors that might trigger redirects
-        window.earlyOrgSettingsFetch = (isLoggedIn && !isPublicPage)
+        window.earlyOrgSettingsFetch = (useFullSettings && !isPublicPage)
                 ? getOrganizationSettings().catch(error => {
                         debugError("Early org settings fetch failed, will retry later:", error);
                         return null;

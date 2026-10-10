@@ -91,9 +91,10 @@ function createApp() {
             ? path.join(process.cwd(), "dist", "index.html")
             : path.join(process.cwd(), "index.html");
 
-        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-        res.setHeader("Pragma", "no-cache");
-        res.setHeader("Expires", "0");
+        // Revalidate on every load (the shell names the current build's
+        // assets) without no-store, which would also bar the page from the
+        // back/forward cache and from 304 answers.
+        res.setHeader("Cache-Control", "no-cache");
         res.sendFile(indexPath);
     });
 

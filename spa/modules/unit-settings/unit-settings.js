@@ -1,3 +1,4 @@
+import unitSettingsStylesheetUrl from '../../../css/unit-settings.css?url';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { translate } from '../../app.js';
 import { loadStylesheet, setContent } from '../../utils/DOMUtils.js';
@@ -102,7 +103,7 @@ export class UnitSettings extends BaseModule {
   async init() {
     const container = document.getElementById('app');
     setContent(container, `<div class="page-loading">${translate('loading') || 'Loading...'}</div>`);
-    await loadStylesheet('/css/unit-settings.css');
+    await loadStylesheet(unitSettingsStylesheetUrl);
 
     this.canManageOrg = hasPermission('organization.manage');
     this.canEditOrg = hasPermission('org.edit');

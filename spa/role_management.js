@@ -6,6 +6,7 @@
  * 2. Assign roles to users
  */
 
+import roleManagementStylesheetUrl from '../css/role-management.css?url';
 import { app, translate } from './app.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { hasPermission } from './utils/PermissionUtils.js';
@@ -37,7 +38,7 @@ export class RoleManagement {
     debugLog('RoleManagement init started');
 
     // Load page-specific CSS
-    await loadStylesheet("/css/role-management.css");
+    await loadStylesheet(roleManagementStylesheetUrl);
 
     // Check if user has permission to view roles
     if (!hasPermission('roles.view')) {

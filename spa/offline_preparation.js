@@ -2,6 +2,7 @@
  * Offline Preparation Page
  * Allows users to prepare the app for multi-day offline operation (camp mode)
  */
+import offlinePrepStylesheetUrl from '../css/offline-prep.css?url';
 import { translate } from './app.js';
 import { offlineManager } from './modules/OfflineManager.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
@@ -24,7 +25,7 @@ export class OfflinePreparation {
 
     async init() {
         // Load page-specific CSS
-        await loadStylesheet('/css/offline-prep.css');
+        await loadStylesheet(offlinePrepStylesheetUrl);
 
         // Show loading state
         this.isLoading = true;

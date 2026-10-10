@@ -3,13 +3,6 @@
 
 <head>
     <meta charset="UTF-8" />
-    <script type="importmap">
-    {
-        "imports": {
-            "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.3.0/dist/purify.es.mjs"
-        }
-    }
-    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
     <!-- SEO Meta Tags -->
@@ -43,16 +36,6 @@
     <meta name="twitter:image" content="/assets/images/android-chrome-512x512.png" />
 
     <title>Wampums — Scout management at your fingertips</title>
-
-    <!-- Performance optimization: Preconnect to API for faster organization settings -->
-    <link rel="preconnect" href="/public" crossorigin />
-    <link rel="dns-prefetch" href="/public" />
-
-    <!-- Prefetch top dashboard modules for instant navigation -->
-    <link rel="modulepreload" href="/spa/manage_points.js" />
-    <link rel="modulepreload" href="/spa/manage_honors.js" />
-    <link rel="modulepreload" href="/spa/attendance.js" />
-    <link rel="modulepreload" href="/spa/upcoming_meeting.js" />
 
     <!-- Favicons -->
     <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/icon-192x192.png" />
@@ -124,7 +107,7 @@
     </div>
 
     <!-- App will load initial data via API call -->
-    <script type="module" defer src="/spa/app.js"></script>
+    <script type="module" src="/spa/app.js"></script>
     <a href="/politique-de-confidentialite.html" target="_blank" class="privacy-policy-link">Politique de
         confidentialité</a>
     <div id="loading-indicator" class="hidden">Loading...</div>
