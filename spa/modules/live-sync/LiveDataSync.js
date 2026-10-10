@@ -232,9 +232,8 @@ class LiveDataSync {
     if (!router) {
       return;
     }
-    const scrollY = window.scrollY;
+    // The router keeps the screen where it was scrolled.
     await router.route(currentLocation());
-    window.scrollTo(0, scrollY);
   }
 }
 
