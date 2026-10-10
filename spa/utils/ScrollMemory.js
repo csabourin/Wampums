@@ -226,8 +226,11 @@ export function beginScrollNavigation(path) {
 
   const key = scrollKeyFor(path);
   const sameScreen = key === activeKey;
-  if (sameScreen && !restoring) {
-    rememberPosition(key, window.scrollY);
+  // Save the screen being left now: a scroll made in the last frame has not
+  // been recorded yet, and on back/forward the URL already shows the
+  // destination. activeKey still names the screen on display.
+  if (activeKey && !restoring) {
+    rememberPosition(activeKey, window.scrollY);
   }
   activeKey = key;
   routeStartUrl = currentLocationKey();

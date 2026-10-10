@@ -293,6 +293,26 @@ describe('ScrollMemory', () => {
     expect(window.scrollY).toBe(300);
   });
 
+  test('the screen being left is saved even if its last scroll was not recorded yet', () => {
+    visit('/dashboard');
+    scrollWindow(400);
+
+    // The scroll's save waits for the next frame; back is pressed first.
+    const pendingFrames = [];
+    const runFrame = window.requestAnimationFrame;
+    window.requestAnimationFrame = (callback) => pendingFrames.push(callback);
+    scrollWindow(950);
+    // Back/forward: the browser changes the URL itself, then popstate routes.
+    History.prototype.pushState.call(history, null, '', '/attendance');
+    const token = beginScrollNavigation('/attendance');
+    pendingFrames.forEach((callback) => callback());
+    window.requestAnimationFrame = runFrame;
+    restoreScrollPosition(token);
+
+    visit('/dashboard');
+    expect(window.scrollY).toBe(950);
+  });
+
   test('ignores the hash when identifying a screen', () => {
     expect(scrollKeyFor('/help?topic=a#faq')).toBe('/help?topic=a');
     expect(scrollKeyFor(null)).toBeNull();
