@@ -100,6 +100,10 @@ function jumpTo(y) {
   root.style.scrollBehavior = previous;
 }
 
+function currentLocationKey() {
+  return scrollKeyFor(`${window.location.pathname}${window.location.search}`);
+}
+
 function onScroll() {
   if (restoring || saveFrame !== null) {
     return;
@@ -107,9 +111,26 @@ function onScroll() {
   saveFrame = window.requestAnimationFrame(() => {
     saveFrame = null;
     if (!restoring) {
+      // Read the URL rather than trusting activeKey: in-page tabs rewrite
+      // ?tab= with replaceState, without going through the router.
+      activeKey = currentLocationKey();
       rememberPosition(activeKey, window.scrollY);
     }
   });
+}
+
+/**
+ * Called when a screen changes its own URL in place (tabs that rewrite
+ * `?tab=` with replaceState), so later scrolling is recorded for the new URL
+ * and not for the one it replaced. The page is left where it is: the tab bar
+ * the person just used stays under their finger.
+ */
+export function syncScrollKey() {
+  if (restoring) {
+    return;
+  }
+  activeKey = currentLocationKey();
+  rememberPosition(activeKey, window.scrollY);
 }
 
 /**

@@ -23,6 +23,7 @@ import {
   beginScrollNavigation,
   restoreScrollPosition,
   scrollKeyFor,
+  syncScrollKey,
   resetScrollMemoryForTests
 } from '../../spa/utils/ScrollMemory.js';
 
@@ -62,7 +63,14 @@ beforeEach(() => {
   initScrollMemory();
 });
 
+// The router pushes the URL before it routes.
+function go(path) {
+  history.pushState(null, '', path);
+  return beginScrollNavigation(path);
+}
+
 function visit(path) {
+  history.pushState(null, '', path);
   const token = beginScrollNavigation(path);
   restoreScrollPosition(token);
 }
@@ -128,7 +136,7 @@ describe('ScrollMemory', () => {
     visit('/dashboard');
     scrollWindow(1200);
 
-    const token = beginScrollNavigation('/attendance');
+    const token = go('/attendance');
     // Old content removed: the browser clamps and fires scroll events.
     scrollWindow(40);
     restoreScrollPosition(token);
@@ -143,8 +151,8 @@ describe('ScrollMemory', () => {
     scrollWindow(1200);
     visit('/attendance');
 
-    const stale = beginScrollNavigation('/dashboard');
-    const current = beginScrollNavigation('/attendance');
+    const stale = go('/dashboard');
+    const current = go('/attendance');
     restoreScrollPosition(stale);
     expect(window.scrollY).toBe(0);
     restoreScrollPosition(current);
@@ -158,7 +166,7 @@ describe('ScrollMemory', () => {
 
     // The dashboard renders short first, then grows as data arrives.
     scrollHeight = VIEWPORT_HEIGHT;
-    const token = beginScrollNavigation('/dashboard');
+    const token = go('/dashboard');
     restoreScrollPosition(token);
     window.dispatchEvent(new Event('wheel'));
     scrollWindow(100);
@@ -178,6 +186,35 @@ describe('ScrollMemory', () => {
     visit('/dashboard');
 
     expect(window.scrollY).toBe(1200);
+  });
+
+  test('switching tabs in place does not overwrite the previous tab', () => {
+    visit('/finance?tab=reports');
+    scrollWindow(900);
+
+    // TabbedPage rewrites ?tab= without going through the router.
+    history.replaceState({}, '', '/finance?tab=payments');
+    syncScrollKey();
+    scrollWindow(150);
+
+    visit('/dashboard');
+    visit('/finance?tab=reports');
+    expect(window.scrollY).toBe(900);
+    visit('/finance?tab=payments');
+    expect(window.scrollY).toBe(150);
+  });
+
+  test('a redraw after an in-place tab switch keeps the position', () => {
+    visit('/finance?tab=reports');
+    scrollWindow(900);
+    history.replaceState({}, '', '/finance?tab=payments');
+    syncScrollKey();
+    window.scrollTo.mockClear();
+
+    visit('/finance?tab=payments');
+
+    expect(window.scrollTo).not.toHaveBeenCalledWith(0, 0);
+    expect(window.scrollY).toBe(900);
   });
 
   test('ignores the hash when identifying a screen', () => {

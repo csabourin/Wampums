@@ -1366,7 +1366,7 @@ export class Router {
   }
 
   reloadCurrentRoute() {
-    this.route(window.location.pathname);
+    this.route(`${window.location.pathname}${window.location.search}`);
   }
 
   async handleLogout() {
