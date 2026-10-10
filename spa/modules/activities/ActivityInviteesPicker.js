@@ -157,6 +157,10 @@ export function attachInviteesPicker(root, {
   const everyoneRadio = root.querySelector('#activity-invites-everyone');
   const someRadio = root.querySelector('#activity-invites-some');
   let initiallyInvited = new Set();
+  // Editing an activity already for some participants: without the roster
+  // (no participants.view, or offline) its list is kept as it is
+  const keepsExistingList = () => activity?.invites_everyone === false
+    && Boolean(someRadio?.checked) && state !== 'ready';
   let participants = [];
   let state = 'idle';
   let loading = null;
@@ -314,7 +318,7 @@ export function attachInviteesPicker(root, {
      * @returns {string|null} Translation key, or null when it can be saved
      */
     validate() {
-      if (!someRadio?.checked) {
+      if (!someRadio?.checked || keepsExistingList()) {
         return null;
       }
       if (state !== 'ready') {
@@ -332,6 +336,11 @@ export function attachInviteesPicker(root, {
      */
     readInto(data) {
       delete data.invited_participant_ids;
+      if (keepsExistingList()) {
+        // Sending neither field leaves the saved invitation unchanged
+        delete data.invites_everyone;
+        return data;
+      }
       const some = Boolean(someRadio?.checked);
       data.invites_everyone = !some;
       if (some) {
