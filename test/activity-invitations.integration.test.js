@@ -94,7 +94,7 @@ describe.skipIf(!DATABASE_URL)('Activities for some participants', () => {
   const call = (method, path, userId) => request(app)[method](path).set('Authorization', auth(userId));
   const names = (rows) => rows.map((row) => row.first_name).sort();
 
-  async function offer(driverId, activityId) {
+  function offer(driverId, activityId) {
     return one(`INSERT INTO carpool_offers (activity_id, user_id, organization_id, vehicle_make, vehicle_color,
         total_seats_available, trip_direction)
       VALUES ($1, $2, $3, 'Car', 'Blue', 4, 'both') RETURNING id`, [activityId, driverId, ids.unit]);
