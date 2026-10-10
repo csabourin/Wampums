@@ -16,11 +16,14 @@ const { success, error, asyncHandler } = require('../middleware/response');
 // Import utilities
 const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { checkValidation } = require('../middleware/validation');
-const { getVapidKeys, isGoneSubscriptionError, removeGoneSubscriptions } = require('../utils/web-push');
+const {
+  getVapidKeys, isGoneSubscriptionError, isKeyMismatchError, removeGoneSubscriptions, summarizePushFailures
+} = require('../utils/web-push');
 
 const HTTP_ACCEPTED = 202;
 const HTTP_METHOD_NOT_ALLOWED = 405;
 const HTTP_INTERNAL_ERROR = 500;
+const HTTP_BAD_GATEWAY = 502;
 const HTTP_SERVICE_UNAVAILABLE = 503;
 const TITLE_MAX_LENGTH = 200;
 const BODY_MAX_LENGTH = 1000;
@@ -155,8 +158,8 @@ module.exports = (pool, logger) => {
           webpush = require('web-push');
         } catch (loadError) {
           if (loadError.code === 'MODULE_NOT_FOUND') {
-            logger.warn('web-push not installed. Install with: npm install web-push');
-            return error(res, 'Push notifications are not configured', HTTP_SERVICE_UNAVAILABLE);
+            logger.error('Push notifications: the web-push package is not installed');
+            return error(res, 'push_not_configured', HTTP_SERVICE_UNAVAILABLE);
           }
           throw loadError;
         }
@@ -164,10 +167,16 @@ module.exports = (pool, logger) => {
         const { publicKey, privateKey } = getVapidKeys();
         if (!publicKey || !privateKey) {
           logger.error('Push notifications: VAPID keys are not configured (VAPID_PUBLIC / VAPID_PRIVATE)');
-          return error(res, 'Push notifications are not configured', HTTP_SERVICE_UNAVAILABLE);
+          return error(res, 'push_not_configured', HTTP_SERVICE_UNAVAILABLE);
         }
 
-        webpush.setVapidDetails('mailto:info@wampums.app', publicKey, privateKey);
+        try {
+          webpush.setVapidDetails('mailto:info@wampums.app', publicKey, privateKey);
+        } catch (keyError) {
+          // A key with quotes, spaces or the wrong length
+          logger.error(`Push notifications: VAPID keys are invalid: ${keyError.message}`);
+          return error(res, 'push_not_configured', HTTP_SERVICE_UNAVAILABLE);
+        }
 
         // A member whose membership is no longer active (left, or closed at the
         // year transition) stops receiving the unit's notifications.
@@ -202,20 +211,26 @@ module.exports = (pool, logger) => {
         }, notificationPayload)));
 
         const goneEndpoints = [];
+        const refusals = [];
         let sent = 0;
-        let failed = 0;
         results.forEach((result, index) => {
           if (result.status === 'fulfilled') {
             sent += 1;
-            return;
-          }
-          failed += 1;
-          if (isGoneSubscriptionError(result.reason)) {
+          } else if (isGoneSubscriptionError(result.reason)) {
             goneEndpoints.push(subscribers[index].endpoint);
           } else {
-            logger.error(`Failed to send notification to ${subscribers[index].endpoint}:`, result.reason);
+            refusals.push(result.reason);
           }
         });
+        const failed = goneEndpoints.length + refusals.length;
+        const rejectedForKey = refusals.filter(isKeyMismatchError).length;
+        if (refusals.length) {
+          const { byStatus, sample } = summarizePushFailures(refusals);
+          logger.error(
+            `Push notifications: ${refusals.length} of ${subscribers.length} refused for unit ${organizationId}`
+            + ` (by status: ${JSON.stringify(byStatus)}; first answer: ${sample})`
+          );
+        }
         // The pushes are out: a failed clean-up must not report the send as
         // failed, or the sender would send it again.
         let removed = 0;
@@ -226,11 +241,13 @@ module.exports = (pool, logger) => {
         }
 
         // Every attempt failed for a reason other than a vanished browser:
-        // nothing was delivered and the sender must know it.
-        if (sent === 0 && failed > goneEndpoints.length) {
-          return error(res, 'failed_to_send_notification', HTTP_INTERNAL_ERROR);
+        // nothing was delivered and the sender must know why. 502: the push
+        // service refused, not this server.
+        if (sent === 0 && refusals.length) {
+          const reason = rejectedForKey === refusals.length ? 'push_rejected_key_mismatch' : 'push_rejected';
+          return error(res, reason, HTTP_BAD_GATEWAY);
         }
-        return success(res, { sent, failed, removed }, 'Notification sent');
+        return success(res, { sent, failed, removed, rejected_for_key: rejectedForKey }, 'Notification sent');
       } catch (err) {
         if (handleOrganizationResolutionError(res, err, logger)) {
           return undefined;

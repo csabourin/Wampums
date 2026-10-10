@@ -196,7 +196,7 @@ describe.skipIf(!DATABASE_URL)('Push notifications', () => {
       .send({ title: 'Camp', body: 'Départ à 9 h', user_ids: [chosen] });
 
     expect(response.status).toBe(200);
-    expect(response.body.data).toEqual({ sent: 1, failed: 1, removed: 1 });
+    expect(response.body.data).toEqual({ sent: 1, failed: 1, removed: 1, rejected_for_key: 0 });
     const reached = webpush.sendNotification.mock.calls.map(([subscription]) => subscription.endpoint);
     expect(reached.sort()).toEqual([endpoint('chosen-gone'), endpoint('chosen-live')]);
     expect(await endpointsOf(chosen)).toEqual([endpoint('chosen-live')]);
@@ -285,21 +285,76 @@ describe.skipIf(!DATABASE_URL)('Push notifications', () => {
       .send({ title: 'Camp', body: 'Texte', user_ids: [leaver] });
 
     expect(response.status).toBe(200);
-    expect(response.body.data).toEqual({ sent: 0, failed: 1, removed: 1 });
+    expect(response.body.data).toEqual({ sent: 0, failed: 1, removed: 1, rejected_for_key: 0 });
     expect(await endpointsOf(leaver)).toEqual([]);
   });
 
-  test('a send that fails for another reason is an error and keeps the browser', async () => {
+  test('a send refused for its signature names the key mismatch and keeps the browser', async () => {
     const member = await createMember([ids.sender], 'Unlucky');
     await subscribe(member, 'unlucky');
     webpush.sendNotification.mockRejectedValue(Object.assign(new Error('Unauthorized'), { statusCode: 403 }));
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
     const response = await request(app)
       .post('/api/v1/notifications/send')
       .send({ title: 'Camp', body: 'Texte', user_ids: [member] });
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(502);
+    expect(response.body.message).toBe('push_rejected_key_mismatch');
     expect(await endpointsOf(member)).toEqual([endpoint('unlucky')]);
+    // The refusal is logged once, with its status, where the host shows it
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringMatching(/1 of 1 refused .*"403":1/));
+    errorSpy.mockRestore();
+  });
+
+  test('a send refused for another reason says the push service refused', async () => {
+    const member = await createMember([ids.sender], 'Throttled');
+    await subscribe(member, 'throttled');
+    webpush.sendNotification.mockRejectedValue(Object.assign(new Error('Too many'), { statusCode: 429 }));
+
+    const response = await request(app)
+      .post('/api/v1/notifications/send')
+      .send({ title: 'Camp', body: 'Texte', user_ids: [member] });
+
+    expect(response.status).toBe(502);
+    expect(response.body.message).toBe('push_rejected');
+  });
+
+  test('a partial send reports how many devices refused it for their key', async () => {
+    const member = await createMember([ids.sender], 'Two devices');
+    await subscribe(member, 'two-ok');
+    await subscribe(member, 'two-stale');
+    webpush.sendNotification.mockImplementation((subscription) => (
+      subscription.endpoint.endsWith('stale')
+        ? Promise.reject(Object.assign(new Error('Unauthorized'), { statusCode: 401 }))
+        : Promise.resolve({ statusCode: 201 })
+    ));
+
+    const response = await request(app)
+      .post('/api/v1/notifications/send')
+      .send({ title: 'Camp', body: 'Texte', user_ids: [member] });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({ sent: 1, failed: 1, removed: 0, rejected_for_key: 1 });
+  });
+
+  test.each([
+    ['missing', () => { delete process.env.VAPID_PRIVATE; }],
+    ['invalid', () => { webpush.setVapidDetails.mockImplementationOnce(() => { throw new Error('Vapid public key should be 65 bytes long'); }); }],
+  ])('%s VAPID keys are reported as push not configured', async (_label, breakKeys) => {
+    const savedPrivate = process.env.VAPID_PRIVATE;
+    breakKeys();
+    try {
+      const response = await request(app)
+        .post('/api/v1/notifications/send')
+        .send({ title: 'Camp', body: 'Texte' });
+
+      expect(response.status).toBe(503);
+      expect(response.body.message).toBe('push_not_configured');
+      expect(webpush.sendNotification).not.toHaveBeenCalled();
+    } finally {
+      process.env.VAPID_PRIVATE = savedPrivate;
+    }
   });
 
   test('selected ids must be user ids', async () => {

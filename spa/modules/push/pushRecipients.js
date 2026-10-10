@@ -54,3 +54,22 @@ export function pushSendResultKey(result) {
   }
   return 'notification_sent_successfully';
 }
+
+/**
+ * The outcome of a send, in the page's language. A send that some devices
+ * refused says how many were reached and how many refused.
+ *
+ * @param {{success?: boolean, queued?: boolean, data?: {sent?: number, failed?: number, removed?: number}}} result
+ * @returns {string}
+ */
+export function describePushSendResult(result) {
+  const key = pushSendResultKey(result);
+  const { sent = 0, failed = 0, removed = 0 } = result?.data || {};
+  const refused = failed - removed;
+  if (key === 'notification_sent_successfully' && refused > 0) {
+    return translate('push_sent_partial')
+      .replace('{sent}', String(sent))
+      .replace('{refused}', String(refused));
+  }
+  return translate(key);
+}

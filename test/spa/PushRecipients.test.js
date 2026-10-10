@@ -17,6 +17,8 @@ import axe from 'axe-core';
 
 const TRANSLATIONS = {
   no_subscribers_found: 'Aucun abonné trouvé',
+  notification_sent_successfully: 'Notification envoyée avec succès !',
+  push_sent_partial: 'Envoyée à {sent} appareil(s) ; {refused} refusé(s) par le service push.',
   push_device_count: '{count} appareils',
 };
 
@@ -31,7 +33,7 @@ jest.mock('../../spa/app.js', () => ({
   translate: (key) => TRANSLATIONS[key] || key,
 }));
 
-const { renderPushRecipients, pushSendResultKey } = require('../../spa/modules/push/pushRecipients.js');
+const { renderPushRecipients, pushSendResultKey, describePushSendResult } = require('../../spa/modules/push/pushRecipients.js');
 
 const AXE_OPTIONS = {
   runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
@@ -120,5 +122,15 @@ describe('Push notification recipients', () => {
     [undefined, 'failed_to_send_notification'],
   ])('a send answered %j is reported as %s', (result, key) => {
     expect(pushSendResultKey(result)).toBe(key);
+  });
+
+  test('a partial send says how many devices were reached and how many refused', () => {
+    expect(describePushSendResult({ success: true, data: { sent: 4, failed: 3, removed: 1 } }))
+      .toBe('Envoyée à 4 appareil(s) ; 2 refusé(s) par le service push.');
+  });
+
+  test('a send whose only failures were vanished devices is a plain success', () => {
+    expect(describePushSendResult({ success: true, data: { sent: 4, failed: 2, removed: 2 } }))
+      .toBe('Notification envoyée avec succès !');
   });
 });

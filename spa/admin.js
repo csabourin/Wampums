@@ -23,7 +23,7 @@ import { getMountPoint, resolveMountOptions } from "./utils/PageMount.js";
 import { roleLabel } from './utils/RoleLabelUtils.js';
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
-import { renderPushRecipients, pushSendResultKey } from './modules/push/pushRecipients.js';
+import { renderPushRecipients, pushSendResultKey, describePushSendResult } from './modules/push/pushRecipients.js';
 export class Admin {
         constructor(app, options = {}) {
                 this.app = app;
@@ -705,7 +705,7 @@ ${showNotifications ? `
                         try {
                                 const result = await sendNotification(title, body, selectedSubscribers);
                                 const outcomeKey = pushSendResultKey(result);
-                                setContent(resultContainer, translate(outcomeKey));
+                                setContent(resultContainer, escapeHTML(describePushSendResult(result)));
                                 if (outcomeKey === 'notification_sent_successfully' || outcomeKey === 'notification_queued_offline') {
                                         notificationForm.reset();
                                 }
