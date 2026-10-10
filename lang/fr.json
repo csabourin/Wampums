@@ -3783,5 +3783,6 @@
   "permission_slip_audience_invited": "Participants invités à cette activité",
   "permission_slip_invited_only_notice": "Cette activité n’invite que certains participants; eux seuls peuvent recevoir une autorisation.",
   "carpool_invited_only_notice": "Cette activité n’invite que certains participants; eux seuls sont affichés.",
-  "permission_slip_partially_saved": "Seulement {saved} autorisations sur {total} ont été enregistrées. Réessayez pour les autres."
+  "permission_slip_partially_saved": "Seulement {saved} autorisations sur {total} ont été enregistrées. Réessayez pour les autres.",
+  "activity_invitees_keep_off_roster": "Garder les {count} participant(s) invité(s) qui ne sont plus inscrits cette année"
 }

@@ -6,7 +6,7 @@ const { success, error, asyncHandler } = require('../middleware/response');
 const logger = require('../config/logger');
 const { sendActivityUpdateNotifications } = require('../utils/carpool-notifications');
 const { carpoolRosterRestriction } = require('../services/carpoolAccess');
-const { readInvitation, saveInvitation } = require('../services/activityInvitations');
+const { mayReadInviteeList, readInvitation, saveInvitation } = require('../services/activityInvitations');
 
 module.exports = (pool) => {
   const ICAL_PROD_ID = '-//Wampums//Activities Calendar//EN';
@@ -18,8 +18,6 @@ module.exports = (pool) => {
   const HTTP_NOT_FOUND = 404;
   const HTTP_BAD_REQUEST = 400;
   const HTTP_CREATED = 201;
-  // Who may see the list of invited children on an activity's details
-  const INVITEE_LIST_PERMISSIONS = ['activities.edit', 'carpools.manage'];
   const HOURS_PER_DAY = 24;
   const MINUTES_PER_HOUR = 60;
   const SECONDS_PER_MINUTE = 60;
@@ -405,8 +403,7 @@ module.exports = (pool) => {
 
     // The list of invited children is for those who organize the activity
     const activity = result.rows[0];
-    const permissions = req.userPermissions || [];
-    if (!INVITEE_LIST_PERMISSIONS.some((key) => permissions.includes(key))) {
+    if (!mayReadInviteeList(req)) {
       delete activity.invited_participant_ids;
     }
 

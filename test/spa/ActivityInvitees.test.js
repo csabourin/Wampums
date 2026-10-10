@@ -266,6 +266,42 @@ describe('activity invitations', () => {
     close();
   });
 
+  test('the leader can remove invitees no longer enrolled this year', async () => {
+    getActivity.mockResolvedValue({ id: 5, invites_everyone: false, invited_participant_ids: [2, 9] });
+    const activity = {
+      id: 5, name: 'Camp', invites_everyone: false,
+      activity_start_date: '2026-10-24', activity_start_time: '18:00:00',
+      activity_end_date: '2026-10-26', activity_end_time: '12:00:00',
+      meeting_location_going: 'Local', meeting_time_going: '17:30:00', departure_time_going: '17:45:00',
+    };
+    const { close } = openActivityFormModal(app, { activity });
+    const overlay = document.getElementById('activity-modal');
+    await flush();
+    await flush();
+
+    const keep = overlay.querySelector('#activity-invitees-keep-off-roster');
+    expect(keep.closest('[data-invitees-off-roster]').hidden).toBe(false);
+    expect(keep.checked).toBe(true);
+    expect(overlay.querySelector('label[for="activity-invitees-keep-off-roster"]').textContent)
+      .toBe('activity_invitees_keep_off_roster');
+    const results = await axe.run(overlay.querySelector('.activity-invitees'), AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+    keep.click();
+
+    overlay.querySelector('#activity-form').dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    expect(updateActivity).toHaveBeenCalledWith(5, expect.objectContaining({ invited_participant_ids: [2] }));
+    close();
+  });
+
+  test('with everyone on the roster, the off-roster choice stays hidden', async () => {
+    const { close } = openActivityFormModal(app);
+    const overlay = document.getElementById('activity-modal');
+    await chooseSome(overlay);
+    expect(overlay.querySelector('[data-invitees-off-roster]').hidden).toBe(true);
+    close();
+  });
+
   test('without access to groups the list still loads, minus the group filter', async () => {
     getGroups.mockRejectedValueOnce(new Error('403'));
     const { close } = openActivityFormModal(app);

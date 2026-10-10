@@ -201,8 +201,22 @@ async function findUninvitedParticipants(db, activityId, organizationId, partici
   return participantIds.map(Number).filter((id) => !invitedSet.has(id));
 }
 
+// Who may see the list of invited children: those who organize the activity
+const INVITEE_LIST_PERMISSIONS = ['activities.edit', 'carpools.manage'];
+
+/**
+ * Whether the caller may see the list of an activity's invited children.
+ * @param {Object} req - Request after requirePermission loaded permissions
+ * @returns {boolean}
+ */
+function mayReadInviteeList(req) {
+  const permissions = req.userPermissions || [];
+  return INVITEE_LIST_PERMISSIONS.some((key) => permissions.includes(key));
+}
+
 module.exports = {
   MAX_INVITEES,
+  mayReadInviteeList,
   readInvitation,
   saveInvitation,
   getInvitedParticipantIds,

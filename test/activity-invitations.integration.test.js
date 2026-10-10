@@ -174,6 +174,16 @@ describe.skipIf(!DATABASE_URL)('Activities for some participants', () => {
     expect(response.body.data.activity.invited_participant_ids).toEqual([ids.older, ids.veteran].sort((a, b) => a - b));
   });
 
+  test('the offline bundle hides the invited list from view-only unit roles', async () => {
+    const viewerRole = await role(['activities.view', 'participants.view'], 'organization');
+    const viewer = await member(viewerRole, 'Viewer Only');
+    const response = await call('post', '/api/v1/offline/prepare-activity', viewer)
+      .send({ activity_id: ids.camp, start_date: '2026-10-24', end_date: '2026-10-25' });
+    expect(response.status).toBe(200);
+    expect(response.body.data.activity.invites_everyone).toBe(false);
+    expect(response.body.data.activity.invited_participant_ids).toBeNull();
+  });
+
   test('a family does not receive the list of invited children', async () => {
     const details = await call('get', `/api/v1/activities/${ids.camp}`, ids.family);
     expect(details.status).toBe(200);

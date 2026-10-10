@@ -122,6 +122,11 @@ function buildPickerBodyHTML(participants, groups) {
 
     <p class="activity-invitees__count" id="activity-invitees-count" aria-live="polite"></p>
 
+    <div class="activity-invitees__off-roster" data-invitees-off-roster hidden>
+      <input type="checkbox" id="activity-invitees-keep-off-roster" checked>
+      <label for="activity-invitees-keep-off-roster"></label>
+    </div>
+
     <fieldset class="activity-invitees__list-wrapper">
       <legend class="visually-hidden">${escapeHTML(translate('activity_invitees_list_label'))}</legend>
       <ul class="activity-invitees__list">${rows}</ul>
@@ -167,6 +172,17 @@ export function attachInviteesPicker(root, {
 
   const items = () => Array.from(picker.querySelectorAll('.activity-invitees__item'));
   const boxes = () => Array.from(picker.querySelectorAll('input[name="invited_participant_ids"]'));
+
+  /** Ids invited earlier that have no row on this year's roster. */
+  const offRosterIds = () => {
+    const listed = new Set(boxes().map((box) => Number(box.value)));
+    return [...initiallyInvited].filter((id) => !listed.has(id));
+  };
+  /** Off-roster invitees the leader chose to keep (all of them by default). */
+  const keptOffRosterIds = () => {
+    const keep = picker.querySelector('#activity-invitees-keep-off-roster');
+    return keep && !keep.checked ? [] : offRosterIds();
+  };
 
   const updateCount = () => {
     const count = picker.querySelector('#activity-invitees-count');
@@ -224,6 +240,16 @@ export function attachInviteesPicker(root, {
     boxes().forEach((box) => {
       box.checked = initiallyInvited.has(Number(box.value));
     });
+    // Invitees no longer enrolled this year have no row: one choice keeps or
+    // removes them all
+    const offRosterCount = offRosterIds().length;
+    const offRoster = picker.querySelector('[data-invitees-off-roster]');
+    if (offRoster && offRosterCount > 0) {
+      offRoster.hidden = false;
+      offRoster.querySelector('label').textContent = translate('activity_invitees_keep_off_roster')
+        .replace('{count}', String(offRosterCount));
+      offRoster.querySelector('input').addEventListener('change', updateCount);
+    }
     picker.querySelector('#activity-invitees-group')?.addEventListener('change', applyFilters);
     picker.querySelector('#activity-invitees-min-age')?.addEventListener('input', applyFilters);
     picker.querySelectorAll('[data-invitees-action]').forEach((button) => {
@@ -324,9 +350,9 @@ export function attachInviteesPicker(root, {
       if (state !== 'ready') {
         return 'activity_invitees_not_loaded';
       }
-      const listed = new Set(boxes().map((box) => Number(box.value)));
-      const hasOffRoster = [...initiallyInvited].some((id) => !listed.has(id));
-      return boxes().some((box) => box.checked) || hasOffRoster ? null : 'activity_invitees_none_selected';
+      return boxes().some((box) => box.checked) || keptOffRosterIds().length > 0
+        ? null
+        : 'activity_invitees_none_selected';
     },
 
     /**
@@ -345,12 +371,10 @@ export function attachInviteesPicker(root, {
       data.invites_everyone = !some;
       if (some) {
         // A child invited earlier but no longer on this year's roster has no
-        // checkbox; keep them invited rather than uninvite them silently.
-        const listed = new Set(boxes().map((box) => Number(box.value)));
-        const offRoster = [...initiallyInvited].filter((id) => !listed.has(id));
+        // checkbox; they stay invited unless the leader chose to remove them.
         data.invited_participant_ids = [
           ...boxes().filter((box) => box.checked).map((box) => Number(box.value)),
-          ...offRoster
+          ...keptOffRosterIds()
         ];
       }
       return data;
