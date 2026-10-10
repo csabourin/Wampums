@@ -10,8 +10,9 @@
  */
 import { translate } from '../../app.js';
 import { debugLog, debugError } from '../../utils/DebugUtils.js';
-import { setContent, insertHTML } from '../../utils/DOMUtils.js';
+import { setContent } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { openModal } from '../../utils/ModalUtils.js';
 import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
 import { confirm as confirmDialog, confirmDestructive } from '../../utils/DialogUtils.js';
 
@@ -767,51 +768,35 @@ export class IncidentReport {
         <div class="escalation-contact-row" data-id="${c.id}">
           <span>${escapeHTML(c.name || '')} &lt;${escapeHTML(c.email)}&gt;</span>
           <span class="escalation-role">${escapeHTML(c.role_description || '')}</span>
-          <button class="btn btn--small btn--danger escalation-delete-btn" data-id="${c.id}">&times;</button>
+          <button type="button" class="btn btn--small btn--danger escalation-delete-btn" data-id="${c.id}"
+            aria-label="${escapeHTML(`${translate('delete')} ${c.name || c.email}`)}"><span aria-hidden="true">&times;</span></button>
         </div>
       `).join('');
 
-    const modalHtml = `
-      <div class="modal-overlay" id="escalation-modal">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h2>${translate('incident_escalation_settings')}</h2>
-            <button class="modal-close-btn" id="escalation-modal-close">&times;</button>
-          </div>
-          <div class="modal-body">
-            <div id="escalation-contacts-list">${contactRows}</div>
+    const body = `
+      <div id="escalation-contacts-list">${contactRows}</div>
 
-            <div class="escalation-add-form">
-              <h3>${translate('incident_escalation_add')}</h3>
-              <div class="form-group">
-                <label>${translate('incident_escalation_email')}</label>
-                <input type="email" id="escalation-new-email" class="form-control" placeholder="email@example.com">
-              </div>
-              <div class="form-group">
-                <label>${translate('incident_escalation_name')}</label>
-                <input type="text" id="escalation-new-name" class="form-control">
-              </div>
-              <div class="form-group">
-                <label>${translate('incident_escalation_role')}</label>
-                <input type="text" id="escalation-new-role" class="form-control">
-              </div>
-              <button class="btn btn--primary" id="escalation-add-btn">${translate('incident_escalation_add')}</button>
-            </div>
-          </div>
+      <div class="escalation-add-form">
+        <h3>${translate('incident_escalation_add')}</h3>
+        <div class="form-group">
+          <label for="escalation-new-email">${translate('incident_escalation_email')}</label>
+          <input type="email" id="escalation-new-email" class="form-control" placeholder="email@example.com" autocomplete="email" required>
         </div>
+        <div class="form-group">
+          <label for="escalation-new-name">${translate('incident_escalation_name')}</label>
+          <input type="text" id="escalation-new-name" class="form-control">
+        </div>
+        <div class="form-group">
+          <label for="escalation-new-role">${translate('incident_escalation_role')}</label>
+          <input type="text" id="escalation-new-role" class="form-control">
+        </div>
+        <button type="button" class="btn btn--primary" id="escalation-add-btn">${translate('incident_escalation_add')}</button>
       </div>`;
 
-    insertHTML(document.body, 'beforeend', modalHtml);
-
-    // Event listeners
-    document.getElementById('escalation-modal-close')?.addEventListener('click', () => {
-      document.getElementById('escalation-modal')?.remove();
-    });
-
-    document.getElementById('escalation-modal')?.addEventListener('click', (e) => {
-      if (e.target.id === 'escalation-modal') {
-        e.target.remove();
-      }
+    openModal({
+      id: 'escalation-modal',
+      title: translate('incident_escalation_settings'),
+      body,
     });
 
     document.getElementById('escalation-add-btn')?.addEventListener('click', async () => {
@@ -826,7 +811,6 @@ export class IncidentReport {
 
       try {
         await addEscalationContact({ email, name, role_description });
-        document.getElementById('escalation-modal')?.remove();
         this.showEscalationModal(); // Refresh
       } catch (err) {
         debugError('Add escalation contact failed:', err);
@@ -838,7 +822,6 @@ export class IncidentReport {
       btn.addEventListener('click', async () => {
         try {
           await deleteEscalationContact(parseInt(btn.dataset.id));
-          document.getElementById('escalation-modal')?.remove();
           this.showEscalationModal(); // Refresh
         } catch (err) {
           debugError('Delete escalation contact failed:', err);
@@ -987,29 +970,7 @@ export class IncidentReport {
       }
       .incident-view-meta p { margin: 6px 0; }
 
-      /* Escalation modal */
-      .modal-overlay {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.5); z-index: 1000;
-        display: flex; align-items: center; justify-content: center;
-      }
-      .modal-content {
-        background: var(--card-bg, #fff);
-        border-radius: 12px;
-        width: 90%; max-width: 560px;
-        max-height: 80vh; overflow-y: auto;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-      }
-      .modal-header {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 16px 20px; border-bottom: 1px solid var(--border-color, #ddd);
-      }
-      .modal-header h2 { margin: 0; font-size: 18px; }
-      .modal-close-btn {
-        background: none; border: none; font-size: 24px; cursor: pointer;
-        color: var(--text-muted, #666); line-height: 1;
-      }
-      .modal-body { padding: 20px; }
+      /* Escalation contacts, in the shared dialog */
       .escalation-contact-row {
         display: flex; align-items: center; gap: 8px;
         padding: 8px 0; border-bottom: 1px solid var(--border-color, #eee);

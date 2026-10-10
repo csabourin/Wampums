@@ -14,11 +14,10 @@ import {
 } from "./api/api-endpoints.js";
 import { deleteCachedData } from "./indexedDB.js";
 import { canViewInventory } from "./utils/PermissionUtils.js";
-import { lockBodyScroll, unlockBodyScroll } from "./utils/ScrollLockUtils.js";
+import { openModal, closeModal } from "./utils/ModalUtils.js";
+import { confirmDestructive } from "./utils/DialogUtils.js";
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
-/** Owner key for the inventory overlays' body scroll lock. */
-const INVENTORY_SCROLL_LOCK = "inventory:overlay";
 
 // Maximum photo file size (original, before client-side optimization)
 const MAX_PHOTO_SIZE = CONFIG.PHOTO_UPLOAD.MAX_ORIGINAL_SIZE_BYTES;
@@ -120,10 +119,8 @@ export class Inventory {
     this.modalPhotoPreview = null;
     this.modalPhotoPreviewUrl = null;
     this.modalSelectedPhotoFile = null;
-    this.lastFocusedElement = null;
     this.heicConverterPromise = null;
     this.photoRenewals = new Map();
-    this.handleImagePreviewKeydown = this.handleImagePreviewKeydown.bind(this);
   }
 
   async init() {
@@ -300,7 +297,7 @@ export class Inventory {
                       <img id="photo-preview-img" class="hidden" alt="" />
                       <button type="button" id="remove-photo-btn" class="remove-photo-btn hidden" aria-label="${escapeHTML(translate("equipment_photo_remove"))}">×</button>
                     </div>
-                    <input type="file" id="photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif" class="hidden" aria-labelledby="photo-label-main" />
+                    <input type="file" id="photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif" class="sr-only" aria-labelledby="photo-label-main" />
                   </div>
               </div>
             </div>
@@ -329,156 +326,25 @@ export class Inventory {
         </div>
       </section>
 
-      <!-- Edit Equipment Modal -->
-      <div class="modal-overlay hidden" id="edit-equipment-modal">
-        <div class="modal-container">
-          <div class="modal-header">
-            <h2>${escapeHTML(translate("equipment_edit"))}</h2>
-            <button type="button" class="modal-close-btn" id="modal-close-btn" aria-label="${escapeHTML(translate("close"))}">×</button>
-          </div>
-          <div class="modal-body">
-            <form id="editEquipmentForm" class="stacked">
-              <input type="hidden" name="equipment_id" id="modal_equipment_id" />
-
-              <div class="grid grid-2">
-                <label class="stacked">
-                  <span>${escapeHTML(translate("equipment_name"))} *</span>
-                  <input type="text" name="equipment_name" id="modal_equipment_name" minlength="2" maxlength="150" required />
-                </label>
-                <label class="stacked">
-                  <span>${escapeHTML(translate("equipment_category"))}</span>
-                  <input type="text" name="category" id="modal_equipment_category" maxlength="100" />
-                </label>
-              </div>
-
-              <div class="grid grid-2">
-                <label class="stacked">
-                  <span>${escapeHTML(translate("equipment_quantity_total"))}</span>
-                  <input type="number" name="quantity_total" id="modal_equipment_quantity_total" min="0" value="1" />
-                </label>
-                <label class="stacked">
-                  <span>${escapeHTML(translate("equipment_available"))}</span>
-                  <input type="number" name="quantity_available" id="modal_equipment_quantity_available" min="0" />
-                </label>
-              </div>
-
-              <div class="grid grid-2">
-                <label class="stacked">
-                  <span>${escapeHTML(translate("equipment_item_value"))}</span>
-                  <input type="number" name="item_value" id="modal_equipment_item_value" min="0" step="0.01" placeholder="0.00" />
-                </label>
-                <label class="stacked">
-                  <span>${escapeHTML(translate("equipment_acquisition_date"))}</span>
-                  <input type="date" name="acquisition_date" id="modal_equipment_acquisition_date" />
-                </label>
-              </div>
-
-              <div class="grid grid-2">
-                <label class="stacked">
-                  <span>${escapeHTML(translate("equipment_location_type"))}</span>
-                  <select name="location_type" id="modal_equipment_location_type">
-                    ${LOCATION_TYPES.map((type) => `<option value="${type.value}">${escapeHTML(translate(type.labelKey))}</option>`).join('')}
-                  </select>
-                </label>
-                <label class="stacked">
-                  <span>${escapeHTML(translate("equipment_location_details"))}</span>
-                  <input type="text" name="location_details" id="modal_equipment_location_details" maxlength="500" placeholder="${escapeHTML(translate("equipment_location_details_placeholder"))}" />
-                </label>
-              </div>
-
-              <label class="stacked">
-                <span>${escapeHTML(translate("equipment_condition"))}</span>
-                <input type="text" name="condition_note" id="modal_equipment_condition_note" maxlength="500" />
-              </label>
-
-              <label class="stacked">
-                <span>${escapeHTML(translate("equipment_description"))}</span>
-                <textarea name="description" id="modal_equipment_description" rows="2" maxlength="2000"></textarea>
-              </label>
-
-              <!-- Photo Upload Section in Modal -->
-              <div class="photo-upload-section">
-                <div class="stacked">
-                  <span id="photo-label-modal">${escapeHTML(translate("equipment_photo"))}</span>
-                  <div class="photo-upload-container" id="modal-photo-upload-container">
-                    <div class="photo-preview" id="modal-photo-preview">
-                      <div class="photo-placeholder" id="modal-photo-placeholder">
-                        <span class="photo-icon">📷</span>
-                        <span class="photo-text">${escapeHTML(translate("equipment_photo_click_to_upload"))}</span>
-                        <span class="photo-hint">${escapeHTML(translate("equipment_photo_max_size"))}</span>
-                      </div>
-                      <div class="photo-progress hidden" id="photo-progress-modal" role="status" aria-live="polite">
-                        <div class="progress-bar">
-                          <span class="progress-fill" id="photo-progress-modal-bar"></span>
-                        </div>
-                        <div class="progress-text" id="photo-progress-modal-text">${escapeHTML(translate("equipment_photo_processing"))}</div>
-                      </div>
-                      <img id="modal-photo-preview-img" class="hidden" alt="" />
-                      <button type="button" id="modal-remove-photo-btn" class="remove-photo-btn hidden" aria-label="${escapeHTML(translate("equipment_photo_remove"))}">×</button>
-                    </div>
-                    <input type="file" id="modal-photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif" class="hidden" aria-labelledby="photo-label-modal" />
-                  </div>
-                </div>
-              </div>
-
-              <div class="form-actions modal-actions">
-                <button type="submit" class="btn primary">${escapeHTML(translate("save_changes"))}</button>
-                <button type="button" class="btn secondary" id="modal-cancel-btn">${escapeHTML(translate("cancel"))}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-
-      <!-- Delete Confirmation Modal -->
-      <div class="modal-overlay hidden" id="delete-confirm-modal">
-        <div class="modal-container modal-small">
-          <div class="modal-header">
-            <h2>${escapeHTML(translate("equipment_delete_confirm_title"))}</h2>
-            <button type="button" class="modal-close-btn" id="delete-modal-close-btn" aria-label="${escapeHTML(translate("close"))}">×</button>
-          </div>
-          <div class="modal-body">
-            <p id="delete-confirm-message"></p>
-            <div class="form-actions modal-actions">
-              <button type="button" class="btn danger" id="confirm-delete-btn">${escapeHTML(translate("delete"))}</button>
-              <button type="button" class="btn secondary" id="cancel-delete-btn">${escapeHTML(translate("cancel"))}</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Image Preview Modal -->
-      <div class="modal-overlay hidden" id="image-preview-modal" aria-hidden="true">
-        <div class="modal-container modal-image-preview" role="dialog" aria-modal="true" aria-labelledby="image-preview-title">
-          <div class="modal-header">
-            <h2 id="image-preview-title">${escapeHTML(translate("inventory_image_preview_title"))}</h2>
-            <button type="button" class="modal-close-btn" id="image-preview-close-btn" aria-label="${escapeHTML(translate("inventory_image_preview_close"))}">×</button>
-          </div>
-          <div class="modal-body image-preview-body">
-            <img id="image-preview-img" alt="" />
-          </div>
-        </div>
-      </div>
-
       <style>
         /* Mobile-first inventory styles */
-        .inventory-page .photo-upload-section {
+        :is(.inventory-page, .inventory-dialog) .photo-upload-section {
           margin: 1rem 0;
         }
 
-        .inventory-page .equipment-visibility {
+        :is(.inventory-page, .inventory-dialog) .equipment-visibility {
           border: 1px solid var(--border-color, #e5e7eb);
           border-radius: 8px;
           padding: 0.75rem;
           margin: 0.5rem 0 1rem 0;
         }
 
-        .inventory-page .equipment-visibility legend {
+        :is(.inventory-page, .inventory-dialog) .equipment-visibility legend {
           font-weight: 600;
           margin-bottom: 0.5rem;
         }
 
-        .inventory-page .equipment-visibility .radio-option {
+        :is(.inventory-page, .inventory-dialog) .equipment-visibility .radio-option {
           display: flex;
           align-items: center;
           gap: 0.5rem;
@@ -486,20 +352,26 @@ export class Inventory {
           font-size: 0.95rem;
         }
 
-        .inventory-page .equipment-visibility .radio-option:last-child {
+        :is(.inventory-page, .inventory-dialog) .equipment-visibility .radio-option:last-child {
           margin-bottom: 0;
         }
 
-        .inventory-page .equipment-visibility input[type="radio"] {
+        :is(.inventory-page, .inventory-dialog) .equipment-visibility input[type="radio"] {
           width: 18px;
           height: 18px;
         }
 
-        .inventory-page .photo-upload-container {
+        :is(.inventory-page, .inventory-dialog) .photo-upload-container {
           cursor: pointer;
         }
 
-        .inventory-page .photo-preview {
+        /* The file input is visually hidden but reachable by keyboard */
+        :is(.inventory-page, .inventory-dialog) .photo-upload-container:focus-within .photo-preview {
+          outline: 3px solid var(--color-focus-ring, #0f7a5a);
+          outline-offset: 2px;
+        }
+
+        :is(.inventory-page, .inventory-dialog) .photo-preview {
           position: relative;
           width: 100%;
           max-width: 300px;
@@ -514,12 +386,12 @@ export class Inventory {
           transition: border-color 0.2s, background-color 0.2s;
         }
 
-        .inventory-page .photo-preview:hover {
+        :is(.inventory-page, .inventory-dialog) .photo-preview:hover {
           border-color: var(--primary-color, #4a90d9);
           background: var(--bg-hover, #eef4fc);
         }
 
-        .inventory-page .photo-placeholder {
+        :is(.inventory-page, .inventory-dialog) .photo-placeholder {
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -529,20 +401,20 @@ export class Inventory {
           padding: 1rem;
         }
 
-        .inventory-page .photo-icon {
+        :is(.inventory-page, .inventory-dialog) .photo-icon {
           font-size: 2rem;
         }
 
-        .inventory-page .photo-text {
+        :is(.inventory-page, .inventory-dialog) .photo-text {
           font-weight: 500;
         }
 
-        .inventory-page .photo-hint {
+        :is(.inventory-page, .inventory-dialog) .photo-hint {
           font-size: 0.8rem;
           opacity: 0.7;
         }
 
-        .inventory-page .photo-progress {
+        :is(.inventory-page, .inventory-dialog) .photo-progress {
           width: 100%;
           max-width: 320px;
           display: flex;
@@ -554,7 +426,7 @@ export class Inventory {
           border: 1px solid var(--border-color, #e0e0e0);
         }
 
-        .inventory-page .photo-progress .progress-bar {
+        :is(.inventory-page, .inventory-dialog) .photo-progress .progress-bar {
           position: relative;
           width: 100%;
           height: 8px;
@@ -563,7 +435,7 @@ export class Inventory {
           overflow: hidden;
         }
 
-        .inventory-page .photo-progress .progress-fill {
+        :is(.inventory-page, .inventory-dialog) .photo-progress .progress-fill {
           position: absolute;
           top: 0;
           left: 0;
@@ -573,19 +445,19 @@ export class Inventory {
           transition: width 0.2s ease;
         }
 
-        .inventory-page .photo-progress .progress-text {
+        :is(.inventory-page, .inventory-dialog) .photo-progress .progress-text {
           font-size: 0.9rem;
           color: var(--text-muted, #555);
         }
 
-        .inventory-page #photo-preview-img,
-        .inventory-page #modal-photo-preview-img {
+        :is(.inventory-page, .inventory-dialog) #photo-preview-img,
+        :is(.inventory-page, .inventory-dialog) #modal-photo-preview-img {
           width: 100%;
           height: 100%;
           object-fit: cover;
         }
 
-        .inventory-page .remove-photo-btn {
+        :is(.inventory-page, .inventory-dialog) .remove-photo-btn {
           position: absolute;
           top: 0.5rem;
           right: 0.5rem;
@@ -603,17 +475,17 @@ export class Inventory {
           line-height: 1;
         }
 
-        .inventory-page .remove-photo-btn:hover {
+        :is(.inventory-page, .inventory-dialog) .remove-photo-btn:hover {
           background: rgba(220, 53, 69, 1);
         }
 
-        .inventory-page .form-actions {
+        :is(.inventory-page, .inventory-dialog) .form-actions {
           display: flex;
           gap: 1rem;
           margin-top: 1rem;
         }
 
-        .inventory-page .inventory-header {
+        :is(.inventory-page, .inventory-dialog) .inventory-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -622,11 +494,11 @@ export class Inventory {
           margin-bottom: 1rem;
         }
 
-        .inventory-page .inventory-header h2 {
+        :is(.inventory-page, .inventory-dialog) .inventory-header h2 {
           margin: 0;
         }
 
-        .inventory-page .view-toggle {
+        :is(.inventory-page, .inventory-dialog) .view-toggle {
           display: flex;
           gap: 0.25rem;
           background: var(--bg-secondary, #f0f0f0);
@@ -634,7 +506,7 @@ export class Inventory {
           padding: 0.25rem;
         }
 
-        .inventory-page .view-toggle-btn {
+        :is(.inventory-page, .inventory-dialog) .view-toggle-btn {
           padding: 0.5rem 0.75rem;
           border: none;
           background: transparent;
@@ -644,23 +516,23 @@ export class Inventory {
           transition: background-color 0.2s;
         }
 
-        .inventory-page .view-toggle-btn.active {
+        :is(.inventory-page, .inventory-dialog) .view-toggle-btn.active {
           background: var(--bg-card, white);
           box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
-        .inventory-page .view-toggle-btn:hover:not(.active) {
+        :is(.inventory-page, .inventory-dialog) .view-toggle-btn:hover:not(.active) {
           background: var(--bg-hover, #e0e0e0);
         }
 
         /* Gallery View */
-        .inventory-page .equipment-gallery {
+        :is(.inventory-page, .inventory-dialog) .equipment-gallery {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
           gap: 1rem;
         }
 
-        .inventory-page .equipment-card {
+        :is(.inventory-page, .inventory-dialog) .equipment-card {
           background: var(--bg-card, white);
           border: 1px solid var(--border-color, #ddd);
           border-radius: 8px;
@@ -668,12 +540,12 @@ export class Inventory {
           transition: box-shadow 0.2s, transform 0.2s;
         }
 
-        .inventory-page .equipment-card:hover {
+        :is(.inventory-page, .inventory-dialog) .equipment-card:hover {
           box-shadow: 0 4px 12px rgba(0,0,0,0.1);
           transform: translateY(-2px);
         }
 
-        .inventory-page .equipment-card-image {
+        :is(.inventory-page, .inventory-dialog) .equipment-card-image {
           width: 100%;
           aspect-ratio: 4/3;
           background: var(--bg-secondary, #f5f5f5);
@@ -683,92 +555,92 @@ export class Inventory {
           overflow: hidden;
         }
 
-        .inventory-page .equipment-card-image img {
+        :is(.inventory-page, .inventory-dialog) .equipment-card-image img {
           width: 100%;
           height: 100%;
           object-fit: cover;
         }
 
-        .inventory-page .equipment-card-image .no-photo {
+        :is(.inventory-page, .inventory-dialog) .equipment-card-image .no-photo {
           font-size: 3rem;
           opacity: 0.3;
         }
 
-        .inventory-page .equipment-card-content {
+        :is(.inventory-page, .inventory-dialog) .equipment-card-content {
           padding: 1rem;
         }
 
-        .inventory-page .equipment-card-title {
+        :is(.inventory-page, .inventory-dialog) .equipment-card-title {
           font-weight: 600;
           font-size: 1.1rem;
           margin: 0 0 0.5rem;
           color: var(--text-primary, #333);
         }
 
-        .inventory-page .equipment-card-category {
+        :is(.inventory-page, .inventory-dialog) .equipment-card-category {
           font-size: 0.85rem;
           color: var(--text-muted, #666);
           margin-bottom: 0.75rem;
         }
 
-        .inventory-page .equipment-card-details {
+        :is(.inventory-page, .inventory-dialog) .equipment-card-details {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 0.5rem;
           font-size: 0.9rem;
         }
 
-        .inventory-page .equipment-card-detail {
+        :is(.inventory-page, .inventory-dialog) .equipment-card-detail {
           display: flex;
           flex-direction: column;
         }
 
-        .inventory-page .equipment-card-detail-label {
+        :is(.inventory-page, .inventory-dialog) .equipment-card-detail-label {
           font-size: 0.75rem;
           color: var(--text-muted, #888);
           text-transform: uppercase;
         }
 
-        .inventory-page .equipment-card-detail-value {
+        :is(.inventory-page, .inventory-dialog) .equipment-card-detail-value {
           font-weight: 500;
         }
 
-        .inventory-page .equipment-card-actions {
+        :is(.inventory-page, .inventory-dialog) .equipment-card-actions {
           padding: 0.75rem 1rem;
           border-top: 1px solid var(--border-color, #eee);
           display: flex;
           gap: 0.5rem;
         }
 
-        .inventory-page .equipment-card-actions .btn {
+        :is(.inventory-page, .inventory-dialog) .equipment-card-actions .btn {
           flex: 1;
           padding: 0.5rem;
           font-size: 0.85rem;
         }
 
         /* Table View */
-        .inventory-page .table-container {
+        :is(.inventory-page, .inventory-dialog) .table-container {
           overflow-x: auto;
         }
 
-        .inventory-page .data-table {
+        :is(.inventory-page, .inventory-dialog) .data-table {
           width: 100%;
           border-collapse: collapse;
         }
 
-        .inventory-page .data-table th,
-        .inventory-page .data-table td {
+        :is(.inventory-page, .inventory-dialog) .data-table th,
+        :is(.inventory-page, .inventory-dialog) .data-table td {
           padding: 0.75rem;
           text-align: left;
           border-bottom: 1px solid var(--border-color, #eee);
         }
 
-        .inventory-page .data-table th {
+        :is(.inventory-page, .inventory-dialog) .data-table th {
           font-weight: 600;
           background: var(--bg-secondary, #f5f5f5);
         }
 
-        .inventory-page .table-photo {
+        :is(.inventory-page, .inventory-dialog) .table-photo {
           width: 60px;
           height: 45px;
           object-fit: cover;
@@ -777,18 +649,18 @@ export class Inventory {
           transition: transform 0.15s ease, box-shadow 0.15s ease;
         }
 
-        .inventory-page .previewable-image:focus-visible {
+        :is(.inventory-page, .inventory-dialog) .previewable-image:focus-visible {
           outline: 3px solid var(--primary-color, #4a90d9);
           outline-offset: 2px;
           box-shadow: 0 0 0 4px rgba(74, 144, 217, 0.25);
         }
 
-        .inventory-page .previewable-image:hover {
+        :is(.inventory-page, .inventory-dialog) .previewable-image:hover {
           transform: scale(1.01);
           box-shadow: 0 6px 14px rgba(0, 0, 0, 0.15);
         }
 
-        .inventory-page .table-no-photo {
+        :is(.inventory-page, .inventory-dialog) .table-no-photo {
           width: 60px;
           height: 45px;
           background: var(--bg-secondary, #f0f0f0);
@@ -800,108 +672,25 @@ export class Inventory {
           opacity: 0.5;
         }
 
-        .inventory-page .table-actions {
+        :is(.inventory-page, .inventory-dialog) .table-actions {
           display: flex;
           gap: 0.5rem;
         }
 
-        /* Modal Styles */
-        .modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-          padding: 1rem;
-        }
-
-        .modal-overlay.hidden {
-          display: none;
-        }
-
-        .modal-container {
-          position: relative;
-          z-index: 1001;
-          background: var(--bg-card, white);
-          border-radius: 12px;
-          width: 100%;
-          max-width: 600px;
-          max-height: 90vh;
-          overflow-y: auto;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-          min-width: 300px;
-        }
-
-        .modal-container.modal-small {
-          max-width: 400px;
-        }
-
-        .modal-container.modal-image-preview {
-          max-width: 1000px;
-          width: 100%;
-          background: transparent;
-        }
-
-        .modal-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 1rem 1.5rem;
-          border-bottom: 1px solid var(--border-color, #eee);
-        }
-
-        .modal-header h2 {
-          margin: 0;
-          font-size: 1.25rem;
-        }
-
-        .modal-close-btn {
-          width: 32px;
-          height: 32px;
-          border: none;
-          background: transparent;
-          font-size: 1.5rem;
-          cursor: pointer;
-          color: var(--text-muted, #666);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 4px;
-        }
-
-        .modal-close-btn:hover {
-          background: var(--bg-secondary, #f0f0f0);
-        }
-
-        .modal-body {
-          padding: 1.5rem;
-        }
-
+        /* Image preview, in the shared dialog */
         .image-preview-body {
           display: flex;
           justify-content: center;
           align-items: center;
-          padding: 1rem;
-          background: var(--bg-card, white);
         }
 
         #image-preview-img {
-          max-width: calc(100vw - 2.5rem);
-          max-height: calc(100vh - 8rem);
-          width: 100%;
+          max-width: 100%;
+          max-height: calc(100vh - 10rem);
+          width: auto;
           height: auto;
           object-fit: contain;
           border-radius: 10px;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-        }
-
-        .modal-actions {
-          justify-content: flex-end;
         }
 
         .btn.danger {
@@ -916,38 +705,19 @@ export class Inventory {
 
         /* Mobile adjustments */
         @media (max-width: 640px) {
-          .inventory-page .equipment-gallery {
+          :is(.inventory-page, .inventory-dialog) .equipment-gallery {
             grid-template-columns: 1fr;
           }
 
-          .inventory-page .grid-2 {
+          :is(.inventory-page, .inventory-dialog) .grid-2 {
             grid-template-columns: 1fr;
           }
 
-          .inventory-page .data-table th:nth-child(n+5),
-          .inventory-page .data-table td:nth-child(n+5) {
+          :is(.inventory-page, .inventory-dialog) .data-table th:nth-child(n+5),
+          :is(.inventory-page, .inventory-dialog) .data-table td:nth-child(n+5) {
             display: none;
           }
 
-          .modal-container {
-            max-height: 95vh;
-          }
-
-          #image-preview-img {
-            max-height: calc(100vh - 7rem);
-            max-width: calc(100vw - 2rem);
-          }
-        }
-
-        @media (min-width: 768px) {
-          .modal-container.modal-image-preview {
-            max-width: 90vw;
-          }
-
-          #image-preview-img {
-            max-width: calc(90vw - 3rem);
-            max-height: calc(90vh - 6rem);
-          }
         }
       </style>
     `, { allowStyleTags: true });
@@ -1125,7 +895,6 @@ export class Inventory {
     });
 
     // Modal handlers
-    this.setupModalHandlers();
 
     // Image preview handlers
     this.setupImagePreviewHandlers();
@@ -1140,7 +909,8 @@ export class Inventory {
 
     if (photoUploadContainer && photoInput) {
       photoUploadContainer.addEventListener("click", (e) => {
-        if (e.target !== removePhotoBtn && !removePhotoBtn.contains(e.target)) {
+        // The input's own click (keyboard activation) already opens the picker
+        if (e.target !== photoInput && e.target !== removePhotoBtn && !removePhotoBtn.contains(e.target)) {
           photoInput.click();
         }
       });
@@ -1591,66 +1361,97 @@ export class Inventory {
     return `${withoutExtension}.webp`;
   }
 
-  setupModalHandlers() {
-    // Edit modal handlers
-    const editModal = document.getElementById("edit-equipment-modal");
-    const modalCloseBtn = document.getElementById("modal-close-btn");
-    const modalCancelBtn = document.getElementById("modal-cancel-btn");
-    const editForm = document.getElementById("editEquipmentForm");
+  /**
+   * The equipment edit form shown in the edit dialog.
+   * @returns {string} Form HTML
+   */
+  renderEditEquipmentForm() {
+    return `
+      <form id="editEquipmentForm" class="stacked">
+        <input type="hidden" name="equipment_id" id="modal_equipment_id" />
 
-    if (modalCloseBtn) {
-      modalCloseBtn.addEventListener("click", () => this.closeEditModal());
-    }
+        <div class="grid grid-2">
+          <label class="stacked">
+            <span>${escapeHTML(translate("equipment_name"))} *</span>
+            <input type="text" name="equipment_name" id="modal_equipment_name" minlength="2" maxlength="150" required />
+          </label>
+          <label class="stacked">
+            <span>${escapeHTML(translate("equipment_category"))}</span>
+            <input type="text" name="category" id="modal_equipment_category" maxlength="100" />
+          </label>
+        </div>
 
-    if (modalCancelBtn) {
-      modalCancelBtn.addEventListener("click", () => this.closeEditModal());
-    }
+        <div class="grid grid-2">
+          <label class="stacked">
+            <span>${escapeHTML(translate("equipment_quantity_total"))}</span>
+            <input type="number" name="quantity_total" id="modal_equipment_quantity_total" min="0" value="1" />
+          </label>
+          <label class="stacked">
+            <span>${escapeHTML(translate("equipment_available"))}</span>
+            <input type="number" name="quantity_available" id="modal_equipment_quantity_available" min="0" />
+          </label>
+        </div>
 
-    if (editModal) {
-      editModal.addEventListener("click", (e) => {
-        if (e.target === editModal) {
-          this.closeEditModal();
-        }
-      });
-    }
+        <div class="grid grid-2">
+          <label class="stacked">
+            <span>${escapeHTML(translate("equipment_item_value"))}</span>
+            <input type="number" name="item_value" id="modal_equipment_item_value" min="0" step="0.01" placeholder="0.00" />
+          </label>
+          <label class="stacked">
+            <span>${escapeHTML(translate("equipment_acquisition_date"))}</span>
+            <input type="date" name="acquisition_date" id="modal_equipment_acquisition_date" />
+          </label>
+        </div>
 
-    if (editForm) {
-      editForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        await this.handleEditSubmit();
-      });
-    }
+        <div class="grid grid-2">
+          <label class="stacked">
+            <span>${escapeHTML(translate("equipment_location_type"))}</span>
+            <select name="location_type" id="modal_equipment_location_type">
+              ${LOCATION_TYPES.map((type) => `<option value="${type.value}">${escapeHTML(translate(type.labelKey))}</option>`).join('')}
+            </select>
+          </label>
+          <label class="stacked">
+            <span>${escapeHTML(translate("equipment_location_details"))}</span>
+            <input type="text" name="location_details" id="modal_equipment_location_details" maxlength="500" placeholder="${escapeHTML(translate("equipment_location_details_placeholder"))}" />
+          </label>
+        </div>
 
-    // Photo upload for modal
-    this.setupPhotoUpload('modal-photo-upload-container', 'modal-photo-input', 'modal-photo-preview-img', 'modal-photo-placeholder', 'modal-remove-photo-btn', true);
+        <label class="stacked">
+          <span>${escapeHTML(translate("equipment_condition"))}</span>
+          <input type="text" name="condition_note" id="modal_equipment_condition_note" maxlength="500" />
+        </label>
 
-    // Delete confirmation modal handlers
-    const deleteModal = document.getElementById("delete-confirm-modal");
-    const deleteModalCloseBtn = document.getElementById("delete-modal-close-btn");
-    const cancelDeleteBtn = document.getElementById("cancel-delete-btn");
-    const confirmDeleteBtn = document.getElementById("confirm-delete-btn");
+        <label class="stacked">
+          <span>${escapeHTML(translate("equipment_description"))}</span>
+          <textarea name="description" id="modal_equipment_description" rows="2" maxlength="2000"></textarea>
+        </label>
 
-    if (deleteModalCloseBtn) {
-      deleteModalCloseBtn.addEventListener("click", () => this.closeDeleteModal());
-    }
-
-    if (cancelDeleteBtn) {
-      cancelDeleteBtn.addEventListener("click", () => this.closeDeleteModal());
-    }
-
-    if (deleteModal) {
-      deleteModal.addEventListener("click", (e) => {
-        if (e.target === deleteModal) {
-          this.closeDeleteModal();
-        }
-      });
-    }
-
-    if (confirmDeleteBtn) {
-      confirmDeleteBtn.addEventListener("click", async () => {
-        await this.handleDelete();
-      });
-    }
+        <!-- Photo Upload Section in Modal -->
+        <div class="photo-upload-section">
+          <div class="stacked">
+            <span id="photo-label-modal">${escapeHTML(translate("equipment_photo"))}</span>
+            <div class="photo-upload-container" id="modal-photo-upload-container">
+              <div class="photo-preview" id="modal-photo-preview">
+                <div class="photo-placeholder" id="modal-photo-placeholder">
+                  <span class="photo-icon" aria-hidden="true">📷</span>
+                  <span class="photo-text">${escapeHTML(translate("equipment_photo_click_to_upload"))}</span>
+                  <span class="photo-hint">${escapeHTML(translate("equipment_photo_max_size"))}</span>
+                </div>
+                <div class="photo-progress hidden" id="photo-progress-modal" role="status" aria-live="polite">
+                  <div class="progress-bar">
+                    <span class="progress-fill" id="photo-progress-modal-bar"></span>
+                  </div>
+                  <div class="progress-text" id="photo-progress-modal-text">${escapeHTML(translate("equipment_photo_processing"))}</div>
+                </div>
+                <img id="modal-photo-preview-img" class="hidden" alt="" />
+                <button type="button" id="modal-remove-photo-btn" class="remove-photo-btn hidden" aria-label="${escapeHTML(translate("equipment_photo_remove"))}">×</button>
+              </div>
+              <input type="file" id="modal-photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif" class="sr-only" aria-labelledby="photo-label-modal" />
+            </div>
+          </div>
+        </div>
+      </form>
+    `;
   }
 
   /**
@@ -1732,9 +1533,6 @@ export class Inventory {
 
   setupImagePreviewHandlers() {
     const previewableImages = document.querySelectorAll(".previewable-image");
-    const overlay = document.getElementById("image-preview-modal");
-    const overlayImage = document.getElementById("image-preview-img");
-    const closeBtn = document.getElementById("image-preview-close-btn");
 
     previewableImages.forEach((img) => {
       const openHandler = async () => {
@@ -1759,94 +1557,30 @@ export class Inventory {
       });
     });
 
-    if (overlayImage) {
-      overlayImage.addEventListener("error", () =>
-        this.handleEquipmentPhotoError(overlayImage),
-      );
-    }
-
-    if (overlay) {
-      overlay.addEventListener("click", (event) => {
-        if (event.target === overlay) {
-          this.closeImagePreview();
-        }
-      });
-    }
-
-    if (closeBtn) {
-      closeBtn.addEventListener("click", () => this.closeImagePreview());
-    }
   }
 
   openImagePreview(imageUrl, altText = "", equipmentId = null) {
-    const overlay = document.getElementById("image-preview-modal");
-    const image = document.getElementById("image-preview-img");
-    const closeBtn = document.getElementById("image-preview-close-btn");
     const safeSrc = this.getSafeImageSrc(imageUrl);
-
-    if (!overlay || !image || !closeBtn || !safeSrc) {
+    if (!safeSrc) {
       return;
     }
 
-    this.lastFocusedElement = document.activeElement;
+    const { overlay } = openModal({
+      id: "image-preview-modal",
+      title: escapeHTML(translate("inventory_image_preview_title")),
+      size: "large",
+      className: "modal-image-preview",
+      body: '<div class="image-preview-body"><img id="image-preview-img" alt="" /></div>',
+      initialFocus: ".modal-close",
+    });
+    const image = overlay.querySelector("#image-preview-img");
+    image.addEventListener("error", () => this.handleEquipmentPhotoError(image));
     image.setAttribute("src", safeSrc);
     image.setAttribute("alt", altText || translate("inventory_image_preview_alt_fallback"));
     image.setAttribute("data-photo-url", safeSrc);
     if (equipmentId !== null) {
       image.setAttribute("data-equipment-id", String(equipmentId));
     }
-
-    overlay.classList.remove("hidden");
-    overlay.setAttribute("aria-hidden", "false");
-    this.updateBodyScrollLock();
-    closeBtn.focus({ preventScroll: true });
-
-    document.addEventListener("keydown", this.handleImagePreviewKeydown);
-  }
-
-  closeImagePreview() {
-    const overlay = document.getElementById("image-preview-modal");
-    const image = document.getElementById("image-preview-img");
-
-    if (overlay) {
-      overlay.classList.add("hidden");
-      overlay.setAttribute("aria-hidden", "true");
-    }
-
-    if (image) {
-      image.removeAttribute("src");
-      image.setAttribute("alt", "");
-      image.removeAttribute("data-equipment-id");
-      image.removeAttribute("data-photo-url");
-      delete image.dataset.photoRefreshAttempted;
-      delete image.dataset.photoRefreshPending;
-    }
-
-    this.updateBodyScrollLock();
-    document.removeEventListener("keydown", this.handleImagePreviewKeydown);
-
-    if (this.lastFocusedElement && typeof this.lastFocusedElement.focus === "function") {
-      this.lastFocusedElement.focus({ preventScroll: true });
-    }
-    this.lastFocusedElement = null;
-  }
-
-  handleImagePreviewKeydown(event) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      this.closeImagePreview();
-    }
-  }
-
-  /**
-   * Called by the router before navigating away. Covers the case where the
-   * user navigates while the image preview is open (listener + scroll lock
-   * would otherwise persist).
-   */
-  destroy() {
-    document.removeEventListener("keydown", this.handleImagePreviewKeydown);
-    unlockBodyScroll(INVENTORY_SCROLL_LOCK);
-    this.lastFocusedElement = null;
   }
 
   getSafeImageSrc(imageUrl) {
@@ -1876,15 +1610,6 @@ export class Inventory {
     }
 
     return trimmed;
-  }
-
-  updateBodyScrollLock() {
-    const activeOverlays = document.querySelectorAll(".modal-overlay:not(.hidden)");
-    if (activeOverlays.length > 0) {
-      lockBodyScroll(INVENTORY_SCROLL_LOCK);
-    } else {
-      unlockBodyScroll(INVENTORY_SCROLL_LOCK);
-    }
   }
 
   clearPhotoPreview() {
@@ -1947,6 +1672,26 @@ export class Inventory {
 
     this.editingEquipment = equipment;
 
+    openModal({
+      id: "edit-equipment-modal",
+      title: escapeHTML(translate("equipment_edit")),
+      className: "inventory-dialog",
+      body: this.renderEditEquipmentForm(),
+      footer: `
+        <button type="button" class="btn secondary" data-modal-close>${escapeHTML(translate("cancel"))}</button>
+        <button type="submit" class="btn primary" form="editEquipmentForm">${escapeHTML(translate("save_changes"))}</button>
+      `,
+      onClose: () => {
+        this.editingEquipment = null;
+        this.clearModalPhotoPreview();
+      },
+    });
+    document.getElementById("editEquipmentForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await this.handleEditSubmit();
+    });
+    this.setupPhotoUpload('modal-photo-upload-container', 'modal-photo-input', 'modal-photo-preview-img', 'modal-photo-placeholder', 'modal-remove-photo-btn', true);
+
     // Populate modal form
     document.getElementById("modal_equipment_id").value = equipment.id;
     document.getElementById("modal_equipment_name").value = equipment.name || '';
@@ -1978,31 +1723,28 @@ export class Inventory {
       this.clearModalPhotoPreview();
     }
 
-    // Show modal
-    document.getElementById("edit-equipment-modal").classList.remove("hidden");
-    this.updateBodyScrollLock();
   }
 
   closeEditModal() {
-    document.getElementById("edit-equipment-modal").classList.add("hidden");
-    this.updateBodyScrollLock();
-    this.editingEquipment = null;
-    this.clearModalPhotoPreview();
-    document.getElementById("editEquipmentForm").reset();
+    closeModal("edit-equipment-modal");
   }
 
-  openDeleteConfirmation(equipmentId, equipmentName) {
+  /**
+   * Confirm, then delete one piece of equipment.
+   * @param {number} equipmentId
+   * @param {string} equipmentName
+   */
+  async openDeleteConfirmation(equipmentId, equipmentName) {
+    const confirmed = await confirmDestructive({
+      title: translate("equipment_delete_confirm_title"),
+      message: translate("equipment_delete_confirm_message").replace("{name}", equipmentName),
+      confirmLabel: translate("delete"),
+    });
+    if (!confirmed) {
+      return;
+    }
     this.deletingEquipmentId = equipmentId;
-    const message = translate("equipment_delete_confirm_message").replace("{name}", equipmentName);
-    document.getElementById("delete-confirm-message").textContent = message;
-    document.getElementById("delete-confirm-modal").classList.remove("hidden");
-    this.updateBodyScrollLock();
-  }
-
-  closeDeleteModal() {
-    document.getElementById("delete-confirm-modal").classList.add("hidden");
-    this.updateBodyScrollLock();
-    this.deletingEquipmentId = null;
+    await this.handleDelete();
   }
 
   async handleCreateSubmit() {
@@ -2138,7 +1880,7 @@ export class Inventory {
     try {
       await deleteEquipmentItem(this.deletingEquipmentId);
       this.app.showMessage(translate("equipment_deleted"), "success");
-      this.closeDeleteModal();
+      this.deletingEquipmentId = null;
 
       // Invalidate cache to ensure fresh data
       await deleteCachedData('v1/resources/equipment');
@@ -2149,7 +1891,7 @@ export class Inventory {
     } catch (error) {
       debugError("Error deleting equipment", error);
       this.app.showMessage(apiErrorMessage(error, 'error_occurred'), 'error');
-      this.closeDeleteModal();
+      this.deletingEquipmentId = null;
     }
   }
 }

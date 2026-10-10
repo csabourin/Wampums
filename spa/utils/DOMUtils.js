@@ -9,7 +9,6 @@
 
 import { sanitizeHTML, sanitizeURL } from './SecurityUtils.js';
 import { debugError } from './DebugUtils.js';
-import { enhanceModalAccessibility } from './ModalAccessibility.js';
 
 /**
  * Safely set HTML content (auto-sanitizes)
@@ -35,7 +34,6 @@ export function setContent(element, content, options = {}) {
   }
 
   element.innerHTML = sanitizeHTML(content, options);
-  enhanceModalAccessibility(element);
   return element;
 }
 
@@ -280,12 +278,12 @@ export function insertHTML(element, position, html, options = {}) {
 
   const sanitized = sanitizeHTML(html, options);
   element.insertAdjacentHTML(position, sanitized);
-  enhanceModalAccessibility(document.body);
 }
 
 /**
  * Run an asynchronous form submission once while exposing an accessible busy
- * state and disabling all submit controls.
+ * state and disabling all submit controls, inside the form or associated
+ * with it through the `form` attribute.
  *
  * @param {HTMLFormElement} form - Form being submitted
  * @param {Function} callback - Async submission callback
@@ -293,7 +291,9 @@ export function insertHTML(element, position, html, options = {}) {
  */
 export async function withFormBusy(form, callback) {
   if (!form || form.getAttribute('aria-busy') === 'true') return undefined;
-  const submitControls = Array.from(form.querySelectorAll('[type="submit"]'));
+  // form.elements includes submit buttons outside the form that name it with
+  // form="…", such as those in a modal footer.
+  const submitControls = Array.from(form.elements).filter((control) => control.type === 'submit');
   form.setAttribute('aria-busy', 'true');
   submitControls.forEach((control) => { control.disabled = true; });
   try {

@@ -24,7 +24,8 @@ import {
   validateRequired,
 } from "./utils/ValidationUtils.js";
 import { canApproveFinance, canManageFinance } from "./utils/PermissionUtils.js";
-import { setContent, insertHTML } from "./utils/DOMUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
+import { openModal, closeModal } from "./utils/ModalUtils.js";
 
 const DEFAULT_CURRENCY = CONFIG.DEFAULT_CURRENCY;
 
@@ -508,113 +509,92 @@ export class ExternalRevenue {
 
   showRevenueModal(revenue = null) {
     const isEdit = !!revenue;
-    const modalHTML = `
-      <div class="modal-overlay" id="revenue-modal">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>${isEdit ? translate("edit_external_revenue") : translate("add_external_revenue")}</h3>
-            <button class="modal-close" id="close-revenue-modal">&times;</button>
+    openModal({
+      id: "revenue-modal",
+      title: isEdit ? translate("edit_external_revenue") : translate("add_external_revenue"),
+      body: `
+        <form id="revenue-form">
+          <div class="form-group">
+            <label for="revenue-type">${translate("revenue_type")}*</label>
+            <select id="revenue-type" required>
+              <option value="donation" ${revenue?.revenue_type === "donation" ? "selected" : ""}>${translate("donation")}</option>
+              <option value="sponsorship" ${revenue?.revenue_type === "sponsorship" ? "selected" : ""}>${translate("sponsorship")}</option>
+              <option value="grant" ${revenue?.revenue_type === "grant" ? "selected" : ""}>${translate("grant")}</option>
+              <option value="other" ${revenue?.revenue_type === "other" ? "selected" : ""}>${translate("other")}</option>
+            </select>
           </div>
-          <div class="modal-body">
-            <form id="revenue-form">
-              <div class="form-group">
-                <label for="revenue-type">${translate("revenue_type")}*</label>
-                <select id="revenue-type" required>
-                  <option value="donation" ${revenue?.revenue_type === "donation" ? "selected" : ""}>${translate("donation")}</option>
-                  <option value="sponsorship" ${revenue?.revenue_type === "sponsorship" ? "selected" : ""}>${translate("sponsorship")}</option>
-                  <option value="grant" ${revenue?.revenue_type === "grant" ? "selected" : ""}>${translate("grant")}</option>
-                  <option value="other" ${revenue?.revenue_type === "other" ? "selected" : ""}>${translate("other")}</option>
-                </select>
-              </div>
 
-              <div class="form-group">
-                <label for="revenue-date">${translate("date")}*</label>
-                <input type="date" id="revenue-date" required
-                       value="${revenue ? revenue.revenue_date : getTodayISO()}">
-              </div>
-
-              <div class="form-group">
-                <label for="revenue-description">${translate("source_donor")}*</label>
-                <input type="text" id="revenue-description" required
-                       value="${revenue ? escapeHTML(revenue.description) : ""}"
-                       placeholder="${translate("enter_source_donor_name")}">
-              </div>
-
-              <div class="form-group">
-                <label for="revenue-amount">${translate("amount")}*</label>
-                <input type="number" id="revenue-amount" step="0.01" min="0" required
-                       value="${revenue ? revenue.amount : ""}">
-              </div>
-
-              <div class="form-group">
-                <label for="revenue-category">${translate("category")}</label>
-                <select id="revenue-category">
-                  <option value="">${translate("uncategorized")}</option>
-                  ${this.categories
-                    .map(
-                      (cat) => `
-                    <option value="${cat.id}" ${revenue?.budget_category_id === cat.id ? "selected" : ""}>
-                      ${escapeHTML(cat.name)}
-                    </option>
-                  `,
-                    )
-                    .join("")}
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label for="revenue-reference">${translate("reference_number")}</label>
-                <input type="text" id="revenue-reference"
-                       value="${revenue ? escapeHTML(revenue.reference_number || "") : ""}"
-                       placeholder="${translate("check_number_transfer_id")}">
-              </div>
-
-              <div class="form-group">
-                <label for="revenue-payment-method">${translate("payment_method")}</label>
-                <input type="text" id="revenue-payment-method"
-                       value="${revenue ? escapeHTML(revenue.payment_method || "") : ""}"
-                       placeholder="${translate("cash_check_transfer")}">
-              </div>
-
-              <div class="form-group">
-                <label for="revenue-receipt-url">${translate("receipt_url")}</label>
-                <input type="url" id="revenue-receipt-url"
-                       value="${revenue ? escapeHTML(revenue.receipt_url || "") : ""}"
-                       placeholder="https://">
-              </div>
-
-              <div class="form-group">
-                <label for="revenue-notes">${translate("notes")}</label>
-                <textarea id="revenue-notes" rows="3">${revenue ? escapeHTML(revenue.notes || "") : ""}</textarea>
-              </div>
-
-              <div class="form-actions">
-                <button type="button" class="btn btn-secondary" id="cancel-revenue-btn">
-                  ${translate("cancel")}
-                </button>
-                <button type="submit" class="btn btn-primary">
-                  ${isEdit ? translate("update") : translate("create")}
-                </button>
-              </div>
-            </form>
+          <div class="form-group">
+            <label for="revenue-date">${translate("date")}*</label>
+            <input type="date" id="revenue-date" required
+                   value="${revenue ? revenue.revenue_date : getTodayISO()}">
           </div>
-        </div>
-      </div>
-    `;
 
-    insertHTML(document.body, "beforeend", modalHTML);
+          <div class="form-group">
+            <label for="revenue-description">${translate("source_donor")}*</label>
+            <input type="text" id="revenue-description" required
+                   value="${revenue ? escapeHTML(revenue.description) : ""}"
+                   placeholder="${translate("enter_source_donor_name")}">
+          </div>
 
-    document
-      .getElementById("close-revenue-modal")
-      .addEventListener("click", () => {
-        document.getElementById("revenue-modal").remove();
-      });
+          <div class="form-group">
+            <label for="revenue-amount">${translate("amount")}*</label>
+            <input type="number" id="revenue-amount" step="0.01" min="0" required
+                   value="${revenue ? revenue.amount : ""}">
+          </div>
 
-    document
-      .getElementById("cancel-revenue-btn")
-      .addEventListener("click", () => {
-        document.getElementById("revenue-modal").remove();
-      });
+          <div class="form-group">
+            <label for="revenue-category">${translate("category")}</label>
+            <select id="revenue-category">
+              <option value="">${translate("uncategorized")}</option>
+              ${this.categories
+                .map(
+                  (cat) => `
+                <option value="${cat.id}" ${revenue?.budget_category_id === cat.id ? "selected" : ""}>
+                  ${escapeHTML(cat.name)}
+                </option>
+              `,
+                )
+                .join("")}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="revenue-reference">${translate("reference_number")}</label>
+            <input type="text" id="revenue-reference"
+                   value="${revenue ? escapeHTML(revenue.reference_number || "") : ""}"
+                   placeholder="${translate("check_number_transfer_id")}">
+          </div>
+
+          <div class="form-group">
+            <label for="revenue-payment-method">${translate("payment_method")}</label>
+            <input type="text" id="revenue-payment-method"
+                   value="${revenue ? escapeHTML(revenue.payment_method || "") : ""}"
+                   placeholder="${translate("cash_check_transfer")}">
+          </div>
+
+          <div class="form-group">
+            <label for="revenue-receipt-url">${translate("receipt_url")}</label>
+            <input type="url" id="revenue-receipt-url"
+                   value="${revenue ? escapeHTML(revenue.receipt_url || "") : ""}"
+                   placeholder="https://">
+          </div>
+
+          <div class="form-group">
+            <label for="revenue-notes">${translate("notes")}</label>
+            <textarea id="revenue-notes" rows="3">${revenue ? escapeHTML(revenue.notes || "") : ""}</textarea>
+          </div>
+        </form>
+      `,
+      footer: `
+        <button type="button" class="btn btn-secondary" data-modal-close>
+          ${translate("cancel")}
+        </button>
+        <button type="submit" form="revenue-form" class="btn btn-primary">
+          ${isEdit ? translate("update") : translate("create")}
+        </button>
+      `,
+    });
 
     document
       .getElementById("revenue-form")
@@ -676,7 +656,7 @@ export class ExternalRevenue {
         debugWarn("No revenue data returned from API; falling back to refetch");
       }
 
-      document.getElementById("revenue-modal").remove();
+      closeModal("revenue-modal");
       this.render();
       this.attachEventListeners();
       this.app.showMessage(translate(successKey), "success");

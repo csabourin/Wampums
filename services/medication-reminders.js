@@ -16,7 +16,7 @@
 'use strict';
 
 const { getTranslationsByCode } = require('../utils/index');
-const { getVapidKeys, isGoneSubscriptionError } = require('../utils/web-push');
+const { getVapidKeys, removeInvalidSubscriptions, sortPushResults } = require('../utils/web-push');
 
 const REMINDER_WINDOW_MINUTES = 15; // notify this many minutes before a dose is due
 const POLL_INTERVAL_MS = 60_000;    // check every 60 seconds
@@ -170,7 +170,7 @@ class MedicationReminderService {
         [orgId]
       );
 
-      const subscribers = subscriberResult.rows;
+      let subscribers = subscriberResult.rows;
       if (subscribers.length === 0) {
         // Do NOT mark as sent – a subscriber might register before the dose
         // window closes, and we should still notify them.
@@ -239,7 +239,12 @@ class MedicationReminderService {
             `[MedicationReminders] ${failures.length}/${subscribers.length} push(es) failed for dist ${dist.id}`,
             failures.map(f => f.reason?.message)
           );
-          await this._removeExpiredSubscriptions(failures);
+          const { invalidEndpoints } = sortPushResults(sendResults, subscribers);
+          const removed = await this._removeInvalidSubscriptions(orgId, invalidEndpoints);
+          if (removed) {
+            // The next dose of this tick skips the devices just forgotten
+            subscribers = subscribers.filter((sub) => !invalidEndpoints.includes(sub.endpoint));
+          }
         }
 
         await this._markSent([dist.id]);
@@ -265,39 +270,22 @@ class MedicationReminderService {
   }
 
   /**
-   * Remove push subscriptions that returned HTTP 404 or 410 (subscription expired/unsubscribed).
-   * @param {PromiseSettledResult[]} failures - rejected send results
+   * Forget devices that can never receive again (see `sortPushResults`).
+   * A failed clean-up never stops the reminders.
+   * @param {number} orgId - Unit the subscriptions belong to
+   * @param {string[]} endpoints - Endpoints to forget
+   * @returns {Promise<number>} Number of subscriptions removed
    */
-  async _removeExpiredSubscriptions(failures) {
-    const expiredEndpoints = failures
-      .filter(f => isGoneSubscriptionError(f.reason) && f.reason?.endpoint)
-      .map(f => f.reason.endpoint);
-
-    if (expiredEndpoints.length === 0) return;
-
+  async _removeInvalidSubscriptions(orgId, endpoints) {
     try {
-      // Derive the affected organization_ids for explicit multi-tenant isolation.
-      const { rows } = await this.pool.query(
-        `SELECT DISTINCT organization_id
-           FROM subscribers
-          WHERE endpoint = ANY($1::text[])`,
-        [expiredEndpoints]
-      );
-
-      const organizationIds = rows.map(row => row.organization_id);
-      if (organizationIds.length === 0) {
-        return;
+      const removed = await removeInvalidSubscriptions(this.pool, orgId, endpoints);
+      if (removed) {
+        this.logger.info(`[MedicationReminders] Removed ${removed} invalid subscription(s)`);
       }
-
-      await this.pool.query(
-        `DELETE FROM subscribers
-          WHERE endpoint = ANY($1::text[])
-            AND organization_id = ANY($2::int[])`,
-        [expiredEndpoints, organizationIds]
-      );
-      this.logger.info(`[MedicationReminders] Removed ${expiredEndpoints.length} expired subscription(s)`);
+      return removed;
     } catch (err) {
-      this.logger.error('[MedicationReminders] Error removing expired subscriptions:', err);
+      this.logger.error('[MedicationReminders] Error removing invalid subscriptions:', err);
+      return 0;
     }
   }
 }

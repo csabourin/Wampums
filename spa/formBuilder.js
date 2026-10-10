@@ -14,6 +14,7 @@ import { escapeHTML } from "./utils/SecurityUtils.js";
 import { CONFIG } from "./config.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
 import { setContent, insertHTML } from "./utils/DOMUtils.js";
+import { openModal, closeModal } from "./utils/ModalUtils.js";
 import { BaseModule } from "./utils/BaseModule.js";
 import { confirmDestructive } from "./utils/DialogUtils.js";
 
@@ -96,39 +97,6 @@ export class FormBuilder extends BaseModule {
 
                 <div id="form-editor" class="form-editor" style="display: none;">
                     <!-- Form editor will be rendered here -->
-                </div>
-            </div>
-
-            <!-- Field Editor Modal -->
-            <div id="field-editor-modal" class="modal" style="display: none;">
-                <div class="modal-content">
-                    <span class="close">&times;</span>
-                    <h2 id="field-editor-title">${translate("edit_field")}</h2>
-                    <div id="field-editor-content">
-                        <!-- Field editor form will be rendered here -->
-                    </div>
-                </div>
-            </div>
-
-            <!-- Preview Modal -->
-            <div id="preview-modal" class="modal" style="display: none;">
-                <div class="modal-content">
-                    <span class="close">&times;</span>
-                    <h2>${translate("form_preview")}</h2>
-                    <div id="preview-content">
-                        <!-- Form preview will be rendered here -->
-                    </div>
-                </div>
-            </div>
-
-            <!-- Translation Editor Modal -->
-            <div id="translation-modal" class="modal" style="display: none;">
-                <div class="modal-content">
-                    <span class="close">&times;</span>
-                    <h2>${translate("add_translation")}</h2>
-                    <div id="translation-content">
-                        <!-- Translation form will be rendered here -->
-                    </div>
                 </div>
             </div>
         `);
@@ -258,16 +226,13 @@ export class FormBuilder extends BaseModule {
         const isEdit = fieldIndex !== null;
         const field = isEdit ? this.currentFields[fieldIndex] : this.getDefaultField();
 
-        const modal = document.getElementById("field-editor-modal");
-        const content = document.getElementById("field-editor-content");
-
-        document.getElementById("field-editor-title").textContent =
-            isEdit ? translate("edit_field") : translate("add_field");
-
         const controllingFields = this.getControllingFieldCandidates(fieldIndex, field.dependsOn?.field);
         const controllingField = controllingFields.find(f => f.name === field.dependsOn?.field);
 
-        setContent(content, `
+        openModal({
+            id: "field-editor-modal",
+            title: isEdit ? translate("edit_field") : translate("add_field"),
+            body: `
             <form id="field-editor-form" class="field-editor-form">
                 <div class="form-group">
                     <label for="field-type">${translate("field_type")} *</label>
@@ -315,8 +280,8 @@ export class FormBuilder extends BaseModule {
                 </div>
 
                 <div class="form-group" id="field-options-group" style="display: ${['select', 'radio'].includes(field.type) ? 'block' : 'none'};">
-                    <label>${translate("options")}</label>
-                    <div id="options-container">
+                    <p class="form-label" id="field-options-label">${translate("options")}</p>
+                    <div id="options-container" role="group" aria-labelledby="field-options-label">
                         ${this.renderOptionsEditor(field.options || [])}
                     </div>
                     <button type="button" id="add-option" class="btn btn-sm">${translate("add_option")}</button>
@@ -348,16 +313,14 @@ export class FormBuilder extends BaseModule {
                     ${this.renderDependsOnValueControl(controllingField, field.dependsOn?.value)}
                 </div>
 
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">${translate("save_field")}</button>
-                    <button type="button" id="cancel-field-edit" class="btn btn-secondary">${translate("cancel")}</button>
-                </div>
-
                 <input type="hidden" id="field-index" value="${fieldIndex !== null ? fieldIndex : ''}">
             </form>
-        `);
-
-        modal.style.display = "block";
+            `,
+            footer: `
+                <button type="button" data-modal-close class="btn btn-secondary">${translate("cancel")}</button>
+                <button type="submit" form="field-editor-form" class="btn btn-primary">${translate("save_field")}</button>
+            `,
+        });
         this.updateFieldEditorVisibility(field.type);
         this.attachFieldEditorListeners();
     }
@@ -500,19 +463,6 @@ export class FormBuilder extends BaseModule {
             });
         });
 
-        // Close modal buttons
-        document.querySelectorAll(".modal .close").forEach(btn => {
-            this.addEventListener(btn, "click", (e) => {
-                e.target.closest(".modal").style.display = "none";
-            });
-        });
-
-        // Click outside modal to close (using managed listener for cleanup)
-        this.addWindowEventListener("click", (e) => {
-            if (e.target.classList.contains("modal")) {
-                e.target.style.display = "none";
-            }
-        });
     }
 
     /**
@@ -733,13 +683,6 @@ export class FormBuilder extends BaseModule {
             });
         }
 
-        // Cancel button
-        const cancelBtn = document.getElementById("cancel-field-edit");
-        if (cancelBtn) {
-            cancelBtn.addEventListener("click", () => {
-                document.getElementById("field-editor-modal").style.display = "none";
-            });
-        }
     }
 
     /**
@@ -811,14 +754,15 @@ export class FormBuilder extends BaseModule {
             return;
         }
 
-        const modal = document.getElementById("translation-modal");
-        const content = document.getElementById("translation-content");
 
-        setContent(content, `
+        openModal({
+            id: "translation-modal",
+            title: translate("add_translation"),
+            body: `
             <form id="translation-form">
                 <div class="form-group">
-                    <label>${translate("translation_key")}</label>
-                    <input type="text" value="${escapeHTML(key)}" readonly>
+                    <label for="trans-key">${translate("translation_key")}</label>
+                    <input type="text" id="trans-key" value="${escapeHTML(key)}" readonly>
                 </div>
                 <div class="form-group">
                     <label for="trans-en">${translate("english")}</label>
@@ -828,13 +772,13 @@ export class FormBuilder extends BaseModule {
                     <label for="trans-fr">${translate("french")}</label>
                     <input type="text" id="trans-fr" name="fr" required>
                 </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">${translate("save")}</button>
-                    <button type="button" class="btn btn-secondary" id="cancel-translation">${translate("cancel")}</button>
-                </div>
             </form>
-        `);
-        modal.style.display = "block";
+            `,
+            footer: `
+                <button type="button" class="btn btn-secondary" data-modal-close>${translate("cancel")}</button>
+                <button type="submit" form="translation-form" class="btn btn-primary">${translate("save")}</button>
+            `,
+        });
 
         // Attach listeners
         const form = document.getElementById("translation-form");
@@ -844,11 +788,7 @@ export class FormBuilder extends BaseModule {
                 en: document.getElementById("trans-en").value,
                 fr: document.getElementById("trans-fr").value
             });
-            modal.style.display = "none";
-        });
-
-        document.getElementById("cancel-translation").addEventListener("click", () => {
-            modal.style.display = "none";
+            closeModal("translation-modal");
         });
     }
 
@@ -926,7 +866,7 @@ export class FormBuilder extends BaseModule {
         }
 
         // Close modal and re-render
-        document.getElementById("field-editor-modal").style.display = "none";
+        closeModal("field-editor-modal");
         this.updateFieldsList();
     }
 
@@ -1018,12 +958,12 @@ export class FormBuilder extends BaseModule {
      */
     async createNewFormat() {
         // Show a modal for form type input instead of browser prompt
-        const modal = document.getElementById("translation-modal");
-        const content = document.getElementById("translation-content");
 
-        document.querySelector("#translation-modal h2").textContent = translate("create_new_form_format");
 
-        setContent(content, `
+        openModal({
+            id: "create-format-modal",
+            title: translate("create_new_form_format"),
+            body: `
             <form id="create-format-form">
                 <div class="form-group">
                     <label for="new-form-type">${translate("form_type_name")} *</label>
@@ -1033,25 +973,21 @@ export class FormBuilder extends BaseModule {
                            title="${translate("field_name_hint")}">
                     <small>${translate("field_name_hint")}</small>
                 </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">${translate("create")}</button>
-                    <button type="button" class="btn btn-secondary" id="cancel-create">${translate("cancel")}</button>
-                </div>
             </form>
-        `);
-        modal.style.display = "block";
+            `,
+            footer: `
+                <button type="button" class="btn btn-secondary" data-modal-close>${translate("cancel")}</button>
+                <button type="submit" form="create-format-form" class="btn btn-primary">${translate("create")}</button>
+            `,
+        });
 
         // Attach listeners
         const form = document.getElementById("create-format-form");
         form.addEventListener("submit", async (e) => {
             e.preventDefault();
             const formType = document.getElementById("new-form-type").value;
-            modal.style.display = "none";
+            closeModal("create-format-modal");
             await this.doCreateFormat(formType);
-        });
-
-        document.getElementById("cancel-create").addEventListener("click", () => {
-            modal.style.display = "none";
         });
     }
 
@@ -1157,17 +1093,19 @@ export class FormBuilder extends BaseModule {
             return;
         }
 
-        const modal = document.getElementById("preview-modal");
-        const content = document.getElementById("preview-content");
-
         const renderer = new JSONFormRenderer(
             { fields: this.currentFields },
             {},
             this.currentFormat.form_type
         );
 
-        setContent(content, renderer.render());
-        modal.style.display = "block";
+        openModal({
+            id: "preview-modal",
+            title: translate("form_preview"),
+            size: "large",
+            body: renderer.render(),
+            initialFocus: false,
+        });
     }
 
     /**
@@ -1180,12 +1118,12 @@ export class FormBuilder extends BaseModule {
         }
 
         // Show a modal for organization selection
-        const modal = document.getElementById("translation-modal");
-        const content = document.getElementById("translation-content");
 
-        document.querySelector("#translation-modal h2").textContent = translate("copy_to_org");
 
-        setContent(content, `
+        openModal({
+            id: "copy-format-modal",
+            title: translate("copy_to_org"),
+            body: `
             <form id="copy-format-form">
                 <div class="form-group">
                     <label for="target-org">${translate("select_target_organization")} *</label>
@@ -1196,25 +1134,21 @@ export class FormBuilder extends BaseModule {
                         `).join('')}
                     </select>
                 </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">${translate("copy")}</button>
-                    <button type="button" class="btn btn-secondary" id="cancel-copy">${translate("cancel")}</button>
-                </div>
             </form>
-        `);
-        modal.style.display = "block";
+            `,
+            footer: `
+                <button type="button" class="btn btn-secondary" data-modal-close>${translate("cancel")}</button>
+                <button type="submit" form="copy-format-form" class="btn btn-primary">${translate("copy")}</button>
+            `,
+        });
 
         // Attach listeners
         const form = document.getElementById("copy-format-form");
         form.addEventListener("submit", async (e) => {
             e.preventDefault();
             const targetOrgId = parseInt(document.getElementById("target-org").value);
-            modal.style.display = "none";
+            closeModal("copy-format-modal");
             await this.copyFormat(targetOrgId);
-        });
-
-        document.getElementById("cancel-copy").addEventListener("click", () => {
-            modal.style.display = "none";
         });
     }
 

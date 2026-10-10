@@ -4,6 +4,7 @@ import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { formatDate, getTodayISO } from "./utils/DateUtils.js";
 import { deleteCachedData, getCachedData, getCachedDataIgnoreExpiration, setCachedData } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { openModal, closeModal } from "./utils/ModalUtils.js";
 import { OptimisticUpdateManager } from "./utils/OptimisticUpdateManager.js";
 import { canManageMedication, canViewMedication } from './utils/PermissionUtils.js';
 import { isSameMedication, splitDeclaredMedications } from './utils/MedicationTextUtils.js';
@@ -602,36 +603,6 @@ export class MedicationManagement {
         font-weight: 600;
         font-size: 0.95rem;
         min-width: 100px;
-      }
-
-      /* Modal styles */
-      .modal {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-        padding: 1rem;
-      }
-
-      .modal-content {
-        background: #fff;
-        border-radius: 12px;
-        padding: 1.5rem;
-        max-width: 500px;
-        width: 100%;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-      }
-
-      .modal-content h3 {
-        margin-top: 0;
-        margin-bottom: 1rem;
-        color: #0b3c5d;
       }
 
       #quickGiveDetails {
@@ -1367,25 +1338,6 @@ export class MedicationManagement {
         </div>
       </div>
 
-      <!-- Quick Give Modal -->
-      <div id="quickGiveModal" class="modal" style="display:none;">
-        <div class="modal-content">
-          <h3 id="quickGiveTitle">${escapeHTML(translate("medication_give_confirmation"))}</h3>
-          <div id="quickGiveDetails"></div>
-          <label class="field-group">
-            <span>${escapeHTML(translate("medication_witness_label"))}</span>
-            <input type="text" id="quickGiveWitness" maxlength="150" value="${escapeHTML(this.getDefaultWitness())}" />
-          </label>
-          <label class="field-group">
-            <span>${escapeHTML(translate("medication_optional_notes"))}</span>
-            <textarea id="quickGiveNotes" rows="2" maxlength="500"></textarea>
-          </label>
-          <div style="display:flex; gap:0.5rem; margin-top:1rem;">
-            <button class="btn secondary" id="quickGiveCancel">${escapeHTML(translate("cancel"))}</button>
-            <button class="btn primary" id="quickGiveConfirm">${escapeHTML(translate("medication_confirm_given"))}</button>
-          </div>
-        </div>
-      </div>
     `;
   }
 
@@ -2027,9 +1979,6 @@ export class MedicationManagement {
     const alertContainer = document.getElementById("medication-alerts");
     const frequencyPresetSelect = document.getElementById("frequencyPreset");
     const giveMedButtons = document.querySelectorAll(".btn-give-med");
-    const quickGiveModal = document.getElementById("quickGiveModal");
-    const quickGiveCancel = document.getElementById("quickGiveCancel");
-    const quickGiveConfirm = document.getElementById("quickGiveConfirm");
 
     document.querySelectorAll("[data-medication-tab]").forEach((tabButton) => {
       tabButton.addEventListener("click", () => {
@@ -2089,24 +2038,6 @@ export class MedicationManagement {
 
         this.showQuickGiveModal(participantId, requirementId, medicationName, dose, route);
       });
-    });
-
-    // Handle modal actions
-    quickGiveCancel?.addEventListener("click", () => {
-      if (quickGiveModal) {
-        quickGiveModal.style.display = "none";
-      }
-    });
-
-    quickGiveConfirm?.addEventListener("click", () => {
-      this.confirmQuickGive();
-    });
-
-    // Close modal on background click
-    quickGiveModal?.addEventListener("click", (event) => {
-      if (event.target === quickGiveModal) {
-        quickGiveModal.style.display = "none";
-      }
     });
 
     alertContainer?.addEventListener("click", (event) => {
@@ -2499,12 +2430,17 @@ export class MedicationManagement {
     ) || null;
   }
 
-  showQuickGiveModal(participantId, requirementId, medicationName, dose, route) {
-    const modal = document.getElementById("quickGiveModal");
-    const detailsDiv = document.getElementById("quickGiveDetails");
+  /**
+   * Ask for the witness and notes before recording a dose given now.
+   * @param {number} participantId
+   * @param {number} requirementId
+   * @param {string} medicationName
+   * @param {string} [dose]
+   * @param {string} [route]
+   * @param {{ witness?: string, notes?: string }} [values] - Values to restore, after a failed save
+   */
+  showQuickGiveModal(participantId, requirementId, medicationName, dose, route, values = {}) {
     const participantName = this.getParticipantName(participantId);
-
-    if (!modal || !detailsDiv) return;
 
     // Store data for confirmation
     this.pendingGive = {
@@ -2526,14 +2462,28 @@ export class MedicationManagement {
     }
     details += `<div><strong>${escapeHTML(translate("time"))}:</strong> ${new Date().toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" })}</div>`;
 
-    setContent(detailsDiv, details);
-    modal.style.display = "flex";
-
-    // Focus witness field
-    const witnessField = document.getElementById("quickGiveWitness");
-    if (witnessField) {
-      setTimeout(() => witnessField.focus(), 100);
-    }
+    const { overlay } = openModal({
+      id: "quickGiveModal",
+      title: escapeHTML(translate("medication_give_confirmation")),
+      size: "small",
+      body: `
+        <div id="quickGiveDetails">${details}</div>
+        <div class="field-group">
+          <label for="quickGiveWitness">${escapeHTML(translate("medication_witness_label"))}</label>
+          <input type="text" id="quickGiveWitness" maxlength="150" value="${escapeHTML(values.witness ?? this.getDefaultWitness())}" />
+        </div>
+        <div class="field-group">
+          <label for="quickGiveNotes">${escapeHTML(translate("medication_optional_notes"))}</label>
+          <textarea id="quickGiveNotes" rows="2" maxlength="500">${escapeHTML(values.notes || "")}</textarea>
+        </div>
+      `,
+      footer: `
+        <button type="button" class="btn secondary" data-modal-close>${escapeHTML(translate("cancel"))}</button>
+        <button type="button" class="btn primary" id="quickGiveConfirm">${escapeHTML(translate("medication_confirm_given"))}</button>
+      `,
+      initialFocus: "#quickGiveWitness",
+    });
+    overlay.querySelector("#quickGiveConfirm").addEventListener("click", () => this.confirmQuickGive());
   }
 
   async confirmQuickGive() {
@@ -2541,7 +2491,6 @@ export class MedicationManagement {
 
     const witnessField = document.getElementById("quickGiveWitness");
     const notesField = document.getElementById("quickGiveNotes");
-    const modal = document.getElementById("quickGiveModal");
 
     const witness = witnessField?.value?.trim() || this.getDefaultWitness();
     const notes = notesField?.value?.trim() || null;
@@ -2566,14 +2515,16 @@ export class MedicationManagement {
     const updateKey = `quick-give-${requirementId}-${participantId}-${Date.now()}`;
 
     // Close modal immediately for responsiveness
-    if (modal) modal.style.display = "none";
+    const give = this.pendingGive;
+    this.pendingGive = null;
+    closeModal("quickGiveModal");
 
     await this.optimisticManager.execute(updateKey, {
       optimisticFn: () => {
         // Save state for rollback
         const rollbackState = {
           distributions: JSON.parse(JSON.stringify(this.distributions)),
-          pendingGive: this.pendingGive
+          pendingGive: give
         };
 
         // Create optimistic distribution entry
@@ -2669,8 +2620,11 @@ export class MedicationManagement {
           this.updateUpcomingTable();
           this.attachEventListeners();
           this.app.showMessage(apiErrorMessage(err, 'error_saving'), 'error');
-          // Reopen modal on non-duplicate error
-          if (modal) modal.style.display = "flex";
+          // Reopen modal on non-duplicate error, with what was typed
+          this.showQuickGiveModal(
+            give.participantId, give.requirementId, give.medicationName, give.dose, give.route,
+            { witness, notes: notes || "" },
+          );
         }
       },
 
@@ -2678,12 +2632,6 @@ export class MedicationManagement {
         debugError("Error giving medication", err);
       }
     });
-
-    // Clear pending give
-    this.pendingGive = null;
-
-    // Clear notes field
-    if (notesField) notesField.value = "";
   }
 
   /**

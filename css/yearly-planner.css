@@ -780,56 +780,6 @@
   color: var(--muted-color, #94a3b8);
 }
 
-/* Modal - scoped under .modal-overlay to override global .modal { display: none } */
-.modal-overlay > .modal {
-  display: block;
-  position: relative;
-  inset: auto;
-  background: var(--card-bg, #fff);
-  border-radius: 0.75rem;
-  width: 100%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
-  backdrop-filter: none;
-}
-
-.modal-overlay > .modal .modal__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
-}
-
-.modal-overlay > .modal .modal__header h2 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.modal-overlay > .modal .modal__close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: var(--text-muted, #64748b);
-  line-height: 1;
-  padding: 0.25rem;
-}
-
-.modal-overlay > .modal .modal__body {
-  padding: 1.25rem;
-}
-
-.modal-overlay > .modal .modal__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding: 1rem 1.25rem;
-  border-top: 1px solid var(--border-color, #e2e8f0);
-}
-
 /* Form helpers */
 .form-row {
   display: grid;

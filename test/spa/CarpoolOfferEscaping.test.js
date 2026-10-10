@@ -82,7 +82,7 @@ describe('carpool dashboard text from families', () => {
     const page = dashboard();
     page.showModal = jest.fn();
     page.showOfferRideModal(OFFER);
-    document.body.innerHTML = page.showModal.mock.calls[0][1];
+    document.body.innerHTML = page.showModal.mock.calls[0][1].body;
 
     const make = document.querySelector('#vehicle-make');
     expect(make.value).toBe(QUOTE_BREAK);

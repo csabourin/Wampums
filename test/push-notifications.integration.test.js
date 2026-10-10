@@ -318,9 +318,11 @@ describe.skipIf(!DATABASE_URL)('Push notifications', () => {
 
     expect(response.status).toBe(502);
     expect(response.body.message).toBe('push_rejected');
+    // A passing refusal of the push service says nothing about the device
+    expect(await endpointsOf(member)).toEqual([endpoint('throttled')]);
   });
 
-  test('a partial send reports how many devices refused it for their key', async () => {
+  test('a partial send forgets the devices that refused it for their key', async () => {
     const member = await createMember([ids.sender], 'Two devices');
     await subscribe(member, 'two-ok');
     await subscribe(member, 'two-stale');
@@ -335,7 +337,8 @@ describe.skipIf(!DATABASE_URL)('Push notifications', () => {
       .send({ title: 'Camp', body: 'Texte', user_ids: [member] });
 
     expect(response.status).toBe(200);
-    expect(response.body.data).toEqual({ sent: 1, failed: 1, removed: 0, rejected_for_key: 1 });
+    expect(response.body.data).toEqual({ sent: 1, failed: 1, removed: 1, rejected_for_key: 1 });
+    expect(await endpointsOf(member)).toEqual([endpoint('two-ok')]);
   });
 
   test.each([

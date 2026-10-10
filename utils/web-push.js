@@ -71,14 +71,54 @@ function summarizePushFailures(sendErrors) {
 }
 
 /**
- * Delete subscriptions the push service reported as gone.
+ * Sort the outcome of one send across several devices, and pick the devices
+ * that can never receive again so they are deleted rather than accumulate.
+ *
+ * - 404 / 410: the subscription no longer exists at the push service.
+ * - 401 / 403: the device subscribed with another public key than the
+ *   server's. Removed only when another device accepted the same send, which
+ *   proves the server's own key pair works; when every device refuses, the
+ *   fault is more likely the server's keys, and deleting would unsubscribe
+ *   the whole unit. The app subscribes again with the server's key the next
+ *   time it opens.
+ * - Anything else (429, 5xx, network): a passing failure of the push
+ *   service, not of the device. The subscription is kept.
+ *
+ * @param {PromiseSettledResult[]} results - One per subscriber, in the same order
+ * @param {Array<{ endpoint: string }>} subscribers - The devices sent to
+ * @returns {{ sent: number, refusals: Error[], invalidEndpoints: string[] }}
+ *   `refusals` holds every failure other than a gone subscription.
+ */
+function sortPushResults(results, subscribers) {
+  const goneEndpoints = [];
+  const keyMismatchEndpoints = [];
+  const refusals = [];
+  let sent = 0;
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      sent += 1;
+    } else if (isGoneSubscriptionError(result.reason)) {
+      goneEndpoints.push(subscribers[index].endpoint);
+    } else {
+      refusals.push(result.reason);
+      if (isKeyMismatchError(result.reason)) {
+        keyMismatchEndpoints.push(subscribers[index].endpoint);
+      }
+    }
+  });
+  const invalidEndpoints = sent > 0 ? [...goneEndpoints, ...keyMismatchEndpoints] : goneEndpoints;
+  return { sent, refusals, invalidEndpoints };
+}
+
+/**
+ * Delete subscriptions that can never receive again (see `sortPushResults`).
  *
  * @param {Object} pool - Database pool
  * @param {number} organizationId - Unit the subscriptions belong to
- * @param {string[]} endpoints - Endpoints that answered 404 or 410
+ * @param {string[]} endpoints - Endpoints to forget
  * @returns {Promise<number>} Number of subscriptions removed
  */
-async function removeGoneSubscriptions(pool, organizationId, endpoints) {
+async function removeInvalidSubscriptions(pool, organizationId, endpoints) {
   if (!endpoints.length) {
     return 0;
   }
@@ -93,6 +133,7 @@ module.exports = {
   getVapidKeys,
   isGoneSubscriptionError,
   isKeyMismatchError,
-  removeGoneSubscriptions,
+  removeInvalidSubscriptions,
+  sortPushResults,
   summarizePushFailures,
 };

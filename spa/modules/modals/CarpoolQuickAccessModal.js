@@ -2,16 +2,14 @@
  * CarpoolQuickAccessModal
  * Handles the carpool quick access modal display and interactions
  *
- * Built on the shared `.modal-overlay` / `.modal-content` markup, so
- * `setContent()` gives it dialog semantics, a focus trap, Escape to close and
- * focus return through `enhanceModalAccessibility()`.
+ * Built on the shared `openModal()` dialog.
  */
 
 import { getActivities } from '../../api/api-activities.js';
 import { translate } from '../../app.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { setContent } from '../../utils/DOMUtils.js';
+import { openModal } from '../../utils/ModalUtils.js';
 import {
   formatActivityDateRange,
   getActivityEndDateObj
@@ -21,8 +19,14 @@ import { QuickCreateActivityModal } from './QuickCreateActivityModal.js';
 const MODAL_ID = 'carpool-quick-access-modal';
 
 export class CarpoolQuickAccessModal {
-  constructor(app) {
+  /**
+   * @param {Object} app - Application
+   * @param {Object} [options]
+   * @param {boolean} [options.allowCreate=true] - Offer to create an activity (leaders, not parents)
+   */
+  constructor(app, { allowCreate = true } = {}) {
     this.app = app;
+    this.allowCreate = allowCreate;
     this.modal = null;
   }
 
@@ -80,12 +84,6 @@ export class CarpoolQuickAccessModal {
    * @param {Array<Object>} activities - Upcoming activities
    */
   render(activities) {
-    document.getElementById(MODAL_ID)?.remove();
-
-    this.modal = document.createElement('div');
-    this.modal.className = 'modal-overlay';
-    this.modal.id = MODAL_ID;
-
     const body = activities.length > 0
       ? `
         <p class="carpool-quick-access__intro">${translate('select_activity_for_carpool')}</p>
@@ -95,44 +93,32 @@ export class CarpoolQuickAccessModal {
       `
       : `<p class="carpool-quick-access__empty">${translate('no_upcoming_activities')}</p>`;
 
-    setContent(this.modal, `
-      <div class="modal-content carpool-quick-access">
-        <div class="modal-header">
-          <h2>${translate('carpool_coordination')}</h2>
-          <button type="button" class="modal-close" aria-label="${escapeHTML(translate('close'))}">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        <div class="modal-body">
-          ${body}
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="button button--primary carpool-quick-access__create" data-action="quick-create">
-            ${translate('quick_create_activity')}
-          </button>
-        </div>
-      </div>
-    `);
-    document.body.appendChild(this.modal);
+    this.modal = openModal({
+      id: MODAL_ID,
+      title: escapeHTML(translate('carpool_coordination')),
+      body,
+      footer: this.allowCreate ? `
+        <button type="button" class="button button--primary carpool-quick-access__create" data-action="quick-create">
+          ${translate('quick_create_activity')}
+        </button>
+      ` : '',
+      className: 'carpool-quick-access',
+      onClose: () => { this.modal = null; },
+    });
   }
 
   /**
    * Attach event listeners
    */
   attachListeners() {
-    this.modal.querySelector('.modal-close')?.addEventListener('click', () => this.close());
-
-    this.modal.addEventListener('click', (event) => {
-      if (event.target === this.modal) {
-        this.close();
-        return;
-      }
+    const { overlay } = this.modal;
+    overlay.addEventListener('click', (event) => {
       if (event.target.closest('a.carpool-quick-access__activity')) {
         this.close();
       }
     });
 
-    this.modal.querySelector('[data-action="quick-create"]')?.addEventListener('click', () => {
+    overlay.querySelector('[data-action="quick-create"]')?.addEventListener('click', () => {
       this.close();
       this.showQuickCreateModal();
     });
@@ -152,9 +138,6 @@ export class CarpoolQuickAccessModal {
    * Close the modal
    */
   close() {
-    if (this.modal) {
-      this.modal.remove();
-      this.modal = null;
-    }
+    this.modal?.close(true);
   }
 }

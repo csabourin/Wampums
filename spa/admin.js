@@ -17,7 +17,8 @@ import {
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
-import { setContent, clearElement, insertHTML } from "./utils/DOMUtils.js";
+import { setContent, clearElement } from "./utils/DOMUtils.js";
+import { openModal } from "./utils/ModalUtils.js";
 import { canAccessAdminPanel, canCreateOrganization, canManageUsers, canSendCommunications, canViewUsers } from "./utils/PermissionUtils.js";
 import { getMountPoint, resolveMountOptions } from "./utils/PageMount.js";
 import { roleLabel } from './utils/RoleLabelUtils.js';
@@ -449,37 +450,13 @@ ${showNotifications ? `
                                 </div>`;
                 }).join("");
 
-                const modalHTML = `
-                        <div class="modal-overlay show" id="role-modal" role="dialog" aria-modal="true" aria-labelledby="role-modal-title">
-                                <div class="modal-content">
-                                        <div class="modal-header">
-                                                <h2 id="role-modal-title">${translate("manage_roles")} — ${safeName}</h2>
-                                                <button class="modal-close" id="role-modal-close" aria-label="${translate("close")}">✕</button>
-                                        </div>
-                                        <div class="modal-body">
-                                                <div class="role-modal-checkboxes">
-                                                        ${checkboxes}
-                                                </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                                <button class="secondary-button" id="role-modal-cancel">${translate("cancel")}</button>
-                                                <button class="primary-button" id="role-modal-save">${translate("save")}</button>
-                                        </div>
-                                </div>
-                        </div>`;
-
-                insertHTML(document.body, "beforeend", modalHTML);
-
-                const modal = document.getElementById("role-modal");
-                const closeModal = () => modal?.remove();
-
-                document.getElementById("role-modal-close")?.addEventListener("click", closeModal);
-                document.getElementById("role-modal-cancel")?.addEventListener("click", closeModal);
-
-                modal?.addEventListener("click", (e) => {
-                        if (e.target === modal) {
-                                closeModal();
-                        }
+                const { overlay: modal, close: closeRoleModal } = openModal({
+                        id: "role-modal",
+                        title: `${translate("manage_roles")} — ${safeName}`,
+                        body: `<div class="role-modal-checkboxes">${checkboxes}</div>`,
+                        footer: `
+                                <button type="button" class="secondary-button" data-modal-close>${translate("cancel")}</button>
+                                <button type="button" class="primary-button" id="role-modal-save">${translate("save")}</button>`,
                 });
 
                 document.getElementById("role-modal-save")?.addEventListener("click", async () => {
@@ -494,7 +471,7 @@ ${showNotifications ? `
                                 return;
                         }
 
-                        closeModal();
+                        closeRoleModal();
                         await this.updateUserRoles(userId, selected);
                 });
         }

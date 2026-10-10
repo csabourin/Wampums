@@ -1,5 +1,6 @@
 import { translate } from '../../app.js';
 import { CONFIG } from '../../config.js';
+import { openModal } from '../../utils/ModalUtils.js';
 
 const REWARD_VALUES = [1, 2, 3, 4, 5];
 const CORRECTION_VALUES = [-1, -2, -3, -4, -5];
@@ -38,11 +39,13 @@ export class PointActionBar {
     this.activeMenu = null;
     this.activeMenuTrigger = null;
     this.gameTrigger = null;
+    this.gameDialog = null;
+    this.gameButtons = '';
     this.feedbackTimer = null;
   }
 
   render() {
-    const gameButtons = GAME_RESULTS.map(({ placeKey, points }) => `
+    this.gameButtons = GAME_RESULTS.map(({ placeKey, points }) => `
       <button type="button" class="point-btn game-result-option"
         data-points="${points}" data-game-result>
         <span>${translate(placeKey)}</span>
@@ -96,25 +99,12 @@ export class PointActionBar {
             </div>
 
             <button type="button" class="point-btn points-game-result-trigger"
-              id="points-game-result-trigger" aria-haspopup="dialog" aria-expanded="false"
-              aria-controls="points-game-result-dialog">
+              id="points-game-result-trigger" aria-haspopup="dialog" aria-expanded="false">
               ${translate('points_game_result')}
             </button>
           </div>
         </div>
 
-        <dialog class="points-game-result-dialog" id="points-game-result-dialog"
-          aria-labelledby="points-game-result-title">
-          <div class="points-game-result-dialog__panel">
-            <div class="points-game-result-dialog__header">
-              <h2 id="points-game-result-title">${translate('points_game_result')}</h2>
-              <button type="button" class="point-btn points-game-result-close">
-                ${translate('close')}
-              </button>
-            </div>
-            <div class="points-game-result-dialog__options">${gameButtons}</div>
-          </div>
-        </dialog>
       </div>
     `;
   }
@@ -136,12 +126,6 @@ export class PointActionBar {
     document.addEventListener('pointerdown', (event) => this.handleOutsidePointer(event), { signal });
     document.addEventListener('visibilitychange', () => this.closeTransientUi(), { signal });
 
-    const dialog = this.getGameDialog();
-    dialog?.addEventListener('cancel', (event) => {
-      event.preventDefault();
-      this.closeGameDialog();
-    }, { signal });
-
     if (typeof ResizeObserver === 'function') {
       this.resizeObserver = new ResizeObserver(() => this.reservePageSpace());
       this.resizeObserver.observe(this.root);
@@ -162,23 +146,10 @@ export class PointActionBar {
       return;
     }
 
-    if (event.target.closest('.points-game-result-close')) {
-      this.closeGameDialog();
-      return;
-    }
-
-    const dialog = this.getGameDialog();
-    if (event.target === dialog) {
-      this.closeGameDialog();
-      return;
-    }
-
     const actionButton = event.target.closest('[data-points]');
     if (!actionButton) return;
 
-    if (actionButton.hasAttribute('data-game-result')) {
-      this.closeGameDialog();
-    } else if (actionButton.closest('[role="menu"]')) {
+    if (actionButton.closest('[role="menu"]')) {
       this.closeValueMenu({ restoreFocus: true });
     }
     await this.runAction(Number(actionButton.dataset.points), actionButton);
@@ -205,17 +176,6 @@ export class PointActionBar {
         options[nextIndex]?.focus();
       }
       return;
-    }
-
-    const dialog = this.getGameDialog();
-    if (!dialog?.hasAttribute('open')) return;
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      this.closeGameDialog();
-      return;
-    }
-    if (event.key === 'Tab') {
-      this.keepFocusInDialog(event, dialog);
     }
   }
 
@@ -250,45 +210,43 @@ export class PointActionBar {
     this.activeMenuTrigger = null;
   }
 
+  /**
+   * Choose a game placement in the shared modal; choosing one awards its
+   * points and returns focus to the trigger.
+   * @param {HTMLElement} trigger - The "game result" button
+   */
   openGameDialog(trigger) {
     this.closeValueMenu();
-    const dialog = this.getGameDialog();
-    if (!dialog || dialog.hasAttribute('open')) return;
+    if (this.gameDialog) return;
     this.gameTrigger = trigger;
     trigger.setAttribute('aria-expanded', 'true');
-    if (typeof dialog.showModal === 'function') {
-      dialog.showModal();
-    } else {
-      dialog.setAttribute('open', '');
-    }
-    dialog.querySelector('[data-game-result]')?.focus();
+    this.gameDialog = openModal({
+      id: 'points-game-result-dialog',
+      title: translate('points_game_result'),
+      size: 'small',
+      className: 'points-game-result-dialog',
+      body: `<div class="points-game-result-dialog__options">${this.gameButtons}</div>`,
+      initialFocus: '[data-game-result]',
+      returnFocus: trigger,
+      onClose: () => {
+        trigger.setAttribute('aria-expanded', 'false');
+        this.gameDialog = null;
+        this.gameTrigger = null;
+      },
+    });
+    this.gameDialog.overlay.addEventListener('click', (event) => {
+      const option = event.target.closest('[data-game-result]');
+      if (!option) return;
+      this.closeGameDialog();
+      this.runAction(Number(option.dataset.points), option);
+    });
   }
 
   closeGameDialog({ restoreFocus = true } = {}) {
-    const dialog = this.getGameDialog();
-    if (!dialog?.hasAttribute('open')) return;
-    if (typeof dialog.close === 'function') {
-      dialog.close();
-    } else {
-      dialog.removeAttribute('open');
-    }
-    this.gameTrigger?.setAttribute('aria-expanded', 'false');
-    if (restoreFocus) this.gameTrigger?.focus();
-    this.gameTrigger = null;
-  }
-
-  keepFocusInDialog(event, dialog) {
-    const controls = [...dialog.querySelectorAll('button:not([disabled])')];
-    if (controls.length === 0) return;
-    const first = controls[0];
-    const last = controls[controls.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
+    if (!this.gameDialog) return;
+    const trigger = this.gameTrigger;
+    this.gameDialog.close(true);
+    if (restoreFocus) trigger?.focus();
   }
 
   async runAction(points, sourceButton) {
@@ -347,10 +305,6 @@ export class PointActionBar {
   reservePageSpace() {
     if (!this.appRoot || !this.root) return;
     this.appRoot.style.setProperty('--points-action-bar-height', `${this.root.offsetHeight}px`);
-  }
-
-  getGameDialog() {
-    return this.root?.querySelector('#points-game-result-dialog') || null;
   }
 
   closeTransientUi() {

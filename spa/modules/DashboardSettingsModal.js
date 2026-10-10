@@ -8,7 +8,7 @@
 
 import { translate } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
-import { setContent } from "../utils/DOMUtils.js";
+import { openModal } from "../utils/ModalUtils.js";
 import { PALETTES } from "../config/dashboard-customization.js";
 import {
   getDashboardPrefs,
@@ -25,26 +25,26 @@ export class DashboardSettingsModal {
   open() {
     if (this.modal) return;
     const prefs = getDashboardPrefs();
+    const { body, footer } = this._render(prefs.paletteId);
 
-    const overlay = document.createElement("div");
-    overlay.className = "dash-settings";
-    overlay.setAttribute("role", "dialog");
-    overlay.setAttribute("aria-modal", "true");
-    overlay.setAttribute("aria-labelledby", "dash-settings-title");
-    setContent(overlay, this._render(prefs.paletteId));
-    document.body.appendChild(overlay);
+    const { overlay, close } = openModal({
+      id: "dash-settings",
+      title: escapeHTML(translate("dashboard_settings")),
+      className: "dash-settings__panel",
+      body,
+      footer,
+      initialFocus: ".dash-settings__palette.is-active",
+      onClose: () => { this.modal = null; },
+    });
     this.modal = overlay;
-    document.body.classList.add("dash-settings-open");
+    this.closeModal = close;
 
     this._wireEvents();
   }
 
   close() {
     if (!this.modal) return;
-    document.removeEventListener("keydown", this._escClose);
-    this.modal.remove();
-    this.modal = null;
-    document.body.classList.remove("dash-settings-open");
+    this.closeModal(true);
   }
 
   _render(currentPaletteId) {
@@ -67,15 +67,8 @@ export class DashboardSettingsModal {
       })
       .join("");
 
-    return `
-      <div class="dash-settings__backdrop" data-close="true"></div>
-      <div class="dash-settings__panel" role="document">
-        <header class="dash-settings__header">
-          <h2 id="dash-settings-title">${escapeHTML(translate("dashboard_settings"))}</h2>
-          <button type="button" class="dash-settings__close" data-close="true" aria-label="${escapeHTML(translate("close"))}">
-            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-          </button>
-        </header>
+    return {
+      body: `
         <section class="dash-settings__section">
           <h3>${escapeHTML(translate("dashboard_palette"))}</h3>
           <p class="dash-settings__hint">${escapeHTML(translate("dashboard_palette_hint"))}</p>
@@ -83,31 +76,27 @@ export class DashboardSettingsModal {
             ${cards}
           </div>
         </section>
-        <footer class="dash-settings__footer">
-          <button type="button" class="button button--ghost" data-action="reset">
-            ${escapeHTML(translate("reset_to_defaults"))}
-          </button>
-          <button type="button" class="button button--primary" data-close="true">
-            ${escapeHTML(translate("done"))}
-          </button>
-        </footer>
-      </div>
-    `;
+      `,
+      footer: `
+        <button type="button" class="button button--ghost" data-action="reset">
+          ${escapeHTML(translate("reset_to_defaults"))}
+        </button>
+        <button type="button" class="button button--primary" data-modal-close>
+          ${escapeHTML(translate("done"))}
+        </button>
+      `,
+    };
   }
 
   _wireEvents() {
     this.modal.addEventListener("click", (e) => {
-      if (e.target.closest("[data-close]")) {
-        this.close();
-        return;
-      }
       const palette = e.target.closest("[data-palette]");
       if (palette) {
         const id = palette.dataset.palette;
         setPaletteId(id);
         this.modal.querySelectorAll(".dash-settings__palette").forEach((el) => {
           el.classList.toggle("is-active", el.dataset.palette === id);
-          el.setAttribute("aria-pressed", el.dataset.palette === id);
+          el.setAttribute("aria-pressed", String(el.dataset.palette === id));
         });
         this.onChange({ paletteId: id });
         return;
@@ -117,18 +106,10 @@ export class DashboardSettingsModal {
         const current = getDashboardPrefs().paletteId;
         this.modal.querySelectorAll(".dash-settings__palette").forEach((el) => {
           el.classList.toggle("is-active", el.dataset.palette === current);
-          el.setAttribute("aria-pressed", el.dataset.palette === current);
+          el.setAttribute("aria-pressed", String(el.dataset.palette === current));
         });
         this.onChange({ paletteId: current, reset: true });
       }
     });
-
-    document.addEventListener("keydown", this._escClose);
   }
-
-  _escClose = (e) => {
-    if (e.key === "Escape" && this.modal) {
-      this.close();
-    }
-  };
 }

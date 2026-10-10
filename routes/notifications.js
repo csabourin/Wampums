@@ -17,7 +17,7 @@ const { success, error, asyncHandler } = require('../middleware/response');
 const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { checkValidation } = require('../middleware/validation');
 const {
-  getVapidKeys, isGoneSubscriptionError, isKeyMismatchError, removeGoneSubscriptions, summarizePushFailures
+  getVapidKeys, isKeyMismatchError, removeInvalidSubscriptions, sortPushResults, summarizePushFailures
 } = require('../utils/web-push');
 
 const HTTP_ACCEPTED = 202;
@@ -152,8 +152,8 @@ module.exports = (pool, logger) => {
   /**
    * POST /api/v1/notifications/send
    * Send a push notification to the selected members (`user_ids`), or to every
-   * active subscriber of the unit when none are selected. Subscriptions the
-   * push service reports as gone are deleted.
+   * active subscriber of the unit when none are selected. Devices that can
+   * never receive again (gone, or subscribed with another key) are deleted.
    */
   router.post('/send', authenticate, blockDemoRoles, requirePermission(['communications.send']),
     check('title').trim().notEmpty().withMessage('Title is required').isLength({ max: TITLE_MAX_LENGTH }).withMessage(`Title must not exceed ${TITLE_MAX_LENGTH} characters`),
@@ -224,19 +224,8 @@ module.exports = (pool, logger) => {
           keys: { p256dh: subscriber.p256dh, auth: subscriber.auth }
         }, notificationPayload)));
 
-        const goneEndpoints = [];
-        const refusals = [];
-        let sent = 0;
-        results.forEach((result, index) => {
-          if (result.status === 'fulfilled') {
-            sent += 1;
-          } else if (isGoneSubscriptionError(result.reason)) {
-            goneEndpoints.push(subscribers[index].endpoint);
-          } else {
-            refusals.push(result.reason);
-          }
-        });
-        const failed = goneEndpoints.length + refusals.length;
+        const { sent, refusals, invalidEndpoints } = sortPushResults(results, subscribers);
+        const failed = subscribers.length - sent;
         const rejectedForKey = refusals.filter(isKeyMismatchError).length;
         if (refusals.length) {
           const { byStatus, sample } = summarizePushFailures(refusals);
@@ -249,9 +238,9 @@ module.exports = (pool, logger) => {
         // failed, or the sender would send it again.
         let removed = 0;
         try {
-          removed = await removeGoneSubscriptions(pool, organizationId, goneEndpoints);
+          removed = await removeInvalidSubscriptions(pool, organizationId, invalidEndpoints);
         } catch (cleanupError) {
-          logger.error('Error removing gone push subscriptions:', cleanupError);
+          logger.error('Error removing invalid push subscriptions:', cleanupError);
         }
 
         // Every attempt failed for a reason other than a vanished browser:

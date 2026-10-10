@@ -19,6 +19,7 @@ import { validateMoney, validateDateField, validateRequired } from "./utils/Vali
 import { canApproveFinance, canManageFinance } from "./utils/PermissionUtils.js";
 import { deleteCachedData } from "./indexedDB.js";
 import { setContent, insertHTML, withFormBusy } from "./utils/DOMUtils.js";
+import { openModal, closeModal } from "./utils/ModalUtils.js";
 import { setButtonLoading } from './utils/SkeletonUtils.js';
 import { aiParseReceipt } from "./modules/AI.js";
 
@@ -713,19 +714,16 @@ export class Expenses {
 
   showExpenseModal(expense = null) {
     const isEdit = !!expense;
-    const modalHTML = `
-      <div class="modal-overlay" id="expense-modal">
-        <div class="modal-content modal-large">
-          <div class="modal-header">
-            <h3>${isEdit ? translate("edit_expense") : translate("add_expense")}</h3>
-            <button class="modal-close" id="close-expense-modal">&times;</button>
-          </div>
-          <div class="modal-body">
+    openModal({
+      id: "expense-modal",
+      title: isEdit ? translate("edit_expense") : translate("add_expense"),
+      size: "large",
+      body: `
             <form id="expense-form">
               <div class="form-row">
                 <div class="form-group">
                    <div style="margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:15px;">
-                      <button type="button" class="button button--secondary" id="upload-receipt-btn">📸 ${translate("upload_receipt")}</button>
+                      <button type="button" class="button button--secondary" id="upload-receipt-btn"><span aria-hidden="true">📸</span> ${translate("upload_receipt")}</button>
                       <input type="file" id="receipt-upload-input" accept="image/*,.pdf" style="display:none">
                       <small style="display:block; margin-top:5px; color:#666;">${translate("upload_receipt_help")}</small>
                    </div>
@@ -767,7 +765,7 @@ export class Expenses {
               </div>
 
               <div class="tax-calculator-section">
-                <h4>${translate("amount_and_taxes")}</h4>
+                <h3>${translate("amount_and_taxes")}</h3>
                 <div class="form-row">
                   <div class="form-group">
                     <label for="expense-subtotal">${translate("subtotal_before_tax")}</label>
@@ -823,21 +821,15 @@ export class Expenses {
                 <textarea id="expense-notes" rows="3">${expense ? escapeHTML(expense.notes || "") : ""}</textarea>
               </div>
 
-              <div class="form-actions">
-                <button type="button" class="btn btn-secondary" id="cancel-expense-btn">
-                  ${translate("cancel")}
-                </button>
-                <button type="submit" class="btn btn-primary">
-                  ${isEdit ? translate("update") : translate("create")}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
-      </div>
-    `;
-
-    insertHTML(document.body, "beforeend", modalHTML);
+      `,
+      footer: `
+        <button type="button" class="btn btn-secondary" data-modal-close>${translate("cancel")}</button>
+        <button type="submit" class="btn btn-primary" form="expense-form">
+          ${isEdit ? translate("update") : translate("create")}
+        </button>
+      `,
+    });
 
     // Receipt Upload Handler
     const uploadBtn = document.getElementById("upload-receipt-btn");
@@ -889,14 +881,6 @@ export class Expenses {
       document.getElementById("expense-amount").value = taxes.total.toFixed(2);
     });
 
-    document.getElementById("close-expense-modal").addEventListener("click", () => {
-      document.getElementById("expense-modal").remove();
-    });
-
-    document.getElementById("cancel-expense-btn").addEventListener("click", () => {
-      document.getElementById("expense-modal").remove();
-    });
-
     document.getElementById("expense-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       await withFormBusy(e.currentTarget, () => this.saveExpense(expense?.id));
@@ -904,37 +888,26 @@ export class Expenses {
   }
 
   showBulkExpenseModal() {
-    const modalHTML = `
-      <div class="modal-overlay" id="bulk-expense-modal">
-        <div class="modal-content modal-large">
-          <div class="modal-header">
-            <h3>${translate("bulk_add_expenses")}</h3>
-            <button class="modal-close" id="close-bulk-modal">&times;</button>
+    openModal({
+      id: "bulk-expense-modal",
+      title: translate("bulk_add_expenses"),
+      size: "large",
+      body: `
+        <p class="info-text">${translate("bulk_expense_info")}</p>
+        <form id="bulk-expense-form">
+          <div id="bulk-expense-rows">
+            ${this.renderBulkExpenseRow(0)}
           </div>
-          <div class="modal-body">
-            <p class="info-text">${translate("bulk_expense_info")}</p>
-            <form id="bulk-expense-form">
-              <div id="bulk-expense-rows">
-                ${this.renderBulkExpenseRow(0)}
-              </div>
-              <div class="form-actions">
-                <button type="button" class="btn btn-secondary" id="add-bulk-row-btn">
-                  ${translate("add_row")}
-                </button>
-                <button type="button" class="btn btn-secondary" id="cancel-bulk-btn">
-                  ${translate("cancel")}
-                </button>
-                <button type="submit" class="btn btn-primary">
-                  ${translate("create_all")}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    `;
-
-    insertHTML(document.body, "beforeend", modalHTML);
+          <button type="button" class="btn btn-secondary" id="add-bulk-row-btn">
+            ${translate("add_row")}
+          </button>
+        </form>
+      `,
+      footer: `
+        <button type="button" class="btn btn-secondary" data-modal-close>${translate("cancel")}</button>
+        <button type="submit" class="btn btn-primary" form="bulk-expense-form">${translate("create_all")}</button>
+      `,
+    });
 
     let rowCount = 1;
 
@@ -942,14 +915,6 @@ export class Expenses {
       const container = document.getElementById("bulk-expense-rows");
       insertHTML(container, "beforeend", this.renderBulkExpenseRow(rowCount));
       rowCount++;
-    });
-
-    document.getElementById("close-bulk-modal").addEventListener("click", () => {
-      document.getElementById("bulk-expense-modal").remove();
-    });
-
-    document.getElementById("cancel-bulk-btn").addEventListener("click", () => {
-      document.getElementById("bulk-expense-modal").remove();
     });
 
     document.getElementById("bulk-expense-form").addEventListener("submit", async (e) => {
@@ -1031,7 +996,7 @@ export class Expenses {
         this.app.showMessage(translate("expense_created"), "success");
       }
 
-      document.getElementById("expense-modal").remove();
+      closeModal("expense-modal");
       await this.refreshExpenseData();
     } catch (error) {
       debugError("Error saving expense", error);
@@ -1077,7 +1042,7 @@ export class Expenses {
       await createExpensesBulk(expenses);
       this.app.showMessage(translate("bulk_expenses_created", { count: expenses.length }), "success");
 
-      document.getElementById("bulk-expense-modal").remove();
+      closeModal("bulk-expense-modal");
       await this.refreshExpenseData();
     } catch (error) {
       debugError("Error creating bulk expenses", error);

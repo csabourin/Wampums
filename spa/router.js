@@ -9,6 +9,7 @@ import { setContent } from "./utils/DOMUtils.js";
 import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { checkSession } from "./utils/SessionUtils.js";
 import { dismissActiveDialog } from "./utils/DialogUtils.js";
+import { closeAllModals } from './utils/ModalUtils.js';
 import { releaseAllScrollLocks } from "./utils/ScrollLockUtils.js";
 import { initScrollMemory, beginScrollNavigation, restoreScrollPosition } from './utils/ScrollMemory.js';
 import { resetPageReads } from "./modules/live-sync/LiveSyncState.js";
@@ -275,13 +276,14 @@ export class Router {
    */
   dismissTransientOverlays() {
     dismissActiveDialog();
+    closeAllModals();
 
     // Focus must leave the subtree before it is detached, otherwise it falls
     // back to <body> and screen readers lose their place.
     const activeElement = document.activeElement;
     if (activeElement instanceof HTMLElement && activeElement !== document.body) {
       const insideOverlay = activeElement.closest(
-        '.modal, .modal-container, .modal-screen, .modal-overlay, .dash-settings, .dialog-overlay',
+        '.modal, .modal-container, .modal-screen, .modal-overlay, .dialog-overlay',
       );
       if (insideOverlay) {
         activeElement.blur();
@@ -289,7 +291,7 @@ export class Router {
     }
 
     const appRoot = document.getElementById('app');
-    const transientSelectors = '.modal, .modal-container, .modal-screen, .modal-overlay, .dash-settings, .dialog-overlay';
+    const transientSelectors = '.modal, .modal-container, .modal-screen, .modal-overlay, .dialog-overlay';
     document.querySelectorAll(transientSelectors).forEach((el) => {
       // Overlays inside #app are replaced by the next render anyway.
       if (appRoot && appRoot.contains(el)) {
@@ -303,8 +305,6 @@ export class Router {
         top.remove();
       }
     });
-
-    document.body.classList.remove('dash-settings-open');
 
     // Release any body scroll lock the previous screen was holding. Without
     // this a report modal left open during navigation freezes the destination

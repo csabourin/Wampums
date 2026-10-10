@@ -1735,38 +1735,6 @@ tr:hover {
   display: flex;
 }
 
-/* Native modal <dialog> (fundraiser campaigns). The browser shows it in the
-   top layer only while open; the explicit rule keeps any author `display`
-   from ever leaving a closed one on screen. The panel is the shared
-   `.modal-content`, which scrolls when the form is taller than the screen. */
-.fundraiser-dialog {
-  inline-size: min(100% - 2 * var(--space-md) - var(--safe-area-left) - var(--safe-area-right), 600px);
-  max-inline-size: none;
-  max-block-size: var(--modal-max-block-size);
-
-  /* The UA centres a modal dialog with auto margins; the global reset zeroes them. */
-  margin: auto;
-  padding: 0;
-  border: none;
-  background: transparent;
-  overflow: visible;
-}
-
-.fundraiser-dialog:not([open]) {
-  display: none !important;
-}
-
-.fundraiser-dialog::backdrop {
-  background-color: rgb(29 47 42 / 0.75);
-  backdrop-filter: blur(4px);
-}
-
-.fundraiser-dialog > .modal-content {
-  max-block-size: var(--modal-max-block-size);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
 /* Carpool quick access (activity picker opened from /carpool and the dashboard) */
 .carpool-quick-access__intro,
 .carpool-quick-access__empty {
@@ -2039,7 +2007,8 @@ tr:hover {
 
   .modal,
   .modal-overlay,
-  .modal-content {
+  .modal-content,
+  .modal-dialog {
     animation: none;
   }
 }
@@ -3612,99 +3581,16 @@ tr:hover {
   box-shadow: 0 0 0 4px rgb(15 122 90 / 0.35), var(--shadow-lg);
 }
 
-.badge-tracker__modal-container {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-modal);
+/* The add-star form inside the shared dialog (.modal-dialog.badge-tracker__modal) */
+.badge-tracker__fieldset {
+  border: 0;
+  padding: 0;
+  margin-inline: 0;
+  min-inline-size: 0;
 }
 
-.badge-tracker__modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgb(29 47 42 / 0.6);
-}
-
-.badge-tracker__modal {
-  position: fixed;
-  inset: auto 0 0 0;
-  background: var(--color-surface);
-  width: 100%;
-  max-width: 560px;
-  max-height: 90vh;
-  margin: 0 auto;
-  overflow-y: auto;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  animation: badge-modal-slide 300ms ease-out;
-}
-
-@media (min-width: 640px) {
-  .badge-tracker__modal {
-    inset: 50% auto auto 50%;
-    transform: translate(-50%, -50%);
-    border-radius: var(--radius-lg);
-  }
-}
-
-@keyframes badge-modal-slide {
-  from {
-    opacity: 0;
-    transform: translateY(100px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.badge-tracker__modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-lg);
-  border-bottom: 1px solid var(--color-border);
-  position: sticky;
-  top: 0;
-  background: var(--color-surface);
-}
-
-.badge-tracker__modal-title {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-bold);
-}
-
-.badge-tracker__modal-close {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-full);
-  border: none;
-  background: var(--color-secondary);
-  color: var(--color-text-light);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: var(--transition-fast);
-}
-
-.badge-tracker__modal-close:hover {
-  background: var(--color-border);
-}
-
-.badge-tracker__modal-close:focus {
-  outline: none;
-  box-shadow: 0 0 0 3px rgb(15 122 90 / 0.3);
-}
-
-.badge-tracker__modal-body {
-  padding: var(--space-lg);
-}
-
-.badge-tracker__modal-footer {
-  display: flex;
-  gap: var(--space-sm);
-  padding: var(--space-lg);
-  padding-top: 0;
+.badge-tracker__fieldset > legend {
+  padding: 0;
 }
 
 .badge-tracker__badge-selector {
@@ -3816,6 +3702,13 @@ tr:hover {
 .badge-tracker__type-option input {
   position: absolute;
   opacity: 0;
+}
+
+/* The radios are visually hidden: show keyboard focus on their card */
+.badge-tracker__badge-option:has(input:focus-visible),
+.badge-tracker__type-option:has(input:focus-visible) {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 .badge-tracker__type-icon {
@@ -4010,7 +3903,8 @@ tr:hover {
   gap: var(--space-sm);
 }
 
-.points-action-bar .point-btn {
+.points-action-bar .point-btn,
+.points-game-result-dialog .point-btn {
   min-inline-size: var(--touch-target-min);
   min-block-size: var(--touch-target-min);
   padding: var(--space-sm);
@@ -4026,12 +3920,14 @@ tr:hover {
     transform var(--transition-fast);
 }
 
-.points-action-bar .point-btn:focus-visible {
+.points-action-bar .point-btn,
+.points-game-result-dialog .point-btn:focus-visible {
   outline: 3px solid var(--color-link);
   outline-offset: 2px;
 }
 
-.points-action-bar .point-btn:disabled {
+.points-action-bar .point-btn,
+.points-game-result-dialog .point-btn:disabled {
   cursor: wait;
   opacity: 0.65;
 }
@@ -4129,51 +4025,12 @@ tr:hover {
   border-color: #9b6a13;
 }
 
-.points-game-result-dialog {
-  inline-size: min(calc(100% - 2rem), 32rem);
-  max-inline-size: 32rem;
-  margin: auto;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-lg);
-  color: var(--color-text);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-xl);
-}
-
-.points-game-result-dialog::backdrop {
-  background: rgb(14 31 25 / 0.55);
-}
-
-.points-game-result-dialog__panel {
-  padding: var(--space-lg);
-}
-
-.points-game-result-dialog__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  margin-block-end: var(--space-md);
-}
-
-.points-game-result-dialog__header h2 {
-  margin: 0;
-  font-size: var(--font-size-xl);
-}
-
-.points-action-bar .points-game-result-close {
-  color: var(--color-primary-dark);
-  background: var(--color-surface);
-  border-color: var(--color-primary);
-}
-
 .points-game-result-dialog__options {
   display: grid;
   gap: var(--space-sm);
 }
 
-.points-action-bar .game-result-option {
+.points-game-result-dialog .game-result-option {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4184,7 +4041,7 @@ tr:hover {
   text-align: start;
 }
 
-.points-action-bar .game-result-option:hover {
+.points-game-result-dialog .game-result-option:hover {
   color: white;
   background: var(--color-primary);
 }
@@ -6793,7 +6650,7 @@ body.online .pending-update {
   display: flex;
   flex-direction: column;
   inline-size: 100%;
-  max-inline-size: 500px;
+  max-inline-size: 600px;
   max-block-size: var(--modal-max-block-size);
   overflow: hidden;
 
@@ -6801,6 +6658,18 @@ body.online .pending-update {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   animation: modalSlideIn 0.3s ease-out;
+}
+
+.modal-dialog:focus {
+  outline: none;
+}
+
+.modal-dialog--small {
+  max-inline-size: 420px;
+}
+
+.modal-dialog--large {
+  max-inline-size: 900px;
 }
 
 @keyframes modalSlideIn {
@@ -7866,46 +7735,12 @@ details p {
   color: var(--color-text-muted);
 }
 
-.dm-modal .dm-modal-header {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-md);
-  align-items: flex-start;
-}
-
-.dm-modal .dm-modal-body {
+/* The shared dialog scrolls its body and keeps the footer, with Save,
+   always in reach, even on a phone in landscape. */
+.dm-modal .modal-body {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  margin-top: var(--space-md);
-}
-
-.dm-modal .dm-modal-actions {
-  display: flex;
-  gap: var(--space-sm);
-  justify-content: flex-end;
-  padding-top: var(--space-md);
-}
-
-/* The shared .modal-content clips its overflow and expects a .modal-body to
-   scroll; this dialog has none, so on a short screen (a phone in landscape)
-   the roles and the save button were out of reach. The dialog scrolls as a
-   whole and keeps its actions pinned to the bottom, always reachable. */
-.modal-overlay .dm-modal {
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  /* The actions bar carries the bottom spacing, so nothing shows beneath it. */
-  padding-bottom: 0;
-}
-
-.modal-overlay .dm-modal .dm-modal-actions {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-  flex-wrap: wrap;
-  padding-bottom: var(--space-md);
-  background: var(--color-surface);
-  box-shadow: 0 -1px 0 var(--color-border);
 }
 
 .btn--danger,
@@ -7929,12 +7764,6 @@ details p {
   color: #3c4043;
   background: #f1f3f4;
   border: 1px solid #5f6368;
-}
-
-@media (max-height: 500px) {
-  .modal-overlay .dm-modal {
-    padding: var(--space-md) var(--space-md) 0;
-  }
 }
 
 .dm-modal .dm-section-title {
@@ -8039,7 +7868,7 @@ details p {
     margin-inline: 0;
   }
 
-  .dm-modal .dm-modal-actions {
+  .dm-modal .modal-footer {
     justify-content: space-between;
   }
 }
@@ -8130,89 +7959,14 @@ details p {
   margin-top: var(--space-xs);
 }
 
-/* Report Modal - Full Screen */
-.report-modal {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-modal);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Report dialog: the shared modal, as wide and tall as the screen allows */
+.report-modal-dialog {
+  max-inline-size: min(1200px, 100%);
+  block-size: var(--modal-max-block-size);
 }
 
-.report-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  animation: fadeIn var(--transition-base);
-}
-
-.report-modal-container {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  max-width: 100vw;
-  max-height: 100vh;
-  background: var(--color-surface);
-  display: flex;
-  flex-direction: column;
-  animation: slideUp var(--transition-base);
-}
-
-.report-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-md) var(--space-lg);
-  background: var(--color-surface);
-  border-bottom: 2px solid var(--color-border-light);
-  flex-shrink: 0;
-  box-shadow: var(--shadow-sm);
-  z-index: var(--z-base);
-}
-
-.report-modal-title {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-  margin: 0;
-  flex: 1;
-}
-
-.report-modal-actions {
-  display: flex;
-  gap: var(--space-sm);
-  align-items: center;
-}
-
-.report-modal-content {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: var(--space-lg);
+.report-modal-dialog .modal-body {
   background: var(--color-background);
-}
-
-/* Print styles for modal */
-@media print {
-  .report-modal-header {
-    border-bottom: 1px solid #000;
-    padding: var(--space-sm);
-  }
-
-  .report-modal-actions {
-    display: none;
-  }
-
-  .report-modal-overlay {
-    display: none;
-  }
-
-  .report-modal-container {
-    box-shadow: none;
-  }
 }
 
 /* Button variants for modal */
@@ -8319,34 +8073,6 @@ details p {
     font-size: var(--font-size-lg);
   }
 
-  /* Report modal mobile styles */
-  .report-modal-header {
-    padding: var(--space-sm) var(--space-md);
-  }
-
-  .report-modal-title {
-    font-size: var(--font-size-lg);
-  }
-
-  .report-modal-content {
-    padding: var(--space-md);
-  }
-
-  .report-modal-actions {
-    gap: var(--space-xs);
-  }
-}
-
-/* Extra small screens */
-@media (max-width: 480px) {
-  .report-modal-actions .button:not(.button--ghost) {
-    padding: var(--space-xs) var(--space-sm);
-    font-size: var(--font-size-sm);
-  }
-
-  .report-modal-actions .button .button-icon {
-    margin-right: var(--space-xs);
-  }
 }
 
 /* ============================================================================
@@ -11443,7 +11169,7 @@ details p {
   margin-block-end: var(--space-lg);
 }
 
-.achievement-modal__type-selection label {
+.achievement-modal__type-selection > span {
   display: block;
   font-weight: var(--font-weight-semibold);
   margin-block-end: var(--space-sm);
@@ -11482,9 +11208,16 @@ details p {
   margin-block-end: var(--space-lg);
 }
 
-.achievement-modal__badges>label,
-.achievement-modal__participants>label {
+.achievement-modal__participants {
+  border: 0;
+  padding: 0;
+  min-inline-size: 0;
+}
+
+.achievement-modal__badges > span,
+.achievement-modal__participants > legend {
   display: block;
+  padding: 0;
   font-weight: var(--font-weight-semibold);
   margin-block-end: var(--space-sm);
 }

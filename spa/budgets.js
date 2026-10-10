@@ -26,7 +26,8 @@ import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.js";
 import { validateMoney, validateRequired } from "./utils/ValidationUtils.js";
 import { canViewBudget } from "./utils/PermissionUtils.js";
-import { setContent, insertHTML, withFormBusy } from "./utils/DOMUtils.js";
+import { setContent, withFormBusy } from "./utils/DOMUtils.js";
+import { openModal, closeModal } from "./utils/ModalUtils.js";
 import { confirmDestructive } from "./utils/DialogUtils.js";
 import { getCurrentFiscalYear, getFiscalYearOptions } from "./utils/FiscalYearUtils.js";
 
@@ -1383,61 +1384,41 @@ export class Budgets {
 
   showCategoryModal(category = null) {
     const isEdit = !!category;
-    const modalHTML = `
-      <div class="modal-overlay" id="category-modal">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>${isEdit ? translate("edit_category") : translate("add_category")}</h3>
-            <button class="modal-close" id="close-category-modal">&times;</button>
+    openModal({
+      id: "category-modal",
+      title: isEdit ? translate("edit_category") : translate("add_category"),
+      body: `
+        <form id="category-form">
+          <div class="form-group">
+            <label for="category-name">${translate("category_name")}*</label>
+            <input type="text" id="category-name" required
+                   value="${category ? escapeHTML(category.name) : ""}">
           </div>
-          <div class="modal-body">
-            <form id="category-form">
-              <div class="form-group">
-                <label for="category-name">${translate("category_name")}*</label>
-                <input type="text" id="category-name" required
-                       value="${category ? escapeHTML(category.name) : ""}">
-              </div>
-              <div class="form-group">
-                <label for="category-description">${translate("description")}</label>
-                <textarea id="category-description" rows="3">${category ? escapeHTML(category.description || "") : ""}</textarea>
-              </div>
-              <div class="form-group">
-                <label for="category-type">${translate("category_type")}</label>
-                <select id="category-type">
-                  <option value="registration" ${category?.category_type === "registration" ? "selected" : ""}>${translate("registration")}</option>
-                  <option value="fundraising" ${category?.category_type === "fundraising" ? "selected" : ""}>${translate("fundraising")}</option>
-                  <option value="activity" ${category?.category_type === "activity" ? "selected" : ""}>${translate("activity")}</option>
-                  <option value="operations" ${category?.category_type === "operations" ? "selected" : ""}>${translate("operations")}</option>
-                  <option value="other" ${category?.category_type === "other" ? "selected" : ""}>${translate("other")}</option>
-                </select>
-              </div>
-              <div class="form-actions">
-                <button type="button" class="btn btn-secondary" id="cancel-category-btn">
-                  ${translate("cancel")}
-                </button>
-                <button type="submit" class="btn btn-primary">
-                  ${isEdit ? translate("update") : translate("create")}
-                </button>
-              </div>
-            </form>
+          <div class="form-group">
+            <label for="category-description">${translate("description")}</label>
+            <textarea id="category-description" rows="3">${category ? escapeHTML(category.description || "") : ""}</textarea>
           </div>
-        </div>
-      </div>
-    `;
-
-    insertHTML(document.body, "beforeend", modalHTML);
-
-    document
-      .getElementById("close-category-modal")
-      .addEventListener("click", () => {
-        document.getElementById("category-modal").remove();
-      });
-
-    document
-      .getElementById("cancel-category-btn")
-      .addEventListener("click", () => {
-        document.getElementById("category-modal").remove();
-      });
+          <div class="form-group">
+            <label for="category-type">${translate("category_type")}</label>
+            <select id="category-type">
+              <option value="registration" ${category?.category_type === "registration" ? "selected" : ""}>${translate("registration")}</option>
+              <option value="fundraising" ${category?.category_type === "fundraising" ? "selected" : ""}>${translate("fundraising")}</option>
+              <option value="activity" ${category?.category_type === "activity" ? "selected" : ""}>${translate("activity")}</option>
+              <option value="operations" ${category?.category_type === "operations" ? "selected" : ""}>${translate("operations")}</option>
+              <option value="other" ${category?.category_type === "other" ? "selected" : ""}>${translate("other")}</option>
+            </select>
+          </div>
+        </form>
+      `,
+      footer: `
+        <button type="button" class="btn btn-secondary" data-modal-close>
+          ${translate("cancel")}
+        </button>
+        <button type="submit" form="category-form" class="btn btn-primary">
+          ${isEdit ? translate("update") : translate("create")}
+        </button>
+      `,
+    });
 
     document
       .getElementById("category-form")
@@ -1469,7 +1450,7 @@ export class Budgets {
         this.app.showMessage(translate("category_created"), "success");
       }
 
-      document.getElementById("category-modal").remove();
+      closeModal("category-modal");
       await this.invalidateBudgetCaches();
       await this.refreshBudgetData(true);
     } catch (error) {
@@ -1493,66 +1474,46 @@ export class Budgets {
 
   showBudgetItemModal(item = null) {
     const isEdit = !!item;
-    const modalHTML = `
-      <div class="modal-overlay" id="budget-item-modal">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>${isEdit ? translate("edit_budget_item") : translate("add_budget_item")}</h3>
-            <button class="modal-close" id="close-budget-item-modal">&times;</button>
+    openModal({
+      id: "budget-item-modal",
+      title: isEdit ? translate("edit_budget_item") : translate("add_budget_item"),
+      body: `
+        <form id="budget-item-form">
+          <div class="form-group">
+            <label for="budget-item-name">${translate("item_name")}*</label>
+            <input type="text" id="budget-item-name" required
+                   value="${item ? escapeHTML(item.name) : ""}">
           </div>
-          <div class="modal-body">
-            <form id="budget-item-form">
-              <div class="form-group">
-                <label for="budget-item-name">${translate("item_name")}*</label>
-                <input type="text" id="budget-item-name" required
-                       value="${item ? escapeHTML(item.name) : ""}">
-              </div>
-              <div class="form-group">
-                <label for="budget-item-category">${translate("category")}</label>
-                <select id="budget-item-category">
-                  <option value="">${translate("uncategorized")}</option>
-                  ${this.categories
-                    .map(
-                      (cat) => `
-                    <option value="${cat.id}" ${item?.budget_category_id === cat.id ? "selected" : ""}>
-                      ${escapeHTML(cat.name)}
-                    </option>
-                  `,
-                    )
-                    .join("")}
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="budget-item-description">${translate("description")}</label>
-                <textarea id="budget-item-description" rows="3">${item ? escapeHTML(item.description || "") : ""}</textarea>
-              </div>
-              <div class="form-actions">
-                <button type="button" class="btn btn-secondary" id="cancel-budget-item-btn">
-                  ${translate("cancel")}
-                </button>
-                <button type="submit" class="btn btn-primary">
-                  ${isEdit ? translate("update") : translate("create")}
-                </button>
-              </div>
-            </form>
+          <div class="form-group">
+            <label for="budget-item-category">${translate("category")}</label>
+            <select id="budget-item-category">
+              <option value="">${translate("uncategorized")}</option>
+              ${this.categories
+                .map(
+                  (cat) => `
+                <option value="${cat.id}" ${item?.budget_category_id === cat.id ? "selected" : ""}>
+                  ${escapeHTML(cat.name)}
+                </option>
+              `,
+                )
+                .join("")}
+            </select>
           </div>
-        </div>
-      </div>
-    `;
-
-    insertHTML(document.body, "beforeend", modalHTML);
-
-    document
-      .getElementById("close-budget-item-modal")
-      .addEventListener("click", () => {
-        document.getElementById("budget-item-modal").remove();
-      });
-
-    document
-      .getElementById("cancel-budget-item-btn")
-      .addEventListener("click", () => {
-        document.getElementById("budget-item-modal").remove();
-      });
+          <div class="form-group">
+            <label for="budget-item-description">${translate("description")}</label>
+            <textarea id="budget-item-description" rows="3">${item ? escapeHTML(item.description || "") : ""}</textarea>
+          </div>
+        </form>
+      `,
+      footer: `
+        <button type="button" class="btn btn-secondary" data-modal-close>
+          ${translate("cancel")}
+        </button>
+        <button type="submit" form="budget-item-form" class="btn btn-primary">
+          ${isEdit ? translate("update") : translate("create")}
+        </button>
+      `,
+    });
 
     document
       .getElementById("budget-item-form")
@@ -1588,7 +1549,7 @@ export class Budgets {
         this.app.showMessage(translate("budget_item_created"), "success");
       }
 
-      document.getElementById("budget-item-modal").remove();
+      closeModal("budget-item-modal");
       await this.invalidateBudgetCaches({ categoryId });
       await this.refreshBudgetData(true);
     } catch (error) {
@@ -1612,76 +1573,56 @@ export class Budgets {
 
   showExpenseModal(expense = null) {
     const isEdit = !!expense;
-    const modalHTML = `
-      <div class="modal-overlay" id="expense-modal">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>${isEdit ? translate("edit_expense") : translate("add_expense")}</h3>
-            <button class="modal-close" id="close-expense-modal">&times;</button>
+    openModal({
+      id: "expense-modal",
+      title: isEdit ? translate("edit_expense") : translate("add_expense"),
+      body: `
+        <form id="expense-form">
+          <div class="form-group">
+            <label for="expense-category">${translate("category")}</label>
+            <select id="expense-category">
+              <option value="">${translate("uncategorized")}</option>
+              ${this.categories
+                .map(
+                  (cat) => `
+                <option value="${cat.id}" ${expense?.budget_category_id === cat.id ? "selected" : ""}>
+                  ${escapeHTML(cat.name)}
+                </option>
+              `,
+                )
+                .join("")}
+            </select>
           </div>
-          <div class="modal-body">
-            <form id="expense-form">
-              <div class="form-group">
-                <label for="expense-category">${translate("category")}</label>
-                <select id="expense-category">
-                  <option value="">${translate("uncategorized")}</option>
-                  ${this.categories
-                    .map(
-                      (cat) => `
-                    <option value="${cat.id}" ${expense?.budget_category_id === cat.id ? "selected" : ""}>
-                      ${escapeHTML(cat.name)}
-                    </option>
-                  `,
-                    )
-                    .join("")}
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="expense-amount">${translate("amount")}*</label>
-                <input type="number" id="expense-amount" step="0.01" min="0" required
-                       value="${expense ? expense.amount : ""}">
-              </div>
-              <div class="form-group">
-                <label for="expense-date">${translate("date")}*</label>
-                <input type="date" id="expense-date" required
-                       value="${expense ? expense.expense_date : getTodayISO()}">
-              </div>
-              <div class="form-group">
-                <label for="expense-description">${translate("description")}*</label>
-                <textarea id="expense-description" rows="3" required>${expense ? escapeHTML(expense.description) : ""}</textarea>
-              </div>
-              <div class="form-group">
-                <label for="expense-payment-method">${translate("payment_method")}</label>
-                <input type="text" id="expense-payment-method"
-                       value="${expense ? escapeHTML(expense.payment_method || "") : ""}">
-              </div>
-              <div class="form-actions">
-                <button type="button" class="btn btn-secondary" id="cancel-expense-btn">
-                  ${translate("cancel")}
-                </button>
-                <button type="submit" class="btn btn-primary">
-                  ${isEdit ? translate("update") : translate("create")}
-                </button>
-              </div>
-            </form>
+          <div class="form-group">
+            <label for="expense-amount">${translate("amount")}*</label>
+            <input type="number" id="expense-amount" step="0.01" min="0" required
+                   value="${expense ? expense.amount : ""}">
           </div>
-        </div>
-      </div>
-    `;
-
-    insertHTML(document.body, "beforeend", modalHTML);
-
-    document
-      .getElementById("close-expense-modal")
-      .addEventListener("click", () => {
-        document.getElementById("expense-modal").remove();
-      });
-
-    document
-      .getElementById("cancel-expense-btn")
-      .addEventListener("click", () => {
-        document.getElementById("expense-modal").remove();
-      });
+          <div class="form-group">
+            <label for="expense-date">${translate("date")}*</label>
+            <input type="date" id="expense-date" required
+                   value="${expense ? expense.expense_date : getTodayISO()}">
+          </div>
+          <div class="form-group">
+            <label for="expense-description">${translate("description")}*</label>
+            <textarea id="expense-description" rows="3" required>${expense ? escapeHTML(expense.description) : ""}</textarea>
+          </div>
+          <div class="form-group">
+            <label for="expense-payment-method">${translate("payment_method")}</label>
+            <input type="text" id="expense-payment-method"
+                   value="${expense ? escapeHTML(expense.payment_method || "") : ""}">
+          </div>
+        </form>
+      `,
+      footer: `
+        <button type="button" class="btn btn-secondary" data-modal-close>
+          ${translate("cancel")}
+        </button>
+        <button type="submit" form="expense-form" class="btn btn-primary">
+          ${isEdit ? translate("update") : translate("create")}
+        </button>
+      `,
+    });
 
     document
       .getElementById("expense-form")
@@ -1724,7 +1665,7 @@ export class Budgets {
         this.app.showMessage(translate("expense_created"), "success");
       }
 
-      document.getElementById("expense-modal").remove();
+      closeModal("expense-modal");
       await this.invalidateBudgetCaches();
       await this.refreshBudgetData(true);
     } catch (error) {
@@ -1749,82 +1690,64 @@ export class Budgets {
   showPlanModal(plan = null) {
     const isEdit = !!plan;
     const fy = this.getCurrentFiscalYearData();
-    const modalHTML = `
-      <div class="modal-overlay" id="plan-modal">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>${isEdit ? translate("edit_budget_plan") : translate("add_budget_plan")}</h3>
-            <button class="modal-close" id="close-plan-modal">&times;</button>
+    openModal({
+      id: "plan-modal",
+      title: isEdit ? translate("edit_budget_plan") : translate("add_budget_plan"),
+      body: `
+        <form id="plan-form">
+          <div class="form-group">
+            <label for="plan-item">${translate("budget_item")}</label>
+            <select id="plan-item">
+              <option value="">${translate("select")}...</option>
+              ${this.items
+                .map(
+                  (item) => `
+                <option value="${item.id}" ${plan?.budget_item_id === item.id ? "selected" : ""}>
+                  ${escapeHTML(item.name)} (${escapeHTML(item.category_name || "-")})
+                </option>
+              `,
+                )
+                .join("")}
+            </select>
           </div>
-          <div class="modal-body">
-            <form id="plan-form">
-              <div class="form-group">
-                <label for="plan-item">${translate("budget_item")}</label>
-                <select id="plan-item">
-                  <option value="">${translate("select")}...</option>
-                  ${this.items
-                    .map(
-                      (item) => `
-                    <option value="${item.id}" ${plan?.budget_item_id === item.id ? "selected" : ""}>
-                      ${escapeHTML(item.name)} (${escapeHTML(item.category_name || "-")})
-                    </option>
-                  `,
-                    )
-                    .join("")}
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="plan-fy-start">${translate("fiscal_year")} ${translate("start_date")}</label>
-                  <input type="date" id="plan-fy-start" required
-                         value="${plan ? plan.fiscal_year_start : fy.start}">
-                </div>
-                <div class="form-group">
-                  <label for="plan-fy-end">${translate("end_date")}</label>
-                  <input type="date" id="plan-fy-end" required
-                         value="${plan ? plan.fiscal_year_end : fy.end}">
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="plan-revenue">${translate("budgeted_revenue")}</label>
-                  <input type="number" id="plan-revenue" step="0.01" min="0"
-                         value="${plan ? plan.budgeted_revenue : 0}">
-                </div>
-                <div class="form-group">
-                  <label for="plan-expense">${translate("budgeted_expense")}</label>
-                  <input type="number" id="plan-expense" step="0.01" min="0"
-                         value="${plan ? plan.budgeted_expense : 0}">
-                </div>
-              </div>
-              <div class="form-group">
-                <label for="plan-notes">${translate("notes")}</label>
-                <textarea id="plan-notes" rows="3">${plan ? escapeHTML(plan.notes || "") : ""}</textarea>
-              </div>
-              <div class="form-actions">
-                <button type="button" class="btn btn-secondary" id="cancel-plan-btn">
-                  ${translate("cancel")}
-                </button>
-                <button type="submit" class="btn btn-primary">
-                  ${isEdit ? translate("update") : translate("create")}
-                </button>
-              </div>
-            </form>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="plan-fy-start">${translate("fiscal_year")} ${translate("start_date")}</label>
+              <input type="date" id="plan-fy-start" required
+                     value="${plan ? plan.fiscal_year_start : fy.start}">
+            </div>
+            <div class="form-group">
+              <label for="plan-fy-end">${translate("end_date")}</label>
+              <input type="date" id="plan-fy-end" required
+                     value="${plan ? plan.fiscal_year_end : fy.end}">
+            </div>
           </div>
-        </div>
-      </div>
-    `;
-
-    insertHTML(document.body, "beforeend", modalHTML);
-
-    document
-      .getElementById("close-plan-modal")
-      .addEventListener("click", () => {
-        document.getElementById("plan-modal").remove();
-      });
-
-    document.getElementById("cancel-plan-btn").addEventListener("click", () => {
-      document.getElementById("plan-modal").remove();
+          <div class="form-row">
+            <div class="form-group">
+              <label for="plan-revenue">${translate("budgeted_revenue")}</label>
+              <input type="number" id="plan-revenue" step="0.01" min="0"
+                     value="${plan ? plan.budgeted_revenue : 0}">
+            </div>
+            <div class="form-group">
+              <label for="plan-expense">${translate("budgeted_expense")}</label>
+              <input type="number" id="plan-expense" step="0.01" min="0"
+                     value="${plan ? plan.budgeted_expense : 0}">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="plan-notes">${translate("notes")}</label>
+            <textarea id="plan-notes" rows="3">${plan ? escapeHTML(plan.notes || "") : ""}</textarea>
+          </div>
+        </form>
+      `,
+      footer: `
+        <button type="button" class="btn btn-secondary" data-modal-close>
+          ${translate("cancel")}
+        </button>
+        <button type="submit" form="plan-form" class="btn btn-primary">
+          ${isEdit ? translate("update") : translate("create")}
+        </button>
+      `,
     });
 
     document
@@ -1869,7 +1792,7 @@ export class Budgets {
         this.app.showMessage(translate("budget_plan_created"), "success");
       }
 
-      document.getElementById("plan-modal").remove();
+      closeModal("plan-modal");
       await this.invalidateBudgetCaches();
       await this.refreshBudgetData(true);
     } catch (error) {

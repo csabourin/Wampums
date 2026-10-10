@@ -27,6 +27,7 @@ import { confirmDestructive } from "./utils/DialogUtils.js";
 import { validateMoney, validateDateField, validatePositiveInteger } from "./utils/ValidationUtils.js";
 import { canManageFinance, canViewFinance } from "./utils/PermissionUtils.js";
 import { setContent, insertHTML } from "./utils/DOMUtils.js";
+import { openModal, closeModal } from "./utils/ModalUtils.js";
 import { BaseModule } from "./utils/BaseModule.js";
 import { CONFIG } from "./config.js";
 
@@ -299,8 +300,6 @@ export class Finance extends BaseModule {
           ${this.renderActiveTab()}
         </div>
       </section>
-      ${this.renderPaymentModal()}
-      ${this.renderPlanModal()}
     `;
 
     setContent(document.getElementById("app"), content);
@@ -674,32 +673,31 @@ export class Finance extends BaseModule {
     exportToCSV(participants, columns, filename);
   }
 
+  /**
+   * Record payments for one fee. The dialog closes once a payment is saved.
+   * @returns {{ body: string, footer: string }} Dialog contents
+   */
   renderPaymentModal() {
-    return `
-      <div id="payment-modal" class="modal" aria-hidden="true" role="dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h2 id="payment-modal-title">${translate("payment_details")}</h2>
-            <button class="modal-close" aria-label="${translate("close")}">&times;</button>
-          </div>
-          <div class="modal-body">
-            <div class="finance-amounts">
-              <div>
-                <p id="payment-total-label" class="finance-stat__label">${translate("total_amount")}</p>
-                <output id="payment-total-output" class="finance-stat__value">--</output>
-              </div>
-            </div>
-            <div id="payment-history" class="finance-list"></div>
-            <form id="payment-form" class="finance-form" novalidate>
-              <input type="hidden" id="payment_fee_id" name="participant_fee_id">
-              <div id="payment-rows">${this.renderPaymentRow(0)}</div>
-              <button type="button" class="ghost-button" id="add-payment-row">${translate("add_payment_row")}</button>
-              <button type="submit" class="primary-button">${translate("save_payment")}</button>
-            </form>
+    return {
+      body: `
+        <div class="finance-amounts">
+          <div>
+            <p id="payment-total-label" class="finance-stat__label">${translate("total_amount")}</p>
+            <output id="payment-total-output" class="finance-stat__value" aria-labelledby="payment-total-label">--</output>
           </div>
         </div>
-      </div>
-    `;
+        <div id="payment-history" class="finance-list"></div>
+        <form id="payment-form" class="finance-form" novalidate>
+          <input type="hidden" id="payment_fee_id" name="participant_fee_id">
+          <div id="payment-rows">${this.renderPaymentRow(0)}</div>
+          <button type="button" class="ghost-button" id="add-payment-row">${translate("add_payment_row")}</button>
+        </form>
+      `,
+      footer: `
+        <button type="button" class="ghost-button" data-modal-close>${translate("cancel")}</button>
+        <button type="submit" class="primary-button" form="payment-form">${translate("save_payment")}</button>
+      `,
+    };
   }
 
   renderPaymentRow(index) {
@@ -738,41 +736,37 @@ export class Finance extends BaseModule {
     }
   }
 
+  /**
+   * Set up or change a fee's installment plan.
+   * @returns {{ body: string, footer: string }} Dialog contents
+   */
   renderPlanModal() {
-    return `
-      <div id="plan-modal" class="modal" aria-hidden="true" role="dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h2 id="plan-modal-title">${translate("manage_installments")}</h2>
-            <button class="modal-close" aria-label="${translate("close")}">&times;</button>
-          </div>
-          <div class="modal-body">
-            <div id="plan-details" class="finance-list"></div>
-            <form id="plan-form" class="finance-form" novalidate>
-              <input type="hidden" id="plan_fee_id" name="participant_fee_id">
-              <label for="plan_count">${translate("number_of_payments")}</label>
-              <input type="number" min="1" id="plan_count" name="number_of_payments" required>
-              <label for="plan_amount">${translate("amount_per_payment")}</label>
-              <input type="number" step="0.01" min="0" id="plan_amount" name="amount_per_payment" required>
-              <label for="plan_start">${translate("start_date")}</label>
-              <input type="date" id="plan_start" name="start_date" required>
-              <label for="plan_frequency">${translate("frequency")}</label>
-              <select id="plan_frequency" name="frequency" required>
-                <option value="monthly">${translate("monthly")}</option>
-                <option value="biweekly">${translate("biweekly")}</option>
-                <option value="weekly">${translate("weekly")}</option>
-              </select>
-              <label for="plan_notes">${translate("notes")}</label>
-              <textarea id="plan_notes" name="notes" rows="2"></textarea>
-              <div class="finance-actions">
-                <button type="submit" class="primary-button">${translate("save")}</button>
-                <button type="button" class="btn-danger" id="delete-plan-btn">${translate("delete")}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    `;
+    return {
+      body: `
+        <div id="plan-details" class="finance-list"></div>
+        <form id="plan-form" class="finance-form" novalidate>
+          <input type="hidden" id="plan_fee_id" name="participant_fee_id">
+          <label for="plan_count">${translate("number_of_payments")}</label>
+          <input type="number" min="1" id="plan_count" name="number_of_payments" required>
+          <label for="plan_amount">${translate("amount_per_payment")}</label>
+          <input type="number" step="0.01" min="0" id="plan_amount" name="amount_per_payment" required>
+          <label for="plan_start">${translate("start_date")}</label>
+          <input type="date" id="plan_start" name="start_date" required>
+          <label for="plan_frequency">${translate("frequency")}</label>
+          <select id="plan_frequency" name="frequency" required>
+            <option value="monthly">${translate("monthly")}</option>
+            <option value="biweekly">${translate("biweekly")}</option>
+            <option value="weekly">${translate("weekly")}</option>
+          </select>
+          <label for="plan_notes">${translate("notes")}</label>
+          <textarea id="plan_notes" name="notes" rows="2"></textarea>
+        </form>
+      `,
+      footer: `
+        <button type="button" class="btn-danger" id="delete-plan-btn">${translate("delete")}</button>
+        <button type="submit" class="primary-button" form="plan-form">${translate("save")}</button>
+      `,
+    };
   }
 
   attachEventListeners() {
@@ -942,42 +936,6 @@ export class Finance extends BaseModule {
         requireSelection();
       }
     });
-
-    const paymentModal = document.getElementById('payment-modal');
-    if (paymentModal) {
-      paymentModal.querySelector('.modal-close')?.addEventListener('click', () => this.closeModal(paymentModal));
-      paymentModal.addEventListener('click', (e) => {
-        if (e.target === paymentModal) {
-          this.closeModal(paymentModal);
-        }
-      });
-      const paymentForm = document.getElementById('payment-form');
-      paymentForm?.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const submitBtn = paymentForm.querySelector('button[type="submit"]');
-        withButtonLoading(submitBtn, () => this.handlePaymentSubmit(e));
-      });
-      document.getElementById('add-payment-row')?.addEventListener('click', () => this.addPaymentRow());
-    }
-
-    const planModal = document.getElementById('plan-modal');
-    if (planModal) {
-      planModal.querySelector('.modal-close')?.addEventListener('click', () => this.closeModal(planModal));
-      planModal.addEventListener('click', (e) => {
-        if (e.target === planModal) {
-          this.closeModal(planModal);
-        }
-      });
-      const planForm = document.getElementById('plan-form');
-      planForm?.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const submitBtn = planForm.querySelector('button[type="submit"]');
-        withButtonLoading(submitBtn, () => this.handlePlanSubmit(e));
-      });
-      document.getElementById('delete-plan-btn')?.addEventListener('click', (e) => {
-        withButtonLoading(e.target, () => this.handlePlanDelete());
-      });
-    }
   }
 
   async handleDefinitionSubmit(event) {
@@ -1213,31 +1171,25 @@ export class Finance extends BaseModule {
   }
 
   async openPaymentModal(feeId) {
-    // Clean up any existing modal first (prevent accumulation)
-    const existingModal = document.getElementById('payment-modal');
-    if (existingModal && existingModal.classList.contains('show')) {
-      this.closeModal(existingModal);
-      // Small delay to allow close animation
-      await new Promise(resolve => window.setTimeout(resolve, 100));
-    }
+    const { overlay } = openModal({
+      id: 'payment-modal',
+      title: translate("payment_details"),
+      ...this.renderPaymentModal(),
+    });
+    const paymentForm = overlay.querySelector('#payment-form');
+    paymentForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const submitBtn = overlay.querySelector('button[type="submit"]');
+      withButtonLoading(submitBtn, () => this.handlePaymentSubmit(e));
+    });
+    overlay.querySelector('#add-payment-row').addEventListener('click', () => this.addPaymentRow());
 
-    const modal = document.getElementById('payment-modal');
-    if (!modal) return;
-
-    modal.classList.add('show');
-    modal.setAttribute('aria-hidden', 'false');
     document.getElementById('payment_fee_id').value = feeId;
-    this.resetPaymentRows();
 
     const fee = this.participantFees.find((item) => String(item.id) === String(feeId));
     this.updatePaymentSummary(fee);
     this.prefillPaymentRowAmounts(fee);
     await this.renderPaymentHistory(feeId);
-  }
-
-  closeModal(modalElement) {
-    modalElement.classList.remove('show');
-    modalElement.setAttribute('aria-hidden', 'true');
   }
 
   async renderPaymentHistory(feeId) {
@@ -1392,6 +1344,7 @@ export class Finance extends BaseModule {
       this.paymentsCache.delete(feeId);
       await this.renderPaymentHistory(feeId);
       await this.loadCoreData();
+      closeModal('payment-modal');
       this.render();
       this.attachEventListeners();
       this.app.showMessage(translate('payment_saved'), 'success');
@@ -1402,19 +1355,21 @@ export class Finance extends BaseModule {
   }
 
   async openPlanModal(feeId) {
-    // Clean up any existing modal first (prevent accumulation)
-    const existingModal = document.getElementById('plan-modal');
-    if (existingModal && existingModal.classList.contains('show')) {
-      this.closeModal(existingModal);
-      // Small delay to allow close animation
-      await new Promise(resolve => window.setTimeout(resolve, 100));
-    }
+    const { overlay } = openModal({
+      id: 'plan-modal',
+      title: translate("manage_installments"),
+      ...this.renderPlanModal(),
+    });
+    const planForm = overlay.querySelector('#plan-form');
+    planForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const submitBtn = overlay.querySelector('button[type="submit"]');
+      withButtonLoading(submitBtn, () => this.handlePlanSubmit(e));
+    });
+    overlay.querySelector('#delete-plan-btn').addEventListener('click', (e) => {
+      withButtonLoading(e.currentTarget, () => this.handlePlanDelete());
+    });
 
-    const modal = document.getElementById('plan-modal');
-    if (!modal) return;
-
-    modal.classList.add('show');
-    modal.setAttribute('aria-hidden', 'false');
     document.getElementById('plan_fee_id').value = feeId;
     await this.renderPlanDetails(feeId);
   }
@@ -1489,6 +1444,7 @@ export class Finance extends BaseModule {
       this.paymentPlanCache.delete(feeId);
       await this.renderPlanDetails(feeId);
       await this.loadCoreData();
+      closeModal('plan-modal');
       this.render();
       this.attachEventListeners();
       this.app.showMessage(translate('data_saved'), 'success');
@@ -1513,6 +1469,7 @@ export class Finance extends BaseModule {
       this.paymentPlanCache.delete(feeId);
       await this.renderPlanDetails(feeId);
       await this.loadCoreData();
+      closeModal('plan-modal');
       this.render();
       this.attachEventListeners();
       this.app.showMessage(translate('data_saved'), 'success');
