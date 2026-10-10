@@ -16,7 +16,7 @@ const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 
 // Import middleware
-const { authenticate } = require('../middleware/auth');
+const { authenticate, dataScopeOfRoles } = require('../middleware/auth');
 const { ROLE_PRIORITY } = require('../config/role-constants');
 const { requireJWTSecret, signJWTToken } = require('../utils/jwt-config');
 const {
@@ -351,7 +351,7 @@ module.exports = (pool, logger) => {
         // Demo users bypass 2FA, trusted devices skip 2FA - proceed with normal login
         // Fetch user's roles and permissions for this organization
         const rolesResult = await pool.query(
-          `SELECT DISTINCT r.id as role_id, r.role_name
+          `SELECT DISTINCT r.id as role_id, r.role_name, r.data_scope
            FROM user_organizations uo
            CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
            JOIN roles r ON r.id = role_id_text::integer
@@ -412,6 +412,7 @@ module.exports = (pool, logger) => {
           user_role: primaryRole, // Primary role for backward compatibility
           user_roles: roleNames, // All user roles
           user_permissions: permissions, // All user permissions
+          user_data_scope: dataScopeOfRoles(rolesResult.rows),
           user_full_name: user.full_name,
           user_id: user.id,
           organization_id: organizationId
@@ -529,7 +530,7 @@ module.exports = (pool, logger) => {
 
         // Fetch user's roles and permissions for this organization
         const rolesResult = await pool.query(
-          `SELECT DISTINCT r.id as role_id, r.role_name
+          `SELECT DISTINCT r.id as role_id, r.role_name, r.data_scope
            FROM user_organizations uo
            CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
            JOIN roles r ON r.id = role_id_text::integer
@@ -590,6 +591,7 @@ module.exports = (pool, logger) => {
           user_role: primaryRole,
           user_roles: roleNames,
           user_permissions: permissions,
+          user_data_scope: dataScopeOfRoles(rolesResult.rows),
           user_full_name: user.full_name,
           user_id: user.id,
           organization_id: organizationId

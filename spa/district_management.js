@@ -16,6 +16,7 @@ import { getCachedData, setCachedData } from "./indexedDB.js";
 import { debounce } from "./utils/PerformanceUtils.js";
 import { debugError } from "./utils/DebugUtils.js";
 import { canAssignRoles, canViewRoles } from "./utils/PermissionUtils.js";
+import { roleLabel } from './utils/RoleLabelUtils.js';
 import {
   escapeHTML,
   sanitizeHTML,
@@ -302,7 +303,7 @@ export class DistrictManagement {
               .filter(Boolean)
               .map((role) => ({
                 ...role,
-                display_name: role.display_name || role.role_name,
+                display_name: roleLabel(role),
               }));
 
       return {
@@ -505,7 +506,7 @@ export class DistrictManagement {
 
   renderRoleFilters() {
     const chips = this.roles.map((role) => {
-      const roleName = escapeHTML(role.display_name || role.role_name);
+      const roleName = escapeHTML(roleLabel(role));
       const isActive = this.activeRoleFilters.has(role.role_name);
       return `
         <button class="chip ${isActive ? "chip--primary" : ""}" data-role-filter="${escapeHTML(role.role_name)}" aria-pressed="${isActive}">
@@ -537,7 +538,7 @@ export class DistrictManagement {
                 .map(
                   (role) => `
                     <span class="chip dm-role-chip" role="listitem">
-                      ${escapeHTML(role.display_name || role.role_name)}
+                      ${escapeHTML(roleLabel(role))}
                     </span>
                   `,
                 )
@@ -886,7 +887,7 @@ export class DistrictManagement {
     if (!Array.isArray(user.roles) || !user.roles.length) return [];
     return user.roles.map((role) => ({
       ...role,
-      display_name: role.display_name || role.role_name,
+      display_name: roleLabel(role),
     }));
   }
 
@@ -957,7 +958,7 @@ export class DistrictManagement {
   getRoleBundles() {
     return this.roleBundleIndex.list.map((role) => ({
       ...role,
-      display_name: role.display_name || role.role_name,
+      display_name: roleLabel(role),
       description:
         role.description ||
         translate(`district_management_bundle_${role.role_name}`) ||
@@ -1042,7 +1043,7 @@ export class DistrictManagement {
         translate("district_management_local_group_notice") ||
         "Inventory bundles can extend to organizations within your local group.";
       const bundleLabels = localGroupRoles
-        .map((roleName) => this.getRoleByName(roleName)?.display_name || roleName)
+        .map((roleName) => roleLabel(this.getRoleByName(roleName) || roleName))
         .filter(Boolean)
         .join(", ");
       warnings.push(bundleLabels ? `${template} (${bundleLabels})` : template);
@@ -1231,7 +1232,7 @@ export class DistrictManagement {
     return roleIds
       .map((id) => roleLookup.get(id))
       .filter(Boolean)
-      .map((role) => role.display_name || role.role_name);
+      .map((role) => roleLabel(role));
   }
 
   recordLocalAuditEntry(userId, roleIds, status = "success") {

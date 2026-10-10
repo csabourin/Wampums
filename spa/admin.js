@@ -20,6 +20,7 @@ import { escapeHTML } from "./utils/SecurityUtils.js";
 import { setContent, clearElement, insertHTML } from "./utils/DOMUtils.js";
 import { canAccessAdminPanel, canCreateOrganization, canManageUsers, canSendCommunications, canViewUsers } from "./utils/PermissionUtils.js";
 import { getMountPoint, resolveMountOptions } from "./utils/PageMount.js";
+import { roleLabel } from './utils/RoleLabelUtils.js';
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class Admin {
@@ -238,10 +239,7 @@ ${showNotifications ? `
          * @returns {string}
          */
         getRoleLabel(role) {
-                if (typeof role === "object" && role !== null) {
-                        return role.display_name || translate(role.role_name) || role.role_name;
-                }
-                return translate(role) || role;
+                return roleLabel(role);
         }
 
         /**

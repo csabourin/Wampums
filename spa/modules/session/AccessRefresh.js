@@ -38,7 +38,7 @@ function sameKeys(first, second) {
  * Failure (offline, server error) leaves the stored copy as it is: the API
  * still decides every request, so a stale copy only affects what is shown.
  *
- * @param {Object} app - The application object (userRoles, userPermissions)
+ * @param {Object} app - The application object (userRoles, userPermissions, userDataScope)
  * @returns {Promise<boolean>} True when the stored access changed
  */
 export async function refreshAccess(app) {
@@ -55,16 +55,21 @@ export async function refreshAccess(app) {
     return false;
   }
 
-  if (sameKeys(access.roles, app.userRoles) && sameKeys(access.permissions, app.userPermissions)) {
+  const dataScope = access.data_scope || null;
+  if (sameKeys(access.roles, app.userRoles)
+    && sameKeys(access.permissions, app.userPermissions)
+    && dataScope === (app.userDataScope || null)) {
     return false;
   }
 
   debugLog('Access changed since sign-in; updating the stored copy');
   app.userRoles = access.roles;
   app.userPermissions = access.permissions;
+  app.userDataScope = dataScope;
   setStorageMultiple({
     userRoles: JSON.stringify(access.roles),
     userPermissions: JSON.stringify(access.permissions),
+    userDataScope: dataScope || '',
   });
   return true;
 }

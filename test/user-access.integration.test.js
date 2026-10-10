@@ -1,8 +1,8 @@
 /**
  * Current access — integration suite
  *
- * GET /api/v1/users/me/access is what the app reads to replace the roles and
- * permissions it stored at sign-in. It must answer from the database, not
+ * GET /api/v1/users/me/access is what the app reads to replace the roles,
+ * permissions and data scope it stored at sign-in. It must answer from the database, not
  * echo the token, and give nothing to a membership that is no longer active.
  *
  * Skipped unless SCOUT_YEAR_TEST_DATABASE_URL (or TEST_DATABASE_URL) points at
@@ -122,6 +122,32 @@ describe.skipIf(!DATABASE_URL)('Current access', () => {
     expect(response.body.data.roles).toEqual([ids.roleName]);
     expect(response.body.data.permissions).toEqual(expect.arrayContaining(['carpools.view', 'participants.create_own']));
     expect(response.body.data.permissions).not.toContain('finance.view');
+    expect(response.body.data.data_scope).toBe('linked');
+  });
+
+  test('a parent who also holds a whole-unit role reads the whole unit', async () => {
+    const staffRoleId = await one(
+      `INSERT INTO roles (role_name, display_name, data_scope) VALUES ($1, 'Leader', 'organization') RETURNING id`,
+      [`unit_access_${suffix}`]
+    );
+    const familyRoleId = await one('SELECT id FROM roles WHERE role_name = $1', [ids.roleName]);
+    await pool.query(
+      'UPDATE user_organizations SET role_ids = $3 WHERE user_id = $1 AND organization_id = $2',
+      [ids.user, ids.unit, JSON.stringify([familyRoleId, staffRoleId])]
+    );
+
+    try {
+      const response = await request(app).get('/api/v1/users/me/access');
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.roles).toEqual(expect.arrayContaining([ids.roleName, `unit_access_${suffix}`]));
+      expect(response.body.data.data_scope).toBe('organization');
+    } finally {
+      await pool.query(
+        'UPDATE user_organizations SET role_ids = $3 WHERE user_id = $1 AND organization_id = $2',
+        [ids.user, ids.unit, JSON.stringify([familyRoleId])]
+      );
+    }
   });
 
   test('gives nothing to a membership that is no longer active', async () => {
@@ -134,7 +160,7 @@ describe.skipIf(!DATABASE_URL)('Current access', () => {
       const response = await request(app).get('/api/v1/users/me/access');
 
       expect(response.status).toBe(200);
-      expect(response.body.data).toEqual({ roles: [], permissions: [] });
+      expect(response.body.data).toEqual({ roles: [], permissions: [], data_scope: 'linked' });
     } finally {
       await pool.query(
         "UPDATE user_organizations SET status = 'active' WHERE user_id = $1 AND organization_id = $2",

@@ -81,6 +81,18 @@ describe('refreshAccess', () => {
     expect(app.userRoles).toEqual(['finance', 'parent']);
   });
 
+  test('picks up the whole-unit scope a leader role brings to a parent', async () => {
+    const app = { ...signedInParent(), userDataScope: 'linked' };
+    getCurrentAccess.mockResolvedValue({
+      success: true,
+      data: { roles: ['parent'], permissions: SIGNED_IN_PERMISSIONS, data_scope: 'organization' }
+    });
+
+    await expect(refreshAccess(app)).resolves.toBe(true);
+    expect(app.userDataScope).toBe('organization');
+    expect(localStorage.getItem('userDataScope')).toBe('organization');
+  });
+
   test('keeps the stored copy when the server cannot be reached', async () => {
     const app = signedInParent();
     getCurrentAccess.mockRejectedValue(new Error('offline'));

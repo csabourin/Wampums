@@ -498,5 +498,16 @@ exports.getUserDataScope = async (req, pool) => {
   if (!req.user?.id) {return 'linked';}
   const context = await loadAuthorizationContext(req, pool);
   if (!context.active) {return 'linked';}
-  return context.roles.some((role) => role.data_scope === 'organization') ? 'organization' : 'linked';
+  return exports.dataScopeOfRoles(context.roles);
 };
+
+/**
+ * Data scope a set of roles gives together: one organization-wide role is
+ * enough, so a parent who is also a leader sees the whole unit.
+ *
+ * @param {Array<{data_scope: ?string}>} roles - Role rows holding data_scope
+ * @returns {string} 'organization' or 'linked'
+ */
+exports.dataScopeOfRoles = (roles) => (
+  (roles || []).some((role) => role.data_scope === 'organization') ? 'organization' : 'linked'
+);

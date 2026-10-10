@@ -12,6 +12,8 @@ import { debugLog, debugError } from './utils/DebugUtils.js';
 import { translate } from './app.js';
 import { formTypeLabel } from './utils/FormLabelUtils.js';
 import { hasPermission } from './utils/PermissionUtils.js';
+import { roleLabel } from './utils/RoleLabelUtils.js';
+import { escapeHTML } from './utils/SecurityUtils.js';
 import { setContent } from './utils/DOMUtils.js';
 
 export class FormPermissionsManager {
@@ -264,7 +266,7 @@ export class FormPermissionsManager {
 
       return `
                   <tr>
-                    <td class="role-name">${translate(roleName) || perm.role_display_name}</td>
+                    <td class="role-name">${escapeHTML(roleLabel({ role_name: roleName, display_name: perm.role_display_name }))}</td>
                     <td>
                       <input
                         type="checkbox"

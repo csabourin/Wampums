@@ -371,6 +371,7 @@ export class Router {
     this.app.userFullName = session.userFullName;
     this.app.userRoles = session.userRoles;
     this.app.userPermissions = session.userPermissions;
+    this.app.userDataScope = session.userDataScope;
 
     if (this.app.isLoggedIn) {
       this.app.addSettingsIcon();

@@ -10,6 +10,7 @@ import roleManagementStylesheetUrl from '../css/role-management.css?url';
 import { app, translate } from './app.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { hasPermission } from './utils/PermissionUtils.js';
+import { roleLabel } from './utils/RoleLabelUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { deleteCachedData } from './indexedDB.js';
@@ -188,7 +189,7 @@ export class RoleManagement {
       <div class="role-card ${isExpanded ? 'expanded' : ''}" data-role-id="${role.id}">
         <div class="role-card-header">
           <div class="role-info">
-            <h3 class="role-name">${this.escapeHtml(role.display_name)}</h3>
+            <h3 class="role-name">${this.escapeHtml(roleLabel(role))}</h3>
             <span class="role-badge role-badge-${role.role_name}">${this.escapeHtml(role.role_name)}</span>
           </div>
           <button class="toggle-permissions-btn" data-role-id="${role.id}">
@@ -258,7 +259,7 @@ export class RoleManagement {
     }
 
     return this.users.map(user => {
-      const roleNames = (user.roles || []).map(r => r.display_name || r.role_name).join(', ');
+      const roleNames = (user.roles || []).map(r => roleLabel(r)).join(', ');
       const isSelected = this.selectedUserId === user.id;
 
       return `
@@ -313,7 +314,7 @@ export class RoleManagement {
               ${userRoles.length > 0
                 ? userRoles.map(role => `
                     <span class="role-badge role-badge-${role.role_name}">
-                      ${this.escapeHtml(role.display_name)}
+                      ${this.escapeHtml(roleLabel(role))}
                     </span>
                   `).join('')
                 : `<span class="empty-badge">${translate('no_roles_assigned') || 'No roles assigned'}</span>`
@@ -344,7 +345,7 @@ export class RoleManagement {
                     />
                     <div class="role-checkbox-content">
                       <div class="role-checkbox-header">
-                        <strong>${this.escapeHtml(role.display_name)}</strong>
+                        <strong>${this.escapeHtml(roleLabel(role))}</strong>
                         <span class="role-badge-small role-badge-${role.role_name}">${role.role_name}</span>
                       </div>
                       <small class="role-checkbox-description">${this.escapeHtml(role.description || '')}</small>

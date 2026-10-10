@@ -13,7 +13,7 @@ import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
 import { translate, app as appInstance } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
 import { apiErrorMessage } from "../utils/ApiErrorUtils.js";
-import { isParent } from "../utils/PermissionUtils.js";
+import { holdsFamilyRole, isParent } from "../utils/PermissionUtils.js";
 import { setContent, loadStylesheet } from "../utils/DOMUtils.js";
 import { confirm as confirmDialog } from "../utils/DialogUtils.js";
 import { getStorage, setStorage } from "../utils/StorageUtils.js";
@@ -46,7 +46,7 @@ export class AccountInfoModule {
 
     try {
       debugLog("Checking permissions and push support");
-      this.isParent = isParent();
+      this.isParent = holdsFamilyRole();
 
       // Check push notification support
       this.pushSupported = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
@@ -165,7 +165,7 @@ export class AccountInfoModule {
    * Render the settings page
    */
   render() {
-    const homeLink = this.isParent ? "/parent-dashboard" : "/dashboard";
+    const homeLink = isParent() ? "/parent-dashboard" : "/dashboard";
 
     const fullName = escapeHTML(this.userData?.full_name || "");
     const email = escapeHTML(this.userData?.email || "");
