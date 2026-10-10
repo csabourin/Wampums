@@ -97,6 +97,21 @@ async function sendSubscriptionToServer(subscription) {
         }
 }
 
+// Fallback wait before caching other languages where requestIdleCallback is missing.
+const OFFLINE_LANGUAGE_PREFETCH_DELAY_MS = 5000;
+
+/**
+ * URL of this build's version of a translation bundle (see
+ * earlyTranslationsPlugin in vite.config.mjs).
+ *
+ * @param {string} langCode - Language code, e.g. 'fr'
+ * @returns {string}
+ */
+function translationUrl(langCode) {
+  const version = window.__wampumsLangVersions?.[langCode];
+  return version ? `/lang/${langCode}.json?v=${version}` : `/lang/${langCode}.json`;
+}
+
 /**
  * Load one language's translation bundle.
  *
@@ -119,9 +134,7 @@ async function fetchTranslationBundle(langCode) {
     }
   }
 
-  const version = window.__wampumsLangVersions?.[langCode];
-  const url = version ? `/lang/${langCode}.json?v=${version}` : `/lang/${langCode}.json`;
-  const response = await fetch(url);
+  const response = await fetch(translationUrl(langCode));
   if (!response.ok) {
     throw new Error(`Failed to fetch translation file for ${langCode}`);
   }
@@ -140,6 +153,46 @@ const ORGANIZATION_SETTINGS_PERMISSION = 'org.view';
  */
 function canReadFullOrganizationSettings(permissions) {
   return Array.isArray(permissions) && permissions.includes(ORGANIZATION_SETTINGS_PERMISSION);
+}
+
+/**
+ * Read the organization settings again, e.g. after the session's permissions
+ * changed and another settings endpoint now applies.
+ *
+ * @param {Object} application - The app object
+ * @returns {Promise<void>}
+ */
+function refreshOrganizationSettings(application) {
+  application.isOrganizationSettingsFetched = false;
+  application._settingsPromise = null;
+  return application.fetchOrganizationSettings();
+}
+
+/**
+ * Let the service worker cache this build's other interface languages, so
+ * switching language works offline. Startup fetches only the visitor's own
+ * language; this runs once the browser is idle, when a service worker
+ * controls the page (its translation route keeps the copies).
+ *
+ * @param {string} currentLang - The language already loaded
+ */
+function cacheOtherLanguagesForOffline(currentLang) {
+  if (!navigator.serviceWorker?.controller) {
+    return;
+  }
+  const prefetch = () => {
+    CONFIG.SUPPORTED_LANGS
+      .filter((langCode) => langCode !== currentLang && window.__wampumsLangVersions?.[langCode])
+      .forEach((langCode) => {
+        fetch(translationUrl(langCode), { priority: 'low' })
+          .catch((error) => debugLog(`Offline copy of ${langCode} translations skipped:`, error));
+      });
+  };
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(prefetch);
+  } else {
+    setTimeout(prefetch, OFFLINE_LANGUAGE_PREFETCH_DELAY_MS);
+  }
 }
 
 export const app = {
@@ -299,20 +352,20 @@ export const app = {
                         const token = getStorage('jwtToken');
                         if (!token && this.organizationId) {
                                 try {
-                                        debugLog("Fetching organization JWT...");
+                                        debugLog('Fetching organization JWT...');
                                         const data = await fetchOrganizationJwt(this.organizationId);
                                         if (data.success && data.token) {
                                                 setStorage('jwtToken', data.token);
-                                                debugLog("Organization JWT obtained");
+                                                debugLog('Organization JWT obtained');
                                         }
                                 } catch (error) {
-                                        debugError("Error getting organization JWT:", error);
+                                        debugError('Error getting organization JWT:', error);
                                 }
                         }
 
                         // Fetch organization settings (in background, with caching)
                         this.fetchOrganizationSettings().catch(error => {
-                                debugError("Failed to fetch organization settings:", error);
+                                debugError('Failed to fetch organization settings:', error);
                                 this.organizationSettings = { name: 'Scouts' };
                         });
 
@@ -326,46 +379,51 @@ export const app = {
                                         .then(({ refreshAccess }) => refreshAccess(this))
                                         .then((changed) => {
                                                 if (!changed) {
-                                                        return;
+                                                        return undefined;
                                                 }
-                                                this.router.route(window.location.pathname + window.location.search);
-                                                this.showMessage(this.translate('access_updated'), 'info');
+                                                // The settings endpoint follows the permissions: read them again.
+                                                return refreshOrganizationSettings(this).then(() => {
+                                                        this.router.route(window.location.pathname + window.location.search);
+                                                        this.showMessage(this.translate('access_updated'), 'info');
+                                                });
                                         })
-                                        .catch(error => debugError("Failed to refresh access:", error));
+                                        .catch(error => debugError('Failed to refresh access:', error));
 
                                 // The year selector sits outside #app so it survives navigation.
                                 // It draws nothing for a unit that has only ever had one year.
                                 import('./modules/scout-year/ScoutYearBanner.js')
                                         .then(({ initScoutYearBanner }) => initScoutYearBanner())
-                                        .catch(error => debugError("Failed to mount the scout year selector:", error));
+                                        .catch(error => debugError('Failed to mount the scout year selector:', error));
 
                                 // Pick up changes other leaders make while this session is open.
                                 import('./modules/live-sync/LiveDataSync.js')
                                         .then(({ liveDataSync }) => liveDataSync.start())
-                                        .catch(error => debugError("Failed to start live sync:", error));
+                                        .catch(error => debugError('Failed to start live sync:', error));
 
                                 // Grey out what cannot be changed while an archived year is shown.
                                 // The API layer already refuses those writes; this makes it visible.
                                 import('./modules/scout-year/ArchiveReadOnly.js')
                                         .then(({ initArchiveReadOnly }) => initArchiveReadOnly())
-                                        .catch(error => debugError("Failed to install the archive read-only guard:", error));
+                                        .catch(error => debugError('Failed to install the archive read-only guard:', error));
                         }
 
                         // Detect a client running against a different server build than
                         // its cached assets came from, and force a clean reload.
                         checkForStaleClient().catch(error => {
-                                debugError("Stale client check failed:", error);
+                                debugError('Stale client check failed:', error);
                         });
 
                         // Ensure service worker is registered (fallback if vite-plugin-pwa injection missed)
                         this.registerServiceWorker();
+
+                        cacheOtherLanguagesForOffline(this.lang);
 
                         // Initialize offline support
                         initOfflineSupport();
                         this.syncOfflineData();
 
                 } catch (error) {
-                        debugError("Background initialization error:", error);
+                        debugError('Background initialization error:', error);
                 }
         },
 
