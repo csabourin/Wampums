@@ -87,8 +87,6 @@ const lazyModules = {
   GuardianManagement: () => import('./guardian-management.js').then(m => m.initGuardianManagement),
   ViewParticipantDocuments: () => import('./view_participant_documents.js').then(m => m.ViewParticipantDocuments),
   ParentContactList: () => import('./parent_contact_list.js').then(m => m.ParentContactList),
-  ApproveBadges: () => import('./approve_badges.js').then(m => m.ApproveBadges),
-  BadgeDashboard: () => import('./badge_dashboard.js').then(m => m.BadgeDashboard),
   BadgeTracker: () => import('./badge_tracker.js').then(m => m.BadgeTracker),
   ProgramProgressDashboard: () => import('./modules/program-progress/ProgramProgressDashboard.js').then(m => m.ProgramProgressDashboard),
   BadgeForm: () => import('./badge_form.js').then(m => m.BadgeForm),
@@ -172,8 +170,6 @@ const routes = {
   "/manage-groups": "manageGroups",
   "/guardian-management": "guardianManagement",
   "/view-participant-documents": "viewParticipantDocuments",
-  "/approve-badges": "approveBadges",
-  "/badge-dashboard": "badgeDashboard",
   "/badge-tracker": "badgeTracker",
   "/program-progress": "programProgressDashboard",
   "/parent-program-progress": "parentProgramProgress",
@@ -845,18 +841,6 @@ export class Router {
           }
           await this.loadReports();
           break;
-        case "approveBadges":
-          if (!guard(canApproveBadges())) {
-            break;
-          }
-          await this.loadApproveBadges();
-          break;
-        case "badgeDashboard":
-          if (!guard(canViewBadges() || canApproveBadges())) {
-            break;
-          }
-          await this.loadBadgeDashboard();
-          break;
         case "progression":
           if (!guard(canViewBadges() || canApproveBadges() || canViewParticipants())) {
             break;
@@ -1309,20 +1293,6 @@ export class Router {
     const mailingList = new MailingList(this.app);
     this.currentModuleInstance = mailingList;
     await mailingList.init();
-  }
-
-  async loadApproveBadges() {
-    const ApproveBadges = await this.loadModule('ApproveBadges');
-    const approveBadges = new ApproveBadges(this.app);
-    this.currentModuleInstance = approveBadges;
-    await approveBadges.init();
-  }
-
-  async loadBadgeDashboard() {
-    const BadgeDashboard = await this.loadModule('BadgeDashboard');
-    const badgeDashboard = new BadgeDashboard(this.app);
-    this.currentModuleInstance = badgeDashboard;
-    await badgeDashboard.init();
   }
 
   async loadBadgeTracker() {

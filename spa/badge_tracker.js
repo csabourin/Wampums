@@ -11,7 +11,7 @@
 
 import { translate } from "./app.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
-import { escapeHTML, sanitizeHTML } from "./utils/SecurityUtils.js";
+import { escapeAttribute, escapeHTML } from "./utils/SecurityUtils.js";
 import { confirm as confirmDialog, confirmDestructive } from "./utils/DialogUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
@@ -344,7 +344,7 @@ export class BadgeTracker {
           <input type="search"
                  class="badge-tracker__search-input"
                  placeholder="${translate("badge_search_placeholder") || translate("search_participants") || "Rechercher un louveteau..."}"
-                 value="${sanitizeHTML(this.searchTerm)}"
+                 value="${escapeAttribute(this.searchTerm)}"
                  data-action="search"
                  aria-label="${translate("search_participants")}">
         </div>
@@ -408,10 +408,10 @@ export class BadgeTracker {
                 data-participant-id="${participant.id}"
                 aria-expanded="${isExpanded}"
                 aria-controls="badges-${participant.id}">
-          <div class="badge-tracker__avatar">${sanitizeHTML(initials)}</div>
+          <div class="badge-tracker__avatar">${escapeHTML(initials)}</div>
           <div class="badge-tracker__participant-info">
             <div class="badge-tracker__participant-name">
-              ${sanitizeHTML(participant.first_name)} ${sanitizeHTML(participant.last_name)}
+              ${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}
               ${
                 participant.hasPending || participant.hasUndelivered
                   ? `
@@ -423,7 +423,7 @@ export class BadgeTracker {
                   : ""
               }
             </div>
-            ${participant.totem ? `<div class="badge-tracker__totem">${sanitizeHTML(participant.totem)}</div>` : ""}
+            ${participant.totem ? `<div class="badge-tracker__totem">${escapeHTML(participant.totem)}</div>` : ""}
           </div>
           ${this.renderBadgePreview(badges)}
           <span class="badge-tracker__chevron ${isExpanded ? "badge-tracker__chevron--expanded" : ""}">▼</span>
@@ -466,7 +466,7 @@ export class BadgeTracker {
 
           return `
             <div class="badge-tracker__preview-item">
-              ${template?.image ? `<img src="/images/${template.image}" alt="${sanitizeHTML(template.name)}" class="badge-tracker__preview-image">` : '<span class="badge-tracker__preview-placeholder">🏅</span>'}
+              ${template?.image ? `<img src="/images/${template.image}" alt="${escapeAttribute(template.name)}" class="badge-tracker__preview-image">` : '<span class="badge-tracker__preview-placeholder">🏅</span>'}
               ${hasUndelivered ? '<div class="badge-tracker__preview-delivery-indicator"></div>' : ""}
               <div class="badge-tracker__preview-stars">
                 ${Array.from({ length: maxStars }, (_, i) => {
@@ -501,12 +501,12 @@ export class BadgeTracker {
           <div class="badge-tracker__badge-image-container">
             ${
               template?.image
-                ? `<img src="/images/${template.image}" alt="${sanitizeHTML(template?.name || "")}" class="badge-tracker__badge-image">`
+                ? `<img src="/images/${template.image}" alt="${escapeAttribute(template?.name || "")}" class="badge-tracker__badge-image">`
                 : '<div class="badge-tracker__badge-placeholder">🏅</div>'
             }
           </div>
           <div class="badge-tracker__badge-info">
-            <h4 class="badge-tracker__badge-title">${sanitizeHTML(template?.name || translate("unknown_badge"))}</h4>
+            <h4 class="badge-tracker__badge-title">${escapeHTML(template?.name || translate("unknown_badge"))}</h4>
             <p class="badge-tracker__badge-progress-text">
               ${approvedCount}/${maxStars} ${translate("badge_status_approved") || "approuvée(s)"}
               ${deliveredCount > 0 ? ` • ${deliveredCount} ${translate("badge_delivered") || "remise(s)"}` : ""}
@@ -645,7 +645,7 @@ export class BadgeTracker {
         }
         <div class="badge-tracker__queue-content">
           <div class="badge-tracker__queue-item-header">
-            <span class="badge-tracker__queue-name">${sanitizeHTML(item.first_name)} ${sanitizeHTML(item.last_name)}</span>
+            <span class="badge-tracker__queue-name">${escapeHTML(item.first_name)} ${escapeHTML(item.last_name)}</span>
             <span class="badge-tracker__queue-star">★ ${item.etoiles}</span>
             ${
               item.star_type
@@ -661,8 +661,8 @@ export class BadgeTracker {
                 : ""
             }
           </div>
-          <div class="badge-tracker__queue-badge-name">${sanitizeHTML(template?.name || item.badge_name || "")}</div>
-          ${item.objectif ? `<div class="badge-tracker__queue-details">${sanitizeHTML(item.objectif)}</div>` : ""}
+          <div class="badge-tracker__queue-badge-name">${escapeHTML(template?.name || item.badge_name || "")}</div>
+          ${item.objectif ? `<div class="badge-tracker__queue-details">${escapeHTML(item.objectif)}</div>` : ""}
           <div class="badge-tracker__queue-date">
             ${
               type === "pending"
@@ -776,7 +776,7 @@ export class BadgeTracker {
                 .sort((a, b) => a.first_name.localeCompare(b.first_name, "fr"))
                 .map(
                   (p) =>
-                    `<option value="${p.id}" ${this.modalInitialData?.participant_id === p.id ? "selected" : ""}>${sanitizeHTML(p.first_name)} ${sanitizeHTML(p.last_name)}</option>`,
+                    `<option value="${p.id}" ${this.modalInitialData?.participant_id === p.id ? "selected" : ""}>${escapeHTML(p.first_name)} ${escapeHTML(p.last_name)}</option>`,
                 )
                 .join("")}
             </select>
@@ -796,7 +796,7 @@ export class BadgeTracker {
                       ? `<img src="/images/${template.image}" alt="" class="badge-tracker__badge-option-image">`
                       : '<span class="badge-tracker__badge-option-placeholder">🏅</span>'
                   }
-                  <span class="badge-tracker__badge-option-name">${sanitizeHTML(template.name.replace("comme ", ""))}</span>
+                  <span class="badge-tracker__badge-option-name">${escapeHTML(template.name.replace("comme ", ""))}</span>
                 </label>
               `,
                 )
@@ -1317,12 +1317,14 @@ export class BadgeTracker {
               targetText = translate("all_active_participants") || "All Active";
               targets = this.participants.map((p) => p.id); // All active
             } else {
-              targets = a.participant_ids || [];
-              targetText = targets
-                .map((tid) => {
-                  const p = this.participants.find((part) => String(part.id) === String(tid));
-                  return p ? `${p.first_name} ${p.last_name}` : "Unknown";
-                })
+              // Only youth still on the roster: one who left since the
+              // meeting is neither shown nor awarded.
+              const rosterTargets = (a.participant_ids || [])
+                .map((tid) => this.participants.find((part) => String(part.id) === String(tid)))
+                .filter(Boolean);
+              targets = rosterTargets.map((p) => p.id);
+              targetText = rosterTargets
+                .map((p) => `${p.first_name} ${p.last_name}`)
                 .join(", ");
             }
 
@@ -1499,7 +1501,7 @@ export class BadgeTracker {
                       ? `<img src="/images/${template.image}" alt="" style="width: 40px; height: 40px; object-fit: contain;">`
                       : '<span style="font-size: 32px;">🏅</span>'
                   }
-                  <span style="font-size: 0.85em; display: inline-block;">${sanitizeHTML(template.name.replace("comme ", ""))}</span>
+                  <span style="font-size: 0.85em; display: inline-block;">${escapeHTML(template.name.replace("comme ", ""))}</span>
                 </label>
               `,
                 )

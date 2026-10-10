@@ -12,7 +12,7 @@ const router = express.Router();
 
 // Import utilities
 const { getPointSystemRules } = require('../utils/api-helpers');
-const { authenticate, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/response');
 
 const DEFAULT_LEVELS = [
@@ -1215,7 +1215,11 @@ module.exports = (pool, logger) => {
    * /api/badge-tracker-summary:
    *   get:
    *     summary: Get comprehensive badge tracker summary
-   *     description: Retrieve badge data with delivery status, grouped by participant
+   *     description: >
+   *       Retrieve badge data with delivery status, grouped by participant.
+   *       Limited to participants on the roster of the scout year being
+   *       consulted (the active year unless `x-scout-year-id` or
+   *       `scout_year_id` selects an archived one).
    *     tags: [Badges]
    *     security:
    *       - bearerAuth: []
@@ -1223,8 +1227,12 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Badge tracker summary retrieved successfully
    */
-  router.get('/badge-tracker-summary', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
+  router.get('/badge-tracker-summary', authenticate, requirePermission('badges.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
+    // Only youth on the roster of the year being consulted appear, along with
+    // their stars. Stars are cumulative, so they are not bounded by date: a
+    // returning cub keeps last year's progress.
+    const { id: scoutYearId } = req.scoutYear;
 
     // Check if new columns exist (migration may not have been run yet)
     let hasNewColumns = false;
@@ -1273,6 +1281,8 @@ module.exports = (pool, logger) => {
                 COALESCE(bt.levels, '[]'::jsonb) AS template_levels
          FROM badge_progress bp
          JOIN participants p ON bp.participant_id = p.id
+         JOIN participant_enrollments pe ON pe.participant_id = p.id
+          AND pe.organization_id = $1 AND pe.scout_year_id = $2 AND pe.status = ANY($3::text[])
          LEFT JOIN badge_templates bt ON bp.badge_template_id = bt.id
          WHERE bp.organization_id = $1
          ORDER BY p.first_name, p.last_name, COALESCE(bt.name, bp.territoire_chasse), bp.etoiles`;
@@ -1309,12 +1319,14 @@ module.exports = (pool, logger) => {
                 COALESCE(bt.levels, '[]'::jsonb) AS template_levels
          FROM badge_progress bp
          JOIN participants p ON bp.participant_id = p.id
+         JOIN participant_enrollments pe ON pe.participant_id = p.id
+          AND pe.organization_id = $1 AND pe.scout_year_id = $2 AND pe.status = ANY($3::text[])
          LEFT JOIN badge_templates bt ON bp.badge_template_id = bt.id
          WHERE bp.organization_id = $1
          ORDER BY p.first_name, p.last_name, COALESCE(bt.name, bp.territoire_chasse), bp.etoiles`;
     }
 
-    const badgesResult = await pool.query(badgesQuery, [organizationId]);
+    const badgesResult = await pool.query(badgesQuery, [organizationId, scoutYearId, req.rosterStatuses]);
 
     // Get templates for the organization
     const templatesResult = await pool.query(
@@ -1326,17 +1338,18 @@ module.exports = (pool, logger) => {
       [organizationId]
     );
 
-    // Get participants with their groups
+    // Get the participants on that year's roster, with that year's groups
     const participantsResult = await pool.query(
       `SELECT p.id, p.first_name, p.last_name,
                 g.id AS group_id, g.name AS group_name, g.section
          FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         JOIN participant_enrollments pe ON p.id = pe.participant_id
+          AND pe.organization_id = $1 AND pe.scout_year_id = $2 AND pe.status = ANY($3::text[])
+         LEFT JOIN participant_group_assignments pg ON p.id = pg.participant_id
+          AND pg.organization_id = $1 AND pg.scout_year_id = $2
          LEFT JOIN groups g ON pg.group_id = g.id
-         WHERE po.organization_id = $1
          ORDER BY p.first_name, p.last_name`,
-      [organizationId]
+      [organizationId, scoutYearId, req.rosterStatuses]
     );
 
     // Calculate stats

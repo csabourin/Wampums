@@ -116,7 +116,6 @@ const SNAPSHOT_SOURCES = [
   ['attendance_', ['attendance', 'participants', 'groups', 'activities']],
   ['dashboard_groups', ['groups', 'points']],
   ['dashboard_participant_info', ['participants', 'groups', 'points']],
-  ['badge_dashboard_', ['badges', 'participants', 'groups']],
   ['honors_', ['honors', 'participants']],
   ['carpool_', ['carpools', 'activities', 'participants']],
   ['activity_', ['activities']],

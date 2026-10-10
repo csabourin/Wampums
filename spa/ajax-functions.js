@@ -205,7 +205,6 @@ export {
     // Badges
     getBadgeProgress,
     saveBadgeProgress,
-    getPendingBadges,
     getCurrentStars,
     approveBadge,
     rejectBadge,

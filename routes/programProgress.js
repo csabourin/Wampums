@@ -13,7 +13,8 @@ const {
   blockDemoRoles,
   requirePermission,
   getOrganizationId,
-  getUserDataScope
+  getUserDataScope,
+  withScoutYear
 } = require('../middleware/auth');
 const { asyncHandler, success, error: errorResponse } = require('../middleware/response');
 const { recordProgression, PROGRAM_TABLE_CONFIG } = require('../services/programProgress');
@@ -50,7 +51,27 @@ function pickFirstAvailable(columns, candidates) {
   return null;
 }
 
-async function fetchSourceRows({ client, source, organizationId, participantId, userId, dataScope, limit }) {
+/**
+ * Read one progression source, limited to the youth on a scout year's roster
+ *
+ * The roster filter runs in SQL, before LIMIT, so rows of youth who have left
+ * cannot crowd the current roster out of the stream.
+ *
+ * @param {Object} options - Query options
+ * @param {Object} options.client - Database client
+ * @param {Object} options.source - Entry of STREAM_SOURCES
+ * @param {number} options.organizationId - Unit ID
+ * @param {number} options.scoutYearId - Scout year whose roster applies
+ * @param {Array<string>} options.rosterStatuses - Enrollment statuses on that roster
+ * @param {number|null} options.participantId - Optional single participant
+ * @param {string} options.userId - Requesting user (UUID)
+ * @param {string} options.dataScope - 'organization' or 'linked'
+ * @param {number} options.limit - Maximum rows
+ * @returns {Promise<Array<Object>>} Normalized stream rows
+ */
+async function fetchSourceRows({
+  client, source, organizationId, scoutYearId, rosterStatuses, participantId, userId, dataScope, limit
+}) {
   const columns = await getTableColumns(client, source.table);
   if (!columns.has('organization_id') || !columns.has('participant_id') || !columns.has('id')) {
     return [];
@@ -86,8 +107,13 @@ async function fetchSourceRows({ client, source, organizationId, participantId, 
   if (dateColumn) selectParts.push(`${dateColumn} AS event_at`);
   if (titleColumn) selectParts.push(`${titleColumn} AS title`);
 
-  const params = [organizationId];
-  let where = 'organization_id = $1';
+  const params = [organizationId, scoutYearId, rosterStatuses];
+  let where = `organization_id = $1 AND EXISTS (
+      SELECT 1 FROM participant_enrollments pe
+       WHERE pe.participant_id = ${source.table}.participant_id
+         AND pe.organization_id = $1 AND pe.scout_year_id = $2
+         AND pe.status = ANY($3::text[])
+    )`;
 
   if (participantId) {
     params.push(participantId);
@@ -132,9 +158,14 @@ module.exports = (pool, logger) => {
    *
    * Returns a unified progression stream for dashboard use.
    * Parents (linked scope) only see participants linked to their account.
+   * Only youth on the roster of the scout year being consulted appear (the
+   * active year unless `x-scout-year-id` or `scout_year_id` selects another).
+   * Their progression is cumulative, so it is not bounded by date.
    */
-  router.get('/stream', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
+  router.get('/stream', authenticate, requirePermission('participants.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
+    const { id: scoutYearId } = req.scoutYear;
+    const { rosterStatuses } = req;
     const dataScope = await getUserDataScope(req, pool);
     const userId = req.user?.id;
     const participantId = req.query.participant_id ? parseInt(req.query.participant_id, 10) : null;
@@ -153,6 +184,8 @@ module.exports = (pool, logger) => {
           client,
           source,
           organizationId,
+          scoutYearId,
+          rosterStatuses,
           participantId,
           userId,
           dataScope,
@@ -164,11 +197,12 @@ module.exports = (pool, logger) => {
       const participantRows = await client.query(
         `SELECT p.id, p.first_name, p.last_name
            FROM participants p
-           JOIN participant_organizations po ON po.participant_id = p.id
-          WHERE po.organization_id = $1
-            ${dataScope === 'linked' ? 'AND EXISTS (SELECT 1 FROM user_participants up WHERE up.participant_id = p.id AND up.user_id = $2)' : ''}
+           JOIN participant_enrollments pe ON pe.participant_id = p.id
+            AND pe.organization_id = $1 AND pe.scout_year_id = $2 AND pe.status = ANY($3::text[])
+          WHERE $4::uuid IS NULL
+             OR EXISTS (SELECT 1 FROM user_participants up WHERE up.participant_id = p.id AND up.user_id = $4)
           ORDER BY p.first_name, p.last_name`,
-        dataScope === 'linked' ? [organizationId, userId] : [organizationId]
+        [organizationId, scoutYearId, rosterStatuses, dataScope === 'linked' ? userId : null]
       );
 
       const participants = participantRows.rows;
