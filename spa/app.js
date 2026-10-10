@@ -248,9 +248,10 @@ export const app = {
                         this.userRole = session.userRole;
                         this.userRoles = session.userRoles || [];
                         this.userPermissions = session.userPermissions || [];
+                        this.userDataScope = session.userDataScope;
                         this.userFullName = session.userFullName;
 
-                        debugLog("Session checked:", {
+                        debugLog('Session checked:', {
                                 isLoggedIn: this.isLoggedIn,
                                 userRole: this.userRole,
                                 userFullName: this.userFullName,

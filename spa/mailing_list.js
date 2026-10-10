@@ -5,6 +5,7 @@ import { translate } from "./app.js";
 import { escapeHTML, sanitizeHTML } from "./utils/SecurityUtils.js";
 import { CONFIG } from "./config.js";
 import { canSendCommunications } from "./utils/PermissionUtils.js";
+import { roleLabel } from './utils/RoleLabelUtils.js';
 import { setContent } from "./utils/DOMUtils.js";
 import { setButtonLoading } from './utils/SkeletonUtils.js';
 
@@ -347,8 +348,8 @@ export class MailingList {
          * @returns {string} A label fit for a section heading
          */
         roleLabel(role) {
-                const translated = translate(role);
-                if (translated && translated !== role) {
+                const translated = [roleLabel(role), translate(role)].find((label) => label && label !== role);
+                if (translated) {
                         return translated;
                 }
                 const unitRole = this.unitRoles.find((entry) => entry.role_name === role);

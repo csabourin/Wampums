@@ -107,22 +107,48 @@ export function isDemoUser() {
 }
 
 /**
- * Check if user is a parent (has parent role)
+ * Check if the user holds a family role (parent or demo parent), whatever
+ * other roles they also hold. Use it for what belongs to the person as a
+ * guardian, such as their guardian profile.
  *
- * @returns {boolean} True if user has parent role
+ * @returns {boolean} True if user holds a family role
+ */
+export function holdsFamilyRole() {
+  return hasRole('parent') || hasRole('demoparent');
+}
+
+/**
+ * Whether one of the user's roles covers the whole unit (data_scope
+ * 'organization'), as a leader's or an administrator's does.
+ *
+ * @returns {boolean} True when the server reported an organization-wide scope
+ */
+export function hasOrganizationScope() {
+  return app.userDataScope === 'organization';
+}
+
+/**
+ * Check if the user uses the app as a parent: they hold a family role and no
+ * role covering the whole unit. A parent who becomes a leader keeps the
+ * parent role for their own children but works from the unit's dashboard.
+ *
+ * @returns {boolean} True for a family-only account
  */
 export function isParent() {
-  return hasRole('parent') || hasRole('demoparent');
+  return holdsFamilyRole() && !hasOrganizationScope();
 }
 
 /**
  * Determine if the current user can access parent-facing tools
  * Allows staff with participant visibility to use parent dashboards
  *
- * @returns {boolean} True when user is a parent or has participant view access
+ * Family access, not a persona choice: a parent who also holds a whole-unit
+ * role keeps their family pages even when that role lacks participants.view.
+ *
+ * @returns {boolean} True when user holds a family role or has participant view access
  */
 export function canAccessParentTools() {
-  return isParent() || canViewParticipants();
+  return holdsFamilyRole() || canViewParticipants();
 }
 
 /**

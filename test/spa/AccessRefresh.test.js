@@ -22,8 +22,13 @@ jest.mock('../../spa/api/api-endpoints.js', () => ({
   getCurrentAccess: jest.fn()
 }));
 
+let mockIsParent = true;
+jest.mock('../../spa/utils/PermissionUtils.js', () => ({
+  isParent: () => mockIsParent
+}));
+
 import { getCurrentAccess } from '../../spa/api/api-endpoints.js';
-import { refreshAccess } from '../../spa/modules/session/AccessRefresh.js';
+import { refreshAccess, pathAfterAccessChange } from '../../spa/modules/session/AccessRefresh.js';
 
 const SIGNED_IN_PERMISSIONS = ['participants.create_own', 'finance.view', 'budget.view'];
 
@@ -81,6 +86,18 @@ describe('refreshAccess', () => {
     expect(app.userRoles).toEqual(['finance', 'parent']);
   });
 
+  test('picks up the whole-unit scope a leader role brings to a parent', async () => {
+    const app = { ...signedInParent(), userDataScope: 'linked' };
+    getCurrentAccess.mockResolvedValue({
+      success: true,
+      data: { roles: ['parent'], permissions: SIGNED_IN_PERMISSIONS, data_scope: 'organization' }
+    });
+
+    await expect(refreshAccess(app)).resolves.toBe(true);
+    expect(app.userDataScope).toBe('organization');
+    expect(localStorage.getItem('userDataScope')).toBe('organization');
+  });
+
   test('keeps the stored copy when the server cannot be reached', async () => {
     const app = signedInParent();
     getCurrentAccess.mockRejectedValue(new Error('offline'));
@@ -96,5 +113,51 @@ describe('refreshAccess', () => {
 
     await expect(refreshAccess(app)).resolves.toBe(false);
     expect(app.userPermissions).toEqual(SIGNED_IN_PERMISSIONS);
+  });
+});
+
+describe('home after an access change', () => {
+  test('a parent given a leader role on the parent dashboard is sent to the unit\'s', async () => {
+    mockIsParent = false;
+    window.history.replaceState(null, '', '/parent-dashboard');
+    const app = signedInParent();
+    getCurrentAccess.mockResolvedValue({
+      success: true,
+      data: { roles: ['leader', 'parent'], permissions: SIGNED_IN_PERMISSIONS, data_scope: 'organization' }
+    });
+
+    await expect(refreshAccess(app)).resolves.toBe(true);
+    expect(window.location.pathname).toBe('/dashboard');
+  });
+
+  test('another screen keeps its address', async () => {
+    mockIsParent = false;
+    window.history.replaceState(null, '', '/attendance?date=2026-10-10');
+    const app = signedInParent();
+    getCurrentAccess.mockResolvedValue({
+      success: true,
+      data: { roles: ['leader', 'parent'], permissions: SIGNED_IN_PERMISSIONS, data_scope: 'organization' }
+    });
+
+    await refreshAccess(app);
+    expect(window.location.pathname + window.location.search).toBe('/attendance?date=2026-10-10');
+  });
+});
+
+describe('pathAfterAccessChange', () => {
+  test('a parent given a leader role leaves the parent dashboard for the unit\'s', () => {
+    mockIsParent = false;
+    expect(pathAfterAccessChange('/parent-dashboard')).toBe('/dashboard');
+    expect(pathAfterAccessChange('/')).toBe('/dashboard');
+  });
+
+  test('a leader who keeps only the parent role goes back to the parent dashboard', () => {
+    mockIsParent = true;
+    expect(pathAfterAccessChange('/dashboard')).toBe('/parent-dashboard');
+  });
+
+  test('any other screen is shown again, query included', () => {
+    mockIsParent = false;
+    expect(pathAfterAccessChange('/attendance', '?date=2026-10-10')).toBe('/attendance?date=2026-10-10');
   });
 });

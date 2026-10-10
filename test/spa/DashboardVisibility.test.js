@@ -71,6 +71,7 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   canCreateOrganization: jest.fn(() => false),
   canViewCarpools: jest.fn(() => false),
   isParent: jest.fn(() => mockIsParent),
+  holdsFamilyRole: jest.fn(() => mockIsParent),
 }));
 jest.mock('../../spa/utils/DashboardCacheManager.js', () => ({
   DashboardCacheManager: { preloadCachedData: jest.fn() },

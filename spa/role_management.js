@@ -10,6 +10,7 @@ import roleManagementStylesheetUrl from '../css/role-management.css?url';
 import { app, translate } from './app.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { hasPermission } from './utils/PermissionUtils.js';
+import { roleDescription, roleLabel } from './utils/RoleLabelUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { deleteCachedData } from './indexedDB.js';
@@ -20,6 +21,8 @@ import {
   updateUserRolesV1,
   clearUserCaches
 } from './api/api-endpoints.js';
+import { setUserMembershipStatus } from './api/api-members.js';
+import { confirmDestructive } from './utils/DialogUtils.js';
 import { API } from './api/api-core.js';
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
@@ -188,8 +191,7 @@ export class RoleManagement {
       <div class="role-card ${isExpanded ? 'expanded' : ''}" data-role-id="${role.id}">
         <div class="role-card-header">
           <div class="role-info">
-            <h3 class="role-name">${this.escapeHtml(role.display_name)}</h3>
-            <span class="role-badge role-badge-${role.role_name}">${this.escapeHtml(role.role_name)}</span>
+            <h3 class="role-name">${this.escapeHtml(roleLabel(role))}</h3>
           </div>
           <button class="toggle-permissions-btn" data-role-id="${role.id}">
             <span class="icon">${isExpanded ? '▼' : '▶'}</span>
@@ -197,7 +199,7 @@ export class RoleManagement {
           </button>
         </div>
 
-        <p class="role-description">${this.escapeHtml(role.description || 'No description available')}</p>
+        <p class="role-description">${this.escapeHtml(roleDescription(role) || translate('district_management_generic_bundle_description'))}</p>
 
         <div class="role-permissions-container ${isExpanded ? 'visible' : 'hidden'}" id="role-permissions-${role.id}">
           ${isExpanded ? '<div class="loading-spinner">Loading permissions...</div>' : ''}
@@ -258,18 +260,21 @@ export class RoleManagement {
     }
 
     return this.users.map(user => {
-      const roleNames = (user.roles || []).map(r => r.display_name || r.role_name).join(', ');
+      const roleNames = (user.roles || []).map(r => roleLabel(r)).join(', ');
       const isSelected = this.selectedUserId === user.id;
 
       return `
         <div class="user-item ${isSelected ? 'selected' : ''}" data-user-id="${user.id}">
           <div class="user-info">
-            <div class="user-name">${this.escapeHtml(user.full_name || user.email)}</div>
+            <div class="user-name">
+              ${this.escapeHtml(user.full_name || user.email)}
+              ${user.status === 'inactive' ? `<span class="member-inactive-badge">${translate('member_access_inactive_badge')}</span>` : ''}
+            </div>
             <div class="user-email">${this.escapeHtml(user.email)}</div>
             ${roleNames ? `<div class="user-roles-summary">${this.escapeHtml(roleNames)}</div>` : ''}
           </div>
           <div class="user-action">
-            <button class="btn-small btn-manage-roles" data-user-id="${user.id}">
+            <button class="btn-small btn-manage-roles" data-user-id="${user.id}"${isSelected ? ' aria-current="true"' : ''}>
               ${translate('manage_roles') || 'Manage'}
             </button>
           </div>
@@ -297,7 +302,7 @@ export class RoleManagement {
     return `
       <div class="user-assignment">
         <div class="assignment-header">
-          <h2>${translate('manage_roles_for') || 'Manage Roles for'}:</h2>
+          <h2 id="user-assignment-heading" tabindex="-1">${translate('manage_roles_for') || 'Manage Roles for'}:</h2>
           <div class="user-details">
             <div class="user-name-large">${this.escapeHtml(user.full_name || user.email)}</div>
             <div class="user-email-small">${this.escapeHtml(user.email)}</div>
@@ -313,7 +318,7 @@ export class RoleManagement {
               ${userRoles.length > 0
                 ? userRoles.map(role => `
                     <span class="role-badge role-badge-${role.role_name}">
-                      ${this.escapeHtml(role.display_name)}
+                      ${this.escapeHtml(roleLabel(role))}
                     </span>
                   `).join('')
                 : `<span class="empty-badge">${translate('no_roles_assigned') || 'No roles assigned'}</span>`
@@ -344,10 +349,9 @@ export class RoleManagement {
                     />
                     <div class="role-checkbox-content">
                       <div class="role-checkbox-header">
-                        <strong>${this.escapeHtml(role.display_name)}</strong>
-                        <span class="role-badge-small role-badge-${role.role_name}">${role.role_name}</span>
+                        <strong>${this.escapeHtml(roleLabel(role))}</strong>
                       </div>
-                      <small class="role-checkbox-description">${this.escapeHtml(role.description || '')}</small>
+                      <small class="role-checkbox-description">${this.escapeHtml(roleDescription(role))}</small>
                     </div>
                   </label>
                   ${locked ? `<small class="role-locked-note" id="${noteId}">${translate('role_not_assignable')}</small>` : ''}
@@ -368,8 +372,85 @@ export class RoleManagement {
 
           <div id="assignment-message" class="status-message" role="status" aria-live="polite"></div>
         </form>
+        ${this.renderMembershipSection(user)}
       </div>
     `;
+  }
+
+  /**
+   * Access to the unit: deactivate someone who left (a leader who stepped
+   * down), or bring them back. Their account, roles and history are kept.
+   *
+   * @param {Object} user - User row (status: 'active' | 'inactive' | 'alumni')
+   * @returns {string} Section HTML, empty without users.delete
+   */
+  renderMembershipSection(user) {
+    // Alumni are managed from the alumni list: switching them off here would
+    // drop them from it despite their consent.
+    if (!hasPermission('users.delete') || user.status === 'alumni') {
+      return '';
+    }
+    const inactive = user.status === 'inactive';
+    return `
+      <section class="membership-section" aria-labelledby="membership-heading">
+        <h3 id="membership-heading">${translate('member_access_title')}</h3>
+        <p>${translate(inactive ? 'member_access_inactive' : 'member_access_active')}</p>
+        <button type="button" id="membership-toggle" class="${inactive ? 'btn-secondary' : 'btn-danger'}">
+          ${translate(inactive ? 'member_access_reactivate' : 'member_access_deactivate')}
+        </button>
+        <div id="membership-message" class="status-message" role="status" aria-live="polite"></div>
+      </section>
+    `;
+  }
+
+  /**
+   * Deactivate (after confirmation) or reactivate the member being edited.
+   *
+   * @param {string} userId - Member UUID
+   */
+  async toggleMembership(userId) {
+    const user = this.users.find(u => u.id === userId);
+    if (!user) {
+      return;
+    }
+    const deactivating = user.status !== 'inactive';
+    if (deactivating) {
+      const confirmed = await confirmDestructive({
+        title: translate('member_access_deactivate_title').replace('{name}', user.full_name || user.email),
+        message: translate('member_access_deactivate_message'),
+        confirmLabel: translate('member_access_deactivate'),
+      });
+      if (!confirmed) {
+        document.getElementById('membership-toggle')?.focus();
+        return;
+      }
+    }
+
+    let messageKey;
+    let type = 'success';
+    try {
+      await setUserMembershipStatus(userId, deactivating ? 'inactive' : 'active');
+      await this.invalidateUserCaches(userId);
+      await this.fetchUsers();
+      setContent(document.getElementById('user-list'), this.renderUserList());
+      this.attachUserListListeners();
+      setContent(document.getElementById('user-assignment-content'), await this.renderUserAssignment(userId));
+      this.attachAssignmentFormListeners();
+      this.markSelectedUser(userId);
+      messageKey = deactivating ? 'member_access_deactivated' : 'member_access_reactivated';
+    } catch (error) {
+      debugError('Error changing membership:', error);
+      const FORBIDDEN = 403;
+      messageKey = error.status === FORBIDDEN ? 'member_access_forbidden' : 'member_access_error';
+      type = 'error';
+    }
+
+    const message = document.getElementById('membership-message');
+    if (message) {
+      message.textContent = translate(messageKey);
+      message.className = `status-message ${type}`;
+    }
+    document.getElementById('membership-toggle')?.focus();
   }
 
   attachEventListeners() {
@@ -411,15 +492,7 @@ export class RoleManagement {
   }
 
   attachUsersTabListeners() {
-    // User selection
-    const manageButtons = document.querySelectorAll('.btn-manage-roles');
-    manageButtons.forEach(button => {
-      button.addEventListener('click', async (e) => {
-        e.preventDefault();
-        const userId = e.currentTarget.dataset.userId;
-        await this.showUserRoleAssignment(userId);
-      });
-    });
+    this.attachUserListListeners();
 
     // User search
     const searchInput = document.getElementById('user-search-input');
@@ -433,6 +506,70 @@ export class RoleManagement {
     if (this.selectedUserId) {
       this.attachAssignmentFormListeners();
     }
+  }
+
+  /**
+   * Bind the "manage roles" button of each user in the list. Kept apart from
+   * the form listeners: re-rendering the list after a save must not bind the
+   * form a second time, which made the next save send the request twice.
+   */
+  attachUserListListeners() {
+    document.querySelectorAll('.btn-manage-roles').forEach(button => {
+      button.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const userId = e.currentTarget.dataset.userId;
+        await this.showUserRoleAssignment(userId);
+      });
+    });
+  }
+
+  /**
+   * Show which user is being edited: highlighted card, aria-current button.
+   *
+   * @param {?string} userId - Selected user's UUID, or null for none
+   */
+  markSelectedUser(userId) {
+    document.querySelectorAll('.user-item').forEach(item => {
+      const selected = item.dataset.userId === userId;
+      item.classList.toggle('selected', selected);
+      const button = item.querySelector('.btn-manage-roles');
+      if (selected) {
+        button?.setAttribute('aria-current', 'true');
+      } else {
+        button?.removeAttribute('aria-current');
+      }
+    });
+  }
+
+  /**
+   * Bring the role form into view and move focus to its heading.
+   *
+   * On a phone the form sits below the whole user list, so opening it showed
+   * no change and seemed to do nothing; a screen reader heard nothing either.
+   */
+  revealUserAssignment() {
+    const heading = document.getElementById('user-assignment-heading');
+    if (!heading) {
+      return;
+    }
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    heading.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    heading.focus({ preventScroll: true });
+  }
+
+  /**
+   * Return to the user whose roles were being edited.
+   *
+   * @param {string} userId - That user's UUID
+   */
+  returnToUser(userId) {
+    const button = Array.from(document.querySelectorAll('.btn-manage-roles'))
+      .find(candidate => candidate.dataset.userId === userId);
+    if (!button) {
+      return;
+    }
+    button.scrollIntoView?.({ block: 'center' });
+    button.focus({ preventScroll: true });
   }
 
   async toggleRolePermissions(roleId) {
@@ -501,21 +638,26 @@ export class RoleManagement {
     setContent(assignmentContent, html);
     // Attach form listener
     this.attachAssignmentFormListeners();
+    this.markSelectedUser(userId);
+    this.revealUserAssignment();
   }
 
   attachAssignmentFormListeners() {
     const form = document.getElementById('user-role-assignment-form');
     if (!form) return;
 
+    document.getElementById('membership-toggle')?.addEventListener('click', () => {
+      this.toggleMembership(document.getElementById('selected-user-id').value);
+    });
+
     const cancelBtn = document.getElementById('cancel-assignment');
     if (cancelBtn) {
       cancelBtn.addEventListener('click', () => {
+        const userId = this.selectedUserId;
         this.selectedUserId = null;
         setContent(document.getElementById('user-assignment-content'), this.renderUserAssignmentPlaceholder());
-        // Remove selected state from users
-        document.querySelectorAll('.user-item').forEach(item => {
-          item.classList.remove('selected');
-        });
+        this.markSelectedUser(null);
+        this.returnToUser(userId);
       });
     }
 
@@ -538,7 +680,7 @@ export class RoleManagement {
         // Refresh user list
         await this.fetchUsers();
         setContent(document.getElementById('user-list'), this.renderUserList());
-        this.attachUsersTabListeners();
+        this.attachUserListListeners();
       } catch (error) {
         debugError('Error updating roles:', error);
         const FORBIDDEN = 403;

@@ -261,4 +261,32 @@ describe.skipIf(!DATABASE_URL)('Granting only what one holds', () => {
       mockContext.userId = previousCaller;
     }
   });
+
+  test('a role holding every unit permission receives new ones, except those reaching beyond the unit (migration 022)', async () => {
+    const unitAdmin = await createRole('unit_permissions', 'organization', ['users.assign_roles']);
+    await pool.query('UPDATE roles SET grants_unit_permissions = TRUE WHERE id = $1', [unitAdmin]);
+
+    await pool.query(
+      `SELECT setval(pg_get_serial_sequence('public.permissions', 'id'),
+                     COALESCE((SELECT MAX(id) FROM public.permissions), 0) + 1, false)`
+    );
+    const unitKey = `grants_test.unit_feature_${suffix}`;
+    const districtKey = `grants_test.district_feature_${suffix}`;
+    await pool.query(
+      `INSERT INTO permissions (permission_key, permission_name, category, district_only)
+       VALUES ($1, $1, 'grants_test', FALSE), ($2, $2, 'grants_test', TRUE)`,
+      [unitKey, districtKey]
+    );
+
+    const held = (key) => one(
+      `SELECT count(*)::int FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id
+        WHERE rp.role_id = $1 AND p.permission_key = $2`,
+      [unitAdmin, key]
+    );
+    expect(await held(unitKey)).toBe(1);
+    expect(await held(districtKey)).toBe(0);
+    expect(await one(
+      "SELECT array_agg(permission_key ORDER BY permission_key) FROM permissions WHERE district_only AND permission_key NOT LIKE 'grants_test.%'"
+    )).toEqual(['org.create', 'org.delete', 'users.assign_district']);
+  });
 });

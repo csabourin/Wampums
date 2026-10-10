@@ -20,6 +20,7 @@ import { escapeHTML } from "./utils/SecurityUtils.js";
 import { setContent, clearElement, insertHTML } from "./utils/DOMUtils.js";
 import { canAccessAdminPanel, canCreateOrganization, canManageUsers, canSendCommunications, canViewUsers } from "./utils/PermissionUtils.js";
 import { getMountPoint, resolveMountOptions } from "./utils/PageMount.js";
+import { roleLabel } from './utils/RoleLabelUtils.js';
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class Admin {
@@ -238,10 +239,7 @@ ${showNotifications ? `
          * @returns {string}
          */
         getRoleLabel(role) {
-                if (typeof role === "object" && role !== null) {
-                        return role.display_name || translate(role.role_name) || role.role_name;
-                }
-                return translate(role) || role;
+                return roleLabel(role);
         }
 
         /**
@@ -451,7 +449,7 @@ ${showNotifications ? `
 
                 const checkboxes = roles.map((role) => {
                         const checked = currentRoleIds.includes(role.id) ? "checked" : "";
-                        const label = escapeHTML(role.display_name || translate(role.role_name) || role.role_name);
+                        const label = escapeHTML(roleLabel(role));
                         // A role carrying permissions the viewer does not hold cannot be
                         // granted or removed by them; it keeps its state and is sent back unchanged.
                         const locked = role.assignable === false;

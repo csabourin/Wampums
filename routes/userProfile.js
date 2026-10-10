@@ -14,7 +14,7 @@ const rateLimit = require('express-rate-limit');
 const { check } = require('express-validator');
 
 // Import middleware
-const { authenticate, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
+const { authenticate, blockDemoRoles, getOrganizationId, dataScopeOfRoles } = require('../middleware/auth');
 const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
 const {
   validateEmail,
@@ -258,7 +258,10 @@ module.exports = (pool, logger) => {
    *       - bearerAuth: []
    *     responses:
    *       200:
-   *         description: Current roles and permission keys (both empty without an active membership)
+   *         description: >
+   *           Current roles, permission keys (both empty without an active
+   *           membership) and data_scope ('organization' when any role covers
+   *           the whole unit, else 'linked')
    *       401:
    *         description: Authentication required
    */
@@ -267,7 +270,7 @@ module.exports = (pool, logger) => {
 
     const [rolesResult, permissionsResult] = await Promise.all([
       pool.query(
-        `SELECT DISTINCT r.role_name
+        `SELECT DISTINCT r.role_name, r.data_scope
          FROM user_organizations uo
          CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
          JOIN roles r ON r.id = role_id_text::integer
@@ -291,7 +294,8 @@ module.exports = (pool, logger) => {
 
     return success(res, {
       roles: rolesResult.rows.map((row) => row.role_name),
-      permissions: permissionsResult.rows.map((row) => row.permission_key)
+      permissions: permissionsResult.rows.map((row) => row.permission_key),
+      data_scope: dataScopeOfRoles(rolesResult.rows)
     }, 'Access retrieved');
   }));
 

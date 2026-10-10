@@ -233,6 +233,7 @@ export class Login {
     const userRoles = result.user_roles || (result.data && result.data.user_roles) || [userRole]; // Array of role names
     const userPermissions = result.user_permissions || (result.data && result.data.user_permissions) || []; // Array of permission keys
     const userFullName = result.user_full_name || (result.data && result.data.user_full_name) || "User";
+    const userDataScope = result.user_data_scope || (result.data && result.data.user_data_scope) || null;
     const organizationId = result.organization_id || (result.data && result.data.organization_id);
 
     // Try to find the appropriate status element (could be login-message or verify-message)
@@ -269,6 +270,7 @@ export class Login {
     this.app.userRole = userRole; // Primary role (for backward compatibility)
     this.app.userRoles = userRoles; // All roles
     this.app.userPermissions = userPermissions; // All permissions
+    this.app.userDataScope = userDataScope; // 'organization' when any role covers the whole unit
     this.app.userFullName = userFullName;
 
     // Store user data in localStorage using StorageUtils
@@ -278,7 +280,8 @@ export class Login {
       userRoles: JSON.stringify(userRoles), // Store as JSON string
       userPermissions: JSON.stringify(userPermissions), // Store as JSON string
       userFullName: userFullName,
-      userId: userId
+      userId: userId,
+      userDataScope: userDataScope || ''
     };
 
     // Store organization ID from login response
@@ -530,6 +533,8 @@ export class Login {
       // Without this the server's "your membership was closed" arrived as
       // "wrong password", which sent people to reset a password that was fine.
       membership_inactive: translate("membership_inactive"),
+      // Closed by the unit's team: only they can reopen it, so no self-service link.
+      membership_closed: translate('membership_closed'),
       internal_server_error: translate("internal_server_error")
     };
 

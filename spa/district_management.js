@@ -11,11 +11,14 @@ import {
   updateUserRoleBundles,
   updateUserRolesV1,
 } from "./ajax-functions.js";
+import { setUserMembershipStatus } from './api/api-members.js';
+import { confirmDestructive } from './utils/DialogUtils.js';
 import { translate } from "./app.js";
 import { getCachedData, setCachedData } from "./indexedDB.js";
 import { debounce } from "./utils/PerformanceUtils.js";
 import { debugError } from "./utils/DebugUtils.js";
-import { canAssignRoles, canViewRoles } from "./utils/PermissionUtils.js";
+import { canAssignRoles, canViewRoles, hasPermission } from "./utils/PermissionUtils.js";
+import { roleDescription, roleLabel } from './utils/RoleLabelUtils.js';
 import {
   escapeHTML,
   sanitizeHTML,
@@ -302,7 +305,7 @@ export class DistrictManagement {
               .filter(Boolean)
               .map((role) => ({
                 ...role,
-                display_name: role.display_name || role.role_name,
+                display_name: roleLabel(role),
               }));
 
       return {
@@ -360,8 +363,27 @@ export class DistrictManagement {
   }
 
   renderAndBind() {
+    // Every change in the dialog rebuilds it; keep the reader where they were
+    // (scroll position, focused control) instead of sending them to the top.
+    const dialog = document.querySelector('.dm-modal');
+    const scrollTop = dialog ? dialog.scrollTop : null;
+    const active = document.activeElement;
+    const focusId = active?.id || null;
+    const focusRoleId = active?.dataset?.roleId || null;
+
     this.render();
     this.attachEventListeners();
+
+    const rebuilt = document.querySelector('.dm-modal');
+    if (rebuilt && scrollTop !== null) {
+      rebuilt.scrollTop = scrollTop;
+    }
+    const target = focusId
+      ? document.getElementById(focusId)
+      : focusRoleId && document.querySelector(`.dm-bundle-checkbox[data-role-id="${focusRoleId}"]`);
+    if (target && rebuilt?.contains(target)) {
+      target.focus({ preventScroll: true });
+    }
   }
 
   async handleOrganizationChange(newOrgId) {
@@ -505,7 +527,7 @@ export class DistrictManagement {
 
   renderRoleFilters() {
     const chips = this.roles.map((role) => {
-      const roleName = escapeHTML(role.display_name || role.role_name);
+      const roleName = escapeHTML(roleLabel(role));
       const isActive = this.activeRoleFilters.has(role.role_name);
       return `
         <button class="chip ${isActive ? "chip--primary" : ""}" data-role-filter="${escapeHTML(role.role_name)}" aria-pressed="${isActive}">
@@ -537,12 +559,20 @@ export class DistrictManagement {
                 .map(
                   (role) => `
                     <span class="chip dm-role-chip" role="listitem">
-                      ${escapeHTML(role.display_name || role.role_name)}
+                      ${escapeHTML(roleLabel(role))}
                     </span>
                   `,
                 )
                 .join("")
             : `<span class="chip">${translate("no_roles_assigned")}</span>`;
+
+        const inactive = user.status === 'inactive';
+        const inactiveLabel = inactive
+          ? `<span class="status-pill dm-inactive-pill">${translate('member_access_inactive_badge')}</span>`
+          : '';
+        const cardName = inactive
+          ? `${user.full_name || user.email}, ${translate('member_access_inactive_badge')}`
+          : user.full_name || user.email;
 
         const queued = this.queuedChanges.find((item) => item.userId === user.id);
         const queuedLabel = queued
@@ -550,13 +580,13 @@ export class DistrictManagement {
           : "";
 
         return `
-          <button class="dm-user-card" data-user-id="${user.id}" aria-label="${escapeHTML(user.full_name || user.email)}">
+          <button class="dm-user-card${inactive ? ' dm-user-card--inactive' : ''}" data-user-id="${user.id}" aria-label="${escapeHTML(cardName)}">
             <div class="dm-card-header">
               <div>
                 <p class="dm-user-name">${escapeHTML(user.full_name || user.email)}</p>
                 <p class="dm-user-email">${escapeHTML(user.email || "")}</p>
               </div>
-              ${queuedLabel}
+              ${inactiveLabel}${queuedLabel}
             </div>
             <div class="dm-role-stack" role="list" aria-label="${translate("district_management_assigned_roles")}">
               ${roleBadges}
@@ -601,12 +631,12 @@ export class DistrictManagement {
                 ${this.isBlockedByRoleLevel(bundle.role_name) ? "disabled" : ""}
               />
               <div>
-                <p class="dm-bundle-title">${escapeHTML(bundle.display_name)}</p>
-                <p class="dm-bundle-meta">${escapeHTML(bundle.role_name)} ${localGroupBadge}</p>
+                <p class="dm-bundle-title">${escapeHTML(roleLabel(bundle))}</p>
+                ${localGroupBadge ? `<p class="dm-bundle-meta">${localGroupBadge}</p>` : ''}
               </div>
             </div>
             <p class="dm-bundle-description">
-              ${sanitizeHTML(bundle.description || translate("district_management_generic_bundle_description"), {
+              ${sanitizeHTML(roleDescription(bundle) || translate("district_management_generic_bundle_description"), {
                 stripAll: true,
               })}
             </p>
@@ -656,6 +686,8 @@ export class DistrictManagement {
 
             ${auditPanel}
 
+            ${this.renderMembershipSection(user)}
+
             ${mfaRequired ? `
               <div class="dm-modal-section dm-high-risk" role="alert">
                 <p class="dm-section-title">${translate("district_management_mfa_title")}</p>
@@ -695,6 +727,75 @@ export class DistrictManagement {
     `;
   }
 
+  /**
+   * Access to the unit: deactivate someone who left (a leader who stepped
+   * down), or bring them back. Their account, roles and history are kept.
+   *
+   * @param {Object} user - Member (status: 'active' | 'inactive' | 'alumni')
+   * @returns {string} Section HTML, empty without users.delete
+   */
+  renderMembershipSection(user) {
+    // Alumni are managed from the alumni list: switching them off here would
+    // drop them from it despite their consent.
+    if (!hasPermission('users.delete') || user.status === 'alumni') {
+      return '';
+    }
+    const inactive = user.status === 'inactive';
+    return `
+      <section class="dm-modal-section dm-membership" aria-labelledby="dm-membership-title">
+        <h3 id="dm-membership-title" class="dm-section-title">${translate('member_access_title')}</h3>
+        <p class="dm-helper">${translate(inactive ? 'member_access_inactive' : 'member_access_active')}</p>
+        <button type="button" id="dm-membership-toggle" class="btn ${inactive ? 'btn--secondary' : 'btn--danger'}"
+          ${this.isOffline || this.savingUserId === user.id ? 'disabled' : ''}>
+          ${translate(inactive ? 'member_access_reactivate' : 'member_access_deactivate')}
+        </button>
+      </section>
+    `;
+  }
+
+  /**
+   * Deactivate (after confirmation) or reactivate the member in the dialog.
+   */
+  async toggleMembership() {
+    const user = this.users.find((u) => u.id === this.selectedUserId);
+    if (!user) {
+      return;
+    }
+    const deactivating = user.status !== 'inactive';
+    if (deactivating) {
+      const confirmed = await confirmDestructive({
+        title: translate('member_access_deactivate_title').replace('{name}', user.full_name || user.email),
+        message: translate('member_access_deactivate_message'),
+        confirmLabel: translate('member_access_deactivate'),
+      });
+      if (!confirmed) {
+        document.getElementById('dm-membership-toggle')?.focus();
+        return;
+      }
+    }
+
+    try {
+      await setUserMembershipStatus(user.id, deactivating ? 'inactive' : 'active', this.auditNote.trim() || undefined);
+      user.status = deactivating ? 'inactive' : 'active';
+      await clearUserCaches(this.organizationId);
+      this.formStatus = {
+        type: 'success',
+        message: translate(deactivating ? 'member_access_deactivated' : 'member_access_reactivated'),
+      };
+    } catch (error) {
+      debugError('district_management: membership change failed', error);
+      const FORBIDDEN = 403;
+      this.formStatus = {
+        type: 'error',
+        message: translate(error?.status === FORBIDDEN ? 'member_access_forbidden' : 'member_access_error'),
+      };
+    }
+    this.filteredUsers = this.getFilteredUsers();
+    await this.persistCache();
+    this.renderAndBind();
+    document.getElementById('dm-membership-toggle')?.focus();
+  }
+
   renderAuditPanel(user) {
     const entries = this.auditLogByUser[user.id] || [];
     const isLoading = this.loadingAuditUserId === user.id;
@@ -727,14 +828,47 @@ export class DistrictManagement {
     `;
   }
 
+  /**
+   * Describe a recorded role change in the interface language: the roles
+   * added and removed, named with roleLabel(), then the note if any.
+   *
+   * @param {Object} entry - Server entry (previous_roles, new_roles, note)
+   * @returns {string[]} Lines to show, unescaped; empty when not structured
+   */
+  describeAuditChange(entry) {
+    if (!Array.isArray(entry.previous_roles) || !Array.isArray(entry.new_roles)) {
+      return [];
+    }
+    const beforeIds = new Set(entry.previous_roles.map((role) => role.id));
+    const afterIds = new Set(entry.new_roles.map((role) => role.id));
+    const added = entry.new_roles.filter((role) => !beforeIds.has(role.id));
+    const removed = entry.previous_roles.filter((role) => !afterIds.has(role.id));
+    const names = (roles) => roles.map((role) => roleLabel(role)).join(', ');
+
+    const lines = [];
+    if (added.length) {
+      lines.push(translate('district_management_audit_added').replace('{roles}', names(added)));
+    }
+    if (removed.length) {
+      lines.push(translate('district_management_audit_removed').replace('{roles}', names(removed)));
+    }
+    if (entry.note) {
+      lines.push(translate('district_management_audit_note').replace('{note}', entry.note));
+    }
+    return lines;
+  }
+
   renderAuditEntry(entry) {
-    const actor = escapeHTML(entry.actor_name || entry.actor || translate("district_management_unknown_actor"));
-    const action = escapeHTML(entry.summary || entry.action || translate("district_management_audit_unknown_change"));
+    const actor = escapeHTML(entry.actor_name || entry.actor || translate('district_management_unknown_actor'));
+    const described = this.describeAuditChange(entry);
+    const action = described.length
+      ? described.map((line) => escapeHTML(line)).join('<br>')
+      : escapeHTML(entry.summary || entry.action || translate('district_management_audit_unknown_change'));
     const createdAt = this.formatAuditTimestamp(entry.created_at || entry.timestamp);
     const statusBadge =
-      entry.status === "error"
+      entry.status === 'error'
         ? `<span class="status-pill status-pill--warning">${translate("district_management_audit_status_error")}</span>`
-        : "";
+        : '';
 
     return `
       <li class="dm-audit-entry">
@@ -826,6 +960,8 @@ export class DistrictManagement {
     const saveButton = document.getElementById("dm-save");
     saveButton?.addEventListener("click", () => this.handleSaveRoles());
 
+    document.getElementById('dm-membership-toggle')?.addEventListener('click', () => this.toggleMembership());
+
     const queueButton = document.getElementById("dm-queue");
     queueButton?.addEventListener("click", () => this.queuePendingChange());
 
@@ -886,7 +1022,7 @@ export class DistrictManagement {
     if (!Array.isArray(user.roles) || !user.roles.length) return [];
     return user.roles.map((role) => ({
       ...role,
-      display_name: role.display_name || role.role_name,
+      display_name: roleLabel(role),
     }));
   }
 
@@ -957,7 +1093,7 @@ export class DistrictManagement {
   getRoleBundles() {
     return this.roleBundleIndex.list.map((role) => ({
       ...role,
-      display_name: role.display_name || role.role_name,
+      display_name: roleLabel(role),
       description:
         role.description ||
         translate(`district_management_bundle_${role.role_name}`) ||
@@ -1042,7 +1178,7 @@ export class DistrictManagement {
         translate("district_management_local_group_notice") ||
         "Inventory bundles can extend to organizations within your local group.";
       const bundleLabels = localGroupRoles
-        .map((roleName) => this.getRoleByName(roleName)?.display_name || roleName)
+        .map((roleName) => roleLabel(this.getRoleByName(roleName) || roleName))
         .filter(Boolean)
         .join(", ");
       warnings.push(bundleLabels ? `${template} (${bundleLabels})` : template);
@@ -1161,7 +1297,6 @@ export class DistrictManagement {
       );
       await this.reconcileUserRoles(user.id);
       await this.loadAuditLog(user.id, true);
-      this.recordLocalAuditEntry(user.id, selectedRoleIds, "success");
       this.userMeta[user.id] = { lastSyncedAt: Date.now(), roleCount: selectedRoleIds.length };
       this.lastSyncedAt = Date.now();
       await clearUserCaches(this.organizationId);
@@ -1231,7 +1366,7 @@ export class DistrictManagement {
     return roleIds
       .map((id) => roleLookup.get(id))
       .filter(Boolean)
-      .map((role) => role.display_name || role.role_name);
+      .map((role) => roleLabel(role));
   }
 
   recordLocalAuditEntry(userId, roleIds, status = "success") {

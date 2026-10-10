@@ -30,6 +30,7 @@ import {
   canCreateOrganization,
   canViewCarpools,
   isParent,
+  holdsFamilyRole,
 } from "./utils/PermissionUtils.js";
 import { DashboardCacheManager } from "./utils/DashboardCacheManager.js";
 import { NewsFeed } from "./modules/NewsFeed.js";
@@ -485,7 +486,7 @@ export class Dashboard extends BaseModule {
       case "parentTools":
         return canAccessParentTools();
       case "carpool":
-        return isParent() || canViewCarpools();
+        return holdsFamilyRole() || canViewCarpools();
       case "createOrganization":
         return canCreateOrganization();
       default:

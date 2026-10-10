@@ -165,6 +165,7 @@ class MedicationReminderService {
          JOIN role_permissions rp ON rp.role_id = role_id_text::integer
          JOIN permissions perm ON perm.id = rp.permission_id
          WHERE s.organization_id = $1
+           AND uo.status = 'active'
            AND perm.permission_key = 'medication.view'`,
         [orgId]
       );
