@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import fs from "node:fs";
 import path from "node:path";
-import { createRequire } from "node:module";
+import { createRequire } from 'node:module';
 // Removed legacy plugin to reduce bundle size - targeting modern browsers only
 // import legacy from '@vitejs/plugin-legacy';
 import { visualizer } from "rollup-plugin-visualizer";
