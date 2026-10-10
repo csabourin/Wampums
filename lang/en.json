@@ -3826,5 +3826,10 @@
   "permission_slip_invited_only_notice": "This activity invites only some participants; only they can receive a permission slip.",
   "carpool_invited_only_notice": "This activity invites only some participants; only they are listed.",
   "permission_slip_partially_saved": "Only {saved} of {total} permission slips were saved. Try again for the others.",
-  "activity_invitees_keep_off_roster": "Keep the {count} invited participant(s) no longer enrolled this year"
+  "activity_invitees_keep_off_roster": "Keep the {count} invited participant(s) no longer enrolled this year",
+  "messages_title": "Messages",
+  "message_not_found": "This message cannot be found. It may have been sent to another account.",
+  "messages_load_error": "The messages could not be loaded. Try again in a moment.",
+  "messages_empty": "No messages yet. Messages sent to you as notifications appear here.",
+  "message_sent_by": "Sent by"
 }

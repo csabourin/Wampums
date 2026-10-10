@@ -6,7 +6,8 @@
  * are selected), and a browser the push service reports as gone (404/410) is
  * removed so it stops cluttering the list. Re-registering a browser moves its
  * endpoint to whoever is signed in. The browser learns the public key from the
- * server, whichever environment variable name holds it.
+ * server, whichever environment variable name holds it. Each recipient keeps a
+ * copy of the message, which their notification opens and only they can read.
  *
  * Skipped unless SCOUT_YEAR_TEST_DATABASE_URL (or TEST_DATABASE_URL) points at
  * a disposable database holding the project schema, permission catalog and
@@ -136,6 +137,7 @@ describe.skipIf(!DATABASE_URL)('Push notifications', () => {
     app.use(express.json());
     app.locals.pool = pool;
     app.use('/api/v1/notifications', require('../routes/notifications')(pool, console));
+    app.use('/api/v1/messages', require('../routes/messages')(pool));
   });
 
   afterAll(async () => {
@@ -148,6 +150,7 @@ describe.skipIf(!DATABASE_URL)('Push notifications', () => {
     }
     if (pool) {
       await pool.query('DELETE FROM subscribers WHERE organization_id = ANY($1::int[])', [[ids.unit, ids.otherUnit]]);
+      await pool.query('DELETE FROM user_messages WHERE organization_id = ANY($1::int[])', [[ids.unit, ids.otherUnit]]);
       await pool.end();
     }
   });
@@ -201,6 +204,93 @@ describe.skipIf(!DATABASE_URL)('Push notifications', () => {
     expect(reached.sort()).toEqual([endpoint('chosen-gone'), endpoint('chosen-live')]);
     expect(await endpointsOf(chosen)).toEqual([endpoint('chosen-live')]);
     expect(await endpointsOf(other)).toEqual([endpoint('other-live')]);
+  });
+
+  test('each recipient\'s notification opens their own copy of the message', async () => {
+    const first = await createMember([ids.sender], 'First reader');
+    const second = await createMember([ids.sender], 'Second reader');
+    await subscribe(first, 'first-phone');
+    await subscribe(first, 'first-laptop');
+    await subscribe(second, 'second-phone');
+
+    const response = await request(app)
+      .post('/api/v1/notifications/send')
+      .send({ title: 'Sortie', body: 'Départ samedi\nà 9 h', user_ids: [first, second] });
+
+    expect(response.status).toBe(200);
+    const urlByEndpoint = Object.fromEntries(webpush.sendNotification.mock.calls
+      .map(([subscription, payload]) => [subscription.endpoint, JSON.parse(payload).data.url]));
+    // Both of a member's devices open the same copy; another member's is distinct
+    expect(urlByEndpoint[endpoint('first-phone')]).toMatch(/^\/messages\/\d+$/);
+    expect(urlByEndpoint[endpoint('first-laptop')]).toBe(urlByEndpoint[endpoint('first-phone')]);
+    expect(urlByEndpoint[endpoint('second-phone')]).not.toBe(urlByEndpoint[endpoint('first-phone')]);
+
+    mockContext.userId = first;
+    const opened = await request(app).get(`/api/v1${urlByEndpoint[endpoint('first-phone')]}`);
+    expect(opened.status).toBe(200);
+    expect(opened.body.data).toMatchObject({ title: 'Sortie', body: 'Départ samedi\nà 9 h', sender_name: 'Sender' });
+
+    const list = await request(app).get('/api/v1/messages');
+    expect(list.body.data.map((message) => message.title)).toEqual(['Sortie']);
+  });
+
+  test('a member cannot read someone else\'s message, nor one from another unit', async () => {
+    const owner = await createMember([ids.sender], 'Owner');
+    const snoop = await createMember([ids.sender], 'Snoop');
+    await subscribe(owner, 'owner-phone');
+    await request(app).post('/api/v1/notifications/send').send({ title: 'Privé', body: 'Texte', user_ids: [owner] });
+    const url = JSON.parse(webpush.sendNotification.mock.calls[0][1]).data.url;
+
+    mockContext.userId = snoop;
+    const asSnoop = await request(app).get(`/api/v1${url}`);
+    expect(asSnoop.status).toBe(404);
+    expect((await request(app).get('/api/v1/messages')).body.data).toEqual([]);
+
+    // Also a member of the other unit: signed in there, the message is not theirs to read
+    await pool.query(
+      `INSERT INTO user_organizations (user_id, organization_id, role_ids, status)
+       VALUES ($1, $2, '[]', 'active')`,
+      [owner, ids.otherUnit]
+    );
+    mockContext.userId = owner;
+    mockContext.organizationId = ids.otherUnit;
+    try {
+      expect((await request(app).get(`/api/v1${url}`)).status).toBe(404);
+    } finally {
+      mockContext.organizationId = ids.unit;
+    }
+  });
+
+  test('an announcement\'s push opens the recipient\'s copy of it', async () => {
+    const reader = await createMember([ids.sender], 'Announcement reader');
+    await subscribe(reader, 'announcement-phone');
+    const roleName = await one('SELECT role_name FROM roles WHERE id = $1', [ids.sender]);
+    const announcement = (await pool.query(
+      `INSERT INTO announcements (organization_id, created_by, subject, message, recipient_roles, status)
+       VALUES ($1, $2, $3, $4, $5, 'sending') RETURNING *`,
+      [ids.unit, ids.caller, 'Camp d\'hiver', 'Liste du matériel', [roleName]]
+    )).rows[0];
+    const { dispatchAnnouncementForTests } = require('../routes/announcements');
+    const quiet = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+
+    try {
+      await dispatchAnnouncementForTests(pool, quiet, announcement);
+
+      const call = webpush.sendNotification.mock.calls
+        .find(([subscription]) => subscription.endpoint === endpoint('announcement-phone'));
+      const { url } = JSON.parse(call[1]).data;
+      mockContext.userId = reader;
+      const opened = await request(app).get(`/api/v1${url}`);
+      expect(opened.status).toBe(200);
+      expect(opened.body.data).toMatchObject({ title: 'Camp d\'hiver', body: 'Liste du matériel' });
+    } finally {
+      await pool.query('DELETE FROM announcements WHERE id = $1', [announcement.id]);
+    }
+  });
+
+  test('a message id must be a number', async () => {
+    const response = await request(app).get('/api/v1/messages/1%20OR%201=1');
+    expect(response.status).toBe(400);
   });
 
   test('a send with no selection reaches every subscriber of the unit', async () => {

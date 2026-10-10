@@ -825,13 +825,20 @@ export const app = {
 };
 
 if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.addEventListener('message', function (event) {
-                if (event.data && event.data.type === 'PUSH_ALERT') {
-                        const title = event.data.title || translate('new_notification');
-                        const body = event.data.body || '';
-                        app.showMessage(body ? `${title} — ${body}` : title, 'info');
-                }
-        });
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'PUSH_ALERT') {
+      const title = event.data.title || translate('new_notification');
+      const body = event.data.body || '';
+      app.showMessage(body ? `${title} — ${body}` : title, 'info');
+    } else if (event.data && event.data.type === 'NOTIFICATION_NAVIGATE') {
+      // A tapped notification, with the app already open: show the page it
+      // names. Only an in-app path is followed.
+      const url = String(event.data.url || '');
+      if (url.startsWith('/') && !url.startsWith('//')) {
+        app.router?.navigate(url);
+      }
+    }
+  });
 }
 
 window.addEventListener("online", () => {

@@ -138,7 +138,8 @@ const lazyModules = {
   ParticipantDuplicates: () => import('./modules/participant-duplicates/ParticipantDuplicates.js').then(m => m.ParticipantDuplicates),
   ParentOnboarding: () => import('./modules/parent-onboarding/ParentOnboarding.js').then(m => m.ParentOnboarding),
   FamilyAccess: () => import('./modules/family-access/FamilyAccess.js').then(m => m.FamilyAccess),
-  WalkInChildren: () => import('./modules/walk-in/WalkInChildren.js').then(m => m.WalkInChildren)
+  WalkInChildren: () => import('./modules/walk-in/WalkInChildren.js').then(m => m.WalkInChildren),
+  Messages: () => import('./modules/messages/Messages.js').then(m => m.Messages)
 };
 
 // Cache for loaded modules
@@ -192,6 +193,8 @@ const routes = {
   "/parent-onboarding": "parentOnboarding",
   "/family-access": "familyAccess",
   "/walk-in-children": "walkInChildren",
+  '/messages': 'messages',
+  '/messages/:id': 'message',
   "/reports": "reports",
   "/preparation-reunions": "preparation_reunions",
   "/preparation-reunions/:date": "preparation_reunions",
@@ -921,6 +924,15 @@ export class Router {
           this.currentModuleInstance = carpoolLanding;
           await carpoolLanding.init();
           break;
+        case 'messages':
+        case 'message': {
+          // Every member reads their own messages; the server returns only theirs.
+          const Messages = await this.loadModule('Messages');
+          const messages = new Messages(this.app, { messageId: routeName === 'message' ? parseInt(param, 10) : null });
+          this.currentModuleInstance = messages;
+          await messages.init();
+          break;
+        }
         case "carpool":
           if (!guard(holdsFamilyRole() || canViewCarpools())) {
             break;
