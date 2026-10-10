@@ -460,23 +460,25 @@ describe('Modern points action bar', () => {
     selectParticipant(1);
 
     const trigger = document.getElementById('points-game-result-trigger');
-    const dialog = document.getElementById('points-game-result-dialog');
+    const openDialog = () => document.querySelector('#points-game-result-dialog [role="dialog"]');
     trigger.click();
 
-    expect(dialog.hasAttribute('open')).toBe(true);
-    expect(document.activeElement).toBe(dialog.querySelector('[data-points="5"]'));
+    expect(openDialog()).not.toBeNull();
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement).toBe(openDialog().querySelector('[data-points="5"]'));
 
     document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {
       key: 'Escape',
       bubbles: true
     }));
-    expect(dialog.hasAttribute('open')).toBe(false);
+    expect(openDialog()).toBeNull();
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
     expect(document.activeElement).toBe(trigger);
 
     trigger.click();
-    dialog.querySelector('[data-points="4"]').click();
+    openDialog().querySelector('[data-points="4"]').click();
 
-    expect(dialog.hasAttribute('open')).toBe(false);
+    expect(openDialog()).toBeNull();
     expect(document.activeElement).toBe(trigger);
     expect(participantTotalText(1)).toBe('14');
     await flushPromises();

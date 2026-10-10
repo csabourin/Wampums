@@ -9,7 +9,6 @@
 
 import { sanitizeHTML, sanitizeURL } from './SecurityUtils.js';
 import { debugError } from './DebugUtils.js';
-import { enhanceModalAccessibility } from './ModalAccessibility.js';
 
 /**
  * Safely set HTML content (auto-sanitizes)
@@ -35,7 +34,6 @@ export function setContent(element, content, options = {}) {
   }
 
   element.innerHTML = sanitizeHTML(content, options);
-  enhanceModalAccessibility(element);
   return element;
 }
 
@@ -280,7 +278,6 @@ export function insertHTML(element, position, html, options = {}) {
 
   const sanitized = sanitizeHTML(html, options);
   element.insertAdjacentHTML(position, sanitized);
-  enhanceModalAccessibility(document.body);
 }
 
 /**

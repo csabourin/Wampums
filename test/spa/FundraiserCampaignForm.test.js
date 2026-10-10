@@ -202,7 +202,7 @@ describe('validation feedback', () => {
     expect(app.showMessage).toHaveBeenCalledWith('error_saving_fundraiser', 'error');
     expect(app.showMessage).not.toHaveBeenCalledWith('fundraiser_created', 'success');
     // The modal stays open so the user can correct the input.
-    expect(document.getElementById('fundraiser-modal').open).toBe(true);
+    expect(document.getElementById('fundraiser-modal')).not.toBeNull();
   });
 
   test('server field errors are shown next to the field they belong to', async () => {
@@ -324,32 +324,34 @@ describe('accessibility of the campaign modal', () => {
   test('Escape closes the modal', () => {
     setup();
     const modal = document.getElementById('fundraiser-modal');
-    expect(modal.open).toBe(true);
 
-    modal.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
-    expect(modal.open).toBe(false);
+    expect(modal.isConnected).toBe(false);
   });
 
-  test('the browser\'s own dismissal (cancel event) closes the modal', () => {
+  test('a click on the backdrop closes the modal', () => {
     setup();
     const modal = document.getElementById('fundraiser-modal');
 
-    modal.dispatchEvent(new Event('cancel', { cancelable: true }));
+    modal.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-    expect(modal.open).toBe(false);
+    expect(modal.isConnected).toBe(false);
   });
 
-  test('the modal is a native dialog, closed until asked for', () => {
+  test('the modal is the shared labelled dialog, absent until asked for', () => {
     document.body.innerHTML = '<div id="app"></div>';
     const module = new Fundraisers({ lang: 'fr', router: { navigate: jest.fn() }, showMessage: jest.fn() });
     module.render();
     module.initEventListeners();
+    expect(document.getElementById('fundraiser-modal')).toBeNull();
 
-    const modal = document.getElementById('fundraiser-modal');
-    expect(modal.tagName).toBe('DIALOG');
-    expect(modal.getAttribute('aria-labelledby')).toBe('modal-title');
-    expect(modal.open).toBe(false);
+    module.showModal();
+
+    const dialog = document.querySelector('#fundraiser-modal [role="dialog"]');
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(document.getElementById(dialog.getAttribute('aria-labelledby')).textContent).toBe('add_fundraiser');
+    expect(document.activeElement.id).toBe('fundraiser-name');
   });
 
   test.each([
@@ -361,7 +363,7 @@ describe('accessibility of the campaign modal', () => {
 
     modal.querySelector(selector).click();
 
-    expect(modal.open).toBe(false);
+    expect(modal.isConnected).toBe(false);
   });
 
   test('a successful save closes the modal', async () => {
@@ -371,7 +373,7 @@ describe('accessibility of the campaign modal', () => {
     await module.saveFundraiser();
 
     expect(app.showMessage).toHaveBeenCalledWith('fundraiser_created', 'success');
-    expect(document.getElementById('fundraiser-modal').open).toBe(false);
+    expect(document.getElementById('fundraiser-modal')).toBeNull();
   });
 });
 

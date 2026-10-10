@@ -809,6 +809,13 @@ body.cmd-palette-open {
   border-color: var(--color-primary, #0f7a5a);
 }
 
+/* The global button hover paints a green gradient; dark card text on it fails contrast */
+.dash-settings__palette:hover:not(:disabled) {
+  background-color: var(--color-surface, #fff);
+  background-image: none;
+  transform: none;
+}
+
 .dash-settings__palette:focus-visible {
   outline: 3px solid var(--color-focus-ring, #0f7a5a);
   outline-offset: 2px;

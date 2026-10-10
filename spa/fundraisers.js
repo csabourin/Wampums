@@ -9,6 +9,7 @@ import {
   canViewFundraisers,
 } from './utils/PermissionUtils.js';
 import { setContent } from './utils/DOMUtils.js';
+import { openModal, closeModal } from './utils/ModalUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
 import { confirmDestructive } from './utils/DialogUtils.js';
 import { formatDateShort, getTodayISO } from './utils/DateUtils.js';
@@ -75,37 +76,6 @@ function formValue(form, fieldName) {
   return typeof field?.value === 'string' ? field.value.trim() : '';
 }
 
-/**
- * Open or close the campaign dialog.
- *
- * A native modal `<dialog>` is hidden by the browser itself while closed, so no
- * stylesheet rule can leave it on screen, and while open it sits in the top
- * layer with the rest of the page inert (no tabbing behind it). Environments
- * without `showModal()` fall back to the `open` attribute.
- *
- * @param {HTMLDialogElement|null} dialog - The campaign dialog
- * @param {boolean} open - Whether it should be shown
- * @returns {void}
- */
-function setDialogOpen(dialog, open) {
-  if (!dialog || dialog.open === open) {
-    return;
-  }
-  if (!open) {
-    if (typeof dialog.close === 'function') {
-      dialog.close();
-    } else {
-      dialog.removeAttribute('open');
-    }
-    return;
-  }
-  if (typeof dialog.showModal === 'function') {
-    dialog.showModal();
-  } else {
-    dialog.setAttribute('open', '');
-  }
-}
-
 export class Fundraisers {
   constructor(app) {
     this.app = app;
@@ -160,7 +130,6 @@ export class Fundraisers {
 				${this.renderArchivedSection()}
 			</div>
 
-			${this.renderModal()}
 		`;
     setContent(document.getElementById('app'), content);
   }
@@ -342,15 +311,13 @@ export class Fundraisers {
 		`;
   }
 
-  renderModal() {
+  /**
+   * The campaign form shown in the campaign dialog.
+   * @returns {string} Form HTML
+   */
+  renderForm() {
     return `
-			<dialog id="fundraiser-modal" class="fundraiser-dialog" aria-labelledby="modal-title">
-				<div class="modal-content">
-					<div class="modal-header">
-						<h2 id="modal-title">${translate('add_fundraiser')}</h2>
-						<button class="modal-close" aria-label="${translate('close')}">&times;</button>
-					</div>
-					<form id="fundraiser-form" class="modal-body" novalidate>
+					<form id="fundraiser-form" novalidate>
 						<p id="fundraiser-form-error" class="form-error-summary" role="alert" hidden></p>
 						<div class="form-group">
 							<label for="fundraiser-name">${translate('name')}*</label>
@@ -389,13 +356,7 @@ export class Fundraisers {
 							<input type="number" id="fundraiser-objective" name="objective" min="0" step="0.01" aria-describedby="fundraiser-objective-error">
 							<span class="field-error" id="fundraiser-objective-error" data-field-error="objective"></span>
 						</div>
-						<div class="modal-footer">
-							<button type="button" class="btn-secondary modal-cancel">${translate('cancel')}</button>
-							<button type="submit" class="primary-btn">${translate('save')}</button>
-						</div>
 					</form>
-				</div>
-			</dialog>
 		`;
   }
 
@@ -456,35 +417,55 @@ export class Fundraisers {
       fundraisersContainer.addEventListener('click', this.fundraiserActionHandler);
     }
 
-    // Modal events
-    const modal = document.getElementById('fundraiser-modal');
-    const closeBtn = modal.querySelector('.modal-close');
-    const cancelBtn = modal.querySelector('.modal-cancel');
-    const form = document.getElementById('fundraiser-form');
+  }
 
-    closeBtn.addEventListener('click', () => this.hideModal());
-    cancelBtn.addEventListener('click', () => this.hideModal());
-
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) {
-        this.hideModal();
-      }
+  /**
+   * Open the campaign dialog, empty to create or filled to edit.
+   * @param {Object|null} [fundraiser] - Campaign to edit
+   */
+  showModal(fundraiser = null) {
+    this.editingFundraiser = fundraiser;
+    const { overlay } = openModal({
+      id: 'fundraiser-modal',
+      title: translate(fundraiser ? 'edit_fundraiser' : 'add_fundraiser'),
+      body: this.renderForm(),
+      footer: `
+        <button type="button" class="btn-secondary modal-cancel" data-modal-close>${translate('cancel')}</button>
+        <button type="submit" class="primary-btn" form="fundraiser-form">${translate('save')}</button>
+      `,
+      initialFocus: '#fundraiser-name',
+      onClose: () => { this.editingFundraiser = null; },
     });
+    const form = overlay.querySelector('#fundraiser-form');
+    this.attachFormListeners(form);
 
-    modal.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        this.hideModal();
-      }
-    });
+    if (fundraiser) {
+      const formatDate = (dateString) => {
+        if (!dateString) {
+          return '';
+        }
+        return dateString.split('T')[0] || dateString;
+      };
 
-    // The browser's own dismissal (Escape, Android back) goes through the same
-    // clean-up as the buttons.
-    modal.addEventListener('cancel', (e) => {
-      e.preventDefault();
-      this.hideModal();
-    });
+      this.setFieldValue(form, 'campaign_name', fundraiser.name || '');
+      this.setFieldValue(form, 'campaign_type', fundraiser.campaign_type || DEFAULT_CAMPAIGN_TYPE);
+      this.setFieldValue(form, 'start_date', formatDate(fundraiser.start_date));
+      this.setFieldValue(form, 'end_date', formatDate(fundraiser.end_date));
+      this.setFieldValue(form, 'unit_price', fundraiser.unit_price ?? '');
+      this.setFieldValue(form, 'unit_label', fundraiser.unit_label || '');
+      this.setFieldValue(form, 'objective', fundraiser.objective ?? '');
+    } else {
+      this.setFieldValue(form, 'campaign_type', DEFAULT_CAMPAIGN_TYPE);
+    }
 
+    this.syncCampaignTypeFields();
+  }
+
+  /**
+   * Wire the campaign form: type-dependent fields, error clearing, submit.
+   * @param {HTMLFormElement} form
+   */
+  attachFormListeners(form) {
     formField(form, 'campaign_type')?.addEventListener('change', () => {
       this.syncCampaignTypeFields();
     });
@@ -500,44 +481,6 @@ export class Fundraisers {
       e.preventDefault();
       await this.saveFundraiser();
     });
-  }
-
-  showModal(fundraiser = null) {
-    const modal = document.getElementById('fundraiser-modal');
-    const title = document.getElementById('modal-title');
-    const form = document.getElementById('fundraiser-form');
-
-    this.editingFundraiser = fundraiser;
-    // Remember the trigger so focus can be handed back when the modal closes.
-    this.modalReturnFocus = document.activeElement;
-    this.clearFormErrors();
-
-    if (fundraiser) {
-      const formatDate = (dateString) => {
-        if (!dateString) {
-          return '';
-        }
-        return dateString.split('T')[0] || dateString;
-      };
-
-      title.textContent = translate('edit_fundraiser');
-      this.setFieldValue(form, 'campaign_name', fundraiser.name || '');
-      this.setFieldValue(form, 'campaign_type', fundraiser.campaign_type || DEFAULT_CAMPAIGN_TYPE);
-      this.setFieldValue(form, 'start_date', formatDate(fundraiser.start_date));
-      this.setFieldValue(form, 'end_date', formatDate(fundraiser.end_date));
-      this.setFieldValue(form, 'unit_price', fundraiser.unit_price ?? '');
-      this.setFieldValue(form, 'unit_label', fundraiser.unit_label || '');
-      this.setFieldValue(form, 'objective', fundraiser.objective ?? '');
-    } else {
-      title.textContent = translate('add_fundraiser');
-      form.reset();
-      this.setFieldValue(form, 'campaign_type', DEFAULT_CAMPAIGN_TYPE);
-    }
-
-    this.syncCampaignTypeFields();
-
-    setDialogOpen(modal, true);
-    formField(form, 'campaign_name')?.focus();
   }
 
   /**
@@ -682,18 +625,9 @@ export class Fundraisers {
   }
 
   hideModal() {
-    const modal = document.getElementById('fundraiser-modal');
-    setDialogOpen(modal, false);
-    this.editingFundraiser = null;
-    this.clearFormErrors();
-
-    // Return focus to whatever opened the modal so keyboard users are not
-    // dropped back at the top of the document.
-    if (this.modalReturnFocus?.isConnected) {
-      this.modalReturnFocus.focus();
-    }
-    this.modalReturnFocus = null;
+    closeModal('fundraiser-modal');
   }
+
 
   /**
 	 * Build the campaign payload from the form and persist it.

@@ -321,6 +321,16 @@ const result = await pool.query(
 - ✅ Use `setContent()` from `spa/utils/DOMUtils.js` for all DOM updates
 - ❌ **Never assign `innerHTML =` directly** (outside `DOMUtils.js` and `SecurityUtils.js`); enforced by `npm run lint:spa-innerhtml`
 
+#### Modals
+- ✅ Every modal uses `openModal()` from `spa/utils/ModalUtils.js`: one markup (`.modal-overlay > .modal-dialog`
+  with header, body, footer), focus moved in and returned to the opener, Tab kept inside, Escape and the
+  backdrop close the topmost dialog, page scroll locked, and the router closes it on navigation.
+- ✅ Action buttons go in `footer`; a submit button outside its form names it with `form="<form-id>"`
+  (`withFormBusy` disables those too). Cancel buttons carry `data-modal-close`.
+- ✅ Confirmations, alerts and prompts use `confirm` / `confirmDestructive` / `alert` / `prompt` from
+  `spa/utils/DialogUtils.js`, never the browser's.
+- ❌ No hand-built overlays, native `<dialog>`, or page styles for `.modal-*` classes.
+
 #### Configuration
 - ✅ **No hardcoded values** - use `spa/config.js`
 ```javascript

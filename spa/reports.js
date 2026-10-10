@@ -33,13 +33,12 @@ import { canViewReports, isParent } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { exportToCSV } from "./utils/ExportUtils.js";
 import { CONFIG } from "./config.js";
-import { lockBodyScroll, unlockBodyScroll } from "./utils/ScrollLockUtils.js";
+import { openModal, closeModal } from "./utils/ModalUtils.js";
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 const REPORT_CURRENCY = "CAD";
 
 /** Owner key for the report modal's body scroll lock. */
-const REPORT_MODAL_SCROLL_LOCK = "reports:report-modal";
 
 export class Reports {
 	constructor(app) {
@@ -59,12 +58,7 @@ export class Reports {
 	 * otherwise the destination page cannot be scrolled.
 	 */
 	destroy() {
-		if (this.escKeyHandler) {
-			document.removeEventListener("keydown", this.escKeyHandler);
-			this.escKeyHandler = null;
-		}
 		this.closeReportModal();
-    this.removeReportModal();
 	}
 
 	async init() {
@@ -249,56 +243,9 @@ export class Reports {
                                         </div>
                                 </details>
                         </section>
-
-                        <!-- Report Modal -->
-                        <div id="report-modal" class="report-modal hidden" role="dialog" aria-modal="true" aria-labelledby="report-modal-title">
-                                <div class="report-modal-overlay" id="report-modal-overlay"></div>
-                                <div class="report-modal-container">
-                                        <div class="report-modal-header">
-                                                <h2 id="report-modal-title" class="report-modal-title"></h2>
-                                                <div class="report-modal-actions">
-                                                        <button id="print-report" class="button button--secondary" type="button">
-                                                                <span class="button-icon">🖨️</span>
-                                                                ${translate("print_report")}
-                                                        </button>
-                                                        ${CONFIG.FEATURES.EXPORT_REPORTS ? `
-                                                        <button id="export-report" class="button button--secondary" type="button" style="margin-left: 0.5rem;">
-                                                                <span class="button-icon">⬇️</span>
-                                                                ${translate("export_csv")}
-                                                        </button>
-                                                        ` : ''}
-                                                        <button id="close-report-modal" class="button button--ghost close" type="button" aria-label="${translate("close")}">
-                                                                <span class="button-icon">✕</span>
-                                                        </button>
-                                                </div>
-                                        </div>
-                                        <div class="report-modal-content" id="report-content" aria-live="polite"></div>
-                                </div>
-                        </div>
                 `;
-    this.removeReportModal();
 		setContent(document.getElementById("app"), content);
-    this.mountReportModal();
 	}
-
-  /**
-   * Move the report modal out of #app and onto <body>.
-   *
-   * #app is its own stacking context at --z-base, so a modal inside it can
-   * never rise above body-level fixed elements such as the global settings
-   * icon, which would otherwise cover the modal's close button.
-   */
-  mountReportModal() {
-    const modal = document.getElementById('report-modal');
-    if (modal) {
-      document.body.appendChild(modal);
-    }
-  }
-
-  /** Remove the body-level report modal so it does not outlive this page. */
-  removeReportModal() {
-    document.getElementById('report-modal')?.remove();
-  }
 
 	attachEventListeners() {
 		document.querySelectorAll(".report-btn").forEach((button) => {
@@ -308,75 +255,39 @@ export class Reports {
 			});
 		});
 
-		// Modal close handlers
-		const closeModalBtn = document.getElementById("close-report-modal");
-		const modalOverlay = document.getElementById("report-modal-overlay");
-
-		closeModalBtn?.addEventListener("click", () => this.closeReportModal());
-		modalOverlay?.addEventListener("click", () => this.closeReportModal());
-
-		// ESC key to close modal (keep a reference so destroy() can remove it)
-		if (this.escKeyHandler) {
-			document.removeEventListener("keydown", this.escKeyHandler);
-		}
-		this.escKeyHandler = (e) => {
-			if (e.key === "Escape") {
-				const modal = document.getElementById("report-modal");
-				if (modal && !modal.classList.contains("hidden")) {
-					this.closeReportModal();
-				}
-			}
-		};
-		document.addEventListener("keydown", this.escKeyHandler);
-
-		document
-			.getElementById("print-report")
-			?.addEventListener("click", () => this.printReport());
-
-		document
-			.getElementById("export-report")
-			?.addEventListener("click", () => this.exportCurrentReport());
 	}
 
+	/**
+	 * Open the report dialog; the report is rendered into #report-content.
+	 * @param {string} title - Report title (plain text)
+	 */
 	openReportModal(title) {
-		const modal = document.getElementById("report-modal");
-		const modalTitle = document.getElementById("report-modal-title");
-
-		if (!modal || !modalTitle) {
-			debugWarn("Report modal elements missing");
-			return;
-		}
-
-		// Remember the trigger so focus can be returned when the modal closes.
-		this.modalReturnFocus = document.activeElement;
-
-		modalTitle.textContent = title;
-		modal.classList.remove("hidden");
-		modal.setAttribute("aria-hidden", "false");
-		lockBodyScroll(REPORT_MODAL_SCROLL_LOCK);
-
-		const closeButton = modal.querySelector(".modal-close, #close-report-modal");
-		(closeButton || modal).focus?.();
+		const { overlay } = openModal({
+			id: "report-modal",
+			title: escapeHTML(title),
+			size: "large",
+			className: "report-modal-dialog",
+			body: '<div class="report-modal-content" id="report-content" aria-live="polite"></div>',
+			footer: `
+				<button id="print-report" class="button button--secondary" type="button">
+					<span class="button-icon" aria-hidden="true">🖨️</span>
+					${translate("print_report")}
+				</button>
+				${CONFIG.FEATURES?.EXPORT_REPORTS ? `
+				<button id="export-report" class="button button--secondary" type="button">
+					<span class="button-icon" aria-hidden="true">⬇️</span>
+					${translate("export_csv")}
+				</button>
+				` : ''}
+			`,
+			initialFocus: ".modal-close",
+		});
+		overlay.querySelector("#print-report")?.addEventListener("click", () => this.printReport());
+		overlay.querySelector("#export-report")?.addEventListener("click", () => this.exportCurrentReport());
 	}
 
 	closeReportModal() {
-		// The lock is released even when the modal element is already gone (the
-		// SPA container may have been re-rendered underneath us).
-		unlockBodyScroll(REPORT_MODAL_SCROLL_LOCK);
-
-		const modal = document.getElementById("report-modal");
-		if (modal) {
-			modal.classList.add("hidden");
-			modal.setAttribute("aria-hidden", "true");
-		}
-
-		// Never leave focus inside a hidden or removed subtree.
-		if (this.modalReturnFocus?.isConnected) {
-			this.modalReturnFocus.focus();
-		} else if (document.activeElement && modal?.contains(document.activeElement)) {
-			document.activeElement.blur();
-		}
-		this.modalReturnFocus = null;
+		closeModal("report-modal");
 	}
 
 	async loadFormTypes() {
@@ -441,8 +352,11 @@ export class Reports {
 				return;
 			}
 
-			// Open modal with report title
-			this.openReportModal(reportTitles[reportType] || translate("report"));
+			// Open modal with report title, unless the page shows the report
+			// itself (a parent viewing their child's progress)
+			if (!document.querySelector("#app #report-content")) {
+				this.openReportModal(reportTitles[reportType] || translate("report"));
+			}
 
 			this.currentReportType = reportType;
 			this.currentReportData = null; // Reset previous data

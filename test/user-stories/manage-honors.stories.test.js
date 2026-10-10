@@ -243,7 +243,7 @@ describe('US-HON-002 — Award honors with a reason for each kid', () => {
 
     row(2).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     document.getElementById('awardHonorButton').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    document.getElementById('cancel-honors').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    document.querySelector('#honor-reason-modal .modal-footer [data-modal-close]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     expect(document.getElementById('honor-reason-modal')).toBeNull();
     expect(page.pendingHonors).toEqual([]);

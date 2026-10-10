@@ -970,29 +970,7 @@ export class IncidentReport {
       }
       .incident-view-meta p { margin: 6px 0; }
 
-      /* Escalation modal */
-      .modal-overlay {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.5); z-index: 1000;
-        display: flex; align-items: center; justify-content: center;
-      }
-      .modal-content {
-        background: var(--card-bg, #fff);
-        border-radius: 12px;
-        width: 90%; max-width: 560px;
-        max-height: 80vh; overflow-y: auto;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-      }
-      .modal-header {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 16px 20px; border-bottom: 1px solid var(--border-color, #ddd);
-      }
-      .modal-header h2 { margin: 0; font-size: 18px; }
-      .modal-close-btn {
-        background: none; border: none; font-size: 24px; cursor: pointer;
-        color: var(--text-muted, #666); line-height: 1;
-      }
-      .modal-body { padding: 20px; }
+      /* Escalation contacts, in the shared dialog */
       .escalation-contact-row {
         display: flex; align-items: center; gap: 8px;
         padding: 8px 0; border-bottom: 1px solid var(--border-color, #eee);

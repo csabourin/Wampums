@@ -130,6 +130,7 @@ function handleKeydown(event) {
  * @param {string} [options.className] - Extra classes for the dialog panel
  * @param {string|false} [options.initialFocus] - Selector of the element to focus first; false focuses the dialog
  * @param {boolean} [options.closeOnBackdrop] - Whether a backdrop click closes (default true)
+ * @param {HTMLElement} [options.returnFocus] - Where focus goes on close (default: the element focused when it opened)
  * @param {Function} [options.onClose] - Called once, after the modal is removed
  * @param {Function} [options.canClose] - Whether a user may dismiss the dialog (e.g. while saving)
  * @returns {{ overlay: HTMLElement, dialog: HTMLElement, body: HTMLElement, close: Function }} Modal handle
@@ -143,17 +144,16 @@ export function openModal({
   className = '',
   initialFocus = null,
   closeOnBackdrop = true,
+  returnFocus = null,
   onClose = null,
   canClose = () => true,
 }) {
   closeModal(id);
 
-  const opener = document.activeElement;
+  const opener = returnFocus || document.activeElement;
   const overlay = document.createElement('div');
   overlay.id = id;
   overlay.className = 'modal-overlay';
-  // The legacy enhancer in ModalAccessibility.js must leave this one alone
-  overlay.dataset.modalA11yEnhanced = 'true';
   const panelClasses = ['modal-dialog', SIZE_CLASSES[size], className].filter(Boolean).join(' ');
   setContent(overlay, `
     <div class="${panelClasses}" role="dialog" aria-modal="true" aria-labelledby="${id}-title" tabindex="-1">

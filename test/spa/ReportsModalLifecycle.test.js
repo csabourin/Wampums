@@ -81,13 +81,7 @@ import { isBodyScrollLocked, releaseAllScrollLocks } from '../../spa/utils/Scrol
 function setup() {
   document.body.innerHTML = `
     <button id="open-report">open</button>
-    <div id="app">
-      <div id="report-modal" class="hidden" aria-hidden="true">
-        <button class="modal-close">close</button>
-        <div id="report-modal-title"></div>
-        <div id="report-content"></div>
-      </div>
-    </div>
+    <div id="app"></div>
   `;
 
   const navigate = jest.fn();
@@ -108,7 +102,8 @@ describe('report modal scroll lock', () => {
     reports.openReportModal('Health');
 
     expect(isBodyScrollLocked()).toBe(true);
-    expect(document.getElementById('report-modal').classList.contains('hidden')).toBe(false);
+    const dialog = document.querySelector('#report-modal [role="dialog"]');
+    expect(document.getElementById(dialog.getAttribute('aria-labelledby')).textContent).toBe('Health');
   });
 
   test('navigating away with the modal open restores scrolling', () => {
