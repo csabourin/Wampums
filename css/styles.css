@@ -1733,6 +1733,38 @@ tr:hover {
   display: flex;
 }
 
+/* Native modal <dialog> (fundraiser campaigns). The browser shows it in the
+   top layer only while open; the explicit rule keeps any author `display`
+   from ever leaving a closed one on screen. The panel is the shared
+   `.modal-content`, which scrolls when the form is taller than the screen. */
+.fundraiser-dialog {
+  inline-size: min(100% - 2 * var(--space-md) - var(--safe-area-left) - var(--safe-area-right), 600px);
+  max-inline-size: none;
+  max-block-size: var(--modal-max-block-size);
+
+  /* The UA centres a modal dialog with auto margins; the global reset zeroes them. */
+  margin: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  overflow: visible;
+}
+
+.fundraiser-dialog:not([open]) {
+  display: none !important;
+}
+
+.fundraiser-dialog::backdrop {
+  background-color: rgb(29 47 42 / 0.75);
+  backdrop-filter: blur(4px);
+}
+
+.fundraiser-dialog > .modal-content {
+  max-block-size: var(--modal-max-block-size);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 /* Modal Content Container */
 .modal-overlay .modal-content {
   /* Layout */
@@ -4588,7 +4620,11 @@ tr:hover {
   background: var(--color-surface);
 }
 
-.calendars-table td {
+/* `.data-table` (also on this table) sets cell padding and alignment later in
+   the file with equal specificity; doubling the class keeps the 45% gutter the
+   `data-label` caption sits in, so the caption never overlaps the value. */
+.calendars-table td,
+.calendars-table.data-table td {
   display: block;
   position: relative;
   padding: var(--space-sm) var(--space-md) var(--space-sm) 45%;
@@ -4641,6 +4677,7 @@ tr:hover {
   }
 
   .calendars-table td,
+  .calendars-table.data-table td,
   .calendars-table th {
     display: table-cell;
     padding: var(--space-md);

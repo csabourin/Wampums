@@ -225,6 +225,33 @@ export function canManageFundraisers() {
 }
 
 /**
+ * Determine if the current user can create fundraisers
+ *
+ * @returns {boolean} True when the fundraiser create permission is granted
+ */
+export function canCreateFundraisers() {
+  return hasPermission('fundraisers.create');
+}
+
+/**
+ * Determine if the current user can edit, archive or unarchive fundraisers
+ *
+ * @returns {boolean} True when the fundraiser edit permission is granted
+ */
+export function canEditFundraisers() {
+  return hasPermission('fundraisers.edit');
+}
+
+/**
+ * Determine if the current user can delete fundraisers
+ *
+ * @returns {boolean} True when the fundraiser delete permission is granted
+ */
+export function canDeleteFundraisers() {
+  return hasPermission('fundraisers.delete');
+}
+
+/**
  * Determine if the current user can view inventory data
  *
  * @returns {boolean} True when any inventory access permission is granted
