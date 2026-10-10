@@ -365,7 +365,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_fundraisers_aliases",
     moment: "tools",
     domain: "money",
-    gate: { any: ["fundraisers.view", "fundraisers.create", "fundraisers.edit", "fundraisers.delete", "finance.view"] },
+    gate: { any: ["fundraisers.view"] },
   },
   {
     featureKey: "revenue_dashboard",

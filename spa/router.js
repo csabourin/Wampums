@@ -446,7 +446,8 @@ export class Router {
           await this.loadAdminPage();
           break;
         case "fundraisers":
-          if (!guard(canViewFundraisers() || canManageFundraisers() || canViewFinance())) {
+          // The screen and its API both need fundraisers.view.
+          if (!guard(canViewFundraisers())) {
             break;
           }
           await this.loadFundraisersPage();

@@ -56,9 +56,14 @@ jest.mock('../../spa/utils/DOMUtils.js', () => {
 jest.mock('../../spa/utils/DialogUtils.js', () => ({ confirmDestructive: jest.fn() }));
 jest.mock('../../spa/indexedDB.js', () => ({ clearFundraiserRelatedCaches: jest.fn() }));
 
+// Each action follows its own permission; tests switch them off one by one.
+const mockPermissions = { create: true, edit: true, delete: true };
+
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
-  canManageFundraisers: () => true,
   canViewFundraisers: () => true,
+  canCreateFundraisers: () => mockPermissions.create,
+  canEditFundraisers: () => mockPermissions.edit,
+  canDeleteFundraisers: () => mockPermissions.delete,
 }));
 
 const mockCreateFundraiser = jest.fn();
@@ -116,6 +121,7 @@ function fill(values) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  Object.assign(mockPermissions, { create: true, edit: true, delete: true });
   mockCreateFundraiser.mockResolvedValue({ success: true, data: { fundraiser: { id: 1 } } });
   mockUpdateFundraiser.mockResolvedValue({ success: true, data: { fundraiser: { id: 1 } } });
 });
@@ -196,7 +202,7 @@ describe('validation feedback', () => {
     expect(app.showMessage).toHaveBeenCalledWith('error_saving_fundraiser', 'error');
     expect(app.showMessage).not.toHaveBeenCalledWith('fundraiser_created', 'success');
     // The modal stays open so the user can correct the input.
-    expect(document.getElementById('fundraiser-modal').classList.contains('show')).toBe(true);
+    expect(document.getElementById('fundraiser-modal').open).toBe(true);
   });
 
   test('server field errors are shown next to the field they belong to', async () => {
@@ -318,11 +324,102 @@ describe('accessibility of the campaign modal', () => {
   test('Escape closes the modal', () => {
     setup();
     const modal = document.getElementById('fundraiser-modal');
-    expect(modal.classList.contains('show')).toBe(true);
+    expect(modal.open).toBe(true);
 
     modal.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
-    expect(modal.classList.contains('show')).toBe(false);
+    expect(modal.open).toBe(false);
+  });
+
+  test('the browser\'s own dismissal (cancel event) closes the modal', () => {
+    setup();
+    const modal = document.getElementById('fundraiser-modal');
+
+    modal.dispatchEvent(new Event('cancel', { cancelable: true }));
+
+    expect(modal.open).toBe(false);
+  });
+
+  test('the modal is a native dialog, closed until asked for', () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const module = new Fundraisers({ lang: 'fr', router: { navigate: jest.fn() }, showMessage: jest.fn() });
+    module.render();
+    module.initEventListeners();
+
+    const modal = document.getElementById('fundraiser-modal');
+    expect(modal.tagName).toBe('DIALOG');
+    expect(modal.getAttribute('aria-labelledby')).toBe('modal-title');
+    expect(modal.open).toBe(false);
+  });
+
+  test.each([
+    ['Cancel', '.modal-cancel'],
+    ['the close (×) button', '.modal-close'],
+  ])('%s closes the modal', (_label, selector) => {
+    setup();
+    const modal = document.getElementById('fundraiser-modal');
+
+    modal.querySelector(selector).click();
+
+    expect(modal.open).toBe(false);
+  });
+
+  test('a successful save closes the modal', async () => {
+    const { module, app } = setup();
+    fill({ name: 'Vente de pains', campaign_type: 'direct_amount', start_date: '2026-09-01', end_date: '2026-09-30' });
+
+    await module.saveFundraiser();
+
+    expect(app.showMessage).toHaveBeenCalledWith('fundraiser_created', 'success');
+    expect(document.getElementById('fundraiser-modal').open).toBe(false);
+  });
+});
+
+describe('actions follow their own permission', () => {
+  const campaign = {
+    id: 3, name: 'Calendriers', campaign_type: 'direct_amount',
+    start_date: '2026-09-01', end_date: '2026-09-30',
+    total_amount: 0, total_paid: 0, total_quantity: 0, total_hours: 0,
+  };
+
+  /**
+   * Render the list with one empty campaign.
+   * @returns {void}
+   */
+  function renderList() {
+    document.body.innerHTML = '<div id="app"></div>';
+    const module = new Fundraisers({ lang: 'fr', router: { navigate: jest.fn() }, showMessage: jest.fn() });
+    module.fundraisers = [campaign];
+    module.render();
+  }
+
+  test('create only: the add button, no edit, archive or delete', () => {
+    Object.assign(mockPermissions, { create: true, edit: false, delete: false });
+    renderList();
+
+    expect(document.getElementById('add-fundraiser-btn')).not.toBeNull();
+    expect(document.querySelector('.edit-fundraiser-btn')).toBeNull();
+    expect(document.querySelector('.archive-fundraiser-btn')).toBeNull();
+    expect(document.querySelector('.delete-fundraiser-btn')).toBeNull();
+  });
+
+  test('edit only: edit and archive, no add or delete', () => {
+    Object.assign(mockPermissions, { create: false, edit: true, delete: false });
+    renderList();
+
+    expect(document.getElementById('add-fundraiser-btn')).toBeNull();
+    expect(document.querySelector('.edit-fundraiser-btn')).not.toBeNull();
+    expect(document.querySelector('.archive-fundraiser-btn')).not.toBeNull();
+    expect(document.querySelector('.delete-fundraiser-btn')).toBeNull();
+  });
+
+  test('delete only: delete on an empty campaign, nothing else', () => {
+    Object.assign(mockPermissions, { create: false, edit: false, delete: true });
+    renderList();
+
+    expect(document.getElementById('add-fundraiser-btn')).toBeNull();
+    expect(document.querySelector('.edit-fundraiser-btn')).toBeNull();
+    expect(document.querySelector('.delete-fundraiser-btn')).not.toBeNull();
   });
 });
 

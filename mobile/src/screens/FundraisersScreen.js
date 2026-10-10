@@ -101,12 +101,14 @@ const FundraisersScreen = ({ navigation }) => {
     try {
       const result = await getFundraisers(true);
 
-      if (result.success && result.fundraisers) {
-        const active = result.fundraisers
+      // The API answers { success, data: { fundraisers } }.
+      const campaigns = result?.data?.fundraisers;
+      if (result?.success && Array.isArray(campaigns)) {
+        const active = campaigns
           .filter((f) => !f.archived)
           .sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
 
-        const archived = result.fundraisers
+        const archived = campaigns
           .filter((f) => f.archived)
           .sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
 
