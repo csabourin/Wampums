@@ -91,7 +91,7 @@ export class Register {
       if (result.success) {
         if (submitButton) submitButton.dataset.completed = "true";
         this.showSuccess(this.translateMessage(result.message, "registration_successful"));
-        setTimeout(() => this.app.router.route("/login"), 3000);
+        setTimeout(() => this.app.router.navigate("/login"), 3000);
       } else {
         this.showError(this.translateMessage(result.message, "error_creating_account"));
       }

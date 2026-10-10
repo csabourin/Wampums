@@ -29,6 +29,8 @@ let activeKey = null;
 let navigationToken = 0;
 let restoring = false;
 let activeSession = null;
+// URL shown when the current route began, to tell whether it redirected.
+let routeStartUrl = null;
 let originalHistoryMethods = {};
 let saveFrame = null;
 let initialized = false;
@@ -192,6 +194,7 @@ export function beginScrollNavigation(path) {
     rememberPosition(key, window.scrollY);
   }
   activeKey = key;
+  routeStartUrl = currentLocationKey();
   restoring = true;
 
   const session = { token, observer: null, timer: null };
@@ -228,7 +231,10 @@ export function restoreScrollPosition(token) {
   }
   // The route may have redirected while rendering (an expired session sent
   // to /login): restore the screen actually shown, not the one requested.
-  activeKey = currentLocationKey();
+  // A route started without changing the URL keeps the key it asked for.
+  if (currentLocationKey() !== routeStartUrl) {
+    activeKey = currentLocationKey();
+  }
   const session = activeSession;
   if (!session || session.token !== token) {
     return;
@@ -266,6 +272,7 @@ export function resetScrollMemoryForTests() {
   originalHistoryMethods = {};
   positions = null;
   activeKey = null;
+  routeStartUrl = null;
   navigationToken = 0;
   restoring = false;
   saveFrame = null;

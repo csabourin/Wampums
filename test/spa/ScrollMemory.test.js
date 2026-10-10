@@ -264,6 +264,17 @@ describe('ScrollMemory', () => {
     expect(window.scrollY).toBe(1500);
   });
 
+  test('a route started without changing the URL keeps the screen it asked for', () => {
+    visit('/register');
+    scrollWindow(1100);
+
+    // A caller that routes without pushing the URL first.
+    const token = beginScrollNavigation('/login');
+    restoreScrollPosition(token);
+
+    expect(window.scrollY).toBe(0);
+  });
+
   test('ignores the hash when identifying a screen', () => {
     expect(scrollKeyFor('/help?topic=a#faq')).toBe('/help?topic=a');
     expect(scrollKeyFor(null)).toBeNull();
