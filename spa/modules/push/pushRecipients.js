@@ -34,3 +34,23 @@ export function renderPushRecipients(subscribers) {
     })
     .join('');
 }
+
+/**
+ * Translation key describing the outcome of a send. A send that reached no
+ * device is not reported as a success.
+ *
+ * @param {{success?: boolean, queued?: boolean, data?: {sent?: number}}} result
+ * @returns {string}
+ */
+export function pushSendResultKey(result) {
+  if (result?.queued) {
+    return 'notification_queued_offline';
+  }
+  if (!result?.success) {
+    return 'failed_to_send_notification';
+  }
+  if (result.data?.sent === 0) {
+    return 'push_nobody_reached';
+  }
+  return 'notification_sent_successfully';
+}

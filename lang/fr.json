@@ -1898,6 +1898,7 @@
   "select_recipients": "Sélectionner les destinataires",
   "push_recipients_hint": "Ne cochez aucune case pour avertir tous les abonnés.",
   "push_device_count": "{count} appareils",
+  "push_nobody_reached": "Personne n’a été joint : aucun appareil abonné pour ces destinataires.",
   "select_role": "Sélectionner un rôle",
   "semaine_prochaine": "Semaine Prochaine",
   "send_notification": "Envoyer la notification",

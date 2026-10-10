@@ -9,7 +9,9 @@
  * server. A browser already subscribed with that key keeps its endpoint (no
  * new line in the recipient list); one subscribed with another key, which
  * could never receive this server's pushes, is unsubscribed and subscribed
- * again.
+ * again, including on browsers that hide the key of a subscription. When the
+ * server cannot be asked, an existing subscription is never replaced on a
+ * guess.
  *
  * @module test/spa/PushSubscription
  */
@@ -35,20 +37,34 @@ const SERVER_KEY = 'BAUG';
 const SERVER_KEY_BYTES = [4, 5, 6];
 const OTHER_KEY_BYTES = [1, 2, 3];
 
-function fakeSubscription(endpoint, keyBytes) {
+function fakeSubscription(endpoint, keyBytes, { hidesKey = false } = {}) {
   return {
     endpoint,
-    options: { applicationServerKey: new Uint8Array(keyBytes).buffer },
+    keyBytes,
+    options: { applicationServerKey: hidesKey ? null : new Uint8Array(keyBytes).buffer },
     unsubscribe: jest.fn().mockResolvedValue(true),
     toJSON: () => ({ endpoint, expirationTime: null, keys: { p256dh: 'p', auth: 'a' } }),
   };
 }
 
-function installPushManager(existing) {
+function installPushManager(existing, { refuseNewKey = false } = {}) {
   const fresh = fakeSubscription('https://push.example.test/new', SERVER_KEY_BYTES);
+  let current = existing;
   const pushManager = {
     getSubscription: jest.fn().mockResolvedValue(existing),
-    subscribe: jest.fn().mockResolvedValue(fresh),
+    // Like browsers: the same key returns the current subscription, another
+    // key is refused while one exists.
+    subscribe: jest.fn(({ applicationServerKey }) => {
+      if (current && !current.unsubscribe.mock.calls.length) {
+        const sameKey = Array.from(new Uint8Array(current.keyBytes)).join() === Array.from(applicationServerKey).join();
+        if (sameKey && !refuseNewKey) {
+          return Promise.resolve(current);
+        }
+        return Promise.reject(Object.assign(new Error('different key'), { name: 'InvalidStateError' }));
+      }
+      current = fresh;
+      return Promise.resolve(fresh);
+    }),
   };
   Object.defineProperty(window.navigator, 'serviceWorker', {
     configurable: true,
@@ -71,12 +87,11 @@ describe('Push subscription', () => {
 
   test('a browser already subscribed with the server key keeps its endpoint', async () => {
     const existing = fakeSubscription('https://push.example.test/kept', SERVER_KEY_BYTES);
-    const pushManager = installPushManager(existing);
+    installPushManager(existing);
 
     await registerPushSubscription();
 
     expect(existing.unsubscribe).not.toHaveBeenCalled();
-    expect(pushManager.subscribe).not.toHaveBeenCalled();
     expect(savedEndpoint()).toBe('https://push.example.test/kept');
   });
 
@@ -87,12 +102,46 @@ describe('Push subscription', () => {
     await registerPushSubscription();
 
     expect(existing.unsubscribe).toHaveBeenCalled();
-    const { applicationServerKey } = pushManager.subscribe.mock.calls[0][0];
+    const { applicationServerKey } = pushManager.subscribe.mock.calls.at(-1)[0];
     expect(Array.from(applicationServerKey)).toEqual(SERVER_KEY_BYTES);
     expect(savedEndpoint()).toBe('https://push.example.test/new');
   });
 
-  test('without the server key, the built-in key is used', async () => {
+  test('a browser that hides the key of its subscription is still moved to the server key', async () => {
+    const existing = fakeSubscription('https://push.example.test/hidden', OTHER_KEY_BYTES, { hidesKey: true });
+    installPushManager(existing);
+
+    await registerPushSubscription();
+
+    expect(existing.unsubscribe).toHaveBeenCalled();
+    expect(savedEndpoint()).toBe('https://push.example.test/new');
+  });
+
+  test('a browser that hides a matching key keeps its endpoint', async () => {
+    const existing = fakeSubscription('https://push.example.test/hidden-kept', SERVER_KEY_BYTES, { hidesKey: true });
+    installPushManager(existing);
+
+    await registerPushSubscription();
+
+    expect(existing.unsubscribe).not.toHaveBeenCalled();
+    expect(savedEndpoint()).toBe('https://push.example.test/hidden-kept');
+  });
+
+  test('when the server cannot be asked, an existing subscription is kept and re-registered', async () => {
+    makeApiRequest.mockImplementation((endpoint) => (
+      endpoint === 'v1/notifications/vapid-public-key' ? Promise.reject(new Error('503')) : Promise.resolve({ success: true })
+    ));
+    const existing = fakeSubscription('https://push.example.test/offline', SERVER_KEY_BYTES);
+    const pushManager = installPushManager(existing);
+
+    await registerPushSubscription();
+
+    expect(existing.unsubscribe).not.toHaveBeenCalled();
+    expect(pushManager.subscribe).not.toHaveBeenCalled();
+    expect(savedEndpoint()).toBe('https://push.example.test/offline');
+  });
+
+  test('when the server cannot be asked and nothing is subscribed, the built-in key is used', async () => {
     makeApiRequest.mockImplementation((endpoint) => (
       endpoint === 'v1/notifications/vapid-public-key' ? Promise.reject(new Error('503')) : Promise.resolve({ success: true })
     ));
@@ -102,5 +151,15 @@ describe('Push subscription', () => {
 
     const { applicationServerKey } = pushManager.subscribe.mock.calls[0][0];
     expect(Array.from(applicationServerKey)).toEqual(OTHER_KEY_BYTES);
+  });
+
+  test('a refused subscription is logged, not thrown', async () => {
+    const existing = fakeSubscription('https://push.example.test/stuck', SERVER_KEY_BYTES);
+    const pushManager = installPushManager(existing, { refuseNewKey: true });
+    existing.unsubscribe.mockRejectedValue(new Error('cannot unsubscribe'));
+
+    await expect(registerPushSubscription()).resolves.toBeUndefined();
+    expect(pushManager.subscribe).toHaveBeenCalled();
+    expect(savedEndpoint()).toBeUndefined();
   });
 });

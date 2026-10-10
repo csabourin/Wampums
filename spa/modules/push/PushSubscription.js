@@ -11,39 +11,66 @@ import { debugLog, debugError, debugWarn } from '../../utils/DebugUtils.js';
 import { urlBase64ToUint8Array } from '../../functions.js';
 
 /**
- * The VAPID public key the server signs pushes with. The build-time key is
- * only a fallback: a browser subscribed with a key other than the server's
- * never receives anything.
+ * The VAPID public key the server signs pushes with, or null when the server
+ * cannot be asked (offline, push not configured).
  *
- * @returns {Promise<string>}
+ * @returns {Promise<string|null>}
  */
-async function fetchVapidPublicKey() {
+async function fetchServerVapidKey() {
   try {
     const response = await makeApiRequest('v1/notifications/vapid-public-key');
-    if (response?.data?.publicKey) {
-      return response.data.publicKey;
-    }
+    return response?.data?.publicKey || null;
   } catch (error) {
-    debugWarn('Could not load the push key from the server; using the built-in key', error);
+    debugWarn('Could not load the push key from the server', error);
+    return null;
   }
-  return CONFIG.PUSH_NOTIFICATIONS.VAPID_PUBLIC_KEY;
 }
 
 /**
- * Whether an existing subscription was made with the given server key.
+ * Whether an existing subscription was made with another server key. Browsers
+ * that do not expose the key are given the benefit of the doubt.
  *
  * @param {PushSubscription} subscription
  * @param {Uint8Array} applicationServerKey
  * @returns {boolean}
  */
-function isSubscribedWithKey(subscription, applicationServerKey) {
+function isSubscribedWithOtherKey(subscription, applicationServerKey) {
   const currentKey = subscription.options?.applicationServerKey;
   if (!currentKey) {
     return false;
   }
   const currentBytes = new Uint8Array(currentKey);
-  return currentBytes.length === applicationServerKey.length
-    && currentBytes.every((byte, index) => byte === applicationServerKey[index]);
+  return currentBytes.length !== applicationServerKey.length
+    || currentBytes.some((byte, index) => byte !== applicationServerKey[index]);
+}
+
+/**
+ * Subscribe with the server key, replacing a subscription made with another
+ * one: it could never receive this server's pushes, and subscribe() refuses a
+ * new key while it exists.
+ *
+ * @param {PushManager} pushManager
+ * @param {PushSubscription|null} existing
+ * @param {Uint8Array} applicationServerKey
+ * @returns {Promise<PushSubscription>}
+ */
+async function subscribeWithKey(pushManager, existing, applicationServerKey) {
+  const options = { userVisibleOnly: true, applicationServerKey };
+  if (existing && isSubscribedWithOtherKey(existing, applicationServerKey)) {
+    await existing.unsubscribe();
+    return pushManager.subscribe(options);
+  }
+  try {
+    // With the same key, this returns the browser's current subscription.
+    return await pushManager.subscribe(options);
+  } catch (error) {
+    // The browser hid the old key, but refuses the new one
+    if (!existing) {
+      throw error;
+    }
+    await existing.unsubscribe();
+    return pushManager.subscribe(options);
+  }
 }
 
 /**
@@ -79,20 +106,19 @@ export async function registerPushSubscription() {
   }
   try {
     const registration = await navigator.serviceWorker.ready;
-    const applicationServerKey = urlBase64ToUint8Array(await fetchVapidPublicKey());
+    const existing = await registration.pushManager.getSubscription();
+    const serverKey = await fetchServerVapidKey();
 
-    // Reuse this browser's subscription so it keeps one endpoint. One made
-    // with another key cannot receive this server's pushes, and subscribe()
-    // refuses a new key while it exists: replace it.
-    let subscription = await registration.pushManager.getSubscription();
-    if (subscription && !isSubscribedWithKey(subscription, applicationServerKey)) {
-      await subscription.unsubscribe();
-      subscription = null;
-    }
-    if (!subscription) {
+    let subscription = existing;
+    if (serverKey) {
+      subscription = await subscribeWithKey(registration.pushManager, existing, urlBase64ToUint8Array(serverKey));
+    } else if (!existing) {
+      // Without word from the server, only a browser with no subscription at
+      // all subscribes, with the built-in key. An existing one is never
+      // replaced on a guess.
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey,
+        applicationServerKey: urlBase64ToUint8Array(CONFIG.PUSH_NOTIFICATIONS.VAPID_PUBLIC_KEY),
       });
     }
 

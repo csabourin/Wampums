@@ -111,7 +111,7 @@
     "services/whatsapp-database-auth.js": 4,
     "spa/JSONFormRenderer.js": 217,
     "spa/activity-widget.js": 330,
-    "spa/admin.js": 653,
+    "spa/admin.js": 648,
     "spa/ajax-functions.js": 247,
     "spa/api/api-core.js": 450,
     "spa/api/api-endpoints.js": 1354,

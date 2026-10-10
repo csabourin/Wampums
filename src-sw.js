@@ -692,6 +692,9 @@ self.addEventListener('push', function (event) {
     icon: data.icon || '/images/icon-192x192.png',
     badge: '/images/badge-128x128.png',
     tag: data.tag || 'general',
+    // A notification with the tag of one still shown replaces it; without
+    // renotify the replacement arrives silently.
+    renotify: true,
     requireInteraction: data.requireInteraction || false,
     vibrate: data.vibrate || undefined,
     data: data.data || {},

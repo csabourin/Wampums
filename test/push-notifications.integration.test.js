@@ -84,25 +84,30 @@ describe.skipIf(!DATABASE_URL)('Push notifications', () => {
     [ids.unit, userId]
   ).then((result) => result.rows.map((row) => row.endpoint));
 
-  beforeAll(async () => {
-    pool = new Pool({ connectionString: DATABASE_URL });
-
+  async function createUnit(name) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      ids.unit = (await client.query("INSERT INTO organizations (name) VALUES ('Push unit') RETURNING id")).rows[0].id;
+      const unitId = (await client.query('INSERT INTO organizations (name) VALUES ($1) RETURNING id', [name])).rows[0].id;
       await client.query(
         `INSERT INTO organization_program_sections (organization_id, section_key, display_name)
          VALUES ($1, 'general', 'General')`,
-        [ids.unit]
+        [unitId]
       );
       await client.query('COMMIT');
+      return unitId;
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
       client.release();
     }
+  }
+
+  beforeAll(async () => {
+    pool = new Pool({ connectionString: DATABASE_URL });
+    ids.unit = await createUnit('Push unit');
+    ids.otherUnit = await createUnit('Other push unit');
 
     ids.sender = await one(
       `INSERT INTO roles (role_name, display_name, data_scope, is_system_role, organization_id)
@@ -142,7 +147,7 @@ describe.skipIf(!DATABASE_URL)('Push notifications', () => {
       }
     }
     if (pool) {
-      await pool.query('DELETE FROM subscribers WHERE organization_id = $1', [ids.unit]);
+      await pool.query('DELETE FROM subscribers WHERE organization_id = ANY($1::int[])', [[ids.unit, ids.otherUnit]]);
       await pool.end();
     }
   });
@@ -248,5 +253,84 @@ describe.skipIf(!DATABASE_URL)('Push notifications', () => {
       row = await ownerOf();
     }
     expect(row.user_id).toBe(second);
+  });
+
+  test('a member of another unit cannot be targeted', async () => {
+    const outsider = await one(
+      `INSERT INTO users (email, password, full_name)
+       VALUES ('push-outsider-' || gen_random_uuid() || '@example.test', 'x', 'Outsider') RETURNING id`
+    );
+    await pool.query(
+      `INSERT INTO subscribers (endpoint, p256dh, auth, organization_id, user_id)
+       VALUES ($1, 'k', 'a', $2, $3)`,
+      [`https://push.example.test/outsider/${outsider}`, ids.otherUnit, outsider]
+    );
+
+    const response = await request(app)
+      .post('/api/v1/notifications/send')
+      .send({ title: 'Camp', body: 'Texte', user_ids: [outsider] });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.sent).toBe(0);
+    expect(webpush.sendNotification).not.toHaveBeenCalled();
+  });
+
+  test('a send whose every browser is gone reports nobody reached, not an error', async () => {
+    const leaver = await createMember([ids.sender], 'Leaver');
+    await subscribe(leaver, 'leaver-gone');
+    webpush.sendNotification.mockRejectedValue(Object.assign(new Error('Gone'), { statusCode: 404 }));
+
+    const response = await request(app)
+      .post('/api/v1/notifications/send')
+      .send({ title: 'Camp', body: 'Texte', user_ids: [leaver] });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({ sent: 0, failed: 1, removed: 1 });
+    expect(await endpointsOf(leaver)).toEqual([]);
+  });
+
+  test('a send that fails for another reason is an error and keeps the browser', async () => {
+    const member = await createMember([ids.sender], 'Unlucky');
+    await subscribe(member, 'unlucky');
+    webpush.sendNotification.mockRejectedValue(Object.assign(new Error('Unauthorized'), { statusCode: 403 }));
+
+    const response = await request(app)
+      .post('/api/v1/notifications/send')
+      .send({ title: 'Camp', body: 'Texte', user_ids: [member] });
+
+    expect(response.status).toBe(500);
+    expect(await endpointsOf(member)).toEqual([endpoint('unlucky')]);
+  });
+
+  test('selected ids must be user ids', async () => {
+    const response = await request(app)
+      .post('/api/v1/notifications/send')
+      .send({ title: 'Camp', body: 'Texte', user_ids: ['1 OR 1=1'] });
+
+    expect(response.status).toBe(400);
+    expect(webpush.sendNotification).not.toHaveBeenCalled();
+  });
+
+  test.each([['garbage'], [-1], [1e20], ['']])('an unusable expiry (%p) is stored as none', async (expirationTime) => {
+    const member = await createMember([ids.sender], 'Expiry');
+    mockContext.userId = member;
+    const browser = endpoint(`expiry-${member}`);
+
+    const response = await request(app)
+      .post('/api/v1/notifications/subscription')
+      .send({ endpoint: browser, expirationTime, keys: { p256dh: 'p', auth: 'a' } });
+    expect(response.status).toBe(202);
+
+    let row;
+    for (let attempt = 0; attempt < 50 && !row; attempt += 1) {
+      // eslint-disable-next-line no-await-in-loop -- polling a background write
+      row = (await pool.query('SELECT expiration_time FROM subscribers WHERE endpoint = $1', [browser])).rows[0];
+      if (!row) {
+        // eslint-disable-next-line no-await-in-loop -- polling a background write
+        await new Promise((resolve) => { setTimeout(resolve, 20); });
+      }
+    }
+    expect(row).toBeDefined();
+    expect(row.expiration_time).toBeNull();
   });
 });

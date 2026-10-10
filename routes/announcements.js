@@ -387,7 +387,11 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
           result.status === 'rejected' && isGoneSubscriptionError(result.reason) ? subscribers[index].endpoint : null
         ))
         .filter(Boolean);
-      await removeGoneSubscriptions(pool, announcement.organization_id, goneEndpoints);
+      try {
+        await removeGoneSubscriptions(pool, announcement.organization_id, goneEndpoints);
+      } catch (cleanupError) {
+        logger.error('Error removing gone push subscriptions:', cleanupError);
+      }
 
       // Batch log failures for push notifications
       const failedPushResults = pushResults.filter(result => result.status === 'rejected');

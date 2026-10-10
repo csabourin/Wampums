@@ -1908,6 +1908,7 @@
   "select_recipients": "Select recipients",
   "push_recipients_hint": "Leave every box unchecked to notify all subscribers.",
   "push_device_count": "{count} devices",
+  "push_nobody_reached": "No one was reached: no subscribed device for these recipients.",
   "select_role": "Select a role",
   "semaine_prochaine": "Next Week",
   "send_notification": "Send notification",

@@ -23,7 +23,7 @@ import { getMountPoint, resolveMountOptions } from "./utils/PageMount.js";
 import { roleLabel } from './utils/RoleLabelUtils.js';
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
-import { renderPushRecipients } from './modules/push/pushRecipients.js';
+import { renderPushRecipients, pushSendResultKey } from './modules/push/pushRecipients.js';
 export class Admin {
         constructor(app, options = {}) {
                 this.app = app;
@@ -195,7 +195,7 @@ ${showNotifications ? `
         <button type="submit">${this.app.translate("send_notification")}</button>
 </form>
 
-<div id="notification-result"></div>` : ""}
+<div id="notification-result" role="status" aria-live="polite"></div>` : ""}
 
 <h2>${this.app.translate("import_data")}</h2>
 <div class="import-section">
@@ -704,13 +704,10 @@ ${showNotifications ? `
 
                         try {
                                 const result = await sendNotification(title, body, selectedSubscribers);
-                                if (result.success || result.queued) {
-                                        setContent(resultContainer, translate(
-                                                result.queued ? "notification_queued_offline" : "notification_sent_successfully",
-                                        ));
+                                const outcomeKey = pushSendResultKey(result);
+                                setContent(resultContainer, translate(outcomeKey));
+                                if (outcomeKey === 'notification_sent_successfully' || outcomeKey === 'notification_queued_offline') {
                                         notificationForm.reset();
-                                } else {
-                                        setContent(resultContainer, `${translate('failed_to_send_notification')}`);
                                 }
                         } catch (error) {
                                 setContent(resultContainer, `${escapeHTML(apiErrorMessage(error, 'failed_to_send_notification'))}`);

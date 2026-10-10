@@ -45,6 +45,9 @@ import {
         prompt as promptDialog,
 } from './utils/DialogUtils.js';
 
+// Safari cancels a download whose object URL is revoked in the same task as the click.
+const CALENDAR_URL_REVOKE_DELAY_MS = 1000;
+
 export class ParentDashboard {
         constructor(app) {
                 this.app = app;
@@ -1174,7 +1177,7 @@ export class ParentDashboard {
                         document.body.appendChild(downloadLink);
                         downloadLink.click();
                         document.body.removeChild(downloadLink);
-                        URL.revokeObjectURL(downloadUrl);
+                        setTimeout(() => URL.revokeObjectURL(downloadUrl), CALENDAR_URL_REVOKE_DELAY_MS);
 
                         debugLog(
                                 'Parent dashboard calendar downloaded successfully',

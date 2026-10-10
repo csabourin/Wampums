@@ -60,9 +60,10 @@ module.exports = (pool, logger) => {
       const { endpoint, expirationTime, keys = {} } = req.body;
       const { p256dh, auth } = keys;
       // Browsers give the expiry in epoch milliseconds; the column is a timestamp.
-      const expiresAt = expirationTime === null || expirationTime === undefined || !Number.isFinite(Number(expirationTime))
-        ? null
-        : new Date(Number(expirationTime));
+      // Anything else (null, '', garbage, out of range) is stored as no expiry
+      // rather than failing the background write.
+      const expiryMs = typeof expirationTime === 'number' ? expirationTime : Number.NaN;
+      const expiresAt = expiryMs > 0 && !Number.isNaN(new Date(expiryMs).getTime()) ? new Date(expiryMs) : null;
 
       // Perform the subscription write asynchronously so the response is non-blocking
       // and the service worker registration flow remains responsive.
@@ -215,7 +216,14 @@ module.exports = (pool, logger) => {
             logger.error(`Failed to send notification to ${subscribers[index].endpoint}:`, result.reason);
           }
         });
-        const removed = await removeGoneSubscriptions(pool, organizationId, goneEndpoints);
+        // The pushes are out: a failed clean-up must not report the send as
+        // failed, or the sender would send it again.
+        let removed = 0;
+        try {
+          removed = await removeGoneSubscriptions(pool, organizationId, goneEndpoints);
+        } catch (cleanupError) {
+          logger.error('Error removing gone push subscriptions:', cleanupError);
+        }
 
         // Every attempt failed for a reason other than a vanished browser:
         // nothing was delivered and the sender must know it.

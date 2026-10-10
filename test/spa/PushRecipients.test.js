@@ -31,7 +31,7 @@ jest.mock('../../spa/app.js', () => ({
   translate: (key) => TRANSLATIONS[key] || key,
 }));
 
-const { renderPushRecipients } = require('../../spa/modules/push/pushRecipients.js');
+const { renderPushRecipients, pushSendResultKey } = require('../../spa/modules/push/pushRecipients.js');
 
 const AXE_OPTIONS = {
   runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
@@ -109,5 +109,16 @@ describe('Push notification recipients', () => {
 
     const results = await axe.run(fieldset, AXE_OPTIONS);
     expect(results.violations).toEqual([]);
+  });
+
+  test.each([
+    [{ success: true, data: { sent: 3, failed: 0, removed: 0 } }, 'notification_sent_successfully'],
+    [{ success: true, data: { sent: 0, failed: 2, removed: 2 } }, 'push_nobody_reached'],
+    [{ success: true, data: { sent: 0, failed: 0, removed: 0 } }, 'push_nobody_reached'],
+    [{ success: false }, 'failed_to_send_notification'],
+    [{ queued: true }, 'notification_queued_offline'],
+    [undefined, 'failed_to_send_notification'],
+  ])('a send answered %j is reported as %s', (result, key) => {
+    expect(pushSendResultKey(result)).toBe(key);
   });
 });
