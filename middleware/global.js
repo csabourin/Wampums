@@ -9,7 +9,7 @@ const ejs = require("ejs");
 const { sanitizeServerErrorResponses } = require("./response");
 const { getStorageImageOrigins } = require("../utils/railway-storage");
 const { isAllowedOrigin } = require("../config/cors");
-const { staticCacheControl } = require("../utils/static-cache");
+const { setStaticHeaders } = require("../utils/static-cache");
 
 const isProduction = process.env.NODE_ENV === "production";
 const REQUEST_BODY_LIMIT = "20mb";
@@ -440,18 +440,7 @@ module.exports = (app) => {
     app.use('/vendor/fontawesome', express.static(path.join(process.cwd(), 'node_modules/@fortawesome/fontawesome-free')));
 
     app.use(express.static(staticDir, {
-        setHeaders: (res, filepath, stat) => {
-            const cacheControl = staticCacheControl({
-                filePath: filepath,
-                staticRoot: staticDir,
-                isProduction,
-                requestedVersion: res.req?.query?.v,
-                stat,
-            });
-            if (cacheControl) {
-                res.setHeader("Cache-Control", cacheControl);
-            }
-        }
+        setHeaders: (res, filepath, stat) => setStaticHeaders(res, filepath, stat, { staticRoot: staticDir, isProduction }),
     }));
 
     // In dev, also serve from assets/ so /images/... resolves to assets/images/...

@@ -4,7 +4,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { staticCacheControl } = require('../utils/static-cache');
+const { staticCacheControl, translationBundleVersion, setStaticHeaders } = require('../utils/static-cache');
 const { contentVersion } = require('../utils/asset-version');
 
 const IMMUTABLE = 'public, max-age=31536000, immutable';
@@ -64,6 +64,38 @@ describe('staticCacheControl (production)', () => {
 
   test('images and fonts outside the build output are cached for 30 days', () => {
     expect(header('images/icon-192x192.png')).toBe('public, max-age=2592000');
+  });
+});
+
+describe('translationBundleVersion', () => {
+  let staticRoot;
+
+  beforeAll(() => {
+    staticRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wampums-lang-'));
+    fs.mkdirSync(path.join(staticRoot, 'lang'));
+    fs.writeFileSync(path.join(staticRoot, 'lang', 'en.json'), '{"hello":"hello"}');
+  });
+
+  afterAll(() => {
+    fs.rmSync(staticRoot, { recursive: true, force: true });
+  });
+
+  test('names the served bundle\'s content version, so a mismatch is never cached', () => {
+    expect(translationBundleVersion({ filePath: path.join(staticRoot, 'lang', 'en.json'), staticRoot }))
+      .toBe(contentVersion('{"hello":"hello"}'));
+  });
+
+  test('setStaticHeaders labels the bundle and keeps a mismatched request revalidated', () => {
+    const headers = {};
+    const res = { req: { query: { v: 'previous0000' } }, setHeader: (name, value) => { headers[name] = value; } };
+    setStaticHeaders(res, path.join(staticRoot, 'lang', 'en.json'), undefined, { staticRoot, isProduction: true });
+    expect(headers['X-Content-Version']).toBe(contentVersion('{"hello":"hello"}'));
+    expect(headers['Cache-Control']).toBe('no-cache');
+  });
+
+  test('is absent for other files', () => {
+    expect(translationBundleVersion({ filePath: path.join(staticRoot, 'assets', 'core-ByHUaX1_.js'), staticRoot }))
+      .toBeNull();
   });
 });
 

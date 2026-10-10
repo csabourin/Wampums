@@ -15,7 +15,7 @@
     "config/roles.js": 161,
     "landing/landing.js": 1030,
     "middleware/auth.js": 5,
-    "middleware/global.js": 646,
+    "middleware/global.js": 634,
     "middleware/live-sync.js": 47,
     "middleware/response.js": 5,
     "middleware/validation.js": 2,

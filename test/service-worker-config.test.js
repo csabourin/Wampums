@@ -107,6 +107,14 @@ describe('Service Worker Configuration', () => {
       expect(versioned).toBeLessThan(unversioned);
     });
 
+    test('should cache a versioned translation only when the served version matches the request', () => {
+      // A previous-build tab asking for its old ?v= gets the current file; it must not be kept under that URL
+      const versionedRoute = serviceWorkerSource.match(
+        /cacheName: 'translations-versioned-cache',[\s\S]*?\n {2}\}\)\n\);/
+      )[0];
+      expect(versionedRoute).toMatch(/cacheWillUpdate[\s\S]*X-Content-Version[\s\S]*searchParams\.get\('v'\)|cacheWillUpdate[\s\S]*searchParams\.get\('v'\)[\s\S]*X-Content-Version/);
+    });
+
     test('should keep translations, images and unhashed CSS copies out of the precache', () => {
       // Precached /lang/* would be answered from the install-time build ahead of the routes above
       const globIgnores = viteConfig.match(/globIgnores: \[([\s\S]*?)\]/)[1];

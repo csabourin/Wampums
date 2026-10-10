@@ -62,4 +62,52 @@ function staticCacheControl({ filePath, staticRoot, isProduction, requestedVersi
   return REVALIDATE;
 }
 
-module.exports = { staticCacheControl };
+/** Response header naming the content version of a translation bundle */
+const CONTENT_VERSION_HEADER = 'X-Content-Version';
+
+/**
+ * Content version of a translation bundle being served, for the
+ * X-Content-Version header. A tab still running the previous build asks for
+ * its own `?v=` and receives the current file; the service worker compares the
+ * two and caches only a match, so that URL never holds another build's keys.
+ *
+ * @param {Object} options
+ * @param {string} options.filePath - Absolute path of the file being served
+ * @param {string} options.staticRoot - Directory express.static serves
+ * @param {import("fs").Stats} [options.stat] - File stats from express.static
+ * @returns {string|null} Version, or null for any other file
+ */
+function translationBundleVersion({ filePath, staticRoot, stat }) {
+  const relativePath = `${path.sep}${path.relative(staticRoot, filePath)}`;
+  return TRANSLATION_BUNDLE.test(relativePath) ? fileVersion(filePath, stat) : null;
+}
+
+/**
+ * express.static `setHeaders` hook: Cache-Control, and the content version of
+ * translation bundles.
+ *
+ * @param {import("express").Response} res - Response being prepared
+ * @param {string} filePath - Absolute path of the file being served
+ * @param {import("fs").Stats} stat - File stats
+ * @param {Object} options
+ * @param {string} options.staticRoot - Directory express.static serves
+ * @param {boolean} options.isProduction - Serving the built `dist/`
+ */
+function setStaticHeaders(res, filePath, stat, { staticRoot, isProduction }) {
+  const cacheControl = staticCacheControl({
+    filePath,
+    staticRoot,
+    isProduction,
+    requestedVersion: res.req?.query?.v,
+    stat,
+  });
+  if (cacheControl) {
+    res.setHeader('Cache-Control', cacheControl);
+  }
+  const version = translationBundleVersion({ filePath, staticRoot, stat });
+  if (version) {
+    res.setHeader(CONTENT_VERSION_HEADER, version);
+  }
+}
+
+module.exports = { staticCacheControl, translationBundleVersion, setStaticHeaders, CONTENT_VERSION_HEADER };

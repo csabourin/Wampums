@@ -162,6 +162,15 @@ registerRoute(
   new CacheFirst({
     cacheName: 'translations-versioned-cache',
     plugins: [
+      {
+        // A tab from the previous build may ask for its own version after a
+        // deploy and be answered with the current file. Hand that to the page,
+        // but never keep it under the old version's URL.
+        cacheWillUpdate: ({ request, response }) => {
+          const requested = new URL(request.url).searchParams.get('v');
+          return response.headers.get('X-Content-Version') === requested ? response : null;
+        },
+      },
       new ExpirationPlugin({
         maxEntries: VERSIONED_TRANSLATIONS_MAX_ENTRIES,
         maxAgeSeconds: VERSIONED_TRANSLATIONS_MAX_AGE_SECONDS,

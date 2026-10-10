@@ -163,21 +163,26 @@ function canReadFullOrganizationSettings(permissions) {
  * @returns {Promise<void>}
  */
 function refreshOrganizationSettings(application) {
+  // The startup request was chosen with the old permissions.
+  window.earlyOrgSettingsFetch = null;
   application.isOrganizationSettingsFetched = false;
   application._settingsPromise = null;
   return application.fetchOrganizationSettings();
 }
 
 /**
- * Let the service worker cache this build's other interface languages, so
- * switching language works offline. Startup fetches only the visitor's own
- * language; this runs once the browser is idle, when a service worker
- * controls the page (its translation route keeps the copies).
+ * Keep this build's other interface languages available offline, so
+ * switching language works without a connection. Startup fetches only the
+ * visitor's own language; this runs once the browser is idle. Versioned
+ * bundles are immutable, so the HTTP cache answers them offline even on a
+ * first visit, before a service worker controls the page; once one does, its
+ * translation route keeps them too.
  *
  * @param {string} currentLang - The language already loaded
  */
 function cacheOtherLanguagesForOffline(currentLang) {
-  if (!navigator.serviceWorker?.controller) {
+  // Without service workers the app does not work offline at all.
+  if (!('serviceWorker' in navigator)) {
     return;
   }
   const prefetch = () => {
