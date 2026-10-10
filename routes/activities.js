@@ -697,7 +697,7 @@ module.exports = (pool) => {
       await client.query('BEGIN');
 
       const existingResult = await client.query(
-        `SELECT name, description, authorization_text, is_active,
+        `SELECT name, description, authorization_text, is_active, invites_everyone,
                 activity_date::text AS activity_date,
                 activity_start_date::text AS activity_start_date,
                 activity_start_time::text AS activity_start_time,
@@ -876,7 +876,11 @@ module.exports = (pool) => {
       // Explicit opt-in: only the edit forms ask for it, never other API callers
       if (toBool(body.notify_participants) === 't') {
         try {
-          await sendActivityUpdateNotifications(pool, activityId, organizationId);
+          // Opening an activity for some participants to the whole unit makes
+          // every family newly concerned
+          const openedToEveryone = invitation.provided && invitation.invitesEveryone
+            && existing.invites_everyone === false;
+          await sendActivityUpdateNotifications(pool, activityId, organizationId, { wholeUnit: openedToEveryone });
         } catch (notifyError) {
           logger.error('[Activity Update] Failed to send update notifications', {
             activityId,

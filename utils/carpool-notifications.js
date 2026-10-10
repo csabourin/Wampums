@@ -79,8 +79,12 @@ Wampums Team
  * @param {Object} pool - Database connection pool
  * @param {Number} activityId - ID of the updated activity
  * @param {Number} organizationId - Organization ID
+ * @param {Object} [options]
+ * @param {boolean} [options.wholeUnit=false] - Also reach every family of the
+ *   unit: the edit opened an activity for some participants to everyone, so
+ *   families who were not invited are newly concerned
  */
-async function sendActivityUpdateNotifications(pool, activityId, organizationId) {
+async function sendActivityUpdateNotifications(pool, activityId, organizationId, { wholeUnit = false } = {}) {
   // Everyone the activity concerns: guardians of children riding in its
   // carpools, holding one of its permission slips or on its invitation list,
   // and its drivers. A child
@@ -121,6 +125,14 @@ async function sendActivityUpdateNotifications(pool, activityId, organizationId)
          FROM user_participants up
          JOIN activity_invitees ai ON ai.participant_id = up.participant_id
         WHERE ai.activity_id = $1 AND ai.organization_id = $2
+
+       UNION
+
+       -- Opened to the whole unit: every enrolled child's family
+       SELECT up.user_id
+         FROM user_participants up
+         JOIN participant_organizations po ON po.participant_id = up.participant_id
+        WHERE $3::boolean AND po.organization_id = $2
      )
      SELECT DISTINCT
       u.email,
@@ -139,7 +151,7 @@ async function sendActivityUpdateNotifications(pool, activityId, organizationId)
        ON uo.user_id = u.id AND uo.organization_id = $2 AND uo.status = 'active'
      JOIN activities a ON a.id = $1 AND a.organization_id = $2
      WHERE u.email IS NOT NULL AND u.email <> ''`,
-    [activityId, organizationId]
+    [activityId, organizationId, wholeUnit]
   );
 
   if (result.rows.length === 0) {

@@ -338,4 +338,36 @@ describe.skipIf(!DATABASE_URL)('Activities for some participants', () => {
     const roster = await call('get', `/api/v1/activities/${ids.camp}/participants`, ids.staff);
     expect(names(roster.body.data)).toEqual(['Older', 'Veteran', 'Younger']);
   });
+
+  test('opening an activity to the whole unit notifies every family it newly concerns', async () => {
+    const { sendActivityUpdateNotifications } = jest.requireActual('../utils/carpool-notifications');
+    const mocked = require('../utils/carpool-notifications');
+    const familyRole = await one('SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+      [ids.family, ids.unit]);
+    const newcomerFamily = await member(Number(familyRole), 'Newcomer Family');
+    const newcomer = await child('Newcomer');
+    await grantParticipantAccess(pool, { participantId: newcomer, userId: newcomerFamily, sourceType: ACCESS_SOURCE.DIRECT });
+    const newcomerEmail = await one('SELECT email FROM users WHERE id = $1', [newcomerFamily]);
+
+    await call('put', `/api/v1/activities/${ids.camp}`, ids.staff)
+      .send({ invites_everyone: false, invited_participant_ids: [ids.veteran] });
+    mocked.sendActivityUpdateNotifications.mockClear();
+    const opened = await call('put', `/api/v1/activities/${ids.camp}`, ids.staff)
+      .send({ invites_everyone: true, notify_participants: true });
+    expect(opened.status).toBe(200);
+    expect(mocked.sendActivityUpdateNotifications).toHaveBeenCalledWith(pool, ids.camp, ids.unit, { wholeUnit: true });
+
+    // An edit that keeps the whole unit invited does not email it
+    mocked.sendActivityUpdateNotifications.mockClear();
+    await call('put', `/api/v1/activities/${ids.camp}`, ids.staff)
+      .send({ invites_everyone: true, notify_participants: true });
+    expect(mocked.sendActivityUpdateNotifications).toHaveBeenCalledWith(pool, ids.camp, ids.unit, { wholeUnit: false });
+
+    sendEmail.mockClear();
+    await sendActivityUpdateNotifications(pool, ids.camp, ids.unit, { wholeUnit: true });
+    expect(sendEmail.mock.calls.map(([to]) => to)).toContain(newcomerEmail);
+    sendEmail.mockClear();
+    await sendActivityUpdateNotifications(pool, ids.camp, ids.unit);
+    expect(sendEmail.mock.calls.map(([to]) => to)).not.toContain(newcomerEmail);
+  });
 });
