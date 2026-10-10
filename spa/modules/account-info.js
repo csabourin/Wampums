@@ -9,6 +9,7 @@
 
 import accountInfoStylesheetUrl from "../../css/account-info.css?url";
 import { makeApiRequest } from "../api/api-core.js";
+import { enablePushNotifications, disablePushNotifications, PushSetupError } from './push/PushSubscription.js';
 import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
 import { translate, app as appInstance } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
@@ -900,8 +901,7 @@ export class AccountInfoModule {
           return;
         }
 
-        // Subscribe to push notifications
-        await this.subscribeToPush();
+        await enablePushNotifications();
         this.pushEnabled = true;
 
         if (statusText) {
@@ -909,8 +909,7 @@ export class AccountInfoModule {
         }
         this.app.showMessage(translate("push_notifications_enabled"), "success");
       } else {
-        // Unsubscribe from push notifications
-        await this.unsubscribeFromPush();
+        await disablePushNotifications();
         this.pushEnabled = false;
 
         if (statusText) {
@@ -921,78 +920,12 @@ export class AccountInfoModule {
     } catch (error) {
       debugError("Error toggling push notifications:", error);
       event.target.checked = !enabled; // Revert toggle state
-      this.app.showMessage(translate("push_notification_error"), "error");
-    }
-  }
-
-  /**
-   * Subscribe to push notifications
-   */
-  async subscribeToPush() {
-    try {
-      const registration = await navigator.serviceWorker.ready;
-
-      // Check if already subscribed
-      let subscription = await registration.pushManager.getSubscription();
-
-      if (!subscription) {
-        // Get VAPID public key from config
-        const { urlBase64ToUint8Array } = await import('../functions.js');
-        const { CONFIG } = await import('../config.js');
-
-        const applicationServerKey = urlBase64ToUint8Array(CONFIG.PUSH_NOTIFICATIONS.VAPID_PUBLIC_KEY);
-
-        // Subscribe
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: applicationServerKey,
-        });
-      }
-
-      // Send subscription to server
-      const subscriptionData = subscription.toJSON();
-
-      const response = await makeApiRequest('v1/notifications/subscription', {
-        method: 'POST',
-        body: {
-          endpoint: subscriptionData.endpoint,
-          expirationTime: subscriptionData.expirationTime,
-          keys: {
-            p256dh: subscriptionData.keys.p256dh,
-            auth: subscriptionData.keys.auth
-          }
-        }
-      });
-
-      if (!response.success) {
-        throw new Error(response.message || 'Failed to save subscription');
-      }
-
-      debugLog('Push subscription successful');
-    } catch (error) {
-      debugError('Error subscribing to push:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Unsubscribe from push notifications
-   */
-  async unsubscribeFromPush() {
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-
-      if (subscription) {
-        await subscription.unsubscribe();
-        debugLog('Unsubscribed from push notifications');
-      }
-
-      // Optionally notify server about unsubscription
-      // You may want to add an endpoint for this
-    } catch (error) {
-      debugError('Error unsubscribing from push:', error);
-      throw error;
+      // Say why: push not set up on the server, refused by this browser, or
+      // the API's own reason (offline, no permission)
+      const message = error instanceof PushSetupError
+        ? translate(error.code)
+        : apiErrorMessage(error, 'push_notification_error');
+      this.app.showMessage(message, "error");
     }
   }
 

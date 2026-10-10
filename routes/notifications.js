@@ -97,6 +97,20 @@ module.exports = (pool, logger) => {
     }
   }));
 
+  /**
+   * DELETE /api/v1/notifications/subscription
+   * Forget this browser for the signed-in member, when they turn push off.
+   * Only their own subscription in this unit is removed.
+   */
+  router.delete('/subscription', authenticate, blockDemoRoles, requirePermission(), check('endpoint').notEmpty().withMessage('endpoint is required').isURL().withMessage('endpoint must be a valid URL'), checkValidation, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const result = await pool.query(
+      'DELETE FROM subscribers WHERE endpoint = $1 AND user_id = $2 AND organization_id = $3',
+      [req.body.endpoint, req.user.id, organizationId]
+    );
+    return success(res, { removed: result.rowCount }, 'Subscription removed');
+  }));
+
   // Lightweight health check to prevent expensive 404 handling on accidental GET requests
   router.get('/subscription', (req, res) => {
     error(res, 'Method not allowed. Use POST to register push subscriptions.', HTTP_METHOD_NOT_ALLOWED);
