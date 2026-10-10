@@ -264,7 +264,7 @@ export const app = {
                         this.router = initRouter(this);
 
                         // Route to current path immediately to show UI fast
-                        const currentPath = window.location.pathname;
+                        const currentPath = `${window.location.pathname}${window.location.search}`;
                         debugLog(`Routing to current path: ${currentPath}`);
                         this.router.route(currentPath);
 
