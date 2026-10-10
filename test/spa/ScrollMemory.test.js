@@ -39,6 +39,7 @@ function scrollWindow(y) {
 
 beforeEach(() => {
   sessionStorage.clear();
+  localStorage.clear();
   resetScrollMemoryForTests();
   scrollHeight = PAGE_HEIGHT;
   behaviorAtScroll = [];
@@ -175,18 +176,6 @@ describe('ScrollMemory', () => {
     expect(window.scrollY).toBe(100);
   });
 
-  test('positions survive a reload of the tab', () => {
-    visit('/dashboard');
-    scrollWindow(1200);
-    visit('/attendance');
-
-    resetScrollMemoryForTests();
-    initScrollMemory();
-    visit('/dashboard');
-
-    expect(window.scrollY).toBe(1200);
-  });
-
   test('switching tabs in place does not overwrite the previous tab', async () => {
     visit('/finance?tab=reports');
     scrollWindow(900);
@@ -275,7 +264,7 @@ describe('ScrollMemory', () => {
     expect(window.scrollY).toBe(0);
   });
 
-  test('never stores the URL, so credentials in links stay out of storage', () => {
+  test('writes nothing to browser storage, so credentials in links stay out of it', () => {
     const token = 'sample-emailed-link-token';
     visit(`/reset-password?token=${token}`);
     scrollWindow(300);
@@ -283,11 +272,8 @@ describe('ScrollMemory', () => {
     scrollWindow(200);
     visit('/dashboard');
 
-    const stored = sessionStorage.getItem('wampums:scroll-positions:v2');
-    expect(stored).toBeTruthy();
-    expect(stored).not.toContain(token);
-    expect(stored).not.toContain('reset-password');
-    expect(stored).not.toContain('dashboard');
+    expect(sessionStorage.length).toBe(0);
+    expect(localStorage.length).toBe(0);
 
     visit(`/reset-password?token=${token}`);
     expect(window.scrollY).toBe(300);

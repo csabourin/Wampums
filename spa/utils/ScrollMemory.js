@@ -5,15 +5,12 @@
  * `scroll-behavior: smooth` on <html>, that jump was animated, so changing
  * screens (or a live-sync redraw) visibly scrolled the page up and back down.
  *
- * Positions are kept per screen (path and query string) for the life of the
- * tab, so returning to a screen -- by a link, the back button or a redraw --
+ * Positions are kept per screen (path and query string) while the app is
+ * open, so returning to a screen -- by a link, the back button or a redraw --
  * opens it where it was left. A screen never visited starts at the top.
  * Every jump is instant; the smooth behaviour is kept for in-page scrolling.
  */
 
-import { debugWarn } from './DebugUtils.js';
-
-const STORAGE_KEY = 'wampums:scroll-positions:v2';
 const MAX_REMEMBERED_SCREENS = 50;
 
 // Screens render their data after the route resolves, so the page may not be
@@ -24,7 +21,10 @@ const RESTORE_TIMEOUT_MS = 1500;
 // Any of these means the person has started scrolling: stop restoring.
 const USER_SCROLL_EVENTS = ['wheel', 'touchstart', 'keydown', 'pointerdown'];
 
-let positions = null;
+// Kept in memory only. Screen URLs can carry emailed-link credentials
+// (/reset-password?token=…, /permission-slip/<token>), and nothing derived
+// from them may reach browser storage.
+let positions = new Map();
 let activeKey = null;
 let navigationToken = 0;
 let restoring = false;
@@ -47,82 +47,25 @@ export function scrollKeyFor(path) {
   return path.split('#')[0];
 }
 
-// FNV-1a, 32-bit, run with two offset bases for a 64-bit digest.
-const FNV_PRIME = 0x01000193;
-const FNV_OFFSET_BASIS = 0x811c9dc5;
-const SECOND_OFFSET_BASIS = 0x050c5d1f;
-const FNV_OFFSET_BASES = [FNV_OFFSET_BASIS, SECOND_OFFSET_BASIS];
-const HEX_RADIX = 16;
-const HEX_DIGITS_PER_HALF = 8;
-
-/**
- * One-way digest of a screen key, used as the stored identifier.
- * Screen URLs can carry credentials (/reset-password?token=…,
- * /permission-slip/<token>, /family-link?token=…); only this digest is ever
- * written to storage, never the URL itself.
- * @param {string} key - Screen key from scrollKeyFor
- * @returns {string} 16-character hex digest
- */
-function storageIdFor(key) {
-  return FNV_OFFSET_BASES.map((basis) => {
-    let hash = basis;
-    for (let i = 0; i < key.length; i += 1) {
-      hash = Math.imul(hash ^ key.charCodeAt(i), FNV_PRIME);
-    }
-    return (hash >>> 0).toString(HEX_RADIX).padStart(HEX_DIGITS_PER_HALF, '0');
-  }).join('');
-}
-
 /**
  * Remembered position for a screen key.
  * @param {string|null} key - Screen key from scrollKeyFor
  * @returns {number} Offset in pixels, 0 when unknown
  */
 function savedPositionFor(key) {
-  return key ? loadPositions().get(storageIdFor(key)) || 0 : 0;
-}
-
-function loadPositions() {
-  if (positions) {
-    return positions;
-  }
-  positions = new Map();
-  try {
-    const stored = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]');
-    if (Array.isArray(stored)) {
-      stored.forEach(([key, y]) => {
-        if (typeof key === 'string' && Number.isFinite(y)) {
-          positions.set(key, y);
-        }
-      });
-    }
-  } catch (error) {
-    debugWarn('ScrollMemory: stored positions unreadable', error);
-  }
-  return positions;
-}
-
-function persistPositions() {
-  try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify([...loadPositions()]));
-  } catch (error) {
-    debugWarn('ScrollMemory: could not store positions', error);
-  }
+  return (key && positions.get(key)) || 0;
 }
 
 function rememberPosition(key, y) {
   if (!key) {
     return;
   }
-  const map = loadPositions();
-  const id = storageIdFor(key);
   // Re-insert so the most recently used screens are kept when trimming.
-  map.delete(id);
-  map.set(id, Math.max(0, Math.round(y)));
-  while (map.size > MAX_REMEMBERED_SCREENS) {
-    map.delete(map.keys().next().value);
+  positions.delete(key);
+  positions.set(key, Math.max(0, Math.round(y)));
+  while (positions.size > MAX_REMEMBERED_SCREENS) {
+    positions.delete(positions.keys().next().value);
   }
-  persistPositions();
 }
 
 /**
@@ -309,7 +252,7 @@ export function resetScrollMemoryForTests() {
     history[method] = original;
   });
   originalHistoryMethods = {};
-  positions = null;
+  positions = new Map();
   activeKey = null;
   routeStartUrl = null;
   navigationToken = 0;
