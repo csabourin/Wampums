@@ -71,7 +71,10 @@ function checkNonVersionedMounts() {
     // exposes every route it defines, writes included.
     const isPublicRoot = mountPath === '/public' || mountPath.startsWith('/public/');
 
-    if ((isNonVersionedRoot || isNonVersionedApi || isPublicRoot) && !ALLOWED_NON_VERSIONED_MOUNTS.has(trimmedLine)) {
+    // The allow-list is written with double quotes; compare the statement
+    // whatever quote marks routes/index.js uses.
+    const statement = trimmedLine.replace(/'/g, '"');
+    if ((isNonVersionedRoot || isNonVersionedApi || isPublicRoot) && !ALLOWED_NON_VERSIONED_MOUNTS.has(statement)) {
       violations.push({ line: index + 1, statement: trimmedLine });
     }
   });

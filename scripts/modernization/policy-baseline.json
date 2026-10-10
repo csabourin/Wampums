@@ -44,7 +44,7 @@
     "routes/honors.js": 28,
     "routes/import.js": 35,
     "routes/incidents.js": 60,
-    "routes/index.js": 258,
+    "routes/index.js": 1,
     "routes/localGroups.js": 6,
     "routes/medication.js": 133,
     "routes/meetings.js": 21,
