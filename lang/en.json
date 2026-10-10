@@ -3831,5 +3831,8 @@
   "message_not_found": "This message cannot be found. It may have been sent to another account.",
   "messages_load_error": "The messages could not be loaded. Try again in a moment.",
   "messages_empty": "No messages yet. Messages sent to you as notifications appear here.",
-  "message_sent_by": "Sent by"
+  "message_sent_by": "Sent by",
+  "delivery_log_push": "Push notification",
+  "delivery_log_unknown_recipient": "Recipient not recorded",
+  "delivery_log_device": "device {service}"
 }

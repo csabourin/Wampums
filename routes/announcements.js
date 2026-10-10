@@ -25,7 +25,9 @@ const {
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { resolveDatabaseConnectionString } = require('../config/database-url');
-const { getVapidKeys, removeInvalidSubscriptions, sortPushResults } = require('../utils/web-push');
+const {
+  getVapidKeys, recordPushOutcomes, describePushFailure, pushServiceHost,
+} = require('../utils/web-push');
 const { recordUserMessages, messageUrl } = require('../services/userMessages');
 
 /** Upper bound on roles one announcement may address; the unit's catalog is far smaller. */
@@ -397,31 +399,29 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
         { successes: 0, failures: 0 },
       );
 
-      // Devices that can never receive again are forgotten
-      const { invalidEndpoints } = sortPushResults(pushResults, subscribers);
+      // Devices that will not receive again are forgotten
       try {
-        await removeInvalidSubscriptions(pool, announcement.organization_id, invalidEndpoints);
+        await recordPushOutcomes(pool, announcement.organization_id, pushResults, subscribers);
       } catch (cleanupError) {
-        logger.error('Error removing invalid push subscriptions:', cleanupError);
+        logger.error('Error recording push outcomes:', cleanupError);
       }
 
-      // Batch log failures for push notifications
-      const failedPushResults = pushResults.filter(result => result.status === 'rejected');
-      if (failedPushResults.length > 0) {
-        const values = failedPushResults.map((_, idx) =>
-          `($1, 'push', 'failed', $${idx + 2})`
-        ).join(', ');
-        // The status says why (410 gone, 403 other key, 429 throttled);
-        // web-push's own message does not.
-        const errorMessages = failedPushResults.map((result) => {
-          const message = result.reason?.message || 'Push send failed';
-          return result.reason?.statusCode ? `HTTP ${result.reason.statusCode}: ${message}` : message;
-        });
-
+      // One log row per failed device, naming whose device it was and its
+      // push service, so the history shows where the failures went.
+      const failures = pushResults
+        .map((result, index) => ({ result, subscriber: subscribers[index] }))
+        .filter(({ result }) => result.status === 'rejected');
+      if (failures.length > 0) {
         await pool.query(
-          `INSERT INTO announcement_logs (announcement_id, channel, status, error_message)
-           VALUES ${values}`,
-          [announcement.id, ...errorMessages]
+          `INSERT INTO announcement_logs (announcement_id, channel, recipient_user_id, status, error_message, metadata)
+           SELECT $1, 'push', recipient, 'failed', reason, jsonb_build_object('push_service', service)
+             FROM unnest($2::uuid[], $3::text[], $4::text[]) AS failed(recipient, reason, service)`,
+          [
+            announcement.id,
+            failures.map(({ subscriber }) => subscriber.user_id),
+            failures.map(({ result }) => describePushFailure(result.reason)),
+            failures.map(({ subscriber }) => pushServiceHost(subscriber.endpoint)),
+          ],
         );
       }
     } catch (error) {
@@ -911,10 +911,13 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
       let logsByAnnouncement = {};
       if (announcementIds.length) {
         const logsResult = await pool.query(
-          `SELECT announcement_id, channel, recipient_email, recipient_user_id, status, error_message, sent_at
-           FROM announcement_logs
-           WHERE announcement_id = ANY($1::int[])
-           ORDER BY sent_at DESC`,
+          `SELECT l.announcement_id, l.channel, l.recipient_email, l.recipient_user_id,
+                  COALESCE(NULLIF(u.full_name, ''), u.email) AS recipient_name,
+                  l.status, l.error_message, l.metadata->>'push_service' AS push_service, l.sent_at
+           FROM announcement_logs l
+           LEFT JOIN users u ON u.id = l.recipient_user_id
+           WHERE l.announcement_id = ANY($1::int[])
+           ORDER BY l.sent_at DESC`,
           [announcementIds],
         );
         logsByAnnouncement = logsResult.rows.reduce((acc, log) => {

@@ -288,6 +288,120 @@ describe.skipIf(!DATABASE_URL)('Push notifications', () => {
     }
   });
 
+  test('a device that keeps failing while others receive is forgotten after three sends', async () => {
+    const member = await createMember([ids.sender], 'Flaky devices');
+    await subscribe(member, 'steady');
+    await subscribe(member, 'flaky');
+    webpush.sendNotification.mockImplementation((subscription) => (
+      subscription.endpoint.endsWith('flaky')
+        ? Promise.reject(Object.assign(new Error('Bad request'), { statusCode: 400 }))
+        : Promise.resolve({ statusCode: 201 })
+    ));
+    const send = () => request(app).post('/api/v1/notifications/send')
+      .send({ title: 'Camp', body: 'Texte', user_ids: [member] });
+
+    await send();
+    await send();
+    expect(await endpointsOf(member)).toEqual([endpoint('flaky'), endpoint('steady')]);
+
+    const third = await send();
+    expect(third.body.data.removed).toBe(1);
+    expect(await endpointsOf(member)).toEqual([endpoint('steady')]);
+  });
+
+  test('a delivery resets the count, and a send nobody received counts for no one', async () => {
+    const member = await createMember([ids.sender], 'Recovering device');
+    await subscribe(member, 'recovering');
+    const failureCount = () => one('SELECT failure_count FROM subscribers WHERE endpoint = $1', [endpoint('recovering')]);
+    const send = () => request(app).post('/api/v1/notifications/send')
+      .send({ title: 'Camp', body: 'Texte', user_ids: [member] });
+
+    // Alone and failing: the server may be at fault, nothing is counted
+    webpush.sendNotification.mockRejectedValue(Object.assign(new Error('Unavailable'), { statusCode: 503 }));
+    await send();
+    await send();
+    await send();
+    expect(await failureCount()).toBe(0);
+    expect(await endpointsOf(member)).toEqual([endpoint('recovering')]);
+
+    await subscribe(member, 'recovering-other');
+    webpush.sendNotification.mockImplementation((subscription) => (
+      subscription.endpoint.endsWith('recovering')
+        ? Promise.reject(Object.assign(new Error('Unavailable'), { statusCode: 503 }))
+        : Promise.resolve({ statusCode: 201 })
+    ));
+    await send();
+    await send();
+    expect(await failureCount()).toBe(2);
+
+    webpush.sendNotification.mockResolvedValue({ statusCode: 201 });
+    await send();
+    expect(await failureCount()).toBe(0);
+  });
+
+  test('a device stored with keys web-push cannot use is forgotten at once', async () => {
+    const member = await createMember([ids.sender], 'Malformed device');
+    await subscribe(member, 'malformed');
+    webpush.sendNotification.mockRejectedValue(new Error('The subscription p256dh value should be 65 bytes long.'));
+
+    const response = await request(app).post('/api/v1/notifications/send')
+      .send({ title: 'Camp', body: 'Texte', user_ids: [member] });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.removed).toBe(1);
+    expect(await endpointsOf(member)).toEqual([]);
+  });
+
+  test('an announcement pushes only to holders of the chosen roles, and names whose device failed', async () => {
+    const leader = await createMember([ids.sender], 'Chosen leader');
+    await subscribe(leader, 'leader-ok');
+    await subscribe(leader, 'leader-dead');
+    // A member without the chosen role, with a working device
+    const parentRole = await one(
+      `INSERT INTO roles (role_name, display_name, data_scope, is_system_role, organization_id)
+       VALUES ($1, $1, 'linked', false, $2) RETURNING id`,
+      [`push_parent_${Date.now()}`, ids.unit]
+    );
+    const bystander = await createMember([parentRole], 'Bystander parent');
+    await subscribe(bystander, 'bystander-ok');
+    webpush.sendNotification.mockImplementation((subscription) => (
+      subscription.endpoint.endsWith('dead')
+        ? Promise.reject(Object.assign(new Error('Bad request'), { statusCode: 400 }))
+        : Promise.resolve({ statusCode: 201 })
+    ));
+    const roleName = await one('SELECT role_name FROM roles WHERE id = $1', [ids.sender]);
+    const announcement = (await pool.query(
+      `INSERT INTO announcements (organization_id, created_by, subject, message, recipient_roles, status)
+       VALUES ($1, $2, $3, $4, $5, 'sending') RETURNING *`,
+      [ids.unit, ids.caller, 'Réunion des animateurs', 'Mardi 19 h', [roleName]]
+    )).rows[0];
+    const { dispatchAnnouncementForTests } = require('../routes/announcements');
+    const quiet = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+
+    try {
+      await dispatchAnnouncementForTests(pool, quiet, announcement);
+
+      const reached = webpush.sendNotification.mock.calls.map(([subscription]) => subscription.endpoint);
+      expect(reached).not.toContain(endpoint('bystander-ok'));
+      expect(reached).toEqual(expect.arrayContaining([endpoint('leader-ok'), endpoint('leader-dead')]));
+
+      const failed = (await pool.query(
+        `SELECT recipient_user_id, error_message, metadata->>'push_service' AS push_service
+           FROM announcement_logs WHERE announcement_id = $1 AND channel = 'push' AND status = 'failed'`,
+        [announcement.id]
+      )).rows;
+      expect(failed).toContainEqual({
+        recipient_user_id: leader,
+        error_message: 'HTTP 400: Bad request',
+        push_service: 'push.example.test',
+      });
+      expect(failed.every((row) => row.recipient_user_id !== bystander)).toBe(true);
+    } finally {
+      await pool.query('DELETE FROM announcement_logs WHERE announcement_id = $1', [announcement.id]);
+      await pool.query('DELETE FROM announcements WHERE id = $1', [announcement.id]);
+    }
+  });
+
   test('a message id must be a number', async () => {
     const response = await request(app).get('/api/v1/messages/1%20OR%201=1');
     expect(response.status).toBe(400);

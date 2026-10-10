@@ -16,7 +16,7 @@
 'use strict';
 
 const { getTranslationsByCode } = require('../utils/index');
-const { getVapidKeys, removeInvalidSubscriptions, sortPushResults } = require('../utils/web-push');
+const { getVapidKeys, recordPushOutcomes } = require('../utils/web-push');
 
 const REMINDER_WINDOW_MINUTES = 15; // notify this many minutes before a dose is due
 const POLL_INTERVAL_MS = 60_000;    // check every 60 seconds
@@ -239,12 +239,11 @@ class MedicationReminderService {
             `[MedicationReminders] ${failures.length}/${subscribers.length} push(es) failed for dist ${dist.id}`,
             failures.map(f => f.reason?.message)
           );
-          const { invalidEndpoints } = sortPushResults(sendResults, subscribers);
-          const removed = await this._removeInvalidSubscriptions(orgId, invalidEndpoints);
-          if (removed) {
-            // The next dose of this tick skips the devices just forgotten
-            subscribers = subscribers.filter((sub) => !invalidEndpoints.includes(sub.endpoint));
-          }
+        }
+        const removed = await this._recordPushOutcomes(orgId, sendResults, subscribers);
+        if (removed.length) {
+          // The next dose of this tick skips the devices just forgotten
+          subscribers = subscribers.filter((sub) => !removed.includes(sub.endpoint));
         }
 
         await this._markSent([dist.id]);
@@ -270,22 +269,24 @@ class MedicationReminderService {
   }
 
   /**
-   * Forget devices that can never receive again (see `sortPushResults`).
-   * A failed clean-up never stops the reminders.
+   * Record how each device fared and forget those that will not receive
+   * again (see `recordPushOutcomes`). A failed clean-up never stops the
+   * reminders.
    * @param {number} orgId - Unit the subscriptions belong to
-   * @param {string[]} endpoints - Endpoints to forget
-   * @returns {Promise<number>} Number of subscriptions removed
+   * @param {PromiseSettledResult[]} results - One per subscriber
+   * @param {Array<{ endpoint: string }>} subscribers - The devices sent to
+   * @returns {Promise<string[]>} Endpoints removed
    */
-  async _removeInvalidSubscriptions(orgId, endpoints) {
+  async _recordPushOutcomes(orgId, results, subscribers) {
     try {
-      const removed = await removeInvalidSubscriptions(this.pool, orgId, endpoints);
-      if (removed) {
-        this.logger.info(`[MedicationReminders] Removed ${removed} invalid subscription(s)`);
+      const removed = await recordPushOutcomes(this.pool, orgId, results, subscribers);
+      if (removed.length) {
+        this.logger.info(`[MedicationReminders] Removed ${removed.length} subscription(s) that will not receive again`);
       }
       return removed;
     } catch (err) {
-      this.logger.error('[MedicationReminders] Error removing invalid subscriptions:', err);
-      return 0;
+      this.logger.error('[MedicationReminders] Error recording push outcomes:', err);
+      return [];
     }
   }
 }

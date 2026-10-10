@@ -3831,5 +3831,8 @@
   "message_not_found": "Ce message est introuvable. Il a peut-être été envoyé à un autre compte.",
   "messages_load_error": "Impossible de charger les messages. Réessayez dans un moment.",
   "messages_empty": "Aucun message pour l’instant. Les messages reçus en notification s’affichent ici.",
-  "message_sent_by": "Envoyé par"
+  "message_sent_by": "Envoyé par",
+  "delivery_log_push": "Notification push",
+  "delivery_log_unknown_recipient": "Destinataire non enregistré",
+  "delivery_log_device": "appareil {service}"
 }
