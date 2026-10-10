@@ -162,9 +162,12 @@ function canReadFullOrganizationSettings(permissions) {
  * @param {Object} application - The app object
  * @returns {Promise<void>}
  */
-function refreshOrganizationSettings(application) {
+async function refreshOrganizationSettings(application) {
   // The startup request was chosen with the old permissions.
   window.earlyOrgSettingsFetch = null;
+  // A request already under way would store its answer whenever it lands;
+  // let it finish first so the refreshed settings are the ones kept.
+  await application._settingsPromise?.catch(() => {});
   application.isOrganizationSettingsFetched = false;
   application._settingsPromise = null;
   return application.fetchOrganizationSettings();
