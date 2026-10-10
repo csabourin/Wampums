@@ -19,7 +19,11 @@ const {
   isAssociationInUnit,
 } = require('../services/participantAccess');
 const { listUnitLeaders } = require('../services/unitLeaders');
-const { checkRoleChange, findRolesInUnit, normalizeRoleIds } = require('../services/roleAssignment');
+const { checkRoleChange, checkRolesGrantable, findRolesInUnit, normalizeRoleIds } = require('../services/roleAssignment');
+const { ensureActiveScoutYear } = require('../services/scoutYear');
+const { ROUTINE_DEACTIVATION_REASON } = require('../services/reactivation');
+const { param, body } = require('express-validator');
+const { checkValidation } = require('../middleware/validation');
 
 // Import utilities
 const { handleOrganizationResolutionError } = require('../utils/api-helpers');
@@ -32,6 +36,12 @@ const { handleOrganizationResolutionError } = require('../utils/api-helpers');
  * @param {Object} logger - Winston logger instance
  * @returns {Router} Express router with user management routes
  */
+const HTTP_BAD_REQUEST = 400;
+const HTTP_NOT_FOUND = 404;
+
+/** Reason recorded when the unit's team deactivates a member without one. */
+const MANUAL_DEACTIVATION_REASON = 'deactivated_by_admin';
+
 /** Longest note kept with a role change (role_assignment_audit.note). */
 const AUDIT_NOTE_MAX_LENGTH = 500;
 
@@ -188,6 +198,7 @@ module.exports = (pool, logger) => {
          u.full_name,
          u.is_verified,
          uo.role_ids,
+         uo.status,
          COALESCE(
            (SELECT json_agg(json_build_object('id', r.id, 'role_name', r.role_name, 'display_name', r.display_name))
             FROM roles r
@@ -560,6 +571,134 @@ module.exports = (pool, logger) => {
 
     return success(res, rolesResult.rows);
   }));
+
+  /**
+   * @swagger
+   * /api/v1/users/{userId}/membership:
+   *   patch:
+   *     summary: Deactivate or reactivate a member of the unit
+   *     description: >
+   *       For someone who leaves the unit, such as a leader who steps down.
+   *       Deactivating keeps the account, its links and its history; the
+   *       person loses access to the unit and stops receiving its
+   *       communications. Reactivating restores access with the same roles.
+   *       The caller must hold every permission of the member's roles, as for
+   *       removing those roles, and cannot change their own membership.
+   *     tags: [Users]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: userId
+   *         required: true
+   *         schema:
+   *           type: string
+   *           format: uuid
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [status]
+   *             properties:
+   *               status:
+   *                 type: string
+   *                 enum: [active, inactive]
+   *               reason:
+   *                 type: string
+   *                 maxLength: 500
+   *     responses:
+   *       200:
+   *         description: Membership updated
+   *       400:
+   *         description: Invalid request, or the caller's own membership
+   *       403:
+   *         description: Insufficient permissions, or the member holds permissions the caller lacks
+   *       404:
+   *         description: User not found in this organization
+   */
+  router.patch('/:userId/membership',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('users.delete'),
+    param('userId').isUUID(),
+    body('status').isIn(['active', 'inactive']),
+    body('reason').optional({ values: 'null' }).isString().isLength({ max: AUDIT_NOTE_MAX_LENGTH })
+      .not().equals(ROUTINE_DEACTIVATION_REASON),
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const { userId } = req.params;
+      const { status } = req.body;
+      // A deactivation by the team always carries a reason other than the
+      // year transition's, so sign-in and reactivation treat it as the
+      // team's decision to undo, not one the member may undo alone.
+      const reason = auditNoteFrom(req.body.reason) || MANUAL_DEACTIVATION_REASON;
+
+      if (userId === String(req.user.id)) {
+        return error(res, 'Cannot change your own membership', HTTP_BAD_REQUEST);
+      }
+
+      const deactivating = status === 'inactive';
+      // Taken before the transaction: it may create the unit's first year.
+      const scoutYear = deactivating ? await ensureActiveScoutYear(pool, organizationId) : null;
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const membership = await client.query(
+          `SELECT role_ids, status FROM user_organizations
+            WHERE user_id = $1 AND organization_id = $2
+            FOR UPDATE`,
+          [userId, organizationId]
+        );
+        if (membership.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return error(res, 'User not found in this organization', HTTP_NOT_FOUND);
+        }
+
+        // Ending or restoring someone's access is ending or restoring every
+        // role they hold: the caller must be able to grant each of them.
+        const check = await checkRolesGrantable(
+          client,
+          normalizeRoleIds(membership.rows[0].role_ids || []),
+          req.userPermissions
+        );
+        if (!check.allowed) {
+          await client.query('ROLLBACK');
+          return forbidden(
+            res,
+            'You can only deactivate or reactivate members whose permissions you hold',
+            check.required,
+            check.missing,
+            { roles: check.roles }
+          );
+        }
+
+        const updated = await client.query(
+          `UPDATE user_organizations
+              SET status = $3,
+                  deactivated_at = CASE WHEN $4 THEN now() ELSE NULL END,
+                  deactivated_reason = CASE WHEN $4 THEN $5 ELSE NULL END,
+                  last_active_scout_year_id = CASE WHEN $4 THEN $6 ELSE last_active_scout_year_id END,
+                  reactivation_requested_at = NULL
+            WHERE user_id = $1 AND organization_id = $2
+            RETURNING status, deactivated_at, deactivated_reason`,
+          [userId, organizationId, status, deactivating, reason, scoutYear?.id ?? null]
+        );
+        await client.query('COMMIT');
+
+        logger.info(`Membership of ${userId} in unit ${organizationId} set to ${status} by user ${req.user.id}`);
+        return success(res, updated.rows[0], deactivating ? 'Member deactivated' : 'Member reactivated');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    })
+  );
 
   /**
    * @swagger

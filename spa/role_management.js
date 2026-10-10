@@ -10,7 +10,7 @@ import roleManagementStylesheetUrl from '../css/role-management.css?url';
 import { app, translate } from './app.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { hasPermission } from './utils/PermissionUtils.js';
-import { roleLabel } from './utils/RoleLabelUtils.js';
+import { roleDescription, roleLabel } from './utils/RoleLabelUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { deleteCachedData } from './indexedDB.js';
@@ -21,6 +21,8 @@ import {
   updateUserRolesV1,
   clearUserCaches
 } from './api/api-endpoints.js';
+import { setUserMembershipStatus } from './api/api-members.js';
+import { confirmDestructive } from './utils/DialogUtils.js';
 import { API } from './api/api-core.js';
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
@@ -197,7 +199,7 @@ export class RoleManagement {
           </button>
         </div>
 
-        <p class="role-description">${this.escapeHtml(role.description || 'No description available')}</p>
+        <p class="role-description">${this.escapeHtml(roleDescription(role) || translate('district_management_generic_bundle_description'))}</p>
 
         <div class="role-permissions-container ${isExpanded ? 'visible' : 'hidden'}" id="role-permissions-${role.id}">
           ${isExpanded ? '<div class="loading-spinner">Loading permissions...</div>' : ''}
@@ -264,7 +266,10 @@ export class RoleManagement {
       return `
         <div class="user-item ${isSelected ? 'selected' : ''}" data-user-id="${user.id}">
           <div class="user-info">
-            <div class="user-name">${this.escapeHtml(user.full_name || user.email)}</div>
+            <div class="user-name">
+              ${this.escapeHtml(user.full_name || user.email)}
+              ${user.status === 'inactive' ? `<span class="member-inactive-badge">${translate('member_access_inactive_badge')}</span>` : ''}
+            </div>
             <div class="user-email">${this.escapeHtml(user.email)}</div>
             ${roleNames ? `<div class="user-roles-summary">${this.escapeHtml(roleNames)}</div>` : ''}
           </div>
@@ -346,7 +351,7 @@ export class RoleManagement {
                       <div class="role-checkbox-header">
                         <strong>${this.escapeHtml(roleLabel(role))}</strong>
                       </div>
-                      <small class="role-checkbox-description">${this.escapeHtml(role.description || '')}</small>
+                      <small class="role-checkbox-description">${this.escapeHtml(roleDescription(role))}</small>
                     </div>
                   </label>
                   ${locked ? `<small class="role-locked-note" id="${noteId}">${translate('role_not_assignable')}</small>` : ''}
@@ -367,8 +372,83 @@ export class RoleManagement {
 
           <div id="assignment-message" class="status-message" role="status" aria-live="polite"></div>
         </form>
+        ${this.renderMembershipSection(user)}
       </div>
     `;
+  }
+
+  /**
+   * Access to the unit: deactivate someone who left (a leader who stepped
+   * down), or bring them back. Their account, roles and history are kept.
+   *
+   * @param {Object} user - User row (status: 'active' | 'inactive' | 'alumni')
+   * @returns {string} Section HTML, empty without users.delete
+   */
+  renderMembershipSection(user) {
+    if (!hasPermission('users.delete')) {
+      return '';
+    }
+    const inactive = user.status === 'inactive';
+    return `
+      <section class="membership-section" aria-labelledby="membership-heading">
+        <h3 id="membership-heading">${translate('member_access_title')}</h3>
+        <p>${translate(inactive ? 'member_access_inactive' : 'member_access_active')}</p>
+        <button type="button" id="membership-toggle" class="${inactive ? 'btn-secondary' : 'btn-danger'}">
+          ${translate(inactive ? 'member_access_reactivate' : 'member_access_deactivate')}
+        </button>
+        <div id="membership-message" class="status-message" role="status" aria-live="polite"></div>
+      </section>
+    `;
+  }
+
+  /**
+   * Deactivate (after confirmation) or reactivate the member being edited.
+   *
+   * @param {string} userId - Member UUID
+   */
+  async toggleMembership(userId) {
+    const user = this.users.find(u => u.id === userId);
+    if (!user) {
+      return;
+    }
+    const deactivating = user.status !== 'inactive';
+    if (deactivating) {
+      const confirmed = await confirmDestructive({
+        title: translate('member_access_deactivate_title').replace('{name}', user.full_name || user.email),
+        message: translate('member_access_deactivate_message'),
+        confirmLabel: translate('member_access_deactivate'),
+      });
+      if (!confirmed) {
+        document.getElementById('membership-toggle')?.focus();
+        return;
+      }
+    }
+
+    let messageKey;
+    let type = 'success';
+    try {
+      await setUserMembershipStatus(userId, deactivating ? 'inactive' : 'active');
+      await this.invalidateUserCaches(userId);
+      await this.fetchUsers();
+      setContent(document.getElementById('user-list'), this.renderUserList());
+      this.attachUserListListeners();
+      setContent(document.getElementById('user-assignment-content'), await this.renderUserAssignment(userId));
+      this.attachAssignmentFormListeners();
+      this.markSelectedUser(userId);
+      messageKey = deactivating ? 'member_access_deactivated' : 'member_access_reactivated';
+    } catch (error) {
+      debugError('Error changing membership:', error);
+      const FORBIDDEN = 403;
+      messageKey = error.status === FORBIDDEN ? 'member_access_forbidden' : 'member_access_error';
+      type = 'error';
+    }
+
+    const message = document.getElementById('membership-message');
+    if (message) {
+      message.textContent = translate(messageKey);
+      message.className = `status-message ${type}`;
+    }
+    document.getElementById('membership-toggle')?.focus();
   }
 
   attachEventListeners() {
@@ -563,6 +643,10 @@ export class RoleManagement {
   attachAssignmentFormListeners() {
     const form = document.getElementById('user-role-assignment-form');
     if (!form) return;
+
+    document.getElementById('membership-toggle')?.addEventListener('click', () => {
+      this.toggleMembership(document.getElementById('selected-user-id').value);
+    });
 
     const cancelBtn = document.getElementById('cancel-assignment');
     if (cancelBtn) {

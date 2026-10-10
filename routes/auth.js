@@ -33,7 +33,23 @@ const {
 
 // Import utilities
 const { getCurrentOrganizationId, handleOrganizationResolutionError } = require('../utils/api-helpers');
-const { findMembershipStanding, classifyStanding } = require('../services/reactivation');
+const { findMembershipStanding, classifyStanding, ROUTINE_DEACTIVATION_REASON } = require('../services/reactivation');
+
+/**
+ * Why sign-in to a unit is refused for a membership that is not active.
+ * Closed at the year transition (no child enrolled any more): the person may
+ * reopen it by enrolling a child. Closed by the unit's team (a leader who
+ * stepped down): only the team can reopen it, so say so.
+ *
+ * @param {{membership_status: string, membership_deactivated_reason: ?string}} user - Login row
+ * @returns {string} Message key
+ */
+function inactiveMembershipMessage(user) {
+  return user.membership_status === 'inactive'
+    && user.membership_deactivated_reason !== ROUTINE_DEACTIVATION_REASON
+    ? 'membership_closed'
+    : 'membership_inactive';
+}
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { sendEmail, sendAdminVerificationEmail, getTranslationsByCode, getUserEmailLanguage } = require('../utils/index');
 const {
@@ -221,7 +237,8 @@ module.exports = (pool, logger) => {
 
         const userResult = await pool.query(
           `SELECT u.id, u.email, u.password, u.is_verified, u.full_name,
-                  uo.status AS membership_status
+                  uo.status AS membership_status,
+                  uo.deactivated_reason AS membership_deactivated_reason
            FROM users u
            JOIN user_organizations uo ON u.id = uo.user_id
            WHERE u.email = $1 AND uo.organization_id = $2`,
@@ -270,7 +287,7 @@ module.exports = (pool, logger) => {
           });
           return res.status(403).json({
             success: false,
-            message: 'membership_inactive',
+            message: inactiveMembershipMessage(user),
             membershipStatus: user.membership_status
           });
         }
@@ -485,7 +502,8 @@ module.exports = (pool, logger) => {
 
         // Fetch user
         const userResult = await pool.query(
-          `SELECT u.id, u.email, u.full_name, uo.status AS membership_status
+          `SELECT u.id, u.email, u.full_name, uo.status AS membership_status,
+                  uo.deactivated_reason AS membership_deactivated_reason
            FROM users u
            JOIN user_organizations uo ON u.id = uo.user_id
            WHERE u.email = $1 AND uo.organization_id = $2`,
@@ -509,7 +527,7 @@ module.exports = (pool, logger) => {
           });
           return res.status(403).json({
             success: false,
-            message: 'membership_inactive',
+            message: inactiveMembershipMessage(user),
             membershipStatus: user.membership_status
           });
         }

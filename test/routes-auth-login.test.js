@@ -210,6 +210,38 @@ describe('POST /public/login', () => {
     expect(res.body.message).toMatch(/verify|verified/i);
   });
 
+  test.each([
+    ['closed by the year transition', 'no_enrolled_child', 'membership_inactive'],
+    ['closed by the unit\'s team', 'deactivated_by_admin', 'membership_closed'],
+    ['closed by the team with a note', 'A quitté l’unité', 'membership_closed'],
+  ])('refuses a membership %s with the matching message', async (_label, reason, message) => {
+    const { __mClient, __mPool } = require('pg');
+
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes('FROM users u')) {
+        return Promise.resolve({
+          rows: [{
+            id: 1,
+            email: validEmail,
+            password: hashedPassword,
+            is_verified: true,
+            full_name: 'Test User',
+            membership_status: 'inactive',
+            membership_deactivated_reason: reason
+          }]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .post('/public/login')
+      .send({ email: validEmail, password: validPassword });
+
+    expect(res.status).toBe(403);
+    expect(res.body.message).toBe(message);
+  });
+
   test('bypasses 2FA for demo users', async () => {
     const { __mClient, __mPool } = require('pg');
 

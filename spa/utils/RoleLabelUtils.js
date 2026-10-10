@@ -32,3 +32,24 @@ export function roleLabel(role) {
   }
   return roleName || '';
 }
+
+/**
+ * Description of a role, in the interface's language.
+ *
+ * Built-in roles read `role_description_<role_name>`, for the same reason as
+ * roleLabel(); a unit's custom role keeps the description the unit wrote.
+ *
+ * @param {Object|null} role - Role row (`role_name`, `description`)
+ * @returns {string} Description, or '' when the role has none
+ */
+export function roleDescription(role) {
+  const roleName = role?.role_name;
+  if (roleName) {
+    const key = `role_description_${roleName}`;
+    const translated = translate(key);
+    if (translated && translated !== key) {
+      return translated;
+    }
+  }
+  return role?.description || '';
+}

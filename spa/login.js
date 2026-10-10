@@ -533,6 +533,8 @@ export class Login {
       // Without this the server's "your membership was closed" arrived as
       // "wrong password", which sent people to reset a password that was fine.
       membership_inactive: translate("membership_inactive"),
+      // Closed by the unit's team: only they can reopen it, so no self-service link.
+      membership_closed: translate('membership_closed'),
       internal_server_error: translate("internal_server_error")
     };
 

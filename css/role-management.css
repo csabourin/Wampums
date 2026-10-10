@@ -465,3 +465,50 @@
   color: #1976D2;
   text-decoration: underline;
 }
+
+/* Access to the unit (deactivate a member who left) */
+.membership-section {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.membership-section h3 {
+  margin: 0 0 8px;
+}
+
+.membership-section button {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.member-inactive-badge {
+  display: inline-block;
+  margin-inline-start: 6px;
+  padding: 2px 8px;
+  border: 1px solid #5f6368;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #3c4043;
+  background: #f1f3f4;
+}
+
+.membership-section .btn-danger {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 4px;
+  font-weight: 600;
+  color: #fff;
+  background: #b3261e;
+  cursor: pointer;
+}
+
+.membership-section .btn-danger:hover {
+  background: #8c1d18;
+}
+
+.membership-section button:focus-visible {
+  outline: 3px solid #1a73e8;
+  outline-offset: 2px;
+}

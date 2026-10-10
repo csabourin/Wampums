@@ -506,12 +506,15 @@ input[type="submit"]:hover:not(:disabled) {
 
 .btn--secondary {
   background-color: var(--color-surface);
+  /* The global button rule paints a green gradient; dark text on it fails contrast. */
+  background-image: none;
   color: var(--color-text);
   border-color: var(--color-border);
 }
 
 .btn--secondary:hover:not(:disabled) {
   background-color: var(--color-secondary);
+  background-image: none;
   border-color: var(--color-primary-light);
   color: var(--color-primary-dark);
   box-shadow: var(--shadow-md);
@@ -7882,6 +7885,56 @@ details p {
   gap: var(--space-sm);
   justify-content: flex-end;
   padding-top: var(--space-md);
+}
+
+/* The shared .modal-content clips its overflow and expects a .modal-body to
+   scroll; this dialog has none, so on a short screen (a phone in landscape)
+   the roles and the save button were out of reach. The dialog scrolls as a
+   whole and keeps its actions pinned to the bottom, always reachable. */
+.modal-overlay .dm-modal {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* The actions bar carries the bottom spacing, so nothing shows beneath it. */
+  padding-bottom: 0;
+}
+
+.modal-overlay .dm-modal .dm-modal-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  flex-wrap: wrap;
+  padding-bottom: var(--space-md);
+  background: var(--color-surface);
+  box-shadow: 0 -1px 0 var(--color-border);
+}
+
+.btn--danger,
+.dm-modal .btn--danger {
+  background-color: #b3261e;
+  background-image: none;
+  color: #fff;
+}
+
+.btn--danger:hover:not(:disabled) {
+  background-color: #8c1d18;
+  background-image: none;
+}
+
+/* A deactivated member: muted card, and a labelled pill (not colour alone). */
+.dm-user-card--inactive {
+  border-style: dashed;
+}
+
+.dm-inactive-pill {
+  color: #3c4043;
+  background: #f1f3f4;
+  border: 1px solid #5f6368;
+}
+
+@media (max-height: 500px) {
+  .modal-overlay .dm-modal {
+    padding: var(--space-md) var(--space-md) 0;
+  }
 }
 
 .dm-modal .dm-section-title {

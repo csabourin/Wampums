@@ -46,12 +46,22 @@ jest.mock('../../spa/api/api-endpoints.js', () => ({
   clearUserCaches: jest.fn(),
 }));
 
+jest.mock('../../spa/api/api-members.js', () => ({
+  setUserMembershipStatus: jest.fn(),
+}));
+
+jest.mock('../../spa/utils/DialogUtils.js', () => ({
+  confirmDestructive: jest.fn(),
+}));
+
 jest.mock('../../spa/utils/DOMUtils.js', () => {
   const actual = jest.requireActual('../../spa/utils/DOMUtils.js');
   return { ...actual, loadStylesheet: jest.fn(() => Promise.resolve()) };
 });
 
 import * as endpoints from '../../spa/api/api-endpoints.js';
+import { setUserMembershipStatus } from '../../spa/api/api-members.js';
+import { confirmDestructive } from '../../spa/utils/DialogUtils.js';
 import { RoleManagement } from '../../spa/role_management.js';
 
 const AXE_OPTIONS = {
@@ -209,6 +219,99 @@ describe('opening a user\'s roles', () => {
     await open(ALEX);
 
     const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+});
+
+describe('deactivating a member who left', () => {
+  const BLAKE = { id: 'aaaaaaaa-0000-4000-8000-000000000003', email: 'blake@example.org', full_name: 'Blake', roles: [LEADER], status: 'active' };
+
+  /**
+   * Render the tab with Blake, a leader, and open Blake's roles.
+   *
+   * @param {string} status - Blake's membership status as listed
+   * @returns {Promise<RoleManagement>} The page
+   */
+  async function openBlake(status = 'active') {
+    const page = new RoleManagement({});
+    page.users = [{ ...BLAKE, status }];
+    page.roles = ROLES;
+    page.activeTab = 'users';
+    page.fetchUsers = jest.fn(() => {
+      page.users = [{ ...BLAKE, status: page.nextStatus || status }];
+      return Promise.resolve();
+    });
+    page.render();
+    endpoints.getUserRoleAssignments.mockResolvedValue({ data: [LEADER] });
+    await open(BLAKE);
+    return page;
+  }
+
+  test('asks for confirmation, then deactivates, says so and keeps focus on the button', async () => {
+    confirmDestructive.mockResolvedValue(true);
+    setUserMembershipStatus.mockResolvedValue({ success: true });
+    const page = await openBlake();
+    page.nextStatus = 'inactive';
+
+    expect(document.getElementById('membership-toggle').textContent.trim()).toBe('member_access_deactivate');
+    document.getElementById('membership-toggle').click();
+    await flush();
+    await flush();
+    await flush();
+
+    expect(confirmDestructive).toHaveBeenCalledWith(expect.objectContaining({ confirmLabel: 'member_access_deactivate' }));
+    expect(setUserMembershipStatus).toHaveBeenCalledWith(BLAKE.id, 'inactive');
+    expect(document.getElementById('membership-message').textContent).toBe('member_access_deactivated');
+    expect(document.getElementById('membership-message').getAttribute('role')).toBe('status');
+    expect(document.getElementById('membership-toggle').textContent.trim()).toBe('member_access_reactivate');
+    expect(document.activeElement).toBe(document.getElementById('membership-toggle'));
+    expect(document.querySelector('.user-item .member-inactive-badge').textContent).toBe('member_access_inactive_badge');
+  });
+
+  test('cancelling the confirmation changes nothing', async () => {
+    confirmDestructive.mockResolvedValue(false);
+    await openBlake();
+
+    document.getElementById('membership-toggle').click();
+    await flush();
+
+    expect(setUserMembershipStatus).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(document.getElementById('membership-toggle'));
+  });
+
+  test('reactivating needs no confirmation', async () => {
+    setUserMembershipStatus.mockResolvedValue({ success: true });
+    const page = await openBlake('inactive');
+    page.nextStatus = 'active';
+
+    document.getElementById('membership-toggle').click();
+    await flush();
+    await flush();
+    await flush();
+
+    expect(confirmDestructive).not.toHaveBeenCalled();
+    expect(setUserMembershipStatus).toHaveBeenCalledWith(BLAKE.id, 'active');
+    expect(document.getElementById('membership-message').textContent).toBe('member_access_reactivated');
+  });
+
+  test('a refusal says the member holds permissions the viewer lacks', async () => {
+    confirmDestructive.mockResolvedValue(true);
+    const refused = new Error('API request failed: 403');
+    refused.status = 403;
+    setUserMembershipStatus.mockRejectedValue(refused);
+    await openBlake();
+
+    document.getElementById('membership-toggle').click();
+    await flush();
+    await flush();
+
+    expect(document.getElementById('membership-message').textContent).toBe('member_access_forbidden');
+  });
+
+  test('the section has no WCAG A/AA violations', async () => {
+    await openBlake('inactive');
+
+    const results = await axe.run(document.querySelector('.membership-section'), AXE_OPTIONS);
     expect(results.violations).toEqual([]);
   });
 });

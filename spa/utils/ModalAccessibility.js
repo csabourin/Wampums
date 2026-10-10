@@ -104,6 +104,12 @@ export function enhanceModalAccessibility(root = document) {
     observer.observe(document.body, { childList: true, subtree: true });
 
     requestAnimationFrame(() => {
+      // A screen that rebuilds its open dialog on every change has already put
+      // focus back where the person was; moving it to the first control would
+      // also scroll the dialog back to the top.
+      if (dialog.contains(document.activeElement)) {
+        return;
+      }
       const [firstFocusable] = getFocusable(dialog);
       (firstFocusable || dialog).focus();
     });

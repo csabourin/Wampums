@@ -11,12 +11,14 @@ import {
   updateUserRoleBundles,
   updateUserRolesV1,
 } from "./ajax-functions.js";
+import { setUserMembershipStatus } from './api/api-members.js';
+import { confirmDestructive } from './utils/DialogUtils.js';
 import { translate } from "./app.js";
 import { getCachedData, setCachedData } from "./indexedDB.js";
 import { debounce } from "./utils/PerformanceUtils.js";
 import { debugError } from "./utils/DebugUtils.js";
-import { canAssignRoles, canViewRoles } from "./utils/PermissionUtils.js";
-import { roleLabel } from './utils/RoleLabelUtils.js';
+import { canAssignRoles, canViewRoles, hasPermission } from "./utils/PermissionUtils.js";
+import { roleDescription, roleLabel } from './utils/RoleLabelUtils.js';
 import {
   escapeHTML,
   sanitizeHTML,
@@ -361,8 +363,27 @@ export class DistrictManagement {
   }
 
   renderAndBind() {
+    // Every change in the dialog rebuilds it; keep the reader where they were
+    // (scroll position, focused control) instead of sending them to the top.
+    const dialog = document.querySelector('.dm-modal');
+    const scrollTop = dialog ? dialog.scrollTop : null;
+    const active = document.activeElement;
+    const focusId = active?.id || null;
+    const focusRoleId = active?.dataset?.roleId || null;
+
     this.render();
     this.attachEventListeners();
+
+    const rebuilt = document.querySelector('.dm-modal');
+    if (rebuilt && scrollTop !== null) {
+      rebuilt.scrollTop = scrollTop;
+    }
+    const target = focusId
+      ? document.getElementById(focusId)
+      : focusRoleId && document.querySelector(`.dm-bundle-checkbox[data-role-id="${focusRoleId}"]`);
+    if (target && rebuilt?.contains(target)) {
+      target.focus({ preventScroll: true });
+    }
   }
 
   async handleOrganizationChange(newOrgId) {
@@ -545,19 +566,27 @@ export class DistrictManagement {
                 .join("")
             : `<span class="chip">${translate("no_roles_assigned")}</span>`;
 
+        const inactive = user.status === 'inactive';
+        const inactiveLabel = inactive
+          ? `<span class="status-pill dm-inactive-pill">${translate('member_access_inactive_badge')}</span>`
+          : '';
+        const cardName = inactive
+          ? `${user.full_name || user.email}, ${translate('member_access_inactive_badge')}`
+          : user.full_name || user.email;
+
         const queued = this.queuedChanges.find((item) => item.userId === user.id);
         const queuedLabel = queued
           ? `<span class="status-pill status-pill--pending">${translate("district_management_pending_sync")}</span>`
           : "";
 
         return `
-          <button class="dm-user-card" data-user-id="${user.id}" aria-label="${escapeHTML(user.full_name || user.email)}">
+          <button class="dm-user-card${inactive ? ' dm-user-card--inactive' : ''}" data-user-id="${user.id}" aria-label="${escapeHTML(cardName)}">
             <div class="dm-card-header">
               <div>
                 <p class="dm-user-name">${escapeHTML(user.full_name || user.email)}</p>
                 <p class="dm-user-email">${escapeHTML(user.email || "")}</p>
               </div>
-              ${queuedLabel}
+              ${inactiveLabel}${queuedLabel}
             </div>
             <div class="dm-role-stack" role="list" aria-label="${translate("district_management_assigned_roles")}">
               ${roleBadges}
@@ -602,12 +631,12 @@ export class DistrictManagement {
                 ${this.isBlockedByRoleLevel(bundle.role_name) ? "disabled" : ""}
               />
               <div>
-                <p class="dm-bundle-title">${escapeHTML(bundle.display_name)}</p>
-                <p class="dm-bundle-meta">${escapeHTML(bundle.role_name)} ${localGroupBadge}</p>
+                <p class="dm-bundle-title">${escapeHTML(roleLabel(bundle))}</p>
+                ${localGroupBadge ? `<p class="dm-bundle-meta">${localGroupBadge}</p>` : ''}
               </div>
             </div>
             <p class="dm-bundle-description">
-              ${sanitizeHTML(bundle.description || translate("district_management_generic_bundle_description"), {
+              ${sanitizeHTML(roleDescription(bundle) || translate("district_management_generic_bundle_description"), {
                 stripAll: true,
               })}
             </p>
@@ -657,6 +686,8 @@ export class DistrictManagement {
 
             ${auditPanel}
 
+            ${this.renderMembershipSection(user)}
+
             ${mfaRequired ? `
               <div class="dm-modal-section dm-high-risk" role="alert">
                 <p class="dm-section-title">${translate("district_management_mfa_title")}</p>
@@ -694,6 +725,73 @@ export class DistrictManagement {
         </div>
       </div>
     `;
+  }
+
+  /**
+   * Access to the unit: deactivate someone who left (a leader who stepped
+   * down), or bring them back. Their account, roles and history are kept.
+   *
+   * @param {Object} user - Member (status: 'active' | 'inactive' | 'alumni')
+   * @returns {string} Section HTML, empty without users.delete
+   */
+  renderMembershipSection(user) {
+    if (!hasPermission('users.delete')) {
+      return '';
+    }
+    const inactive = user.status === 'inactive';
+    return `
+      <section class="dm-modal-section dm-membership" aria-labelledby="dm-membership-title">
+        <h3 id="dm-membership-title" class="dm-section-title">${translate('member_access_title')}</h3>
+        <p class="dm-helper">${translate(inactive ? 'member_access_inactive' : 'member_access_active')}</p>
+        <button type="button" id="dm-membership-toggle" class="btn ${inactive ? 'btn--secondary' : 'btn--danger'}"
+          ${this.isOffline || this.savingUserId === user.id ? 'disabled' : ''}>
+          ${translate(inactive ? 'member_access_reactivate' : 'member_access_deactivate')}
+        </button>
+      </section>
+    `;
+  }
+
+  /**
+   * Deactivate (after confirmation) or reactivate the member in the dialog.
+   */
+  async toggleMembership() {
+    const user = this.users.find((u) => u.id === this.selectedUserId);
+    if (!user) {
+      return;
+    }
+    const deactivating = user.status !== 'inactive';
+    if (deactivating) {
+      const confirmed = await confirmDestructive({
+        title: translate('member_access_deactivate_title').replace('{name}', user.full_name || user.email),
+        message: translate('member_access_deactivate_message'),
+        confirmLabel: translate('member_access_deactivate'),
+      });
+      if (!confirmed) {
+        document.getElementById('dm-membership-toggle')?.focus();
+        return;
+      }
+    }
+
+    try {
+      await setUserMembershipStatus(user.id, deactivating ? 'inactive' : 'active', this.auditNote.trim() || undefined);
+      user.status = deactivating ? 'inactive' : 'active';
+      await clearUserCaches(this.organizationId);
+      this.formStatus = {
+        type: 'success',
+        message: translate(deactivating ? 'member_access_deactivated' : 'member_access_reactivated'),
+      };
+    } catch (error) {
+      debugError('district_management: membership change failed', error);
+      const FORBIDDEN = 403;
+      this.formStatus = {
+        type: 'error',
+        message: translate(error?.status === FORBIDDEN ? 'member_access_forbidden' : 'member_access_error'),
+      };
+    }
+    this.filteredUsers = this.getFilteredUsers();
+    await this.persistCache();
+    this.renderAndBind();
+    document.getElementById('dm-membership-toggle')?.focus();
   }
 
   renderAuditPanel(user) {
@@ -859,6 +957,8 @@ export class DistrictManagement {
 
     const saveButton = document.getElementById("dm-save");
     saveButton?.addEventListener("click", () => this.handleSaveRoles());
+
+    document.getElementById('dm-membership-toggle')?.addEventListener('click', () => this.toggleMembership());
 
     const queueButton = document.getElementById("dm-queue");
     queueButton?.addEventListener("click", () => this.queuePendingChange());
