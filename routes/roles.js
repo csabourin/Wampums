@@ -13,6 +13,13 @@ const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = r
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const { UNIT_FINANCE_PERMISSIONS } = require('../config/constants');
 const { checkRolesGrantable, findRolesInUnit, permissionCountsAgainstGrantor } = require('../services/roleAssignment');
+const { query } = require('express-validator');
+const { checkValidation } = require('../middleware/validation');
+
+/** Entries returned by the role history when no limit is given. */
+const ROLE_AUDIT_DEFAULT_LIMIT = 15;
+/** Most entries the role history returns at once. */
+const ROLE_AUDIT_MAX_LIMIT = 50;
 
 /** Longest roles.role_name the column accepts. */
 const ROLE_NAME_MAX_LENGTH = 50;
@@ -412,6 +419,64 @@ module.exports = (pool, logger) => {
         logger.error('Error deleting role:', err);
         return error(res, 'Failed to delete role', 500);
       }
+    })
+  );
+
+  /**
+   * @swagger
+   * /api/v1/audit/roles:
+   *   get:
+   *     summary: History of a member's role changes in the unit
+   *     description: >
+   *       Newest first. Each entry gives who made the change, when, the roles
+   *       before and after (as they were then) and the optional note.
+   *     tags: [Roles]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: user_id
+   *         required: true
+   *         schema:
+   *           type: string
+   *           format: uuid
+   *       - in: query
+   *         name: limit
+   *         schema:
+   *           type: integer
+   *           minimum: 1
+   *           maximum: 50
+   *           default: 15
+   *     responses:
+   *       200:
+   *         description: Role changes, newest first
+   *       400:
+   *         description: Invalid user_id or limit
+   *       403:
+   *         description: Insufficient permissions
+   */
+  router.get('/api/v1/audit/roles',
+    authenticate,
+    requirePermission('users.view'),
+    query('user_id').isUUID(),
+    query('limit').optional().isInt({ min: 1, max: ROLE_AUDIT_MAX_LIMIT }).toInt(),
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const limit = req.query.limit || ROLE_AUDIT_DEFAULT_LIMIT;
+
+      const result = await pool.query(
+        `SELECT a.id, a.created_at, a.previous_roles, a.new_roles, a.note,
+                a.changed_by, actor.full_name AS actor_name
+           FROM role_assignment_audit a
+           LEFT JOIN users actor ON actor.id = a.changed_by
+          WHERE a.organization_id = $1 AND a.user_id = $2
+          ORDER BY a.created_at DESC, a.id DESC
+          LIMIT $3`,
+        [organizationId, req.query.user_id, limit]
+      );
+
+      return success(res, result.rows, 'Role history retrieved');
     })
   );
 

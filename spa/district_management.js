@@ -728,14 +728,47 @@ export class DistrictManagement {
     `;
   }
 
+  /**
+   * Describe a recorded role change in the interface language: the roles
+   * added and removed, named with roleLabel(), then the note if any.
+   *
+   * @param {Object} entry - Server entry (previous_roles, new_roles, note)
+   * @returns {string[]} Lines to show, unescaped; empty when not structured
+   */
+  describeAuditChange(entry) {
+    if (!Array.isArray(entry.previous_roles) || !Array.isArray(entry.new_roles)) {
+      return [];
+    }
+    const beforeIds = new Set(entry.previous_roles.map((role) => role.id));
+    const afterIds = new Set(entry.new_roles.map((role) => role.id));
+    const added = entry.new_roles.filter((role) => !beforeIds.has(role.id));
+    const removed = entry.previous_roles.filter((role) => !afterIds.has(role.id));
+    const names = (roles) => roles.map((role) => roleLabel(role)).join(', ');
+
+    const lines = [];
+    if (added.length) {
+      lines.push(translate('district_management_audit_added').replace('{roles}', names(added)));
+    }
+    if (removed.length) {
+      lines.push(translate('district_management_audit_removed').replace('{roles}', names(removed)));
+    }
+    if (entry.note) {
+      lines.push(translate('district_management_audit_note').replace('{note}', entry.note));
+    }
+    return lines;
+  }
+
   renderAuditEntry(entry) {
-    const actor = escapeHTML(entry.actor_name || entry.actor || translate("district_management_unknown_actor"));
-    const action = escapeHTML(entry.summary || entry.action || translate("district_management_audit_unknown_change"));
+    const actor = escapeHTML(entry.actor_name || entry.actor || translate('district_management_unknown_actor'));
+    const described = this.describeAuditChange(entry);
+    const action = described.length
+      ? described.map((line) => escapeHTML(line)).join('<br>')
+      : escapeHTML(entry.summary || entry.action || translate('district_management_audit_unknown_change'));
     const createdAt = this.formatAuditTimestamp(entry.created_at || entry.timestamp);
     const statusBadge =
-      entry.status === "error"
+      entry.status === 'error'
         ? `<span class="status-pill status-pill--warning">${translate("district_management_audit_status_error")}</span>`
-        : "";
+        : '';
 
     return `
       <li class="dm-audit-entry">
@@ -1162,7 +1195,6 @@ export class DistrictManagement {
       );
       await this.reconcileUserRoles(user.id);
       await this.loadAuditLog(user.id, true);
-      this.recordLocalAuditEntry(user.id, selectedRoleIds, "success");
       this.userMeta[user.id] = { lastSyncedAt: Date.now(), roleCount: selectedRoleIds.length };
       this.lastSyncedAt = Date.now();
       await clearUserCaches(this.organizationId);
