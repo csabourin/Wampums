@@ -10,6 +10,7 @@ import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { checkSession } from "./utils/SessionUtils.js";
 import { dismissActiveDialog } from "./utils/DialogUtils.js";
 import { releaseAllScrollLocks } from "./utils/ScrollLockUtils.js";
+import { initScrollMemory, beginScrollNavigation, restoreScrollPosition } from './utils/ScrollMemory.js';
 import { resetPageReads } from "./modules/live-sync/LiveSyncState.js";
 import { TABBED_PAGES, MERGED_ROUTE_REDIRECTS } from "./config/tabbed-pages.js";
 import {
@@ -320,7 +321,21 @@ export class Router {
     this.route(path);
   }
 
+  /**
+   * Show the screen for a path, returning it to where it was last scrolled.
+   * @param {string} path - Path and query string to show
+   * @returns {Promise<void>}
+   */
   async route(path) {
+    const scrollToken = beginScrollNavigation(path);
+    try {
+      await this.renderRoute(path);
+    } finally {
+      restoreScrollPosition(scrollToken);
+    }
+  }
+
+  async renderRoute(path) {
     const navigationId = ++this.navigationId;
     debugLog("Routing to:", path);
 
@@ -329,10 +344,6 @@ export class Router {
 
     // Live sync redraws a screen only when it shows data that changed.
     resetPageReads();
-
-    // Each screen starts at the top; without this, navigating from the
-    // bottom of a long list opens the next page mid-scroll.
-    window.scrollTo(0, 0);
 
     // Guard against null, undefined, or empty paths
     if (!path || typeof path !== 'string') {
@@ -1380,6 +1391,7 @@ export class Router {
 
 export function initRouter(app) {
   const router = new Router(app);
+  initScrollMemory();
 
   // Handle navigation
   document.addEventListener("click", (e) => {
