@@ -239,6 +239,23 @@ describe('activity invitations', () => {
     close();
   });
 
+  test('without access to groups the list still loads, minus the group filter', async () => {
+    getGroups.mockRejectedValueOnce(new Error('403'));
+    const { close } = openActivityFormModal(app);
+    const overlay = document.getElementById('activity-modal');
+    fillRequired(overlay);
+    await chooseSome(overlay);
+    await flush();
+
+    expect(overlay.querySelectorAll('.activity-invitees__item')).toHaveLength(PARTICIPANTS.length);
+    expect(overlay.querySelectorAll('#activity-invitees-group option')).toHaveLength(1);
+    overlay.querySelector('#activity-invitee-1').click();
+    overlay.querySelector('#activity-form').dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    expect(createActivity).toHaveBeenCalledWith(expect.objectContaining({ invited_participant_ids: [1] }));
+    close();
+  });
+
   test('a roster that fails to load offers a retry and blocks saving the list', async () => {
     fetchParticipants.mockRejectedValueOnce(new Error('offline'));
     const { close } = openActivityFormModal(app);

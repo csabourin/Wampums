@@ -267,7 +267,15 @@ export function attachInviteesPicker(root, {
         ${escapeHTML(translate('activity_invitees_loading'))}
       </p>
     `);
-    loading = Promise.all([loadParticipants(), loadGroups(), loadInvitedIds()])
+    // Groups are only a filter, and reading them takes groups.view: without
+    // them the list still works, just without the group filter.
+    const groups = Promise.resolve()
+      .then(loadGroups)
+      .catch((err) => {
+        debugError('Could not load groups for the invitation filter:', err);
+        return [];
+      });
+    loading = Promise.all([loadParticipants(), groups, loadInvitedIds()])
       .then(([loadedParticipants, groups, invitedIds]) => {
         initiallyInvited = new Set((invitedIds || []).map(Number));
         participants = (Array.isArray(loadedParticipants) ? loadedParticipants : [])

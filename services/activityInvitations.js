@@ -17,6 +17,8 @@
 
 const MAX_INVITEES = 1000;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d{0,9}$/;
+const TRUE_VALUES = [true, 'true', 1, '1'];
+const FALSE_VALUES = [false, 'false', 0, '0'];
 
 /**
  * Read the invitation fields of an activity create or update body.
@@ -38,10 +40,16 @@ function readInvitation(body = {}, { isCreate = false } = {}) {
       : { provided: false };
   }
 
-  const flag = body.invites_everyone;
-  const invitesEveryone = has('invites_everyone')
-    ? !(flag === false || flag === 'false' || flag === 0 || flag === '0')
-    : false;
+  let invitesEveryone = false;
+  if (has('invites_everyone')) {
+    const flag = body.invites_everyone;
+    if (TRUE_VALUES.includes(flag)) {
+      invitesEveryone = true;
+    } else if (!FALSE_VALUES.includes(flag)) {
+      // Anything else would silently invite the whole unit
+      return { provided: true, problem: 'invites_everyone must be true or false' };
+    }
+  }
   if (invitesEveryone) {
     return { provided: true, invitesEveryone: true, participantIds: [] };
   }
