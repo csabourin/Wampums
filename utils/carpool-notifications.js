@@ -82,7 +82,8 @@ Wampums Team
  */
 async function sendActivityUpdateNotifications(pool, activityId, organizationId) {
   // Everyone the activity concerns: guardians of children riding in its
-  // carpools or holding one of its permission slips, and its drivers. A child
+  // carpools, holding one of its permission slips or on its invitation list,
+  // and its drivers. A child
   // can be enrolled in several units, so only accounts that are active members
   // of this activity's unit hear about it.
   const result = await pool.query(
@@ -111,6 +112,15 @@ async function sendActivityUpdateNotifications(pool, activityId, organizationId)
           -- A signed slip outlives its child's invitation; only invitees hear
           AND (sa.invites_everyone
                OR ps.participant_id IN (SELECT participant_id FROM activity_invitees WHERE activity_id = $1))
+
+       UNION
+
+       -- An activity for some participants concerns every invited family,
+       -- including those invited by this very edit
+       SELECT up.user_id
+         FROM user_participants up
+         JOIN activity_invitees ai ON ai.participant_id = up.participant_id
+        WHERE ai.activity_id = $1 AND ai.organization_id = $2
      )
      SELECT DISTINCT
       u.email,

@@ -213,7 +213,15 @@ module.exports = (pool, logger) => {
                             activity_end_date::text as activity_end_date,
                             activity_start_time::text as activity_start_time,
                             activity_end_time::text as activity_end_time,
-                            meeting_location_going
+                            meeting_location_going,
+                            invites_everyone,
+                            CASE WHEN invites_everyone THEN NULL ELSE COALESCE(
+                              (SELECT array_agg(ai.participant_id ORDER BY ai.participant_id)
+                                 FROM activity_invitees ai
+                                WHERE ai.activity_id = activities.id
+                                  AND ai.organization_id = activities.organization_id),
+                              '{}'
+                            ) END AS invited_participant_ids
                      FROM activities
                      WHERE id = $1 AND organization_id = $2 AND is_active = TRUE`,
                     [activity_id, organizationId]

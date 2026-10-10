@@ -36,6 +36,10 @@ import { deleteActivity } from './api/api-activities.js';
 import { hasPermission } from './utils/PermissionUtils.js';
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
+
+// The server accepts at most this many participant_ids per request
+const SLIP_BATCH_SIZE = 200;
+
 export class PermissionSlipDashboard {
   constructor(app, options = {}) {
     this.app = app;
@@ -995,8 +999,12 @@ export class PermissionSlipDashboard {
       this.render();
       this.attachEventHandlers();
 
-      // Save to server
-      const result = await savePermissionSlip(payload);
+      // Save to server, at most SLIP_BATCH_SIZE children per request
+      const batches = [];
+      for (let start = 0; start < participantIds.length; start += SLIP_BATCH_SIZE) {
+        batches.push(participantIds.slice(start, start + SLIP_BATCH_SIZE));
+      }
+      const results = await Promise.all(batches.map((ids) => savePermissionSlip({ ...payload, participant_ids: ids })));
 
       // Clear cache to ensure fresh data on next load
       if (window.storageUtils) {
@@ -1006,7 +1014,8 @@ export class PermissionSlipDashboard {
 
       await this.clearPermissionSlipCaches();
 
-      const answeredCount = (result?.data?.answered_participant_ids || []).length;
+      const answeredCount = results
+        .reduce((count, result) => count + (result?.data?.answered_participant_ids || []).length, 0);
       if (answeredCount > 0) {
         this.app.showMessage(
           translate('permission_slip_answered_kept').replace('{count}', answeredCount),

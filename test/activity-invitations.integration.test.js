@@ -129,6 +129,8 @@ describe.skipIf(!DATABASE_URL)('Activities for some participants', () => {
     app.use('/api/v1/activities', require('../routes/activities')(pool));
     app.use('/api/v1/carpools', require('../routes/carpools')(pool));
     app.use('/api/v1/resources', require('../routes/resources')(pool));
+    const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+    app.use('/api/v1/offline', require('../routes/offline')(pool, logger));
   });
 
   afterAll(async () => {
@@ -162,6 +164,14 @@ describe.skipIf(!DATABASE_URL)('Activities for some participants', () => {
     const list = await call('get', '/api/v1/activities', ids.staff);
     const camp = list.body.data.find((row) => row.id === ids.camp);
     expect(Number(camp.invited_count)).toBe(2);
+  });
+
+  test('the offline bundle tells camp mode who is invited', async () => {
+    const response = await call('post', '/api/v1/offline/prepare-activity', ids.staff)
+      .send({ activity_id: ids.camp, start_date: '2026-10-24', end_date: '2026-10-25' });
+    expect(response.status).toBe(200);
+    expect(response.body.data.activity.invites_everyone).toBe(false);
+    expect(response.body.data.activity.invited_participant_ids).toEqual([ids.older, ids.veteran].sort((a, b) => a - b));
   });
 
   test('a family does not receive the list of invited children', async () => {
@@ -299,6 +309,20 @@ describe.skipIf(!DATABASE_URL)('Activities for some participants', () => {
     // Invited again, the same signed slip brings the guardian back
     await call('put', `/api/v1/activities/${ids.camp}`, ids.staff)
       .send({ invites_everyone: false, invited_participant_ids: [ids.veteran, ids.older] });
+    sendEmail.mockClear();
+    await sendActivityUpdateNotifications(pool, ids.camp, ids.unit);
+    expect(sendEmail.mock.calls.map(([to]) => to)).toContain(familyEmail);
+  });
+
+  test('the update notice reaches the guardians of a newly invited child', async () => {
+    const { sendActivityUpdateNotifications } = jest.requireActual('../utils/carpool-notifications');
+    const familyEmail = await one('SELECT email FROM users WHERE id = $1', [ids.family]);
+    // The younger child has no slip and no ride: only the invitation links them
+    await call('put', `/api/v1/activities/${ids.camp}`, ids.staff)
+      .send({ invites_everyone: false, invited_participant_ids: [ids.veteran, ids.younger] });
+    await pool.query("UPDATE permission_slips SET status = 'archived' WHERE activity_id = $1 AND participant_id = $2",
+      [ids.camp, ids.older]);
+
     sendEmail.mockClear();
     await sendActivityUpdateNotifications(pool, ids.camp, ids.unit);
     expect(sendEmail.mock.calls.map(([to]) => to)).toContain(familyEmail);
