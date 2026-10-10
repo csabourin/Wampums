@@ -25,6 +25,7 @@ const {
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { resolveDatabaseConnectionString } = require('../config/database-url');
+const { getVapidKeys, isGoneSubscriptionError, removeGoneSubscriptions } = require('../utils/web-push');
 
 /** Upper bound on roles one announcement may address; the unit's catalog is far smaller. */
 const MAX_ANNOUNCEMENT_ROLES = 50;
@@ -338,8 +339,7 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
   if (subscribers.length) {
     try {
       const webpush = require('web-push');
-      const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
-      const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || process.env.VAPID_PRIVATE;
+      const { publicKey: vapidPublicKey, privateKey: vapidPrivateKey } = getVapidKeys();
 
       if (!vapidPublicKey || !vapidPrivateKey) {
         throw new Error('VAPID keys not configured');
@@ -350,11 +350,7 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
       const payload = JSON.stringify({
         title: announcement.subject,
         body: announcement.message,
-        options: {
-          body: announcement.message,
-          tag: 'announcement',
-          renotify: true,
-        },
+        tag: 'announcement',
       });
 
       const pushResults = await Promise.allSettled(
@@ -384,6 +380,18 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
         },
         { successes: 0, failures: 0 },
       );
+
+      // Browsers that unsubscribed or reinstalled the app never receive again
+      const goneEndpoints = pushResults
+        .map((result, index) => (
+          result.status === 'rejected' && isGoneSubscriptionError(result.reason) ? subscribers[index].endpoint : null
+        ))
+        .filter(Boolean);
+      try {
+        await removeGoneSubscriptions(pool, announcement.organization_id, goneEndpoints);
+      } catch (cleanupError) {
+        logger.error('Error removing gone push subscriptions:', cleanupError);
+      }
 
       // Batch log failures for push notifications
       const failedPushResults = pushResults.filter(result => result.status === 'rejected');

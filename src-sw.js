@@ -461,6 +461,17 @@ function buildScopedCacheKey(request) {
   return `${scope}|${request.url}`;
 }
 
+/**
+ * Whether a response carries JSON, judging by its Content-Type.
+ *
+ * @param {Response} response
+ * @returns {boolean}
+ */
+function isJsonResponse(response) {
+  const contentType = response.headers.get('Content-Type') || '';
+  return /^application\/(?:[\w.+-]+\+)?json\b/i.test(contentType);
+}
+
 async function fetchAndCacheInIndexedDB(request) {
   const cacheKey = buildScopedCacheKey(request);
 
@@ -469,6 +480,12 @@ async function fetchAndCacheInIndexedDB(request) {
       return await fetch(request);
     }
     const networkResponse = await fetch(request);
+    // Only JSON is cached. Files such as the activities calendar (.ics) or
+    // exports pass through untouched: parsing them as JSON would throw and
+    // turn a successful download into an "offline" 503.
+    if (networkResponse.ok && !isJsonResponse(networkResponse)) {
+      return networkResponse;
+    }
     if (networkResponse.ok) {
       const data = await networkResponse.json();
       const cacheDuration = getCacheDuration(cacheKey);
@@ -675,6 +692,9 @@ self.addEventListener('push', function (event) {
     icon: data.icon || '/images/icon-192x192.png',
     badge: '/images/badge-128x128.png',
     tag: data.tag || 'general',
+    // A notification with the tag of one still shown replaces it; without
+    // renotify the replacement arrives silently.
+    renotify: true,
     requireInteraction: data.requireInteraction || false,
     vibrate: data.vibrate || undefined,
     data: data.data || {},
