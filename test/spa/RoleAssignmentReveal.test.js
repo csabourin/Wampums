@@ -308,6 +308,12 @@ describe('deactivating a member who left', () => {
     expect(document.getElementById('membership-message').textContent).toBe('member_access_forbidden');
   });
 
+  test('offers nothing for an alumnus, managed from the alumni list', async () => {
+    await openBlake('alumni');
+
+    expect(document.querySelector('.membership-section')).toBeNull();
+  });
+
   test('the section has no WCAG A/AA violations', async () => {
     await openBlake('inactive');
 

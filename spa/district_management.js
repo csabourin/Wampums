@@ -735,7 +735,9 @@ export class DistrictManagement {
    * @returns {string} Section HTML, empty without users.delete
    */
   renderMembershipSection(user) {
-    if (!hasPermission('users.delete')) {
+    // Alumni are managed from the alumni list: switching them off here would
+    // drop them from it despite their consent.
+    if (!hasPermission('users.delete') || user.status === 'alumni') {
       return '';
     }
     const inactive = user.status === 'inactive';

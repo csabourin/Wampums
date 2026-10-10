@@ -38,6 +38,7 @@ const { handleOrganizationResolutionError } = require('../utils/api-helpers');
  */
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
+const HTTP_CONFLICT = 409;
 
 /** Reason recorded when the unit's team deactivates a member without one. */
 const MANUAL_DEACTIVATION_REASON = 'deactivated_by_admin';
@@ -617,6 +618,8 @@ module.exports = (pool, logger) => {
    *         description: Insufficient permissions, or the member holds permissions the caller lacks
    *       404:
    *         description: User not found in this organization
+   *       409:
+   *         description: The member is an alumnus, managed from the alumni list
    */
   router.patch('/:userId/membership',
     authenticate,
@@ -641,8 +644,6 @@ module.exports = (pool, logger) => {
       }
 
       const deactivating = status === 'inactive';
-      // Taken before the transaction: it may create the unit's first year.
-      const scoutYear = deactivating ? await ensureActiveScoutYear(pool, organizationId) : null;
 
       const client = await pool.connect();
       try {
@@ -656,6 +657,13 @@ module.exports = (pool, logger) => {
         if (membership.rows.length === 0) {
           await client.query('ROLLBACK');
           return error(res, 'User not found in this organization', HTTP_NOT_FOUND);
+        }
+
+        // Alumni gave consent to stay in touch; their standing is managed from
+        // the alumni list, not switched off here.
+        if (membership.rows[0].status === 'alumni') {
+          await client.query('ROLLBACK');
+          return error(res, 'Alumni memberships are managed from the alumni list', HTTP_CONFLICT);
         }
 
         // Ending or restoring someone's access is ending or restoring every
@@ -676,6 +684,8 @@ module.exports = (pool, logger) => {
           );
         }
 
+        // Only once the change is allowed: this may create the unit's first year.
+        const scoutYear = deactivating ? await ensureActiveScoutYear(client, organizationId) : null;
         const updated = await client.query(
           `UPDATE user_organizations
               SET status = $3,

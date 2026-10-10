@@ -87,6 +87,9 @@ module.exports = (pool, logger) => {
          FROM subscribers s
          JOIN users u ON s.user_id = u.id
          WHERE s.organization_id = $1
+           AND EXISTS (SELECT 1 FROM user_organizations uo
+                        WHERE uo.user_id = s.user_id AND uo.organization_id = s.organization_id
+                          AND uo.status = 'active')
          ORDER BY s.created_at DESC NULLS LAST`,
         [organizationId]
       );
@@ -139,9 +142,17 @@ module.exports = (pool, logger) => {
           vapidPrivateKey
         );
 
-        // Fetch subscribers for the admin's organization only
+        // Fetch subscribers for the admin's organization only. A member whose
+        // membership is no longer active (left, or closed at the year
+        // transition) stops receiving the unit's notifications. Subscriptions
+        // recorded without an account cannot be checked and are kept.
         const subscribersResult = await pool.query(
-          `SELECT * FROM subscribers WHERE organization_id = $1`,
+          `SELECT s.* FROM subscribers s
+            WHERE s.organization_id = $1
+              AND (s.user_id IS NULL OR EXISTS (
+                    SELECT 1 FROM user_organizations uo
+                     WHERE uo.user_id = s.user_id AND uo.organization_id = s.organization_id
+                       AND uo.status = 'active'))`,
           [organizationId]
         );
         const subscribers = subscribersResult.rows;

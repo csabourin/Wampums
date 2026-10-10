@@ -104,7 +104,9 @@ describe.skipIf(!DATABASE_URL)('Deactivating a member who left', () => {
       client.release();
     }
 
-    ids.admin = await createRole('unit_admin', ['users.view', 'users.delete', 'carpools.view', 'activities.view']);
+    ids.admin = await createRole('unit_admin', [
+      'users.view', 'users.delete', 'carpools.view', 'activities.view', 'communications.send',
+    ]);
     ids.leader = await createRole('leader', ['carpools.view', 'activities.view']);
     ids.higher = await createRole('higher', ['finance.manage']);
     ids.viewer = await createRole('viewer', ['users.view']);
@@ -117,6 +119,7 @@ describe.skipIf(!DATABASE_URL)('Deactivating a member who left', () => {
     app.use(express.json());
     app.locals.pool = pool;
     app.use('/api/v1/users', require('../routes/users')(pool, console));
+    app.use('/api/v1/notifications', require('../routes/notifications')(pool, console));
   });
 
   afterAll(async () => {
@@ -184,6 +187,88 @@ describe.skipIf(!DATABASE_URL)('Deactivating a member who left', () => {
     expect(response.status).toBe(403);
     expect(response.body.missing).toEqual(['finance.manage']);
     expect((await membership(higher)).status).toBe('active');
+  });
+
+  test('a refused request does not create the unit\'s scout year', async () => {
+    // A unit of its own, without a scout year: only an allowed deactivation
+    // may create its first one.
+    const client = await pool.connect();
+    let unit;
+    try {
+      await client.query('BEGIN');
+      unit = (await client.query("INSERT INTO organizations (name) VALUES ('Unit without a year') RETURNING id")).rows[0].id;
+      await client.query(
+        `INSERT INTO organization_program_sections (organization_id, section_key, display_name)
+         VALUES ($1, 'general', 'General')`,
+        [unit]
+      );
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    const inUnit = async (key, permissionKeys) => {
+      const roleId = await one(
+        `INSERT INTO roles (role_name, display_name, data_scope, is_system_role, organization_id)
+         VALUES ($1, $1, 'organization', false, $2) RETURNING id`,
+        [`${key}_${suffix}`, unit]
+      );
+      await pool.query(
+        `INSERT INTO role_permissions (role_id, permission_id)
+         SELECT $1, id FROM permissions WHERE permission_key = ANY($2::text[])`,
+        [roleId, permissionKeys]
+      );
+      const userId = await one(
+        `INSERT INTO users (email, password, full_name)
+         VALUES ('year-' || gen_random_uuid() || '@example.test', 'x', 'Member') RETURNING id`
+      );
+      await pool.query(
+        `INSERT INTO user_organizations (user_id, organization_id, role_ids, status)
+         VALUES ($1, $2, $3, 'active')`,
+        [userId, unit, JSON.stringify([roleId])]
+      );
+      return userId;
+    };
+    const caller = await inUnit('year_admin', ['users.delete']);
+    const higher = await inUnit('year_higher', ['finance.manage']);
+
+    mockContext.userId = caller;
+    mockContext.organizationId = unit;
+    try {
+      expect((await setStatus(higher, { status: 'inactive' })).status).toBe(403);
+      expect(await one('SELECT count(*)::int FROM scout_years WHERE organization_id = $1', [unit])).toBe(0);
+    } finally {
+      mockContext.userId = ids.caller;
+      mockContext.organizationId = ids.unit;
+    }
+  });
+
+  test('leaves alumni to the alumni list', async () => {
+    const alumnus = await createMember([ids.leader]);
+    await pool.query(
+      `UPDATE user_organizations SET status = 'alumni', alumni_consent_at = now()
+        WHERE user_id = $1 AND organization_id = $2`,
+      [alumnus, ids.unit]
+    );
+
+    const response = await setStatus(alumnus, { status: 'inactive' });
+
+    expect(response.status).toBe(409);
+    expect((await membership(alumnus)).status).toBe('alumni');
+  });
+
+  test('a deactivated member no longer appears among push recipients', async () => {
+    const leader = await createMember([ids.leader]);
+    await pool.query(
+      `INSERT INTO subscribers (endpoint, p256dh, auth, organization_id, user_id)
+       VALUES ($1, 'k', 'a', $2, $3)`,
+      [`https://push.example.test/${leader}`, ids.unit, leader]
+    );
+    const recipients = async () => (await request(app).get('/api/v1/notifications/subscribers'))
+      .body.data.map((row) => row.user_id);
+
+    expect(await recipients()).toContain(leader);
+    await setStatus(leader, { status: 'inactive' });
+    expect(await recipients()).not.toContain(leader);
   });
 
   test('cannot change one\'s own membership', async () => {
