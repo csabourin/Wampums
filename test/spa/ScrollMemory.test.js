@@ -275,6 +275,24 @@ describe('ScrollMemory', () => {
     expect(window.scrollY).toBe(0);
   });
 
+  test('never stores the URL, so credentials in links stay out of storage', () => {
+    const token = 'sample-emailed-link-token';
+    visit(`/reset-password?token=${token}`);
+    scrollWindow(300);
+    visit(`/permission-slip/${token}`);
+    scrollWindow(200);
+    visit('/dashboard');
+
+    const stored = sessionStorage.getItem('wampums:scroll-positions:v2');
+    expect(stored).toBeTruthy();
+    expect(stored).not.toContain(token);
+    expect(stored).not.toContain('reset-password');
+    expect(stored).not.toContain('dashboard');
+
+    visit(`/reset-password?token=${token}`);
+    expect(window.scrollY).toBe(300);
+  });
+
   test('ignores the hash when identifying a screen', () => {
     expect(scrollKeyFor('/help?topic=a#faq')).toBe('/help?topic=a');
     expect(scrollKeyFor(null)).toBeNull();

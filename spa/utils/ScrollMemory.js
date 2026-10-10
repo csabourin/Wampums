@@ -13,7 +13,7 @@
 
 import { debugWarn } from './DebugUtils.js';
 
-const STORAGE_KEY = 'wampums:scroll-positions';
+const STORAGE_KEY = 'wampums:scroll-positions:v2';
 const MAX_REMEMBERED_SCREENS = 50;
 
 // Screens render their data after the route resolves, so the page may not be
@@ -45,6 +45,41 @@ export function scrollKeyFor(path) {
     return null;
   }
   return path.split('#')[0];
+}
+
+// FNV-1a, 32-bit, run with two offset bases for a 64-bit digest.
+const FNV_PRIME = 0x01000193;
+const FNV_OFFSET_BASIS = 0x811c9dc5;
+const SECOND_OFFSET_BASIS = 0x050c5d1f;
+const FNV_OFFSET_BASES = [FNV_OFFSET_BASIS, SECOND_OFFSET_BASIS];
+const HEX_RADIX = 16;
+const HEX_DIGITS_PER_HALF = 8;
+
+/**
+ * One-way digest of a screen key, used as the stored identifier.
+ * Screen URLs can carry credentials (/reset-password?token=…,
+ * /permission-slip/<token>, /family-link?token=…); only this digest is ever
+ * written to storage, never the URL itself.
+ * @param {string} key - Screen key from scrollKeyFor
+ * @returns {string} 16-character hex digest
+ */
+function storageIdFor(key) {
+  return FNV_OFFSET_BASES.map((basis) => {
+    let hash = basis;
+    for (let i = 0; i < key.length; i += 1) {
+      hash = Math.imul(hash ^ key.charCodeAt(i), FNV_PRIME);
+    }
+    return (hash >>> 0).toString(HEX_RADIX).padStart(HEX_DIGITS_PER_HALF, '0');
+  }).join('');
+}
+
+/**
+ * Remembered position for a screen key.
+ * @param {string|null} key - Screen key from scrollKeyFor
+ * @returns {number} Offset in pixels, 0 when unknown
+ */
+function savedPositionFor(key) {
+  return key ? loadPositions().get(storageIdFor(key)) || 0 : 0;
 }
 
 function loadPositions() {
@@ -80,9 +115,10 @@ function rememberPosition(key, y) {
     return;
   }
   const map = loadPositions();
+  const id = storageIdFor(key);
   // Re-insert so the most recently used screens are kept when trimming.
-  map.delete(key);
-  map.set(key, Math.max(0, Math.round(y)));
+  map.delete(id);
+  map.set(id, Math.max(0, Math.round(y)));
   while (map.size > MAX_REMEMBERED_SCREENS) {
     map.delete(map.keys().next().value);
   }
@@ -239,7 +275,7 @@ export function restoreScrollPosition(token) {
   if (!session || session.token !== token) {
     return;
   }
-  const target = loadPositions().get(activeKey) || 0;
+  const target = savedPositionFor(activeKey);
   const maxScroll = () => document.documentElement.scrollHeight - window.innerHeight;
 
   const attempt = () => {
