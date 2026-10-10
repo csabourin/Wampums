@@ -77,7 +77,10 @@ function installPushManager(existing, { refuseNewKey = false } = {}) {
 }
 
 const savedEndpoint = () => makeApiRequest.mock.calls
-  .find(([endpoint]) => endpoint === 'v1/notifications/subscription')?.[1].body.endpoint;
+  .find(([endpoint, options]) => endpoint === 'v1/notifications/subscription' && options.method === 'POST')?.[1].body.endpoint;
+const forgottenEndpoints = () => makeApiRequest.mock.calls
+  .filter(([endpoint, options]) => endpoint === 'v1/notifications/subscription' && options.method === 'DELETE')
+  .map(([, options]) => options.body.endpoint);
 
 describe('Push subscription', () => {
   beforeEach(() => {
@@ -95,6 +98,7 @@ describe('Push subscription', () => {
 
     expect(existing.unsubscribe).not.toHaveBeenCalled();
     expect(savedEndpoint()).toBe('https://push.example.test/kept');
+    expect(forgottenEndpoints()).toEqual([]);
   });
 
   test('a browser subscribed with another key is subscribed again with the server key', async () => {
@@ -107,6 +111,8 @@ describe('Push subscription', () => {
     const { applicationServerKey } = pushManager.subscribe.mock.calls.at(-1)[0];
     expect(Array.from(applicationServerKey)).toEqual(SERVER_KEY_BYTES);
     expect(savedEndpoint()).toBe('https://push.example.test/new');
+    // The replaced endpoint would otherwise fail at every send
+    expect(forgottenEndpoints()).toEqual(['https://push.example.test/stale']);
   });
 
   test('a browser that hides the key of its subscription is still moved to the server key', async () => {
@@ -117,6 +123,7 @@ describe('Push subscription', () => {
 
     expect(existing.unsubscribe).toHaveBeenCalled();
     expect(savedEndpoint()).toBe('https://push.example.test/new');
+    expect(forgottenEndpoints()).toEqual(['https://push.example.test/hidden']);
   });
 
   test('a browser that hides a matching key keeps its endpoint', async () => {

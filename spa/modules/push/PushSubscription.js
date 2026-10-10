@@ -136,6 +136,29 @@ async function subscribeAndSave(pushManager, existing, serverKey) {
     throw new PushSetupError('push_browser_refused', error);
   }
   await sendSubscriptionToServer(subscription.toJSON());
+  // A replaced subscription gets a new endpoint; the old one would stay on the
+  // server as a recipient that fails at every send.
+  if (existing?.endpoint && existing.endpoint !== subscription.endpoint) {
+    await forgetEndpointOnServer(existing.endpoint);
+  }
+}
+
+/**
+ * Tell the server to forget one of this member's endpoints. Best effort: the
+ * server also drops a dead endpoint at its next send.
+ *
+ * @param {string} endpoint
+ * @returns {Promise<void>}
+ */
+async function forgetEndpointOnServer(endpoint) {
+  try {
+    await makeApiRequest('v1/notifications/subscription', {
+      method: 'DELETE',
+      body: { endpoint },
+    });
+  } catch (error) {
+    debugWarn('Could not remove the push subscription on the server', error);
+  }
 }
 
 /**
@@ -175,14 +198,7 @@ export async function disablePushNotifications() {
   if (!subscription) {
     return;
   }
-  try {
-    await makeApiRequest('v1/notifications/subscription', {
-      method: 'DELETE',
-      body: { endpoint: subscription.endpoint },
-    });
-  } catch (error) {
-    debugWarn('Could not remove the push subscription on the server', error);
-  }
+  await forgetEndpointOnServer(subscription.endpoint);
   await subscription.unsubscribe();
 }
 

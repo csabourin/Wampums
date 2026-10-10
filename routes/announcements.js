@@ -395,9 +395,12 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
         const values = failedPushResults.map((_, idx) =>
           `($1, 'push', 'failed', $${idx + 2})`
         ).join(', ');
-        const errorMessages = failedPushResults.map(result =>
-          result.reason?.message || 'Push send failed'
-        );
+        // The status says why (410 gone, 403 other key, 429 throttled);
+        // web-push's own message does not.
+        const errorMessages = failedPushResults.map((result) => {
+          const message = result.reason?.message || 'Push send failed';
+          return result.reason?.statusCode ? `HTTP ${result.reason.statusCode}: ${message}` : message;
+        });
 
         await pool.query(
           `INSERT INTO announcement_logs (announcement_id, channel, status, error_message)
