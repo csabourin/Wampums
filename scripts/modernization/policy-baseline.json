@@ -9,7 +9,6 @@
     "config/constants.js": 1,
     "config/cors.js": 14,
     "config/database.js": 58,
-    "config/logger.js": 34,
     "config/meeting_sections.js": 201,
     "config/rate-limit.js": 122,
     "config/roles.js": 161,
