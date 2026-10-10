@@ -33,4 +33,18 @@ describe('sortPushResults', () => {
 
     expect(invalidEndpoints).toEqual([]);
   });
+
+  test('a device whose keys web-push cannot use is always forgotten', () => {
+    const malformed = { status: 'rejected', reason: new Error('The subscription p256dh value should be 65 bytes long.') };
+
+    const { invalidEndpoints } = sortPushResults([malformed], devices(1));
+
+    expect(invalidEndpoints).toEqual(['https://push.example/0']);
+  });
+
+  test('a network error is not mistaken for a malformed device', () => {
+    const network = { status: 'rejected', reason: Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' }) };
+
+    expect(sortPushResults([delivered, network], devices(2)).invalidEndpoints).toEqual([]);
+  });
 });

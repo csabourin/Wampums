@@ -18,7 +18,7 @@ const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { checkValidation } = require('../middleware/validation');
 const { recordUserMessages, messageUrl } = require('../services/userMessages');
 const {
-  getVapidKeys, isKeyMismatchError, removeInvalidSubscriptions, sortPushResults, summarizePushFailures
+  getVapidKeys, isKeyMismatchError, recordPushOutcomes, sortPushResults, summarizePushFailures
 } = require('../utils/web-push');
 
 const HTTP_ACCEPTED = 202;
@@ -240,7 +240,7 @@ module.exports = (pool, logger) => {
           data: { url: messageUrl(messageIds, subscriber.user_id) },
         }))));
 
-        const { sent, refusals, invalidEndpoints } = sortPushResults(results, subscribers);
+        const { sent, refusals } = sortPushResults(results, subscribers);
         const failed = subscribers.length - sent;
         const rejectedForKey = refusals.filter(isKeyMismatchError).length;
         if (refusals.length) {
@@ -254,9 +254,9 @@ module.exports = (pool, logger) => {
         // failed, or the sender would send it again.
         let removed = 0;
         try {
-          removed = await removeInvalidSubscriptions(pool, organizationId, invalidEndpoints);
+          removed = (await recordPushOutcomes(pool, organizationId, results, subscribers)).length;
         } catch (cleanupError) {
-          logger.error('Error removing invalid push subscriptions:', cleanupError);
+          logger.error('Error recording push outcomes:', cleanupError);
         }
 
         // Every attempt failed for a reason other than a vanished browser:

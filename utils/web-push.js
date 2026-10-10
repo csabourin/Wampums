@@ -52,6 +52,18 @@ function isKeyMismatchError(sendError) {
 }
 
 /**
+ * Whether web-push refused the subscription itself before reaching any push
+ * service: an endpoint or keys stored malformed ("The subscription p256dh
+ * value should be 65 bytes long"). Such a device can never be reached.
+ *
+ * @param {Error & { statusCode?: number }} sendError
+ * @returns {boolean}
+ */
+function isMalformedSubscriptionError(sendError) {
+  return Boolean(sendError) && !sendError.statusCode && /subscription/i.test(sendError.message || '');
+}
+
+/**
  * Condense failed sends for one log line: how many failed per HTTP status
  * (or error message when the push service was never reached), and the first
  * answer body, which names the push service's reason.
@@ -75,14 +87,15 @@ function summarizePushFailures(sendErrors) {
  * that can never receive again so they are deleted rather than accumulate.
  *
  * - 404 / 410: the subscription no longer exists at the push service.
+ * - A malformed endpoint or keys: web-push refuses it without sending.
  * - 401 / 403: the device subscribed with another public key than the
  *   server's. Removed only when another device accepted the same send, which
  *   proves the server's own key pair works; when every device refuses, the
  *   fault is more likely the server's keys, and deleting would unsubscribe
  *   the whole unit. The app subscribes again with the server's key the next
  *   time it opens.
- * - Anything else (429, 5xx, network): a passing failure of the push
- *   service, not of the device. The subscription is kept.
+ * - Anything else (429, 5xx, network): not proof on its own; the device is
+ *   kept, and recordPushOutcomes deletes it after repeated failures.
  *
  * @param {PromiseSettledResult[]} results - One per subscriber, in the same order
  * @param {Array<{ endpoint: string }>} subscribers - The devices sent to
@@ -97,7 +110,7 @@ function sortPushResults(results, subscribers) {
   results.forEach((result, index) => {
     if (result.status === 'fulfilled') {
       sent += 1;
-    } else if (isGoneSubscriptionError(result.reason)) {
+    } else if (isGoneSubscriptionError(result.reason) || isMalformedSubscriptionError(result.reason)) {
       goneEndpoints.push(subscribers[index].endpoint);
     } else {
       refusals.push(result.reason);
@@ -110,30 +123,99 @@ function sortPushResults(results, subscribers) {
   return { sent, refusals, invalidEndpoints };
 }
 
+/** Sends in a row a device may fail, while others receive, before it is deleted. */
+const MAX_CONSECUTIVE_FAILURES = 3;
+
 /**
- * Delete subscriptions that can never receive again (see `sortPushResults`).
+ * Record how each device fared in one send and delete the ones that will not
+ * receive again: those `sortPushResults` marks invalid, and those that have
+ * now failed MAX_CONSECUTIVE_FAILURES sends in a row. A failure counts only
+ * when the same send reached another device; when every device fails, the
+ * server is the likelier cause. A delivery resets the count.
  *
  * @param {Object} pool - Database pool
  * @param {number} organizationId - Unit the subscriptions belong to
- * @param {string[]} endpoints - Endpoints to forget
- * @returns {Promise<number>} Number of subscriptions removed
+ * @param {PromiseSettledResult[]} results - One per subscriber, in the same order
+ * @param {Array<{ endpoint: string }>} subscribers - The devices sent to
+ * @returns {Promise<string[]>} Endpoints removed
  */
-async function removeInvalidSubscriptions(pool, organizationId, endpoints) {
-  if (!endpoints.length) {
-    return 0;
+async function recordPushOutcomes(pool, organizationId, results, subscribers) {
+  const { sent, invalidEndpoints } = sortPushResults(results, subscribers);
+  const invalid = new Set(invalidEndpoints);
+  const delivered = [];
+  const failed = [];
+  results.forEach((result, index) => {
+    const { endpoint } = subscribers[index];
+    if (result.status === 'fulfilled') {
+      delivered.push(endpoint);
+    } else if (!invalid.has(endpoint)) {
+      failed.push(endpoint);
+    }
+  });
+
+  if (delivered.length) {
+    await pool.query(
+      `UPDATE subscribers SET failure_count = 0, last_success_at = NOW()
+        WHERE organization_id = $1 AND endpoint = ANY($2::text[])`,
+      [organizationId, delivered]
+    );
   }
-  const result = await pool.query(
-    'DELETE FROM subscribers WHERE organization_id = $1 AND endpoint = ANY($2::text[])',
-    [organizationId, endpoints]
+  const counted = sent > 0 ? failed : [];
+  if (counted.length) {
+    await pool.query(
+      `UPDATE subscribers SET failure_count = failure_count + 1, last_failure_at = NOW()
+        WHERE organization_id = $1 AND endpoint = ANY($2::text[])`,
+      [organizationId, counted]
+    );
+  }
+  if (!invalidEndpoints.length && !counted.length) {
+    return [];
+  }
+  const removed = await pool.query(
+    `DELETE FROM subscribers
+      WHERE organization_id = $1
+        AND (endpoint = ANY($2::text[]) OR (endpoint = ANY($3::text[]) AND failure_count >= $4))
+      RETURNING endpoint`,
+    [organizationId, invalidEndpoints, counted, MAX_CONSECUTIVE_FAILURES]
   );
-  return result.rowCount;
+  return removed.rows.map((row) => row.endpoint);
+}
+
+/**
+ * Why a push failed, for the delivery log: the HTTP status the push service
+ * answered (410 gone, 403 other key, 429 throttled) or web-push's own message.
+ *
+ * @param {Error & { statusCode?: number }} sendError
+ * @returns {string}
+ */
+function describePushFailure(sendError) {
+  const message = sendError?.message || 'Push send failed';
+  return sendError?.statusCode ? `HTTP ${sendError.statusCode}: ${message}` : message;
+}
+
+/**
+ * The push service a device is registered with (fcm.googleapis.com,
+ * web.push.apple.com, …), which says which kind of device it is.
+ *
+ * @param {string} endpoint
+ * @returns {string|null}
+ */
+function pushServiceHost(endpoint) {
+  try {
+    return new URL(endpoint).host;
+  } catch (_error) {
+    return null;
+  }
 }
 
 module.exports = {
   getVapidKeys,
   isGoneSubscriptionError,
   isKeyMismatchError,
-  removeInvalidSubscriptions,
+  isMalformedSubscriptionError,
+  describePushFailure,
+  pushServiceHost,
+  recordPushOutcomes,
   sortPushResults,
   summarizePushFailures,
 };

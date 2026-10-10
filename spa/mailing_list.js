@@ -3,6 +3,7 @@ import { aiGenerateText } from "./modules/AI.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { escapeHTML, sanitizeHTML } from "./utils/SecurityUtils.js";
+import { renderDeliveryLog } from './modules/announcements/deliveryLog.js';
 import { CONFIG } from "./config.js";
 import { canSendCommunications } from "./utils/PermissionUtils.js";
 import { roleLabel } from './utils/RoleLabelUtils.js';
@@ -242,23 +243,7 @@ export class MailingList {
                                                         ? `<span class="badge warning">${pushFailureLabel}</span>`
                                                         : ""}
                                                                 </div>
-                                                                ${logs.length
-                                                        ? `<details>
-                                                                                        <summary>${translate("delivery_logs")}</summary>
-                                                                                        <ul>
-                                                                                                ${logs
-                                                                .slice(0, 5)
-                                                                .map((log) => `
-                                                                                                                <li>
-                                                                                                                        ${escapeHTML(log.channel)} - ${escapeHTML(log.status)}
-                                                                                                                        ${log.recipient_email ? `(${escapeHTML(log.recipient_email)})` : ""}
-                                                                                                                        ${log.error_message ? `: ${escapeHTML(log.error_message)}` : ""}
-                                                                                                                </li>
-                                                                                                        `)
-                                                                .join("")}
-                                                                                        </ul>
-                                                                                </details>`
-                                                        : ""}
+                                                                ${renderDeliveryLog(logs)}
                                                         </div>
                                                 `;
                                 })

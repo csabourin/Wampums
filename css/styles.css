@@ -11749,3 +11749,29 @@ body.modal-open {
 .message-list__title {
   font-weight: var(--font-weight-semibold);
 }
+
+/* Announcement delivery log: who each email and push went to */
+.delivery-log__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: var(--space-sm) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.delivery-log__row {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-xs) var(--space-sm);
+  border-inline-start: 4px solid var(--color-border);
+  overflow-wrap: anywhere;
+}
+
+.delivery-log__row--failed {
+  border-inline-start-color: var(--color-warning, #9b6a13);
+}
+
+.delivery-log__what {
+  font-weight: var(--font-weight-semibold);
+}
