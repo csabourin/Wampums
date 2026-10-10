@@ -29,7 +29,7 @@ export class AccountInfoModule {
     this.isLoading = false;
     this.guardianProfile = { guardian: null, participantIds: [] };
     this.guardianError = null;
-    this.isParent = false;
+    this.holdsFamilyRole = false;
     this.pushEnabled = false;
     this.pushSupported = false;
   }
@@ -46,7 +46,7 @@ export class AccountInfoModule {
 
     try {
       debugLog("Checking permissions and push support");
-      this.isParent = holdsFamilyRole();
+      this.holdsFamilyRole = holdsFamilyRole();
 
       // Check push notification support
       this.pushSupported = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
@@ -62,7 +62,7 @@ export class AccountInfoModule {
       await this.loadUserData();
       debugLog("User data load complete");
 
-      if (this.isParent) {
+      if (this.holdsFamilyRole) {
         debugLog("Loading guardian profile (parent role detected)");
         await this.loadGuardianProfile();
         debugLog("Guardian profile load complete");
@@ -255,7 +255,7 @@ export class AccountInfoModule {
           </form>
         </section>
 
-        ${this.isParent ? `
+        ${this.holdsFamilyRole ? `
           <!-- Guardian Information Section (Parents only) -->
           <section class="account-section">
             <h2>${translate("guardian_info_title")}</h2>
@@ -675,7 +675,7 @@ export class AccountInfoModule {
       if (response.success) {
         this.app.showMessage(translate("success_profile_updated") || translate("account_info_fullname_success"), "success");
         this.userData.full_name = response.data.full_name;
-        if (this.isParent) {
+        if (this.holdsFamilyRole) {
           // A parent's guardian record carries the same name; show it changed.
           await this.loadGuardianProfile();
           this.render();

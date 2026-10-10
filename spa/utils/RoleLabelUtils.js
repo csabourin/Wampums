@@ -3,8 +3,8 @@ import { translate } from '../app.js';
 /**
  * Human-readable name for a role, in the interface's language.
  *
- * A role's `display_name` is stored once, in one language, so showing it
- * mixed languages on a page (a French page listing "Leader"). Built-in roles
+ * A role's `display_name` is stored once, in one language, so showing it as
+ * is mixed languages on a page (a French page listing "Leader"). Built-in roles
  * (no unit, `is_system_role`) therefore read their name from
  * `role_label_<role_name>` in `lang/*.json`. A unit's custom role keeps the
  * name the unit gave it; its generated key (`u<unit>_<slug>`) never has a

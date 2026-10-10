@@ -142,10 +142,13 @@ export function isParent() {
  * Determine if the current user can access parent-facing tools
  * Allows staff with participant visibility to use parent dashboards
  *
- * @returns {boolean} True when user is a parent or has participant view access
+ * Family access, not a persona choice: a parent who also holds a whole-unit
+ * role keeps their family pages even when that role lacks participants.view.
+ *
+ * @returns {boolean} True when user holds a family role or has participant view access
  */
 export function canAccessParentTools() {
-  return isParent() || canViewParticipants();
+  return holdsFamilyRole() || canViewParticipants();
 }
 
 /**

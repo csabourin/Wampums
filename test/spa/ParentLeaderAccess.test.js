@@ -28,7 +28,7 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugError: jest.fn()
 }));
 
-import { holdsFamilyRole, hasOrganizationScope, isParent } from '../../spa/utils/PermissionUtils.js';
+import { canAccessParentTools, holdsFamilyRole, hasOrganizationScope, isParent } from '../../spa/utils/PermissionUtils.js';
 import { roleLabel } from '../../spa/utils/RoleLabelUtils.js';
 
 /**
@@ -70,6 +70,23 @@ describe('isParent', () => {
     signIn(['leader'], 'organization');
     expect(isParent()).toBe(false);
     expect(holdsFamilyRole()).toBe(false);
+  });
+});
+
+describe('canAccessParentTools', () => {
+  test('a parent who also holds a whole-unit role without participants.view keeps the family pages', () => {
+    signIn(['parent', 'u12_communications'], 'organization');
+    mockApp.userPermissions = ['communications.send'];
+    expect(isParent()).toBe(false);
+    expect(canAccessParentTools()).toBe(true);
+  });
+
+  test('staff without a family role need participants.view', () => {
+    signIn(['u12_communications'], 'organization');
+    mockApp.userPermissions = ['communications.send'];
+    expect(canAccessParentTools()).toBe(false);
+    mockApp.userPermissions = ['participants.view'];
+    expect(canAccessParentTools()).toBe(true);
   });
 });
 
