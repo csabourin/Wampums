@@ -26,6 +26,7 @@ const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { resolveDatabaseConnectionString } = require('../config/database-url');
 const { getVapidKeys, removeInvalidSubscriptions, sortPushResults } = require('../utils/web-push');
+const { recordUserMessages, messageUrl } = require('../services/userMessages');
 
 /** Upper bound on roles one announcement may address; the unit's catalog is far smaller. */
 const MAX_ANNOUNCEMENT_ROLES = 50;
@@ -347,11 +348,21 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
 
       webpush.setVapidDetails('mailto:info@wampums.app', vapidPublicKey, vapidPrivateKey);
 
-      const payload = JSON.stringify({
-        title: announcement.subject,
-        body: announcement.message,
-        tag: 'announcement',
-      });
+      // Each recipient's copy is what the tapped notification opens. Without
+      // it the push still goes out, and opens the list of messages.
+      let messageIds = new Map();
+      try {
+        messageIds = await recordUserMessages(pool, {
+          organizationId: announcement.organization_id,
+          userIds: subscribers.map((subscriber) => subscriber.user_id),
+          title: announcement.subject,
+          body: announcement.message,
+          sentBy: announcement.created_by,
+          announcementId: announcement.id,
+        });
+      } catch (recordError) {
+        logger.error('Announcement push: could not keep the message for its recipients:', recordError);
+      }
 
       const pushResults = await Promise.allSettled(
         subscribers.map(async (subscriber) => {
@@ -359,7 +370,12 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
             endpoint: subscriber.endpoint,
             keys: { p256dh: subscriber.p256dh, auth: subscriber.auth },
           };
-          await webpush.sendNotification(pushSubscription, payload);
+          await webpush.sendNotification(pushSubscription, JSON.stringify({
+            title: announcement.subject,
+            body: announcement.message,
+            tag: 'announcement',
+            data: { url: messageUrl(messageIds, subscriber.user_id) },
+          }));
           await pool.query(
             `INSERT INTO announcement_logs (announcement_id, channel, recipient_user_id, status)
              VALUES ($1, 'push', $2, 'sent')`,
@@ -944,6 +960,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
  * @private Used only in test environments
  */
 module.exports.buildRecipientsForTests = buildRecipients;
+module.exports.dispatchAnnouncementForTests = dispatchAnnouncement;
 
 /**
  * Export shutdown function for tests to clean up resources

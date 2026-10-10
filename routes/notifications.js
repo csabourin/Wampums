@@ -16,6 +16,7 @@ const { success, error, asyncHandler } = require('../middleware/response');
 // Import utilities
 const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { checkValidation } = require('../middleware/validation');
+const { recordUserMessages, messageUrl } = require('../services/userMessages');
 const {
   getVapidKeys, isKeyMismatchError, removeInvalidSubscriptions, sortPushResults, summarizePushFailures
 } = require('../utils/web-push');
@@ -152,7 +153,8 @@ module.exports = (pool, logger) => {
   /**
    * POST /api/v1/notifications/send
    * Send a push notification to the selected members (`user_ids`), or to every
-   * active subscriber of the unit when none are selected. Devices that can
+   * active subscriber of the unit when none are selected. Each recipient keeps
+   * a copy of the message, which the notification opens. Devices that can
    * never receive again (gone, or subscribed with another key) are deleted.
    */
   router.post('/send', authenticate, blockDemoRoles, requirePermission(['communications.send']),
@@ -197,7 +199,7 @@ module.exports = (pool, logger) => {
         // Subscriptions recorded without an account cannot be checked and are
         // kept for unit-wide sends only.
         const subscribersResult = await pool.query(
-          `SELECT s.endpoint, s.p256dh, s.auth FROM subscribers s
+          `SELECT s.endpoint, s.p256dh, s.auth, s.user_id FROM subscribers s
             WHERE s.organization_id = $1
               AND (cardinality($2::uuid[]) = 0 OR s.user_id = ANY($2::uuid[]))
               AND (s.user_id IS NULL OR EXISTS (
@@ -212,17 +214,31 @@ module.exports = (pool, logger) => {
           return success(res, { sent: 0, failed: 0, removed: 0 }, 'No subscribers found');
         }
 
-        const notificationPayload = JSON.stringify({
-          title,
-          body,
-          tag: 'renotify',
-          requireInteraction: true
-        });
+        // Each recipient's copy is what the tapped notification opens. Without
+        // it the push still goes out, and opens the list of messages.
+        let messageIds = new Map();
+        try {
+          messageIds = await recordUserMessages(pool, {
+            organizationId,
+            userIds: subscribers.map((subscriber) => subscriber.user_id),
+            title,
+            body,
+            sentBy: req.user.id,
+          });
+        } catch (recordError) {
+          logger.error('Push notifications: could not keep the message for its recipients:', recordError);
+        }
 
         const results = await Promise.allSettled(subscribers.map((subscriber) => webpush.sendNotification({
           endpoint: subscriber.endpoint,
           keys: { p256dh: subscriber.p256dh, auth: subscriber.auth }
-        }, notificationPayload)));
+        }, JSON.stringify({
+          title,
+          body,
+          tag: 'renotify',
+          requireInteraction: true,
+          data: { url: messageUrl(messageIds, subscriber.user_id) },
+        }))));
 
         const { sent, refusals, invalidEndpoints } = sortPushResults(results, subscribers);
         const failed = subscribers.length - sent;

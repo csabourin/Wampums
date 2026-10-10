@@ -716,26 +716,48 @@ self.addEventListener('push', function (event) {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
-self.addEventListener('notificationclick', function (event) {
+/**
+ * The in-app page a notification opens: the path it carries when that is on
+ * this origin, else the app's home.
+ *
+ * @param {Object} notificationData - The notification's data
+ * @returns {URL} Same-origin URL to open
+ */
+function notificationTarget(notificationData) {
+  try {
+    const target = new URL(notificationData?.url || '/', self.location.origin);
+    if (target.origin === self.location.origin) {
+      return target;
+    }
+  } catch (_) {
+    // A malformed url falls back to the home page
+  }
+  return new URL('/', self.location.origin);
+}
+
+// Tapping a notification opens the page that shows it (a pushed message, the
+// medication round). An app window already open is brought forward and moved
+// to that page without reloading; otherwise a new window opens on it.
+self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const target = notificationTarget(event.notification.data);
 
-  const notificationData = event.notification.data;
-
-  event.waitUntil(
-    clients
-      .matchAll({ type: 'window', includeUncontrolled: true })
-      .then(function (clientList) {
-        for (let i = 0; i < clientList.length; i++) {
-          const client = clientList[i];
-          if (client.url === notificationData?.url && 'focus' in client) {
-            return client.focus();
-          }
-        }
-        if (clients.openWindow && notificationData?.url) {
-          return clients.openWindow(notificationData.url);
-        }
-      })
-  );
+  event.waitUntil((async () => {
+    const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const appWindow = windows.find((client) => new URL(client.url).origin === self.location.origin);
+    if (appWindow) {
+      try {
+        await appWindow.focus();
+        appWindow.postMessage({ type: 'NOTIFICATION_NAVIGATE', url: `${target.pathname}${target.search}` });
+        return;
+      } catch (error) {
+        debugError('Could not bring the app forward for a notification:', error);
+      }
+    }
+    if (clients.openWindow) {
+      await clients.openWindow(target.href);
+    }
+  })());
 });
 
 // ==================================================================
