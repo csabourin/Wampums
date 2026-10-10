@@ -29,7 +29,6 @@ import { canManageFinance, canViewFinance } from "./utils/PermissionUtils.js";
 import { setContent, insertHTML } from "./utils/DOMUtils.js";
 import { BaseModule } from "./utils/BaseModule.js";
 import { CONFIG } from "./config.js";
-import { syncScrollKey } from './utils/ScrollMemory.js';
 
 const DEFAULT_CURRENCY = CONFIG.DEFAULT_CURRENCY;
 
@@ -783,7 +782,6 @@ export class Finance extends BaseModule {
         const url = new URL(window.location.href);
         url.searchParams.set('tab', this.activeTab);
         window.history.replaceState({}, '', url.toString());
-        syncScrollKey();
         this.render();
         this.attachEventListeners();
       });

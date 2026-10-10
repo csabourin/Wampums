@@ -23,7 +23,6 @@ import {
   beginScrollNavigation,
   restoreScrollPosition,
   scrollKeyFor,
-  syncScrollKey,
   resetScrollMemoryForTests
 } from '../../spa/utils/ScrollMemory.js';
 
@@ -188,13 +187,13 @@ describe('ScrollMemory', () => {
     expect(window.scrollY).toBe(1200);
   });
 
-  test('switching tabs in place does not overwrite the previous tab', () => {
+  test('switching tabs in place does not overwrite the previous tab', async () => {
     visit('/finance?tab=reports');
     scrollWindow(900);
 
     // TabbedPage rewrites ?tab= without going through the router.
     history.replaceState({}, '', '/finance?tab=payments');
-    syncScrollKey();
+    await Promise.resolve();
     scrollWindow(150);
 
     visit('/dashboard');
@@ -204,17 +203,49 @@ describe('ScrollMemory', () => {
     expect(window.scrollY).toBe(150);
   });
 
-  test('a redraw after an in-place tab switch keeps the position', () => {
+  test('a tab pushed into history is tracked without scrolling', async () => {
+    visit('/budgets?tab=overview');
+    scrollWindow(700);
+
+    // Budgets pushes its tab into history, then re-renders in place.
+    history.pushState({}, '', '/budgets?tab=items');
+    await Promise.resolve();
+
+    visit('/dashboard');
+    visit('/budgets?tab=overview');
+    expect(window.scrollY).toBe(700);
+    visit('/budgets?tab=items');
+    expect(window.scrollY).toBe(700);
+  });
+
+  test('a redraw after an in-place tab switch keeps the position', async () => {
     visit('/finance?tab=reports');
     scrollWindow(900);
     history.replaceState({}, '', '/finance?tab=payments');
-    syncScrollKey();
+    await Promise.resolve();
     window.scrollTo.mockClear();
 
     visit('/finance?tab=payments');
 
     expect(window.scrollTo).not.toHaveBeenCalledWith(0, 0);
     expect(window.scrollY).toBe(900);
+  });
+
+  test('input while the screen is still loading wins over the restore', () => {
+    visit('/dashboard');
+    scrollWindow(1200);
+    visit('/attendance');
+
+    const token = go('/dashboard');
+    // Data still loading; the person scrolls the part already shown.
+    window.dispatchEvent(new Event('touchstart'));
+    scrollWindow(80);
+    restoreScrollPosition(token);
+
+    expect(window.scrollY).toBe(80);
+    visit('/attendance');
+    visit('/dashboard');
+    expect(window.scrollY).toBe(80);
   });
 
   test('a redirect during the route restores the screen actually shown', () => {

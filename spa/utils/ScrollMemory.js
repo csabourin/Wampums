@@ -28,7 +28,8 @@ let positions = null;
 let activeKey = null;
 let navigationToken = 0;
 let restoring = false;
-let cancelRestore = null;
+let activeSession = null;
+let originalHistoryMethods = {};
 let saveFrame = null;
 let initialized = false;
 
@@ -111,8 +112,8 @@ function onScroll() {
   saveFrame = window.requestAnimationFrame(() => {
     saveFrame = null;
     if (!restoring) {
-      // Read the URL rather than trusting activeKey: in-page tabs rewrite
-      // ?tab= with replaceState, without going through the router.
+      // Read the URL rather than trusting activeKey: screens can change it
+      // in place without going through the router.
       activeKey = currentLocationKey();
       rememberPosition(activeKey, window.scrollY);
     }
@@ -120,17 +121,37 @@ function onScroll() {
 }
 
 /**
- * Called when a screen changes its own URL in place (tabs that rewrite
- * `?tab=` with replaceState), so later scrolling is recorded for the new URL
- * and not for the one it replaced. The page is left where it is: the tab bar
- * the person just used stays under their finger.
+ * After a same-document URL change that no route followed (a tab rewriting
+ * ?tab=), later scrolling belongs to the new URL. The page is left where it
+ * is, so the tab bar the person just used stays under their finger.
  */
-export function syncScrollKey() {
-  if (restoring) {
-    return;
+function adoptCurrentUrl() {
+  if (!restoring) {
+    activeKey = currentLocationKey();
+    rememberPosition(activeKey, window.scrollY);
   }
-  activeKey = currentLocationKey();
-  rememberPosition(activeKey, window.scrollY);
+}
+
+/**
+ * Watch pushState/replaceState, so every in-place URL change is seen without
+ * each screen having to report it (TabbedPage, finance and budgets tabs all
+ * rewrite the URL themselves).
+ * @param {'pushState'|'replaceState'} method - History method to watch
+ */
+function trackHistoryMethod(method) {
+  const original = history[method];
+  originalHistoryMethods[method] = original;
+  history[method] = (...args) => {
+    // Record the screen being left under its own URL before it changes.
+    if (!restoring) {
+      rememberPosition(currentLocationKey(), window.scrollY);
+    }
+    const result = original.apply(history, args);
+    // When the router changes the URL it starts a route synchronously, which
+    // sets `restoring`; only an in-place change is adopted here.
+    queueMicrotask(adoptCurrentUrl);
+    return result;
+  };
 }
 
 /**
@@ -147,38 +168,58 @@ export function initScrollMemory() {
     // screen has rendered, and then fight the position set here.
     history.scrollRestoration = 'manual';
   }
+  trackHistoryMethod('pushState');
+  trackHistoryMethod('replaceState');
   window.addEventListener('scroll', onScroll, { passive: true });
 }
 
 /**
- * Called when the router starts showing a screen.
- * Records where the previous screen was left and, when the screen changes,
+ * Called when the router starts showing a screen. When the screen changes,
  * moves to the top at once so the old position is not carried over.
+ * From here until the screen is restored, any scroll, key or touch input from
+ * the person ends the restoration: their movement wins.
  * @param {string} path - Route path being shown
  * @returns {number} Token to pass to restoreScrollPosition
  */
 export function beginScrollNavigation(path) {
   navigationToken += 1;
-  if (cancelRestore) {
-    cancelRestore();
-  }
+  const token = navigationToken;
+  activeSession?.end();
+
   const key = scrollKeyFor(path);
-  if (activeKey && !restoring) {
-    rememberPosition(activeKey, window.scrollY);
-  }
   const sameScreen = key === activeKey;
+  if (sameScreen && !restoring) {
+    rememberPosition(key, window.scrollY);
+  }
   activeKey = key;
   restoring = true;
+
+  const session = { token, observer: null, timer: null };
+  session.end = () => {
+    session.observer?.disconnect();
+    clearTimeout(session.timer);
+    USER_SCROLL_EVENTS.forEach((type) => window.removeEventListener(type, session.end, true));
+    if (activeSession === session) {
+      activeSession = null;
+    }
+    if (token === navigationToken) {
+      restoring = false;
+    }
+  };
+  USER_SCROLL_EVENTS.forEach((type) => window.addEventListener(type, session.end, { capture: true, passive: true }));
+  activeSession = session;
+
   if (!sameScreen) {
     jumpTo(0);
   }
-  return navigationToken;
+  return token;
 }
 
 /**
  * Called once the router has rendered the screen: returns it to where it was
  * left, waiting for late content to make the page tall enough.
- * Ignored if another navigation has started since.
+ * Ignored if another navigation has started since; skipped if the person has
+ * already moved the page themselves.
  * @param {number} token - Value returned by beginScrollNavigation
  */
 export function restoreScrollPosition(token) {
@@ -188,41 +229,28 @@ export function restoreScrollPosition(token) {
   // The route may have redirected while rendering (an expired session sent
   // to /login): restore the screen actually shown, not the one requested.
   activeKey = currentLocationKey();
+  const session = activeSession;
+  if (!session || session.token !== token) {
+    return;
+  }
   const target = loadPositions().get(activeKey) || 0;
   const maxScroll = () => document.documentElement.scrollHeight - window.innerHeight;
-
-  let observer = null;
-  let timer = null;
-  const finish = () => {
-    observer?.disconnect();
-    clearTimeout(timer);
-    USER_SCROLL_EVENTS.forEach((type) => window.removeEventListener(type, finish, true));
-    if (cancelRestore === finish) {
-      cancelRestore = null;
-    }
-    if (token === navigationToken) {
-      restoring = false;
-    }
-  };
 
   const attempt = () => {
     jumpTo(target);
     if (target <= 0 || maxScroll() >= target) {
-      finish();
+      session.end();
     }
   };
 
   attempt();
-  if (!restoring) {
+  if (activeSession !== session) {
     return;
   }
-
-  cancelRestore = finish;
-  USER_SCROLL_EVENTS.forEach((type) => window.addEventListener(type, finish, { capture: true, passive: true }));
-  timer = setTimeout(finish, RESTORE_TIMEOUT_MS);
+  session.timer = setTimeout(session.end, RESTORE_TIMEOUT_MS);
   if (typeof ResizeObserver === 'function') {
-    observer = new ResizeObserver(attempt);
-    observer.observe(document.body);
+    session.observer = new ResizeObserver(attempt);
+    session.observer.observe(document.body);
   }
 }
 
@@ -230,10 +258,12 @@ export function restoreScrollPosition(token) {
  * Reset module state. Tests only.
  */
 export function resetScrollMemoryForTests() {
-  if (cancelRestore) {
-    cancelRestore();
-  }
+  activeSession?.end();
   window.removeEventListener('scroll', onScroll);
+  Object.entries(originalHistoryMethods).forEach(([method, original]) => {
+    history[method] = original;
+  });
+  originalHistoryMethods = {};
   positions = null;
   activeKey = null;
   navigationToken = 0;

@@ -18,7 +18,6 @@
 
 import { translate } from "../app.js";
 import { setContent } from "../utils/DOMUtils.js";
-import { syncScrollKey } from '../utils/ScrollMemory.js';
 import { escapeHTML } from "../utils/SecurityUtils.js";
 import { debugLog, debugError } from "../utils/DebugUtils.js";
 import { BaseModule } from "../utils/BaseModule.js";
@@ -199,7 +198,6 @@ export class TabbedPage extends BaseModule {
       const url = new URL(window.location.href);
       url.searchParams.set("tab", key);
       window.history.replaceState({}, "", url);
-      syncScrollKey();
     } catch (error) {
       debugLog("Could not sync tab to URL:", error);
     }
