@@ -19,8 +19,14 @@ import { QuickCreateActivityModal } from './QuickCreateActivityModal.js';
 const MODAL_ID = 'carpool-quick-access-modal';
 
 export class CarpoolQuickAccessModal {
-  constructor(app) {
+  /**
+   * @param {Object} app - Application
+   * @param {Object} [options]
+   * @param {boolean} [options.allowCreate=true] - Offer to create an activity (leaders, not parents)
+   */
+  constructor(app, { allowCreate = true } = {}) {
     this.app = app;
+    this.allowCreate = allowCreate;
     this.modal = null;
   }
 
@@ -91,11 +97,11 @@ export class CarpoolQuickAccessModal {
       id: MODAL_ID,
       title: escapeHTML(translate('carpool_coordination')),
       body,
-      footer: `
+      footer: this.allowCreate ? `
         <button type="button" class="button button--primary carpool-quick-access__create" data-action="quick-create">
           ${translate('quick_create_activity')}
         </button>
-      `,
+      ` : '',
       className: 'carpool-quick-access',
       onClose: () => { this.modal = null; },
     });

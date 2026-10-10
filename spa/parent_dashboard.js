@@ -15,7 +15,6 @@ import {
         getPermissionSlips,
         signPermissionSlip,
 } from './api/api-endpoints.js';
-import { getActivities } from './api/api-activities.js';
 import { formTypeLabel } from './utils/FormLabelUtils.js';
 import { loadHiddenParentDashboardButtons } from './config/parent-dashboard-buttons.js';
 import {
@@ -34,12 +33,10 @@ import { CONFIG } from './config.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
 import { apiErrorMessage, apiErrorMessageKey } from './utils/ApiErrorUtils.js';
 import { setContent, loadStylesheet } from './utils/DOMUtils.js';
+import { openModal } from './utils/ModalUtils.js';
+import { CarpoolQuickAccessModal } from './modules/modals/CarpoolQuickAccessModal.js';
 import { isParent, hasPermission, canViewFinance, canManageFinance, canViewBudget, canManageBudget, canViewBadges, canApproveBadges, canViewReports, canViewActivities, canViewCarpools } from './utils/PermissionUtils.js';
 import { formatDateShort, parseDate } from './utils/DateUtils.js';
-import {
-        formatActivityDateRange,
-        getActivityEndDateObj,
-} from './utils/ActivityDateUtils.js';
 import {
         confirm as confirmDialog,
         prompt as promptDialog,
@@ -1395,19 +1392,10 @@ export class ParentDashboard {
                         `${existingStatement.participant.first_name} ${existingStatement.participant.last_name}`,
                 );
 
-                const modal = document.createElement('div');
-                modal.className = 'modal-screen';
-                setContent(
-                        modal,
-                        `
-                        <div class="modal">
-                                <div class="modal__header">
-                                        <div>
-                                                <p class="muted-text">${translate('membership_statement_title')}</p>
-                                                <h3>${participantName}</h3>
-                                        </div>
-                                        <button type="button" class="ghost-button" id="close-statement-modal">${translate('close')}</button>
-                                </div>
+                openModal({
+                        id: 'statement-modal',
+                        title: `${translate('membership_statement_title')} — ${participantName}`,
+                        body: `
                                 <div class="statement-summary">
                                         <div>
                                                 <span>${translate('total_billed')}</span>
@@ -1423,136 +1411,17 @@ export class ParentDashboard {
                                         </div>
                                 </div>
                                 <div class="statement-lines">${feeLines}</div>
-                        </div>
-                `,
-                );
-
-                document.body.appendChild(modal);
-
-                const closeButton = modal.querySelector(
-                        '#close-statement-modal',
-                );
-                if (closeButton) {
-                        closeButton.addEventListener('click', () =>
-                                modal.remove(),
-                        );
-                }
-
-                modal.addEventListener('click', (event) => {
-                        if (event.target === modal) {
-                                modal.remove();
-                        }
+                        `,
+                        initialFocus: false,
                 });
         }
 
+        /**
+         * Pick an upcoming activity to open its carpool page. Parents share
+         * the leaders' dialog, without its "create an activity" action.
+         */
         async showCarpoolActivitiesModal() {
-                try {
-                        const activities = await getActivities();
-                        const now = new Date();
-                        now.setHours(0, 0, 0, 0);
-                        const upcomingActivities = activities.filter((a) => {
-                                const activityEndDate =
-                                        getActivityEndDateObj(a);
-                                return (
-                                        activityEndDate &&
-                                        activityEndDate >= now
-                                );
-                        });
-
-                        if (upcomingActivities.length === 0) {
-                                this.app.showMessage(
-                                        translate('no_upcoming_activities'),
-                                        'info',
-                                );
-                                return;
-                        }
-
-                        const modal = document.createElement('div');
-                        modal.className = 'modal-screen';
-                        setContent(
-                                modal,
-                                `
-                                <div class="modal">
-                                        <div class="modal__header">
-                                                <h3>${translate('carpool_coordination')}</h3>
-                                                <button type="button" class="ghost-button" id="close-carpool-modal">${translate('close')}</button>
-                                        </div>
-                                        <div style="padding: 1.5rem;">
-                                                <p style="margin-bottom: 1rem; color: #666;">${translate('select_activity_for_carpool')}</p>
-                                                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                                                        ${upcomingActivities
-                                                                .map(
-                                                                        (
-                                                                                activity,
-                                                                        ) => `
-                                                                <a href="/carpool/${activity.id}" class="activity-link" style="padding: 1rem; border: 2px solid #e0e0e0; border-radius: 8px; text-decoration: none; color: inherit; display: block; transition: all 0.2s;">
-                                                                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
-                                                                                <div style="flex: 1;">
-                                                                                        <h4 style="margin: 0 0 0.5rem 0; color: #333;">${escapeHTML(activity.name)}</h4>
-                                                                                        <p style="margin: 0; font-size: 0.9rem; color: #666;">
-                                                                                                ${formatActivityDateRange(activity, this.app.lang || 'fr')}
-                                                                                        </p>
-                                                                                        <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: #999;">
-                                                                                                ${escapeHTML(activity.meeting_location_going)}
-                                                                                        </p>
-                                                                                </div>
-                                                                                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; font-size: 0.85rem;">
-                                                                                        <span style="background: #667eea; color: white; padding: 0.25rem 0.75rem; border-radius: 20px;">
-                                                                                                ${activity.carpool_offer_count || 0} ${translate('vehicles')}
-                                                                                        </span>
-                                                                                        <span style="color: #666;">
-                                                                                                ${activity.assigned_participant_count || 0} ${translate('assigned')}
-                                                                                        </span>
-                                                                                </div>
-                                                                        </div>
-                                                                </a>
-                                                        `,
-                                                                )
-                                                                .join('')}
-                                                </div>
-                                        </div>
-                                </div>
-                        `,
-                        );
-
-                        document.body.appendChild(modal);
-
-                        const closeButton = modal.querySelector(
-                                '#close-carpool-modal',
-                        );
-                        if (closeButton) {
-                                closeButton.addEventListener('click', () =>
-                                        modal.remove(),
-                                );
-                        }
-
-                        modal.addEventListener('click', (event) => {
-                                if (event.target === modal) {
-                                        modal.remove();
-                                }
-                        });
-
-                        // Add hover effect to activity links
-                        const activityLinks =
-                                modal.querySelectorAll('.activity-link');
-                        activityLinks.forEach((link) => {
-                                link.addEventListener('mouseenter', (e) => {
-                                        e.target.style.borderColor = '#667eea';
-                                        e.target.style.boxShadow =
-                                                '0 4px 8px rgba(0,0,0,0.1)';
-                                });
-                                link.addEventListener('mouseleave', (e) => {
-                                        e.target.style.borderColor = '#e0e0e0';
-                                        e.target.style.boxShadow = 'none';
-                                });
-                        });
-                } catch (error) {
-                        debugError('Error loading carpool activities:', error);
-                        this.app.showMessage(
-                                translate('error_loading_activities'),
-                                'error',
-                        );
-                }
+                await new CarpoolQuickAccessModal(this.app, { allowCreate: false }).show();
         }
 
         async requestNotificationPermission() {

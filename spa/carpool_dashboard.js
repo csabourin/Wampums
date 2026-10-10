@@ -25,6 +25,7 @@ import { offlineManager } from './modules/OfflineManager.js';
 import { getCachedData, setCachedData } from './indexedDB.js';
 import { confirm as confirmDialog, confirmDestructive, prompt as promptDialog } from './utils/DialogUtils.js';
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
+import { openModal } from './utils/ModalUtils.js';
 import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { parseDate } from './utils/DateUtils.js';
 import { escapeAttribute, escapeHTML } from './utils/SecurityUtils.js';
@@ -593,17 +594,10 @@ export class CarpoolDashboard {
     const isEdit = offer !== null;
     const modalId = 'offer-ride-modal';
 
-    const modalHTML = `
-      <div class="modal__backdrop"></div>
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="offer-ride-modal-title">
-        <header class="modal__header">
-          <h2 id="offer-ride-modal-title">
-            ${isEdit ? translate('edit_ride_offer') : translate('offer_a_ride')}
-          </h2>
-          <button class="ghost-button" id="close-offer-modal" aria-label="${translate('close')}">✕</button>
-        </header>
-
-        <form class="modal__content" id="offer-ride-form">
+    const modalHTML = {
+      title: isEdit ? translate('edit_ride_offer') : translate('offer_a_ride'),
+      body: `
+        <form id="offer-ride-form">
           <div class="info-box info-box--warning">
             <strong>${translate('important')}:</strong>
             <ul>
@@ -634,8 +628,8 @@ export class CarpoolDashboard {
             <small class="form-help">${translate('seats_available_help')}</small>
           </div>
 
-          <div class="form-group">
-            <label>${translate('trip_direction')} <span class="required">*</span></label>
+          <fieldset class="form-group">
+            <legend>${translate('trip_direction')} <span class="required">*</span></legend>
             <div class="radio-group">
               <label class="radio-label">
                 <input type="radio" name="trip_direction" value="both"
@@ -655,25 +649,20 @@ export class CarpoolDashboard {
                 </label>
               ` : ''}
             </div>
-          </div>
+          </fieldset>
 
           <div class="form-group">
             <label for="notes">${translate('additional_notes')}</label>
             <textarea id="notes" name="notes" class="form-control" rows="3"
                       placeholder="${translate('notes_placeholder')}">${escapeHTML(offer?.notes || '')}</textarea>
           </div>
-
-          <div class="modal__actions">
-            <button type="button" class="button button--secondary" id="cancel-offer-btn">
-              ${translate('cancel')}
-            </button>
-            <button type="submit" class="button button--primary">
-              ${isEdit ? translate('save_changes') : translate('offer_ride')}
-            </button>
-          </div>
         </form>
-      </div>
-    `;
+      `,
+      footer: `
+        <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="submit" class="button button--primary" form="offer-ride-form">${isEdit ? translate('save_changes') : translate('offer_ride')}</button>
+      `,
+    };
 
     this.showModal(modalId, modalHTML, async (formData) => {
       const data = {
@@ -711,75 +700,49 @@ export class CarpoolDashboard {
       return;
     }
 
-    const modalId = 'look-for-ride-modal';
+    const { overlay, close } = openModal({
+      id: 'look-for-ride-modal',
+      title: translate('look_for_ride'),
+      body: `
+        <p>${translate('select_child_to_assign')}</p>
 
-    const modalHTML = `
-      <div class="modal__backdrop"></div>
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="look-for-ride-modal-title">
-        <header class="modal__header">
-          <h2 id="look-for-ride-modal-title">${translate('look_for_ride')}</h2>
-          <button class="ghost-button" id="close-look-modal" aria-label="${translate('close')}">✕</button>
-        </header>
+              <div class="child-selection-list">
+                ${userChildren.map(child => {
+          const assignments = child.carpool_assignments || [];
+          const hasBothDirections = assignments.some(a => a.trip_direction === 'both');
+          const hasGoing = hasBothDirections || assignments.some(a => a.trip_direction === 'to_activity');
+          const hasReturn = hasBothDirections || assignments.some(a => a.trip_direction === 'from_activity');
 
-        <div class="modal__content">
-          <p>${translate('select_child_to_assign')}</p>
-
-          <div class="child-selection-list">
-            ${userChildren.map(child => {
-      const assignments = child.carpool_assignments || [];
-      const hasBothDirections = assignments.some(a => a.trip_direction === 'both');
-      const hasGoing = hasBothDirections || assignments.some(a => a.trip_direction === 'to_activity');
-      const hasReturn = hasBothDirections || assignments.some(a => a.trip_direction === 'from_activity');
-
-      return `
-                <div class="child-selection-card">
-                  <div class="child-selection-card__info">
-                    <strong>${escapeHTML(child.first_name)} ${escapeHTML(child.last_name)}</strong>
-                    <div class="child-selection-card__status">
-                      ${hasGoing ?
-          `<span class="badge badge--success">✓ ${translate('has_ride_going')}</span>` :
-          `<span class="badge badge--warning">${translate('needs_ride_going')}</span>`
-        }
-                      ${this.activity.meeting_location_return ? (hasReturn ?
-          `<span class="badge badge--success">✓ ${translate('has_ride_return')}</span>` :
-          `<span class="badge badge--warning">${translate('needs_ride_return')}</span>`
-        ) : ''}
+          return `
+                    <div class="child-selection-card">
+                      <div class="child-selection-card__info">
+                        <strong>${escapeHTML(child.first_name)} ${escapeHTML(child.last_name)}</strong>
+                        <div class="child-selection-card__status">
+                          ${hasGoing ?
+              `<span class="badge badge--success"><span aria-hidden="true">✓</span> ${translate('has_ride_going')}</span>` :
+              `<span class="badge badge--warning">${translate('needs_ride_going')}</span>`
+            }
+                          ${this.activity.meeting_location_return ? (hasReturn ?
+              `<span class="badge badge--success"><span aria-hidden="true">✓</span> ${translate('has_ride_return')}</span>` :
+              `<span class="badge badge--warning">${translate('needs_ride_return')}</span>`
+            ) : ''}
+                        </div>
+                      </div>
+                      <button class="button button--primary select-child-btn"
+                              data-participant-id="${child.id}">
+                        ${translate('select')}
+                      </button>
                     </div>
-                  </div>
-                  <button class="button button--primary select-child-btn"
-                          data-participant-id="${child.id}">
-                    ${translate('select')}
-                  </button>
-                </div>
-              `;
-    }).join('')}
-          </div>
-        </div>
-      </div>
-    `;
+                  `;
+        }).join('')}
+              </div>
+      `,
+    });
 
-    let modalContainer = document.getElementById(modalId);
-    if (!modalContainer) {
-      modalContainer = document.createElement('div');
-      modalContainer.id = modalId;
-      modalContainer.className = 'modal-container';
-      document.body.appendChild(modalContainer);
-    }
-    // Use innerHTML directly to avoid sanitization issues with forms
-    setContent(modalContainer, modalHTML);
-    modalContainer.classList.add('modal-container--visible');
-
-    const closeModal = () => {
-      modalContainer.remove();
-    };
-
-    document.getElementById('close-look-modal')?.addEventListener('click', closeModal);
-    modalContainer.querySelector('.modal__backdrop')?.addEventListener('click', closeModal);
-
-    document.querySelectorAll('.select-child-btn').forEach(btn => {
+    overlay.querySelectorAll('.select-child-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const participantId = parseInt(e.target.dataset.participantId);
-        closeModal();
+        const participantId = parseInt(e.currentTarget.dataset.participantId);
+        close(true);
         this.showAssignmentModal(null, participantId);
       });
     });
@@ -810,15 +773,10 @@ export class CarpoolDashboard {
 
     const modalId = 'assignment-modal';
 
-    const modalHTML = `
-      <div class="modal__backdrop"></div>
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="assignment-modal-title">
-        <header class="modal__header">
-          <h2 id="assignment-modal-title">${translate('assign_to_carpool')}</h2>
-          <button class="ghost-button" id="close-assignment-modal" aria-label="${translate('close')}">✕</button>
-        </header>
-
-        <form class="modal__content" id="assignment-form">
+    const modalHTML = {
+      title: translate('assign_to_carpool'),
+      body: `
+        <form id="assignment-form">
           <div class="form-group">
             <label for="participant-select">${translate('participant')} <span class="required">*</span></label>
             <select id="participant-select" name="participant_id" class="form-control" required>
@@ -842,8 +800,8 @@ export class CarpoolDashboard {
             </select>
           </div>
 
-          <div class="form-group">
-            <label>${translate('trip_direction')} <span class="required">*</span></label>
+          <fieldset class="form-group">
+            <legend>${translate('trip_direction')} <span class="required">*</span></legend>
             <div class="radio-group" id="trip-direction-options">
               <label class="radio-label">
                 <input type="radio" name="trip_direction" value="both" checked required>
@@ -860,19 +818,14 @@ export class CarpoolDashboard {
                 </label>
               ` : ''}
             </div>
-          </div>
-
-          <div class="modal__actions">
-            <button type="button" class="button button--secondary" id="cancel-assignment-btn">
-              ${translate('cancel')}
-            </button>
-            <button type="submit" class="button button--primary">
-              ${translate('assign')}
-            </button>
-          </div>
+          </fieldset>
         </form>
-      </div>
-    `;
+      `,
+      footer: `
+        <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="submit" class="button button--primary" form="assignment-form">${translate('assign')}</button>
+      `,
+    };
 
     this.showModal(modalId, modalHTML, async (formData) => {
       const data = Object.fromEntries(formData.entries());
@@ -1121,41 +1074,26 @@ export class CarpoolDashboard {
     });
   }
 
-  showModal(modalId, modalHTML, onSubmit) {
-    let modalContainer = document.getElementById(modalId);
-    if (!modalContainer) {
-      modalContainer = document.createElement('div');
-      modalContainer.id = modalId;
-      modalContainer.className = 'modal-container';
-      document.body.appendChild(modalContainer);
-    }
-    // Use innerHTML directly to avoid sanitization issues with forms
-    setContent(modalContainer, modalHTML);
-    modalContainer.classList.add('modal-container--visible');
+  /**
+   * Open a carpool form in the shared modal; it closes once onSubmit succeeds.
+   * @param {string} modalId - Dialog id
+   * @param {{ title: string, body: string, footer: string }} content - Dialog HTML
+   * @param {Function} onSubmit - Receives the form's FormData
+   */
+  showModal(modalId, { title, body, footer }, onSubmit) {
+    const { overlay, close } = openModal({ id: modalId, title, body, footer });
 
-    const closeModal = () => {
-      modalContainer.remove();
-    };
-
-    // Close modal handlers
-    modalContainer.querySelector('.ghost-button')?.addEventListener('click', closeModal);
-    modalContainer.querySelectorAll('[id^="cancel-"]').forEach(btn => {
-      btn.addEventListener('click', closeModal);
-    });
-    modalContainer.querySelector('.modal__backdrop')?.addEventListener('click', closeModal);
-
-    // Form submission
-    const form = modalContainer.querySelector('form');
+    const form = overlay.querySelector('form');
     if (form && onSubmit) {
       form.addEventListener('submit', (e) => {
         e.preventDefault();
-        const submitBtn = form.querySelector('button[type="submit"]');
+        const submitBtn = overlay.querySelector('button[type="submit"]');
         const formData = new FormData(form);
 
         withButtonLoading(submitBtn, async () => {
           try {
             await onSubmit(formData);
-            closeModal();
+            close(true);
           } catch (error) {
             this.app.showMessage(apiErrorMessage(error, 'error_occurred'), 'error');
           }

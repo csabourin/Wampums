@@ -3613,99 +3613,16 @@ tr:hover {
   box-shadow: 0 0 0 4px rgb(15 122 90 / 0.35), var(--shadow-lg);
 }
 
-.badge-tracker__modal-container {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-modal);
+/* The add-star form inside the shared dialog (.modal-dialog.badge-tracker__modal) */
+.badge-tracker__fieldset {
+  border: 0;
+  padding: 0;
+  margin-inline: 0;
+  min-inline-size: 0;
 }
 
-.badge-tracker__modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgb(29 47 42 / 0.6);
-}
-
-.badge-tracker__modal {
-  position: fixed;
-  inset: auto 0 0 0;
-  background: var(--color-surface);
-  width: 100%;
-  max-width: 560px;
-  max-height: 90vh;
-  margin: 0 auto;
-  overflow-y: auto;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  animation: badge-modal-slide 300ms ease-out;
-}
-
-@media (min-width: 640px) {
-  .badge-tracker__modal {
-    inset: 50% auto auto 50%;
-    transform: translate(-50%, -50%);
-    border-radius: var(--radius-lg);
-  }
-}
-
-@keyframes badge-modal-slide {
-  from {
-    opacity: 0;
-    transform: translateY(100px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.badge-tracker__modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-lg);
-  border-bottom: 1px solid var(--color-border);
-  position: sticky;
-  top: 0;
-  background: var(--color-surface);
-}
-
-.badge-tracker__modal-title {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-bold);
-}
-
-.badge-tracker__modal-close {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-full);
-  border: none;
-  background: var(--color-secondary);
-  color: var(--color-text-light);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: var(--transition-fast);
-}
-
-.badge-tracker__modal-close:hover {
-  background: var(--color-border);
-}
-
-.badge-tracker__modal-close:focus {
-  outline: none;
-  box-shadow: 0 0 0 3px rgb(15 122 90 / 0.3);
-}
-
-.badge-tracker__modal-body {
-  padding: var(--space-lg);
-}
-
-.badge-tracker__modal-footer {
-  display: flex;
-  gap: var(--space-sm);
-  padding: var(--space-lg);
-  padding-top: 0;
+.badge-tracker__fieldset > legend {
+  padding: 0;
 }
 
 .badge-tracker__badge-selector {
@@ -3817,6 +3734,13 @@ tr:hover {
 .badge-tracker__type-option input {
   position: absolute;
   opacity: 0;
+}
+
+/* The radios are visually hidden: show keyboard focus on their card */
+.badge-tracker__badge-option:has(input:focus-visible),
+.badge-tracker__type-option:has(input:focus-visible) {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 .badge-tracker__type-icon {
@@ -11416,7 +11340,7 @@ details p {
   margin-block-end: var(--space-lg);
 }
 
-.achievement-modal__type-selection label {
+.achievement-modal__type-selection > span {
   display: block;
   font-weight: var(--font-weight-semibold);
   margin-block-end: var(--space-sm);
@@ -11455,9 +11379,16 @@ details p {
   margin-block-end: var(--space-lg);
 }
 
-.achievement-modal__badges>label,
-.achievement-modal__participants>label {
+.achievement-modal__participants {
+  border: 0;
+  padding: 0;
+  min-inline-size: 0;
+}
+
+.achievement-modal__badges > span,
+.achievement-modal__participants > legend {
   display: block;
+  padding: 0;
   font-weight: var(--font-weight-semibold);
   margin-block-end: var(--space-sm);
 }

@@ -2,7 +2,7 @@ import { translate } from "../app.js";
 import { escapeAttribute, escapeHTML } from "../utils/SecurityUtils.js";
 import { badgeLabel } from "../utils/BadgeLabelUtils.js";
 import { debugLog } from "../utils/DebugUtils.js";
-import { setContent, insertHTML } from "../utils/DOMUtils.js";
+import { openModal } from "../utils/ModalUtils.js";
 
 /**
  * AchievementModal - Modal for selecting badge achievements with participant assignment
@@ -23,7 +23,7 @@ export class AchievementModal {
         this.selectedType = "proie";
         this.selectedParticipantIds = [];
         this.activityIndex = null;
-        this.escapeHandler = null;
+        this.handle = null;
     }
 
     /**
@@ -40,61 +40,48 @@ export class AchievementModal {
         this.attachListeners();
     }
 
-    /** Remove the modal and its document-level listener. */
+    /** Close the modal. */
     close() {
-        if (this.escapeHandler) {
-            document.removeEventListener("keydown", this.escapeHandler);
-            this.escapeHandler = null;
-        }
-        const modal = document.getElementById(this.modalId);
-        if (modal) {
-            modal.remove();
-        }
+        this.handle?.close(true);
+        this.handle = null;
     }
 
     render() {
-        // Remove existing modal if any
-        this.close();
+        const pressed = (value) => (value ? "true" : "false");
+        this.handle = openModal({
+            id: this.modalId,
+            title: translate("select_achievement") || "Select Achievement",
+            className: "achievement-modal-content",
+            size: "large",
+            body: `
+                <div class="achievement-modal__type-selection" role="group" aria-labelledby="achievement-type-label">
+                    <span id="achievement-type-label">${translate("type") || "Type"}:</span>
+                    <div class="achievement-modal__type-buttons">
+                        <button type="button" class="achievement-type-btn ${this.selectedType === "proie" ? "active" : ""}" data-type="proie" aria-pressed="${pressed(this.selectedType === "proie")}">
+                            ${translate("badge_type_proie") || "Proie"}
+                        </button>
+                        <button type="button" class="achievement-type-btn ${this.selectedType === "battue" ? "active" : ""}" data-type="battue" aria-pressed="${pressed(this.selectedType === "battue")}">
+                            ${translate("badge_type_battue") || "Battue"}
+                        </button>
+                    </div>
+                </div>
 
-        const modalHtml = `
-                        <div id="${this.modalId}" class="modal show" role="dialog" aria-modal="true" aria-labelledby="achievement-modal-title">
-                                <div class="modal-content achievement-modal-content">
-                                        <div class="modal-header">
-                                                <h2 id="achievement-modal-title">${translate("select_achievement") || "Select Achievement"}</h2>
-                                                <button type="button" class="modal-close" data-dismiss="modal" aria-label="${translate("close")}">×</button>
-                                        </div>
-                                        <div class="modal-body">
-                                                <div class="achievement-modal__type-selection">
-                                                        <label>${translate("type") || "Type"}:</label>
-                                                        <div class="achievement-modal__type-buttons">
-                                                                <button type="button" class="achievement-type-btn ${this.selectedType === "proie" ? "active" : ""}" data-type="proie">
-                                                                        ${translate("badge_type_proie") || "Proie"}
-                                                                </button>
-                                                                <button type="button" class="achievement-type-btn ${this.selectedType === "battue" ? "active" : ""}" data-type="battue">
-                                                                        ${translate("badge_type_battue") || "Battue"}
-                                                                </button>
-                                                        </div>
-                                                </div>
+                <div class="achievement-modal__badges" role="group" aria-labelledby="achievement-badge-label">
+                    <span id="achievement-badge-label">${translate("badge") || "Badge"}:</span>
+                    ${this.renderBadgeGrid()}
+                </div>
 
-                                                <div class="achievement-modal__badges">
-                                                        <label>${translate("badge") || "Badge"}:</label>
-                                                        ${this.renderBadgeGrid()}
-                                                </div>
-
-                                                <div class="achievement-modal__participants ${this.selectedType === "battue" ? "hidden" : ""}">
-                                                        <label>${translate("participants") || "Participants"}:</label>
-                                                        ${this.renderParticipantGrid()}
-                                                </div>
-                                        </div>
-                                        <div class="modal-actions">
-                                                <button type="button" class="button button--secondary" data-dismiss="modal">${translate("cancel") || "Cancel"}</button>
-                                                <button type="button" class="button button--primary" id="achievement-save-btn">${translate("save") || "Save"}</button>
-                                        </div>
-                                </div>
-                        </div>
-                `;
-
-        insertHTML(document.body, "beforeend", modalHtml);
+                <fieldset class="achievement-modal__participants ${this.selectedType === "battue" ? "hidden" : ""}">
+                    <legend>${translate("participants") || "Participants"}:</legend>
+                    ${this.renderParticipantGrid()}
+                </fieldset>
+            `,
+            footer: `
+                <button type="button" class="button button--secondary" data-modal-close>${translate("cancel") || "Cancel"}</button>
+                <button type="button" class="button button--primary" id="achievement-save-btn">${translate("save") || "Save"}</button>
+            `,
+            onClose: () => { this.handle = null; },
+        });
     }
 
     renderBadgeGrid() {
@@ -111,13 +98,14 @@ export class AchievementModal {
 
                 return `
                                 <button type="button" 
-                                        class="achievement-badge-card ${isSelected ? "selected" : ""}" 
+                                        class="achievement-badge-card ${isSelected ? "selected" : ""}"
                                         data-badge-id="${badge.id}"
+                                        aria-pressed="${isSelected ? "true" : "false"}"
                                         title="${escapeAttribute(badgeName)}">
                                         ${
                                             imageUrl
-                                                ? `<img src="/assets/images/${escapeHTML(imageUrl)}" alt="${escapeAttribute(badgeName)}" class="achievement-badge-card__image" />`
-                                                : `<div class="achievement-badge-card__placeholder">★</div>`
+                                                ? `<img src="/assets/images/${escapeHTML(imageUrl)}" alt="" class="achievement-badge-card__image" />`
+                                                : `<div class="achievement-badge-card__placeholder" aria-hidden="true">★</div>`
                                         }
                                         <span class="achievement-badge-card__name">${escapeHTML(badgeName)}</span>
                                 </button>
@@ -161,26 +149,8 @@ export class AchievementModal {
     }
 
     attachListeners() {
-        const modal = document.getElementById(this.modalId);
+        const modal = this.handle?.overlay;
         if (!modal) return;
-
-        // Close buttons
-        modal.querySelectorAll('[data-dismiss="modal"]').forEach((btn) => {
-            btn.addEventListener("click", () => this.close());
-        });
-
-        // Click outside to close
-        modal.addEventListener("click", (e) => {
-            if (e.target === modal) this.close();
-        });
-
-        // Escape key to close
-        this.escapeHandler = (e) => {
-            if (e.key === "Escape") {
-                this.close();
-            }
-        };
-        document.addEventListener("keydown", this.escapeHandler);
 
         // Type selection
         modal.querySelectorAll(".achievement-type-btn").forEach((btn) => {
@@ -188,8 +158,12 @@ export class AchievementModal {
                 this.selectedType = e.target.dataset.type;
                 modal
                     .querySelectorAll(".achievement-type-btn")
-                    .forEach((b) => b.classList.remove("active"));
+                    .forEach((b) => {
+                        b.classList.remove("active");
+                        b.setAttribute("aria-pressed", "false");
+                    });
                 e.target.classList.add("active");
+                e.target.setAttribute("aria-pressed", "true");
 
                 const participantsSection = modal.querySelector(
                     ".achievement-modal__participants",
@@ -210,13 +184,17 @@ export class AchievementModal {
                 this.selectedBadgeId = badgeId;
                 modal
                     .querySelectorAll(".achievement-badge-card")
-                    .forEach((c) => c.classList.remove("selected"));
+                    .forEach((c) => {
+                        c.classList.remove("selected");
+                        c.setAttribute("aria-pressed", "false");
+                    });
                 e.currentTarget.classList.add("selected");
+                e.currentTarget.setAttribute("aria-pressed", "true");
             });
         });
 
         // Save button
-        const saveBtn = document.getElementById("achievement-save-btn");
+        const saveBtn = modal.querySelector("#achievement-save-btn");
         if (saveBtn) {
             saveBtn.addEventListener("click", () => this.handleSave());
         }
@@ -224,7 +202,7 @@ export class AchievementModal {
 
     handleSave() {
         // Gather selected participants
-        const modal = document.getElementById(this.modalId);
+        const modal = this.handle?.overlay;
         const checkedBoxes =
             modal?.querySelectorAll(
                 ".achievement-participant-checkbox:checked",

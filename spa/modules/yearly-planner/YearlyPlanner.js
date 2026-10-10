@@ -10,7 +10,7 @@ import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { skeletonTable } from '../../utils/SkeletonUtils.js';
-import { openModal } from '../../utils/ModalUtils.js';
+import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { CONFIG } from '../../config.js';
 import { buildYearModel } from './PlannerModel.js';
 import { renderYearGrid, renderYearSummary, renderArmBar, renderLiveRegion } from './YearGridView.js';
@@ -1048,98 +1048,72 @@ export class YearlyPlanner extends BaseModule {
   // =========================================================================
 
   showCreatePlanModal() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'yp-modal';
-    setContent(modal, `
-      <div class="modal">
-        <div class="modal__header">
-          <h2>${translate('yearly_planner_create')}</h2>
-          <button class="modal__close" id="yp-modal-close">&times;</button>
+    const { overlay: modal } = openModal({
+      id: 'yp-modal',
+      title: translate('yearly_planner_create'),
+      body: `
+        <div class="form-group">
+          <label for="yp-plan-title">${translate('yearly_planner_plan_title')}</label>
+          <input type="text" id="yp-plan-title" class="input" required />
         </div>
-        <div class="modal__body">
+        <div class="form-row">
           <div class="form-group">
-            <label>${translate('yearly_planner_plan_title')}</label>
-            <input type="text" id="yp-plan-title" class="input" required />
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>${translate('yearly_planner_start_date')}</label>
-              <input type="date" id="yp-plan-start" class="input" required />
-            </div>
-            <div class="form-group">
-              <label>${translate('yearly_planner_end_date')}</label>
-              <input type="date" id="yp-plan-end" class="input" required />
-            </div>
+            <label for="yp-plan-start">${translate('yearly_planner_start_date')}</label>
+            <input type="date" id="yp-plan-start" class="input" required />
           </div>
           <div class="form-group">
-            <label>${translate('yearly_planner_default_location')}</label>
-            <input type="text" id="yp-plan-location" class="input" />
-          </div>
-          <div class="form-group">
-            <label>${translate('yearly_planner_recurrence')}</label>
-            <select id="yp-plan-recurrence" class="input">
-              <option value="weekly">${translate('yearly_planner_weekly')}</option>
-              <option value="biweekly">${translate('yearly_planner_biweekly')}</option>
-            </select>
+            <label for="yp-plan-end">${translate('yearly_planner_end_date')}</label>
+            <input type="date" id="yp-plan-end" class="input" required />
           </div>
         </div>
-        <div class="modal__footer">
-          <button class="button button--secondary" id="yp-modal-cancel">${translate('cancel')}</button>
-          <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
+        <div class="form-group">
+          <label for="yp-plan-location">${translate('yearly_planner_default_location')}</label>
+          <input type="text" id="yp-plan-location" class="input" />
         </div>
-      </div>
-    `);
-    document.body.appendChild(modal);
-
-    modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-cancel').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleCreatePlan(modal));
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.remove();
+        <div class="form-group">
+          <label for="yp-plan-recurrence">${translate('yearly_planner_recurrence')}</label>
+          <select id="yp-plan-recurrence" class="input">
+            <option value="weekly">${translate('yearly_planner_weekly')}</option>
+            <option value="biweekly">${translate('yearly_planner_biweekly')}</option>
+          </select>
+        </div>
+      `,
+      footer: `
+        <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="button" class="button button--primary" id="yp-modal-save">${translate('save')}</button>
+      `,
     });
+
+    modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleCreatePlan(modal));
   }
 
   showCreatePeriodModal() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'yp-modal';
-    setContent(modal, `
-      <div class="modal">
-        <div class="modal__header">
-          <h2>${translate('yearly_planner_add_period')}</h2>
-          <button class="modal__close" id="yp-modal-close">&times;</button>
+    const { overlay: modal } = openModal({
+      id: 'yp-modal',
+      title: translate('yearly_planner_add_period'),
+      body: `
+        <div class="form-group">
+          <label for="yp-period-title">${translate('yearly_planner_period_title')}</label>
+          <input type="text" id="yp-period-title" class="input" required />
         </div>
-        <div class="modal__body">
+        <div class="form-row">
           <div class="form-group">
-            <label>${translate('yearly_planner_period_title')}</label>
-            <input type="text" id="yp-period-title" class="input" required />
+            <label for="yp-period-start">${translate('yearly_planner_start_date')}</label>
+            <input type="date" id="yp-period-start" class="input" required />
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>${translate('yearly_planner_start_date')}</label>
-              <input type="date" id="yp-period-start" class="input" required />
-            </div>
-            <div class="form-group">
-              <label>${translate('yearly_planner_end_date')}</label>
-              <input type="date" id="yp-period-end" class="input" required />
-            </div>
+          <div class="form-group">
+            <label for="yp-period-end">${translate('yearly_planner_end_date')}</label>
+            <input type="date" id="yp-period-end" class="input" required />
           </div>
         </div>
-        <div class="modal__footer">
-          <button class="button button--secondary" id="yp-modal-cancel">${translate('cancel')}</button>
-          <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
-        </div>
-      </div>
-    `);
-    document.body.appendChild(modal);
-
-    modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-cancel').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleCreatePeriod(modal));
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.remove();
+      `,
+      footer: `
+        <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="button" class="button button--primary" id="yp-modal-save">${translate('save')}</button>
+      `,
     });
+
+    modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleCreatePeriod(modal));
   }
 
   showCreateObjectiveModal() {
@@ -1147,116 +1121,90 @@ export class YearlyPlanner extends BaseModule {
     const objectives = this.currentPlan?.objectives || [];
     const rootObjectives = objectives.filter(o => !o.parent_id);
 
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'yp-modal';
-    setContent(modal, `
-      <div class="modal">
-        <div class="modal__header">
-          <h2>${translate('yearly_planner_add_objective')}</h2>
-          <button class="modal__close" id="yp-modal-close">&times;</button>
+    const { overlay: modal } = openModal({
+      id: 'yp-modal',
+      title: translate('yearly_planner_add_objective'),
+      body: `
+        <div class="form-group">
+          <label for="yp-obj-title">${translate('yearly_planner_objective_title')}</label>
+          <input type="text" id="yp-obj-title" class="input" required />
         </div>
-        <div class="modal__body">
+        <div class="form-group">
+          <label for="yp-obj-desc">${translate('yearly_planner_objective_description')}</label>
+          <textarea id="yp-obj-desc" class="input" rows="3"></textarea>
+        </div>
+        <div class="form-row">
           <div class="form-group">
-            <label>${translate('yearly_planner_objective_title')}</label>
-            <input type="text" id="yp-obj-title" class="input" required />
-          </div>
-          <div class="form-group">
-            <label>${translate('yearly_planner_objective_description')}</label>
-            <textarea id="yp-obj-desc" class="input" rows="3"></textarea>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>${translate('period')}</label>
-              <select id="yp-obj-period" class="input">
-                <option value="">${translate('yearly_planner_none')}</option>
-                ${periods.map(p => `<option value="${p.id}">${escapeHTML(p.title)}</option>`).join('')}
-              </select>
-            </div>
-            <div class="form-group">
-              <label>${translate('yearly_planner_scope')}</label>
-              <select id="yp-obj-scope" class="input">
-                <option value="unit">${translate('yearly_planner_scope_unit')}</option>
-                <option value="participant">${translate('yearly_planner_scope_participant')}</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>${translate('yearly_planner_parent_objective')}</label>
-            <select id="yp-obj-parent" class="input">
+            <label for="yp-obj-period">${translate('period')}</label>
+            <select id="yp-obj-period" class="input">
               <option value="">${translate('yearly_planner_none')}</option>
-              ${rootObjectives.map(o => `<option value="${o.id}">${escapeHTML(o.title)}</option>`).join('')}
+              ${periods.map(p => `<option value="${p.id}">${escapeHTML(p.title)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="yp-obj-scope">${translate('yearly_planner_scope')}</label>
+            <select id="yp-obj-scope" class="input">
+              <option value="unit">${translate('yearly_planner_scope_unit')}</option>
+              <option value="participant">${translate('yearly_planner_scope_participant')}</option>
             </select>
           </div>
         </div>
-        <div class="modal__footer">
-          <button class="button button--secondary" id="yp-modal-cancel">${translate('cancel')}</button>
-          <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
+        <div class="form-group">
+          <label for="yp-obj-parent">${translate('yearly_planner_parent_objective')}</label>
+          <select id="yp-obj-parent" class="input">
+            <option value="">${translate('yearly_planner_none')}</option>
+            ${rootObjectives.map(o => `<option value="${o.id}">${escapeHTML(o.title)}</option>`).join('')}
+          </select>
         </div>
-      </div>
-    `);
-    document.body.appendChild(modal);
-
-    modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-cancel').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleCreateObjective(modal));
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.remove();
+      `,
+      footer: `
+        <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="button" class="button button--primary" id="yp-modal-save">${translate('save')}</button>
+      `,
     });
+
+    modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleCreateObjective(modal));
   }
 
   showAddLibraryActivityModal() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'yp-modal';
-    setContent(modal, `
-      <div class="modal">
-        <div class="modal__header">
-          <h2>${translate('yearly_planner_add_library_activity')}</h2>
-          <button class="modal__close" id="yp-modal-close">&times;</button>
+    const { overlay: modal } = openModal({
+      id: 'yp-modal',
+      title: translate('yearly_planner_add_library_activity'),
+      body: `
+        <div class="form-group">
+          <label for="yp-lib-name">${translate('activity_label')}</label>
+          <input type="text" id="yp-lib-name" class="input" required />
         </div>
-        <div class="modal__body">
+        <div class="form-group">
+          <label for="yp-lib-desc">${translate('activity_description_label')}</label>
+          <textarea id="yp-lib-desc" class="input" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="yp-lib-category">${translate('yearly_planner_category')}</label>
+          <input type="text" id="yp-lib-category" class="input" />
+        </div>
+        <div class="form-row">
           <div class="form-group">
-            <label>${translate('activity_label')}</label>
-            <input type="text" id="yp-lib-name" class="input" required />
+            <label for="yp-lib-min-dur">${translate('yearly_planner_min_duration')}</label>
+            <input type="number" id="yp-lib-min-dur" class="input" min="5" />
           </div>
           <div class="form-group">
-            <label>${translate('activity_description_label')}</label>
-            <textarea id="yp-lib-desc" class="input" rows="2"></textarea>
-          </div>
-          <div class="form-group">
-            <label>${translate('yearly_planner_category')}</label>
-            <input type="text" id="yp-lib-category" class="input" />
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>${translate('yearly_planner_min_duration')}</label>
-              <input type="number" id="yp-lib-min-dur" class="input" min="5" />
-            </div>
-            <div class="form-group">
-              <label>${translate('yearly_planner_max_duration')}</label>
-              <input type="number" id="yp-lib-max-dur" class="input" min="5" />
-            </div>
-          </div>
-          <div class="form-group">
-            <label>${translate('yearly_planner_material')}</label>
-            <textarea id="yp-lib-material" class="input" rows="2"></textarea>
+            <label for="yp-lib-max-dur">${translate('yearly_planner_max_duration')}</label>
+            <input type="number" id="yp-lib-max-dur" class="input" min="5" />
           </div>
         </div>
-        <div class="modal__footer">
-          <button class="button button--secondary" id="yp-modal-cancel">${translate('cancel')}</button>
-          <button class="button button--primary" id="yp-modal-save">${translate('save')}</button>
+        <div class="form-group">
+          <label for="yp-lib-material">${translate('yearly_planner_material')}</label>
+          <textarea id="yp-lib-material" class="input" rows="2"></textarea>
         </div>
-      </div>
-    `);
-    document.body.appendChild(modal);
-
-    modal.querySelector('#yp-modal-close').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-cancel').addEventListener('click', () => modal.remove());
-    modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleAddLibraryActivity(modal));
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.remove();
+      `,
+      footer: `
+        <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="button" class="button button--primary" id="yp-modal-save">${translate('save')}</button>
+      `,
     });
+
+    modal.querySelector('#yp-modal-save').addEventListener('click', () => this.handleAddLibraryActivity(modal));
   }
 
   // =========================================================================
@@ -1277,7 +1225,7 @@ export class YearlyPlanner extends BaseModule {
 
     try {
       await createYearPlan({ title, start_date, end_date, default_location, recurrence_pattern });
-      modal.remove();
+      closeModal('yp-modal');
       this.app.showMessage(translate('yearly_planner_plan_created'), 'success');
       await this.loadPlans();
       this.render();
@@ -1300,7 +1248,7 @@ export class YearlyPlanner extends BaseModule {
 
     try {
       await createPeriod(this.currentPlan.id, { title, start_date, end_date });
-      modal.remove();
+      closeModal('yp-modal');
       this.app.showMessage(translate('yearly_planner_period_created'), 'success');
       await this.loadPlanDetail(this.currentPlan.id);
     } catch (err) {
@@ -1328,7 +1276,7 @@ export class YearlyPlanner extends BaseModule {
         scope,
         parent_id: parent_id ? parseInt(parent_id) : null
       });
-      modal.remove();
+      closeModal('yp-modal');
       this.app.showMessage(translate('yearly_planner_objective_created'), 'success');
       await this.loadPlanDetail(this.currentPlan.id);
     } catch (err) {
@@ -1355,7 +1303,7 @@ export class YearlyPlanner extends BaseModule {
         name, description, category,
         estimated_duration_min, estimated_duration_max, material
       });
-      modal.remove();
+      closeModal('yp-modal');
       this.app.showMessage(translate('yearly_planner_library_activity_added'), 'success');
       await this.loadLibrary();
       this.render();

@@ -283,7 +283,7 @@ export class Router {
     const activeElement = document.activeElement;
     if (activeElement instanceof HTMLElement && activeElement !== document.body) {
       const insideOverlay = activeElement.closest(
-        '.modal, .modal-container, .modal-screen, .modal-overlay, .dash-settings, .dialog-overlay',
+        '.modal, .modal-container, .modal-screen, .modal-overlay, .dialog-overlay',
       );
       if (insideOverlay) {
         activeElement.blur();
@@ -291,7 +291,7 @@ export class Router {
     }
 
     const appRoot = document.getElementById('app');
-    const transientSelectors = '.modal, .modal-container, .modal-screen, .modal-overlay, .dash-settings, .dialog-overlay';
+    const transientSelectors = '.modal, .modal-container, .modal-screen, .modal-overlay, .dialog-overlay';
     document.querySelectorAll(transientSelectors).forEach((el) => {
       // Overlays inside #app are replaced by the next render anyway.
       if (appRoot && appRoot.contains(el)) {
@@ -305,8 +305,6 @@ export class Router {
         top.remove();
       }
     });
-
-    document.body.classList.remove('dash-settings-open');
 
     // Release any body scroll lock the previous screen was holding. Without
     // this a report modal left open during navigation freezes the destination

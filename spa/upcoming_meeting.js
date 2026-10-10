@@ -9,6 +9,7 @@ import { getReunionDates, getReunionPreparation, saveBadgeProgress, getParticipa
 import { markMeetingActivitiesProcessed } from "./api/api-endpoints.js";
 import { formatDate, isToday, parseDate } from "./utils/DateUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { openModal, closeModal } from './utils/ModalUtils.js';
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { canApproveBadges } from "./utils/PermissionUtils.js";
 import { getUpcomingBirthdays } from "./utils/BirthdayUtils.js";
@@ -597,32 +598,22 @@ export class UpcomingMeeting {
             `;
     }).join('');
 
-    const modalContent = `
-            <div id="award-modal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
-                    <div class="modal-content" style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px;">
-                            <h2>${translate("award_planned_achievements")}</h2>
-                            <p>${translate("confirm_award_instructions") || "Please confirm the achievements to award:"}</p>
-                            ${presentParticipantIds.length === 0 ? `<p style="color: orange;">⚠ ${translate("no_attendance_warning") || "No attendance data found. Defaulting to all participants."}</p>` : ''}
-                            <div class="award-list">
-                                    ${rows}
-                            </div>
-                            <div style="margin-top: 20px; text-align: right;">
-                                    <button class="button button--ghost" id="close-award-modal">${translate("cancel")}</button>
-                                    <button class="button button--primary" id="confirm-award-btn">${translate("confirm")}</button>
-                            </div>
-                    </div>
-            </div>
-    `;
+    const { overlay } = openModal({
+      id: 'award-modal',
+      title: translate('award_planned_achievements'),
+      body: `
+        <p>${translate("confirm_award_instructions") || "Please confirm the achievements to award:"}</p>
+        ${presentParticipantIds.length === 0 ? `<p class="warning-text"><span aria-hidden="true">⚠</span> ${translate("no_attendance_warning") || "No attendance data found. Defaulting to all participants."}</p>` : ''}
+        <div class="award-list">${rows}</div>
+      `,
+      footer: `
+        <button type="button" class="button button--ghost" data-modal-close>${translate("cancel")}</button>
+        <button type="button" class="button button--primary" id="confirm-award-btn">${translate("confirm")}</button>
+      `,
+    });
 
-    // Inject Modal
-    const modalContainer = document.createElement('div');
-    setContent(modalContainer, modalContent);
-    document.body.appendChild(modalContainer);
-
-    // Event Listeners
-    document.getElementById('close-award-modal').addEventListener('click', () => modalContainer.remove());
-    document.getElementById('confirm-award-btn').addEventListener('click', () => {
-      this.processAwards(achievements, modalContainer);
+    overlay.querySelector('#confirm-award-btn').addEventListener('click', () => {
+      this.processAwards(achievements, overlay);
     });
   }
 
@@ -682,7 +673,7 @@ export class UpcomingMeeting {
         await markMeetingActivitiesProcessed(processedIds);
       }
 
-      modalContainer.remove();
+      closeModal('award-modal');
       this.app.showMessage(translate("achievements_awarded_success"), "success");
       this.render(); // Re-render to hide button
     } catch (error) {
