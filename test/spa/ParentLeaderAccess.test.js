@@ -89,3 +89,28 @@ describe('roleLabel', () => {
     expect(roleLabel(null)).toBe('');
   });
 });
+
+describe('guardian access is not a persona choice', () => {
+  // The router cannot be instantiated under Jest without the whole
+  // application; read its source, as FamilyAccessRoutes does.
+  const fs = require('fs');
+  const path = require('path');
+  const routerSource = fs.readFileSync(path.join(__dirname, '../../spa/router.js'), 'utf8');
+  const dashboardSource = fs.readFileSync(path.join(__dirname, '../../spa/dashboard.js'), 'utf8');
+
+  test('no page grants access because the person is parent-only', () => {
+    // isParent() is false for a parent who is also a leader; as an access
+    // alternative it took their own children's pages away from them.
+    expect(routerSource).not.toMatch(/guard\(isParent\(\)/);
+    expect(dashboardSource).not.toMatch(/return isParent\(\) \|\|/);
+  });
+
+  test('a parent who is also a leader keeps their child\'s medication pages', () => {
+    expect(routerSource).toMatch(
+      /case "medicationPlanningParticipant":\s*if \(!guard\(holdsFamilyRole\(\) \|\| canViewMedication\(\)\)\)/
+    );
+    expect(routerSource).toMatch(
+      /case "medicationAuthorizationsParticipant":\s*if \(!guard\(holdsFamilyRole\(\) \|\| canViewMedication\(\)\)\)/
+    );
+  });
+});

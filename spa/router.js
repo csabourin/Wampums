@@ -48,7 +48,8 @@ import {
   canViewMeetings,
   canManageMeetings,
   hasPermission,
-  isParent
+  isParent,
+  holdsFamilyRole
 } from "./utils/PermissionUtils.js";
 
 function canAccessFinanceWorkspace() {
@@ -406,7 +407,7 @@ export class Router {
       // signed-out visitor is sent to login like on every other private page.
       const dynamicFormMatch = path.split("?")[0].match(/^\/dynamic-form\/([^/]+)\/(\d+)$/);
       if (dynamicFormMatch) {
-        if (guard(isParent() || canViewParticipants())) {
+        if (guard(holdsFamilyRole() || canViewParticipants())) {
           await this.loadDynamicForm(decodeURIComponent(dynamicFormMatch[1]), dynamicFormMatch[2]);
         }
         return;
@@ -526,7 +527,7 @@ export class Router {
           await medicationManagement.init();
           break;
         case "medicationPlanningParticipant":
-          if (!guard(isParent() || canViewMedication())) {
+          if (!guard(holdsFamilyRole() || canViewMedication())) {
             break;
           }
           const MedicationManagementParticipant = await this.loadModule('MedicationManagement');
@@ -534,13 +535,13 @@ export class Router {
           const medicationManagementParticipant = new MedicationManagementParticipant(this.app, {
             view: "planning",
             participantId: participantId,
-            returnUrl: isParent() ? '/parent-dashboard' : '/medication-reception'
+            returnUrl: isParent() || !canViewMedication() ? '/parent-dashboard' : '/medication-reception'
           });
           this.currentModuleInstance = medicationManagementParticipant;
           await medicationManagementParticipant.init();
           break;
         case "medicationAuthorizationsParticipant":
-          if (!guard(isParent() || canViewMedication())) {
+          if (!guard(holdsFamilyRole() || canViewMedication())) {
             break;
           }
           const MedicationManagementAuth = await this.loadModule('MedicationManagement');
@@ -548,7 +549,7 @@ export class Router {
           const medicationManagementAuth = new MedicationManagementAuth(this.app, {
             view: "authorizations",
             participantId: authParticipantId,
-            returnUrl: isParent() ? '/parent-dashboard' : '/medication-planning'
+            returnUrl: isParent() || !canViewMedication() ? '/parent-dashboard' : '/medication-planning'
           });
           this.currentModuleInstance = medicationManagementAuth;
           await medicationManagementAuth.init();
@@ -770,7 +771,7 @@ export class Router {
           await this.loadUpcomingMeeting();
           break;
         case "formulaireInscription":
-          if (!guard(isParent() || canViewParticipants())) {
+          if (!guard(holdsFamilyRole() || canViewParticipants())) {
             break;
           }
           await this.loadFormulaireInscription(param);
@@ -873,7 +874,7 @@ export class Router {
           await this.loadProgramProgressDashboard();
           break;
         case "parentProgramProgress":
-          if (!guard(isParent() || canViewParticipants())) {
+          if (!guard(holdsFamilyRole() || canViewParticipants())) {
             break;
           }
           await this.loadParentProgramProgress();
@@ -912,7 +913,7 @@ export class Router {
           await activities.init();
           break;
         case "carpoolLanding":
-          if (!guard(isParent() || canViewCarpools())) {
+          if (!guard(holdsFamilyRole() || canViewCarpools())) {
             break;
           }
           const CarpoolLanding = await this.loadModule('CarpoolLanding');
@@ -921,7 +922,7 @@ export class Router {
           await carpoolLanding.init();
           break;
         case "carpool":
-          if (!guard(isParent() || canViewCarpools())) {
+          if (!guard(holdsFamilyRole() || canViewCarpools())) {
             break;
           }
           const CarpoolDashboard = await this.loadModule('CarpoolDashboard');
