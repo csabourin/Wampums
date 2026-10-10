@@ -97,6 +97,51 @@ async function sendSubscriptionToServer(subscription) {
         }
 }
 
+/**
+ * Load one language's translation bundle.
+ *
+ * index.html starts the visitor's language download before this code arrives
+ * (see earlyTranslationsPlugin in vite.config.mjs); that request is reused
+ * once. Other loads ask for the build's version of the bundle, which the
+ * server and service worker cache for good.
+ *
+ * @param {string} langCode - Language code, e.g. 'fr'
+ * @returns {Promise<Object>} Translation keys
+ */
+async function fetchTranslationBundle(langCode) {
+  const early = window.__wampumsTranslations;
+  if (early && early.lang === langCode) {
+    window.__wampumsTranslations = null;
+    try {
+      return await early.response;
+    } catch (error) {
+      debugWarn(`Early translation request for ${langCode} failed, retrying:`, error);
+    }
+  }
+
+  const version = window.__wampumsLangVersions?.[langCode];
+  const url = version ? `/lang/${langCode}.json?v=${version}` : `/lang/${langCode}.json`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch translation file for ${langCode}`);
+  }
+  return response.json();
+}
+
+const ORGANIZATION_SETTINGS_PERMISSION = 'org.view';
+
+/**
+ * Whether this session may read the full organization settings. Parents and
+ * other accounts without `org.view` would get a 403 there; they read the
+ * public settings directly instead of after a failed round trip.
+ *
+ * @param {string[]} permissions - The session's permissions
+ * @returns {boolean}
+ */
+function canReadFullOrganizationSettings(permissions) {
+  return Array.isArray(permissions) && permissions.includes(ORGANIZATION_SETTINGS_PERMISSION);
+}
+
 export const app = {
         isLoggedIn: false,
         userRole: null, // Primary role (for backward compatibility)
@@ -353,7 +398,8 @@ export const app = {
 
                         if (!response) {
                                 const hasJwtToken = !!getStorage('jwtToken');
-                                const isAuthenticatedContext = this.isLoggedIn && hasJwtToken;
+                                const isAuthenticatedContext = this.isLoggedIn && hasJwtToken
+                                        && canReadFullOrganizationSettings(this.userPermissions);
                                 response = isAuthenticatedContext
                                         ? await getOrganizationSettings()
                                         : await getPublicOrganizationSettings();
@@ -394,12 +440,7 @@ export const app = {
                 }
                 try {
                         debugLog(`Loading translation for ${langCode}...`);
-                        const response = await fetch(`/lang/${langCode}.json`);
-                        if (!response.ok) {
-                                throw new Error(`Failed to fetch translation file for ${langCode}`);
-                        }
-                        const data = await response.json();
-                        this.translations[langCode] = data;
+                        this.translations[langCode] = await fetchTranslationBundle(langCode);
                         debugLog(`Translation for ${langCode} loaded successfully`);
                 } catch (error) {
                         debugError(`Error loading translation for ${langCode}:`, error);
@@ -420,12 +461,7 @@ export const app = {
                                 if (this.translations[langCode]) {
                                         return [langCode, this.translations[langCode]];
                                 }
-                                const response = await fetch(`/lang/${langCode}.json`);
-                                if (!response.ok) {
-                                        throw new Error(`Failed to fetch translation file for ${langCode}`);
-                                }
-                                const data = await response.json();
-                                return [langCode, data];
+                                return [langCode, await fetchTranslationBundle(langCode)];
                         });
 
                         const resolvedTranslations = await Promise.all(translationFetches);
@@ -827,7 +863,8 @@ if (storedOrgId && storedOrgId !== '[object Object]' && !storedOrgId.startsWith(
 
         // Check if user is logged in to determine which endpoint to use
         const jwtToken = getStorage('jwtToken');
-        const isLoggedIn = !!jwtToken;
+        const useFullSettings = !!jwtToken
+                && canReadFullOrganizationSettings(checkSession().userPermissions);
 
         // Determine if we are on a public page (where we shouldn't force auth).
         // '/permission-slip/' keeps the trailing slash so the staff dashboard
@@ -837,7 +874,7 @@ if (storedOrgId && storedOrgId !== '[object Object]' && !storedOrgId.startsWith(
 
         // Use public endpoint for unauthenticated users OR if on a public page
         // to avoid 401 errors that might trigger redirects
-        window.earlyOrgSettingsFetch = (isLoggedIn && !isPublicPage)
+        window.earlyOrgSettingsFetch = (useFullSettings && !isPublicPage)
                 ? getOrganizationSettings().catch(error => {
                         debugError("Early org settings fetch failed, will retry later:", error);
                         return null;

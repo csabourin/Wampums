@@ -13,6 +13,7 @@
  * is an actual exception to make.
  */
 
+import scoutYearStylesheetUrl from '../../../css/scout-year.css?url';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { translate } from '../../app.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
@@ -78,7 +79,7 @@ export class ScoutYearTransition extends BaseModule {
     const container = document.getElementById('app');
     setContent(container, `<div class="page-loading">${translate('loading')}</div>`);
 
-    await loadStylesheet('/css/scout-year.css');
+    await loadStylesheet(scoutYearStylesheetUrl);
 
     try {
       await this.loadData();

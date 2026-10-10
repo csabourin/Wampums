@@ -147,7 +147,31 @@ registerRoute(
   })
 );
 
-// 4c. Translation files (NetworkFirst - cache only as the offline fallback).
+// One entry per supported language for the current and the previous build.
+const VERSIONED_TRANSLATIONS_MAX_ENTRIES = 6;
+const VERSIONED_TRANSLATIONS_MAX_AGE_SECONDS = 2592000; // 30 days
+const HTTP_OK = 200;
+
+// 4c. Versioned translation files (CacheFirst). The app asks for
+// /lang/<code>.json?v=<content version>, stamped by the build: a cached answer
+// for that exact URL is that build's bundle, so it can be served without
+// asking the network, and it keeps the app usable offline. Registered before
+// the unversioned route below, which would otherwise match first.
+registerRoute(
+  ({ url }) => url.pathname.startsWith('/lang/') && url.pathname.endsWith('.json') && url.searchParams.has('v'),
+  new CacheFirst({
+    cacheName: 'translations-versioned-cache',
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: VERSIONED_TRANSLATIONS_MAX_ENTRIES,
+        maxAgeSeconds: VERSIONED_TRANSLATIONS_MAX_AGE_SECONDS,
+      }),
+      new CacheableResponsePlugin({ statuses: [HTTP_OK] }),
+    ],
+  })
+);
+
+// 4c'. Unversioned translation files (NetworkFirst - cache only as the offline fallback).
 // The URL carries no build hash, so serving the cached copy first would pair a
 // freshly deployed bundle with the previous build's keys and show raw key names
 // until the next load. No network timeout, for the same reason: a timeout would

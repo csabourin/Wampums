@@ -1,3 +1,4 @@
+import formReviewStylesheetUrl from '../css/form-review.css?url';
 import {
         getCurrentOrganizationId,
         getAuthHeader,
@@ -68,49 +69,38 @@ export class ParentDashboard {
 
         async init() {
                 let hasErrors = false;
+                // Run one step; a failure (thrown or rejected) is logged and the page
+                // still renders with what the other steps loaded.
+                const attempt = (step, message) => Promise.resolve()
+                        .then(step)
+                        .catch((error) => {
+                                debugError(message, error);
+                                hasErrors = true;
+                        });
 
-                try {
-                        await this.fetchParticipants();
-                } catch (error) {
-                        debugError('Error fetching participants:', error);
-                        hasErrors = true;
-                        // Continue with empty participants
-                }
-
-                try {
-                        await this.fetchFormFormats();
-                } catch (error) {
-                        debugError('Error fetching form formats:', error);
-                        hasErrors = true;
-                        // Continue with empty form formats
-                }
-
-                try {
-                        await this.fetchParticipantStatements();
-                } catch (error) {
-                        debugError(
-                                'Error fetching participant statements:',
-                                error,
-                        );
-                        hasErrors = true;
-                        // Continue with empty statements
-                }
-
-                try {
-                        await this.fetchPermissionSlips();
-                } catch (error) {
-                        debugError('Error fetching permission slips:', error);
-                        hasErrors = true;
-                }
-
-                this.hiddenButtons = await loadHiddenParentDashboardButtons(this.app?.organizationSettings, getPublicOrganizationSettings);
+                // Only the statements and permission slips need the children; every
+                // other request starts at once instead of one after another.
+                const loadStatements = () => attempt(() => this.fetchParticipantStatements(), 'Error fetching participant statements:');
+                const loadPermissionSlips = () => attempt(() => this.fetchPermissionSlips(), 'Error fetching permission slips:');
+                const perChildReady = attempt(() => this.fetchParticipants(), 'Error fetching participants:')
+                        .then(() => Promise.all([loadStatements(), loadPermissionSlips()]));
+                const formFormatsReady = attempt(() => this.fetchFormFormats(), 'Error fetching form formats:');
+                const hiddenButtonsReady = loadHiddenParentDashboardButtons(this.app?.organizationSettings, getPublicOrganizationSettings);
 
                 // The two reminder lists are independent: one failing must not hide
                 // the other, and neither may hide the dashboard.
-                const [reviewResult, signatureResult] = await Promise.allSettled([
+                const remindersReady = Promise.allSettled([
                         getFormsNeedingReview(),
                         getAuthorizationsPendingSignature(),
                 ]);
+
+                const [, , hiddenButtons, [reviewResult, signatureResult]] = await Promise.all([
+                        perChildReady,
+                        formFormatsReady,
+                        hiddenButtonsReady,
+                        remindersReady,
+                ]);
+                this.hiddenButtons = hiddenButtons;
 
                 if (reviewResult.status === 'fulfilled') {
                         this.formsToReview = reviewResult.value;
@@ -130,7 +120,7 @@ export class ParentDashboard {
                 }
 
                 if (this.formsToReview.length || this.authorizationsToSign.length) {
-                        await loadStylesheet('/css/form-review.css');
+                        await loadStylesheet(formReviewStylesheetUrl);
                 }
 
                 // Always render the page, even with partial data

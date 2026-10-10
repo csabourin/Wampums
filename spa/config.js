@@ -9,6 +9,7 @@
  *   debugLog(CONFIG.API_BASE_URL);
  */
 import { debugLog } from "./utils/DebugUtils.js";
+import { DEFAULT_LANG, SUPPORTED_LANGS } from "./config/languages.js";
 
 /**
  * Determine if debug mode is enabled
@@ -74,7 +75,7 @@ export const CONFIG = {
     /**
      * Default Language
      */
-    DEFAULT_LANG: "fr",
+    DEFAULT_LANG,
 
     /**
      * Default currency for financial displays
@@ -91,7 +92,7 @@ export const CONFIG = {
     /**
      * Supported Languages
      */
-    SUPPORTED_LANGS: ["en", "fr"],
+    SUPPORTED_LANGS,
 
     /**
      * Storage Keys

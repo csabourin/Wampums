@@ -9,6 +9,7 @@ const ejs = require("ejs");
 const { sanitizeServerErrorResponses } = require("./response");
 const { getStorageImageOrigins } = require("../utils/railway-storage");
 const { isAllowedOrigin } = require("../config/cors");
+const { staticCacheControl } = require("../utils/static-cache");
 
 const isProduction = process.env.NODE_ENV === "production";
 const REQUEST_BODY_LIMIT = "20mb";
@@ -439,13 +440,16 @@ module.exports = (app) => {
     app.use('/vendor/fontawesome', express.static(path.join(process.cwd(), 'node_modules/@fortawesome/fontawesome-free')));
 
     app.use(express.static(staticDir, {
-        setHeaders: (res, filepath) => {
-            if (isProduction && filepath.includes("-") && (filepath.endsWith(".js") || filepath.endsWith(".css"))) {
-                res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-            } else if (isProduction && /\.(js|css|png|jpg|webp)$/.test(filepath)) {
-                res.setHeader("Cache-Control", "public, max-age=2592000");
-            } else if (!isProduction && /\.(js|css)$/.test(filepath)) {
-                res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        setHeaders: (res, filepath, stat) => {
+            const cacheControl = staticCacheControl({
+                filePath: filepath,
+                staticRoot: staticDir,
+                isProduction,
+                requestedVersion: res.req?.query?.v,
+                stat,
+            });
+            if (cacheControl) {
+                res.setHeader("Cache-Control", cacheControl);
             }
         }
     }));

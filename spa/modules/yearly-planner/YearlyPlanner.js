@@ -1,5 +1,6 @@
 // YearlyPlanner.js
 // Yearly Meeting Planner module - Plan an entire year of meetings, periods, and objectives
+import yearlyPlannerStylesheetUrl from '../../../css/yearly-planner.css?url';
 import { translate } from '../../app.js';
 import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
@@ -79,7 +80,7 @@ export class YearlyPlanner extends BaseModule {
    * @returns {Promise<void>}
    */
   async init(planId = null) {
-    await loadStylesheet('/css/yearly-planner.css');
+    await loadStylesheet(yearlyPlannerStylesheetUrl);
 
     // Escape abandons a placement from anywhere. Registered through BaseModule
     // so the router's destroy() takes it away with the module.

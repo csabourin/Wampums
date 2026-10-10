@@ -7,6 +7,7 @@
  * @module spa/modules/family-access/styles
  */
 
+import familyAccessStylesheetUrl from '../../../css/family-access.css?url';
 import { loadStylesheet } from '../../utils/DOMUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 
@@ -17,7 +18,7 @@ import { debugError } from '../../utils/DebugUtils.js';
  * @returns {void}
  */
 export function loadFamilyAccessStyles() {
-  loadStylesheet('/css/family-access.css').catch((error) => {
+  loadStylesheet(familyAccessStylesheetUrl).catch((error) => {
     debugError('Failed to load family access styles:', error);
   });
 }

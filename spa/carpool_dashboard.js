@@ -1,5 +1,6 @@
 // carpool_dashboard.js
 // Carpool coordination dashboard for parents and staff with carpool permissions
+import carpoolStylesheetUrl from '../css/carpool.css?url';
 import { translate } from './app.js';
 import {
   getActivity,
@@ -51,7 +52,7 @@ export class CarpoolDashboard {
 
   async init() {
     // Load page-specific CSS
-    await loadStylesheet("/css/carpool.css");
+    await loadStylesheet(carpoolStylesheetUrl);
 
     if (!this.hasCarpoolAccess) {
       this.app.router.navigate("/dashboard");

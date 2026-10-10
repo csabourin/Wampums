@@ -2,9 +2,15 @@ import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import fs from "node:fs";
 import path from "node:path";
+import { createRequire } from "node:module";
 // Removed legacy plugin to reduce bundle size - targeting modern browsers only
 // import legacy from '@vitejs/plugin-legacy';
 import { visualizer } from "rollup-plugin-visualizer";
+import {
+  DEFAULT_LANG,
+  LANG_STORAGE_KEY,
+  SUPPORTED_LANGS,
+} from './spa/config/languages.js';
 
 /**
  * Copy translation bundles from the backend `lang/` directory into `dist/lang/`
@@ -59,6 +65,84 @@ function copyStaticCssPlugin() {
           path.join(targetDir, fileName),
         );
       }
+    },
+  };
+}
+
+// Shared with the server (CommonJS), which must compute the same versions.
+// Vite bundles this config, so resolve it from the project, not this file.
+const { contentVersion } = createRequire(path.join(process.cwd(), 'package.json'))('./utils/asset-version.js');
+
+/**
+ * Start downloading the visitor's translations from index.html, in parallel
+ * with the app's JavaScript, instead of after it has loaded and run.
+ *
+ * Each bundle is requested as `/lang/<code>.json?v=<content version>`; the
+ * server answers a matching version as immutable (see middleware/global.js),
+ * so a returning visitor reads it from cache, and a new build -- whose bundles
+ * have new versions -- is never paired with the previous build's keys.
+ * spa/app.js reuses the request started here (`window.__wampumsTranslations`)
+ * and the versions (`window.__wampumsLangVersions`) for language switches.
+ */
+function earlyTranslationsPlugin() {
+  const versions = Object.fromEntries(
+    SUPPORTED_LANGS.map((code) => [
+      code,
+      contentVersion(fs.readFileSync(path.join(process.cwd(), 'lang', `${code}.json`))),
+    ]),
+  );
+
+  const script = `(function () {
+  try {
+    var versions = ${JSON.stringify(versions)};
+    window.__wampumsLangVersions = versions;
+    var lang = localStorage.getItem(${JSON.stringify(LANG_STORAGE_KEY)});
+    if (!Object.prototype.hasOwnProperty.call(versions, lang)) {
+      lang = ${JSON.stringify(DEFAULT_LANG)};
+    }
+    var url = "/lang/" + lang + ".json?v=" + versions[lang];
+    var response = fetch(url, { priority: "high" }).then(function (res) {
+      if (!res.ok) {
+        throw new Error("HTTP " + res.status);
+      }
+      return res.json();
+    });
+    response.catch(function () {});
+    window.__wampumsTranslations = { lang: lang, response: response };
+  } catch (error) {
+    window.__wampumsTranslations = null;
+  }
+})();`;
+
+  return {
+    name: 'early-translations',
+    transformIndexHtml() {
+      return [{ tag: 'script', children: script, injectTo: 'head-prepend' }];
+    },
+  };
+}
+
+/**
+ * Preload the Font Awesome solid face. It is only discovered once the first
+ * icon renders, after the app's JavaScript has run, and Font Awesome hides
+ * icons until the font arrives (font-display: block).
+ */
+function preloadIconFontPlugin() {
+  return {
+    name: 'preload-icon-font',
+    apply: 'build',
+    transformIndexHtml(html, ctx) {
+      const font = Object.keys(ctx.bundle || {}).find((fileName) =>
+        /(^|\/)fa-solid-900-[^/]+\.woff2$/.test(fileName),
+      );
+      if (!font) {
+        return [];
+      }
+      return [{
+        tag: 'link',
+        attrs: { rel: 'preload', href: `/${font}`, as: 'font', type: 'font/woff2', crossorigin: '' },
+        injectTo: 'head',
+      }];
     },
   };
 }
@@ -172,6 +256,8 @@ export default defineConfig({
   },
 
   plugins: [
+    earlyTranslationsPlugin(),
+    preloadIconFontPlugin(),
     copyStaticLanguageBundlesPlugin(),
     copyStaticCssPlugin(),
 
@@ -179,6 +265,8 @@ export default defineConfig({
     VitePWA({
       strategies: "injectManifest",
       registerType: "prompt",
+      // Register from a deferred script: a plain one blocks HTML parsing.
+      injectRegister: 'script-defer',
       srcDir: ".",
       filename: "src-sw.js",
 
@@ -209,6 +297,16 @@ export default defineConfig({
           "**/node_modules/**",
           "service-worker.js",
           "**/index.html", // Exclude index.html to prevent stale asset references
+          // Every visitor installs the precache right after their first load, in
+          // competition with the screen they opened. Keep it to the app shell:
+          // badge art and unit logos are cached by the image route when shown;
+          // the translations by their own route, per build version, as the app
+          // loads them (precaching all of them also answered /lang/* from the
+          // install-time build, ahead of that route); css/ holds unhashed copies
+          // of stylesheets the app now loads from assets/.
+          'images/**',
+          'lang/**',
+          'css/**',
         ],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
       },

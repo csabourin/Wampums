@@ -96,6 +96,30 @@ describe('Service Worker Configuration', () => {
     });
   });
 
+  describe('Translation versioning and precache scope', () => {
+    test('should answer versioned translation URLs cache-first, before the unversioned route', () => {
+      // ?v=<content version> names one build's bundle, so a cached copy is never stale
+      const versioned = serviceWorkerSource.search(
+        /searchParams\.has\('v'\)[^;]*new CacheFirst\(\{\s*cacheName: 'translations-versioned-cache'/s
+      );
+      const unversioned = serviceWorkerSource.indexOf("cacheName: 'translations-cache'");
+      expect(versioned).toBeGreaterThan(-1);
+      expect(versioned).toBeLessThan(unversioned);
+    });
+
+    test('should keep translations, images and unhashed CSS copies out of the precache', () => {
+      // Precached /lang/* would be answered from the install-time build ahead of the routes above
+      const globIgnores = viteConfig.match(/globIgnores: \[([\s\S]*?)\]/)[1];
+      expect(globIgnores).toContain("'lang/**'");
+      expect(globIgnores).toContain("'images/**'");
+      expect(globIgnores).toContain("'css/**'");
+    });
+
+    test('should register the service worker from a deferred script', () => {
+      expect(viteConfig).toMatch(/injectRegister: 'script-defer'/);
+    });
+  });
+
   describe('Navigation Route Configuration', () => {
     test('should register navigation route', () => {
       expect(serviceWorkerSource).toContain('NavigationRoute');

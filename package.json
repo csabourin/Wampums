@@ -135,6 +135,9 @@
         }
       ]
     },
+    "moduleNameMapper": {
+      "\\.css\\?url$": "<rootDir>/test/mocks/stylesheet-url.js"
+    },
     "transformIgnorePatterns": [
       "/node_modules/(?!(?:@googleapis/chat|openai|@veryfi/veryfi-sdk|@whiskeysockets/baileys)/)"
     ]

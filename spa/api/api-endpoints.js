@@ -2708,6 +2708,10 @@ export async function switchOrganization(organizationId) {
     return API.post('v1/organizations/switch', { organization_id: organizationId });
 }
 
+// An account without org.view (e.g. a parent) is refused the full settings;
+// the public settings are what it may read.
+const HTTP_STATUS_FORBIDDEN = 403;
+
 /**
  * Get organization settings
  */
@@ -2724,8 +2728,8 @@ export async function fetchOrganizationSettings(params = {}) {
             cacheDuration: CONFIG.CACHE_DURATION.LONG
         });
     } catch (error) {
-        if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
-            debugWarn('Authenticated organization-settings failed (401), falling back to public endpoint');
+        if (error.status === HTTP_STATUS_FORBIDDEN || error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+            debugWarn('Authenticated organization-settings refused, falling back to public endpoint:', error.status);
             return fetchPublicOrganizationSettings();
         }
         throw error;

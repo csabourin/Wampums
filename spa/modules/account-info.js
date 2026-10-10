@@ -7,6 +7,7 @@
  * @module modules/account-info
  */
 
+import accountInfoStylesheetUrl from "../../css/account-info.css?url";
 import { makeApiRequest } from "../api/api-core.js";
 import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
 import { translate, app as appInstance } from "../app.js";
@@ -41,7 +42,7 @@ export class AccountInfoModule {
     debugLog("Initializing Settings Module");
 
     // Load page-specific CSS
-    await loadStylesheet("/css/account-info.css");
+    await loadStylesheet(accountInfoStylesheetUrl);
 
     try {
       debugLog("Checking permissions and push support");
