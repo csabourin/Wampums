@@ -388,4 +388,31 @@ describe.skipIf(!DATABASE_URL)('Push notifications', () => {
     expect(row).toBeDefined();
     expect(row.expiration_time).toBeNull();
   });
+
+  test('turning push off removes only the member\'s own browser in this unit', async () => {
+    const member = await createMember([ids.sender], 'Switching off');
+    const other = await createMember([ids.sender], 'Keeps it');
+    await subscribe(member, 'switch-off');
+    await subscribe(other, 'keeps-it');
+    mockContext.userId = member;
+
+    const ownResponse = await request(app)
+      .delete('/api/v1/notifications/subscription')
+      .send({ endpoint: endpoint('switch-off') });
+    const othersResponse = await request(app)
+      .delete('/api/v1/notifications/subscription')
+      .send({ endpoint: endpoint('keeps-it') });
+
+    expect(ownResponse.status).toBe(200);
+    expect(ownResponse.body.data.removed).toBe(1);
+    expect(othersResponse.body.data.removed).toBe(0);
+    expect(await endpointsOf(member)).toEqual([]);
+    expect(await endpointsOf(other)).toEqual([endpoint('keeps-it')]);
+  });
+
+  test('turning push off needs an endpoint', async () => {
+    const response = await request(app).delete('/api/v1/notifications/subscription').send({});
+
+    expect(response.status).toBe(400);
+  });
 });

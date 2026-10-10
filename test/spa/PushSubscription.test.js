@@ -30,7 +30,9 @@ jest.mock('../../spa/config.js', () => ({
 jest.mock('../../spa/api/api-core.js', () => ({ makeApiRequest: jest.fn() }));
 
 const { makeApiRequest } = require('../../spa/api/api-core.js');
-const { registerPushSubscription } = require('../../spa/modules/push/PushSubscription.js');
+const {
+  registerPushSubscription, enablePushNotifications, disablePushNotifications, PushSetupError,
+} = require('../../spa/modules/push/PushSubscription.js');
 
 // "BAUG" is base64url for the bytes 4, 5, 6; "AQID" for 1, 2, 3.
 const SERVER_KEY = 'BAUG';
@@ -161,5 +163,93 @@ describe('Push subscription', () => {
     await expect(registerPushSubscription()).resolves.toBeUndefined();
     expect(pushManager.subscribe).toHaveBeenCalled();
     expect(savedEndpoint()).toBeUndefined();
+  });
+
+  describe('turned on from the settings', () => {
+    test('saves this browser with the server key', async () => {
+      installPushManager(null);
+
+      await enablePushNotifications();
+
+      expect(savedEndpoint()).toBe('https://push.example.test/new');
+    });
+
+    test('a server without keys is reported as not configured, without subscribing', async () => {
+      makeApiRequest.mockImplementation((endpoint) => (
+        endpoint === 'v1/notifications/vapid-public-key'
+          ? Promise.reject(Object.assign(new Error('API request failed: Push notifications are not configured'), { status: 503 }))
+          : Promise.resolve({ success: true })
+      ));
+      const pushManager = installPushManager(null);
+
+      await expect(enablePushNotifications()).rejects.toMatchObject({ name: 'PushSetupError', code: 'push_not_configured' });
+      expect(pushManager.subscribe).not.toHaveBeenCalled();
+    });
+
+    test('an unreachable server keeps the API error, not "not configured"', async () => {
+      const offline = Object.assign(new Error('API request failed: offline'), { status: 503, isNetworkError: true });
+      makeApiRequest.mockImplementation((endpoint) => (
+        endpoint === 'v1/notifications/vapid-public-key' ? Promise.reject(offline) : Promise.resolve({ success: true })
+      ));
+      installPushManager(null);
+
+      await expect(enablePushNotifications()).rejects.toBe(offline);
+    });
+
+    test('a browser that refuses the subscription is reported as such', async () => {
+      const pushManager = installPushManager(null);
+      pushManager.subscribe.mockRejectedValue(Object.assign(new Error('Registration failed - push service error'), { name: 'AbortError' }));
+
+      const failure = await enablePushNotifications().catch((error) => error);
+
+      expect(failure).toBeInstanceOf(PushSetupError);
+      expect(failure.code).toBe('push_browser_refused');
+      expect(savedEndpoint()).toBeUndefined();
+    });
+
+    test('a failed save keeps the API error', async () => {
+      const refused = Object.assign(new Error('API request failed: api_error_forbidden'), { status: 403 });
+      makeApiRequest.mockImplementation((endpoint) => (
+        endpoint === 'v1/notifications/vapid-public-key'
+          ? Promise.resolve({ success: true, data: { publicKey: SERVER_KEY } })
+          : Promise.reject(refused)
+      ));
+      installPushManager(null);
+
+      await expect(enablePushNotifications()).rejects.toBe(refused);
+    });
+  });
+
+  describe('turned off from the settings', () => {
+    test('forgets this browser on the server, then unsubscribes', async () => {
+      const existing = fakeSubscription('https://push.example.test/off', SERVER_KEY_BYTES);
+      installPushManager(existing);
+
+      await disablePushNotifications();
+
+      expect(makeApiRequest).toHaveBeenCalledWith('v1/notifications/subscription', {
+        method: 'DELETE',
+        body: { endpoint: 'https://push.example.test/off' },
+      });
+      expect(existing.unsubscribe).toHaveBeenCalled();
+    });
+
+    test('unsubscribes even when the server cannot be told', async () => {
+      makeApiRequest.mockRejectedValue(new Error('offline'));
+      const existing = fakeSubscription('https://push.example.test/off-offline', SERVER_KEY_BYTES);
+      installPushManager(existing);
+
+      await disablePushNotifications();
+
+      expect(existing.unsubscribe).toHaveBeenCalled();
+    });
+
+    test('does nothing when this browser is not subscribed', async () => {
+      installPushManager(null);
+
+      await disablePushNotifications();
+
+      expect(makeApiRequest).not.toHaveBeenCalled();
+    });
   });
 });
