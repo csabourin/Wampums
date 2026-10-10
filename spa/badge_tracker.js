@@ -1317,12 +1317,14 @@ export class BadgeTracker {
               targetText = translate("all_active_participants") || "All Active";
               targets = this.participants.map((p) => p.id); // All active
             } else {
-              targets = a.participant_ids || [];
-              targetText = targets
-                .map((tid) => {
-                  const p = this.participants.find((part) => String(part.id) === String(tid));
-                  return p ? `${p.first_name} ${p.last_name}` : "Unknown";
-                })
+              // Only youth still on the roster: one who left since the
+              // meeting is neither shown nor awarded.
+              const rosterTargets = (a.participant_ids || [])
+                .map((tid) => this.participants.find((part) => String(part.id) === String(tid)))
+                .filter(Boolean);
+              targets = rosterTargets.map((p) => p.id);
+              targetText = rosterTargets
+                .map((p) => `${p.first_name} ${p.last_name}`)
                 .join(", ");
             }
 

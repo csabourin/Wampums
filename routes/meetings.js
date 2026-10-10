@@ -12,7 +12,7 @@
 
 const express = require('express');
 const { check } = require('express-validator');
-const { authenticate, requirePermission, requireAnyPermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
+const { authenticate, requirePermission, requireAnyPermission, blockDemoRoles, getOrganizationId, withScoutYear } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateDate, validateDateOptional, checkValidation } = require('../middleware/validation');
 const { getMeetingSectionConfig } = require('../utils/meeting-sections');
@@ -628,13 +628,16 @@ module.exports = (pool, logger) => {
 
   /**
    * GET /v1/meetings/achievements/unprocessed
-   * Past meetings that still have badge-linked activities awaiting processing.
+   * Past meetings that still have badge-linked activities awaiting processing,
+   * within the scout year being consulted.
    */
   router.get('/achievements/unprocessed',
     authenticate,
     requirePermission('meetings.view'),
+    withScoutYear(pool),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
+      const { start_date: yearStart, end_date: yearEnd } = req.scoutYear;
 
       const result = await pool.query(
         `SELECT m.id, m.meeting_date::text AS date,
@@ -650,12 +653,13 @@ module.exports = (pool, logger) => {
          JOIN year_plan_meeting_activities a ON a.meeting_id = m.id
          WHERE m.organization_id = $1
            AND m.meeting_date < CURRENT_DATE
+           AND m.meeting_date BETWEEN $3::date AND $4::date
            AND a.badge_template_id IS NOT NULL
            AND a.processed = FALSE
          GROUP BY m.id, m.meeting_date
          ORDER BY m.meeting_date DESC
          LIMIT $2`,
-        [organizationId, UNPROCESSED_MEETINGS_LIMIT]
+        [organizationId, UNPROCESSED_MEETINGS_LIMIT, yearStart, yearEnd]
       );
 
       return success(res, result.rows);
