@@ -15,7 +15,7 @@ import { translate, app as appInstance } from '../app.js';
 import { escapeAttribute, escapeHTML } from '../utils/SecurityUtils.js';
 import { nativeLanguageName } from '../utils/InterfaceLanguageUtils.js';
 import { apiErrorMessage } from '../utils/ApiErrorUtils.js';
-import { holdsFamilyRole, isParent } from '../utils/PermissionUtils.js';
+import { holdsFamilyRole, isDemoUser, isParent } from '../utils/PermissionUtils.js';
 import { setContent, loadStylesheet } from '../utils/DOMUtils.js';
 import { confirm as confirmDialog } from '../utils/DialogUtils.js';
 import { getStorage, setStorage } from '../utils/StorageUtils.js';
@@ -878,6 +878,10 @@ export class AccountInfoModule {
    * @returns {Promise<void>}
    */
   async saveLanguagePreference(lang) {
+    // A demo account is read-only: the interface switches, nothing is saved.
+    if (isDemoUser()) {
+      return;
+    }
     try {
       await makeApiRequest('v1/users/me/language-preference', {
         method: 'PATCH',

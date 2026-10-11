@@ -449,6 +449,7 @@ module.exports = (pool, logger) => {
    */
   router.patch('/language-preference',
     authenticate,
+    blockDemoRoles,
     asyncHandler(async (req, res) => {
       const userId = req.user.id;
       const organizationId = req.user.organizationId;

@@ -21,9 +21,15 @@ jest.mock('../../spa/api/api-core.js', () => ({ makeApiRequest: jest.fn() }));
 jest.mock('../../spa/modules/push/PushSubscription.js', () => ({
   enablePushNotifications: jest.fn(), disablePushNotifications: jest.fn(), PushSetupError: class extends Error {},
 }));
-jest.mock('../../spa/utils/PermissionUtils.js', () => ({ holdsFamilyRole: jest.fn(() => false), isParent: jest.fn(() => false) }));
+jest.mock('../../spa/utils/PermissionUtils.js', () => ({
+  holdsFamilyRole: jest.fn(() => false),
+  isParent: jest.fn(() => false),
+  isDemoUser: jest.fn(() => false),
+}));
 
 import { AccountInfoModule } from '../../spa/modules/account-info.js';
+import { makeApiRequest } from '../../spa/api/api-core.js';
+import { isDemoUser } from '../../spa/utils/PermissionUtils.js';
 import { getUnitLanguages } from '../../spa/utils/InterfaceLanguageUtils.js';
 
 /**
@@ -73,4 +79,19 @@ test('does not fetch again once the settings are known', async () => {
   await new AccountInfoModule(app).waitForUnitSettings();
 
   expect(app.fetchOrganizationSettings).not.toHaveBeenCalled();
+});
+
+test('saves the chosen language to the account, except for a read-only demo account', async () => {
+  const page = new AccountInfoModule(appStillLoadingSettings());
+
+  await page.saveLanguagePreference('uk');
+  expect(makeApiRequest).toHaveBeenCalledWith('v1/users/me/language-preference', {
+    method: 'PATCH',
+    body: { languagePreference: 'uk' },
+  });
+
+  makeApiRequest.mockClear();
+  isDemoUser.mockReturnValue(true);
+  await page.saveLanguagePreference('uk');
+  expect(makeApiRequest).not.toHaveBeenCalled();
 });
