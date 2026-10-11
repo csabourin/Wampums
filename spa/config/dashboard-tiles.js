@@ -29,6 +29,19 @@
  *   id        optional DOM id, for tiles with extra click behaviour
  */
 
+/**
+ * Permissions that make the "Paramètres de l'unité" tile worth showing: the
+ * page's own settings (org.*), its communication section, and its link to the
+ * scout year, which is reachable from nowhere else.
+ */
+export const UNIT_SETTINGS_TILE_PERMISSIONS = [
+  'org.view',
+  'org.edit',
+  'organization.manage',
+  'communications.send',
+  'scout_year.view',
+];
+
 export const DASHBOARD_TILES = [
   // ---------------------------------------------------------------
   // EN CE MOMENT — actions tied to a meeting happening right now.
@@ -138,8 +151,9 @@ export const DASHBOARD_TILES = [
   },
 
   // ---------------------------------------------------------------
-  // JEUNES ET FAMILLES — includes reaching out to them, which is why
-  // the former standalone "Communications" group folds in here.
+  // JEUNES ET FAMILLES — weekly work with the youth and their families:
+  // reaching out, their documents, their progression and the reports
+  // about them. Set-up tasks live in "Administration de l'unité".
   // ---------------------------------------------------------------
   {
     featureKey: "parent_contacts",
@@ -150,54 +164,6 @@ export const DASHBOARD_TILES = [
     moment: "tools",
     domain: "people",
     gate: { any: ["communications.send", "participants.view"] },
-  },
-  {
-    featureKey: "participants",
-    href: "/manage-participants",
-    icon: "fa-id-card",
-    label: "tile_manage_participants",
-    aliases: "tile_manage_participants_aliases",
-    moment: "tools",
-    domain: "people",
-    gate: { permission: "participants.view" },
-  },
-  {
-    featureKey: "groups",
-    href: "/manage-groups",
-    icon: "fa-people-group",
-    label: "tile_manage_groups",
-    aliases: "tile_manage_groups_aliases",
-    moment: "tools",
-    domain: "people",
-    gate: { permission: "groups.view" },
-  },
-  {
-    featureKey: "parent_invitations",
-    href: "/parent-invitations",
-    icon: "fa-envelope-open-text",
-    label: "tile_parent_invitations",
-    moment: "tools",
-    domain: "people",
-    gate: { permission: "users.invite" },
-  },
-  {
-    featureKey: "participant_duplicates",
-    href: "/participant-duplicates",
-    icon: "fa-clone",
-    label: "tile_participant_duplicates",
-    moment: "tools",
-    domain: "people",
-    gate: { permission: "participants.edit" },
-  },
-  {
-    featureKey: "family_links",
-    href: "/manage-users-participants",
-    icon: "fa-user-gear",
-    label: "tile_link_youth_parents",
-    aliases: "tile_link_youth_parents_aliases",
-    moment: "tools",
-    domain: "people",
-    gate: { permission: "users.view" },
   },
   {
     featureKey: "participant_documents",
@@ -215,6 +181,16 @@ export const DASHBOARD_TILES = [
     icon: "fa-table-list",
     label: "tile_den_list_report",
     aliases: "tile_den_list_report_aliases",
+    moment: "tools",
+    domain: "people",
+    gate: { permission: "reports.view" },
+  },
+  {
+    featureKey: "reports",
+    href: "/reports",
+    icon: "fa-chart-line",
+    label: "tile_reports",
+    aliases: "tile_reports_aliases",
     moment: "tools",
     domain: "people",
     gate: { permission: "reports.view" },
@@ -389,19 +365,10 @@ export const DASHBOARD_TILES = [
   },
 
   // ---------------------------------------------------------------
-  // ADMINISTRATION — unit settings first, district/system last.
+  // ADMINISTRATION DE L'UNITÉ — set-up done a few times a year: the
+  // unit's settings, its dens, who belongs to which family, and who may
+  // do what. Kept apart from "Jeunes et familles", which is weekly work.
   // ---------------------------------------------------------------
-  {
-    featureKey: "reports",
-    href: "/reports",
-    icon: "fa-chart-line",
-    label: "tile_reports",
-    aliases: "tile_reports_aliases",
-    moment: "tools",
-    domain: "admin",
-    priority: 10,
-    gate: { permission: "reports.view" },
-  },
   {
     href: "/unit-settings",
     icon: "fa-sliders",
@@ -409,18 +376,61 @@ export const DASHBOARD_TILES = [
     aliases: "tile_unit_settings_aliases",
     moment: "tools",
     domain: "admin",
-    priority: 11,
-    gate: { check: "adminPanel" },
+    priority: 10,
+    gate: { check: "unitSettings" },
   },
   {
-    featureKey: "account_info",
-    href: "/account-info",
-    icon: "fa-circle-user",
-    label: "tile_account_info",
-    aliases: "tile_account_info_aliases",
+    featureKey: "groups",
+    href: "/manage-groups",
+    icon: "fa-people-group",
+    label: "tile_manage_groups",
+    aliases: "tile_manage_groups_aliases",
+    moment: "tools",
+    domain: "admin",
+    priority: 11,
+    gate: { permission: "groups.view" },
+  },
+  {
+    featureKey: "participants",
+    href: "/manage-participants",
+    icon: "fa-id-card",
+    label: "tile_manage_participants",
+    aliases: "tile_manage_participants_aliases",
     moment: "tools",
     domain: "admin",
     priority: 12,
+    gate: { permission: "participants.view" },
+  },
+  {
+    featureKey: "parent_invitations",
+    href: "/parent-invitations",
+    icon: "fa-envelope-open-text",
+    label: "tile_parent_invitations",
+    moment: "tools",
+    domain: "admin",
+    priority: 13,
+    gate: { permission: "users.invite" },
+  },
+  {
+    featureKey: "family_links",
+    href: "/manage-users-participants",
+    icon: "fa-user-gear",
+    label: "tile_link_youth_parents",
+    aliases: "tile_link_youth_parents_aliases",
+    moment: "tools",
+    domain: "admin",
+    priority: 14,
+    gate: { permission: "users.view" },
+  },
+  {
+    featureKey: "participant_duplicates",
+    href: "/participant-duplicates",
+    icon: "fa-clone",
+    label: "tile_participant_duplicates",
+    moment: "tools",
+    domain: "admin",
+    priority: 15,
+    gate: { permission: "participants.edit" },
   },
   {
     featureKey: "role_management",
@@ -442,7 +452,22 @@ export const DASHBOARD_TILES = [
     moment: "tools",
     domain: "admin",
     priority: 21,
-    gate: { check: "adminPanel" },
+    gate: { check: "formPermissions" },
+  },
+
+  // ---------------------------------------------------------------
+  // ADMINISTRATION — the person's own account, then district and
+  // system tools, each shown only to those holding its permissions.
+  // ---------------------------------------------------------------
+  {
+    featureKey: "account_info",
+    href: "/account-info",
+    icon: "fa-circle-user",
+    label: "tile_account_info",
+    aliases: "tile_account_info_aliases",
+    moment: "tools",
+    domain: "system",
+    priority: 0,
   },
   {
     featureKey: "district",
@@ -452,8 +477,8 @@ export const DASHBOARD_TILES = [
     label: "tile_district",
     aliases: "tile_district_aliases",
     moment: "tools",
-    domain: "admin",
-    priority: 30,
+    domain: "system",
+    priority: 10,
     gate: { check: "adminPanel" },
     id: "admin-link",
   },
@@ -464,8 +489,8 @@ export const DASHBOARD_TILES = [
     label: "tile_create_organization",
     aliases: "tile_create_organization_aliases",
     moment: "tools",
-    domain: "admin",
-    priority: 32,
+    domain: "system",
+    priority: 11,
     gate: { check: "createOrganization" },
   },
 ];
@@ -481,6 +506,7 @@ export const TOOL_GROUP_ORDER = [
   "logistics",
   "money",
   "admin",
+  'system',
 ];
 
 /**

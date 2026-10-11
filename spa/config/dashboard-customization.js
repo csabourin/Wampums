@@ -17,7 +17,8 @@ export const DOMAINS = [
   "logistics",    // carpool, inventory, material
   "safety",       // medication, incidents, permission slips
   "money",        // finance, fundraisers, budgets, expenses
-  "admin",        // unit settings, roles, district
+  "admin",        // unit set-up: settings, dens, family links, roles
+  'system',       // my account, district and system tools
   // Kept so their CSS variables stay defined: no tile uses them, but
   // `applyPalette` writes a var per domain and `_renderTile` falls back to
   // `neutral` for anything unrecognised.
@@ -50,6 +51,7 @@ export const PALETTES = {
       communications: { bg: "#0f7a5a", fg: "#ffffff", accent: "#0b5b43" },
       money: { bg: "#0f7a5a", fg: "#ffffff", accent: "#0b5b43" },
       admin: { bg: "#0f7a5a", fg: "#ffffff", accent: "#0b5b43" },
+      system: { bg: '#0f7a5a', fg: '#ffffff', accent: '#0b5b43' },
     },
   },
 
@@ -68,6 +70,7 @@ export const PALETTES = {
       communications: { bg: "#7a3eb1", fg: "#ffffff", accent: "#5a2c83" },
       money: { bg: "#a35a0c", fg: "#ffffff", accent: "#794108" },
       admin: { bg: "#374151", fg: "#ffffff", accent: "#1f2937" },
+      system: { bg: '#4b5563', fg: '#ffffff', accent: '#1f2937' },
     },
   },
 
@@ -86,6 +89,7 @@ export const PALETTES = {
       communications: { bg: "#000000", fg: "#ffd400", accent: "#ffffff" },
       money: { bg: "#000000", fg: "#ffffff", accent: "#ffd400" },
       admin: { bg: "#000000", fg: "#ffffff", accent: "#ffd400" },
+      system: { bg: '#000000', fg: '#ffd400', accent: '#ffffff' },
     },
   },
 
@@ -104,6 +108,7 @@ export const PALETTES = {
       communications: { bg: "#CC79A7", fg: "#1d1d1d", accent: "#8a4e74" },
       money: { bg: "#a36900", fg: "#ffffff", accent: "#704800" },
       admin: { bg: "#4d4d4d", fg: "#ffffff", accent: "#2b2b2b" },
+      system: { bg: '#5c5c5c', fg: '#ffffff', accent: '#2b2b2b' },
     },
   },
 
@@ -122,6 +127,7 @@ export const PALETTES = {
       communications: { bg: "#4b5563", fg: "#ffffff", accent: "#1f2937" },
       money: { bg: "#374151", fg: "#ffffff", accent: "#111827" },
       admin: { bg: "#111827", fg: "#ffffff", accent: "#000000" },
+      system: { bg: '#4b5563', fg: '#ffffff', accent: '#111827' },
     },
   },
 };
