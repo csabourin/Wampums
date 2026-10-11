@@ -163,6 +163,28 @@ describe('POST /api/v1/resources/permission-slips/test-email', () => {
     expect(text).not.toContain('Apportez des bottes');
   });
 
+  test('with a slip id, uses that slip\'s copy, and a slip of another activity is not found', async () => {
+    const statements = mockDatabase({ slip: {
+      name: 'Groupe du 14', description: 'Ancienne', description_html: null,
+      activity_date: '2026-11-14', deadline_date: null,
+    } });
+    await request(app)
+      .post('/api/v1/resources/permission-slips/test-email')
+      .set('Authorization', `Bearer ${token(['communications.send'])}`)
+      .send({ activity_id: 12, slip_id: 41 });
+    expect(sendEmail.mock.calls[0][1]).toContain('Groupe du 14');
+    expect(statements.some((sql) => sql.includes('WHERE id = $1 AND activity_id = $2 AND organization_id = $3'))).toBe(true);
+
+    sendEmail.mockClear();
+    mockDatabase();
+    const res = await request(app)
+      .post('/api/v1/resources/permission-slips/test-email')
+      .set('Authorization', `Bearer ${token(['communications.send'])}`)
+      .send({ activity_id: 12, slip_id: 999 });
+    expect(res.status).toBe(404);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
   test('from existing slips without a pending one, falls back to the activity', async () => {
     mockDatabase();
     await request(app)

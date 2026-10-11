@@ -472,6 +472,21 @@ export class PermissionSlipDashboard {
       </div>`;
   }
 
+  /**
+   * The slip a group's test email is built from: a pending one not yet sent
+   * for the first email, one already sent for a reminder, else any.
+   * @param {Object[]} slips - The group's slips
+   * @param {boolean} reminder - Whether the test is of the reminder
+   * @returns {string} Slip id
+   */
+  representativeSlipId(slips, reminder) {
+    const real = slips.filter((slip) => !slip._optimistic);
+    const pick = real.find((slip) => slip.status === 'pending' && Boolean(slip.email_sent) === reminder)
+      || real.find((slip) => slip.status === 'pending')
+      || real[0];
+    return pick ? escapeHTML(String(pick.id)) : '';
+  }
+
   renderPermissionSlipsTable() {
     // Group permission slips by activity
     const activitiesMap = new Map();
@@ -524,8 +539,8 @@ export class PermissionSlipDashboard {
                     ${escapeHTML(translate("send_reminder_emails"))}
                   </button>
                   ${this.activityId && hasPermission('communications.send') ? `
-                    <button class="button button--outline btn-send-test" data-reminder="false" data-from-slips="true">${escapeHTML(translate('send_test_to_me'))}</button>
-                    <button class="button button--outline btn-send-test" data-reminder="true" data-from-slips="true">${escapeHTML(translate('send_reminder_test_to_me'))}</button>
+                    <button class="button button--outline btn-send-test" data-reminder="false" data-slip-id="${this.representativeSlipId(activity.slips, false)}">${escapeHTML(translate('send_test_to_me'))}</button>
+                    <button class="button button--outline btn-send-test" data-reminder="true" data-slip-id="${this.representativeSlipId(activity.slips, true)}">${escapeHTML(translate('send_reminder_test_to_me'))}</button>
                   ` : ''}
                 </div>
               </div>
@@ -709,7 +724,7 @@ export class PermissionSlipDashboard {
     document.querySelectorAll('.btn-send-test').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
-        withButtonLoading(btn, () => this.handleSendTest(btn.dataset.reminder === 'true', btn.dataset.fromSlips === 'true'));
+        withButtonLoading(btn, () => this.handleSendTest(btn.dataset.reminder === 'true', btn.dataset.slipId));
       });
     });
 
@@ -1169,19 +1184,20 @@ export class PermissionSlipDashboard {
   /**
    * Email the signed-in leader a test copy of this activity's slip email.
    * @param {boolean} reminder - Whether to send the reminder instead
-   * @param {boolean} [fromSlips] - Build it from the slips already created,
-   *   which is what parents receive, rather than from the form being filled
+   * @param {string} [slipId] - A slip of the group being tested: its own
+   *   copy of the activity is what parents receive. Without one, the test
+   *   uses the activity and the form being filled.
    * @returns {Promise<void>}
    */
-  async handleSendTest(reminder, fromSlips = false) {
-    const deadline = fromSlips
+  async handleSendTest(reminder, slipId = '') {
+    const deadline = slipId
       ? ''
       : document.querySelector('#permissionSlipForm input[name="deadline_date"]')?.value;
     try {
       const result = await sendPermissionSlipTestEmail({
         activity_id: this.activityId,
         reminder,
-        ...(fromSlips ? { from_slips: true } : {}),
+        ...(slipId ? { slip_id: Number(slipId) } : {}),
         ...(deadline ? { deadline_date: deadline } : {}),
       });
       const email = (result?.data || result)?.email || '';

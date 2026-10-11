@@ -2315,7 +2315,8 @@ module.exports = (pool) => {
    * `from_slips`, it is built from a pending slip's own copy of the activity
    * (title, date, description, deadline), which is what sends and reminders
    * read: one not yet sent for the first email, one already sent for a
-   * reminder.
+   * reminder. With `slip_id`, it is built from that slip, so a page listing
+   * slips issued before and after an edit of the activity tests each group.
    */
   router.post(
     '/permission-slips/test-email',
@@ -2327,6 +2328,7 @@ module.exports = (pool) => {
       check('deadline_date').optional({ values: 'falsy' }).isISO8601(),
       check('reminder').optional().isBoolean(),
       check('from_slips').optional().isBoolean(),
+      check('slip_id').optional().isInt({ min: 1 }),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -2348,8 +2350,21 @@ module.exports = (pool) => {
 
       const isReminder = req.body.reminder === true || req.body.reminder === 'true';
       const fromSlips = req.body.from_slips === true || req.body.from_slips === 'true';
-      const slipResult = fromSlips
-        ? await pool.query(
+      let slipResult = { rows: [] };
+      if (req.body.slip_id) {
+        slipResult = await pool.query(
+          `SELECT activity_title AS name, activity_description AS description,
+                  activity_description_html AS description_html,
+                  meeting_date AS activity_date, deadline_date
+             FROM permission_slips
+            WHERE id = $1 AND activity_id = $2 AND organization_id = $3`,
+          [req.body.slip_id, req.body.activity_id, organizationId],
+        );
+        if (slipResult.rows.length === 0) {
+          return error(res, 'Permission slip not found', HTTP_NOT_FOUND);
+        }
+      } else if (fromSlips) {
+        slipResult = await pool.query(
           `SELECT activity_title AS name, activity_description AS description,
                   activity_description_html AS description_html,
                   meeting_date AS activity_date, deadline_date
@@ -2358,8 +2373,8 @@ module.exports = (pool) => {
             ORDER BY (email_sent = $3) DESC, updated_at DESC
             LIMIT 1`,
           [req.body.activity_id, organizationId, isReminder],
-        )
-        : { rows: [] };
+        );
+      }
       const activity = slipResult.rows[0] || activityResult.rows[0];
       const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
       const content = buildPermissionSlipEmailContent({
