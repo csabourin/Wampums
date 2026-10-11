@@ -20,6 +20,7 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
 import {
   fallbackLanguageFor,
   getUnitLanguages,
+  localeForLanguage,
   nativeLanguageName,
   resolveInterfaceLanguage,
 } from '../../spa/utils/InterfaceLanguageUtils.js';
@@ -66,6 +67,11 @@ describe('A unit\'s languages', () => {
     expect(fallbackLanguageFor('uk', 'de')).toBe('en');
     expect(fallbackLanguageFor('fr', 'en')).toBeNull();
     expect(fallbackLanguageFor('en', 'fr')).toBeNull();
+  });
+
+  it('formats dates and amounts in each language\'s own locale', () => {
+    expect(['fr', 'en', 'uk', 'it', 'id'].map(localeForLanguage)).toEqual(['fr-CA', 'en-CA', 'uk-UA', 'it-IT', 'id-ID']);
+    expect(localeForLanguage('xx')).toBe('fr-CA');
   });
 
   it('names each language in that language', () => {

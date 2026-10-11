@@ -32,6 +32,11 @@ export async function adoptLinkLanguage(app, language) {
   }
 
   const normalized = String(language).slice(0, 2).toLowerCase();
+  // A first visit can reach this before the unit's settings arrive; without
+  // them an optional language would look unavailable.
+  if (!app.isOrganizationSettingsFetched && typeof app.fetchOrganizationSettings === 'function') {
+    await app.fetchOrganizationSettings();
+  }
   // Only a language the unit offers; an e-mail in another one opens in the
   // reader's current language.
   if (normalized === app.lang || resolveInterfaceLanguage(normalized, app.organizationSettings) !== normalized) {

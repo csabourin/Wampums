@@ -80,3 +80,16 @@ export function nativeLanguageName(code) {
     return code;
   }
 }
+
+/** Regional variant used to format dates and amounts in each language. */
+const FORMAT_LOCALES = { fr: 'fr-CA', en: 'en-CA', uk: 'uk-UA', it: 'it-IT', id: 'id-ID' };
+
+/**
+ * The locale to format dates, times and amounts for an interface language.
+ *
+ * @param {string} lang - Interface language code
+ * @returns {string} BCP 47 locale; French (Canada) for an unknown language
+ */
+export function localeForLanguage(lang) {
+  return FORMAT_LOCALES[lang] || FORMAT_LOCALES[DEFAULT_LANG];
+}

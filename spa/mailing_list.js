@@ -9,6 +9,7 @@ import { canSendCommunications } from "./utils/PermissionUtils.js";
 import { roleLabel } from './utils/RoleLabelUtils.js';
 import { setContent } from "./utils/DOMUtils.js";
 import { setButtonLoading } from './utils/SkeletonUtils.js';
+import { localeForLanguage } from './utils/InterfaceLanguageUtils.js';
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class MailingList {
@@ -589,7 +590,7 @@ export class MailingList {
                 if (!dateString) return "";
                 try {
                         const lang = this.app?.lang || this.app?.language || localStorage.getItem('lang') || localStorage.getItem('language') || CONFIG.DEFAULT_LANG;
-                        const locale = lang === 'en' ? 'en-CA' : lang === 'uk' ? 'uk-UA' : 'fr-CA';
+                        const locale = localeForLanguage(lang);
                         return new Date(dateString).toLocaleString(locale);
                 } catch (error) {
                         debugLog("Unable to format date", error);
