@@ -1,7 +1,8 @@
 /**
  * Form Builder Routes
  *
- * Handles CRUD operations for form formats and translation management
+ * Handles CRUD operations for form formats. A field's own texts live in its
+ * format (`labelText`, `infoHtml`), which belongs to one unit.
  * All endpoints in this module are prefixed with /api
  *
  * Security Note: Rate limiting is applied globally via generalLimiter in api.js
@@ -19,6 +20,46 @@ const { success, error: errorResponse, asyncHandler } = require('../middleware/r
 
 // Import utilities
 const { handleOrganizationResolutionError } = require('../utils/api-helpers');
+
+/** Language codes a field's own texts may use (ISO 639-1, as in lang/*.json). */
+const LANGUAGE_CODE_PATTERN = /^[a-z]{2}$/;
+/** Field properties holding one text per language. */
+const FIELD_TEXT_PROPERTIES = ['labelText', 'infoHtml'];
+/** Longest text accepted for one language, so a form format stays a sane size. */
+const MAX_FIELD_TEXT_LENGTH = 20000;
+
+/**
+ * Check the per-language texts of a form structure's fields.
+ *
+ * `labelText` and `infoHtml` map a language code to the field's own text in
+ * that language. The SPA sanitizes `infoHtml` when it renders it; this only
+ * rejects shapes nothing could render.
+ *
+ * @param {Object} formStructure - The submitted form structure
+ * @returns {string|null} An error message, or null when the texts are valid
+ */
+function validateFieldTexts(formStructure) {
+  for (const field of formStructure.fields) {
+    for (const property of FIELD_TEXT_PROPERTIES) {
+      const texts = field?.[property];
+      if (texts === undefined) {
+        continue;
+      }
+      if (!texts || typeof texts !== 'object' || Array.isArray(texts)) {
+        return `${property} must map language codes to text`;
+      }
+      for (const [language, text] of Object.entries(texts)) {
+        if (!LANGUAGE_CODE_PATTERN.test(language) || typeof text !== 'string') {
+          return `${property} must map language codes to text`;
+        }
+        if (text.length > MAX_FIELD_TEXT_LENGTH) {
+          return `${property} is too long`;
+        }
+      }
+    }
+  }
+  return null;
+}
 
 /**
  * Export route factory function
@@ -154,6 +195,10 @@ module.exports = (pool, logger) => {
       if (!form_structure.fields || !Array.isArray(form_structure.fields)) {
         return errorResponse(res, 'form_structure must have a fields array', 400);
       }
+      const textError = validateFieldTexts(form_structure);
+      if (textError) {
+        return errorResponse(res, textError, 400);
+      }
 
       // Check if form type already exists for this organization
       const existingCheck = await pool.query(
@@ -224,6 +269,10 @@ module.exports = (pool, logger) => {
       if (form_structure) {
         if (!form_structure.fields || !Array.isArray(form_structure.fields)) {
           return errorResponse(res, 'form_structure must have a fields array', 400);
+        }
+        const textError = validateFieldTexts(form_structure);
+        if (textError) {
+          return errorResponse(res, textError, 400);
         }
       }
 
@@ -400,91 +449,6 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/translations:
-   *   post:
-   *     summary: Add translations
-   *     description: Add new translations (admin only)
-   *     tags: [Form Builder]
-   *     security:
-   *       - bearerAuth: []
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             required:
-   *               - key
-   *               - translations
-   *             properties:
-   *               key:
-   *                 type: string
-   *               translations:
-   *                 type: object
-   *                 properties:
-   *                   en:
-   *                     type: string
-   *                   fr:
-   *                     type: string
-   *     responses:
-   *       201:
-   *         description: Translations added successfully
-   */
-  router.post('/translations', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
-    const client = await pool.connect();
-    try {
-      const { key, translations } = req.body;
-
-      if (!key || !translations) {
-        return errorResponse(res, 'key and translations are required', 400);
-      }
-
-      await client.query('BEGIN');
-
-      // Get language IDs
-      const languages = await client.query('SELECT id, code FROM languages WHERE code IN ($1, $2)', ['en', 'fr']);
-      const languageMap = {};
-      languages.rows.forEach(lang => {
-        languageMap[lang.code] = lang.id;
-      });
-
-      const results = [];
-
-      // Use UPSERT to handle insert/update in a single query per translation
-      // PostgreSQL 9.5+ supports ON CONFLICT for efficient upserts
-      const translationEntries = Object.entries(translations).filter(
-        ([langCode, value]) => value && languageMap[langCode]
-      );
-
-      if (translationEntries.length > 0) {
-        // Batch upsert all translations
-        for (const [langCode, value] of translationEntries) {
-          const result = await client.query(
-            `INSERT INTO translations (key, value, language_id, created_at)
-             VALUES ($1, $2, $3, NOW())
-             ON CONFLICT (key, language_id)
-             DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-             RETURNING *`,
-            [key, value, languageMap[langCode]]
-          );
-          results.push(result.rows[0]);
-        }
-      }
-
-      await client.query('COMMIT');
-      logger.info(`Translations added/updated for key: ${key}`);
-      return success(res, results, 'Translations saved successfully', 201);
-    } catch (error) {
-      await client.query('ROLLBACK');
-      logger.error('Error saving translations:', error);
-      return errorResponse(res, 'Failed to save translations', 500);
-    } finally {
-      client.release();
-    }
-  }));
-
-  /**
-   * @swagger
    * /api/form-formats/{sourceOrgId}/{formType}/copy:
    *   post:
    *     summary: Copy form format from another organization
@@ -622,6 +586,10 @@ module.exports = (pool, logger) => {
       // Validate form_structure
       if (!form_structure || !form_structure.fields || !Array.isArray(form_structure.fields)) {
         return errorResponse(res, 'form_structure with fields array is required', 400);
+      }
+      const textError = validateFieldTexts(form_structure);
+      if (textError) {
+        return errorResponse(res, textError, 400);
       }
 
       await client.query('BEGIN');
@@ -844,3 +812,5 @@ module.exports = (pool, logger) => {
 
   return router;
 };
+
+module.exports.validateFieldTexts = validateFieldTexts;

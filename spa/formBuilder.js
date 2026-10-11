@@ -9,19 +9,65 @@
 
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { API } from './api/api-core.js';
-import { translate } from './app.js';
+import { app, translate } from './app.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
 import { JSONFormRenderer } from './JSONFormRenderer.js';
 import { setContent, insertHTML } from './utils/DOMUtils.js';
 import { openModal, closeModal } from './utils/ModalUtils.js';
 import { BaseModule } from './utils/BaseModule.js';
 import { confirmDestructive } from './utils/DialogUtils.js';
+import { DEFAULT_LANG, FORM_CONTENT_LANGS } from './config/languages.js';
+import {
+  formInfoHtml,
+  hasOwnText,
+  resolveFormText,
+  sanitizeRichText,
+} from './utils/FormTextUtils.js';
+import {
+  attachRichTextEditor,
+  getRichTextValue,
+  richTextEditorHTML,
+} from './modules/form-builder/RichTextEditor.js';
 
 /** Field types whose answer can show or hide another field. */
 const CONTROLLING_FIELD_TYPES = ['select', 'radio', 'checkbox'];
 
 /** Value a checked checkbox is compared against (see FormDependencyUtils). */
 const CHECKBOX_CHECKED_VALUE = 'yes';
+
+/**
+ * The two texts a field can carry in several languages: its label (plain
+ * text, keyed by `label`) and an information text's content (rich text,
+ * keyed by `infoText`).
+ */
+const FIELD_TEXT_KINDS = {
+  labelText: { keyInput: 'field-label', keyProperty: 'label', rich: false },
+  infoHtml: { keyInput: 'field-info-text', keyProperty: 'infoText', rich: true },
+};
+
+/**
+ * The language the builder is shown in.
+ *
+ * @returns {string} Language code
+ */
+function builderLanguage() {
+  return app?.lang || DEFAULT_LANG;
+}
+
+/**
+ * A language's name in the builder's language ("italien", "Italian").
+ *
+ * @param {string} code - Language code
+ * @returns {string} Display name, or the code when the browser cannot name it
+ */
+function languageName(code) {
+  try {
+    const name = new Intl.DisplayNames([builderLanguage()], { type: 'language' }).of(code);
+    return name ? name.charAt(0).toLocaleUpperCase(builderLanguage()) + name.slice(1) : code;
+  } catch {
+    return code;
+  }
+}
 
 /**
  * FormBuilder class - Main form builder component
@@ -188,7 +234,7 @@ export class FormBuilder extends BaseModule {
                             <span class="field-type">${escapeHTML(field.type)}</span>
                             ${field.required ? `<span class="badge">${translate('required')}</span>` : ''}
                             ${field.dependsOn ? `<span class="badge badge-info">${translate('conditional')}: ${escapeHTML(`${field.dependsOn.field} = ${field.dependsOn.value}`)}</span>` : ''}
-                            ${this.checkTranslation(field.label) ? '' : `<span class="badge badge-warning" title="${translate('translation_missing')}">⚠</span>`}
+                            ${this.checkTranslation(field) ? '' : `<span class="badge badge-warning" title="${translate('translation_missing')}"><span aria-hidden="true">⚠</span><span class="sr-only">${translate('translation_missing')}</span></span>`}
                         </div>
                         <div class="field-actions">
                             <button class="btn-icon move-up" data-index="${index}" 
@@ -209,13 +255,58 @@ export class FormBuilder extends BaseModule {
   }
 
   /**
-     * Check if a translation key exists (simplified - checks if it's a plain key pattern)
-     */
-  checkTranslation(key) {
-    if (!key) {return false;}
-    // Translation key pattern: lowercase letters and underscores only
-    const TRANSLATION_KEY_PATTERN = /^[a-z_]+$/;
-    return TRANSLATION_KEY_PATTERN.test(key);
+   * Whether a field shows a real text rather than its bare key: the unit
+   * wrote its own, or the key has a translation in the app's bundle.
+   *
+   * @param {Object} field - Form field
+   * @returns {boolean}
+   */
+  checkTranslation(field) {
+    const kind = field.type === 'infoText' ? 'infoHtml' : 'labelText';
+    if (hasOwnText(field[kind])) {
+      return true;
+    }
+    const key = field[FIELD_TEXT_KINDS[kind].keyProperty];
+    return Boolean(key) && translate(key) !== key;
+  }
+
+  /**
+   * The text a field would show in the builder's language, for the editor's
+   * preview line.
+   *
+   * @param {string} kind - `labelText` or `infoHtml`
+   * @returns {string} HTML
+   */
+  renderTextPreview(kind) {
+    const { keyInput, rich } = FIELD_TEXT_KINDS[kind];
+    const key = document.getElementById(keyInput)?.value.trim();
+    const texts = this.editorTexts?.[kind];
+    if (rich) {
+      return formInfoHtml({ infoHtml: texts, infoText: key }, builderLanguage(), translate);
+    }
+    const { text, own } = resolveFormText(texts, key, builderLanguage(), translate);
+    return own ? escapeHTML(text) : text;
+  }
+
+  /**
+   * Refresh the preview lines and which key inputs are required: a key is
+   * optional once the field has a text of its own.
+   *
+   * @returns {void}
+   */
+  syncFieldTexts() {
+    const type = document.getElementById('field-type')?.value;
+    Object.entries(FIELD_TEXT_KINDS).forEach(([kind, { keyInput }]) => {
+      const input = document.getElementById(keyInput);
+      const preview = document.getElementById(`${keyInput}-preview`);
+      const applies = (kind === 'infoHtml') === (type === 'infoText');
+      if (input) {
+        input.required = applies && !hasOwnText(this.editorTexts?.[kind]);
+      }
+      if (preview) {
+        setContent(preview, this.renderTextPreview(kind));
+      }
+    });
   }
 
   /**
@@ -227,6 +318,11 @@ export class FormBuilder extends BaseModule {
 
     const controllingFields = this.getControllingFieldCandidates(fieldIndex, field.dependsOn?.field);
     const controllingField = controllingFields.find(f => f.name === field.dependsOn?.field);
+    // Edited in the translations dialog, written to the field on save.
+    this.editorTexts = {
+      labelText: { ...(field.labelText || {}) },
+      infoHtml: { ...(field.infoHtml || {}) },
+    };
 
     openModal({
       id: 'field-editor-modal',
@@ -265,16 +361,23 @@ export class FormBuilder extends BaseModule {
                         </button>
                     </div>
                     <small>${translate('auto_suggest_key')}</small>
+                    <p class="field-text-preview"><span class="field-text-preview__label">${translate('text_preview')}</span>
+                        <span id="field-label-preview" aria-live="polite"></span></p>
                 </div>
 
                 <div class="form-group" id="field-info-text-group" ${field.type === 'infoText' ? '' : 'style="display:none;"'}>
-                    <label for="field-info-text">${translate('info_text_key')} *</label>
+                    <label for="field-info-text">${translate('info_text_key')}</label>
                     <div class="input-with-button">
-                        <input type="text" id="field-info-text" name="infoText" value="${escapeHTML(field.infoText || '')}" 
-                               placeholder="info_text_key">
+                        <input type="text" id="field-info-text" name="infoText" value="${escapeHTML(field.infoText || '')}"
+                               placeholder="info_text_key" aria-describedby="field-info-text-hint">
                         <button type="button" id="add-info-translation" class="btn btn-sm">
                             ${translate('add_translation')}
                         </button>
+                    </div>
+                    <small id="field-info-text-hint">${translate('info_text_key_hint')}</small>
+                    <div class="field-text-preview field-text-preview--rich">
+                        <span class="field-text-preview__label">${translate('text_preview')}</span>
+                        <div id="field-info-text-preview" aria-live="polite"></div>
                     </div>
                 </div>
 
@@ -322,6 +425,7 @@ export class FormBuilder extends BaseModule {
     });
     this.updateFieldEditorVisibility(field.type);
     this.attachFieldEditorListeners();
+    this.syncFieldTexts();
   }
 
   /**
@@ -642,6 +746,7 @@ export class FormBuilder extends BaseModule {
           labelInput.value = e.target.value ? `${e.target.value}_label` : '';
         }
         nameInput.dataset.oldValue = e.target.value;
+        this.syncFieldTexts();
       });
     }
 
@@ -673,21 +778,13 @@ export class FormBuilder extends BaseModule {
     }
 
     // Add translation buttons
-    const addLabelTransBtn = document.getElementById('add-label-translation');
-    if (addLabelTransBtn) {
-      addLabelTransBtn.addEventListener('click', () => {
-        const key = document.getElementById('field-label').value;
-        this.showTranslationEditor(key);
-      });
-    }
-
-    const addInfoTransBtn = document.getElementById('add-info-translation');
-    if (addInfoTransBtn) {
-      addInfoTransBtn.addEventListener('click', () => {
-        const key = document.getElementById('field-info-text').value;
-        this.showTranslationEditor(key);
-      });
-    }
+    document.getElementById('add-label-translation')
+      ?.addEventListener('click', () => this.showTranslationEditor('labelText'));
+    document.getElementById('add-info-translation')
+      ?.addEventListener('click', () => this.showTranslationEditor('infoHtml'));
+    ['field-label', 'field-info-text'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('input', () => this.syncFieldTexts());
+    });
 
     // Form submit
     const form = document.getElementById('field-editor-form');
@@ -710,8 +807,6 @@ export class FormBuilder extends BaseModule {
     const optionsGroup = document.getElementById('field-options-group');
     const dependsOnGroup = document.getElementById('depends-on-group');
     const nameInput = document.getElementById('field-name');
-    const labelInput = document.getElementById('field-label');
-    const infoTextInput = document.getElementById('field-info-text');
 
     if (fieldType === 'infoText') {
       nameGroup.style.display = 'none';
@@ -721,8 +816,6 @@ export class FormBuilder extends BaseModule {
       dependsOnGroup.style.display = 'none';
 
       if (nameInput) {nameInput.required = false;}
-      if (labelInput) {labelInput.required = false;}
-      if (infoTextInput) {infoTextInput.required = true;}
     } else {
       nameGroup.style.display = 'block';
       labelGroup.style.display = 'block';
@@ -731,9 +824,8 @@ export class FormBuilder extends BaseModule {
       optionsGroup.style.display = ['select', 'radio'].includes(fieldType) ? 'block' : 'none';
 
       if (nameInput) {nameInput.required = true;}
-      if (labelInput) {labelInput.required = true;}
-      if (infoTextInput) {infoTextInput.required = false;}
     }
+    this.syncFieldTexts();
   }
 
   /**
@@ -755,68 +847,93 @@ export class FormBuilder extends BaseModule {
   }
 
   /**
-     * Show translation editor
-     */
-  showTranslationEditor(key) {
-    if (!key) {
-      this.app.showMessage(translate('enter_translation_key_first'), 'warning');
-      return;
+   * Each content language's starting text: the field's own text, else the
+   * app's bundle text for its key in that language.
+   *
+   * @param {string} kind - `labelText` or `infoHtml`
+   * @param {string} key - Translation key, possibly empty
+   * @returns {Promise<Object<string, {text: string, bundle: string}>>}
+   */
+  async loadTranslationDrafts(kind, key) {
+    if (key && typeof app?.loadTranslation === 'function') {
+      await Promise.all(FORM_CONTENT_LANGS.map((lang) => app.loadTranslation(lang)));
     }
+    const own = this.editorTexts?.[kind] || {};
+    return Object.fromEntries(FORM_CONTENT_LANGS.map((lang) => {
+      const bundle = (key && app?.translations?.[lang]?.[key]) || '';
+      return [lang, { text: own[lang] ?? bundle, bundle }];
+    }));
+  }
 
+  /**
+   * Edit a field's label or information text in every content language.
+   *
+   * Opens over the field editor and writes into its draft; the texts reach
+   * the form format when the field is saved. Each language starts from the
+   * field's own text or, failing that, the app's text for the key.
+   *
+   * @param {string} kind - `labelText` or `infoHtml`
+   * @returns {Promise<void>}
+   */
+  async showTranslationEditor(kind) {
+    const { keyInput, rich } = FIELD_TEXT_KINDS[kind];
+    const key = document.getElementById(keyInput)?.value.trim() || '';
+    const drafts = await this.loadTranslationDrafts(kind, key);
+
+    const languageRows = FORM_CONTENT_LANGS.map((lang) => {
+      const id = `trans-${lang}`;
+      const name = escapeHTML(languageName(lang));
+      if (rich) {
+        return `
+          <div class="form-group">
+            <span class="form-label" id="${id}-label" lang="${builderLanguage()}">${name}</span>
+            ${richTextEditorHTML({ id, labelId: `${id}-label`, html: drafts[lang].text })}
+          </div>`;
+      }
+      return `
+        <div class="form-group">
+          <label for="${id}">${name}</label>
+          <input type="text" id="${id}" name="${lang}" lang="${lang}" value="${escapeHTML(drafts[lang].text)}">
+        </div>`;
+    }).join('');
 
     openModal({
       id: 'translation-modal',
       title: translate('add_translation'),
+      size: rich ? 'large' : null,
       body: `
-            <form id="translation-form">
-                <div class="form-group">
-                    <label for="trans-key">${translate('translation_key')}</label>
-                    <input type="text" id="trans-key" value="${escapeHTML(key)}" readonly>
-                </div>
-                <div class="form-group">
-                    <label for="trans-en">${translate('english')}</label>
-                    <input type="text" id="trans-en" name="en" required>
-                </div>
-                <div class="form-group">
-                    <label for="trans-fr">${translate('french')}</label>
-                    <input type="text" id="trans-fr" name="fr" required>
-                </div>
-            </form>
-            `,
+        <form id="translation-form">
+          ${key ? `<p class="muted-text">${translate('translation_key')} : <code>${escapeHTML(key)}</code></p>` : ''}
+          <p class="muted-text">${translate('translations_hint')}</p>
+          ${languageRows}
+        </form>`,
       footer: `
-                <button type="button" class="btn btn-secondary" data-modal-close>${translate('cancel')}</button>
-                <button type="submit" form="translation-form" class="btn btn-primary">${translate('save')}</button>
-            `,
+        <button type="button" class="btn btn-secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="submit" form="translation-form" class="btn btn-primary">${translate('save')}</button>`,
     });
 
-    // Attach listeners
-    const form = document.getElementById('translation-form');
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      await this.saveTranslation(key, {
-        en: document.getElementById('trans-en').value,
-        fr: document.getElementById('trans-fr').value
-      });
-      closeModal('translation-modal');
-    });
-  }
-
-  /**
-     * Save translation
-     */
-  async saveTranslation(key, translations) {
-    try {
-      const response = await API.post('v1/form-builder/translations', { key, translations });
-
-      if (response.success) {
-        this.app.showMessage(translate('translation_saved'), 'success');
-      } else {
-        this.app.showMessage(translate('error_saving_translation'), 'error');
-      }
-    } catch (error) {
-      debugError('Error saving translation:', error);
-      this.app.showMessage(translate('error_saving_translation'), 'error');
+    if (rich) {
+      document.querySelectorAll('#translation-form [data-rte]').forEach((root) => attachRichTextEditor(root));
+      FORM_CONTENT_LANGS.forEach((lang) => document.getElementById(`trans-${lang}`)?.setAttribute('lang', lang));
     }
+
+    document.getElementById('translation-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const texts = {};
+      FORM_CONTENT_LANGS.forEach((lang) => {
+        const control = document.getElementById(`trans-${lang}`);
+        const value = rich ? getRichTextValue(control) : control.value.trim();
+        const bundle = rich ? sanitizeRichText(drafts[lang].bundle) : drafts[lang].bundle.trim();
+        // Only what differs from the app's own text is the unit's; an empty
+        // language falls back to the key's text or another language.
+        if (value && value !== bundle) {
+          texts[lang] = value;
+        }
+      });
+      this.editorTexts[kind] = texts;
+      closeModal('translation-modal');
+      this.syncFieldTexts();
+    });
   }
 
   /**
@@ -837,9 +954,21 @@ export class FormBuilder extends BaseModule {
 
     // Handle infoText type
     if (field.type === 'infoText') {
-      field.infoText = formData.get('infoText');
+      field.infoText = formData.get('infoText') || undefined;
       delete field.name;
       delete field.label;
+    }
+
+    // The unit's own texts, from the translations dialog
+    const textKind = field.type === 'infoText' ? 'infoHtml' : 'labelText';
+    if (hasOwnText(this.editorTexts?.[textKind])) {
+      field[textKind] = { ...this.editorTexts[textKind] };
+    }
+    if (!field.label) {
+      delete field.label;
+    }
+    if (!field.infoText) {
+      delete field.infoText;
     }
 
     // Handle options for select/radio

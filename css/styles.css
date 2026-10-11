@@ -10691,6 +10691,94 @@ details p {
   white-space: nowrap;
 }
 
+/* Field text preview (form builder) */
+.field-text-preview {
+  margin: 0.5rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.field-text-preview__label {
+  font-weight: var(--font-weight-semibold, 600);
+  margin-inline-end: 0.25rem;
+}
+
+.field-text-preview--rich > div {
+  margin-top: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border-inline-start: 3px solid var(--color-border);
+  color: var(--color-text);
+  max-height: 12rem;
+  overflow: auto;
+}
+
+/* Rich-text editor (form builder information texts) */
+.rte {
+  border: 1px solid var(--color-text-muted);
+  border-radius: 6px;
+  background: var(--color-surface, #fff);
+}
+
+.rte__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rte__button {
+  background: transparent;
+  background-image: none;
+  color: var(--color-text);
+  border: 1px solid transparent;
+  box-shadow: none;
+  padding: 0;
+  min-inline-size: var(--touch-target-min, 44px);
+  min-block-size: var(--touch-target-min, 44px);
+  border-radius: 4px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rte__button:hover:not(:disabled) {
+  background: var(--color-secondary);
+  background-image: none;
+  color: var(--color-primary-dark);
+  transform: none;
+  box-shadow: none;
+}
+
+.rte__button[aria-pressed="true"] {
+  background: var(--color-secondary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-dark);
+}
+
+.rte__area {
+  min-height: 8rem;
+  max-height: 20rem;
+  overflow: auto;
+  padding: 0.75rem;
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.rte__area:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: -3px;
+}
+
+.rte__area p {
+  margin: 0 0 0.5rem;
+}
+
+.rte__area ul,
+.rte__area ol {
+  margin: 0 0 0.5rem;
+  padding-inline-start: 1.5rem;
+}
+
 /* Options Editor */
 .option-item {
   display: flex;

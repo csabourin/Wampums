@@ -1,6 +1,17 @@
-import { translate } from './app.js';
-import { debugLog, debugError, debugWarn, debugInfo } from './utils/DebugUtils.js';
+import { app, translate } from './app.js';
+import { debugLog, debugWarn } from './utils/DebugUtils.js';
 import { isDependencyMet, isDependencySatisfied } from './utils/FormDependencyUtils.js';
+import { formInfoHtml, formLabelHtml } from './utils/FormTextUtils.js';
+import { DEFAULT_LANG } from './config/languages.js';
+
+/**
+ * The reader's language, for the texts a unit wrote itself.
+ *
+ * @returns {string} Language code
+ */
+function readerLanguage() {
+  return app?.lang || DEFAULT_LANG;
+}
 
 export class JSONFormRenderer {
   constructor(formStructure, formData = {}, formOrigin, useUniqueIds = false, formIndex = null) {
@@ -25,7 +36,7 @@ export class JSONFormRenderer {
     // Render the form with the available form fields
     const renderedFields = this.formStructure.fields.map((field, index) => {
       if (field.type === 'infoText') {
-        return `<div class="info-text">${translate(field.infoText)}</div>`;
+        return `<div class="info-text">${formInfoHtml(field, readerLanguage(), translate)}</div>`;
       }
       const fieldHtml = this.renderField(field, this.formOrigin, index);
       return fieldHtml;
@@ -85,7 +96,7 @@ export class JSONFormRenderer {
   }
 
   renderField(field, formOrigin, index) {
-    const { type = 'text', name, label, required, infoText, options, dependsOn } = field;
+    const { type = 'text', name, required, infoText, options, dependsOn } = field;
     let value = this.formData[name] || '';
 
     // Convert date values from ISO format to YYYY-MM-DD for HTML5 date inputs
@@ -140,7 +151,7 @@ export class JSONFormRenderer {
     }
 
     let output = `<div class="${groupClasses.join(' ')}" data-form-origin="${formOrigin}"${dependsOnAttr ? ` data-group-for="${name}"` : ''}>`;
-    const labelHtml = `<label for="${fieldId}">${translate(label || name)}</label>`;
+    const labelHtml = `<label for="${fieldId}">${formLabelHtml(field, readerLanguage(), translate)}</label>`;
     if (type !== 'checkbox') {
       output += labelHtml;
     }
