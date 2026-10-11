@@ -93,7 +93,7 @@ async function openCreateForm() {
   endpoints.getGroups.mockResolvedValue({ data: [] });
   fetchParticipants.mockResolvedValue(PARTICIPANTS);
   endpoints.savePermissionSlip.mockImplementation(({ participant_ids: ids }) => Promise.resolve({
-    data: { permission_slips: ids.map((id) => ({ participant_id: id, email_sent: false })), answered_participant_ids: [] },
+    data: { permission_slips: ids.map((id) => ({ id: 100 + id, participant_id: id, email_sent: false })), answered_participant_ids: [] },
   }));
   endpoints.sendPermissionSlipEmails.mockResolvedValue({ data: { sent: 3, total: 2, failed: [] } });
   endpoints.sendPermissionSlipTestEmail.mockResolvedValue({ data: { email: 'akela@unit.test' } });
@@ -146,7 +146,7 @@ test('"create and send" confirms, saves, then emails only the new slips', async 
 
   expect(confirm).toHaveBeenCalledWith('permission_slip_create_send_confirm');
   expect(endpoints.savePermissionSlip).toHaveBeenCalledWith(expect.objectContaining({ activity_id: 12, participant_ids: [1, 2] }));
-  expect(endpoints.sendPermissionSlipEmails).toHaveBeenCalledWith({ activity_id: 12, participant_ids: [1, 2] });
+  expect(endpoints.sendPermissionSlipEmails).toHaveBeenCalledWith({ activity_id: 12, slip_ids: [101, 102] });
   expect(app.showMessage).toHaveBeenCalledWith('permission_slip_created_and_sent', 'success');
 });
 
@@ -162,23 +162,23 @@ test('declining the confirmation creates and sends nothing', async () => {
 test('a slip already answered is kept and not sent again', async () => {
   await openCreateForm();
   endpoints.savePermissionSlip.mockResolvedValueOnce({
-    data: { permission_slips: [{ participant_id: 1, email_sent: false }], answered_participant_ids: [2] },
+    data: { permission_slips: [{ id: 101, participant_id: 1, email_sent: false }], answered_participant_ids: [2] },
   });
   await submitWith('send');
 
-  expect(endpoints.sendPermissionSlipEmails).toHaveBeenCalledWith({ activity_id: 12, participant_ids: [1] });
+  expect(endpoints.sendPermissionSlipEmails).toHaveBeenCalledWith({ activity_id: 12, slip_ids: [101] });
 });
 
 test('a pending slip already emailed is not resent, and the leader is told to remind', async () => {
   await openCreateForm();
   endpoints.savePermissionSlip.mockResolvedValueOnce({ data: {
-    permission_slips: [{ participant_id: 1, email_sent: false }, { participant_id: 2, email_sent: true }],
+    permission_slips: [{ id: 101, participant_id: 1, email_sent: false }, { id: 102, participant_id: 2, email_sent: true }],
     answered_participant_ids: [],
   } });
   endpoints.sendPermissionSlipEmails.mockResolvedValueOnce({ data: { sent: 1, total: 1, failed: [] } });
   await submitWith('send');
 
-  expect(endpoints.sendPermissionSlipEmails).toHaveBeenCalledWith({ activity_id: 12, participant_ids: [1] });
+  expect(endpoints.sendPermissionSlipEmails).toHaveBeenCalledWith({ activity_id: 12, slip_ids: [101] });
   expect(app.showMessage).toHaveBeenCalledWith(
     'permission_slip_created_and_sent permission_slip_already_sent_kept', 'warning',
   );
@@ -187,7 +187,7 @@ test('a pending slip already emailed is not resent, and the leader is told to re
 test('when every chosen slip was already emailed, nothing is sent and the leader is told', async () => {
   await openCreateForm();
   endpoints.savePermissionSlip.mockResolvedValueOnce({ data: {
-    permission_slips: [{ participant_id: 1, email_sent: true }, { participant_id: 2, email_sent: true }],
+    permission_slips: [{ id: 101, participant_id: 1, email_sent: true }, { id: 102, participant_id: 2, email_sent: true }],
     answered_participant_ids: [],
   } });
   await submitWith('send');
@@ -301,16 +301,16 @@ test('slips with different deadlines are listed, and tested, as separate groups'
   await flush();
   const reminded = endpoints.sendPermissionSlipReminders.mock.calls[0][0];
   expect(reminded.activity_id).toBe(12);
-  expect(reminded.participant_ids).toHaveLength(1);
-  expect([1, 2]).toContain(reminded.participant_ids[0]);
+  expect(reminded.slip_ids).toHaveLength(1);
+  expect([5, 6]).toContain(reminded.slip_ids[0]);
 
   endpoints.sendPermissionSlipEmails.mockClear();
   groups[0].querySelector('.btn-send-emails').click();
   await flush();
   await flush();
-  expect(endpoints.sendPermissionSlipEmails.mock.calls[0][0].participant_ids).toHaveLength(1);
-  expect(endpoints.sendPermissionSlipEmails.mock.calls[0][0].participant_ids[0])
-    .not.toBe(reminded.participant_ids[0]);
+  expect(endpoints.sendPermissionSlipEmails.mock.calls[0][0].slip_ids).toHaveLength(1);
+  expect(endpoints.sendPermissionSlipEmails.mock.calls[0][0].slip_ids[0])
+    .not.toBe(reminded.slip_ids[0]);
 });
 
 test('the create form has no WCAG A/AA violations', async () => {

@@ -38,16 +38,16 @@ import { hasPermission } from './utils/PermissionUtils.js';
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 import { richTextOrPlain } from './utils/RichTextUtils.js';
 
-// The server accepts at most this many participant_ids per request
+// The server accepts at most this many participant or slip ids per request
 const SLIP_BATCH_SIZE = 200;
 
 /**
- * The participant ids a group's button carries.
+ * The slip ids a group's button carries.
  * @param {HTMLElement} button - A send or reminder button
  * @returns {number[]}
  */
-function readParticipantIds(button) {
-  return (button.dataset.participantIds || '').split(',').filter(Boolean).map(Number);
+function readSlipIds(button) {
+  return (button.dataset.slipIds || '').split(',').filter(Boolean).map(Number);
 }
 
 export class PermissionSlipDashboard {
@@ -497,13 +497,13 @@ export class PermissionSlipDashboard {
   }
 
   /**
-   * The children of a listed group, so its send and reminder actions reach
-   * that group's slips only.
+   * The slips of a listed group, so its send and reminder actions reach
+   * those slips only (one child may have several slips for an activity).
    * @param {Object[]} slips - The group's slips
-   * @returns {string} Comma-separated participant ids
+   * @returns {string} Comma-separated slip ids
    */
-  groupParticipantIds(slips) {
-    return [...new Set(slips.filter((slip) => !slip._optimistic).map((slip) => slip.participant_id))].join(',');
+  groupSlipIds(slips) {
+    return slips.filter((slip) => !slip._optimistic).map((slip) => slip.id).join(',');
   }
 
   renderPermissionSlipsTable() {
@@ -559,10 +559,10 @@ export class PermissionSlipDashboard {
                   ${declinedCount > 0 ? `<br><strong>${escapeHTML(translate("permission_slip_status_declined"))}:</strong> ${declinedCount}` : ''}
                 </div>
                 <div>
-                  <button class="btn secondary btn-send-emails" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}" data-participant-ids="${escapeHTML(this.groupParticipantIds(activity.slips))}">
+                  <button class="btn secondary btn-send-emails" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}" data-slip-ids="${escapeHTML(this.groupSlipIds(activity.slips))}">
                     ${escapeHTML(translate("send_emails_to_parents"))}
                   </button>
-                  <button class="btn secondary btn-send-reminders" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}" data-participant-ids="${escapeHTML(this.groupParticipantIds(activity.slips))}">
+                  <button class="btn secondary btn-send-reminders" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}" data-slip-ids="${escapeHTML(this.groupSlipIds(activity.slips))}">
                     ${escapeHTML(translate("send_reminder_emails"))}
                   </button>
                   ${this.activityId && hasPermission('communications.send') ? `
@@ -743,7 +743,7 @@ export class PermissionSlipDashboard {
         e.preventDefault();
         const activityTitle = btn.getAttribute('data-activity-title');
         const date = btn.getAttribute('data-date');
-        withButtonLoading(btn, () => this.handleSendEmails(date, activityTitle, readParticipantIds(btn)));
+        withButtonLoading(btn, () => this.handleSendEmails(date, activityTitle, readSlipIds(btn)));
       });
     });
 
@@ -761,7 +761,7 @@ export class PermissionSlipDashboard {
         e.preventDefault();
         const activityTitle = btn.getAttribute('data-activity-title');
         const date = btn.getAttribute('data-date');
-        withButtonLoading(btn, () => this.handleSendReminders(date, activityTitle, readParticipantIds(btn)));
+        withButtonLoading(btn, () => this.handleSendReminders(date, activityTitle, readSlipIds(btn)));
       });
     });
 
@@ -1138,7 +1138,7 @@ export class PermissionSlipDashboard {
         // Only the saved slips not yet emailed: an answered slip is kept as
         // it was, and a pending one already emailed is reminded, not resent.
         const saved = results.flatMap((result) => result?.data?.permission_slips || []);
-        const unsentIds = saved.filter((slip) => !slip.email_sent).map((slip) => Number(slip.participant_id));
+        const unsentIds = saved.filter((slip) => !slip.email_sent).map((slip) => Number(slip.id));
         const alreadySent = saved.length - unsentIds.length;
         if (unsentIds.length > 0) {
           await this.sendCreatedSlips(unsentIds, alreadySent);
@@ -1170,19 +1170,19 @@ export class PermissionSlipDashboard {
 
   /**
    * Email the slips just created, and only those, to their parents.
-   * @param {number[]} participantIds - Children whose saved slips are unsent
+   * @param {number[]} slipIds - Saved slips not yet emailed
    * @param {number} [alreadySent=0] - Chosen children whose slip had already been emailed
    * @returns {Promise<void>}
    */
-  async sendCreatedSlips(participantIds, alreadySent = 0) {
+  async sendCreatedSlips(slipIds, alreadySent = 0) {
     try {
       const batches = [];
-      for (let start = 0; start < participantIds.length; start += SLIP_BATCH_SIZE) {
-        batches.push(participantIds.slice(start, start + SLIP_BATCH_SIZE));
+      for (let start = 0; start < slipIds.length; start += SLIP_BATCH_SIZE) {
+        batches.push(slipIds.slice(start, start + SLIP_BATCH_SIZE));
       }
       const results = await Promise.all(batches.map((ids) => sendPermissionSlipEmails({
         activity_id: this.activityId,
-        participant_ids: ids,
+        slip_ids: ids,
       })));
       const sent = results.reduce((count, result) => count + ((result?.data || result)?.sent || 0), 0);
       const failures = results.flatMap((result) => (result?.data || result)?.failed || []);
@@ -1241,19 +1241,19 @@ export class PermissionSlipDashboard {
    * @param {Function} send - sendPermissionSlipEmails or sendPermissionSlipReminders
    * @param {string} date - The group's meeting date (legacy slips without an activity)
    * @param {string} activityTitle - The group's title
-   * @param {number[]} participantIds - The group's children; empty for every slip
+   * @param {number[]} slipIds - The group's slips; empty for every slip
    * @returns {Promise<{data: {sent: number, total: number}, message: string}>}
    */
-  async sendToGroup(send, date, activityTitle, participantIds) {
+  async sendToGroup(send, date, activityTitle, slipIds) {
     const base = this.activityId
       ? { activity_id: this.activityId }
       : { meeting_date: date, activity_title: activityTitle };
     const batches = [];
-    for (let start = 0; start < participantIds.length; start += SLIP_BATCH_SIZE) {
-      batches.push(participantIds.slice(start, start + SLIP_BATCH_SIZE));
+    for (let start = 0; start < slipIds.length; start += SLIP_BATCH_SIZE) {
+      batches.push(slipIds.slice(start, start + SLIP_BATCH_SIZE));
     }
     const results = await Promise.all((batches.length > 0 ? batches : [null])
-      .map((ids) => send(ids ? { ...base, participant_ids: ids } : base)));
+      .map((ids) => send(ids ? { ...base, slip_ids: ids } : base)));
     const datas = results.map((result) => result?.data || result || {});
     return {
       data: {
@@ -1264,13 +1264,13 @@ export class PermissionSlipDashboard {
     };
   }
 
-  async handleSendEmails(date, activityTitle, participantIds = []) {
+  async handleSendEmails(date, activityTitle, slipIds = []) {
     if (!(await confirmDialog(`${translate("send_emails_confirm")} "${activityTitle}"?\n\n${translate("emails_only_not_sent_note")}`))) {
       return;
     }
 
     try {
-      const { data, message } = await this.sendToGroup(sendPermissionSlipEmails, date, activityTitle, participantIds);
+      const { data, message } = await this.sendToGroup(sendPermissionSlipEmails, date, activityTitle, slipIds);
 
       // Show appropriate message based on response
       if (data.sent === 0 && data.total === 0) {
@@ -1291,13 +1291,13 @@ export class PermissionSlipDashboard {
     }
   }
 
-  async handleSendReminders(date, activityTitle, participantIds = []) {
+  async handleSendReminders(date, activityTitle, slipIds = []) {
     if (!(await confirmDialog(`${translate("send_reminder_confirm")} "${activityTitle}"?\n\n${translate("reminder_only_unsigned_note")}`))) {
       return;
     }
 
     try {
-      const { data, message } = await this.sendToGroup(sendPermissionSlipReminders, date, activityTitle, participantIds);
+      const { data, message } = await this.sendToGroup(sendPermissionSlipReminders, date, activityTitle, slipIds);
 
       // Show appropriate message based on response
       if (data.sent === 0) {

@@ -277,3 +277,25 @@ describe('GET /api/v1/resources/permission-slips', () => {
     expect(list).not.toMatch(/a\.description(_html)? AS activity_description/);
   });
 });
+
+describe('POST /api/v1/resources/permission-slips/send-emails', () => {
+  test('slip_ids restrict the send to those slips', async () => {
+    const statements = mockDatabase();
+    await request(app)
+      .post('/api/v1/resources/permission-slips/send-emails')
+      .set('Authorization', `Bearer ${token(['communications.send'])}`)
+      .send({ activity_id: 12, slip_ids: [5, 6] });
+
+    const check = statements.find((sql) => sql.includes('unsent_count'));
+    expect(check).toContain('ps.id = ANY($3::int[])');
+  });
+
+  test('refuses slip_ids that are not numbers', async () => {
+    mockDatabase();
+    const res = await request(app)
+      .post('/api/v1/resources/permission-slips/send-emails')
+      .set('Authorization', `Bearer ${token(['communications.send'])}`)
+      .send({ activity_id: 12, slip_ids: ['x'] });
+    expect(res.status).toBe(400);
+  });
+});

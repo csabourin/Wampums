@@ -97,6 +97,8 @@ const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
 /** The email service did not accept a message. */
 const HTTP_BAD_GATEWAY = 502;
+/** Slips one send or reminder request may name. */
+const MAX_SLIP_IDS_PER_REQUEST = 200;
 
 function activeReservationPredicate(alias = "") {
   const prefix = alias ? `${alias}.` : "";
@@ -1795,12 +1797,15 @@ module.exports = (pool) => {
         .isLength({ max: 200 }),
       check("participant_ids").optional().isArray({ max: 200 }),
       check("participant_ids.*").optional().isInt({ min: 1 }),
+      // Exact slips, for a page listing one activity's slips in several groups
+      check('slip_ids').optional().isArray({ max: MAX_SLIP_IDS_PER_REQUEST }),
+      check('slip_ids.*').optional().isInt({ min: 1 }),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const { meeting_date, activity_id, activity_title, participant_ids } = req.body;
+        const { meeting_date, activity_id, activity_title, participant_ids, slip_ids: slipIds } = req.body;
 
         // Require either activity_id or meeting_date
         if (!activity_id && !meeting_date) {
@@ -1839,6 +1844,11 @@ module.exports = (pool) => {
         if (participant_ids && participant_ids.length > 0) {
           pendingCheckParams.push(participant_ids);
           pendingCheckQuery += ` AND ps.participant_id = ANY($${pendingCheckParams.length})`;
+        }
+
+        if (slipIds && slipIds.length > 0) {
+          pendingCheckParams.push(slipIds.map(Number));
+          pendingCheckQuery += ` AND ps.id = ANY($${pendingCheckParams.length}::int[])`;
         }
 
         const pendingCheckResult = await pool.query(pendingCheckQuery, pendingCheckParams);
@@ -1884,6 +1894,11 @@ module.exports = (pool) => {
         if (participant_ids && participant_ids.length > 0) {
           params.push(participant_ids);
           query += ` AND ps.participant_id = ANY($${params.length})`;
+        }
+
+        if (slipIds && slipIds.length > 0) {
+          params.push(slipIds.map(Number));
+          query += ` AND ps.id = ANY($${params.length}::int[])`;
         }
 
         const slipsResult = await pool.query(query, params);
@@ -2062,12 +2077,15 @@ module.exports = (pool) => {
         .isLength({ max: 200 }),
       check("participant_ids").optional().isArray({ max: 200 }),
       check("participant_ids.*").optional().isInt({ min: 1 }),
+      // Exact slips, for a page listing one activity's slips in several groups
+      check('slip_ids').optional().isArray({ max: MAX_SLIP_IDS_PER_REQUEST }),
+      check('slip_ids.*').optional().isInt({ min: 1 }),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const { meeting_date, activity_id, activity_title, participant_ids } = req.body;
+        const { meeting_date, activity_id, activity_title, participant_ids, slip_ids: slipIds } = req.body;
 
         // Require either activity_id or meeting_date
         if (!activity_id && !meeting_date) {
@@ -2105,6 +2123,11 @@ module.exports = (pool) => {
         if (participant_ids && participant_ids.length > 0) {
           pendingCheckParams.push(participant_ids);
           pendingCheckQuery += ` AND ps.participant_id = ANY($${pendingCheckParams.length})`;
+        }
+
+        if (slipIds && slipIds.length > 0) {
+          pendingCheckParams.push(slipIds.map(Number));
+          pendingCheckQuery += ` AND ps.id = ANY($${pendingCheckParams.length}::int[])`;
         }
 
         const pendingCheckResult = await pool.query(pendingCheckQuery, pendingCheckParams);
@@ -2146,6 +2169,11 @@ module.exports = (pool) => {
         if (participant_ids && participant_ids.length > 0) {
           params.push(participant_ids);
           query += ` AND ps.participant_id = ANY($${params.length})`;
+        }
+
+        if (slipIds && slipIds.length > 0) {
+          params.push(slipIds.map(Number));
+          query += ` AND ps.id = ANY($${params.length}::int[])`;
         }
 
         const slipsResult = await pool.query(query, params);
