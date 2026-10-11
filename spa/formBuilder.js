@@ -173,14 +173,14 @@ export class FormBuilder extends BaseModule {
     }
 
     return `
-            <div class="fields-sortable">
+            <div class="fields-sortable" role="list" aria-label="${translate('form_fields')}">
                 ${this.currentFields.map((field, index) => `
                     <div class="field-item" 
                          data-field-index="${index}"
                          draggable="true"
                          role="listitem"
                          aria-label="${translate('field')} ${index + 1}">
-                        <div class="field-handle" aria-label="${translate('drag_handle')}">
+                        <div class="field-handle" aria-hidden="true">
                             <span>☰</span>
                         </div>
                         <div class="field-info">
@@ -332,15 +332,31 @@ export class FormBuilder extends BaseModule {
       return `<div class="no-options">${translate('no_options_yet')}</div>`;
     }
 
-    return options.map((option, index) => `
+    return options.map((option, index) => this.renderOptionItem(option, index)).join('');
+  }
+
+  /**
+     * Render one editable option row. Placeholders vanish once typed into, so
+     * each control carries its own accessible name, numbered by row.
+     *
+     * @param {{label?: string, value?: string}} option - Option to edit
+     * @param {number} index - Zero-based row index
+     * @returns {string} Option row HTML
+     */
+  renderOptionItem(option, index) {
+    const position = index + 1;
+    return `
             <div class="option-item" data-option-index="${index}">
-                <input type="text" class="option-label" value="${escapeHTML(option.label || '')}" 
-                       placeholder="${translate('label_key')}">
-                <input type="text" class="option-value" value="${escapeHTML(option.value || '')}" 
-                       placeholder="${translate('value')}">
-                <button type="button" class="btn-icon remove-option" data-index="${index}">🗑️</button>
+                <input type="text" class="option-label" value="${escapeHTML(option.label || '')}"
+                       placeholder="${translate('label_key')}"
+                       aria-label="${escapeHTML(`${translate('label_key')} ${position}`)}">
+                <input type="text" class="option-value" value="${escapeHTML(option.value || '')}"
+                       placeholder="${translate('value')}"
+                       aria-label="${escapeHTML(`${translate('value')} ${position}`)}">
+                <button type="button" class="btn-icon remove-option" data-index="${index}"
+                        aria-label="${escapeHTML(`${translate('remove_option')} ${position}`)}"><span aria-hidden="true">🗑️</span></button>
             </div>
-        `).join('');
+        `;
   }
 
   /**
@@ -638,7 +654,7 @@ export class FormBuilder extends BaseModule {
     // Remove option buttons
     document.querySelectorAll('.remove-option').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        e.target.closest('.option-item').remove();
+        e.currentTarget.closest('.option-item').remove();
       });
     });
 
@@ -727,21 +743,15 @@ export class FormBuilder extends BaseModule {
     const container = document.getElementById('options-container');
     const index = container.querySelectorAll('.option-item').length;
 
-    const optionHtml = `
-            <div class="option-item" data-option-index="${index}">
-                <input type="text" class="option-label" placeholder="${translate('label_key')}">
-                <input type="text" class="option-value" placeholder="${translate('value')}">
-                <button type="button" class="btn-icon remove-option" data-index="${index}">🗑️</button>
-            </div>
-        `;
-
-    insertHTML(container, 'beforeend', optionHtml);
+    container.querySelector('.no-options')?.remove();
+    insertHTML(container, 'beforeend', this.renderOptionItem({}, index));
 
     // Attach remove listener
     const newOption = container.lastElementChild;
     newOption.querySelector('.remove-option').addEventListener('click', (e) => {
-      e.target.closest('.option-item').remove();
+      e.currentTarget.closest('.option-item').remove();
     });
+    newOption.querySelector('.option-label').focus();
   }
 
   /**
@@ -932,10 +942,20 @@ export class FormBuilder extends BaseModule {
     const newIndex = index + direction;
     if (newIndex < 0 || newIndex >= this.currentFields.length) {return;}
 
+    // Re-rendering the list destroys the focused control; remember which
+    // one it was so keyboard users keep their place (WCAG 2.4.3).
+    const active = document.activeElement;
+    const focusedButton = ['move-up', 'move-down'].find((cls) => active?.classList?.contains(cls));
+
     const field = this.currentFields[index];
     this.currentFields.splice(index, 1);
     this.currentFields.splice(newIndex, 0, field);
     this.updateFieldsList();
+
+    const movedItem = document.querySelector(`.field-item[data-field-index="${newIndex}"]`);
+    const sameButton = focusedButton && movedItem?.querySelector(`.${focusedButton}:not([disabled])`);
+    // At the top or bottom the same arrow is disabled: fall back to the row.
+    (sameButton || movedItem)?.focus();
   }
 
   /**

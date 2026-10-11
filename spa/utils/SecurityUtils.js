@@ -22,8 +22,9 @@ const ADDITIONAL_ALLOWED_ATTRS = [
   'placeholder', 'required', 'disabled', 'readonly', 'checked', 'selected',
   'min', 'max', 'step', 'pattern', 'autocomplete', 'multiple', 'open',
 
-  // Form attributes
-  'type', 'name', 'value', 'for', 'action', 'method', 'enctype',
+  // Form attributes. `form` ties a submit button in a modal footer to the form
+  // in the modal body (CLAUDE.md §7, Modals); without it the button does nothing.
+  'type', 'name', 'value', 'for', 'action', 'method', 'enctype', 'form',
 
   // Table/layout
   'rows', 'cols',

@@ -10587,20 +10587,29 @@ details p {
 }
 
 .btn-icon {
-  background: none;
-  border: 1px solid #ccc;
+  background: var(--color-surface, #fff);
+  /* The global button rule paints white text on a green gradient; without its
+     own colour this button showed white arrows on a white background. */
+  color: var(--color-text);
+  /* Muted text colour: the boundary reaches 3:1 (WCAG 1.4.11). */
+  border: 1px solid var(--color-text-muted);
   border-radius: 4px;
+  box-shadow: none;
   padding: 0.25rem 0.5rem;
   cursor: pointer;
-  font-size: 1rem;
-  transition: all 0.2s;
-  min-width: 32px;
-  min-height: 32px;
+  font-size: 1.125rem;
+  font-weight: var(--font-weight-semibold, 600);
+  transition: background-color 0.2s, border-color 0.2s;
+  min-width: var(--touch-target-min, 44px);
+  min-height: var(--touch-target-min, 44px);
 }
 
 .btn-icon:hover:not(:disabled) {
-  background: #f0f0f0;
-  border-color: #999;
+  background: var(--color-secondary, #f0f0f0);
+  border-color: var(--color-primary);
+  color: var(--color-primary-dark);
+  transform: none;
+  box-shadow: none;
 }
 
 .btn-icon:disabled {
