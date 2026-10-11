@@ -28,7 +28,7 @@ import {
   attachRichTextEditor,
   getRichTextValue,
   richTextEditorHTML,
-} from './modules/form-builder/RichTextEditor.js';
+} from './modules/rich-text/RichTextEditor.js';
 
 /** Field types whose answer can show or hide another field. */
 const CONTROLLING_FIELD_TYPES = ['select', 'radio', 'checkbox'];

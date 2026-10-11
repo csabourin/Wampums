@@ -1,8 +1,9 @@
 /**
- * A small rich-text editor for a form's information texts.
+ * A small rich-text editor: a form's information texts, announcements and
+ * activity descriptions.
  *
- * Offers only what an information text needs: bold, italic, bulleted and
- * numbered lists, and links. The output always goes through
+ * Offers only basic formatting: bold, italic, bulleted and numbered lists,
+ * and links. The output always goes through
  * `sanitizeRichText`, on paste and when read, so nothing else survives.
  *
  * Accessibility (WCAG 2.2 AA):
@@ -13,11 +14,12 @@
  * - Ctrl/⌘+B, Ctrl/⌘+I (native) and Ctrl/⌘+K (link) work from the text;
  * - nothing is drag-only and no motion is added.
  *
- * @module modules/form-builder/RichTextEditor
+ * @module modules/rich-text/RichTextEditor
  */
 
 import { translate } from '../../app.js';
 import { escapeAttribute } from '../../utils/SecurityUtils.js';
+import { setContent } from '../../utils/DOMUtils.js';
 import { prompt, alert } from '../../utils/DialogUtils.js';
 import {
   RICH_TEXT_LINK_PATTERN,
@@ -56,9 +58,11 @@ function exec(command, value) {
  * @param {string} options.id - Id of the editable area
  * @param {string} options.labelId - Id of the element naming the editor
  * @param {string} [options.html] - Initial rich text
+ * @param {string} [options.describedBy] - Ids of elements describing the editor
+ * @param {boolean} [options.required] - Whether the text is required
  * @returns {string} HTML
  */
-export function richTextEditorHTML({ id, labelId, html = '' }) {
+export function richTextEditorHTML({ id, labelId, html = '', describedBy = '', required = false }) {
   const buttons = COMMANDS.map(({ command, icon, labelKey, toggle }, index) => `
     <button type="button" class="rte__button" data-rte-command="${command}"
             tabindex="${index === 0 ? '0' : '-1'}"
@@ -73,7 +77,8 @@ export function richTextEditorHTML({ id, labelId, html = '' }) {
         ${buttons}
       </div>
       <div id="${id}" class="rte__area" role="textbox" aria-multiline="true"
-           aria-labelledby="${labelId}" tabindex="0">${sanitizeRichText(html)}</div>
+           aria-labelledby="${labelId}"${describedBy ? ` aria-describedby="${escapeAttribute(describedBy)}"` : ''}${required ? ' aria-required="true"' : ''}
+           tabindex="0">${sanitizeRichText(html)}</div>
     </div>`;
 }
 
@@ -86,6 +91,33 @@ export function richTextEditorHTML({ id, labelId, html = '' }) {
 export function getRichTextValue(area) {
   const html = sanitizeRichText(area.innerHTML);
   return richTextHasContent(html) ? html : '';
+}
+
+/**
+ * Replace the editor's content.
+ *
+ * @param {HTMLElement} area - The editable area
+ * @param {string} html - Rich text
+ * @returns {void}
+ */
+export function setRichTextValue(area, html) {
+  setContent(area, sanitizeRichText(html));
+}
+
+/**
+ * Turn editing off or back on, as a disabled form control would be.
+ *
+ * @param {HTMLElement} root - The `[data-rte]` element
+ * @param {boolean} disabled - Whether editing is off
+ * @returns {void}
+ */
+export function setRichTextDisabled(root, disabled) {
+  const area = root.querySelector('.rte__area');
+  area.setAttribute('contenteditable', disabled ? 'false' : 'true');
+  area.setAttribute('aria-disabled', String(disabled));
+  root.querySelectorAll('.rte__button').forEach((button) => {
+    button.disabled = disabled;
+  });
 }
 
 /**

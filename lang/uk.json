@@ -3861,5 +3861,7 @@
   "error_updating_calendar_paid_status": "Помилка оновлення платного статусу календаря",
   "no_calendars_data": "Дані календаря недоступні",
   "view_calendars": "Переглянути календарі",
-  "view_calendars_for": "Переглянути календарі для"
+  "view_calendars_for": "Переглянути календарі для",
+  "announcement_message_required": "Напишіть повідомлення.",
+  "activity_description_help": "Надсилається родинам у листі про батьківський дозвіл. Жирний шрифт, курсив, списки й посилання зберігаються."
 }

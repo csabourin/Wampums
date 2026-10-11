@@ -1,66 +1,74 @@
-import { getMailingList, getAnnouncements, createAnnouncement, getGroups } from "./ajax-functions.js";
-import { aiGenerateText } from "./modules/AI.js";
-import { debugLog, debugError } from "./utils/DebugUtils.js";
-import { translate } from "./app.js";
-import { escapeHTML, sanitizeHTML } from "./utils/SecurityUtils.js";
+import { getMailingList, getAnnouncements, createAnnouncement, getGroups } from './ajax-functions.js';
+import { aiGenerateText } from './modules/AI.js';
+import { debugLog, debugError } from './utils/DebugUtils.js';
+import { translate } from './app.js';
+import { escapeHTML, sanitizeHTML } from './utils/SecurityUtils.js';
 import { renderDeliveryLog } from './modules/announcements/deliveryLog.js';
-import { CONFIG } from "./config.js";
-import { canSendCommunications } from "./utils/PermissionUtils.js";
+import { CONFIG } from './config.js';
+import { canSendCommunications } from './utils/PermissionUtils.js';
 import { roleLabel } from './utils/RoleLabelUtils.js';
-import { setContent } from "./utils/DOMUtils.js";
+import { setContent } from './utils/DOMUtils.js';
 import { setButtonLoading } from './utils/SkeletonUtils.js';
 import { localeForLanguage } from './utils/InterfaceLanguageUtils.js';
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
+import {
+  attachRichTextEditor,
+  getRichTextValue,
+  richTextEditorHTML,
+  setRichTextDisabled,
+  setRichTextValue,
+} from './modules/rich-text/RichTextEditor.js';
+import { plainTextToRichText, richTextToPlainText } from './utils/RichTextUtils.js';
 export class MailingList {
-        constructor(app) {
-                this.app = app;
-                this.mailingList = {};
-                this.announcements = [];
-                this.groups = [];
-                this.templates = [];
-                this.unitRoles = [];
-                this.isSubmitting = false;
-        }
+  constructor(app) {
+    this.app = app;
+    this.mailingList = {};
+    this.announcements = [];
+    this.groups = [];
+    this.templates = [];
+    this.unitRoles = [];
+    this.isSubmitting = false;
+  }
 
-        async init() {
-                if (!canSendCommunications()) {
-                        this.app.router.navigate("/");
-                        return;
-                }
+  async init() {
+    if (!canSendCommunications()) {
+      this.app.router.navigate('/');
+      return;
+    }
 
-                try {
-                        await this.fetchData();
-                        this.render();
-                        this.attachEventListeners();
-                } catch (error) {
-                        debugError("Error initializing mailing list:", error);
-                        this.renderError();
-                }
-        }
+    try {
+      await this.fetchData();
+      this.render();
+      this.attachEventListeners();
+    } catch (error) {
+      debugError('Error initializing mailing list:', error);
+      this.renderError();
+    }
+  }
 
-        async fetchData() {
-                const [mailingResponse, groupsResponse, announcementResponse] = await Promise.all([
-                        getMailingList(),
-                        getGroups(),
-                        getAnnouncements(),
-                ]);
+  async fetchData() {
+    const [mailingResponse, groupsResponse, announcementResponse] = await Promise.all([
+      getMailingList(),
+      getGroups(),
+      getAnnouncements(),
+    ]);
 
-                if (!mailingResponse?.success || !mailingResponse.emails_by_role) {
-                        throw new Error(mailingResponse?.message || "Invalid mailing list response");
-                }
+    if (!mailingResponse?.success || !mailingResponse.emails_by_role) {
+      throw new Error(mailingResponse?.message || 'Invalid mailing list response');
+    }
 
-                this.mailingList = mailingResponse;
-                this.groups = groupsResponse?.data || groupsResponse?.groups || [];
-                this.announcements = announcementResponse?.data || [];
-                this.templates = announcementResponse?.templates || [];
-                this.unitRoles = announcementResponse?.roles || [];
-        }
+    this.mailingList = mailingResponse;
+    this.groups = groupsResponse?.data || groupsResponse?.groups || [];
+    this.announcements = announcementResponse?.data || [];
+    this.templates = announcementResponse?.templates || [];
+    this.unitRoles = announcementResponse?.roles || [];
+  }
 
-        render() {
-                const content = `
-                        <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-                        <h1>${translate("mailing_list")}</h1>
+  render() {
+    const content = `
+                        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+                        <h1>${translate('mailing_list')}</h1>
                         <div class="announcement-composer card">
                                 ${this.renderAnnouncementComposer()}
                         </div>
@@ -71,259 +79,266 @@ export class MailingList {
                                 ${this.renderMailingList()}
                         </div>
                 `;
-                setContent(document.getElementById("app"), content);
-        }
+    setContent(document.getElementById('app'), content);
+  }
 
-        renderAnnouncementComposer() {
-                // The parent role also reaches guardians, as in the list below.
-                const roles = this.unitRoles.map(({ role_name: key }) => ({
-                        key,
-                        label: key === "parent" ? translate("parents") : this.roleLabel(key),
-                }));
+  renderAnnouncementComposer() {
+    // The parent role also reaches guardians, as in the list below.
+    const roles = this.unitRoles.map(({ role_name: key }) => ({
+      key,
+      label: key === 'parent' ? translate('parents') : this.roleLabel(key),
+    }));
 
-                const templateOptions = this.templates?.length
-                        ? `
+    const templateOptions = this.templates?.length
+      ? `
                                 <label class="input-group">
-                                        <span>${translate("use_template")}</span>
+                                        <span>${translate('use_template')}</span>
                                         <select id="announcement-template">
-                                                <option value="">${translate("choose_template")}</option>
+                                                <option value="">${translate('choose_template')}</option>
                                                 ${this.templates
-                                .map(
-                                        (template, index) => `
+    .map(
+      (template, index) => `
                                                                         <option value="${index}">${escapeHTML(
-                                                template.title || template.key || translate("template")
-                                        )}</option>
+  template.title || template.key || translate('template')
+)}</option>
                                                                 `
-                                )
-                                .join("")}
+    )
+    .join('')}
                                         </select>
                                 </label>
                         `
-                        : "";
+      : '';
+    const messageEditor = richTextEditorHTML({
+      id: 'announcement-message',
+      labelId: 'announcement-message-label',
+      describedBy: 'announcement-message-error',
+      required: true,
+    });
 
-                return `
-                        <h2>${translate("compose_announcement")}</h2>
-                        <p class="text-muted">${translate("announcement_roles_help")}</p>
-                        <div id="announcement-feedback" class="status-message"></div>
+    return `
+                        <h2>${translate('compose_announcement')}</h2>
+                        <p class="text-muted">${translate('announcement_roles_help')}</p>
+                        <div id="announcement-feedback" class="status-message" role="status" aria-live="polite"></div>
                         <form id="announcement-form">
                                 ${templateOptions}
                                 <label class="input-group">
-                                        <span>${translate("announcement_subject")}</span>
+                                        <span>${translate('announcement_subject')}</span>
                                         <input type="text" id="announcement-subject" name="announcement-subject" maxlength="255" required />
                                 </label>
-                                <label class="input-group">
-                                        <span>${translate("announcement_message")}</span>
-                                        <textarea id="announcement-message" name="announcement-message" rows="5" required></textarea>
-                                        <div class="ai-toolbar" style="margin-top: 5px; display: flex; gap: 10px;">
-                                                <button type="button" class="button button--small button--secondary" id="ai-rewrite-btn">✨ ${translate("rewrite_professional")}</button>
-                                                <button type="button" class="button button--small button--secondary" id="ai-translate-btn">🌐 ${translate("translate_en_fr")}</button>
-                                        </div>
-                                </label>
                                 <div class="input-group">
-                                        <span>${translate("alumni_audience")}</span>
+                                        <span id="announcement-message-label">${translate('announcement_message')}</span>
+                                        ${messageEditor}
+                                        <p id="announcement-message-error" class="field-error" hidden></p>
+                                        <div class="ai-toolbar" style="margin-top: 5px; display: flex; gap: 10px;">
+                                                <button type="button" class="button button--small button--secondary" id="ai-rewrite-btn">✨ ${translate('rewrite_professional')}</button>
+                                                <button type="button" class="button button--small button--secondary" id="ai-translate-btn">🌐 ${translate('translate_en_fr')}</button>
+                                        </div>
+                                </div>
+                                <div class="input-group">
+                                        <span>${translate('alumni_audience')}</span>
                                         <label>
                                                 <input type="radio" name="announcement-audience" value="members" checked />
-                                                ${translate("alumni_audience_members")}
+                                                ${translate('alumni_audience_members')}
                                         </label>
                                         <label>
                                                 <input type="radio" name="announcement-audience" value="alumni" />
-                                                ${translate("alumni_audience_alumni")}
+                                                ${translate('alumni_audience_alumni')}
                                         </label>
-                                        <p class="text-muted">${translate("alumni_audience_help")}</p>
+                                        <p class="text-muted">${translate('alumni_audience_help')}</p>
                                 </div>
                                 <div class="input-group roles" id="announcement-member-filters">
-                                        <span>${translate("recipient_roles")}</span>
+                                        <span>${translate('recipient_roles')}</span>
                                         <div class="role-options">
                                                 ${roles
-                                .map(
-                                        (role) => `
+    .map(
+      (role) => `
                                                                         <label>
                                                                                 <input type="checkbox" name="recipient-role" value="${escapeHTML(role.key)}" ${role.key === 'parent' ? 'checked' : ''} />
                                                                                 ${escapeHTML(role.label)}
                                                                         </label>
                                                                 `
-                                )
-                                .join("")}
+    )
+    .join('')}
                                         </div>
                                 </div>
                                 <div id="announcement-group-filters">${this.renderGroupFilters()}</div>
                                 <label class="input-group">
-                                        <span>${translate("schedule_send_time")}</span>
+                                        <span>${translate('schedule_send_time')}</span>
                                         <input type="datetime-local" id="announcement-scheduled-at" name="announcement-scheduled-at" />
                                 </label>
                                 <div class="form-actions">
-                                        <button type="submit" id="send-announcement" class="primary" ${this.isSubmitting ? "disabled" : ""}>${translate(
-                                        "send_now"
-                                )}</button>
-                                        <button type="button" id="save-announcement-draft" ${this.isSubmitting ? "disabled" : ""}>${translate(
-                                        "save_draft"
-                                )}</button>
+                                        <button type="submit" id="send-announcement" class="primary" ${this.isSubmitting ? 'disabled' : ''}>${translate(
+  'send_now'
+)}</button>
+                                        <button type="button" id="save-announcement-draft" ${this.isSubmitting ? 'disabled' : ''}>${translate(
+  'save_draft'
+)}</button>
                                 </div>
                         </form>
                 `;
-        }
+  }
 
-        renderGroupFilters() {
-                if (!Array.isArray(this.groups) || !this.groups.length) {
-                        return "";
-                }
+  renderGroupFilters() {
+    if (!Array.isArray(this.groups) || !this.groups.length) {
+      return '';
+    }
 
-                return `
+    return `
                         <div class="input-group">
-                                <span>${translate("select_groups")}</span>
+                                <span>${translate('select_groups')}</span>
                                 <div class="group-options">
                                         ${this.groups
-                                .map(
-                                        (group) => `
+    .map(
+      (group) => `
                                                                 <label>
                                                                         <input type="checkbox" name="recipient-group" value="${group.id}" />
                                                                         ${escapeHTML(group.name)}
                                                                 </label>
                                                         `
-                                )
-                                .join("")}
+    )
+    .join('')}
                                 </div>
                         </div>
                 `;
-        }
+  }
 
-        renderAnnouncementHistory() {
-                if (!this.announcements?.length) {
-                        return `<p>${translate("no_announcements")}</p>`;
-                }
+  renderAnnouncementHistory() {
+    if (!this.announcements?.length) {
+      return `<p>${translate('no_announcements')}</p>`;
+    }
 
-                return `
-                        <h2>${translate("announcement_history")}</h2>
+    return `
+                        <h2>${translate('announcement_history')}</h2>
                         <div class="announcement-list">
                                 ${this.announcements
-                                .map((announcement) => {
-                                        const statusLabel = translate(announcement.status) || announcement.status;
-                                        const scheduled = announcement.scheduled_at
-                                                ? `${translate("scheduled_for")}: ${this.formatDateTime(announcement.scheduled_at)}`
-                                                : "";
-                                        const sent = announcement.sent_at
-                                                ? `${translate("sent_at")}: ${this.formatDateTime(announcement.sent_at)}`
-                                                : "";
-                                        const groups = Array.isArray(announcement.recipient_groups)
-                                                ? announcement.recipient_groups
-                                                        .map((id) => this.groups.find((group) => group.id === id)?.name)
-                                                        .filter(Boolean)
-                                                : [];
-                                        const logs = Array.isArray(announcement.logs) ? announcement.logs : [];
-                                        const deliverySummary = this.getDeliverySummary(logs);
-                                        const pushFailureLabel = translate("push_failed").replace(
-                                                "{count}",
-                                                deliverySummary.push.failed
-                                        );
+    .map((announcement) => {
+      const statusLabel = translate(announcement.status) || announcement.status;
+      const scheduled = announcement.scheduled_at
+        ? `${translate('scheduled_for')}: ${this.formatDateTime(announcement.scheduled_at)}`
+        : '';
+      const sent = announcement.sent_at
+        ? `${translate('sent_at')}: ${this.formatDateTime(announcement.sent_at)}`
+        : '';
+      const groups = Array.isArray(announcement.recipient_groups)
+        ? announcement.recipient_groups
+          .map((id) => this.groups.find((group) => group.id === id)?.name)
+          .filter(Boolean)
+        : [];
+      const logs = Array.isArray(announcement.logs) ? announcement.logs : [];
+      const deliverySummary = this.getDeliverySummary(logs);
+      const pushFailureLabel = translate('push_failed').replace(
+        '{count}',
+        deliverySummary.push.failed
+      );
 
-                                        return `
+      return `
                                                         <div class="announcement-item">
                                                                 <div class="announcement-meta">
                                                                         <div class="announcement-title">${escapeHTML(announcement.subject)}</div>
                                                                         <div class="announcement-status">${statusLabel}</div>
                                                                 </div>
                                                                 <div class="announcement-details">
-                                                                        <div>${translate("recipient_roles")}: ${announcement.recipient_roles
-                                                        ?.map((role) => escapeHTML(this.roleLabel(role)))
-                                                        .join(", ") || translate("no_data_available")
-                                                }</div>
+                                                                        <div>${translate('recipient_roles')}: ${announcement.recipient_roles
+  ?.map((role) => escapeHTML(this.roleLabel(role)))
+  .join(', ') || translate('no_data_available')
+}</div>
                                                                         ${groups.length
-                                                        ? `<div>${translate("select_groups")}: ${groups
-                                                                .map((group) => escapeHTML(group))
-                                                                .join(", ")}</div>`
-                                                        : ""}
-                                                                        ${scheduled ? `<div>${scheduled}</div>` : ""}
-                                                                        ${sent ? `<div>${sent}</div>` : ""}
+    ? `<div>${translate('select_groups')}: ${groups
+      .map((group) => escapeHTML(group))
+      .join(', ')}</div>`
+    : ''}
+                                                                        ${scheduled ? `<div>${scheduled}</div>` : ''}
+                                                                        ${sent ? `<div>${sent}</div>` : ''}
                                                                 </div>
                                                                 <div class="announcement-logs">
-                                                                        <strong>${translate("delivery_status_summary")}:</strong>
-                                                                        <span class="badge success">${translate("emails")}: ${deliverySummary.email.sent}</span>
-                                                                        <span class="badge warning">${translate("failed")}: ${deliverySummary.email.failed}</span>
-                                                                        <span class="badge info">${translate("push_notifications")}: ${deliverySummary.push.sent}</span>
+                                                                        <strong>${translate('delivery_status_summary')}:</strong>
+                                                                        <span class="badge success">${translate('emails')}: ${deliverySummary.email.sent}</span>
+                                                                        <span class="badge warning">${translate('failed')}: ${deliverySummary.email.failed}</span>
+                                                                        <span class="badge info">${translate('push_notifications')}: ${deliverySummary.push.sent}</span>
                                                                         ${deliverySummary.push.failed
-                                                        ? `<span class="badge warning">${pushFailureLabel}</span>`
-                                                        : ""}
+    ? `<span class="badge warning">${pushFailureLabel}</span>`
+    : ''}
                                                                 </div>
                                                                 ${renderDeliveryLog(logs)}
                                                         </div>
                                                 `;
-                                })
-                                .join("")}
+    })
+    .join('')}
                         </div>
                 `;
-        }
+  }
 
-        renderMailingList() {
-                let html = "";
-                const emailsByRole = this.mailingList?.emails_by_role || {};
-                const parentEmails = Array.isArray(emailsByRole.parent) ? emailsByRole.parent : [];
+  renderMailingList() {
+    let html = '';
+    const emailsByRole = this.mailingList?.emails_by_role || {};
+    const parentEmails = Array.isArray(emailsByRole.parent) ? emailsByRole.parent : [];
 
-                if (!Object.keys(emailsByRole).length) {
-                        return `<p>${translate("no_data_available")}</p>`;
-                }
+    if (!Object.keys(emailsByRole).length) {
+      return `<p>${translate('no_data_available')}</p>`;
+    }
 
-                // Group parent emails by their children to avoid duplicate rows when siblings share guardians
-                const families = parentEmails.reduce((acc, parent) => {
-                        const key = parent.participants || translate("unknown_child");
-                        if (!acc[key]) {
-                                acc[key] = new Set();
-                        }
-                        if (parent.email) {
-                                acc[key].add(parent.email);
-                        }
-                        return acc;
-                }, {});
+    // Group parent emails by their children to avoid duplicate rows when siblings share guardians
+    const families = parentEmails.reduce((acc, parent) => {
+      const key = parent.participants || translate('unknown_child');
+      if (!acc[key]) {
+        acc[key] = new Set();
+      }
+      if (parent.email) {
+        acc[key].add(parent.email);
+      }
+      return acc;
+    }, {});
 
-                const sortedFamilies = Object.keys(families).sort((a, b) => {
-                        const lastNameA = a.split(" ").slice(-1)[0].toLowerCase();
-                        const lastNameB = b.split(" ").slice(-1)[0].toLowerCase();
-                        return lastNameA.localeCompare(lastNameB);
-                });
+    const sortedFamilies = Object.keys(families).sort((a, b) => {
+      const lastNameA = a.split(' ').slice(-1)[0].toLowerCase();
+      const lastNameB = b.split(' ').slice(-1)[0].toLowerCase();
+      return lastNameA.localeCompare(lastNameB);
+    });
 
-                html += `<div class="group">
+    html += `<div class="group">
                                                         <div class="group-header">${translate('parents')}</div>
                                                         <div class="group-content compact">`;
 
-                sortedFamilies.forEach((family) => {
-                        const emailList = Array.from(families[family]);
-                        const familyLabel = family.includes(', ')
-                                ? family.replace(', ', ` ${translate('and')} `)
-                                : family;
+    sortedFamilies.forEach((family) => {
+      const emailList = Array.from(families[family]);
+      const familyLabel = family.includes(', ')
+        ? family.replace(', ', ` ${translate('and')} `)
+        : family;
 
-                        html += `
+      html += `
                                 <div class="child-group">
                                         <strong>${escapeHTML(familyLabel)}:</strong>
-                                        ${emailList.map((email) => `<span class="email-item">${escapeHTML(email)}</span>`).join(", ")}
+                                        ${emailList.map((email) => `<span class="email-item">${escapeHTML(email)}</span>`).join(', ')}
                                 </div>
                         `;
-                });
+    });
 
-                html += `</div>
+    html += `</div>
                                                  <button class="copy-role-emails" data-role="parent">${translate('copy_emails_for')} ${translate('parents')}</button>
                                                  </div>`;
 
-                // Render other groups (e.g., leaders, administrators, finance)
-                Object.entries(emailsByRole).forEach(([role, emails]) => {
-                        if (role !== 'parent') {
-                                const roleLabel = escapeHTML(this.roleLabel(role));
-                                html += `
+    // Render other groups (e.g., leaders, administrators, finance)
+    Object.entries(emailsByRole).forEach(([role, emails]) => {
+      if (role !== 'parent') {
+        const roleLabel = escapeHTML(this.roleLabel(role));
+        html += `
                                         <div class="group">
                                                 <div class="group-header">${roleLabel}</div>
                                                 <div class="group-content compact">
                                                         ${this.renderEmails(emails)}
                                                 </div>
                                                 <button class="copy-role-emails" data-role="${escapeHTML(role)}">${translate(
-                                        "copy_emails_for"
-                                )} ${roleLabel}</button>
+  'copy_emails_for'
+)} ${roleLabel}</button>
                                         </div>
                                 `;
-                        }
-                });
+      }
+    });
 
-                return html;
-        }
+    return html;
+  }
 
-        /**
+  /**
          * Section heading for a role.
          *
          * translate() echoes an unknown key back verbatim, so a role with no
@@ -333,305 +348,346 @@ export class MailingList {
          * @param {string} role - The raw role_name
          * @returns {string} A label fit for a section heading
          */
-        roleLabel(role) {
-                const translated = [roleLabel(role), translate(role)].find((label) => label && label !== role);
-                if (translated) {
-                        return translated;
-                }
-                const unitRole = this.unitRoles.find((entry) => entry.role_name === role);
-                const displayNames = this.mailingList?.role_display_names || {};
-                return unitRole?.display_name || displayNames[role] || role.replace(/_/g, " ");
+  roleLabel(role) {
+    const translated = [roleLabel(role), translate(role)].find((label) => label && label !== role);
+    if (translated) {
+      return translated;
+    }
+    const unitRole = this.unitRoles.find((entry) => entry.role_name === role);
+    const displayNames = this.mailingList?.role_display_names || {};
+    return unitRole?.display_name || displayNames[role] || role.replace(/_/g, ' ');
+  }
+
+  renderEmails(data) {
+    if (!Array.isArray(data)) {
+      data = [data];
+    }
+
+    return data
+      .map((item, index) => {
+        let emailHtml = '';
+        let participantsHtml = '';
+
+        if (typeof item === 'object' && item !== null) {
+          emailHtml = `<span>${escapeHTML(item.email || '---')}</span>`;
+          if (item.participants) {
+            participantsHtml = `<span class="participants">  (${escapeHTML(item.participants)})</span>`;
+          }
+        } else if (typeof item === 'string') {
+          emailHtml = `<span>${escapeHTML(item.trim())}</span>`;
+        } else {
+          debugError(`Unexpected data type for item ${index}:`, typeof item);
+          emailHtml = `<span>${translate('no_data_available')}</span>`;
         }
 
-        renderEmails(data) {
-                if (!Array.isArray(data)) {
-                        data = [data];
-                }
-
-                return data
-                        .map((item, index) => {
-                                let emailHtml = "";
-                                let participantsHtml = "";
-
-                                if (typeof item === 'object' && item !== null) {
-                                        emailHtml = `<span>${escapeHTML(item.email || '---')}</span>`;
-                                        if (item.participants) {
-                                                participantsHtml = `<span class="participants">  (${escapeHTML(item.participants)})</span>`;
-                                        }
-                                } else if (typeof item === 'string') {
-                                        emailHtml = `<span>${escapeHTML(item.trim())}</span>`;
-                                } else {
-                                        debugError(`Unexpected data type for item ${index}:`, typeof item);
-                                        emailHtml = `<span>${translate('no_data_available')}</span>`;
-                                }
-
-                                return `
+        return `
                                                 <div class="email">
                                                                 ${emailHtml}
                                                                 ${participantsHtml}
                                                 </div>
                                 `;
-                        })
-                        .join('');
+      })
+      .join('');
+  }
+
+  attachEventListeners() {
+    document.querySelectorAll('.copy-role-emails').forEach((button) => {
+      button.addEventListener('click', (e) => this.copyRoleEmailsToClipboard(e.target.dataset.role));
+    });
+
+    const announcementForm = document.getElementById('announcement-form');
+    const messageEditor = announcementForm?.querySelector('[data-rte]');
+    if (messageEditor) {
+      attachRichTextEditor(messageEditor);
+      messageEditor.querySelector('.rte__area').addEventListener('input', () => this.setMessageError(''));
+    }
+    if (announcementForm) {
+      announcementForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        this.handleAnnouncementSubmit(false);
+      });
+    }
+
+    // Role and den filters describe the unit's own roster, so they are
+    // meaningless — and misleading — once the alumni audience is picked.
+    document.querySelectorAll('input[name="announcement-audience"]').forEach((input) => {
+      input.addEventListener('change', () => this.toggleMemberFilters());
+    });
+    this.toggleMemberFilters();
+
+    const draftButton = document.getElementById('save-announcement-draft');
+    if (draftButton) {
+      draftButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        this.handleAnnouncementSubmit(true);
+      });
+    }
+
+    const templateSelect = document.getElementById('announcement-template');
+    if (templateSelect) {
+      templateSelect.addEventListener('change', (event) => this.applyTemplate(event.target.value));
+    }
+
+    // AI Buttons
+    const rewriteBtn = document.getElementById('ai-rewrite-btn');
+    if (rewriteBtn) {
+      rewriteBtn.addEventListener('click', async () => {
+        const msgArea = document.getElementById('announcement-message');
+        const text = richTextToPlainText(getRichTextValue(msgArea));
+        if (!text) {return;}
+
+        setButtonLoading(rewriteBtn, true);
+        try {
+          const res = await aiGenerateText('rewrite', { text, tone: 'professional' });
+          setRichTextValue(msgArea, plainTextToRichText(res.data.text));
+          this.showFeedback(translate('rewrite_success'), 'success');
+        } catch (err) {
+          this.showFeedback(apiErrorMessage(err, 'error_occurred'), 'error');
+        } finally {
+          setButtonLoading(rewriteBtn, false);
         }
+      });
+    }
 
-        attachEventListeners() {
-                document.querySelectorAll(".copy-role-emails").forEach((button) => {
-                        button.addEventListener("click", (e) => this.copyRoleEmailsToClipboard(e.target.dataset.role));
-                });
+    const translateBtn = document.getElementById('ai-translate-btn');
+    if (translateBtn) {
+      translateBtn.addEventListener('click', async () => {
+        const msgArea = document.getElementById('announcement-message');
+        const text = richTextToPlainText(getRichTextValue(msgArea));
+        if (!text) {return;}
 
-                const announcementForm = document.getElementById("announcement-form");
-                if (announcementForm) {
-                        announcementForm.addEventListener("submit", (event) => {
-                                event.preventDefault();
-                                this.handleAnnouncementSubmit(false);
-                        });
-                }
+        const currentLang = this.app.lang || CONFIG.DEFAULT_LANG;
+        // Simple logic: if en -> fr, else -> en
+        const from = currentLang === 'fr' ? 'fr' : 'en';
+        const to = from === 'fr' ? 'en' : 'fr';
 
-                // Role and den filters describe the unit's own roster, so they are
-                // meaningless — and misleading — once the alumni audience is picked.
-                document.querySelectorAll('input[name="announcement-audience"]').forEach((input) => {
-                        input.addEventListener("change", () => this.toggleMemberFilters());
-                });
-                this.toggleMemberFilters();
-
-                const draftButton = document.getElementById("save-announcement-draft");
-                if (draftButton) {
-                        draftButton.addEventListener("click", (event) => {
-                                event.preventDefault();
-                                this.handleAnnouncementSubmit(true);
-                        });
-                }
-
-                const templateSelect = document.getElementById("announcement-template");
-                if (templateSelect) {
-                        templateSelect.addEventListener("change", (event) => this.applyTemplate(event.target.value));
-                }
-
-                // AI Buttons
-                const rewriteBtn = document.getElementById("ai-rewrite-btn");
-                if (rewriteBtn) {
-                        rewriteBtn.addEventListener("click", async () => {
-                                const msgArea = document.getElementById("announcement-message");
-                                const text = msgArea.value;
-                                if (!text) return;
-
-                                setButtonLoading(rewriteBtn, true);
-                                try {
-                                        const res = await aiGenerateText("rewrite", { text, tone: "professional" });
-                                        msgArea.value = res.data.text;
-                                        this.showFeedback(translate("rewrite_success"), "success");
-                                } catch (err) {
-                                        this.showFeedback(apiErrorMessage(err, 'error_occurred'), 'error');
-                                } finally {
-                                        setButtonLoading(rewriteBtn, false);
-                                }
-                        });
-                }
-
-                const translateBtn = document.getElementById("ai-translate-btn");
-                if (translateBtn) {
-                        translateBtn.addEventListener("click", async () => {
-                                const msgArea = document.getElementById("announcement-message");
-                                const text = msgArea.value;
-                                if (!text) return;
-
-                                const currentLang = this.app.lang || CONFIG.DEFAULT_LANG;
-                                // Simple logic: if en -> fr, else -> en
-                                const from = currentLang === 'fr' ? 'fr' : 'en';
-                                const to = from === 'fr' ? 'en' : 'fr';
-
-                                setButtonLoading(translateBtn, true);
-                                try {
-                                        const res = await aiGenerateText("translate", { text, from, to });
-                                        msgArea.value = res.data.text;
-                                        this.showFeedback(translate("translate_success"), "success");
-                                } catch (err) {
-                                        this.showFeedback(apiErrorMessage(err, 'error_occurred'), 'error');
-                                } finally {
-                                        setButtonLoading(translateBtn, false);
-                                }
-                        });
-                }
+        setButtonLoading(translateBtn, true);
+        try {
+          const res = await aiGenerateText('translate', { text, from, to });
+          setRichTextValue(msgArea, plainTextToRichText(res.data.text));
+          this.showFeedback(translate('translate_success'), 'success');
+        } catch (err) {
+          this.showFeedback(apiErrorMessage(err, 'error_occurred'), 'error');
+        } finally {
+          setButtonLoading(translateBtn, false);
         }
+      });
+    }
+  }
 
-        /**
+  /**
          * Show or hide the unit-only recipient filters to match the chosen audience.
          *
          * @returns {void}
          */
-        toggleMemberFilters() {
-                const isAlumni = document.querySelector('input[name="announcement-audience"]:checked')?.value === "alumni";
-                ["announcement-member-filters", "announcement-group-filters"].forEach((id) => {
-                        const element = document.getElementById(id);
-                        if (element) {
-                                element.hidden = isAlumni;
-                        }
-                });
-        }
+  toggleMemberFilters() {
+    const isAlumni = document.querySelector('input[name="announcement-audience"]:checked')?.value === 'alumni';
+    ['announcement-member-filters', 'announcement-group-filters'].forEach((id) => {
+      const element = document.getElementById(id);
+      if (element) {
+        element.hidden = isAlumni;
+      }
+    });
+  }
 
-        async handleAnnouncementSubmit(saveAsDraft = false) {
-                if (this.isSubmitting) return;
+  async handleAnnouncementSubmit(saveAsDraft = false) {
+    if (this.isSubmitting) {return;}
 
-                const subject = document.getElementById("announcement-subject")?.value?.trim();
-                const message = document.getElementById("announcement-message")?.value?.trim();
-                const scheduledAt = document.getElementById("announcement-scheduled-at")?.value;
-                const audience = document.querySelector('input[name="announcement-audience"]:checked')?.value || "members";
-                const roleCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-role"]:checked'));
-                const groupCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-group"]:checked'));
+    const subject = document.getElementById('announcement-subject')?.value?.trim();
+    const messageArea = document.getElementById('announcement-message');
+    const messageHtml = messageArea ? getRichTextValue(messageArea) : '';
+    const message = richTextToPlainText(messageHtml);
+    const scheduledAt = document.getElementById('announcement-scheduled-at')?.value;
+    const audience = document.querySelector('input[name="announcement-audience"]:checked')?.value || 'members';
+    const roleCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-role"]:checked'));
+    const groupCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-group"]:checked'));
 
-                // Roles and dens describe the unit. An alumni send has neither,
-                // and sending them anyway would only invite the server to
-                // reinterpret them.
-                const isAlumni = audience === "alumni";
-                const recipientRoles = isAlumni ? [] : roleCheckboxes.map((input) => input.value);
-                const recipientGroupIds = isAlumni ? [] : groupCheckboxes.map((input) => Number(input.value));
+    // Roles and dens describe the unit. An alumni send has neither,
+    // and sending them anyway would only invite the server to
+    // reinterpret them.
+    const isAlumni = audience === 'alumni';
+    const recipientRoles = isAlumni ? [] : roleCheckboxes.map((input) => input.value);
+    const recipientGroupIds = isAlumni ? [] : groupCheckboxes.map((input) => Number(input.value));
 
-                if (!subject || !message) {
-                        this.showFeedback(translate("error_loading_mailing_list"), "error");
-                        return;
-                }
+    if (!message) {
+      this.setMessageError(translate('announcement_message_required'));
+      messageArea?.focus();
+      return;
+    }
+    if (!subject) {
+      this.showFeedback(translate('error_loading_mailing_list'), 'error');
+      return;
+    }
 
-                this.isSubmitting = true;
-                this.toggleFormDisabled(true);
-                this.showFeedback(translate("announcement_sending"), "info");
+    this.isSubmitting = true;
+    this.toggleFormDisabled(true);
+    this.showFeedback(translate('announcement_sending'), 'info');
 
-                try {
-                        const response = await createAnnouncement({
-                                subject,
-                                message: sanitizeHTML(message, { stripAll: true }),
-                                audience,
-                                recipient_roles: recipientRoles,
-                                recipient_group_ids: recipientGroupIds,
-                                scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
-                                save_as_draft: saveAsDraft,
-                                send_now: !saveAsDraft && !scheduledAt,
-                        });
+    try {
+      const response = await createAnnouncement({
+        subject,
+        message: sanitizeHTML(message, { stripAll: true }),
+        message_html: messageHtml,
+        audience,
+        recipient_roles: recipientRoles,
+        recipient_group_ids: recipientGroupIds,
+        scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+        save_as_draft: saveAsDraft,
+        send_now: !saveAsDraft && !scheduledAt,
+      });
 
-                        if (!response?.success) {
-                                throw new Error(response?.message || "Failed to send announcement");
-                        }
+      if (!response?.success) {
+        throw new Error(response?.message || 'Failed to send announcement');
+      }
 
-                        this.announcements = [response.data, ...this.announcements];
-                        this.render();
-                        this.attachEventListeners();
-                        const feedbackKeys = { draft: "announcement_saved", scheduled: "announcement_scheduled" };
-                        this.showFeedback(translate(feedbackKeys[response.data?.status] || "announcement_sent"), "success");
-                        this.clearForm();
-                } catch (error) {
-                        debugError("Error sending announcement:", error);
-                        this.showFeedback(apiErrorMessage(error, 'announcement_send_failed'), 'error');
-                } finally {
-                        this.isSubmitting = false;
-                        this.toggleFormDisabled(false);
-                }
-        }
+      this.announcements = [response.data, ...this.announcements];
+      this.render();
+      this.attachEventListeners();
+      const feedbackKeys = { draft: 'announcement_saved', scheduled: 'announcement_scheduled' };
+      this.showFeedback(translate(feedbackKeys[response.data?.status] || 'announcement_sent'), 'success');
+      this.clearForm();
+    } catch (error) {
+      debugError('Error sending announcement:', error);
+      this.showFeedback(apiErrorMessage(error, 'announcement_send_failed'), 'error');
+    } finally {
+      this.isSubmitting = false;
+      this.toggleFormDisabled(false);
+    }
+  }
 
-        applyTemplate(index) {
-                if (!this.templates?.length || index === "") {
-                        return;
-                }
+  applyTemplate(index) {
+    if (!this.templates?.length || index === '') {
+      return;
+    }
 
-                const template = this.templates[Number(index)];
-                if (!template) {
-                        return;
-                }
+    const template = this.templates[Number(index)];
+    if (!template) {
+      return;
+    }
 
-                const subjectField = document.getElementById("announcement-subject");
-                const messageField = document.getElementById("announcement-message");
+    const subjectField = document.getElementById('announcement-subject');
+    const messageField = document.getElementById('announcement-message');
 
-                if (subjectField) subjectField.value = template.subject || "";
-                if (messageField) messageField.value = template.body || "";
-        }
+    if (subjectField) {subjectField.value = template.subject || '';}
+    if (messageField) {setRichTextValue(messageField, plainTextToRichText(template.body || ''));}
+  }
 
-        toggleFormDisabled(disabled) {
-                const form = document.getElementById("announcement-form");
-                if (!form) return;
+  /**
+   * Show, or clear with an empty string, the message's error, tied to the
+   * editor so screen readers announce it with the field.
+   *
+   * @param {string} text - Error text
+   * @returns {void}
+   */
+  setMessageError(text) {
+    const errorEl = document.getElementById('announcement-message-error');
+    const area = document.getElementById('announcement-message');
+    if (!errorEl || !area) {return;}
+    errorEl.textContent = text;
+    errorEl.hidden = !text;
+    if (text) {
+      area.setAttribute('aria-invalid', 'true');
+    } else {
+      area.removeAttribute('aria-invalid');
+    }
+  }
 
-                Array.from(form.elements).forEach((element) => {
-                        element.disabled = disabled;
-                });
-        }
+  toggleFormDisabled(disabled) {
+    const form = document.getElementById('announcement-form');
+    if (!form) {return;}
 
-        clearForm() {
-                const form = document.getElementById("announcement-form");
-                if (!form) return;
-                form.reset();
-        }
+    Array.from(form.elements).forEach((element) => {
+      element.disabled = disabled;
+    });
+    const editor = form.querySelector('[data-rte]');
+    if (editor) {
+      setRichTextDisabled(editor, disabled);
+    }
+  }
 
-        showFeedback(message, type = "info") {
-                const feedbackEl = document.getElementById("announcement-feedback");
-                if (!feedbackEl) return;
-                feedbackEl.textContent = message;
-                feedbackEl.className = `status-message ${type}`;
-        }
+  clearForm() {
+    const form = document.getElementById('announcement-form');
+    if (!form) {return;}
+    form.reset();
+    const area = document.getElementById('announcement-message');
+    if (area) {
+      setRichTextValue(area, '');
+    }
+  }
 
-        getDeliverySummary(logs) {
-                const summary = {
-                        email: { sent: 0, failed: 0 },
-                        push: { sent: 0, failed: 0 },
-                };
+  showFeedback(message, type = 'info') {
+    const feedbackEl = document.getElementById('announcement-feedback');
+    if (!feedbackEl) {return;}
+    feedbackEl.textContent = message;
+    feedbackEl.className = `status-message ${type}`;
+  }
 
-                logs.forEach((log) => {
-                        if (log.channel === "email") {
-                                if (log.status === "sent") summary.email.sent += 1;
-                                if (log.status === "failed") summary.email.failed += 1;
-                        }
-                        if (log.channel === "push") {
-                                if (log.status === "sent") summary.push.sent += 1;
-                                if (log.status === "failed") summary.push.failed += 1;
-                        }
-                });
+  getDeliverySummary(logs) {
+    const summary = {
+      email: { sent: 0, failed: 0 },
+      push: { sent: 0, failed: 0 },
+    };
 
-                return summary;
-        }
+    logs.forEach((log) => {
+      if (log.channel === 'email') {
+        if (log.status === 'sent') {summary.email.sent += 1;}
+        if (log.status === 'failed') {summary.email.failed += 1;}
+      }
+      if (log.channel === 'push') {
+        if (log.status === 'sent') {summary.push.sent += 1;}
+        if (log.status === 'failed') {summary.push.failed += 1;}
+      }
+    });
 
-        formatDateTime(dateString) {
-                if (!dateString) return "";
-                try {
-                        const lang = this.app?.lang || this.app?.language || localStorage.getItem('lang') || localStorage.getItem('language') || CONFIG.DEFAULT_LANG;
-                        const locale = localeForLanguage(lang);
-                        return new Date(dateString).toLocaleString(locale);
-                } catch (error) {
-                        debugLog("Unable to format date", error);
-                        return dateString;
-                }
-        }
+    return summary;
+  }
 
-        copyRoleEmailsToClipboard(role) {
-                const emailsByRole = this.mailingList?.emails_by_role || {};
-                const emails = emailsByRole[role] || [];
+  formatDateTime(dateString) {
+    if (!dateString) {return '';}
+    try {
+      const lang = this.app?.lang || this.app?.language || localStorage.getItem('lang') || localStorage.getItem('language') || CONFIG.DEFAULT_LANG;
+      const locale = localeForLanguage(lang);
+      return new Date(dateString).toLocaleString(locale);
+    } catch (error) {
+      debugLog('Unable to format date', error);
+      return dateString;
+    }
+  }
 
-                let emailString;
-                if (role === 'parent') {
-                        const uniqueParentEmails = [...new Set(emails.map((entry) => entry.email))];
-                        emailString = uniqueParentEmails.join(", ");
-                } else {
-                        const uniqueRoleEmails = [...new Set(emails)];
-                        emailString = uniqueRoleEmails.join(", ");
-                }
+  copyRoleEmailsToClipboard(role) {
+    const emailsByRole = this.mailingList?.emails_by_role || {};
+    const emails = emailsByRole[role] || [];
 
-                if (!emailString) {
-                        this.app.showMessage(translate("no_data_available"), "error");
-                        return;
-                }
+    let emailString;
+    if (role === 'parent') {
+      const uniqueParentEmails = [...new Set(emails.map((entry) => entry.email))];
+      emailString = uniqueParentEmails.join(', ');
+    } else {
+      const uniqueRoleEmails = [...new Set(emails)];
+      emailString = uniqueRoleEmails.join(', ');
+    }
 
-                navigator.clipboard
-                        .writeText(emailString)
-                        .then(() => {
-                                this.app.showMessage(`${translate("emails_copied_to_clipboard_for")} ${translate(role)}`, "success");
-                        })
-                        .catch((error) => {
-                                debugError("Failed to copy emails:", error);
-                        });
-        }
+    if (!emailString) {
+      this.app.showMessage(translate('no_data_available'), 'error');
+      return;
+    }
 
-        renderError() {
-                const errorMessage = `
-                                                <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-                                                <h1>${translate("error")}</h1>
-                                                <p>${translate("error_loading_mailing_list")}</p>
+    navigator.clipboard
+      .writeText(emailString)
+      .then(() => {
+        this.app.showMessage(`${translate('emails_copied_to_clipboard_for')} ${translate(role)}`, 'success');
+      })
+      .catch((error) => {
+        debugError('Failed to copy emails:', error);
+      });
+  }
+
+  renderError() {
+    const errorMessage = `
+                                                <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+                                                <h1>${translate('error')}</h1>
+                                                <p>${translate('error_loading_mailing_list')}</p>
                                 `;
-                setContent(document.getElementById("app"), errorMessage);
-        }
+    setContent(document.getElementById('app'), errorMessage);
+  }
 }

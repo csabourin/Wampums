@@ -13,6 +13,13 @@ import { openModal } from '../../utils/ModalUtils.js';
 import { getActivityEndDate, getActivityStartDate } from '../../utils/ActivityDateUtils.js';
 import { aiGenerateText } from '../AI.js';
 import { attachInviteesPicker, buildInviteesFieldsetHTML } from './ActivityInviteesPicker.js';
+import {
+  attachRichTextEditor,
+  getRichTextValue,
+  richTextEditorHTML,
+  setRichTextValue,
+} from '../rich-text/RichTextEditor.js';
+import { plainTextToRichText, richTextOrPlain, richTextToPlainText } from '../../utils/RichTextUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 const DEFAULT_AI_DURATION_MINUTES = 120;
@@ -72,9 +79,14 @@ function buildFormHTML(activity) {
       </div>
 
       <div class="form-group">
-        <label for="activity-description">${translate('description')}</label>
-        <textarea id="activity-description" name="description"
-                  class="form-control" rows="3">${value('description')}</textarea>
+        <span class="form-label" id="activity-description-label">${translate('description')}</span>
+        ${richTextEditorHTML({
+    id: 'activity-description',
+    labelId: 'activity-description-label',
+    describedBy: 'activity-description-help',
+    html: richTextOrPlain(activity?.description_html, activity?.description),
+  })}
+        <small class="form-help" id="activity-description-help">${translate('activity_description_help')}</small>
       </div>
 
       <div class="form-row">
@@ -200,6 +212,13 @@ function readForm(form, isEdit) {
     data[key] = typeof fieldValue === 'string' ? fieldValue.trim() : fieldValue;
   });
   data.activity_date = data.activity_start_date;
+  // Both versions travel; the server keeps the plain text it derives from
+  // the formatted one.
+  const descriptionArea = form.querySelector('#activity-description');
+  if (descriptionArea) {
+    data.description_html = getRichTextValue(descriptionArea);
+    data.description = richTextToPlainText(data.description_html);
+  }
   if (isEdit) {
     data.notify_participants = formData.get('notify_participants') === 'on';
   }
@@ -300,7 +319,7 @@ function showMagicGenerateModal(app, formOverlay) {
         const materials = Array.isArray(plan.materialsMasterList)
           ? `\n\nMaterials: ${plan.materialsMasterList.join(', ')}`
           : '';
-        descInput.value = `${plan.overview || ''}\n\nTimeline:\n${timeline}${materials}`;
+        setRichTextValue(descInput, plainTextToRichText(`${plan.overview || ''}\n\nTimeline:\n${timeline}${materials}`));
       }
 
       app.showMessage(translate('magic_generated_success'), 'success');
@@ -336,6 +355,11 @@ export function openActivityFormModal(app, { activity = null, onSaved = null } =
     body: buildFormHTML(activity),
     canClose: () => !saving
   });
+
+  const descriptionEditor = overlay.querySelector('#activity-form [data-rte]');
+  if (descriptionEditor) {
+    attachRichTextEditor(descriptionEditor);
+  }
 
   const startDateInput = overlay.querySelector('#activity-start-date');
   const invitees = attachInviteesPicker(overlay, {

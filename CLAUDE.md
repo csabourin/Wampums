@@ -288,6 +288,11 @@ const result = await pool.query(
 - ✅ **Sanitize all user input and HTML.**
   - Frontend: `spa/utils/SecurityUtils.js` (`sanitizeHTML`, `escapeHTML`, `sanitizeURL`)
   - Backend: `utils/api-helpers.js` exports `escapeHtml` and shared helpers
+  - Formatted text (announcement messages, activity descriptions, form information texts) is written in
+    `spa/modules/rich-text/RichTextEditor.js` and limited to paragraphs, bold, italic, lists and links. The
+    server never trusts it: `utils/richText.js` rebuilds it before storing or emailing it and derives the plain
+    text (`message`, `description`) that push, WhatsApp, Google Chat, calendars and the mobile app read. The
+    formatted copy lives beside it (`message_html`, `description_html`); a write sending only plain text clears it.
 - ✅ **Use parameterized queries for ALL SQL** - never string concatenation; enforced by `npm run lint:sql-params`
 - ✅ **Validate inputs** using `express-validator` and shared utilities
 - ✅ **Rate limiting** on sensitive endpoints (login, password reset); all API responses must include rate-limit headers (`ratelimit-limit` / `x-ratelimit-limit`)

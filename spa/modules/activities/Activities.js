@@ -22,6 +22,7 @@ import {
 import { offlineManager } from '../OfflineManager.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { richTextOrPlain } from '../../utils/RichTextUtils.js';
 const SEARCH_DEBOUNCE_MS = 300;
 
 export class Activities extends BaseModule {
@@ -161,7 +162,7 @@ export class Activities extends BaseModule {
         </div>
 
         ${activity.description ? `
-          <p class="activity-card__description">${escapeHTML(activity.description)}</p>
+          <div class="activity-card__description rich-text">${richTextOrPlain(activity.description_html, activity.description)}</div>
         ` : ''}
 
         ${activity.linked_year_plan_meeting_id && activity.linked_year_plan_id ? `

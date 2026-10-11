@@ -29,6 +29,7 @@ const {
   getVapidKeys, recordPushOutcomes, describePushFailure, pushServiceHost,
 } = require('../utils/web-push');
 const { recordUserMessages, messageUrl } = require('../services/userMessages');
+const { readRichTextField, sanitizeRichTextHtml } = require('../utils/richText');
 
 /** Upper bound on roles one announcement may address; the unit's catalog is far smaller. */
 const MAX_ANNOUNCEMENT_ROLES = 50;
@@ -71,13 +72,18 @@ function normalizeAnnouncementPayload(body) {
   const subject = typeof payload.subject === 'string'
     ? payload.subject.slice(0, MAX_ANNOUNCEMENT_SUBJECT_LENGTH)
     : '';
-  const message = typeof payload.message === 'string'
-    ? payload.message.slice(0, MAX_ANNOUNCEMENT_MESSAGE_LENGTH)
+  // A formatted message brings its own plain text: the one the other
+  // channels send. Without one, the message is plain text as before.
+  const rich = readRichTextField(payload.message_html);
+  const plainMessage = rich.text ?? payload.message;
+  const message = typeof plainMessage === 'string'
+    ? plainMessage.slice(0, MAX_ANNOUNCEMENT_MESSAGE_LENGTH)
     : '';
 
   return {
     subject: sanitizeInput(subject),
     message: sanitizeInput(message),
+    messageHtml: rich.html,
     audience,
     // An alumni mailing has no roles and no dens to filter on: the people it
     // reaches left the unit. Any role or group the client sent is dropped here
@@ -314,7 +320,8 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
   const emailLogs = await Promise.allSettled(
     emails.map(async (email) => {
       let body = announcement.message;
-      let html = null;
+      const messageHtml = sanitizeRichTextHtml(announcement.message_html);
+      let html = messageHtml ? `<div>${messageHtml}</div>` : null;
 
       // An alumni mailing carries its own way out. Building the footer per
       // recipient is what makes the link personal — a shared one could only
@@ -325,7 +332,7 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
         const unsubscribeLink = `${baseUrl}/alumni-unsubscribe?token=${issueAlumniToken(membership, UNSUBSCRIBE_PURPOSE)}`;
         const footer = buildUnsubscribeFooter({ language, unsubscribeLink });
         body = `${announcement.message}${footer.text}`;
-        html = `<div>${escapeHtml(announcement.message).replace(/\n/g, '<br />')}</div>${footer.html}`;
+        html = `<div>${messageHtml || escapeHtml(announcement.message).replace(/\n/g, '<br />')}</div>${footer.html}`;
       }
 
       const success = await sendEmail(email, announcement.subject, body, html, sender);
@@ -856,8 +863,9 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
 
         const insertQuery = `
           INSERT INTO announcements
-            (organization_id, created_by, subject, message, recipient_roles, recipient_groups, scheduled_at, status, audience)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            (organization_id, created_by, subject, message, recipient_roles, recipient_groups, scheduled_at, status, audience,
+             message_html)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           RETURNING *
         `;
 
@@ -871,6 +879,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
           normalized.scheduledAt,
           initialStatus,
           normalized.audience,
+          normalized.messageHtml,
         ]);
 
         const announcement = rows[0];

@@ -613,6 +613,51 @@ describe('PUT /api/v1/activities/:id', () => {
     expect(captured.statements).toEqual(['BEGIN', 'COMMIT']);
   });
 
+  test('stores a formatted description with the plain text derived from it', async () => {
+    const captured = mockUpdateTransaction(EXISTING_ACTIVITY, 1);
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        description: 'ignored when a formatted description is sent',
+        description_html: '<p>Bring <b>boots</b></p><ul><li>Lunch</li></ul><script>alert(1)</script>'
+      });
+
+    expect(res.status).toBe(200);
+    expect(captured.activityUpdate[1]).toBe('Bring boots\n\n- Lunch');
+    expect(captured.activityUpdate[17]).toBe('<p>Bring <strong>boots</strong></p><ul><li>Lunch</li></ul>');
+    expect(captured.slipUpdate[1]).toBe('Bring boots\n\n- Lunch');
+    expect(captured.slipUpdate[6]).toBe('<p>Bring <strong>boots</strong></p><ul><li>Lunch</li></ul>');
+  });
+
+  test('a plain description alone clears the formatted one', async () => {
+    const captured = mockUpdateTransaction({ ...EXISTING_ACTIVITY, description_html: '<p>Old</p>' });
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ description: 'New plain text' });
+
+    expect(res.status).toBe(200);
+    expect(captured.activityUpdate[1]).toBe('New plain text');
+    expect(captured.activityUpdate[17]).toBeNull();
+  });
+
+  test('keeps the formatted description when the description is not sent', async () => {
+    const captured = mockUpdateTransaction({ ...EXISTING_ACTIVITY, description_html: '<p>Paddling on the lake</p>' });
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Canoe' });
+
+    expect(captured.activityUpdate[17]).toBe('<p>Paddling on the lake</p>');
+  });
+
   test('keeps fields that are not sent', async () => {
     const captured = mockUpdateTransaction();
     const token = generateToken({ permissions: ['activities.edit'] });
