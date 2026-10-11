@@ -45,6 +45,7 @@ import {
   TOOL_GROUP_ORDER,
   OFFLINE_AVAILABLE_ROUTES,
   FINANCE_WORKSPACE_EXTRA_TILES,
+  UNIT_SETTINGS_TILE_PERMISSIONS,
   getTileContext,
 } from "./config/dashboard-tiles.js";
 import {
@@ -483,6 +484,13 @@ export class Dashboard extends BaseModule {
     switch (gate.check) {
       case "adminPanel":
         return canAccessAdminPanel();
+      // The router admits these pages on canAccessAdminPanel(); the tile also
+      // requires a permission the page actually acts on, so someone who can
+      // only message families no longer sees settings they cannot change.
+      case 'unitSettings':
+        return canAccessAdminPanel() && hasAnyPermission(...UNIT_SETTINGS_TILE_PERMISSIONS);
+      case 'formPermissions':
+        return canAccessAdminPanel() && hasPermission('forms.manage');
       case "parentTools":
         return canAccessParentTools();
       case "carpool":

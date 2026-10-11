@@ -389,6 +389,24 @@ animateur aux permissions de base voit 22 tuiles dont 18 sans rien déplier ; un
 responsable d'unité en voit 35. Avant : 42 tuiles, 2 libellés identiques,
 ~31 noyées dans « Outils ».
 
+### Lot 5 — Usage courant vs configuration (2026-10) ✅ fait
+
+« Jeunes et familles » et « Administration de l'unité » se chevauchaient. Nouvelle règle :
+le premier groupe contient ce qu'on fait chaque semaine, le second ce qu'on configure
+quelques fois par année, et un nouveau groupe « Administration » (domaine `system`)
+réunit le compte personnel et les outils district/système.
+
+| Groupe | Tuiles |
+|---|---|
+| Jeunes et familles | Contacter les parents · Écrire aux familles · Voir les documents · Imprimer la liste des tanières · **Exporter des rapports** · Gérer les badges (progression) · Voir l'app comme un parent |
+| Administration de l'unité | Paramètres de l'unité · **Gestion des groupes** (libellé selon le vocabulaire de l'unité : « Gestion des Tanières ») · **Assigner groupes et rôles** · **Inviter des familles** · **Lier les jeunes aux parents** · **Vérifier les doublons** · Rôles et permissions · Accès aux formulaires |
+| Administration | **Mon compte** · Espace district · Créer une nouvelle unité |
+
+Règles d'affichage resserrées : « Paramètres de l'unité » exige en plus de l'accès admin
+une permission que la page utilise (`UNIT_SETTINGS_TILE_PERMISSIONS`) ; « Accès aux
+formulaires » exige `forms.manage`, comme le serveur. « Administration » reste ouverte
+au premier affichage pour que « Mon compte » soit à un toucher.
+
 ---
 
 ## 8. Vérifications passées
