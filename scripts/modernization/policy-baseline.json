@@ -108,7 +108,7 @@
     "services/walkInChildren.js": 1,
     "services/whatsapp-baileys.js": 22,
     "services/whatsapp-database-auth.js": 4,
-    "spa/JSONFormRenderer.js": 217,
+    "spa/JSONFormRenderer.js": 2,
     "spa/activity-widget.js": 330,
     "spa/admin.js": 637,
     "spa/ajax-functions.js": 247,
