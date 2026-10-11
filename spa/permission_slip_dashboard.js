@@ -492,7 +492,15 @@ export class PermissionSlipDashboard {
     const activitiesMap = new Map();
 
     this.permissionSlips.forEach(slip => {
-      const key = `${slip.activity_title || 'Sans titre'}_${slip.meeting_date}`;
+      // One group per emailed version: slips differing in deadline or
+      // description send different emails, so each gets its own test.
+      const key = JSON.stringify([
+        slip.activity_title || '',
+        slip.meeting_date,
+        slip.deadline_date || null,
+        slip.activity_description || '',
+        slip.activity_description_html || '',
+      ]);
       if (!activitiesMap.has(key)) {
         activitiesMap.set(key, {
           title: slip.activity_title || translate("no_data_available"),

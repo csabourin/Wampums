@@ -279,6 +279,23 @@ test('the deadline is labelled once, and an unsent slip\'s delete button is a da
   expect(results.violations).toEqual([]);
 });
 
+test('slips with different deadlines are listed, and tested, as separate groups', async () => {
+  await openCreateForm();
+  endpoints.getPermissionSlips.mockResolvedValue({ data: { permission_slips: [
+    { id: 5, participant_id: 1, first_name: 'Alice', last_name: 'A', activity_title: 'Sortie canot',
+      meeting_date: '2026-11-07', deadline_date: '2026-11-01', status: 'pending', email_sent: true },
+    { id: 6, participant_id: 2, first_name: 'Bob', last_name: 'B', activity_title: 'Sortie canot',
+      meeting_date: '2026-11-07', deadline_date: '2026-11-04', status: 'pending', email_sent: true },
+  ] } });
+  const dashboard = new PermissionSlipDashboard(app, { activityId: 12 });
+  await dashboard.init();
+
+  const groups = document.querySelectorAll('.activity-group');
+  expect(groups).toHaveLength(2);
+  const ids = [...groups].map((group) => group.querySelector('.btn-send-test[data-reminder="true"]').dataset.slipId);
+  expect(ids.sort()).toEqual(['5', '6']);
+});
+
 test('the create form has no WCAG A/AA violations', async () => {
   await openCreateForm();
   const results = await axe.run(document.getElementById('permissionSlipForm'), AXE_OPTIONS);
