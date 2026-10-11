@@ -252,7 +252,6 @@
     "test/offline/offline-manager-guards.test.js": 2,
     "test/parent-invitations.integration.test.js": 3,
     "test/participant-duplicates.integration.test.js": 3,
-    "test/permission-slip-email.test.js": 44,
     "test/permission-slips.security.test.js": 136,
     "test/public-url.test.js": 4,
     "test/railway-storage.test.js": 66,

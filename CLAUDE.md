@@ -12,7 +12,13 @@
 
 **The app is bilingual (English/French) with support for additional languages.**
 
-- ✅ **No mixed languages on a single page** — each view renders in one language only.
+- ✅ **No mixed languages on a single page** — each view renders in one language only. The one
+  exception: an optional language (below) falls back key by key to the unit's fallback language.
+- ✅ **French and English are always offered** and kept at parity. A unit may add the optional
+  languages listed in `config/interface_languages.json` (mirrored in `spa/config/languages.js`; a test
+  keeps them equal) — today Ukrainian, Italian and Indonesian — under Unit settings › Unit languages
+  (`interface_languages` setting: `{ enabled, fallback }`, fallback `en` or `fr`). Their bundles may be
+  partial; `translate()` and form texts fall back to the unit's fallback language for a missing key.
 - ✅ All user-facing text must be translatable via `lang/en.json`, `lang/fr.json`, or translation APIs.
 - ✅ Use language codes consistently (`en`, `fr`).
 - ✅ Date/time formatting must respect locale (`formatDate(date, lang)` in `spa/utils/DateUtils.js`).
