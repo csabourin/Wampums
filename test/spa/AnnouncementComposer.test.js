@@ -22,11 +22,15 @@ jest.mock('../../spa/ajax-functions.js', () => ({
   createAnnouncement: jest.fn(),
   getGroups: jest.fn(),
 }));
+jest.mock('../../spa/api/api-endpoints.js', () => ({ sendAnnouncementTest: jest.fn() }));
 jest.mock('../../spa/modules/AI.js', () => ({ aiGenerateText: jest.fn() }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({ canSendCommunications: () => true }));
 jest.mock('../../spa/utils/DialogUtils.js', () => ({ prompt: jest.fn(), alert: jest.fn() }));
 
-const ajax = require('../../spa/ajax-functions.js');
+const ajax = {
+  ...require('../../spa/ajax-functions.js'),
+  ...require('../../spa/api/api-endpoints.js'),
+};
 const { aiGenerateText } = require('../../spa/modules/AI.js');
 const { MailingList } = require('../../spa/mailing_list.js');
 
@@ -129,6 +133,37 @@ test('the writing assistant gets the plain text and its answer becomes paragraph
 
   expect(aiGenerateText).toHaveBeenCalledWith('rewrite', { text: 'Salut tout le monde', tone: 'professional' });
   expect(messageArea().innerHTML).toBe('<p>Bonjour à tous</p><p>Merci</p>');
+});
+
+test('"send me a test" emails the message as written to the leader, saving nothing', async () => {
+  await renderPage();
+  ajax.sendAnnouncementTest.mockResolvedValue({ success: true, data: { email: 'akela@unit.test' } });
+  document.getElementById('announcement-subject').value = 'Camp';
+  messageArea().innerHTML = '<p>Bonjour <strong>familles</strong></p>';
+
+  document.getElementById('send-announcement-test').click();
+  await flush();
+
+  expect(ajax.sendAnnouncementTest).toHaveBeenCalledWith({
+    subject: 'Camp',
+    message: 'Bonjour familles',
+    message_html: '<p>Bonjour <strong>familles</strong></p>',
+    audience: 'members',
+  });
+  expect(ajax.createAnnouncement).not.toHaveBeenCalled();
+  const feedback = document.getElementById('announcement-feedback');
+  expect(feedback.textContent).toBe('test_email_sent');
+  expect(feedback.getAttribute('role')).toBe('status');
+});
+
+test('a test of an empty message is refused like a send', async () => {
+  await renderPage();
+  document.getElementById('announcement-subject').value = 'Camp';
+  document.getElementById('send-announcement-test').click();
+  await flush();
+
+  expect(ajax.sendAnnouncementTest).not.toHaveBeenCalled();
+  expect(messageArea().getAttribute('aria-invalid')).toBe('true');
 });
 
 test('the composer has no WCAG A/AA violations', async () => {

@@ -15,10 +15,11 @@ const {
 const { success, error, asyncHandler } = require("../middleware/response");
 const { checkValidation } = require("../middleware/validation");
 const { handleOrganizationResolutionError } = require("../utils/api-helpers");
-const { sendEmail, getUserEmailLanguage } = require("../utils/index");
+const { sendEmail, getUserEmailLanguage, getTranslationsByCode } = require("../utils/index");
 const { buildPermissionSlipEmailContent } = require("../utils/permission-slip-email");
 const { resolveOrganizationBaseUrl } = require("../utils/public-url");
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
+const { findTestRecipient, markAsTestEmail } = require('../utils/test-email');
 const { findUninvitedParticipants } = require('../services/activityInvitations');
 const {
   MAX_FILE_SIZE,
@@ -93,6 +94,11 @@ function parseDate(dateString) {
  */
 const HOLDING_STATUSES = ["reserved", "confirmed"];
 const HTTP_BAD_REQUEST = 400;
+const HTTP_NOT_FOUND = 404;
+/** The email service did not accept a message. */
+const HTTP_BAD_GATEWAY = 502;
+/** Slips one send or reminder request may name. */
+const MAX_SLIP_IDS_PER_REQUEST = 200;
 
 function activeReservationPredicate(alias = "") {
   const prefix = alias ? `${alias}.` : "";
@@ -1750,8 +1756,9 @@ module.exports = (pool) => {
           `SELECT ps.*,
                   p.first_name, p.last_name,
                   g.prenom AS guardian_first_name, g.nom AS guardian_last_name,
-                  a.name AS activity_name, a.description AS activity_description,
-                  a.description_html AS activity_description_html, a.activity_date
+                  -- A slip's own copy of the activity (title, description) is
+                  -- what its parents receive and sign: it is not overwritten.
+                  a.name AS activity_name, a.activity_date
            FROM permission_slips ps
            JOIN participants p ON p.id = ps.participant_id
            LEFT JOIN parents_guardians g ON g.id = ps.guardian_id
@@ -1790,12 +1797,15 @@ module.exports = (pool) => {
         .isLength({ max: 200 }),
       check("participant_ids").optional().isArray({ max: 200 }),
       check("participant_ids.*").optional().isInt({ min: 1 }),
+      // Exact slips, for a page listing one activity's slips in several groups
+      check('slip_ids').optional().isArray({ max: MAX_SLIP_IDS_PER_REQUEST }),
+      check('slip_ids.*').optional().isInt({ min: 1 }),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const { meeting_date, activity_id, activity_title, participant_ids } = req.body;
+        const { meeting_date, activity_id, activity_title, participant_ids, slip_ids: slipIds } = req.body;
 
         // Require either activity_id or meeting_date
         if (!activity_id && !meeting_date) {
@@ -1834,6 +1844,11 @@ module.exports = (pool) => {
         if (participant_ids && participant_ids.length > 0) {
           pendingCheckParams.push(participant_ids);
           pendingCheckQuery += ` AND ps.participant_id = ANY($${pendingCheckParams.length})`;
+        }
+
+        if (slipIds && slipIds.length > 0) {
+          pendingCheckParams.push(slipIds.map(Number));
+          pendingCheckQuery += ` AND ps.id = ANY($${pendingCheckParams.length}::int[])`;
         }
 
         const pendingCheckResult = await pool.query(pendingCheckQuery, pendingCheckParams);
@@ -1879,6 +1894,11 @@ module.exports = (pool) => {
         if (participant_ids && participant_ids.length > 0) {
           params.push(participant_ids);
           query += ` AND ps.participant_id = ANY($${params.length})`;
+        }
+
+        if (slipIds && slipIds.length > 0) {
+          params.push(slipIds.map(Number));
+          query += ` AND ps.id = ANY($${params.length}::int[])`;
         }
 
         const slipsResult = await pool.query(query, params);
@@ -2057,12 +2077,15 @@ module.exports = (pool) => {
         .isLength({ max: 200 }),
       check("participant_ids").optional().isArray({ max: 200 }),
       check("participant_ids.*").optional().isInt({ min: 1 }),
+      // Exact slips, for a page listing one activity's slips in several groups
+      check('slip_ids').optional().isArray({ max: MAX_SLIP_IDS_PER_REQUEST }),
+      check('slip_ids.*').optional().isInt({ min: 1 }),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const { meeting_date, activity_id, activity_title, participant_ids } = req.body;
+        const { meeting_date, activity_id, activity_title, participant_ids, slip_ids: slipIds } = req.body;
 
         // Require either activity_id or meeting_date
         if (!activity_id && !meeting_date) {
@@ -2100,6 +2123,11 @@ module.exports = (pool) => {
         if (participant_ids && participant_ids.length > 0) {
           pendingCheckParams.push(participant_ids);
           pendingCheckQuery += ` AND ps.participant_id = ANY($${pendingCheckParams.length})`;
+        }
+
+        if (slipIds && slipIds.length > 0) {
+          pendingCheckParams.push(slipIds.map(Number));
+          pendingCheckQuery += ` AND ps.id = ANY($${pendingCheckParams.length}::int[])`;
         }
 
         const pendingCheckResult = await pool.query(pendingCheckQuery, pendingCheckParams);
@@ -2141,6 +2169,11 @@ module.exports = (pool) => {
         if (participant_ids && participant_ids.length > 0) {
           params.push(participant_ids);
           query += ` AND ps.participant_id = ANY($${params.length})`;
+        }
+
+        if (slipIds && slipIds.length > 0) {
+          params.push(slipIds.map(Number));
+          query += ` AND ps.id = ANY($${params.length}::int[])`;
         }
 
         const slipsResult = await pool.query(query, params);
@@ -2299,6 +2332,103 @@ module.exports = (pool) => {
         }
         return error(res, err.message || "Error sending reminders", err.statusCode || 500);
       }
+    }),
+  );
+
+  /**
+   * Send the signed-in leader a test copy of an activity's permission-slip
+   * email (or its reminder): the same email parents get, marked as a test,
+   * for a sample child. No slip is created or marked as sent.
+   *
+   * Before slips exist, the email is built from the activity. With
+   * `from_slips`, it is built from a pending slip's own copy of the activity
+   * (title, date, description, deadline), which is what sends and reminders
+   * read: one not yet sent for the first email, one already sent for a
+   * reminder. With `slip_id`, it is built from that slip, so a page listing
+   * slips issued before and after an edit of the activity tests each group.
+   */
+  router.post(
+    '/permission-slips/test-email',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('communications.send'),
+    [
+      check('activity_id').isInt({ min: 1 }),
+      check('deadline_date').optional({ values: 'falsy' }).isISO8601(),
+      check('reminder').optional().isBoolean(),
+      check('from_slips').optional().isBoolean(),
+      check('slip_id').optional().isInt({ min: 1 }),
+    ],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const activityResult = await pool.query(
+        `SELECT name, description, description_html, activity_date
+           FROM activities
+          WHERE id = $1 AND organization_id = $2 AND is_active = TRUE`,
+        [req.body.activity_id, organizationId],
+      );
+      if (activityResult.rows.length === 0) {
+        return error(res, 'Activity not found', HTTP_NOT_FOUND);
+      }
+
+      const recipient = await findTestRecipient(pool, req.user.id, organizationId);
+      if (!recipient) {
+        return error(res, 'Your account has no email address', HTTP_BAD_REQUEST);
+      }
+
+      const isReminder = req.body.reminder === true || req.body.reminder === 'true';
+      const fromSlips = req.body.from_slips === true || req.body.from_slips === 'true';
+      let slipResult = { rows: [] };
+      if (req.body.slip_id) {
+        slipResult = await pool.query(
+          `SELECT activity_title AS name, activity_description AS description,
+                  activity_description_html AS description_html,
+                  meeting_date AS activity_date, deadline_date
+             FROM permission_slips
+            WHERE id = $1 AND activity_id = $2 AND organization_id = $3`,
+          [req.body.slip_id, req.body.activity_id, organizationId],
+        );
+        if (slipResult.rows.length === 0) {
+          return error(res, 'Permission slip not found', HTTP_NOT_FOUND);
+        }
+      } else if (fromSlips) {
+        slipResult = await pool.query(
+          `SELECT activity_title AS name, activity_description AS description,
+                  activity_description_html AS description_html,
+                  meeting_date AS activity_date, deadline_date
+             FROM permission_slips
+            WHERE activity_id = $1 AND organization_id = $2 AND status = 'pending'
+            ORDER BY (email_sent = $3) DESC, updated_at DESC
+            LIMIT 1`,
+          [req.body.activity_id, organizationId, isReminder],
+        );
+      }
+      const activity = slipResult.rows[0] || activityResult.rows[0];
+      const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
+      const content = buildPermissionSlipEmailContent({
+        activityTitle: activity.name,
+        activityDescription: activity.description,
+        activityDescriptionHtml: activity.description_html,
+        meetingDate: activity.activity_date,
+        deadlineDate: slipResult.rows[0] ? activity.deadline_date : req.body.deadline_date || null,
+        participantFirstName: getTranslationsByCode(recipient.languageCode)?.permission_slip_test_participant
+          || getTranslationsByCode('en')?.permission_slip_test_participant || 'Child',
+        participantLastName: '',
+        signLink: `${baseUrl}/permission-slip/test`,
+        languageCode: recipient.languageCode,
+        isReminder,
+      });
+      const test = markAsTestEmail(content, {
+        languageCode: recipient.languageCode,
+        noteKeys: ['permission_slip_test_link_note'],
+      });
+      const sender = await resolveOrganizationEmailSender(pool, organizationId);
+      const sent = await sendEmail(recipient.email, test.subject, test.textBody, test.htmlBody, sender);
+      if (!sent) {
+        return error(res, 'The test email could not be sent', HTTP_BAD_GATEWAY);
+      }
+      return success(res, { email: recipient.email }, 'Test email sent');
     }),
   );
 
