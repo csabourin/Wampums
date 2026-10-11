@@ -735,16 +735,56 @@ function notificationTarget(notificationData) {
   return new URL('/', self.location.origin);
 }
 
-// Tapping a notification opens the page that shows it (a pushed message, the
-// medication round). Navigate an existing window through the browser so this
-// also works on static pages and before the SPA's message listener is ready.
+const NOTIFICATION_NAVIGATION_TIMEOUT_MS = 1500;
+
+/**
+ * Ask a ready SPA to route without replacing its document (also works offline).
+ * Static or unready pages cannot acknowledge; a bounded wait lets the caller
+ * fall back to browser navigation. Ports and the timer are always released.
+ * @param {WindowClient} client
+ * @param {URL} target
+ * @returns {Promise<boolean>} Whether the SPA accepted navigation
+ */
+function navigateReadyApp(client, target) {
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    const finish = (accepted) => {
+      clearTimeout(timer);
+      channel.port1.close();
+      channel.port2.close();
+      resolve(accepted);
+    };
+    const timer = setTimeout(() => finish(false), NOTIFICATION_NAVIGATION_TIMEOUT_MS);
+    channel.port1.onmessage = (event) => finish(event.data?.navigated === true);
+    try {
+      client.postMessage({ type: 'NOTIFICATION_NAVIGATE', url: `${target.pathname}${target.search}${target.hash}` }, [channel.port2]);
+    } catch (_error) {
+      finish(false);
+    }
+  });
+}
+
+// Tapping a notification routes a ready SPA in place, including offline. A
+// static or unready page instead receives a full browser navigation.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const target = notificationTarget(event.notification.data);
 
   event.waitUntil((async () => {
     const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-    const appWindow = windows.find((client) => new URL(client.url).origin === self.location.origin);
+    const appWindows = windows.filter((client) => new URL(client.url).origin === self.location.origin);
+    // Probe sequentially so only one ready window receives navigation.
+    const readyWindow = await appWindows.reduce((pending, client) => pending.then(async (ready) => {
+      if (ready) {
+        return ready;
+      }
+      return await navigateReadyApp(client, target) ? client : null;
+    }), Promise.resolve(null));
+    if (readyWindow) {
+      await readyWindow.focus();
+      return;
+    }
+    const appWindow = appWindows[0];
     if (appWindow) {
       try {
         const navigated = await appWindow.navigate(target.href);

@@ -319,7 +319,7 @@ export class Router {
   navigate(path) {
     debugLog("Navigating to:", path);
     history.pushState(null, "", path);
-    this.route(path);
+    this.route(path.split('#')[0]);
   }
 
   /**

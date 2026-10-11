@@ -834,8 +834,9 @@ if ('serviceWorker' in navigator) {
       // A tapped notification, with the app already open: show the page it
       // names. Only an in-app path is followed.
       const url = String(event.data.url || '');
-      if (url.startsWith('/') && !url.startsWith('//')) {
-        app.router?.navigate(url);
+      if (url.startsWith('/') && !url.startsWith('//') && app.router) {
+        app.router.navigate(url);
+        event.ports?.[0]?.postMessage({ navigated: true });
       }
     }
   });
