@@ -558,7 +558,7 @@ export class PermissionSlipDashboard {
                   <strong>${escapeHTML(translate("signed_count"))}:</strong> ${signedCount} / ${activity.slips.length}
                   ${declinedCount > 0 ? `<br><strong>${escapeHTML(translate("permission_slip_status_declined"))}:</strong> ${declinedCount}` : ''}
                 </div>
-                <div>
+                ${this.groupSlipIds(activity.slips) ? `<div>
                   <button class="btn secondary btn-send-emails" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}" data-slip-ids="${escapeHTML(this.groupSlipIds(activity.slips))}">
                     ${escapeHTML(translate("send_emails_to_parents"))}
                   </button>
@@ -569,7 +569,7 @@ export class PermissionSlipDashboard {
                     <button class="button button--outline btn-send-test" data-reminder="false" data-slip-id="${this.representativeSlipId(activity.slips, false)}">${escapeHTML(translate('send_test_to_me'))}</button>
                     <button class="button button--outline btn-send-test" data-reminder="true" data-slip-id="${this.representativeSlipId(activity.slips, true)}">${escapeHTML(translate('send_reminder_test_to_me'))}</button>
                   ` : ''}
-                </div>
+                </div>` : ''}
               </div>
             </div>
           </div>
@@ -1245,6 +1245,11 @@ export class PermissionSlipDashboard {
    * @returns {Promise<{data: {sent: number, total: number}, message: string}>}
    */
   async sendToGroup(send, date, activityTitle, slipIds) {
+    // A group whose slips are not saved yet has nothing to send; it must
+    // never widen into a send for the whole activity.
+    if (this.activityId && slipIds.length === 0) {
+      return { data: { sent: 0, total: 0 }, message: 'No pending permission slips found' };
+    }
     const base = this.activityId
       ? { activity_id: this.activityId }
       : { meeting_date: date, activity_title: activityTitle };

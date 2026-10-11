@@ -313,6 +313,29 @@ test('slips with different deadlines are listed, and tested, as separate groups'
     .not.toBe(reminded.slip_ids[0]);
 });
 
+test('a group of slips not saved yet offers no send or reminder, and never sends activity-wide', async () => {
+  await openCreateForm();
+  let finishSave;
+  endpoints.savePermissionSlip.mockImplementationOnce(() => new Promise((resolve) => { finishSave = resolve; }));
+  const form = document.getElementById('permissionSlipForm');
+  const event = new Event('submit', { cancelable: true });
+  Object.defineProperty(event, 'submitter', { value: form.querySelector('button[value="create"]') });
+  form.dispatchEvent(event);
+  await flush();
+
+  const group = document.querySelector('.activity-group');
+  expect(group).not.toBeNull();
+  expect(group.querySelector('.btn-send-emails')).toBeNull();
+  expect(group.querySelector('.btn-send-reminders')).toBeNull();
+
+  const dashboard = new PermissionSlipDashboard(app, { activityId: 12 });
+  const result = await dashboard.sendToGroup(endpoints.sendPermissionSlipEmails, '2026-11-07', 'Sortie canot', []);
+  expect(result.data).toEqual({ sent: 0, total: 0 });
+  expect(endpoints.sendPermissionSlipEmails).not.toHaveBeenCalled();
+  finishSave({ data: { permission_slips: [], answered_participant_ids: [] } });
+  await flush();
+});
+
 test('the create form has no WCAG A/AA violations', async () => {
   await openCreateForm();
   const results = await axe.run(document.getElementById('permissionSlipForm'), AXE_OPTIONS);
