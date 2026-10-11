@@ -58,7 +58,9 @@ export function richTextHasContent(html) {
   if (typeof html !== 'string') {
     return false;
   }
-  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
+  // Text only: DOMPurify keeps the content of every element it removes.
+  const text = DOMPurify.sanitize(html, { ALLOWED_TAGS: [], KEEP_CONTENT: true });
+  return text.replace(/&nbsp;/g, ' ').trim() !== '';
 }
 
 /**

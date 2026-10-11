@@ -74,6 +74,7 @@ import { API } from '../../spa/api/api-core.js';
 import { closeAllModals } from '../../spa/utils/ModalUtils.js';
 import {
   resolveFormText,
+  richTextHasContent,
   sanitizeRichText,
 } from '../../spa/utils/FormTextUtils.js';
 import { FORM_CONTENT_LANGS } from '../../spa/config/languages.js';
@@ -158,6 +159,12 @@ describe('Rich text keeps only the editor\'s formatting', () => {
       + '<a href="javascript:alert(1)">bad</a> <a href="https://scouts.ca">ok</a></p><h1>T</h1>'
     );
     expect(html).toBe('<p>Hi <strong>you</strong><a>bad</a> <a href="https://scouts.ca">ok</a></p>T');
+  });
+
+  it('counts only visible text as content', () => {
+    expect(richTextHasContent('<p><br></p><p>&nbsp;</p>')).toBe(false);
+    expect(richTextHasContent('<p><script>alert(1)</script></p>')).toBe(false);
+    expect(richTextHasContent('<p><strong>Oui</strong></p>')).toBe(true);
   });
 
   it('drops the empty paragraphs a browser leaves around a list', () => {
