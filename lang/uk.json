@@ -3881,5 +3881,6 @@
   "send_reminder_test_to_me": "Надіслати мені тестове нагадування",
   "test_email_sent": "Тестовий лист надіслано на {email}.",
   "test_email_failed": "Не вдалося надіслати тестовий лист.",
-  "permission_slip_new": "Новий дозвіл"
+  "permission_slip_new": "Новий дозвіл",
+  "permission_slip_deadline": "Кінцевий термін підписання"
 }

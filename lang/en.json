@@ -3874,5 +3874,6 @@
   "send_reminder_test_to_me": "Send me a test reminder",
   "test_email_sent": "Test email sent to {email}.",
   "test_email_failed": "The test email could not be sent.",
-  "permission_slip_new": "New permission slip"
+  "permission_slip_new": "New permission slip",
+  "permission_slip_deadline": "Signature deadline"
 }

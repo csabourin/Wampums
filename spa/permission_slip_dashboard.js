@@ -414,7 +414,7 @@ export class PermissionSlipDashboard {
         </div>
 
         <label class="stacked">
-          <span>${escapeHTML(translate("deadline_date_label"))} (${translate("optional")})</span>
+          <span>${escapeHTML(translate("deadline_date_label"))}</span>
           <input type="date" name="deadline_date" />
         </label>
 
@@ -510,7 +510,7 @@ export class PermissionSlipDashboard {
                 <h3 style="margin: 0 0 8px 0;">${escapeHTML(activity.title)}</h3>
                 <p style="margin: 0; color: #666;">
                   ${translate("activity_date_label")}: ${formatDate(activity.date, this.app.lang || 'fr')}
-                  ${activity.deadline ? ` | ${translate("deadline_date_label")}: ${formatDate(activity.deadline, this.app.lang || 'fr')}` : ''}
+                  ${activity.deadline ? ` | ${translate("permission_slip_deadline")}: ${formatDate(activity.deadline, this.app.lang || 'fr')}` : ''}
                 </p>
               </div>
               <div style="text-align: right;">
@@ -563,7 +563,7 @@ export class PermissionSlipDashboard {
             ? `<button class="btn link sign-slip" data-id="${slip.id}">${escapeHTML(translate("permission_slip_sign"))}</button>`
             : '',
           !slip.email_sent
-            ? `<button class="btn link delete-slip" data-id="${slip.id}" style="color: #dc3545;">${escapeHTML(translate("delete"))}</button>`
+            ? `<button class="button button--danger delete-slip" data-id="${slip.id}">${escapeHTML(translate("delete"))}</button>`
             : '',
           `<button class="btn link archive-slip" data-id="${slip.id}">${escapeHTML(translate("permission_slip_archive"))}</button>`
         ].filter(Boolean).join(' ')}

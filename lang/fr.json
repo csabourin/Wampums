@@ -3874,5 +3874,6 @@
   "send_reminder_test_to_me": "M’envoyer un test du rappel",
   "test_email_sent": "Courriel test envoyé à {email}.",
   "test_email_failed": "Le courriel test n’a pas pu être envoyé.",
-  "permission_slip_new": "Nouvelle autorisation"
+  "permission_slip_new": "Nouvelle autorisation",
+  "permission_slip_deadline": "Date limite de signature"
 }

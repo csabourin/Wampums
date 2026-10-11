@@ -210,6 +210,25 @@ test('"send me a test" emails the leader the slip with the chosen deadline', asy
   expect(app.showMessage).toHaveBeenCalledWith('test_email_sent', 'success');
 });
 
+test('the deadline is labelled once, and an unsent slip\'s delete button is a danger button', async () => {
+  await openCreateForm();
+  expect(document.querySelector('#permissionSlipForm input[name="deadline_date"]').closest('label').textContent.trim())
+    .toBe('deadline_date_label');
+
+  endpoints.getPermissionSlips.mockResolvedValue({ data: { permission_slips: [{
+    id: 5, participant_id: 1, first_name: 'Alice', last_name: 'A', activity_title: 'Sortie canot',
+    meeting_date: '2026-11-07', deadline_date: '2026-11-01', status: 'pending', email_sent: false,
+  }] } });
+  const dashboard = new PermissionSlipDashboard(app, { activityId: 12 });
+  await dashboard.init();
+  const remove = document.querySelector('.delete-slip');
+  expect(remove.classList.contains('button--danger')).toBe(true);
+  expect(remove.getAttribute('style')).toBeNull();
+  expect(document.querySelector('.activity-group').textContent).toContain('permission_slip_deadline');
+  const results = await axe.run(document.querySelector('.activity-group'), AXE_OPTIONS);
+  expect(results.violations).toEqual([]);
+});
+
 test('the create form has no WCAG A/AA violations', async () => {
   await openCreateForm();
   const results = await axe.run(document.getElementById('permissionSlipForm'), AXE_OPTIONS);
