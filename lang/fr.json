@@ -3875,5 +3875,6 @@
   "test_email_sent": "Courriel test envoyé à {email}.",
   "test_email_failed": "Le courriel test n’a pas pu être envoyé.",
   "permission_slip_new": "Nouvelle autorisation",
-  "permission_slip_deadline": "Date limite de signature"
+  "permission_slip_deadline": "Date limite de signature",
+  "permission_slip_send_undelivered": "{count} courriel(s) n’ont pas pu être livrés : réessayez avec « Envoyer les autorisations pas encore envoyées »."
 }

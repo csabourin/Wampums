@@ -3882,5 +3882,6 @@
   "test_email_sent": "Тестовий лист надіслано на {email}.",
   "test_email_failed": "Не вдалося надіслати тестовий лист.",
   "permission_slip_new": "Новий дозвіл",
-  "permission_slip_deadline": "Кінцевий термін підписання"
+  "permission_slip_deadline": "Кінцевий термін підписання",
+  "permission_slip_send_undelivered": "Не вдалося доставити листів: {count}. Спробуйте знову через «Надіслати ще не надіслані дозволи»."
 }

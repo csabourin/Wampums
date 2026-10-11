@@ -1143,14 +1143,20 @@ export class PermissionSlipDashboard {
         participant_ids: ids,
       })));
       const sent = results.reduce((count, result) => count + ((result?.data || result)?.sent || 0), 0);
-      const missing = new Set(results.flatMap((result) => ((result?.data || result)?.failed || [])
-        .filter((failure) => !failure.email)
-        .map((failure) => failure.participant_id)));
+      const failures = results.flatMap((result) => (result?.data || result)?.failed || []);
+      // No address to write to, or an address the email service refused
+      const missing = new Set(failures.filter((failure) => !failure.email).map((failure) => failure.participant_id));
+      const undelivered = failures.filter((failure) => failure.email).length;
       const messages = [translate('permission_slip_created_and_sent').replace('{sent}', sent)];
       if (missing.size > 0) {
         messages.push(translate('permission_slip_sent_missing_emails').replace('{count}', missing.size));
       }
-      this.app.showMessage(messages.join(' '), missing.size > 0 ? 'warning' : 'success');
+      if (undelivered > 0) {
+        messages.push(translate('permission_slip_send_undelivered').replace('{count}', undelivered));
+      }
+      const hasProblem = missing.size > 0 || undelivered > 0;
+      const severity = sent === 0 && hasProblem ? 'error' : 'warning';
+      this.app.showMessage(messages.join(' '), hasProblem ? severity : 'success');
     } catch (error) {
       debugError('Error sending new permission slips', error);
       this.app.showMessage(translate('permission_slip_created_send_failed'), 'error');

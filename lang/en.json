@@ -3875,5 +3875,6 @@
   "test_email_sent": "Test email sent to {email}.",
   "test_email_failed": "The test email could not be sent.",
   "permission_slip_new": "New permission slip",
-  "permission_slip_deadline": "Signature deadline"
+  "permission_slip_deadline": "Signature deadline",
+  "permission_slip_send_undelivered": "{count} email(s) could not be delivered: try again with “Send slips not sent yet”."
 }

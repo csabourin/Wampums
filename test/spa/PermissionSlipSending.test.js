@@ -177,6 +177,21 @@ test('children without a parent email are reported', async () => {
   );
 });
 
+test('emails the email service refused are reported, as an error when none went out', async () => {
+  await openCreateForm();
+  endpoints.sendPermissionSlipEmails.mockResolvedValueOnce({
+    data: { sent: 0, total: 2, failed: [
+      { participant_id: 1, email: 'a@home.test', reason: 'Email send failed' },
+      { participant_id: 2, email: 'b@home.test', reason: 'Email send failed' },
+    ] },
+  });
+  await submitWith('send');
+
+  expect(app.showMessage).toHaveBeenCalledWith(
+    'permission_slip_created_and_sent permission_slip_send_undelivered', 'error',
+  );
+});
+
 test('"create without sending" saves and contacts no one', async () => {
   await openCreateForm();
   await submitWith('create');
