@@ -429,6 +429,11 @@ export function dismissActiveDialog() {
   }
 }
 
+/** @returns {boolean} Whether a confirmation, alert or prompt owns keyboard focus. */
+export function hasActiveDialog() {
+  return activeDialog !== null;
+}
+
 export function confirmDestructive(options) {
   const opts = typeof options === "string" ? { message: options } : options || {};
   return confirm({ ...opts, danger: true });

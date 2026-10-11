@@ -736,8 +736,8 @@ function notificationTarget(notificationData) {
 }
 
 // Tapping a notification opens the page that shows it (a pushed message, the
-// medication round). An app window already open is brought forward and moved
-// to that page without reloading; otherwise a new window opens on it.
+// medication round). Navigate an existing window through the browser so this
+// also works on static pages and before the SPA's message listener is ready.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const target = notificationTarget(event.notification.data);
@@ -747,9 +747,11 @@ self.addEventListener('notificationclick', (event) => {
     const appWindow = windows.find((client) => new URL(client.url).origin === self.location.origin);
     if (appWindow) {
       try {
-        await appWindow.focus();
-        appWindow.postMessage({ type: 'NOTIFICATION_NAVIGATE', url: `${target.pathname}${target.search}` });
-        return;
+        const navigated = await appWindow.navigate(target.href);
+        if (navigated) {
+          await navigated.focus();
+          return;
+        }
       } catch (error) {
         debugError('Could not bring the app forward for a notification:', error);
       }

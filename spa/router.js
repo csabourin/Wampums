@@ -399,7 +399,7 @@ export class Router {
       if (!this.app.isLoggedIn && !["login", "register", "resetPassword", "permissionSlipSign", "alumniConsent", "alumniUnsubscribe", "reactivateAccount", "completeRegistration", "familyLink"].includes(routeName)) {
         if (path !== "/login") {
           debugWarn('Redirecting to login from route:', routeName);
-          history.pushState(null, "", "/login");
+          history.pushState(null, "", `/login?returnTo=${encodeURIComponent(path)}`);
         }
         await this.loadLoginPage();
         return;

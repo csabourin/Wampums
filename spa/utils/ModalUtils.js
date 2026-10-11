@@ -6,6 +6,7 @@ import { translate } from '../app.js';
 import { setContent } from './DOMUtils.js';
 import { escapeHTML } from './SecurityUtils.js';
 import { lockBodyScroll, unlockBodyScroll } from './ScrollLockUtils.js';
+import { hasActiveDialog } from './DialogUtils.js';
 
 const FOCUSABLE_SELECTOR = [
   'a[href]',
@@ -66,12 +67,12 @@ function topmost() {
 /**
  * Keyboard handling shared by every modal: Escape closes the topmost one, and
  * Tab stays inside it. A confirmation from DialogUtils on top of a modal
- * handles its own keys first and marks them handled.
+ * owns keyboard focus until it closes, including Tab between its controls.
  *
  * @param {KeyboardEvent} event
  */
 function handleKeydown(event) {
-  if (event.defaultPrevented) {
+  if (event.defaultPrevented || hasActiveDialog()) {
     return;
   }
   const entry = topmost();

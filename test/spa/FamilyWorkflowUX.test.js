@@ -7,7 +7,10 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
 }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(() => true) }));
 jest.mock('../../spa/utils/DateUtils.js', () => ({ formatDate: (value) => value }));
-jest.mock('../../spa/utils/DialogUtils.js', () => ({ confirm: jest.fn(() => Promise.resolve(true)) }));
+jest.mock('../../spa/utils/DialogUtils.js', () => ({
+  ...jest.requireActual('../../spa/utils/DialogUtils.js'),
+  confirm: jest.fn(() => Promise.resolve(true)),
+}));
 jest.mock('../../spa/modules/family-access/styles.js', () => ({ loadFamilyAccessStyles: jest.fn() }));
 jest.mock('../../spa/api/api-parent-invitations.js', () => ({
   createParentInvitation: jest.fn(), updateParentInvitation: jest.fn(), getParentInvitations: jest.fn(),

@@ -58,9 +58,28 @@ async function landing() {
 }
 
 beforeEach(() => {
+  history.replaceState(null, '', '/login');
   jest.clearAllMocks();
   mockRole.parent = true;
   mockRole.permissions = new Set(['participants.create_own']);
+});
+
+test.each([true, false])('a notification destination survives login for parent=%s', async (parent) => {
+  mockRole.parent = parent;
+  history.replaceState(null, '', '/login?returnTo=%2Fmessages%2F42');
+  expect(await landing()).toBe('/messages/42');
+  expect(getOnboardingContext).not.toHaveBeenCalled();
+});
+
+test('a local return destination preserves its query string and fragment', async () => {
+  history.replaceState(null, '', `/login?returnTo=${encodeURIComponent('/messages/42?source=push#message-title')}`);
+  expect(await landing()).toBe('/messages/42?source=push#message-title');
+});
+
+test.each(['https://example.com/messages/42', '//example.com/messages/42', '/\\example.com/messages/42', '/login?returnTo=/messages/42'])('rejects unsafe or looping return destination %s', async (destination) => {
+  mockRole.parent = false;
+  history.replaceState(null, '', `/login?returnTo=${encodeURIComponent(destination)}`);
+  expect(await landing()).toBe('/dashboard');
 });
 
 test('a parent with children still to register is taken back to that step', async () => {
