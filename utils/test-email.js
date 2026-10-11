@@ -3,7 +3,7 @@
  *
  * A leader can send themselves the exact email families will receive
  * (an announcement, a permission slip) before sending it for real. The copy
- * is the same message with "[TEST]" before its subject and a short note at
+ * is the same message with "[TEST]" (translated) before its subject and a short note at
  * the top, in the leader's language, saying who it went to and what does
  * not work in a test.
  *
@@ -13,7 +13,6 @@
 const { escapeHtml } = require('./api-helpers');
 const { getTranslationsByCode, getUserEmailLanguage } = require('./index');
 
-const TEST_SUBJECT_PREFIX = '[TEST] ';
 const BANNER_STYLE = 'padding: 12px; margin-bottom: 16px; border: 2px dashed #b45309; background: #fffbeb; color: #78350f; border-radius: 4px;';
 
 /**
@@ -47,8 +46,9 @@ function markAsTestEmail(email, { languageCode, noteKeys = [] }) {
   ].filter(Boolean);
 
   const body = email.htmlBody || `<div>${escapeHtml(email.textBody || '').replace(/\n/g, '<br>')}</div>`;
+  const prefix = translateFor(languageCode, 'email_test_subject_prefix', '[TEST]');
   return {
-    subject: `${TEST_SUBJECT_PREFIX}${email.subject}`,
+    subject: `${prefix} ${email.subject}`,
     textBody: `${notes.map((note) => `*** ${note} ***`).join('\n')}\n\n${email.textBody || ''}`,
     htmlBody: `<div style="${BANNER_STYLE}">${notes.map((note) => `<p style="margin: 0;">${escapeHtml(note)}</p>`).join('')}</div>${body}`,
   };
@@ -72,7 +72,6 @@ async function findTestRecipient(pool, userId, organizationId) {
 }
 
 module.exports = {
-  TEST_SUBJECT_PREFIX,
   findTestRecipient,
   markAsTestEmail,
 };

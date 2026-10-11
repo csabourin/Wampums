@@ -3876,5 +3876,7 @@
   "test_email_failed": "The test email could not be sent.",
   "permission_slip_new": "New permission slip",
   "permission_slip_deadline": "Signature deadline",
-  "permission_slip_send_undelivered": "{count} email(s) could not be delivered: try again with “Send slips not sent yet”."
+  "permission_slip_send_undelivered": "{count} email(s) could not be delivered: check those addresses. A slip no parent received stays “Not sent yet” and can be sent again.",
+  "permission_slip_already_sent_kept": "{count} youth had already been sent this permission slip: it was not sent again. Use “Send reminder” to remind their parents.",
+  "email_test_subject_prefix": "[TEST]"
 }

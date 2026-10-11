@@ -1093,14 +1093,15 @@ export class PermissionSlipDashboard {
         this.app.showMessage(translate('permission_slip_created_not_sent'), 'success');
       }
       if (andSend) {
-        // Only the slips saved now: a slip already answered is kept as it was
-        const answered = new Set(results.flatMap((result) => result?.data?.answered_participant_ids || []).map(Number));
-        const savedIds = batches
-          .filter((_ids, index) => settled[index].status === 'fulfilled')
-          .flat()
-          .filter((id) => !answered.has(id));
-        if (savedIds.length > 0) {
-          await this.sendCreatedSlips(savedIds);
+        // Only the saved slips not yet emailed: an answered slip is kept as
+        // it was, and a pending one already emailed is reminded, not resent.
+        const saved = results.flatMap((result) => result?.data?.permission_slips || []);
+        const unsentIds = saved.filter((slip) => !slip.email_sent).map((slip) => Number(slip.participant_id));
+        const alreadySent = saved.length - unsentIds.length;
+        if (unsentIds.length > 0) {
+          await this.sendCreatedSlips(unsentIds, alreadySent);
+        } else if (alreadySent > 0) {
+          this.app.showMessage(translate('permission_slip_already_sent_kept').replace('{count}', alreadySent), 'warning');
         }
       }
       this.showCreateForm = false;
@@ -1127,10 +1128,11 @@ export class PermissionSlipDashboard {
 
   /**
    * Email the slips just created, and only those, to their parents.
-   * @param {number[]} participantIds - Children whose slips were created
+   * @param {number[]} participantIds - Children whose saved slips are unsent
+   * @param {number} [alreadySent=0] - Chosen children whose slip had already been emailed
    * @returns {Promise<void>}
    */
-  async sendCreatedSlips(participantIds) {
+  async sendCreatedSlips(participantIds, alreadySent = 0) {
     try {
       const batches = [];
       for (let start = 0; start < participantIds.length; start += SLIP_BATCH_SIZE) {
@@ -1152,7 +1154,10 @@ export class PermissionSlipDashboard {
       if (undelivered > 0) {
         messages.push(translate('permission_slip_send_undelivered').replace('{count}', undelivered));
       }
-      const hasProblem = missing.size > 0 || undelivered > 0;
+      if (alreadySent > 0) {
+        messages.push(translate('permission_slip_already_sent_kept').replace('{count}', alreadySent));
+      }
+      const hasProblem = missing.size > 0 || undelivered > 0 || alreadySent > 0;
       const severity = sent === 0 && hasProblem ? 'error' : 'warning';
       this.app.showMessage(messages.join(' '), hasProblem ? severity : 'success');
     } catch (error) {

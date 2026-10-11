@@ -92,7 +92,9 @@ async function openCreateForm() {
   endpoints.getResourceDashboard.mockResolvedValue({ data: { permission_summary: [] } });
   endpoints.getGroups.mockResolvedValue({ data: [] });
   fetchParticipants.mockResolvedValue(PARTICIPANTS);
-  endpoints.savePermissionSlip.mockResolvedValue({ data: { permission_slips: [], answered_participant_ids: [] } });
+  endpoints.savePermissionSlip.mockImplementation(({ participant_ids: ids }) => Promise.resolve({
+    data: { permission_slips: ids.map((id) => ({ participant_id: id, email_sent: false })), answered_participant_ids: [] },
+  }));
   endpoints.sendPermissionSlipEmails.mockResolvedValue({ data: { sent: 3, total: 2, failed: [] } });
   endpoints.sendPermissionSlipTestEmail.mockResolvedValue({ data: { email: 'akela@unit.test' } });
 
@@ -159,10 +161,39 @@ test('declining the confirmation creates and sends nothing', async () => {
 
 test('a slip already answered is kept and not sent again', async () => {
   await openCreateForm();
-  endpoints.savePermissionSlip.mockResolvedValueOnce({ data: { permission_slips: [], answered_participant_ids: [2] } });
+  endpoints.savePermissionSlip.mockResolvedValueOnce({
+    data: { permission_slips: [{ participant_id: 1, email_sent: false }], answered_participant_ids: [2] },
+  });
   await submitWith('send');
 
   expect(endpoints.sendPermissionSlipEmails).toHaveBeenCalledWith({ activity_id: 12, participant_ids: [1] });
+});
+
+test('a pending slip already emailed is not resent, and the leader is told to remind', async () => {
+  await openCreateForm();
+  endpoints.savePermissionSlip.mockResolvedValueOnce({ data: {
+    permission_slips: [{ participant_id: 1, email_sent: false }, { participant_id: 2, email_sent: true }],
+    answered_participant_ids: [],
+  } });
+  endpoints.sendPermissionSlipEmails.mockResolvedValueOnce({ data: { sent: 1, total: 1, failed: [] } });
+  await submitWith('send');
+
+  expect(endpoints.sendPermissionSlipEmails).toHaveBeenCalledWith({ activity_id: 12, participant_ids: [1] });
+  expect(app.showMessage).toHaveBeenCalledWith(
+    'permission_slip_created_and_sent permission_slip_already_sent_kept', 'warning',
+  );
+});
+
+test('when every chosen slip was already emailed, nothing is sent and the leader is told', async () => {
+  await openCreateForm();
+  endpoints.savePermissionSlip.mockResolvedValueOnce({ data: {
+    permission_slips: [{ participant_id: 1, email_sent: true }, { participant_id: 2, email_sent: true }],
+    answered_participant_ids: [],
+  } });
+  await submitWith('send');
+
+  expect(endpoints.sendPermissionSlipEmails).not.toHaveBeenCalled();
+  expect(app.showMessage).toHaveBeenCalledWith('permission_slip_already_sent_kept', 'warning');
 });
 
 test('children without a parent email are reported', async () => {

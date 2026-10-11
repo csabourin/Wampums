@@ -106,6 +106,11 @@ describe('markAsTestEmail', () => {
     expect(test.htmlBody).toMatch(/<p>Hello<\/p>$/);
   });
 
+  test('marks the subject in the tester\'s language', () => {
+    expect(markAsTestEmail({ subject: 'Табір', textBody: '', htmlBody: '' }, { languageCode: 'uk' }).subject)
+      .toBe('[ТЕСТ] Табір');
+  });
+
   test('builds HTML from the text when the email has none', () => {
     const test = markAsTestEmail({ subject: 'S', textBody: 'a\n<b>', htmlBody: null }, { languageCode: 'en' });
     expect(test.htmlBody).toMatch(/<div>a<br>&lt;b&gt;<\/div>$/);
