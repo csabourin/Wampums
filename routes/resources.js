@@ -2310,6 +2310,12 @@ module.exports = (pool) => {
    * Send the signed-in leader a test copy of an activity's permission-slip
    * email (or its reminder): the same email parents get, marked as a test,
    * for a sample child. No slip is created or marked as sent.
+   *
+   * Before slips exist, the email is built from the activity. With
+   * `from_slips`, it is built from a pending slip's own copy of the activity
+   * (title, date, description, deadline), which is what sends and reminders
+   * read: one not yet sent for the first email, one already sent for a
+   * reminder.
    */
   router.post(
     '/permission-slips/test-email',
@@ -2320,6 +2326,7 @@ module.exports = (pool) => {
       check('activity_id').isInt({ min: 1 }),
       check('deadline_date').optional({ values: 'falsy' }).isISO8601(),
       check('reminder').optional().isBoolean(),
+      check('from_slips').optional().isBoolean(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -2339,20 +2346,34 @@ module.exports = (pool) => {
         return error(res, 'Your account has no email address', HTTP_BAD_REQUEST);
       }
 
-      const activity = activityResult.rows[0];
+      const isReminder = req.body.reminder === true || req.body.reminder === 'true';
+      const fromSlips = req.body.from_slips === true || req.body.from_slips === 'true';
+      const slipResult = fromSlips
+        ? await pool.query(
+          `SELECT activity_title AS name, activity_description AS description,
+                  activity_description_html AS description_html,
+                  meeting_date AS activity_date, deadline_date
+             FROM permission_slips
+            WHERE activity_id = $1 AND organization_id = $2 AND status = 'pending'
+            ORDER BY (email_sent = $3) DESC, updated_at DESC
+            LIMIT 1`,
+          [req.body.activity_id, organizationId, isReminder],
+        )
+        : { rows: [] };
+      const activity = slipResult.rows[0] || activityResult.rows[0];
       const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
       const content = buildPermissionSlipEmailContent({
         activityTitle: activity.name,
         activityDescription: activity.description,
         activityDescriptionHtml: activity.description_html,
         meetingDate: activity.activity_date,
-        deadlineDate: req.body.deadline_date || null,
+        deadlineDate: slipResult.rows[0] ? activity.deadline_date : req.body.deadline_date || null,
         participantFirstName: getTranslationsByCode(recipient.languageCode)?.permission_slip_test_participant
           || getTranslationsByCode('en')?.permission_slip_test_participant || 'Child',
         participantLastName: '',
         signLink: `${baseUrl}/permission-slip/test`,
         languageCode: recipient.languageCode,
-        isReminder: req.body.reminder === true || req.body.reminder === 'true',
+        isReminder,
       });
       const test = markAsTestEmail(content, {
         languageCode: recipient.languageCode,

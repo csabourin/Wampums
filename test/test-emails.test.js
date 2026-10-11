@@ -49,15 +49,19 @@ const ACTIVITY = {
  * @param {Object} [options]
  * @param {Object|null} [options.activity] - Activity row, or null for none
  * @param {string[]} [options.permissions] - The member's current permissions
+ * @param {Object|null} [options.slip] - Pending slip's copy of the activity, or null
  * @returns {string[]} Statements run
  */
-function mockDatabase({ activity = ACTIVITY, permissions = ['communications.send'] } = {}) {
+function mockDatabase({ activity = ACTIVITY, permissions = ['communications.send'], slip = null } = {}) {
   const { __mClient, __mPool } = require('pg');
   const statements = [];
   mockQueryImplementation(__mClient, __mPool, (query) => {
     statements.push(query);
     if (query.includes('p.permission_key')) {
       return { rows: permissions.map((key) => ({ permission_key: key })) };
+    }
+    if (query.includes('FROM permission_slips') && query.includes('activity_description_html AS description_html')) {
+      return { rows: slip ? [slip] : [] };
     }
     if (query.includes('FROM activities') && query.includes('description_html')) {
       return { rows: activity ? [activity] : [] };
@@ -137,6 +141,31 @@ describe('POST /api/v1/resources/permission-slips/test-email', () => {
       .send({ activity_id: 12, reminder: true });
 
     expect(sendEmail.mock.calls[0][1]).toMatch(/^\[TEST\] Rappel/);
+  });
+
+  test('from existing slips, uses a pending slip\'s own copy of the activity', async () => {
+    mockDatabase({ slip: {
+      name: 'Sortie canot (ancien titre)', description: 'Ancienne description', description_html: null,
+      activity_date: '2026-11-14', deadline_date: '2026-11-05',
+    } });
+    await request(app)
+      .post('/api/v1/resources/permission-slips/test-email')
+      .set('Authorization', `Bearer ${token(['communications.send'])}`)
+      .send({ activity_id: 12, from_slips: true, reminder: true });
+
+    const [, subject, text] = sendEmail.mock.calls[0];
+    expect(subject).toContain('Sortie canot (ancien titre)');
+    expect(text).not.toContain('Apportez des bottes');
+  });
+
+  test('from existing slips without a pending one, falls back to the activity', async () => {
+    mockDatabase();
+    await request(app)
+      .post('/api/v1/resources/permission-slips/test-email')
+      .set('Authorization', `Bearer ${token(['communications.send'])}`)
+      .send({ activity_id: 12, from_slips: true });
+
+    expect(sendEmail.mock.calls[0][1]).toContain('Sortie canot - ');
   });
 
   test('an activity outside the unit is not found', async () => {

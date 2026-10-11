@@ -240,6 +240,10 @@ test('the deadline is labelled once, and an unsent slip\'s delete button is a da
   expect(remove.classList.contains('button--danger')).toBe(true);
   expect(remove.getAttribute('style')).toBeNull();
   expect(document.querySelector('.activity-group').textContent).toContain('permission_slip_deadline');
+
+  document.querySelector('.activity-group .btn-send-test[data-reminder="true"]').click();
+  await flush();
+  expect(endpoints.sendPermissionSlipTestEmail).toHaveBeenLastCalledWith({ activity_id: 12, reminder: true, from_slips: true });
   const results = await axe.run(document.querySelector('.activity-group'), AXE_OPTIONS);
   expect(results.violations).toEqual([]);
 });
