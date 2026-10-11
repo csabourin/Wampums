@@ -61,7 +61,9 @@ export class AccountInfoModule {
       }
 
       debugLog('Loading starting user data');
-      await this.loadUserData();
+      // The language picker lists the unit's languages: on a direct load the
+      // unit's settings may still be on their way.
+      await Promise.all([this.loadUserData(), this.waitForUnitSettings()]);
       debugLog('User data load complete');
 
       if (this.holdsFamilyRole) {
@@ -827,6 +829,24 @@ export class AccountInfoModule {
       this.isLoading = false;
       submitButton.disabled = false;
       submitButton.textContent = translate('change_password') || translate('account_info_password_button');
+    }
+  }
+
+  /**
+   * Wait for the unit's settings when the app is still fetching them, so the
+   * language picker offers the unit's optional languages. A failure leaves
+   * French and English, which are always offered.
+   *
+   * @returns {Promise<void>}
+   */
+  async waitForUnitSettings() {
+    if (this.app?.isOrganizationSettingsFetched || typeof this.app?.fetchOrganizationSettings !== 'function') {
+      return;
+    }
+    try {
+      await this.app.fetchOrganizationSettings();
+    } catch (error) {
+      debugWarn('Unit settings not loaded for the language picker:', error);
     }
   }
 
