@@ -10,6 +10,7 @@ import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { checkSession } from "./utils/SessionUtils.js";
 import { dismissActiveDialog } from "./utils/DialogUtils.js";
 import { closeAllModals } from './utils/ModalUtils.js';
+import { buildLoginRedirect } from './utils/LoginRedirectUtils.js';
 import { releaseAllScrollLocks } from "./utils/ScrollLockUtils.js";
 import { initScrollMemory, beginScrollNavigation, restoreScrollPosition } from './utils/ScrollMemory.js';
 import { resetPageReads } from "./modules/live-sync/LiveSyncState.js";
@@ -399,7 +400,7 @@ export class Router {
       if (!this.app.isLoggedIn && !["login", "register", "resetPassword", "permissionSlipSign", "alumniConsent", "alumniUnsubscribe", "reactivateAccount", "completeRegistration", "familyLink"].includes(routeName)) {
         if (path !== "/login") {
           debugWarn('Redirecting to login from route:', routeName);
-          history.pushState(null, "", `/login?returnTo=${encodeURIComponent(path)}`);
+          history.pushState(null, "", buildLoginRedirect(path, window.location.href));
         }
         await this.loadLoginPage();
         return;

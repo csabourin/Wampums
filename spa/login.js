@@ -367,7 +367,9 @@ export class Login {
 
     // Update the URL in browser history and navigate immediately
     history.pushState(null, "", targetPath);
-    this.app.router.route(targetPath);
+    // The fragment remains in browser history; route matching uses only the
+    // pathname and query, just as it does when the app initially loads.
+    this.app.router.route(targetPath.split('#')[0]);
   }
 
   /**
