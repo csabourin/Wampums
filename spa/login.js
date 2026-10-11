@@ -1,11 +1,13 @@
-import { translate } from "./app.js";
-import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
-import { login, verify2FA, getApiUrl, getCurrentOrganizationId, fetchOrganizationId } from "./ajax-functions.js";
-import { setStorage, getStorage, removeStorage, setStorageMultiple } from "./utils/StorageUtils.js";
-import { clearAllClientData } from "./utils/ClientCleanupUtils.js";
-import { isParent, hasPermission } from "./utils/PermissionUtils.js";
-import { getOnboardingContext } from "./api/api-family.js";
-import { setContent } from "./utils/DOMUtils.js";
+import { translate } from './app.js';
+import { debugLog, debugError, debugWarn, debugInfo } from './utils/DebugUtils.js';
+import { login, verify2FA, getApiUrl, getCurrentOrganizationId, fetchOrganizationId } from './ajax-functions.js';
+import { setStorage, getStorage, removeStorage, setStorageMultiple } from './utils/StorageUtils.js';
+import { clearAllClientData } from './utils/ClientCleanupUtils.js';
+import { isParent, hasPermission } from './utils/PermissionUtils.js';
+import { getOnboardingContext } from './api/api-family.js';
+import { setContent } from './utils/DOMUtils.js';
+import { escapeHTML } from './utils/SecurityUtils.js';
+import { nativeLanguageName } from './utils/InterfaceLanguageUtils.js';
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class Login {
@@ -20,11 +22,11 @@ export class Login {
    */
   async ensureOrganizationIdLoaded() {
     const isValidPrimitiveOrgId = (value) =>
-      (typeof value === "string" || typeof value === "number") &&
-      value !== "" &&
-      value !== "[object Object]";
+      (typeof value === 'string' || typeof value === 'number') &&
+      value !== '' &&
+      value !== '[object Object]';
 
-    let organizationId = this.app.organizationId || getCurrentOrganizationId();
+    const organizationId = this.app.organizationId || getCurrentOrganizationId();
 
     if (isValidPrimitiveOrgId(organizationId)) {
       const normalizedOrganizationId = String(organizationId);
@@ -32,14 +34,14 @@ export class Login {
       return normalizedOrganizationId;
     }
 
-    debugLog("No organization ID found in app/storage, fetching before login render...");
+    debugLog('No organization ID found in app/storage, fetching before login render...');
 
     try {
       const response = await fetchOrganizationId();
       const fetchedOrganizationId = response;
 
       if (!isValidPrimitiveOrgId(fetchedOrganizationId)) {
-        throw new Error("Organization ID not found in API response or is invalid");
+        throw new Error('Organization ID not found in API response or is invalid');
       }
 
       const normalizedOrganizationId = String(fetchedOrganizationId);
@@ -49,26 +51,26 @@ export class Login {
         organizationId: normalizedOrganizationId
       });
 
-      debugLog("Organization ID fetched for login render:", normalizedOrganizationId);
+      debugLog('Organization ID fetched for login render:', normalizedOrganizationId);
       return normalizedOrganizationId;
     } catch (error) {
-      debugError("Failed to fetch organization ID before login render:", error);
+      debugError('Failed to fetch organization ID before login render:', error);
       throw error;
     }
   }
 
   async init() {
-    debugLog("Login init started");
+    debugLog('Login init started');
 
     try {
       await this.ensureOrganizationIdLoaded();
     } catch (error) {
-      const appContainer = document.getElementById("app");
+      const appContainer = document.getElementById('app');
       if (appContainer) {
         setContent(appContainer, `
           <div class="login-container">
-            <h1>${translate("login")}</h1>
-            <div class="status-message error" role="alert">${translate("error_loading_application")}</div>
+            <h1>${translate('login')}</h1>
+            <div class="status-message error" role="alert">${translate('error_loading_application')}</div>
           </div>
         `);
       }
@@ -78,71 +80,102 @@ export class Login {
     // Try to fetch organization settings if not already loaded
     // Since we're not logged in, this will use the public endpoint
     if (!this.app.organizationSettings && !this.app.isOrganizationSettingsFetched) {
-      debugLog("Organization settings not loaded, attempting to fetch...");
+      debugLog('Organization settings not loaded, attempting to fetch...');
       try {
         await this.app.fetchOrganizationSettings();
       } catch (error) {
-        debugError("Failed to fetch organization settings in login:", error);
+        debugError('Failed to fetch organization settings in login:', error);
         // Don't block rendering if settings fetch fails
       }
     }
 
     // Render the login form immediately
     // Organization settings will be available now or use defaults
-    debugLog("Rendering login form, organizationSettings:",
-      this.app.organizationSettings ? "loaded" : "not loaded");
+    debugLog('Rendering login form, organizationSettings:',
+      this.app.organizationSettings ? 'loaded' : 'not loaded');
     this.render();
   }
 
   render() {
-    debugLog("Login.render() called");
+    debugLog('Login.render() called');
     // Get organization name with fallback
-    const organizationName = this.app.organizationSettings?.organization_info?.name || "Scouts";
-    debugLog("Using organization name:", organizationName);
+    const organizationName = this.app.organizationSettings?.organization_info?.name || 'Scouts';
+    debugLog('Using organization name:', organizationName);
 
     const content = `
       <div class="login-container">
-        <h1>${translate("login")}</h1>
+        <h1>${translate('login')}</h1>
         <h2>${organizationName}</h2>
+        ${this.renderLanguagePicker()}
         <form id="login-form">
           <div class="form-group">
-            <label for="login-email" class="sr-only">${translate("email")}</label>
-            <input type="email" id="login-email" name="email" placeholder="${translate("email")}" autocomplete="username" required>
+            <label for="login-email" class="sr-only">${translate('email')}</label>
+            <input type="email" id="login-email" name="email" placeholder="${translate('email')}" autocomplete="username" required>
           </div>
           <div class="form-group">
-            <label for="login-password" class="sr-only">${translate("password")}</label>
-            <input type="password" id="login-password" name="password" placeholder="${translate("password")}" autocomplete="current-password" required>
+            <label for="login-password" class="sr-only">${translate('password')}</label>
+            <input type="password" id="login-password" name="password" placeholder="${translate('password')}" autocomplete="current-password" required>
           </div>
-          <button type="submit" class="btn-primary">${translate("submit_login")}</button>
+          <button type="submit" class="btn-primary">${translate('submit_login')}</button>
         </form>
         <div id="login-message" class="status-message" role="status" aria-live="polite"></div>
         <div id="login-recovery-cta"></div>
-        <p><a href="/register">${translate("create_account")}</a></p>
-        <p><a href="/reset-password">${translate("forgot_password")}</a></p>
+        <p><a href="/register">${translate('create_account')}</a></p>
+        <p><a href="/reset-password">${translate('forgot_password')}</a></p>
       </div>
     `;
 
-    const appContainer = document.getElementById("app");
+    const appContainer = document.getElementById('app');
     if (appContainer) {
       setContent(appContainer, content);
       this.attachLoginFormListener();
-      debugLog("Login form rendered successfully");
+      this.attachLanguagePickerListener();
+      debugLog('Login form rendered successfully');
     } else {
-      debugError("Could not find app container element");
+      debugError('Could not find app container element');
     }
   }
 
+  /**
+   * The unit's languages, so a parent can read the page before signing in.
+   * Each option is named in its own language.
+   *
+   * @returns {string} HTML
+   */
+  renderLanguagePicker() {
+    const languages = this.app.getUnitLanguages?.().available || [];
+    const options = languages.map((code) => `
+      <option value="${code}" lang="${code}" ${code === this.app.lang ? 'selected' : ''}>${escapeHTML(nativeLanguageName(code))}</option>`).join('');
+    return `
+      <div class="form-group login-language">
+        <label for="login-language">${escapeHTML(translate('language'))}</label>
+        <select id="login-language" aria-describedby="login-language-hint">${options}</select>
+        <span id="login-language-hint" class="sr-only">${escapeHTML(translate('login_language_hint'))}</span>
+      </div>`;
+  }
+
+  /**
+   * Switch language from the login page; the page renders again in it.
+   *
+   * @returns {void}
+   */
+  attachLanguagePickerListener() {
+    document.getElementById('login-language')?.addEventListener('change', (event) => {
+      this.app.setLanguage(event.target.value);
+    });
+  }
+
   async attachLoginFormListener() {
-    const form = document.getElementById("login-form");
+    const form = document.getElementById('login-form');
     if (!form) {
-      debugError("Login form not found in DOM");
+      debugError('Login form not found in DOM');
       return;
     }
 
-    debugLog("Attaching login form listener");
-    const statusElement = document.getElementById("login-message");
+    debugLog('Attaching login form listener');
+    const statusElement = document.getElementById('login-message');
 
-    const setStatus = (message, type = "info") => {
+    const setStatus = (message, type = 'info') => {
       if (!statusElement) {
         return;
       }
@@ -153,51 +186,51 @@ export class Login {
       this.setRecoveryCta(false);
     };
 
-    form.addEventListener("submit", async (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      debugLog("Login form submitted");
+      debugLog('Login form submitted');
 
       const formData = new FormData(form);
 
       // Extract the actual values from FormData
-      const email = formData.get("email");
-      const password = formData.get("password");
+      const email = formData.get('email');
+      const password = formData.get('password');
 
-      setStatus("", "info");
+      setStatus('', 'info');
       const submitButton = form.querySelector("button[type='submit']");
       if (submitButton) {
         submitButton.disabled = true;
       }
 
       try {
-        debugLog("Sending login request via ajax-functions.js..." + email);
+        debugLog(`Sending login request via ajax-functions.js...${  email}`);
 
         // Pass individual parameters instead of FormData object
         const result = await login(email, password);
 
-        debugLog("Login result received:", result);
+        debugLog('Login result received:', result);
 
         if (result.success) {
           // Check if 2FA is required
           if (result.requires_2fa) {
-            debugLog("2FA required, showing verification form...");
+            debugLog('2FA required, showing verification form...');
             this.show2FAForm(email, setStatus);
           } else {
-            debugLog("Login successful, handling login success...");
+            debugLog('Login successful, handling login success...');
             this.handleLoginSuccess(result);
           }
         } else {
-          debugWarn("Login failed:", result.message);
+          debugWarn('Login failed:', result.message);
           const friendlyMessage = this.translateApiMessage(result.message);
-          setStatus(friendlyMessage, "error");
+          setStatus(friendlyMessage, 'error');
           // A closed membership is the one refusal with a way out of it, so it
           // is the one refusal that offers the reader something to do next.
-          if (result.message === "membership_inactive") {
+          if (result.message === 'membership_inactive') {
             this.setRecoveryCta(true);
           }
         }
       } catch (error) {
-        debugError("Login error:", error);
+        debugError('Login error:', error);
         setStatus(apiErrorMessage(error, 'error_logging_in'), 'error');
       } finally {
         if (submitButton) {
@@ -205,26 +238,26 @@ export class Login {
         }
       }
     });
-    debugLog("Login form listener attached");
+    debugLog('Login form listener attached');
   }
 
   handleLoginSuccess(result) {
-    debugLog("=== LOGIN SUCCESS DEBUG ===");
-    debugLog("Full result object:", result);
-    debugLog("result.success:", result.success);
-    debugLog("result.token:", result.token);
-    debugLog("result.user_id:", result.user_id);
-    debugLog("result.user_role:", result.user_role);
-    debugLog("result.user_full_name:", result.user_full_name);
+    debugLog('=== LOGIN SUCCESS DEBUG ===');
+    debugLog('Full result object:', result);
+    debugLog('result.success:', result.success);
+    debugLog('result.token:', result.token);
+    debugLog('result.user_id:', result.user_id);
+    debugLog('result.user_role:', result.user_role);
+    debugLog('result.user_full_name:', result.user_full_name);
 
     // Check if data is nested
     if (result.data) {
-      debugLog("Data is nested under result.data:");
-      debugLog("result.data.token:", result.data.token);
-      debugLog("result.data.user_id:", result.data.user_id);
-      debugLog("result.data.user_role:", result.data.user_role);
+      debugLog('Data is nested under result.data:');
+      debugLog('result.data.token:', result.data.token);
+      debugLog('result.data.user_id:', result.data.user_id);
+      debugLog('result.data.user_role:', result.data.user_role);
     }
-    debugLog("=== END LOGIN DEBUG ===");
+    debugLog('=== END LOGIN DEBUG ===');
 
     // Handle both nested and flat response structures
     const token = result.token || (result.data && result.data.token);
@@ -232,38 +265,38 @@ export class Login {
     const userRole = result.user_role || (result.data && result.data.user_role);
     const userRoles = result.user_roles || (result.data && result.data.user_roles) || [userRole]; // Array of role names
     const userPermissions = result.user_permissions || (result.data && result.data.user_permissions) || []; // Array of permission keys
-    const userFullName = result.user_full_name || (result.data && result.data.user_full_name) || "User";
+    const userFullName = result.user_full_name || (result.data && result.data.user_full_name) || 'User';
     const userDataScope = result.user_data_scope || (result.data && result.data.user_data_scope) || null;
     const organizationId = result.organization_id || (result.data && result.data.organization_id);
 
     // Try to find the appropriate status element (could be login-message or verify-message)
-    const statusElement = document.getElementById("verify-message") || document.getElementById("login-message");
+    const statusElement = document.getElementById('verify-message') || document.getElementById('login-message');
 
     // Validate required fields
     if (!token) {
-      debugError("ERROR: No JWT token received in login response");
+      debugError('ERROR: No JWT token received in login response');
       if (statusElement) {
-        statusElement.textContent = translate("login_error_no_token") || "Login error: No authentication token received";
-        statusElement.className = "status-message error";
+        statusElement.textContent = translate('login_error_no_token') || 'Login error: No authentication token received';
+        statusElement.className = 'status-message error';
       }
       return;
     }
 
     if (!userId) {
-      debugError("ERROR: No user ID received in login response");
+      debugError('ERROR: No user ID received in login response');
       if (statusElement) {
-        statusElement.textContent = translate("login_error_no_user_id") || "Login error: No user ID received";
-        statusElement.className = "status-message error";
+        statusElement.textContent = translate('login_error_no_user_id') || 'Login error: No user ID received';
+        statusElement.className = 'status-message error';
       }
       return;
     }
 
-    debugLog("=== STORING USER DATA ===");
-    debugLog("Token:", token ? "EXISTS" : "MISSING");
-    debugLog("User ID:", userId);
-    debugLog("User Role:", userRole);
-    debugLog("User Full Name:", userFullName);
-    debugLog("Organization ID:", organizationId);
+    debugLog('=== STORING USER DATA ===');
+    debugLog('Token:', token ? 'EXISTS' : 'MISSING');
+    debugLog('User ID:', userId);
+    debugLog('User Role:', userRole);
+    debugLog('User Full Name:', userFullName);
+    debugLog('Organization ID:', organizationId);
 
     // Update app state
     this.app.isLoggedIn = true;
@@ -276,7 +309,7 @@ export class Login {
     // Store user data in localStorage using StorageUtils
     const userData = {
       jwtToken: token,
-      userRole: userRole || "", // Primary role (for backward compatibility)
+      userRole: userRole || '', // Primary role (for backward compatibility)
       userRoles: JSON.stringify(userRoles), // Store as JSON string
       userPermissions: JSON.stringify(userPermissions), // Store as JSON string
       userFullName: userFullName,
@@ -301,18 +334,18 @@ export class Login {
     setStorageMultiple(userData);
 
     // The app booted signed out, so live sync did not start with it.
-    import("./modules/live-sync/LiveDataSync.js")
+    import('./modules/live-sync/LiveDataSync.js')
       .then(({ liveDataSync }) => liveDataSync.start())
-      .catch((error) => debugError("Failed to start live sync:", error));
+      .catch((error) => debugError('Failed to start live sync:', error));
 
-    debugLog("=== FINAL LOCALSTORAGE CHECK ===");
-    debugLog("jwtToken:", getStorage("jwtToken") ? "STORED" : "MISSING");
-    debugLog("userId:", getStorage("userId"));
-    debugLog("userRole:", getStorage("userRole"));
-    debugLog("userRoles:", getStorage("userRoles"));
-    debugLog("userPermissions:", getStorage("userPermissions"));
-    debugLog("currentOrganizationId:", getStorage("currentOrganizationId"));
-    debugLog("organizationId:", getStorage("organizationId"));
+    debugLog('=== FINAL LOCALSTORAGE CHECK ===');
+    debugLog('jwtToken:', getStorage('jwtToken') ? 'STORED' : 'MISSING');
+    debugLog('userId:', getStorage('userId'));
+    debugLog('userRole:', getStorage('userRole'));
+    debugLog('userRoles:', getStorage('userRoles'));
+    debugLog('userPermissions:', getStorage('userPermissions'));
+    debugLog('currentOrganizationId:', getStorage('currentOrganizationId'));
+    debugLog('organizationId:', getStorage('organizationId'));
 
     this.redirectAfterLogin().catch((redirectError) => {
       debugError('Failed to redirect after login:', redirectError);
@@ -335,7 +368,7 @@ export class Login {
    * @returns {Promise<void>}
    */
   async redirectAfterLogin() {
-    let targetPath = isParent() ? "/parent-dashboard" : "/dashboard";
+    let targetPath = isParent() ? '/parent-dashboard' : '/dashboard';
     const requestedPath = new URLSearchParams(window.location.search).get('returnTo');
     let returnPath = null;
     // Accept only local app paths; a crafted login URL must never redirect
@@ -351,14 +384,14 @@ export class Login {
       }
     }
 
-    if (!returnPath && isParent() && hasPermission("participants.create_own")) {
+    if (!returnPath && isParent() && hasPermission('participants.create_own')) {
       try {
         const context = await getOnboardingContext();
         if (context?.data?.onboarding_pending) {
-          targetPath = "/parent-onboarding";
+          targetPath = '/parent-onboarding';
         }
       } catch (error) {
-        debugWarn("Could not check for pending onboarding:", error);
+        debugWarn('Could not check for pending onboarding:', error);
       }
     }
 
@@ -366,7 +399,7 @@ export class Login {
     debugLog(`Redirecting to ${targetPath}`);
 
     // Update the URL in browser history and navigate immediately
-    history.pushState(null, "", targetPath);
+    history.pushState(null, '', targetPath);
     // The fragment remains in browser history; route matching uses only the
     // pathname and query, just as it does when the app initially loads.
     this.app.router.route(targetPath.split('#')[0]);
@@ -378,27 +411,27 @@ export class Login {
    * @param {Function} setStatus - Function to set status messages
    */
   show2FAForm(email, setStatus) {
-    const appContainer = document.getElementById("app");
+    const appContainer = document.getElementById('app');
     if (!appContainer) {
-      debugError("Could not find app container element");
+      debugError('Could not find app container element');
       return;
     }
 
-    const organizationName = this.app.organizationSettings?.organization_info?.name || "Scouts";
+    const organizationName = this.app.organizationSettings?.organization_info?.name || 'Scouts';
 
     const content = `
       <div class="login-container">
-        <h1>${translate("two_factor_verification") || "Verify Your Identity"}</h1>
+        <h1>${translate('two_factor_verification') || 'Verify Your Identity'}</h1>
         <h2>${organizationName}</h2>
         <p style="margin: 20px 0; text-align: center;">
-          ${translate("two_factor_message") || "We've sent a 6-digit verification code to your email. Please enter it below."}
+          ${translate('two_factor_message') || "We've sent a 6-digit verification code to your email. Please enter it below."}
         </p>
         <form id="verify-2fa-form">
           <div class="form-group">
             <input
               type="text"
               name="code"
-              placeholder="${translate("verification_code") || "Verification Code"}"
+              placeholder="${translate('verification_code') || 'Verification Code'}"
               autocomplete="one-time-code"
               maxlength="6"
               pattern="[0-9]{6}"
@@ -406,11 +439,11 @@ export class Login {
               style="font-size: 24px; letter-spacing: 8px; text-align: center; font-family: monospace;"
               required>
           </div>
-          <button type="submit" class="btn-primary">${translate("verify") || "Verify"}</button>
+          <button type="submit" class="btn-primary">${translate('verify') || 'Verify'}</button>
         </form>
         <div id="verify-message" class="status-message" role="status" aria-live="polite"></div>
         <p style="text-align: center; margin-top: 20px;">
-          <a href="#" id="back-to-login">${translate("back_to_login") || "Back to Login"}</a>
+          <a href="#" id="back-to-login">${translate('back_to_login') || 'Back to Login'}</a>
         </p>
       </div>
     `;
@@ -424,61 +457,61 @@ export class Login {
    * @param {string} email - User's email address
    */
   attach2FAFormListener(email) {
-    const form = document.getElementById("verify-2fa-form");
-    const statusElement = document.getElementById("verify-message");
-    const backToLogin = document.getElementById("back-to-login");
+    const form = document.getElementById('verify-2fa-form');
+    const statusElement = document.getElementById('verify-message');
+    const backToLogin = document.getElementById('back-to-login');
 
     if (!form) {
-      debugError("2FA form not found in DOM");
+      debugError('2FA form not found in DOM');
       return;
     }
 
-    const setStatus = (message, type = "info") => {
-      if (!statusElement) return;
+    const setStatus = (message, type = 'info') => {
+      if (!statusElement) {return;}
       statusElement.textContent = message;
       statusElement.className = `status-message ${type}`;
     };
 
     // Show success message
-    setStatus(translate("verification_code_sent") || "A verification code has been sent to your email.", "success");
+    setStatus(translate('verification_code_sent') || 'A verification code has been sent to your email.', 'success');
 
     // Handle back to login
     if (backToLogin) {
-      backToLogin.addEventListener("click", (e) => {
+      backToLogin.addEventListener('click', (e) => {
         e.preventDefault();
         this.render();
       });
     }
 
     // Handle form submission
-    form.addEventListener("submit", async (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      debugLog("2FA verification form submitted");
+      debugLog('2FA verification form submitted');
 
       const formData = new FormData(form);
-      const code = formData.get("code");
+      const code = formData.get('code');
 
       if (!code || code.length !== 6) {
-        setStatus(translate("invalid_code_format") || "Please enter a valid 6-digit code.", "error");
+        setStatus(translate('invalid_code_format') || 'Please enter a valid 6-digit code.', 'error');
         return;
       }
 
-      setStatus("", "info");
+      setStatus('', 'info');
       const submitButton = form.querySelector("button[type='submit']");
       if (submitButton) {
         submitButton.disabled = true;
       }
 
       try {
-        debugLog("Sending 2FA verification request...");
+        debugLog('Sending 2FA verification request...');
 
         const result = await verify2FA(email, code);
 
-        debugLog("2FA verification result:", result);
+        debugLog('2FA verification result:', result);
 
         if (result.success) {
-          debugLog("2FA verification successful, handling login success...");
-          setStatus(translate("verification_successful") || "Verification successful! Logging you in...", "success");
+          debugLog('2FA verification successful, handling login success...');
+          setStatus(translate('verification_successful') || 'Verification successful! Logging you in...', 'success');
 
           // Store device token if returned
           if (result.device_token) {
@@ -489,12 +522,12 @@ export class Login {
           // Handle successful login
           this.handleLoginSuccess(result);
         } else {
-          debugWarn("2FA verification failed:", result.message);
+          debugWarn('2FA verification failed:', result.message);
           const friendlyMessage = this.translate2FAMessage(result.message);
-          setStatus(friendlyMessage, "error");
+          setStatus(friendlyMessage, 'error');
         }
       } catch (error) {
-        debugError("2FA verification error:", error);
+        debugError('2FA verification error:', error);
         setStatus(apiErrorMessage(error, 'verification_error'), 'error');
       } finally {
         if (submitButton) {
@@ -509,22 +542,22 @@ export class Login {
       codeInput.focus();
     }
 
-    debugLog("2FA form listener attached");
+    debugLog('2FA form listener attached');
   }
 
   /**
    * Translate 2FA error messages
    */
   translate2FAMessage(message) {
-    const messageKey = message || "invalid_2fa_code";
+    const messageKey = message || 'invalid_2fa_code';
     const messageMap = {
-      invalid_2fa_code: translate("invalid_verification_code") || "Invalid verification code.",
-      invalid_or_expired_2fa_code: translate("invalid_or_expired_code") || "Invalid or expired verification code. Please try logging in again.",
-      too_many_attempts: translate("too_many_attempts") || "Too many attempts. Please try logging in again.",
-      internal_server_error: translate("internal_server_error") || "An error occurred. Please try again."
+      invalid_2fa_code: translate('invalid_verification_code') || 'Invalid verification code.',
+      invalid_or_expired_2fa_code: translate('invalid_or_expired_code') || 'Invalid or expired verification code. Please try logging in again.',
+      too_many_attempts: translate('too_many_attempts') || 'Too many attempts. Please try logging in again.',
+      internal_server_error: translate('internal_server_error') || 'An error occurred. Please try again.'
     };
 
-    return messageMap[messageKey] || translate("verification_error") || "Verification failed. Please try again.";
+    return messageMap[messageKey] || translate('verification_error') || 'Verification failed. Please try again.';
   }
 
   /**
@@ -534,41 +567,41 @@ export class Login {
    * @returns {void}
    */
   setRecoveryCta(visible) {
-    const container = document.getElementById("login-recovery-cta");
+    const container = document.getElementById('login-recovery-cta');
     if (!container) {
       return;
     }
 
     setContent(container, visible ? `
-      <p><a href="/reactivate-account">${translate("membership_inactive_cta")}</a></p>
-    ` : "");
+      <p><a href="/reactivate-account">${translate('membership_inactive_cta')}</a></p>
+    ` : '');
   }
 
   translateApiMessage(message) {
-    const messageKey = message || "invalid_email_or_password";
+    const messageKey = message || 'invalid_email_or_password';
     const messageMap = {
-      invalid_email_or_password: translate("invalid_email_or_password"),
-      account_not_verified_login: translate("account_not_verified_login") || translate("invalid_email_or_password"),
-      too_many_login_attempts: translate("too_many_login_attempts"),
+      invalid_email_or_password: translate('invalid_email_or_password'),
+      account_not_verified_login: translate('account_not_verified_login') || translate('invalid_email_or_password'),
+      too_many_login_attempts: translate('too_many_login_attempts'),
       // Without this the server's "your membership was closed" arrived as
       // "wrong password", which sent people to reset a password that was fine.
-      membership_inactive: translate("membership_inactive"),
+      membership_inactive: translate('membership_inactive'),
       // Closed by the unit's team: only they can reopen it, so no self-service link.
       membership_closed: translate('membership_closed'),
-      internal_server_error: translate("internal_server_error")
+      internal_server_error: translate('internal_server_error')
     };
 
-    return messageMap[messageKey] || translate("invalid_credentials");
+    return messageMap[messageKey] || translate('invalid_credentials');
   }
 
   static decodeJwt(token) {
-    const base64Url = token.split(".")[1];
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
     const jsonPayload = decodeURIComponent(
       atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
+        .split('')
+        .map((c) => `%${  (`00${  c.charCodeAt(0).toString(16)}`).slice(-2)}`)
+        .join('')
     );
     return JSON.parse(jsonPayload);
   }
@@ -580,30 +613,30 @@ export class Login {
   // function moved to SessionUtils.js
 
   static async logout() {
-    debugLog("Logging out...");
+    debugLog('Logging out...');
 
     try {
       // Try to call the server logout endpoint
       await fetch(getApiUrl('logout'), {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Authorization": `Bearer ${getStorage("jwtToken")}`,
-          "Content-Type": "application/json"
+          'Authorization': `Bearer ${getStorage('jwtToken')}`,
+          'Content-Type': 'application/json'
         }
       });
     } catch (error) {
-      debugWarn("Error during server logout:", error);
+      debugWarn('Error during server logout:', error);
       // Continue with client-side logout even if server logout fails
     }
 
     try {
       await clearAllClientData();
-      debugLog("Client data cleared, redirecting to login page");
+      debugLog('Client data cleared, redirecting to login page');
     } catch (cleanupError) {
-      debugWarn("Error during client cleanup:", cleanupError);
+      debugWarn('Error during client cleanup:', cleanupError);
     }
 
     // Redirect to login page
-    window.location.href = "/login";
+    window.location.href = '/login';
   }
 }

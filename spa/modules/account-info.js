@@ -7,18 +7,19 @@
  * @module modules/account-info
  */
 
-import accountInfoStylesheetUrl from "../../css/account-info.css?url";
-import { makeApiRequest } from "../api/api-core.js";
+import accountInfoStylesheetUrl from '../../css/account-info.css?url';
+import { makeApiRequest } from '../api/api-core.js';
 import { enablePushNotifications, disablePushNotifications, PushSetupError } from './push/PushSubscription.js';
-import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
-import { translate, app as appInstance } from "../app.js";
-import { escapeHTML } from "../utils/SecurityUtils.js";
-import { apiErrorMessage } from "../utils/ApiErrorUtils.js";
-import { holdsFamilyRole, isParent } from "../utils/PermissionUtils.js";
-import { setContent, loadStylesheet } from "../utils/DOMUtils.js";
-import { confirm as confirmDialog } from "../utils/DialogUtils.js";
-import { getStorage, setStorage } from "../utils/StorageUtils.js";
-import { CONFIG, getStorageKey } from "../config.js";
+import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
+import { translate, app as appInstance } from '../app.js';
+import { escapeAttribute, escapeHTML } from '../utils/SecurityUtils.js';
+import { nativeLanguageName } from '../utils/InterfaceLanguageUtils.js';
+import { apiErrorMessage } from '../utils/ApiErrorUtils.js';
+import { holdsFamilyRole, isDemoUser, isParent } from '../utils/PermissionUtils.js';
+import { setContent, loadStylesheet } from '../utils/DOMUtils.js';
+import { confirm as confirmDialog } from '../utils/DialogUtils.js';
+import { getStorage, setStorage } from '../utils/StorageUtils.js';
+import { CONFIG, getStorageKey } from '../config.js';
 
 /**
  * Settings/Account Information Management Class
@@ -40,47 +41,49 @@ export class AccountInfoModule {
    * Loads user data and renders the page
    */
   async init() {
-    debugLog("Initializing Settings Module");
+    debugLog('Initializing Settings Module');
 
     // Load page-specific CSS
     await loadStylesheet(accountInfoStylesheetUrl);
 
     try {
-      debugLog("Checking permissions and push support");
+      debugLog('Checking permissions and push support');
       this.holdsFamilyRole = holdsFamilyRole();
 
       // Check push notification support
       this.pushSupported = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
-      debugLog("Push support check:", { supported: this.pushSupported, notification: 'Notification' in window, sw: 'serviceWorker' in navigator, push: 'PushManager' in window });
+      debugLog('Push support check:', { supported: this.pushSupported, notification: 'Notification' in window, sw: 'serviceWorker' in navigator, push: 'PushManager' in window });
 
       if (this.pushSupported) {
-        debugLog("Checking push subscription status");
+        debugLog('Checking push subscription status');
         this.pushEnabled = await this.checkPushSubscription();
-        debugLog("Push subscription check complete:", { enabled: this.pushEnabled });
+        debugLog('Push subscription check complete:', { enabled: this.pushEnabled });
       }
 
-      debugLog("Loading starting user data");
-      await this.loadUserData();
-      debugLog("User data load complete");
+      debugLog('Loading starting user data');
+      // The language picker lists the unit's languages: on a direct load the
+      // unit's settings may still be on their way.
+      await Promise.all([this.loadUserData(), this.waitForUnitSettings()]);
+      debugLog('User data load complete');
 
       if (this.holdsFamilyRole) {
-        debugLog("Loading guardian profile (parent role detected)");
+        debugLog('Loading guardian profile (parent role detected)');
         await this.loadGuardianProfile();
-        debugLog("Guardian profile load complete");
+        debugLog('Guardian profile load complete');
       } else {
-        debugLog("Skipping guardian profile (not a parent)");
+        debugLog('Skipping guardian profile (not a parent)');
         this.guardianProfile = { guardian: null, participantIds: [] };
         this.guardianError = null;
       }
 
-      debugLog("Proceeding to initial render");
+      debugLog('Proceeding to initial render');
       this.render();
-      debugLog("Initial render complete, attaching event listeners");
+      debugLog('Initial render complete, attaching event listeners');
       this.attachEventListeners();
-      debugLog("Initialization complete");
+      debugLog('Initialization complete');
     } catch (error) {
-      debugError("Error initializing settings module:", error);
-      this.renderError(translate("error_loading_data"));
+      debugError('Error initializing settings module:', error);
+      this.renderError(translate('error_loading_data'));
     }
   }
 
@@ -90,29 +93,29 @@ export class AccountInfoModule {
   async checkPushSubscription() {
     try {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        debugLog("ServiceWorker or PushManager not available");
+        debugLog('ServiceWorker or PushManager not available');
         return false;
       }
 
-      debugLog("Waiting for service worker to be ready (with 2s timeout)");
+      debugLog('Waiting for service worker to be ready (with 2s timeout)');
 
       // Use a timeout to prevent hanging if the service worker doesn't become ready
       const swReadyPromise = navigator.serviceWorker.ready;
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Service worker ready timeout")), 2000)
+        setTimeout(() => reject(new Error('Service worker ready timeout')), 2000)
       );
 
       try {
         const registration = await Promise.race([swReadyPromise, timeoutPromise]);
-        debugLog("Service worker ready");
+        debugLog('Service worker ready');
         const subscription = await registration.pushManager.getSubscription();
         return subscription !== null;
       } catch (timeoutError) {
-        debugWarn("Service worker check timed out or failed, continuing without push status:", timeoutError.message);
+        debugWarn('Service worker check timed out or failed, continuing without push status:', timeoutError.message);
         return false;
       }
     } catch (error) {
-      debugError("Error checking push subscription:", error);
+      debugError('Error checking push subscription:', error);
       return false;
     }
   }
@@ -122,7 +125,7 @@ export class AccountInfoModule {
    */
   async loadGuardianProfile() {
     try {
-      const response = await makeApiRequest("v1/users/me/guardian-profile", { method: "GET" });
+      const response = await makeApiRequest('v1/users/me/guardian-profile', { method: 'GET' });
 
       if (response.success) {
         this.guardianProfile = response.data || { guardian: null, participantIds: [] };
@@ -131,9 +134,9 @@ export class AccountInfoModule {
         this.guardianError = translate('guardian_load_error');
       }
     } catch (error) {
-      debugError("Error loading guardian profile:", error);
-      const errorMessage = typeof error.message === "string" && error.message.toLowerCase().includes("no linked participants")
-        ? translate("guardian_no_participants")
+      debugError('Error loading guardian profile:', error);
+      const errorMessage = typeof error.message === 'string' && error.message.toLowerCase().includes('no linked participants')
+        ? translate('guardian_no_participants')
         : apiErrorMessage(error, 'guardian_load_error');
       this.guardianError = errorMessage;
       this.guardianProfile = { guardian: null, participantIds: [] };
@@ -145,19 +148,19 @@ export class AccountInfoModule {
    */
   async loadUserData() {
     try {
-      debugLog("Loading user data");
-      const response = await makeApiRequest("v1/users/me", {
-        method: "GET",
+      debugLog('Loading user data');
+      const response = await makeApiRequest('v1/users/me', {
+        method: 'GET',
       });
 
       if (response.success) {
         this.userData = response.data;
-        debugLog("User data loaded:", this.userData);
+        debugLog('User data loaded:', this.userData);
       } else {
-        throw new Error(response.message || "Failed to load user data");
+        throw new Error(response.message || 'Failed to load user data');
       }
     } catch (error) {
-      debugError("Error loading user data:", error);
+      debugError('Error loading user data:', error);
       throw error;
     }
   }
@@ -166,35 +169,35 @@ export class AccountInfoModule {
    * Render the settings page
    */
   render() {
-    const homeLink = isParent() ? "/parent-dashboard" : "/dashboard";
+    const homeLink = isParent() ? '/parent-dashboard' : '/dashboard';
 
-    const fullName = escapeHTML(this.userData?.full_name || "");
-    const email = escapeHTML(this.userData?.email || "");
-    const roles = Array.isArray(this.userData?.roles) ? this.userData.roles.join(", ") : "";
+    const fullName = escapeHTML(this.userData?.full_name || '');
+    const email = escapeHTML(this.userData?.email || '');
+    const roles = Array.isArray(this.userData?.roles) ? this.userData.roles.join(', ') : '';
 
     // Get current UI language (not just preference)
     const currentLang = this.app.lang || getStorage('lang', false, CONFIG.DEFAULT_LANG);
-    const timeFormatKey = getStorageKey("TIME_FORMAT");
-    const defaultTimeFormat = CONFIG?.TIME_FORMAT?.DEFAULT || "24h";
+    const timeFormatKey = getStorageKey('TIME_FORMAT');
+    const defaultTimeFormat = CONFIG?.TIME_FORMAT?.DEFAULT || '24h';
     const currentTimeFormat = getStorage(timeFormatKey, false, defaultTimeFormat);
 
     const guardianData = this.guardianProfile?.guardian || {};
-    const nameParts = fullName ? fullName.split(" ") : [];
-    const defaultGuardianFirstName = guardianData.prenom || nameParts[0] || "";
-    const defaultGuardianLastName = guardianData.nom || (nameParts.length > 1 ? nameParts.slice(1).join(" ") : "");
-    const guardianRelationship = guardianData.lien || "";
-    const guardianHomePhone = guardianData.telephone_residence || "";
-    const guardianWorkPhone = guardianData.telephone_travail || "";
-    const guardianMobilePhone = guardianData.telephone_cellulaire || "";
+    const nameParts = fullName ? fullName.split(' ') : [];
+    const defaultGuardianFirstName = guardianData.prenom || nameParts[0] || '';
+    const defaultGuardianLastName = guardianData.nom || (nameParts.length > 1 ? nameParts.slice(1).join(' ') : '');
+    const guardianRelationship = guardianData.lien || '';
+    const guardianHomePhone = guardianData.telephone_residence || '';
+    const guardianWorkPhone = guardianData.telephone_travail || '';
+    const guardianMobilePhone = guardianData.telephone_cellulaire || '';
     const guardianPrimary = guardianData.is_primary ?? true;
     const guardianEmergency = guardianData.is_emergency_contact ?? false;
     const hasParticipantLinks = Array.isArray(this.guardianProfile?.participantIds) && this.guardianProfile.participantIds.length > 0;
 
     const content = `
-      <a href="${homeLink}" class="button button--ghost">← ${translate("back")}</a>
+      <a href="${homeLink}" class="button button--ghost">← ${translate('back')}</a>
       <div class="settings-page">
         <header class="settings-header">
-          <h1>${translate("settings") || translate("account_settings") || translate("account_info_title")}</h1>
+          <h1>${translate('settings') || translate('account_settings') || translate('account_info_title')}</h1>
         </header>
 
         <!-- Profile Summary Section -->
@@ -207,17 +210,17 @@ export class AccountInfoModule {
 
         <!-- Profile Information Section -->
         <section class="account-section">
-          <h2>${translate("profile_information")}</h2>
+          <h2>${translate('profile_information')}</h2>
 
           <form id="fullname-form" class="account-form">
             <div class="form-group">
-              <label for="fullname-input">${translate("full_name") || translate("account_info_fullname_label")}</label>
+              <label for="fullname-input">${translate('full_name') || translate('account_info_fullname_label')}</label>
               <input
                 type="text"
                 id="fullname-input"
                 name="fullName"
                 value="${fullName}"
-                placeholder="${translate("enter_full_name") || translate("account_info_fullname_placeholder")}"
+                placeholder="${translate('enter_full_name') || translate('account_info_fullname_placeholder')}"
                 required
                 minlength="2"
                 maxlength="100"
@@ -225,33 +228,33 @@ export class AccountInfoModule {
               />
             </div>
             <button type="submit" class="btn btn-primary" id="fullname-submit">
-              ${translate("save_profile") || translate("account_info_fullname_button")}
+              ${translate('save_profile') || translate('account_info_fullname_button')}
             </button>
           </form>
         </section>
 
         <!-- Email Section -->
         <section class="account-section">
-          <h2>${translate("email") || translate("account_info_email_title")}</h2>
+          <h2>${translate('email') || translate('account_info_email_title')}</h2>
           <div class="warning-box">
-            <p>${translate("account_info_email_warning")}</p>
+            <p>${translate('account_info_email_warning')}</p>
           </div>
           <form id="email-form" class="account-form">
             <div class="form-group">
-              <label for="email-input">${translate("email") || translate("account_info_email_label")}</label>
+              <label for="email-input">${translate('email') || translate('account_info_email_label')}</label>
               <input
                 type="email"
                 id="email-input"
                 name="email"
                 value="${email}"
-                placeholder="${translate("enter_email") || translate("account_info_email_placeholder")}" 
+                placeholder="${translate('enter_email') || translate('account_info_email_placeholder')}" 
                 required
                 autocomplete="email"
               />
-              <small class="form-text">${translate("account_info_email_warning")}</small>
+              <small class="form-text">${translate('account_info_email_warning')}</small>
             </div>
             <button type="submit" class="btn btn-primary" id="email-submit">
-              ${translate("account_info_email_button")}
+              ${translate('account_info_email_button')}
             </button>
           </form>
         </section>
@@ -259,181 +262,174 @@ export class AccountInfoModule {
         ${this.holdsFamilyRole ? `
           <!-- Guardian Information Section (Parents only) -->
           <section class="account-section">
-            <h2>${translate("guardian_info_title")}</h2>
-            <p class="section-description">${translate("guardian_info_description")}</p>
+            <h2>${translate('guardian_info_title')}</h2>
+            <p class="section-description">${translate('guardian_info_description')}</p>
             <div class="warning-box">
-              <p>${translate("account_info_guardian_sync_notice")}</p>
-              ${this.guardianError ? `<p>${escapeHTML(this.guardianError)}</p>` : ""}
-              ${!hasParticipantLinks ? `<p>${translate("guardian_no_participants")}</p>` : ""}
+              <p>${translate('account_info_guardian_sync_notice')}</p>
+              ${this.guardianError ? `<p>${escapeHTML(this.guardianError)}</p>` : ''}
+              ${!hasParticipantLinks ? `<p>${translate('guardian_no_participants')}</p>` : ''}
             </div>
             <form id="guardian-form" class="account-form">
               <div class="form-group">
-                <label for="guardian-first-name">${translate("guardian_first_name")}</label>
+                <label for="guardian-first-name">${translate('guardian_first_name')}</label>
                 <input
                   type="text"
                   id="guardian-first-name"
                   name="guardianFirstName"
                   value="${escapeHTML(defaultGuardianFirstName)}"
-                  placeholder="${translate("guardian_first_name")}"
+                  placeholder="${translate('guardian_first_name')}"
                   required
                   maxlength="120"
-                  ${!hasParticipantLinks ? "disabled" : ""}
+                  ${!hasParticipantLinks ? 'disabled' : ''}
                 />
               </div>
               <div class="form-group">
-                <label for="guardian-last-name">${translate("guardian_last_name")}</label>
+                <label for="guardian-last-name">${translate('guardian_last_name')}</label>
                 <input
                   type="text"
                   id="guardian-last-name"
                   name="guardianLastName"
                   value="${escapeHTML(defaultGuardianLastName)}"
-                  placeholder="${translate("guardian_last_name")}"
+                  placeholder="${translate('guardian_last_name')}"
                   required
                   maxlength="120"
-                  ${!hasParticipantLinks ? "disabled" : ""}
+                  ${!hasParticipantLinks ? 'disabled' : ''}
                 />
               </div>
               <div class="form-group">
-                <label for="guardian-relationship">${translate("guardian_relationship")}</label>
+                <label for="guardian-relationship">${translate('guardian_relationship')}</label>
                 <input
                   type="text"
                   id="guardian-relationship"
                   name="guardianRelationship"
                   value="${escapeHTML(guardianRelationship)}"
-                  placeholder="${translate("guardian_relationship")}"
+                  placeholder="${translate('guardian_relationship')}"
                   maxlength="120"
-                  ${!hasParticipantLinks ? "disabled" : ""}
+                  ${!hasParticipantLinks ? 'disabled' : ''}
                 />
               </div>
               <div class="form-group">
-                <label for="guardian-home-phone">${translate("guardian_phone_home")}</label>
+                <label for="guardian-home-phone">${translate('guardian_phone_home')}</label>
                 <input
                   type="tel"
                   id="guardian-home-phone"
                   name="guardianHomePhone"
                   value="${escapeHTML(guardianHomePhone)}"
-                  placeholder="${translate("guardian_phone_home")}"
+                  placeholder="${translate('guardian_phone_home')}"
                   maxlength="20"
-                  ${!hasParticipantLinks ? "disabled" : ""}
+                  ${!hasParticipantLinks ? 'disabled' : ''}
                 />
               </div>
               <div class="form-group">
-                <label for="guardian-work-phone">${translate("guardian_phone_work")}</label>
+                <label for="guardian-work-phone">${translate('guardian_phone_work')}</label>
                 <input
                   type="tel"
                   id="guardian-work-phone"
                   name="guardianWorkPhone"
                   value="${escapeHTML(guardianWorkPhone)}"
-                  placeholder="${translate("guardian_phone_work")}"
+                  placeholder="${translate('guardian_phone_work')}"
                   maxlength="20"
-                  ${!hasParticipantLinks ? "disabled" : ""}
+                  ${!hasParticipantLinks ? 'disabled' : ''}
                 />
               </div>
               <div class="form-group">
-                <label for="guardian-mobile-phone">${translate("guardian_phone_mobile")}</label>
+                <label for="guardian-mobile-phone">${translate('guardian_phone_mobile')}</label>
                 <input
                   type="tel"
                   id="guardian-mobile-phone"
                   name="guardianMobilePhone"
                   value="${escapeHTML(guardianMobilePhone)}"
-                  placeholder="${translate("guardian_phone_mobile")}"
+                  placeholder="${translate('guardian_phone_mobile')}"
                   maxlength="20"
-                  ${!hasParticipantLinks ? "disabled" : ""}
+                  ${!hasParticipantLinks ? 'disabled' : ''}
                 />
               </div>
               <div class="form-group">
                 <label for="guardian-primary">
-                  <input type="checkbox" id="guardian-primary" name="guardianPrimary" ${guardianPrimary ? "checked" : ""} ${!hasParticipantLinks ? "disabled" : ""}>
-                  ${translate("guardian_primary_contact")}
+                  <input type="checkbox" id="guardian-primary" name="guardianPrimary" ${guardianPrimary ? 'checked' : ''} ${!hasParticipantLinks ? 'disabled' : ''}>
+                  ${translate('guardian_primary_contact')}
                 </label>
               </div>
               <div class="form-group">
                 <label for="guardian-emergency">
-                  <input type="checkbox" id="guardian-emergency" name="guardianEmergency" ${guardianEmergency ? "checked" : ""} ${!hasParticipantLinks ? "disabled" : ""}>
-                  ${translate("guardian_emergency_contact")}
+                  <input type="checkbox" id="guardian-emergency" name="guardianEmergency" ${guardianEmergency ? 'checked' : ''} ${!hasParticipantLinks ? 'disabled' : ''}>
+                  ${translate('guardian_emergency_contact')}
                 </label>
               </div>
-              <button type="submit" class="btn btn-primary" id="guardian-submit" ${!hasParticipantLinks ? "disabled" : ""}>
-                ${translate("guardian_save")}
+              <button type="submit" class="btn btn-primary" id="guardian-submit" ${!hasParticipantLinks ? 'disabled' : ''}>
+                ${translate('guardian_save')}
               </button>
             </form>
           </section>
-        ` : ""}
+        ` : ''}
 
         <!-- Password Section -->
         <section class="account-section">
-          <h2>${translate("change_password") || translate("account_info_password_title")}</h2>
+          <h2>${translate('change_password') || translate('account_info_password_title')}</h2>
           <form id="password-form" class="account-form">
             <input type="email" name="username" autocomplete="username" value="${email}" hidden readonly />
             <div class="form-group">
-              <label for="current-password-input">${translate("current_password") || translate("account_info_password_current_label")}</label>
+              <label for="current-password-input">${translate('current_password') || translate('account_info_password_current_label')}</label>
               <input
                 type="password"
                 id="current-password-input"
                 name="currentPassword"
-                placeholder="${translate("enter_current_password")}"
+                placeholder="${translate('enter_current_password')}"
                 required
                 autocomplete="current-password"
               />
             </div>
             <div class="form-group">
-              <label for="new-password-input">${translate("new_password") || translate("account_info_password_new_label")}</label>
+              <label for="new-password-input">${translate('new_password') || translate('account_info_password_new_label')}</label>
               <input
                 type="password"
                 id="new-password-input"
                 name="newPassword"
-                placeholder="${translate("enter_new_password")}"
+                placeholder="${translate('enter_new_password')}"
                 required
                 minlength="8"
                 autocomplete="new-password"
               />
-              <small class="form-text">${translate("error_password_too_short")}</small>
+              <small class="form-text">${translate('error_password_too_short')}</small>
             </div>
             <div class="form-group">
-              <label for="confirm-password-input">${translate("confirm_password") || translate("account_info_password_confirm_label")}</label>
+              <label for="confirm-password-input">${translate('confirm_password') || translate('account_info_password_confirm_label')}</label>
               <input
                 type="password"
                 id="confirm-password-input"
                 name="confirmPassword"
-                placeholder="${translate("confirm_new_password")}"
+                placeholder="${translate('confirm_new_password')}"
                 required
                 minlength="8"
                 autocomplete="new-password"
               />
             </div>
             <button type="submit" class="btn btn-primary" id="password-submit">
-              ${translate("change_password") || translate("account_info_password_button")}
+              ${translate('change_password') || translate('account_info_password_button')}
             </button>
           </form>
         </section>
 
         <!-- Language Section -->
         <section class="account-section">
-          <h2>${translate("language")}</h2>
-          <p class="section-description">${translate("account_info_language_description")}</p>
-          <div class="language-selector">
-            <button class="language-option ${currentLang === 'en' ? 'active' : ''}" data-lang="en">
-              <span class="language-label">English</span>
-              ${currentLang === 'en' ? '<span class="checkmark">✓</span>' : ''}
-            </button>
-            <button class="language-option ${currentLang === 'fr' ? 'active' : ''}" data-lang="fr">
-              <span class="language-label">Français</span>
-              ${currentLang === 'fr' ? '<span class="checkmark">✓</span>' : ''}
-            </button>
+          <h2>${translate('language')}</h2>
+          <p class="section-description">${translate('account_info_language_description')}</p>
+          <div class="language-selector" role="group" aria-label="${escapeAttribute(translate('language'))}">
+            ${this.renderLanguageOptions(currentLang)}
           </div>
         </section>
 
         <!-- Time Format Section -->
         <section class="account-section">
-          <h2>${translate("time_format")}</h2>
-          <p class="section-description">${translate("time_format_description")}</p>
+          <h2>${translate('time_format')}</h2>
+          <p class="section-description">${translate('time_format_description')}</p>
           <div class="setting-row">
             <label for="time-format-select" class="setting-label">
-              <span>${translate("time_format")}</span>
+              <span>${translate('time_format')}</span>
             </label>
             <select id="time-format-select" class="settings-select">
-              <option value="24h" ${currentTimeFormat === "24h" ? "selected" : ""}>${translate("time_format_24h")}</option>
-              <option value="12h" ${currentTimeFormat === "12h" ? "selected" : ""}>${translate("time_format_12h")}</option>
+              <option value="24h" ${currentTimeFormat === '24h' ? 'selected' : ''}>${translate('time_format_24h')}</option>
+              <option value="12h" ${currentTimeFormat === '12h' ? 'selected' : ''}>${translate('time_format_12h')}</option>
             </select>
           </div>
         </section>
@@ -441,11 +437,11 @@ export class AccountInfoModule {
         <!-- Notifications Section -->
         ${this.pushSupported ? `
         <section class="account-section">
-          <h2>${translate("notifications")}</h2>
-          <p class="section-description">${translate("receive_notifications_about_activities")}</p>
+          <h2>${translate('notifications')}</h2>
+          <p class="section-description">${translate('receive_notifications_about_activities')}</p>
           <div class="setting-row">
             <label for="push-toggle" class="setting-label">
-              <span>${translate("push_notifications")}</span>
+              <span>${translate('push_notifications')}</span>
             </label>
             <label class="toggle-switch">
               <input type="checkbox" id="push-toggle" ${this.pushEnabled ? 'checked' : ''}>
@@ -453,7 +449,7 @@ export class AccountInfoModule {
             </label>
           </div>
           <small class="form-text" id="push-status-text">
-            ${this.pushEnabled ? translate("push_enabled") : translate("push_disabled")}
+            ${this.pushEnabled ? translate('push_enabled') : translate('push_disabled')}
           </small>
         </section>
         ` : ''}
@@ -461,21 +457,21 @@ export class AccountInfoModule {
         <!-- Account Actions -->
         <section class="account-section">
           <button class="btn btn-danger" id="logout-btn">
-            ${translate("logout")}
+            ${translate('logout')}
           </button>
         </section>
 
         <div class="settings-footer">
-          <p>${translate("made_with")} ❤️ ${translate("for_scouts")}</p>
+          <p>${translate('made_with')} ❤️ ${translate('for_scouts')}</p>
         </div>
       </div>
     `;
 
-    const appContainer = document.getElementById("app");
+    const appContainer = document.getElementById('app');
     if (appContainer) {
       setContent(appContainer, content);
     } else {
-      debugError("App container not found");
+      debugError('App container not found');
     }
   }
 
@@ -485,14 +481,14 @@ export class AccountInfoModule {
    */
   renderError(message) {
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <div class="error-container">
-        <h1>${translate("error")}</h1>
+        <h1>${translate('error')}</h1>
         <p>${escapeHTML(message)}</p>
       </div>
     `;
 
-    const appContainer = document.getElementById("app");
+    const appContainer = document.getElementById('app');
     if (appContainer) {
       setContent(appContainer, content);
     }
@@ -503,50 +499,50 @@ export class AccountInfoModule {
    */
   attachEventListeners() {
     // Full name form
-    const fullnameForm = document.getElementById("fullname-form");
+    const fullnameForm = document.getElementById('fullname-form');
     if (fullnameForm) {
-      fullnameForm.addEventListener("submit", (e) => this.handleFullNameUpdate(e));
+      fullnameForm.addEventListener('submit', (e) => this.handleFullNameUpdate(e));
     }
 
     // Email form
-    const emailForm = document.getElementById("email-form");
+    const emailForm = document.getElementById('email-form');
     if (emailForm) {
-      emailForm.addEventListener("submit", (e) => this.handleEmailUpdate(e));
+      emailForm.addEventListener('submit', (e) => this.handleEmailUpdate(e));
     }
 
     // Guardian info form
-    const guardianForm = document.getElementById("guardian-form");
+    const guardianForm = document.getElementById('guardian-form');
     if (guardianForm) {
-      guardianForm.addEventListener("submit", (e) => this.handleGuardianUpdate(e));
+      guardianForm.addEventListener('submit', (e) => this.handleGuardianUpdate(e));
     }
 
     // Password form
-    const passwordForm = document.getElementById("password-form");
+    const passwordForm = document.getElementById('password-form');
     if (passwordForm) {
-      passwordForm.addEventListener("submit", (e) => this.handlePasswordChange(e));
+      passwordForm.addEventListener('submit', (e) => this.handlePasswordChange(e));
     }
 
     // Language selector buttons
-    const languageButtons = document.querySelectorAll(".language-option");
+    const languageButtons = document.querySelectorAll('.language-option');
     languageButtons.forEach(btn => {
-      btn.addEventListener("click", (e) => this.handleLanguageChange(e));
+      btn.addEventListener('click', (e) => this.handleLanguageChange(e));
     });
 
     // Push notification toggle
-    const pushToggle = document.getElementById("push-toggle");
+    const pushToggle = document.getElementById('push-toggle');
     if (pushToggle) {
-      pushToggle.addEventListener("change", (e) => this.handlePushToggle(e));
+      pushToggle.addEventListener('change', (e) => this.handlePushToggle(e));
     }
 
-    const timeFormatSelect = document.getElementById("time-format-select");
+    const timeFormatSelect = document.getElementById('time-format-select');
     if (timeFormatSelect) {
-      timeFormatSelect.addEventListener("change", (e) => this.handleTimeFormatChange(e));
+      timeFormatSelect.addEventListener('change', (e) => this.handleTimeFormatChange(e));
     }
 
     // Logout button
-    const logoutBtn = document.getElementById("logout-btn");
+    const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
-      logoutBtn.addEventListener("click", () => this.handleLogout());
+      logoutBtn.addEventListener('click', () => this.handleLogout());
     }
   }
 
@@ -557,31 +553,31 @@ export class AccountInfoModule {
   async handleGuardianUpdate(event) {
     event.preventDefault();
 
-    if (this.isLoading) return;
+    if (this.isLoading) {return;}
 
     const form = event.target;
-    const submitButton = form.querySelector("#guardian-submit");
+    const submitButton = form.querySelector('#guardian-submit');
 
-    const firstNameInput = form.querySelector("#guardian-first-name");
-    const lastNameInput = form.querySelector("#guardian-last-name");
-    const relationshipInput = form.querySelector("#guardian-relationship");
-    const homePhoneInput = form.querySelector("#guardian-home-phone");
-    const workPhoneInput = form.querySelector("#guardian-work-phone");
-    const mobilePhoneInput = form.querySelector("#guardian-mobile-phone");
-    const primaryCheckbox = form.querySelector("#guardian-primary");
-    const emergencyCheckbox = form.querySelector("#guardian-emergency");
+    const firstNameInput = form.querySelector('#guardian-first-name');
+    const lastNameInput = form.querySelector('#guardian-last-name');
+    const relationshipInput = form.querySelector('#guardian-relationship');
+    const homePhoneInput = form.querySelector('#guardian-home-phone');
+    const workPhoneInput = form.querySelector('#guardian-work-phone');
+    const mobilePhoneInput = form.querySelector('#guardian-mobile-phone');
+    const primaryCheckbox = form.querySelector('#guardian-primary');
+    const emergencyCheckbox = form.querySelector('#guardian-emergency');
 
-    const firstName = firstNameInput?.value.trim() || "";
-    const lastName = lastNameInput?.value.trim() || "";
-    const relationship = relationshipInput?.value.trim() || "";
-    const homePhone = homePhoneInput?.value.trim() || "";
-    const workPhone = workPhoneInput?.value.trim() || "";
-    const mobilePhone = mobilePhoneInput?.value.trim() || "";
+    const firstName = firstNameInput?.value.trim() || '';
+    const lastName = lastNameInput?.value.trim() || '';
+    const relationship = relationshipInput?.value.trim() || '';
+    const homePhone = homePhoneInput?.value.trim() || '';
+    const workPhone = workPhoneInput?.value.trim() || '';
+    const mobilePhone = mobilePhoneInput?.value.trim() || '';
     const primaryContact = primaryCheckbox?.checked || false;
     const emergencyContact = emergencyCheckbox?.checked || false;
 
     if (!firstName || !lastName) {
-      this.app.showMessage(translate("guardian_validation_error"), "error");
+      this.app.showMessage(translate('guardian_validation_error'), 'error');
       return;
     }
 
@@ -590,7 +586,7 @@ export class AccountInfoModule {
     const hasInvalidPhone = phoneValues.some((phone) => !phonePattern.test(phone));
 
     if (hasInvalidPhone) {
-      this.app.showMessage(translate("guardian_phone_invalid"), "error");
+      this.app.showMessage(translate('guardian_phone_invalid'), 'error');
       return;
     }
 
@@ -599,10 +595,10 @@ export class AccountInfoModule {
     try {
       this.isLoading = true;
       submitButton.disabled = true;
-      submitButton.textContent = translate("loading") || "Loading...";
+      submitButton.textContent = translate('loading') || 'Loading...';
 
-      const response = await makeApiRequest("v1/users/me/guardian-profile", {
-        method: "PATCH",
+      const response = await makeApiRequest('v1/users/me/guardian-profile', {
+        method: 'PATCH',
         body: {
           firstName,
           lastName,
@@ -619,24 +615,24 @@ export class AccountInfoModule {
         this.guardianProfile = response.data || { guardian: null, participantIds: [] };
         // The guardian record names the account too, so both are reloaded.
         await Promise.all([this.loadGuardianProfile(), this.loadUserData()]);
-        this.app.showMessage(translate("guardian_save_success"), "success");
+        this.app.showMessage(translate('guardian_save_success'), 'success');
         this.render();
         this.attachEventListeners();
         rerendered = true;
       } else {
-        throw new Error(response.message || translate("guardian_save_error"));
+        throw new Error(response.message || translate('guardian_save_error'));
       }
     } catch (error) {
-      debugError("Error updating guardian info:", error);
-      const errorMessage = typeof error.message === "string" && error.message.toLowerCase().includes("no linked participants")
-        ? translate("guardian_no_participants")
+      debugError('Error updating guardian info:', error);
+      const errorMessage = typeof error.message === 'string' && error.message.toLowerCase().includes('no linked participants')
+        ? translate('guardian_no_participants')
         : apiErrorMessage(error, 'guardian_save_error');
-      this.app.showMessage(errorMessage, "error");
+      this.app.showMessage(errorMessage, 'error');
     } finally {
       this.isLoading = false;
       if (!rerendered && submitButton) {
         submitButton.disabled = false;
-        submitButton.textContent = translate("guardian_save");
+        submitButton.textContent = translate('guardian_save');
       }
     }
   }
@@ -648,33 +644,33 @@ export class AccountInfoModule {
   async handleFullNameUpdate(event) {
     event.preventDefault();
 
-    if (this.isLoading) return;
+    if (this.isLoading) {return;}
 
     const form = event.target;
-    const fullNameInput = form.querySelector("#fullname-input");
+    const fullNameInput = form.querySelector('#fullname-input');
     const fullName = fullNameInput.value.trim();
-    const submitButton = form.querySelector("#fullname-submit");
+    const submitButton = form.querySelector('#fullname-submit');
 
     // Validate input
     if (!fullName || fullName.length < 2) {
-      this.app.showMessage(translate("account_info_fullname_error"), "error");
+      this.app.showMessage(translate('account_info_fullname_error'), 'error');
       return;
     }
 
     try {
       this.isLoading = true;
       submitButton.disabled = true;
-      submitButton.textContent = translate("loading") || "Loading...";
+      submitButton.textContent = translate('loading') || 'Loading...';
 
-      debugLog("Updating full name:", fullName);
+      debugLog('Updating full name:', fullName);
 
-      const response = await makeApiRequest("v1/users/me/name", {
-        method: "PATCH",
+      const response = await makeApiRequest('v1/users/me/name', {
+        method: 'PATCH',
         body: { fullName },
       });
 
       if (response.success) {
-        this.app.showMessage(translate("success_profile_updated") || translate("account_info_fullname_success"), "success");
+        this.app.showMessage(translate('success_profile_updated') || translate('account_info_fullname_success'), 'success');
         this.userData.full_name = response.data.full_name;
         if (this.holdsFamilyRole) {
           // A parent's guardian record carries the same name; show it changed.
@@ -684,20 +680,20 @@ export class AccountInfoModule {
         }
 
         // Update stored user name if present
-        const storedName = localStorage.getItem("userFullName");
+        const storedName = localStorage.getItem('userFullName');
         if (storedName) {
-          localStorage.setItem("userFullName", response.data.full_name);
+          localStorage.setItem('userFullName', response.data.full_name);
         }
       } else {
-        throw new Error(response.message || translate("account_info_fullname_error"));
+        throw new Error(response.message || translate('account_info_fullname_error'));
       }
     } catch (error) {
-      debugError("Error updating full name:", error);
+      debugError('Error updating full name:', error);
       this.app.showMessage(apiErrorMessage(error, 'account_info_fullname_error'), 'error');
     } finally {
       this.isLoading = false;
       submitButton.disabled = false;
-      submitButton.textContent = translate("save_profile") || translate("account_info_fullname_button");
+      submitButton.textContent = translate('save_profile') || translate('account_info_fullname_button');
     }
   }
 
@@ -708,58 +704,58 @@ export class AccountInfoModule {
   async handleEmailUpdate(event) {
     event.preventDefault();
 
-    if (this.isLoading) return;
+    if (this.isLoading) {return;}
 
     const form = event.target;
-    const emailInput = form.querySelector("#email-input");
+    const emailInput = form.querySelector('#email-input');
     const email = emailInput.value.trim();
-    const submitButton = form.querySelector("#email-submit");
+    const submitButton = form.querySelector('#email-submit');
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email || !emailRegex.test(email)) {
-      this.app.showMessage(translate("error_email_invalid") || translate("account_info_email_invalid"), "error");
+      this.app.showMessage(translate('error_email_invalid') || translate('account_info_email_invalid'), 'error');
       return;
     }
 
     // Confirm action since it will log them out
-    if (!(await confirmDialog(translate("email_changed_logout_warning") || translate("account_info_email_warning")))) {
+    if (!(await confirmDialog(translate('email_changed_logout_warning') || translate('account_info_email_warning')))) {
       return;
     }
 
     try {
       this.isLoading = true;
       submitButton.disabled = true;
-      submitButton.textContent = translate("loading") || "Loading...";
+      submitButton.textContent = translate('loading') || 'Loading...';
 
-      debugLog("Updating email:", email);
+      debugLog('Updating email:', email);
 
-      const response = await makeApiRequest("v1/users/me/email", {
-        method: "PATCH",
+      const response = await makeApiRequest('v1/users/me/email', {
+        method: 'PATCH',
         body: { email },
       });
 
       if (response.success) {
-        this.app.showMessage(translate("account_info_email_success"), "success");
+        this.app.showMessage(translate('account_info_email_success'), 'success');
 
         // Clear auth data and redirect to login after a short delay
         setTimeout(() => {
-          localStorage.removeItem("jwtToken");
-          localStorage.removeItem("userRole");
-          localStorage.removeItem("userFullName");
-          localStorage.removeItem("userId");
-          window.location.href = "/login";
+          localStorage.removeItem('jwtToken');
+          localStorage.removeItem('userRole');
+          localStorage.removeItem('userFullName');
+          localStorage.removeItem('userId');
+          window.location.href = '/login';
         }, 2000);
       } else {
-        throw new Error(response.message || translate("account_info_email_error"));
+        throw new Error(response.message || translate('account_info_email_error'));
       }
     } catch (error) {
-      debugError("Error updating email:", error);
+      debugError('Error updating email:', error);
       const emailTaken = typeof error.message === 'string' && error.message.includes('already in use');
       this.app.showMessage(emailTaken ? translate('email_already_exists') : apiErrorMessage(error, 'account_info_email_error'), 'error');
       this.isLoading = false;
       submitButton.disabled = false;
-      submitButton.textContent = translate("account_info_email_button");
+      submitButton.textContent = translate('account_info_email_button');
     }
   }
 
@@ -770,13 +766,13 @@ export class AccountInfoModule {
   async handlePasswordChange(event) {
     event.preventDefault();
 
-    if (this.isLoading) return;
+    if (this.isLoading) {return;}
 
     const form = event.target;
-    const currentPasswordInput = form.querySelector("#current-password-input");
-    const newPasswordInput = form.querySelector("#new-password-input");
-    const confirmPasswordInput = form.querySelector("#confirm-password-input");
-    const submitButton = form.querySelector("#password-submit");
+    const currentPasswordInput = form.querySelector('#current-password-input');
+    const newPasswordInput = form.querySelector('#new-password-input');
+    const confirmPasswordInput = form.querySelector('#confirm-password-input');
+    const submitButton = form.querySelector('#password-submit');
 
     const currentPassword = currentPasswordInput.value;
     const newPassword = newPasswordInput.value;
@@ -784,29 +780,29 @@ export class AccountInfoModule {
 
     // Validate passwords
     if (!currentPassword || !newPassword || !confirmPassword) {
-      this.app.showMessage(translate("error_password_required") || translate("account_info_password_error"), "error");
+      this.app.showMessage(translate('error_password_required') || translate('account_info_password_error'), 'error');
       return;
     }
 
     if (newPassword.length < 8) {
-      this.app.showMessage(translate("error_password_too_short") || translate("account_info_password_minlength"), "error");
+      this.app.showMessage(translate('error_password_too_short') || translate('account_info_password_minlength'), 'error');
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      this.app.showMessage(translate("error_passwords_dont_match") || translate("account_info_password_mismatch"), "error");
+      this.app.showMessage(translate('error_passwords_dont_match') || translate('account_info_password_mismatch'), 'error');
       return;
     }
 
     try {
       this.isLoading = true;
       submitButton.disabled = true;
-      submitButton.textContent = translate("loading") || "Loading...";
+      submitButton.textContent = translate('loading') || 'Loading...';
 
-      debugLog("Changing password");
+      debugLog('Changing password');
 
-      const response = await makeApiRequest("v1/users/me/password", {
-        method: "PATCH",
+      const response = await makeApiRequest('v1/users/me/password', {
+        method: 'PATCH',
         body: {
           currentPassword,
           newPassword,
@@ -814,25 +810,85 @@ export class AccountInfoModule {
       });
 
       if (response.success) {
-        this.app.showMessage(translate("success_password_changed") || translate("account_info_password_success"), "success");
+        this.app.showMessage(translate('success_password_changed') || translate('account_info_password_success'), 'success');
 
         // Clear the form
         form.reset();
       } else {
         // Check for specific error messages
-        if (response.message && response.message.includes("incorrect")) {
-          throw new Error(translate("account_info_password_wrong_current"));
+        if (response.message && response.message.includes('incorrect')) {
+          throw new Error(translate('account_info_password_wrong_current'));
         }
-        throw new Error(response.message || translate("account_info_password_error"));
+        throw new Error(response.message || translate('account_info_password_error'));
       }
     } catch (error) {
-      debugError("Error changing password:", error);
+      debugError('Error changing password:', error);
       const wrongCurrent = typeof error.message === 'string' && error.message.includes('incorrect');
       this.app.showMessage(wrongCurrent ? translate('account_info_password_wrong_current') : apiErrorMessage(error, 'account_info_password_error'), 'error');
     } finally {
       this.isLoading = false;
       submitButton.disabled = false;
-      submitButton.textContent = translate("change_password") || translate("account_info_password_button");
+      submitButton.textContent = translate('change_password') || translate('account_info_password_button');
+    }
+  }
+
+  /**
+   * Wait for the unit's settings when the app is still fetching them, so the
+   * language picker offers the unit's optional languages. A failure leaves
+   * French and English, which are always offered.
+   *
+   * @returns {Promise<void>}
+   */
+  async waitForUnitSettings() {
+    if (this.app?.isOrganizationSettingsFetched || typeof this.app?.fetchOrganizationSettings !== 'function') {
+      return;
+    }
+    try {
+      await this.app.fetchOrganizationSettings();
+    } catch (error) {
+      debugWarn('Unit settings not loaded for the language picker:', error);
+    }
+  }
+
+  /**
+   * One button per language the unit offers, each named in its own language
+   * so a reader finds theirs whatever the page's language.
+   *
+   * @param {string} currentLang - Language shown now
+   * @returns {string} HTML
+   */
+  renderLanguageOptions(currentLang) {
+    return this.app.getUnitLanguages().available.map((code) => {
+      const active = code === currentLang;
+      return `
+        <button type="button" class="language-option ${active ? 'active' : ''}" data-lang="${code}"
+                lang="${code}" aria-pressed="${active}">
+          <span class="language-label">${escapeHTML(nativeLanguageName(code))}</span>
+          ${active ? '<span class="checkmark" aria-hidden="true">✓</span>' : ''}
+        </button>`;
+    }).join('');
+  }
+
+  /**
+   * Keep the account's language in step, so e-mails and notifications follow
+   * the language chosen here. The interface has already switched; a failure
+   * only leaves e-mails in the previous language.
+   *
+   * @param {string} lang - Language code
+   * @returns {Promise<void>}
+   */
+  async saveLanguagePreference(lang) {
+    // A demo account is read-only: the interface switches, nothing is saved.
+    if (isDemoUser()) {
+      return;
+    }
+    try {
+      await makeApiRequest('v1/users/me/language-preference', {
+        method: 'PATCH',
+        body: { languagePreference: lang },
+      });
+    } catch (error) {
+      debugWarn('Language preference not saved:', error);
     }
   }
 
@@ -846,23 +902,24 @@ export class AccountInfoModule {
     const button = event.currentTarget;
     const newLang = button.dataset.lang;
 
-    if (!newLang) return;
+    if (!newLang) {return;}
 
     try {
-      debugLog("Changing language to:", newLang);
+      debugLog('Changing language to:', newLang);
 
       // Update app language immediately
       await this.app.setLanguage(newLang);
+      await this.saveLanguagePreference(this.app.lang);
 
       // Show success message
-      this.app.showMessage(translate("account_info_language_success"), "success");
+      this.app.showMessage(translate('account_info_language_success'), 'success');
 
       // Re-render to update UI
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Error changing language:", error);
-      this.app.showMessage(translate("account_info_language_error"), "error");
+      debugError('Error changing language:', error);
+      this.app.showMessage(translate('account_info_language_error'), 'error');
     }
   }
 
@@ -872,11 +929,11 @@ export class AccountInfoModule {
    */
   handleTimeFormatChange(event) {
     const selected = event.target.value;
-    const timeFormatKey = getStorageKey("TIME_FORMAT");
-    const normalized = selected === "12h" ? "12h" : "24h";
+    const timeFormatKey = getStorageKey('TIME_FORMAT');
+    const normalized = selected === '12h' ? '12h' : '24h';
 
     setStorage(timeFormatKey, normalized);
-    this.app.showMessage(translate("data_saved"), "success");
+    this.app.showMessage(translate('data_saved'), 'success');
 
     this.render();
     this.attachEventListeners();
@@ -888,7 +945,7 @@ export class AccountInfoModule {
    */
   async handlePushToggle(event) {
     const enabled = event.target.checked;
-    const statusText = document.getElementById("push-status-text");
+    const statusText = document.getElementById('push-status-text');
 
     try {
       if (enabled) {
@@ -897,7 +954,7 @@ export class AccountInfoModule {
 
         if (permission !== 'granted') {
           event.target.checked = false;
-          this.app.showMessage(translate("notification_permission_denied"), "error");
+          this.app.showMessage(translate('notification_permission_denied'), 'error');
           return;
         }
 
@@ -905,27 +962,27 @@ export class AccountInfoModule {
         this.pushEnabled = true;
 
         if (statusText) {
-          statusText.textContent = translate("push_enabled");
+          statusText.textContent = translate('push_enabled');
         }
-        this.app.showMessage(translate("push_notifications_enabled"), "success");
+        this.app.showMessage(translate('push_notifications_enabled'), 'success');
       } else {
         await disablePushNotifications();
         this.pushEnabled = false;
 
         if (statusText) {
-          statusText.textContent = translate("push_disabled");
+          statusText.textContent = translate('push_disabled');
         }
-        this.app.showMessage(translate("push_notifications_disabled"), "success");
+        this.app.showMessage(translate('push_notifications_disabled'), 'success');
       }
     } catch (error) {
-      debugError("Error toggling push notifications:", error);
+      debugError('Error toggling push notifications:', error);
       event.target.checked = !enabled; // Revert toggle state
       // Say why: push not set up on the server, refused by this browser, or
       // the API's own reason (offline, no permission)
       const message = error instanceof PushSetupError
         ? translate(error.code)
         : apiErrorMessage(error, 'push_notification_error');
-      this.app.showMessage(message, "error");
+      this.app.showMessage(message, 'error');
     }
   }
 
@@ -933,7 +990,7 @@ export class AccountInfoModule {
    * Handle logout
    */
   async handleLogout() {
-    if (!(await confirmDialog(translate("confirm_logout_message") || translate("confirm_logout") || "Are you sure you want to log out?"))) {
+    if (!(await confirmDialog(translate('confirm_logout_message') || translate('confirm_logout') || 'Are you sure you want to log out?'))) {
       return;
     }
 
@@ -944,7 +1001,7 @@ export class AccountInfoModule {
     } catch (error) {
       // Handle import failure
       debugError('Failed to load logout module:', error);
-      window.location.href = "/login";
+      window.location.href = '/login';
     }
   }
 }

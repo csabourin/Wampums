@@ -435,6 +435,29 @@ describe('opening in the email\'s language', () => {
     expect(app.setLanguage).not.toHaveBeenCalled();
   });
 
+  test('waits for the unit\'s settings before judging an optional language', async () => {
+    respondWith([{ data: { state: 'ready_new_account', email: 'ada@example.org', language: 'uk' } }]);
+    const app = {
+      lang: 'fr',
+      organizationSettings: null,
+      isOrganizationSettingsFetched: false,
+      fetchOrganizationSettings: jest.fn(function fetchSettings() {
+        this.organizationSettings = { interface_languages: { enabled: ['uk'], fallback: 'en' } };
+        this.isOrganizationSettingsFetched = true;
+        return Promise.resolve();
+      }),
+      setLanguage: jest.fn(function set(lang) {
+        this.lang = lang;
+        return Promise.resolve();
+      }),
+    };
+
+    await new CompleteRegistration(app).init();
+
+    expect(app.fetchOrganizationSettings).toHaveBeenCalled();
+    expect(app.setLanguage).toHaveBeenCalledWith('uk');
+  });
+
   test('the family-link page follows its email\'s language too', async () => {
     window.history.replaceState({}, '', `/family-link?token=${encodeURIComponent(TOKEN)}`);
     respondWith([{ data: { state: 'ready_existing_account', email: 'c@example.org', language: 'en' } }]);

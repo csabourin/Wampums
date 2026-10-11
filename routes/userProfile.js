@@ -27,6 +27,7 @@ const {
 } = require('../middleware/validation');
 const { RATE_LIMITS } = require('../config/constants');
 const { renameAccount, syncAccountNames } = require('../services/accountNames');
+const { ALL_INTERFACE_LANGUAGES } = require('../utils/interfaceLanguages');
 
 const HTTP_STATUS = { BAD_REQUEST: 400 };
 
@@ -437,7 +438,7 @@ module.exports = (pool, logger) => {
    *             properties:
    *               languagePreference:
    *                 type: string
-   *                 enum: [en, fr, uk, it]
+   *                 enum: [fr, en, uk, it, id]
    *     responses:
    *       200:
    *         description: Language preference updated successfully
@@ -448,13 +449,13 @@ module.exports = (pool, logger) => {
    */
   router.patch('/language-preference',
     authenticate,
+    blockDemoRoles,
     asyncHandler(async (req, res) => {
       const userId = req.user.id;
       const organizationId = req.user.organizationId;
       const { languagePreference } = req.body;
 
-      // Supported languages
-      const supportedLanguages = ['en', 'fr', 'uk', 'it'];
+      const supportedLanguages = ALL_INTERFACE_LANGUAGES;
 
       // Validate language code
       if (!languagePreference) {

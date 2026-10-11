@@ -1,6 +1,7 @@
 import { translate } from "./app.js";
 import { debugError, debugLog, debugWarn } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { localeForLanguage } from './utils/InterfaceLanguageUtils.js';
 import { setContent } from "./utils/DOMUtils.js";
 import { CONFIG } from "./config.js";
 import {
@@ -148,9 +149,7 @@ export class Inventory {
 
   getLocale() {
     const storedLang = localStorage.getItem('lang') || localStorage.getItem('language') || this.app?.lang || CONFIG.DEFAULT_LANG;
-    if (storedLang === 'en') return 'en-CA';
-    if (storedLang === 'uk') return 'uk-UA';
-    return 'fr-CA';
+    return localeForLanguage(storedLang);
   }
 
   formatDate(dateString) {

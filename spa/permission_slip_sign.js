@@ -9,6 +9,7 @@ import {
   signPublicPermissionSlip,
 } from './api/api-endpoints.js';
 import { CONFIG } from './config.js';
+import { localeForLanguage } from './utils/InterfaceLanguageUtils.js';
 import { setContent } from "./utils/DOMUtils.js";
 import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
@@ -25,9 +26,7 @@ export class PermissionSlipSign {
 
   getLocale() {
     const lang = this.app?.lang || localStorage.getItem('lang') || localStorage.getItem('language') || CONFIG.DEFAULT_LANG;
-    if (lang === 'en') return 'en-CA';
-    if (lang === 'uk') return 'uk-UA';
-    return 'fr-CA';
+    return localeForLanguage(lang);
   }
 
   async init() {

@@ -73,20 +73,35 @@ export function hasOwnText(texts) {
 }
 
 /**
- * Resolve a field text in the reader's language only: the unit's own text,
- * then the bundle text for the key, then the key itself. Another language's
- * text is never borrowed — a page shows one language (CLAUDE.md §1); the
- * builder flags fields missing an interface language instead.
+ * Resolve a field text in the reader's language: the unit's own text, then
+ * the bundle text for the key, then the key itself. A French or English page
+ * never borrows another language's text (CLAUDE.md §1); the builder flags
+ * fields missing one of them instead. An optional language, being partial,
+ * falls back to the unit's fallback language.
  *
  * @param {Object<string, string>|undefined} texts - The field's own texts
  * @param {string|undefined} key - Translation key
  * @param {string} lang - Reader's language
  * @param {function(string): string} translate - Bundle lookup; returns the key when missing
+ * @param {Object} [reader] - For an optional language only
+ * @param {string|null} [reader.fallbackLang] - The unit's fallback language
+ * @param {function(string, string): boolean} [reader.hasBundleText] - Whether a language's bundle has a key
  * @returns {{text: string, own: boolean}} The text and whether the unit wrote it
  */
-export function resolveFormText(texts, key, lang, translate) {
+export function resolveFormText(texts, key, lang, translate, reader = {}) {
   if (richTextHasContent(texts?.[lang])) {
     return { text: texts[lang], own: true };
+  }
+  const { fallbackLang = null, hasBundleText = null } = reader;
+  // An optional language is partial: its own bundle text first, then the
+  // unit's text and the bundle text in the unit's fallback language.
+  if (fallbackLang && hasBundleText) {
+    if (key && hasBundleText(lang, key)) {
+      return { text: translate(key), own: false };
+    }
+    if (richTextHasContent(texts?.[fallbackLang])) {
+      return { text: texts[fallbackLang], own: true };
+    }
   }
   if (key) {
     const translated = translate(key);
@@ -104,10 +119,11 @@ export function resolveFormText(texts, key, lang, translate) {
  * @param {Object} field - Form field
  * @param {string} lang - Reader's language
  * @param {function(string): string} translate - Bundle lookup
+ * @param {Object} [reader] - Fallback for an optional language (see resolveFormText)
  * @returns {string} HTML
  */
-export function formLabelHtml(field, lang, translate) {
-  const { text, own } = resolveFormText(field.labelText, field.label || field.name, lang, translate);
+export function formLabelHtml(field, lang, translate, reader) {
+  const { text, own } = resolveFormText(field.labelText, field.label || field.name, lang, translate, reader);
   return own ? escapeHTML(text) : text;
 }
 
@@ -117,9 +133,10 @@ export function formLabelHtml(field, lang, translate) {
  * @param {Object} field - Form field of type `infoText`
  * @param {string} lang - Reader's language
  * @param {function(string): string} translate - Bundle lookup
+ * @param {Object} [reader] - Fallback for an optional language (see resolveFormText)
  * @returns {string} HTML
  */
-export function formInfoHtml(field, lang, translate) {
-  const { text, own } = resolveFormText(field.infoHtml, field.infoText, lang, translate);
+export function formInfoHtml(field, lang, translate, reader) {
+  const { text, own } = resolveFormText(field.infoHtml, field.infoText, lang, translate, reader);
   return own ? sanitizeRichText(text) : text;
 }

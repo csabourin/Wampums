@@ -9,7 +9,7 @@ import { visualizer } from "rollup-plugin-visualizer";
 import {
   DEFAULT_LANG,
   LANG_STORAGE_KEY,
-  SUPPORTED_LANGS,
+  INTERFACE_LANGS,
 } from './spa/config/languages.js';
 
 /**
@@ -86,7 +86,7 @@ const { contentVersion } = createRequire(path.join(process.cwd(), 'package.json'
  */
 function earlyTranslationsPlugin() {
   const versions = Object.fromEntries(
-    SUPPORTED_LANGS.map((code) => [
+    INTERFACE_LANGS.map((code) => [
       code,
       contentVersion(fs.readFileSync(path.join(process.cwd(), 'lang', `${code}.json`))),
     ]),

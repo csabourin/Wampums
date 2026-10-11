@@ -870,6 +870,16 @@ export class FormBuilder extends BaseModule {
   }
 
   /**
+   * The languages a unit writes its form texts in: the ones it offers.
+   *
+   * @returns {string[]} Language codes
+   */
+  contentLanguages() {
+    const offered = app?.getUnitLanguages?.().available;
+    return Array.isArray(offered) && offered.length > 0 ? offered : FORM_CONTENT_LANGS;
+  }
+
+  /**
    * Each content language's starting text: the field's own text, else the
    * app's bundle text for its key in that language.
    *
@@ -879,10 +889,10 @@ export class FormBuilder extends BaseModule {
    */
   async loadTranslationDrafts(kind, key) {
     if (key && typeof app?.loadTranslation === 'function') {
-      await Promise.all(FORM_CONTENT_LANGS.map((lang) => app.loadTranslation(lang)));
+      await Promise.all(this.contentLanguages().map((lang) => app.loadTranslation(lang)));
     }
     const own = this.editorTexts?.[kind] || {};
-    return Object.fromEntries(FORM_CONTENT_LANGS.map((lang) => {
+    return Object.fromEntries(this.contentLanguages().map((lang) => {
       const bundle = (key && app?.translations?.[lang]?.[key]) || '';
       return [lang, { text: own[lang] ?? bundle, bundle }];
     }));
@@ -903,7 +913,8 @@ export class FormBuilder extends BaseModule {
     const key = document.getElementById(keyInput)?.value.trim() || '';
     const drafts = await this.loadTranslationDrafts(kind, key);
 
-    const languageRows = FORM_CONTENT_LANGS.map((lang) => {
+    const languages = this.contentLanguages();
+    const languageRows = languages.map((lang) => {
       const id = `trans-${lang}`;
       const name = escapeHTML(languageName(lang));
       if (rich) {
@@ -937,13 +948,15 @@ export class FormBuilder extends BaseModule {
 
     if (rich) {
       document.querySelectorAll('#translation-form [data-rte]').forEach((root) => attachRichTextEditor(root));
-      FORM_CONTENT_LANGS.forEach((lang) => document.getElementById(`trans-${lang}`)?.setAttribute('lang', lang));
+      languages.forEach((lang) => document.getElementById(`trans-${lang}`)?.setAttribute('lang', lang));
     }
 
     document.getElementById('translation-form').addEventListener('submit', (event) => {
       event.preventDefault();
-      const texts = {};
-      FORM_CONTENT_LANGS.forEach((lang) => {
+      // Texts in a language the unit no longer offers are kept, not dropped.
+      const texts = Object.fromEntries(Object.entries(this.editorTexts[kind] || {})
+        .filter(([lang]) => !languages.includes(lang)));
+      languages.forEach((lang) => {
         const control = document.getElementById(`trans-${lang}`);
         const value = rich ? getRichTextValue(control) : control.value.trim();
         const bundle = rich ? sanitizeRichText(drafts[lang].bundle) : drafts[lang].bundle.trim();

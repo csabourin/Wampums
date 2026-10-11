@@ -28,6 +28,7 @@ const {
   getOrganizationId,
 } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { ALL_INTERFACE_LANGUAGES } = require('../utils/interfaceLanguages');
 const {
   validateEmail,
   checkValidation,
@@ -81,7 +82,7 @@ module.exports = (pool, logger) => {
   const router = express.Router();
 
   const validateOptionalFields = [
-    body('language').optional({ nullable: true }).isIn(['en', 'fr']),
+    body('language').optional({ nullable: true }).isIn(ALL_INTERFACE_LANGUAGES),
     body('first_name').optional({ nullable: true }).isString().trim().isLength({ max: MAX_NAME_LENGTH }),
     body('last_name').optional({ nullable: true }).isString().trim().isLength({ max: MAX_NAME_LENGTH }),
     body('telephone_residence').optional({ nullable: true }).isString().trim().isLength({ max: MAX_PHONE_LENGTH }),
