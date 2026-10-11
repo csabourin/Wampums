@@ -12,7 +12,7 @@
  * @module spa/modules/family-access/linkLanguage
  */
 
-import { CONFIG } from '../../config.js';
+import { resolveInterfaceLanguage } from '../../utils/InterfaceLanguageUtils.js';
 
 /**
  * Switch the app to the link's language when it differs.
@@ -32,7 +32,9 @@ export async function adoptLinkLanguage(app, language) {
   }
 
   const normalized = String(language).slice(0, 2).toLowerCase();
-  if (normalized === app.lang || !CONFIG.SUPPORTED_LANGS.includes(normalized)) {
+  // Only a language the unit offers; an e-mail in another one opens in the
+  // reader's current language.
+  if (normalized === app.lang || resolveInterfaceLanguage(normalized, app.organizationSettings) !== normalized) {
     return false;
   }
 

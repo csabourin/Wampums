@@ -20,6 +20,12 @@ import {
   getUnitVocabulary,
   getVocabularyTemplateKey,
 } from './utils/UnitVocabularyUtils.js';
+import {
+  fallbackLanguageFor,
+  getUnitLanguages,
+  resolveInterfaceLanguage,
+} from './utils/InterfaceLanguageUtils.js';
+import { FALLBACK_LANG_STORAGE_KEY, INTERFACE_LANGS } from './config/languages.js';
 
 const debugMode = isDebugMode();
 
@@ -145,6 +151,8 @@ export const app = {
   userPermissions: [], // All user permissions
   userFullName: null,
   lang: null,
+  /** Language a missing key of an optional language comes from, else null */
+  fallbackLang: null,
   currentPage: '',
   translations: {},
   db: null,
@@ -242,14 +250,21 @@ export const app = {
       }
 
       // CRITICAL: Load current language translations BEFORE routing to prevent flicker
+      // The unit's settings are not known yet: accept any interface language
+      // and the fallback remembered from the last visit, then check both once
+      // the settings arrive (applyUnitLanguages).
       const currentLang = this.lang || getStorage('lang', false, CONFIG.DEFAULT_LANG);
-      const normalizedLang = CONFIG.SUPPORTED_LANGS.includes(currentLang) ? currentLang : CONFIG.DEFAULT_LANG;
+      const normalizedLang = INTERFACE_LANGS.includes(currentLang) ? currentLang : CONFIG.DEFAULT_LANG;
       this.lang = normalizedLang;
       this.language = normalizedLang;
+      this.fallbackLang = fallbackLanguageFor(normalizedLang, localStorage.getItem(FALLBACK_LANG_STORAGE_KEY));
       document.documentElement.lang = normalizedLang;
       debugLog(`Loading translations for ${normalizedLang} before routing...`);
       try {
-        await this.loadTranslation(normalizedLang);
+        await Promise.all([
+          this.loadTranslation(normalizedLang),
+          this.fallbackLang ? this.loadTranslation(this.fallbackLang) : null,
+        ]);
         debugLog(`Translations loaded for ${normalizedLang}`);
         localizeStaticChrome(this.translate.bind(this));
       } catch (error) {
@@ -418,6 +433,7 @@ export const app = {
         }
         this.isOrganizationSettingsFetched = true;
         debugLog('Organization settings fetched successfully:', this.organizationSettings);
+        await this.applyUnitLanguages();
       } else {
         debugLog('Failed to fetch organization settings:', response?.message || 'Unknown error');
         // Set default organization settings
@@ -618,18 +634,52 @@ export const app = {
     document.body.appendChild(container);
   },
 
+  /**
+   * The languages this unit offers and its fallback (see InterfaceLanguageUtils).
+   *
+   * @returns {{available: string[], optional: string[], fallback: string}}
+   */
+  getUnitLanguages() {
+    return getUnitLanguages(this.organizationSettings);
+  },
+
+  /**
+   * Bring the language in line with the unit's settings once they are known:
+   * a language the unit no longer offers gives way to the default, and an
+   * optional language gets the unit's fallback.
+   *
+   * @returns {Promise<void>}
+   */
+  async applyUnitLanguages() {
+    const { fallback } = this.getUnitLanguages();
+    localStorage.setItem(FALLBACK_LANG_STORAGE_KEY, fallback);
+    const lang = resolveInterfaceLanguage(this.lang, this.organizationSettings);
+    const expectedFallback = fallbackLanguageFor(lang, fallback);
+    if (lang !== this.lang || expectedFallback !== this.fallbackLang) {
+      await this.setLanguage(lang);
+    }
+  },
+
   async setLanguage(lang) {
-    const fallbackLang = CONFIG.DEFAULT_LANG;
-    const normalizedLang = CONFIG.SUPPORTED_LANGS.includes(lang) ? lang : fallbackLang;
+    // Until the unit's settings arrive, any interface language is accepted;
+    // applyUnitLanguages narrows it afterwards.
+    const normalizedLang = this.isOrganizationSettingsFetched
+      ? resolveInterfaceLanguage(lang, this.organizationSettings)
+      : (INTERFACE_LANGS.includes(lang) ? lang : CONFIG.DEFAULT_LANG);
+    const fallbackLang = fallbackLanguageFor(normalizedLang, this.getUnitLanguages().fallback);
 
     this.lang = normalizedLang;
     this.language = normalizedLang;
+    this.fallbackLang = fallbackLang;
     document.documentElement.lang = normalizedLang;
     setStorage('lang', normalizedLang);
     localStorage.setItem('language', normalizedLang);
 
-    // Load only the required translation (lazy loading)
-    await this.loadTranslation(normalizedLang);
+    // Load the language and, for an optional one, the unit's fallback
+    await Promise.all([
+      this.loadTranslation(normalizedLang),
+      fallbackLang ? this.loadTranslation(fallbackLang) : null,
+    ]);
 
     // Update page title
     this.updatePageTitle();
@@ -779,7 +829,9 @@ export const app = {
   translate(key) {
     const activeLang = this.lang && this.translations[this.lang] ? this.lang : CONFIG.DEFAULT_LANG;
     const translationSet = this.translations[activeLang] || {};
-    const defaultSet = this.translations[CONFIG.DEFAULT_LANG] || {};
+    // An optional language is partial: a missing key comes from the unit's
+    // fallback language. French and English are complete.
+    const defaultSet = this.translations[this.fallbackLang || CONFIG.DEFAULT_LANG] || {};
     const vocabulary = getUnitVocabulary(this.organizationSettings, activeLang);
     const directTermKey = getDirectVocabularyTermKey(key);
     if (directTermKey && vocabulary[directTermKey]) {

@@ -390,3 +390,57 @@ describe('parent dashboard tab', () => {
     expect(results.violations).toEqual([]);
   });
 });
+
+describe('Unit languages', () => {
+  const { makeApiRequest } = jest.requireMock('../../spa/api/api-core.js');
+
+  /**
+   * Open the general tab as a unit administrator.
+   *
+   * @param {Object} [app] - Extra app fields
+   * @returns {Promise<Object>} The app
+   */
+  async function openGeneralTab(app = {}) {
+    const fullApp = { showMessage: jest.fn(), organizationSettings: {}, lang: 'fr', applyUnitLanguages: jest.fn(), ...app };
+    const module = new UnitSettings(fullApp);
+    await module.init();
+    return fullApp;
+  }
+
+  test('offers each optional language by its own name, with French and English always on', async () => {
+    await openGeneralTab();
+    const form = document.getElementById('interface-languages-form');
+    const labels = Array.from(form.querySelectorAll('fieldset label')).map((label) => [label.textContent, label.getAttribute('lang')]);
+
+    expect(labels).toEqual([['Українська', 'uk'], ['Italiano', 'it'], ['Indonesia', 'id']]);
+    expect(form.querySelectorAll('input[name="enabled"]:checked')).toHaveLength(0);
+    expect(document.getElementById('interface-fallback-select').value).toBe('en');
+  });
+
+  test('saves the chosen languages and brings the session in line', async () => {
+    makeApiRequest.mockResolvedValue({ data: { interface_languages: { enabled: ['uk'], fallback: 'fr' } } });
+    const app = await openGeneralTab();
+
+    document.getElementById('interface-lang-uk').checked = true;
+    document.getElementById('interface-fallback-select').value = 'fr';
+    document.getElementById('interface-languages-form')
+      .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(makeApiRequest).toHaveBeenCalledWith('v1/organizations/settings/languages', {
+      method: 'PATCH',
+      body: { enabled: ['uk'], fallback: 'fr' },
+    });
+    expect(app.organizationSettings.interface_languages).toEqual({ enabled: ['uk'], fallback: 'fr' });
+    expect(app.applyUnitLanguages).toHaveBeenCalled();
+  });
+
+  test('the languages form has no WCAG A/AA violations', async () => {
+    await openGeneralTab();
+    const results = await axe.run(document.getElementById('interface-languages-form'), {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      rules: { 'color-contrast': { enabled: false } },
+    });
+    expect(results.violations).toEqual([]);
+  });
+});

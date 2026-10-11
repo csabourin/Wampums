@@ -24,6 +24,11 @@ const {
 
 // Import utilities
 const { getCurrentOrganizationId, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const {
+  ALL_INTERFACE_LANGUAGES,
+  INTERFACE_LANGUAGES_SETTING_KEY,
+  validateInterfaceLanguages,
+} = require('../utils/interfaceLanguages');
 const { ensureProgramSectionsSeeded, getProgramSections } = require('../utils/programSections');
 const { installDefaultFormFormats } = require('../services/defaultFormFormats');
 const {
@@ -49,6 +54,9 @@ const PUBLIC_ORGANIZATION_SETTING_KEYS = [
   'meeting_sections',
   'branding',
   'equipment_categories',
+  // The login page and parents offer the unit's languages before any
+  // permission is known.
+  INTERFACE_LANGUAGES_SETTING_KEY,
   // Parents may not hold org.view, so the buttons their dashboard hides must
   // reach them through the public settings. It only lists button keys.
   PARENT_DASHBOARD_SETTING_KEY
@@ -633,6 +641,35 @@ module.exports = (pool, logger) => {
     );
   }));
 
+  /**
+   * Choose the unit's optional interface languages and their fallback.
+   * French and English are always offered and need no setting.
+   */
+  router.patch('/settings/languages', authenticate, blockDemoRoles, requirePermission('org.edit'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const validation = validateInterfaceLanguages(req.body);
+
+    if (validation.errors.length > 0) {
+      return errorResponse(res, 'Invalid interface languages', HTTP_BAD_REQUEST, validation.errors);
+    }
+
+    await pool.query(
+      `INSERT INTO organization_settings
+         (organization_id, setting_key, setting_value, created_at, updated_at)
+       VALUES ($1, $2, $3::jsonb, NOW(), NOW())
+       ON CONFLICT (organization_id, setting_key)
+       DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = NOW()`,
+      [organizationId, INTERFACE_LANGUAGES_SETTING_KEY, JSON.stringify(validation.value)]
+    );
+
+    orgSettingsCache.delete(`org_${organizationId}`);
+    return success(
+      res,
+      { [INTERFACE_LANGUAGES_SETTING_KEY]: validation.value },
+      'Interface languages updated'
+    );
+  }));
+
   /** Update which optional buttons the parent dashboard shows. */
   router.patch('/settings/parent-dashboard', authenticate, blockDemoRoles, requirePermission('org.edit'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
@@ -722,8 +759,7 @@ module.exports = (pool, logger) => {
     const organizationId = await getOrganizationId(req, pool);
     const { language } = req.body;
 
-    // Supported languages
-    const supportedLanguages = ['en', 'fr', 'uk', 'it'];
+    const supportedLanguages = ALL_INTERFACE_LANGUAGES;
 
     // Validate language code
     if (!language) {

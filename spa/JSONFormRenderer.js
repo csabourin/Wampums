@@ -13,6 +13,18 @@ function readerLanguage() {
   return app?.lang || DEFAULT_LANG;
 }
 
+/**
+ * For an optional language, where its missing texts come from.
+ *
+ * @returns {{fallbackLang: string|null, hasBundleText: function(string, string): boolean}}
+ */
+function readerFallback() {
+  return {
+    fallbackLang: app?.fallbackLang || null,
+    hasBundleText: (lang, key) => Boolean(app?.translations?.[lang]?.[key]),
+  };
+}
+
 export class JSONFormRenderer {
   constructor(formStructure, formData = {}, formOrigin, useUniqueIds = false, formIndex = null) {
     this.formStructure = typeof formStructure === 'string' ? JSON.parse(formStructure) : formStructure;
@@ -36,7 +48,7 @@ export class JSONFormRenderer {
     // Render the form with the available form fields
     const renderedFields = this.formStructure.fields.map((field, index) => {
       if (field.type === 'infoText') {
-        return `<div class="info-text">${formInfoHtml(field, readerLanguage(), translate)}</div>`;
+        return `<div class="info-text">${formInfoHtml(field, readerLanguage(), translate, readerFallback())}</div>`;
       }
       const fieldHtml = this.renderField(field, this.formOrigin, index);
       return fieldHtml;
@@ -151,7 +163,7 @@ export class JSONFormRenderer {
     }
 
     let output = `<div class="${groupClasses.join(' ')}" data-form-origin="${formOrigin}"${dependsOnAttr ? ` data-group-for="${name}"` : ''}>`;
-    const labelHtml = `<label for="${fieldId}">${formLabelHtml(field, readerLanguage(), translate)}</label>`;
+    const labelHtml = `<label for="${fieldId}">${formLabelHtml(field, readerLanguage(), translate, readerFallback())}</label>`;
     if (type !== 'checkbox') {
       output += labelHtml;
     }

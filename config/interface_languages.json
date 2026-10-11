@@ -1,0 +1,7 @@
+{
+  "description": "Interface languages. French and English are always offered and kept at parity (npm run lint:i18n-parity). A unit may add optional languages; their missing keys fall back to the unit's fallback language.",
+  "core": ["fr", "en"],
+  "optional": ["uk", "it", "id"],
+  "defaultFallback": "en",
+  "settingKey": "interface_languages"
+}

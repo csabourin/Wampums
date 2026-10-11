@@ -20,6 +20,13 @@ import {
 } from '../../api/api-endpoints.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
+import {
+  INTERFACE_LANGS,
+  INTERFACE_LANGUAGES_SETTING_KEY,
+  OPTIONAL_LANGS,
+  SUPPORTED_LANGS,
+} from '../../config/languages.js';
+import { getUnitLanguages, nativeLanguageName } from '../../utils/InterfaceLanguageUtils.js';
 import { DAYS_OF_WEEK } from '../../utils/MeetingDateUtils.js';
 import {
   hasPermission,
@@ -40,12 +47,8 @@ import {
   UNIT_CUSTOMIZATION_CONFIG,
 } from '../../utils/UnitVocabularyUtils.js';
 
-const SUPPORTED_LANGUAGES = [
-  { code: 'fr', label: 'Français' },
-  { code: 'en', label: 'English' },
-  { code: 'uk', label: 'Українська' },
-  { code: 'it', label: 'Italiano' },
-];
+/** Languages e-mails may be written in: every interface language. */
+const SUPPORTED_LANGUAGES = INTERFACE_LANGS.map((code) => ({ code, label: nativeLanguageName(code) }));
 
 const DEFAULT_MEETING_DAY = 'Wednesday';
 const DEFAULT_MEETING_TIME = '19:00';
@@ -138,6 +141,7 @@ export class UnitSettings extends BaseModule {
     };
     this.orgName = this.organizationInfo.name || '';
     this.emailLanguage = data.default_email_language || 'fr';
+    this.interfaceLanguages = getUnitLanguages(data);
     const profile = getVocabularyProfile(data);
     this.vocabulary = data.unit_vocabulary
       ? JSON.parse(JSON.stringify(data.unit_vocabulary))
@@ -220,6 +224,7 @@ export class UnitSettings extends BaseModule {
           aria-labelledby="unit-settings-tab-${this.activeTab}">
           ${this.activeTab === 'general' ? `
             ${this.renderUnitDetailsSection()}
+            ${this.canEditOrg ? this.renderInterfaceLanguagesSection() : ''}
             ${this.canEditOrg ? this.renderLanguageSection() : ''}
             ${this.canEditOrg && this.emailSender ? this.renderEmailSenderSection() : ''}
             ${this.canManageOrg ? this.renderSecuritySection() : ''}
@@ -557,6 +562,48 @@ export class UnitSettings extends BaseModule {
       </form>`;
   }
 
+  /**
+   * The languages the unit offers families and its fallback. French and
+   * English are always offered; optional languages are partial, so the
+   * fallback fills their missing texts.
+   *
+   * @returns {string} HTML
+   */
+  renderInterfaceLanguagesSection() {
+    const { optional, fallback } = this.interfaceLanguages;
+    const coreNames = SUPPORTED_LANGS.map(nativeLanguageName).join(', ');
+    const checkboxes = OPTIONAL_LANGS.map((code) => `
+      <div class="checkbox-option">
+        <input type="checkbox" id="interface-lang-${code}" name="enabled" value="${code}"
+               ${optional.includes(code) ? 'checked' : ''}>
+        <label for="interface-lang-${code}" lang="${code}">${escapeHTML(nativeLanguageName(code))}</label>
+      </div>`).join('');
+    const fallbackOptions = ['en', 'fr'].map((code) => `
+      <option value="${code}" ${fallback === code ? 'selected' : ''}>${escapeHTML(nativeLanguageName(code))}</option>`).join('');
+
+    return `
+      <section class="account-section">
+        <h2>${escapeHTML(translate('unit_languages_title'))}</h2>
+        <p class="section-description">${escapeHTML(translate('unit_languages_description').replace('{core}', coreNames))}</p>
+        <form id="interface-languages-form">
+          <fieldset>
+            <legend>${escapeHTML(translate('unit_languages_optional'))}</legend>
+            ${checkboxes}
+          </fieldset>
+          <div class="form-group">
+            <label for="interface-fallback-select">${escapeHTML(translate('unit_languages_fallback'))}</label>
+            <select id="interface-fallback-select" name="fallback" class="form-control" aria-describedby="interface-fallback-hint">
+              ${fallbackOptions}
+            </select>
+            <small id="interface-fallback-hint">${escapeHTML(translate('unit_languages_fallback_hint'))}</small>
+          </div>
+          <button type="submit" id="save-interface-languages-btn" class="button button--primary unit-settings-save-button">
+            ${escapeHTML(translate('save'))}
+          </button>
+        </form>
+      </section>`;
+  }
+
   renderLanguageSection() {
     const options = SUPPORTED_LANGUAGES.map(
       ({ code, label }) =>
@@ -727,6 +774,11 @@ export class UnitSettings extends BaseModule {
     const unitDetailsForm = document.getElementById('unit-details-form');
     if (unitDetailsForm && this.canEditOrg) {
       this.addEventListener(unitDetailsForm, 'submit', (event) => this.handleSaveUnitDetails(event));
+    }
+
+    const interfaceLanguagesForm = document.getElementById('interface-languages-form');
+    if (interfaceLanguagesForm) {
+      this.addEventListener(interfaceLanguagesForm, 'submit', (event) => this.handleSaveInterfaceLanguages(event));
     }
 
     const saveLanguageBtn = document.getElementById('save-language-btn');
@@ -1062,6 +1114,42 @@ export class UnitSettings extends BaseModule {
       this.app?.showMessage?.(translate('unit_parent_dashboard_saved'), 'success');
     } catch (error) {
       debugError('Failed to save parent dashboard configuration:', error);
+      this.app?.showMessage?.(this.getLocalizedSaveError(error), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = translate('save');
+    }
+  }
+
+  /**
+   * Save the unit's languages, then bring this session in line: a language
+   * just removed gives way to the default, and the pickers list the new set.
+   *
+   * @param {Event} event - Form submit
+   * @returns {Promise<void>}
+   */
+  async handleSaveInterfaceLanguages(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const btn = document.getElementById('save-interface-languages-btn');
+    const body = {
+      enabled: Array.from(form.querySelectorAll('input[name="enabled"]:checked')).map((input) => input.value),
+      fallback: form.querySelector('[name="fallback"]').value,
+    };
+    btn.disabled = true;
+    btn.textContent = translate('saving');
+
+    try {
+      const response = await makeApiRequest('v1/organizations/settings/languages', { method: 'PATCH', body });
+      const saved = response?.data?.[INTERFACE_LANGUAGES_SETTING_KEY] || body;
+      if (this.app?.organizationSettings) {
+        this.app.organizationSettings[INTERFACE_LANGUAGES_SETTING_KEY] = saved;
+      }
+      this.interfaceLanguages = getUnitLanguages({ [INTERFACE_LANGUAGES_SETTING_KEY]: saved });
+      this.app?.showMessage?.(translate('unit_languages_saved'), 'success');
+      await this.app?.applyUnitLanguages?.();
+    } catch (error) {
+      debugError('Failed to save interface languages:', error);
       this.app?.showMessage?.(this.getLocalizedSaveError(error), 'error');
     } finally {
       btn.disabled = false;

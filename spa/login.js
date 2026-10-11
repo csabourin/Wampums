@@ -6,6 +6,8 @@ import { clearAllClientData } from './utils/ClientCleanupUtils.js';
 import { isParent, hasPermission } from './utils/PermissionUtils.js';
 import { getOnboardingContext } from './api/api-family.js';
 import { setContent } from './utils/DOMUtils.js';
+import { escapeHTML } from './utils/SecurityUtils.js';
+import { nativeLanguageName } from './utils/InterfaceLanguageUtils.js';
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 export class Login {
@@ -104,6 +106,7 @@ export class Login {
       <div class="login-container">
         <h1>${translate('login')}</h1>
         <h2>${organizationName}</h2>
+        ${this.renderLanguagePicker()}
         <form id="login-form">
           <div class="form-group">
             <label for="login-email" class="sr-only">${translate('email')}</label>
@@ -126,10 +129,40 @@ export class Login {
     if (appContainer) {
       setContent(appContainer, content);
       this.attachLoginFormListener();
+      this.attachLanguagePickerListener();
       debugLog('Login form rendered successfully');
     } else {
       debugError('Could not find app container element');
     }
+  }
+
+  /**
+   * The unit's languages, so a parent can read the page before signing in.
+   * Each option is named in its own language.
+   *
+   * @returns {string} HTML
+   */
+  renderLanguagePicker() {
+    const languages = this.app.getUnitLanguages?.().available || [];
+    const options = languages.map((code) => `
+      <option value="${code}" lang="${code}" ${code === this.app.lang ? 'selected' : ''}>${escapeHTML(nativeLanguageName(code))}</option>`).join('');
+    return `
+      <div class="form-group login-language">
+        <label for="login-language">${escapeHTML(translate('language'))}</label>
+        <select id="login-language" aria-describedby="login-language-hint">${options}</select>
+        <span id="login-language-hint" class="sr-only">${escapeHTML(translate('login_language_hint'))}</span>
+      </div>`;
+  }
+
+  /**
+   * Switch language from the login page; the page renders again in it.
+   *
+   * @returns {void}
+   */
+  attachLanguagePickerListener() {
+    document.getElementById('login-language')?.addEventListener('change', (event) => {
+      this.app.setLanguage(event.target.value);
+    });
   }
 
   async attachLoginFormListener() {

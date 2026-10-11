@@ -12,7 +12,8 @@ import { makeApiRequest } from '../api/api-core.js';
 import { enablePushNotifications, disablePushNotifications, PushSetupError } from './push/PushSubscription.js';
 import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
 import { translate, app as appInstance } from '../app.js';
-import { escapeHTML } from '../utils/SecurityUtils.js';
+import { escapeAttribute, escapeHTML } from '../utils/SecurityUtils.js';
+import { nativeLanguageName } from '../utils/InterfaceLanguageUtils.js';
 import { apiErrorMessage } from '../utils/ApiErrorUtils.js';
 import { holdsFamilyRole, isParent } from '../utils/PermissionUtils.js';
 import { setContent, loadStylesheet } from '../utils/DOMUtils.js';
@@ -411,15 +412,8 @@ export class AccountInfoModule {
         <section class="account-section">
           <h2>${translate('language')}</h2>
           <p class="section-description">${translate('account_info_language_description')}</p>
-          <div class="language-selector">
-            <button class="language-option ${currentLang === 'en' ? 'active' : ''}" data-lang="en">
-              <span class="language-label">English</span>
-              ${currentLang === 'en' ? '<span class="checkmark">✓</span>' : ''}
-            </button>
-            <button class="language-option ${currentLang === 'fr' ? 'active' : ''}" data-lang="fr">
-              <span class="language-label">Français</span>
-              ${currentLang === 'fr' ? '<span class="checkmark">✓</span>' : ''}
-            </button>
+          <div class="language-selector" role="group" aria-label="${escapeAttribute(translate('language'))}">
+            ${this.renderLanguageOptions(currentLang)}
           </div>
         </section>
 
@@ -837,6 +831,44 @@ export class AccountInfoModule {
   }
 
   /**
+   * One button per language the unit offers, each named in its own language
+   * so a reader finds theirs whatever the page's language.
+   *
+   * @param {string} currentLang - Language shown now
+   * @returns {string} HTML
+   */
+  renderLanguageOptions(currentLang) {
+    return this.app.getUnitLanguages().available.map((code) => {
+      const active = code === currentLang;
+      return `
+        <button type="button" class="language-option ${active ? 'active' : ''}" data-lang="${code}"
+                lang="${code}" aria-pressed="${active}">
+          <span class="language-label">${escapeHTML(nativeLanguageName(code))}</span>
+          ${active ? '<span class="checkmark" aria-hidden="true">✓</span>' : ''}
+        </button>`;
+    }).join('');
+  }
+
+  /**
+   * Keep the account's language in step, so e-mails and notifications follow
+   * the language chosen here. The interface has already switched; a failure
+   * only leaves e-mails in the previous language.
+   *
+   * @param {string} lang - Language code
+   * @returns {Promise<void>}
+   */
+  async saveLanguagePreference(lang) {
+    try {
+      await makeApiRequest('v1/users/me/language-preference', {
+        method: 'PATCH',
+        body: { languagePreference: lang },
+      });
+    } catch (error) {
+      debugWarn('Language preference not saved:', error);
+    }
+  }
+
+  /**
    * Handle language change
    * @param {Event} event - Button click event
    */
@@ -853,6 +885,7 @@ export class AccountInfoModule {
 
       // Update app language immediately
       await this.app.setLanguage(newLang);
+      await this.saveLanguagePreference(this.app.lang);
 
       // Show success message
       this.app.showMessage(translate('account_info_language_success'), 'success');
