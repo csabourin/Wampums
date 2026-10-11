@@ -1,8 +1,13 @@
 # CLAUDE.md - Development Guidelines for Wampums Scout Management System
 
-**Last Updated:** 2026-10-07
+**Last Updated:** 2026-10-11
 **Project:** Wampums Scout Management System
 **Tech Stack:** Node.js + Express, PostgreSQL, Vite (SPA), Vanilla JavaScript (ES modules), Expo/React Native (mobile)
+
+**Scope.** Most work is on the API and the web SPA (`spa/`). `mobile/` has its own toolchain and is
+changed only when a task asks for it. **The tests are the most current specification** (§12): read
+those of the area you touch before you change it. §7 says how to build an SPA screen, and the templates
+at the end show one.
 
 ---
 
@@ -22,13 +27,31 @@
 - ✅ All user-facing text must be translatable via `lang/en.json`, `lang/fr.json`, or translation APIs.
 - ✅ Use language codes consistently (`en`, `fr`).
 - ✅ Date/time formatting must respect locale (`formatDate(date, lang)` in `spa/utils/DateUtils.js`).
-- ✅ Number formatting must respect locale.
+- ✅ Number and money formatting must respect locale (`formatCurrency` in `spa/utils/NumberUtils.js`,
+  or `Intl` with `localeForLanguage(lang)` from `spa/utils/InterfaceLanguageUtils.js`).
+- ✅ **The server's `message` is never shown.** It is English, written for developers. Explain a failed
+  call with `apiErrorMessage(error, fallbackKey)` from `spa/utils/ApiErrorUtils.js`, which picks a
+  translated key from the status, the error code, or a server message that is itself a known key.
+- ✅ **Never show a raw key or internal name.** Use the label helpers: `roleLabel()` (role
+  `display_name`, never `role_name`), `badgeLabel()`, `formTypeLabel()`.
+- ✅ **Unit vocabulary.** A unit names its subgroups and sections (dens, lodges, patrols…) through
+  `unit_vocabulary` (`spa/utils/UnitVocabularyUtils.js`, `devdocs/UNIT_CUSTOMIZATION.md`).
+  `translate()` substitutes the unit's terms, so write the keys and do not hard-code "group"/"tanière"
+  in strings. French strings around a vocabulary term avoid gendered articles (the term may be
+  masculine or feminine).
 
 **Implementation:**
-- Frontend: translation helpers and keys from `lang/*.json`.
+- Frontend: `translate(key)` (import from `spa/app.js`) with keys from `lang/*.json`. `translate()`
+  answers an unknown key with the key itself, so a missing key shows up on screen as `some_key`.
 - Backend: translation keys from the `translations` table (see `routes/formBuilder.js`).
 - Forms: use `organization_form_formats` for multilingual form definitions.
 - ✅ **`lang/en.json` and `lang/fr.json` must have exactly the same set of keys** — enforced by `npm run lint:i18n-parity`. Any key added to one file must be added to both.
+- ✅ **Every key the SPA uses must exist in both.** `test/spa/TranslationCoverage.test.js` reads every
+  literal `translate('…')` call in `spa/`. A key built at runtime (`` `state_${state}` ``) or held in a
+  lookup table is not seen there. Add such keys for every value, and extend that test when you add a
+  new family of them.
+- ✅ Optional-language bundles (`lang/uk.json`, …) keep every `{placeholder}` of the English text and
+  have no byte-order mark (`test/optional-language-bundles.test.js`).
 
 ### 2) RESTful API Architecture
 
@@ -244,7 +267,8 @@ and grants, and review comments and DDL literals for PII or secrets before commi
 - ✅ **Users:** `id UUID` (generated via `gen_random_uuid()`)
 - ✅ **Most other tables:** `id INTEGER` (using sequences)
 - ✅ **Never use `parseInt()` on user IDs** - they are UUIDs (strings)
-- ✅ Use appropriate type: `req.params.userId` (UUID string), `parseInt(req.params.participantId)` (integer)
+- ✅ Use appropriate type: `req.params.userId` (UUID string); integer ids validated with `validateIdParam()`
+  then read with `Number(req.params.participantId)`
 
 #### Common Patterns
 - ✅ All tables include `organization_id INTEGER` for multi-tenant isolation
@@ -267,10 +291,18 @@ const result = await pool.query(
 );
 ```
 
-### 5) Mobile-First Design (Web)
+### 5) Mobile-First Design and Accessibility (Web)
 
-- ✅ Build for small screens first; enhance with `min-width` media queries.
-- ✅ Touch-friendly targets (≥44px).
+- ✅ Build for small screens first; enhance with `min-width` media queries. Nothing may scroll the page
+  sideways at 390px: put wide tables in a scroll container, and let fieldsets and option lists wrap.
+- ✅ Buttons and links are touch targets of at least 44px (`--touch-target-min` in `css/styles.css`).
+  Checkboxes and radio buttons are at least 24px, and a lone checkbox sits before its label, on one row
+  (`test/spa/FormControlTargets.test.js`, `ContactLinkTargets.test.js`).
+- ✅ **WCAG 2.2 AA.** Use native controls (`<button>`, `<a href>`, `<input>`, `<select>`) with labels,
+  never a `div` with a click handler. Tie errors to their field (`aria-describedby`) and announce them
+  (`role="alert"`). Loading text uses `role="status"`. Never convey state by colour alone.
+- ✅ Focus stays visible: outlines use the `--color-focus-ring` token (at least 3:1 against the
+  surface), and no rule removes the outline from form inputs.
 - ✅ CSS touch properties for mobile:
   ```css
   button {
@@ -281,12 +313,13 @@ const result = await pool.query(
   }
   ```
 - ✅ Consistent UI patterns across pages (loading/error/empty states).
-- ✅ PWA features supported (`service-worker.js`, `vite-plugin-pwa`).
+- ✅ PWA features supported (`src-sw.js`, `vite-plugin-pwa`; caching rules are pinned by
+  `test/service-worker-*.test.js`).
 
 ### 6) Security First
 
 - ✅ **Sanitize all user input and HTML.**
-  - Frontend: `spa/utils/SecurityUtils.js` (`sanitizeHTML`, `escapeHTML`, `sanitizeURL`)
+  - Frontend: `spa/utils/SecurityUtils.js` (`escapeHTML`, `escapeAttribute`, `sanitizeURL`, `sanitizeHTML`; which to use when is in §7)
   - Backend: `utils/api-helpers.js` exports `escapeHtml` and shared helpers
   - Formatted text (announcement messages, activity descriptions, form information texts) is written in
     `spa/modules/rich-text/RichTextEditor.js` and limited to paragraphs, bold, italic, lists and links. The
@@ -323,54 +356,125 @@ const result = await pool.query(
 
 ### 7) Frontend Best Practices
 
-#### Module System
-- ✅ Use ES6 modules (`import`/`export`)
-- ✅ Organize utilities in `spa/utils/`
-- ✅ **New feature modules go in `spa/modules/<feature>/`** — no new files may be added to the `spa/` root; enforced by `npm run lint:spa-files`
+#### Where code goes
+- ✅ ES modules only. **New screens go in `spa/modules/<feature>/`**; no new files in the `spa/` root
+  (`npm run lint:spa-files`). The root files (`spa/manage_points.js`, `spa/dashboard.js`, …) are older
+  screens: change them in place, and move one into `spa/modules/` only as its own change.
+- ✅ Shared helpers go in `spa/utils/`, configuration in `spa/config.js` and `spa/config/*.js`, and a
+  feature's API calls in `spa/api/api-<feature>.js`. Check `spa/utils/` before writing a helper; most
+  needs (dates, money, labels, dialogs, scroll lock, back link, errors) already have one there.
+- ✅ Reference screens to imitate: `spa/modules/walk-in/WalkInChildren.js`,
+  `spa/modules/messages/Messages.js`, `spa/modules/family-access/`.
 
-#### SPA DOM Manipulation
-- ✅ Use `setContent()` from `spa/utils/DOMUtils.js` for all DOM updates
-- ❌ **Never assign `innerHTML =` directly** (outside `DOMUtils.js` and `SecurityUtils.js`); enforced by `npm run lint:spa-innerhtml`
+#### Adding a screen
+1. Module class in `spa/modules/<feature>/<Screen>.js` with `constructor(app)`, `async init()`, and
+   `destroy()` when it holds listeners, timers or subscriptions (extend `BaseModule` from
+   `spa/utils/BaseModule.js`, or abort an `AbortController`). The router calls `destroy()` on the
+   previous screen, and re-rendering must not stack listeners.
+2. In `spa/router.js`: a lazy loader in the module map, the path in `routes`, and a `case` that guards
+   with **the permission its endpoints require**: `guard(hasPermission('x.view'))`. Only public pages
+   (sign-in, registration, password reset, pages opened from an emailed link) join the logged-out
+   allow-list.
+3. A dashboard tile, if any, is declared once in `spa/config/dashboard-tiles.js`, with a `tile_*` label
+   naming the task and a `gate` on the same permission as the page.
+4. API functions in `spa/api/api-<feature>.js`; strings in `lang/en.json` **and** `lang/fr.json`.
+5. A jsdom test in `test/spa/` (see §12).
+
+#### Rendering a page
+- ✅ Render into `#app` with `setContent()` from `spa/utils/DOMUtils.js`. ❌ **Never assign
+  `innerHTML =`** outside `DOMUtils.js` and `SecurityUtils.js` (`npm run lint:spa-innerhtml`).
+- ✅ Every screen opens with `renderBackLink(href)` (`spa/utils/BackLinkUtils.js`), first in the page,
+  above the `<h1>`, in **every** state it renders.
+- ✅ Every screen has a loading state (`role="status"`, or `spa/utils/SkeletonUtils.js`), an error
+  state (`role="alert"`, with a retry button when a reload could help), and an empty state that says
+  what would fill it. A failed load is never shown as "nothing here".
+- ✅ Buttons use the `button` classes: `button button--primary`, `--secondary`, `--ghost`, `--danger`,
+  `--small`. Do not use the older `btn btn-*` classes in new code.
+
+#### Escaping what you inject
+`setContent()` sanitizes markup with DOMPurify, but that does not stop a name from becoming markup.
+- ✅ Text from the server or a person: `escapeHTML()`. Inside an attribute value: `escapeAttribute()`.
+- ✅ Formatted text (`message_html`, `description_html`): `richTextOrPlain(html, text)` from
+  `spa/utils/RichTextUtils.js`; edit it with `spa/modules/rich-text/RichTextEditor.js`.
+- ✅ URLs: `sanitizeURL()`. `sanitizeHTML()` is only for markup you mean to keep.
+- ✅ Toasts (`showMessage`) and `DialogUtils` messages are set as text: pass them unescaped, or a name
+  shows as `&amp;`. `openModal()` `title`/`body`/`footer` are HTML: escape what goes into them.
+- ❌ Never give an element an `id` or `name` that collides with a property of `document` or of a
+  form (`name`, `action`, `submit`, `location`…). DOMPurify silently strips it
+  (`test/spa/DomPurifyClobbering.test.js`). Prefix ids with the feature: `walk-in-retry`.
+
+#### Feedback and errors
+- ✅ Toasts: `this.app.showMessage(translate('key') | 'key', 'success' | 'error' | 'info')`.
+- ✅ A failed call: `apiErrorMessage(error, 'screen_fallback_key')` (§1), never `error.message`. A
+  refused action reads as a refusal, not as a generic error. A failed request is never reported as
+  success, and a write that committed but whose reload failed says it was saved and offers a retry.
+- ✅ Form errors: check what you can before sending, show server field errors next to their field
+  (`aria-describedby`), and clear a message as soon as its field changes.
+- ✅ A form disables its submit while saving (`withFormBusy`), so a double click sends one request.
 
 #### Modals
 - ✅ Every modal uses `openModal()` from `spa/utils/ModalUtils.js`: one markup (`.modal-overlay > .modal-dialog`
   with header, body, footer), focus moved in and returned to the opener, Tab kept inside, Escape and the
   backdrop close the topmost dialog, page scroll locked, and the router closes it on navigation.
 - ✅ Action buttons go in `footer`; a submit button outside its form names it with `form="<form-id>"`
-  (`withFormBusy` disables those too). Cancel buttons carry `data-modal-close`.
+  (`withFormBusy` disables those too). Cancel buttons carry `data-modal-close`. Use `canClose` to keep a
+  dialog open while it saves, and `closeOnBackdrop: false` for a form that would lose work.
 - ✅ Confirmations, alerts and prompts use `confirm` / `confirmDestructive` / `alert` / `prompt` from
-  `spa/utils/DialogUtils.js`, never the browser's.
+  `spa/utils/DialogUtils.js`, never the browser's. Declining a confirmation changes nothing.
   While one is open, underlying modals defer keyboard handling to it.
+- ✅ Any other overlay locks scrolling with `lockBodyScroll(owner)` / `unlockBodyScroll(owner)` from
+  `spa/utils/ScrollLockUtils.js`, never by setting `overflow` itself.
 - ❌ No hand-built overlays, native `<dialog>`, or page styles for `.modal-*` classes.
+
+#### Permissions in the SPA
+- ✅ `hasPermission()`, `hasAnyPermission()`, `hasAllPermissions()` and the `can*()` helpers from
+  `spa/utils/PermissionUtils.js` decide what is shown. Each action button follows the permission its
+  endpoint requires (create, edit and delete separately). The server decides; the SPA only stops offering
+  what would be refused.
+- ✅ Parent or staff: `isParent()` and `canAccessParentTools()`, which read the role's data scope.
+  ❌ Never `hasRole('…')` (`npm run lint:role-names`). A person can be both a parent and a leader.
+- ✅ A demo account is read-only: `isDemoUser()`.
+
+#### API calls and the cache
+- ✅ Go through `API` from `spa/api/api-core.js`, wrapped in `spa/api/api-<feature>.js`. Older screens
+  import from `spa/api/api-endpoints.js` or `spa/ajax-functions.js`; do not add new functions to those
+  two files. Never `fetch()` an authenticated endpoint directly.
+- ✅ Endpoints are written without the prefix: `API.get('v1/messages')`. `API.get(endpoint, params,
+  { cacheDuration, forceRefresh })` caches in IndexedDB (`CONFIG.CACHE_DURATION.*`); use
+  `API.getNoCache()` for data that must be fresh (anything just written by someone else, links).
+- ✅ **Writes invalidate the cache themselves.** `API.post/put/patch/delete` clear the cached
+  responses built from that resource, and every screen derived from the roster when the roster changes
+  (`spa/utils/CacheInvalidation.js`). Do not hand-clear cache keys after a write. To reload after one,
+  call the read again with `forceRefresh: true`.
+- ✅ Cache keys are scoped by user and unit (`spa/utils/OfflineCacheKeys.js`); never build one by hand.
+- ✅ Offline, writes are queued and answer `{ queued: true }`. Resources listed in
+  `CONFIG.ONLINE_REQUIRED_MUTATION_RESOURCES` (invitations, parent onboarding, walk-ins, family links)
+  refuse instead, with the code `online_required`. Do not report a queued or unconfirmed write as delivered.
+- ✅ Never put an organization id in a request body or query: `api-core` sends the unit, and for a
+  signed-in person the server takes it from the token and ignores anything else.
+
+#### Scout years and archives
+- ✅ A leader may consult an archived scout year (`spa/modules/scout-year/`). The API layer then sends
+  the year with every read and refuses every write, and `ArchiveReadOnly` disables every control in
+  `#app`. Mark a control used to browse (date picker, filter, search) with `data-archive-safe`.
+- ✅ Lists of youth are the roster of the year being consulted, not every participant ever enrolled.
 
 #### Configuration
 - ✅ **No hardcoded values** - use `spa/config.js`
 ```javascript
-import { CONFIG } from './config.js';
-const url = `${CONFIG.API_BASE_URL}/api/v1/users`;
+import { CONFIG } from '../../config.js';
+const ttl = CONFIG.CACHE_DURATION.SHORT;
 ```
 
 #### Logging
 - ✅ Use `debugLog()` / `debugError()` from `spa/utils/DebugUtils.js`
 - ❌ **Never use `console.*` in SPA files** — enforced by `npm run lint:spa-console` (only `DebugUtils.js` and `config.js` are exempt)
-```javascript
-import { debugLog, debugError } from './utils/DebugUtils.js';
-debugLog('User data:', userData);
-debugError('Failed to load:', error);
-```
-
-#### API Calls
-- ✅ Use centralized API functions from `spa/api/api-endpoints.js`
-- ✅ Leverage IndexedDB caching with appropriate duration
-```javascript
-import { getParticipants } from './api/api-endpoints.js';
-const participants = await getParticipants({ forceRefresh: false });
-```
 
 #### State Management
-- ✅ Use optimistic updates for better UX (`spa/utils/OptimisticUpdateManager.js`)
-- ✅ Show loading skeletons during data fetch (`spa/utils/SkeletonUtils.js`)
-- ✅ Handle error states gracefully
+- ✅ Optimistic updates go through `spa/utils/OptimisticUpdateManager.js`: a failure restores exactly the
+  previous state, and a successful server write is never rolled back because a local step failed.
+- ✅ A response that arrives after the person has left the screen must not draw over the next one:
+  check the screen's container still exists before rendering.
 
 ### 8) Code Quality
 
@@ -404,15 +508,33 @@ router.get('/data', authenticate, asyncHandler(async (req, res) => {
 }));
 ```
 
+- ✅ A 5xx never sends `error.message`, a provider's error, or a database error to the client
+  (`test/server-error-leaks.test.js` checks every route file). Log it and answer a generic message.
+- ✅ Bad input is a 400, never a 500: a malformed id, a non-array where an array is expected, an id
+  beyond the integer range. Validate ids strictly (`validateIdParam()` + `checkValidation`), not with
+  `parseInt()`, which reads `12abc` as 12.
+- ✅ A message the SPA may show is a translation key (`invalid_or_expired_token`); the SPA displays a
+  server message only when it is a key it knows (§1).
+
 #### Frontend
 ```javascript
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+
 try {
-  const data = await fetchData();
-  this.render(data);
+  const response = await getThings();
+  this.things = Array.isArray(response?.data) ? response.data : [];
+  this.render();
 } catch (error) {
-  debugError('Failed to fetch:', error);
-  showToast(translate('error.generic'), 'error');
-  this.renderErrorState();
+  debugError('Failed to load things:', error);
+  this.renderError();                       // in the page, with a retry button
+}
+
+try {
+  await saveThing(payload);
+  this.app.showMessage(translate('thing_saved'), 'success');
+} catch (error) {
+  debugError('Failed to save thing:', error);
+  this.app.showMessage(apiErrorMessage(error, 'thing_save_failed'), 'error');
 }
 ```
 
@@ -480,7 +602,7 @@ Run `npm run lint:all` before every PR — it runs every check below, and it is 
 | `npm run lint:spa-innerhtml` | No `innerHTML =` assignments in `spa/` (except `DOMUtils.js`, `SecurityUtils.js`) |
 | `npm run lint:sql-params` | No template-literal SQL (`pool.query(\`...${var}...\`)`)|
 | `npm run lint:i18n-parity` | `lang/en.json` and `lang/fr.json` have identical key sets |
-| `npm run lint:api-contracts` | SPA API calls match the endpoints the server exposes |
+| `npm run lint:api-contracts` | Each endpoint listed in `config/spa-api-contracts.json` is still mounted and routed on the server and called by its SPA client file |
 | `npm run lint:role-names` | No access decided by a role name (§3) — server code, plus `hasRole('…')` in `spa/` and `mobile/src/` |
 | `npm run lint:client-org-id` | No `organization_id` / `x-organization-id` read from the client outside `getOrganizationId` and `getCurrentOrganizationId` |
 | `npm run lint:manual-auth` | No `verifyJWT`, `verifyOrganizationMembership` or `getCurrentOrganizationId` in routes — use `authenticate` + `requirePermission` |
@@ -497,6 +619,34 @@ file in `scripts/modernization/policy-baseline.json`:
   false positive inline with `// eslint-disable-next-line <rule> -- <reason>`.
 - When you remove violations, run `npm run lint:policy -- --update-baseline` and commit the lower counts;
   CI fails while the baseline overstates them. The script refuses to raise a count.
+
+### 12) Tests
+
+**Tests are the most current statement of how the app behaves.** When this document and a test
+disagree, the test wins. Fix the document in the same change. Read the tests of the area you touch
+before changing it.
+
+- ✅ Every behaviour change comes with a test. Name tests as plain statements of behaviour, from the
+  person's side: `'a parent cannot read another family\'s health form'`, not `'test GET /forms 403'`.
+- ✅ **SPA tests** live in `test/spa/<Screen>.test.js`, under `/** @jest-environment jsdom */`. They mock
+  `spa/utils/DebugUtils.js`, mock `spa/app.js` with `translate: (key) => key`, mock the feature's API
+  module, render into a `#app` element, and act through the DOM (click, type, submit), the way a person
+  would. Assert on what the person sees and on the payload sent, not on private methods.
+- ✅ **Every new screen, dialog or form has an accessibility test**: `axe-core` with the WCAG 2.x A/AA
+  tags (`color-contrast` off, since jsdom does no layout; see `AXE_OPTIONS` in
+  `test/spa/ModalUtils.test.js`), plus keyboard checks for focus, Tab and Escape where it has a dialog.
+- ✅ Test that names coming from people are escaped: render a name such as `<img src=x onerror=…>` and
+  assert it shows as text.
+- ✅ **Route tests** (`test/routes-*.test.js`) use `supertest` and the mocked pool from
+  `test/mock-helpers.js`. Cover 401 without a token, 403 with `required`/`missing` without the
+  permission, `isDemo` for demo writes, 404 for another unit's resource, and 400 for malformed input.
+- ✅ **Integration tests** (`*.integration.test.js`) run against a real PostgreSQL built from the
+  schema baseline and every migration. They skip without `TEST_DATABASE_URL`. Anything about access to
+  children, roles, family links or scout years needs one. Run them locally with the command under Development Workflow › Migrations.
+- ✅ CI runs `npm run lint:all`, `npm run build`, `npm run test:quality` (the non-integration suites,
+  minus a short ignore list in `package.json`) and the integration job. Run the same before a PR.
+- ✅ To see a change in a real browser (phone or desktop size, as admin, leader or parent), use the
+  `run-wampums` project skill (`.claude/skills/run-wampums/`).
 
 ---
 
@@ -517,21 +667,28 @@ file in `scripts/modernization/policy-baseline.json`:
 
 ### Web SPA (Vite + ES Modules)
 - **Entry:** `index.html`, `spa/app.js`, `spa/router.js`
-- **Configuration:** `spa/config.js` - All app-wide constants
+- **Configuration:** `spa/config.js` (app-wide constants), `spa/config/*.js` (dashboard tiles,
+  parent-dashboard buttons, languages, tabbed pages)
 - **Utilities:** `spa/utils/*`
-  - `DebugUtils.js` - Logging (`debugLog`, `debugError`)
-  - `DateUtils.js` - Date/time formatting and parsing
-  - `SecurityUtils.js` - Input sanitization, XSS prevention
-  - `StorageUtils.js` - LocalStorage/IndexedDB helpers
-  - `ValidationUtils.js` - Form validation
-  - `PermissionUtils.js` - Permission checks
+  - `DOMUtils.js` - `setContent`, `setText`, `withFormBusy`
+  - `SecurityUtils.js` - `escapeHTML`, `escapeAttribute`, `sanitizeURL`, `sanitizeHTML`
+  - `ModalUtils.js` / `DialogUtils.js` / `ScrollLockUtils.js` - Dialogs and scroll locking
+  - `ApiErrorUtils.js` - Translated explanation of a failed call
+  - `BackLinkUtils.js`, `NotFoundUtils.js`, `SkeletonUtils.js` - Shared page chrome and states
+  - `PermissionUtils.js` - Permission and data-scope checks
+  - `DateUtils.js`, `NumberUtils.js`, `InterfaceLanguageUtils.js` - Locale formatting and languages
+  - `RoleLabelUtils.js`, `BadgeLabelUtils.js`, `FormLabelUtils.js`, `UnitVocabularyUtils.js` - Labels
+  - `RichTextUtils.js` - Showing and converting formatted text
+  - `CacheInvalidation.js`, `OfflineCacheKeys.js` - What a write makes stale; scoped cache keys
   - `OptimisticUpdateManager.js` - Optimistic UI updates
-  - `SkeletonUtils.js` - Loading states
+  - `BaseModule.js` - Listener, timer and observer cleanup for screens
+  - `DebugUtils.js` - Logging (`debugLog`, `debugError`)
 - **API Layer:** `spa/api/`
-  - `api-core.js` - Core HTTP client with retry logic
-  - `api-endpoints.js` - Typed endpoint functions with caching
-  - `api-*.js` - Feature-specific API modules
-- **Modules:** `spa/modules/*` + feature files in `spa/`
+  - `api-core.js` - `API.get/getNoCache/post/put/patch/delete`: auth, caching, offline queue,
+    archive read-only, cache invalidation
+  - `api-<feature>.js` - Feature API modules (where new functions go)
+  - `api-endpoints.js`, `../ajax-functions.js` - Older catch-all endpoint files; do not grow them
+- **Modules:** `spa/modules/<feature>/` (new screens); older screens remain as files in `spa/`
 - **Assets:** `assets/`, `css/`, `spa/assets/`
 
 ### Mobile App (Expo / React Native)
@@ -548,7 +705,7 @@ wampums/
 ├── package.json
 ├── vite.config.mjs
 ├── middleware/
-│   ├── auth.js                 # authenticate, requirePermission, blockDemoRoles
+│   ├── auth.js                 # authenticate, requirePermission, blockDemoRoles, getOrganizationId
 │   ├── response.js             # success, error, paginated helpers
 │   └── validation.js
 ├── routes/                     # API routes (all use pool parameter)
@@ -562,13 +719,15 @@ wampums/
 │   └── ...
 ├── services/                   # Business logic
 ├── utils/
-│   ├── api-helpers.js          # getOrganizationId, escapeHtml, etc.
-│   └── logger.js
+│   ├── api-helpers.js          # escapeHtml and shared helpers
+│   └── richText.js             # Server-side rich-text rebuild
+├── config/                     # logger.js, interface_languages.json, spa-api-contracts.json…
 ├── migrations/                 # Database migrations
 ├── spa/                        # Frontend SPA
 │   ├── app.js                  # App initialization
 │   ├── router.js               # Client-side routing
 │   ├── config.js               # Frontend configuration
+│   ├── config/                 # dashboard-tiles.js, languages.js, …
 │   ├── api/                    # API client layer
 │   │   ├── api-core.js
 │   │   ├── api-endpoints.js
@@ -578,7 +737,7 @@ wampums/
 │   │   ├── DateUtils.js
 │   │   ├── SecurityUtils.js
 │   │   └── ...
-│   └── modules/                # Feature modules
+│   └── modules/                # Feature modules (new screens go here)
 ├── assets/                     # Static assets
 ├── css/                        # Stylesheets
 ├── lang/                       # Translation files
@@ -589,7 +748,10 @@ wampums/
 ├── attached_assets/            # Reference SQL dumps
 │   ├── Full_Database_schema.sql
 │   └── permissions_list.sql
-└── test/                       # Test files
+├── test/                       # Jest: routes, integration, security
+│   ├── spa/                    # jsdom tests of SPA screens and utilities
+│   └── user-stories/           # End-to-end stories per feature (attendance, points, honors)
+└── .claude/skills/run-wampums/ # Run and screenshot the app locally
 ```
 
 ---
@@ -693,6 +855,7 @@ STRIPE_SECRET_KEY=<payment-processing>
 const express = require('express');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { validateIdParam, checkValidation } = require('../middleware/validation');
 
 module.exports = (pool) => {
   const router = express.Router();
@@ -741,9 +904,11 @@ module.exports = (pool) => {
     authenticate, 
     blockDemoRoles,
     requirePermission('resources.manage'), 
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const resourceId = parseInt(req.params.id);
+      const resourceId = Number(req.params.id);
       const { name, description } = req.body;
       
       // Verify resource exists and belongs to organization
@@ -770,9 +935,11 @@ module.exports = (pool) => {
     authenticate, 
     blockDemoRoles,
     requirePermission('resources.manage'), 
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const resourceId = parseInt(req.params.id);
+      const resourceId = Number(req.params.id);
       
       const result = await pool.query(
         'DELETE FROM resources WHERE id = $1 AND organization_id = $2 RETURNING id',
@@ -793,142 +960,144 @@ module.exports = (pool) => {
 
 ### Frontend Module Template
 
+A new screen, modelled on `spa/modules/walk-in/WalkInChildren.js` and `spa/modules/messages/Messages.js`.
+
 ```javascript
-// spa/resource-manager.js
-import { translate } from './app.js';
-import { debugLog, debugError } from './utils/DebugUtils.js';
-import { CONFIG } from './config.js';
-import { getResources, createResource, updateResource, deleteResource } from './api/api-resources.js';
-import { sanitizeHTML } from './utils/SecurityUtils.js';
-import { setContent } from './utils/DOMUtils.js';
-import { showToast } from './utils/ToastUtils.js';
-import { requirePermission } from './utils/PermissionUtils.js';
+// spa/api/api-resources.js
+import { API } from './api-core.js';
 
-export class ResourceManager {
-  constructor(app) {
-    this.app = app;
-    this.resources = [];
-    this.canManage = requirePermission('resources.manage');
-  }
+/** @returns {Promise<Object>} The unit's resources */
+export function getResources(options = {}) {
+  return API.get('v1/resources', {}, options);   // options: { forceRefresh, cacheDuration }
+}
 
-  async init() {
-    debugLog('Initializing ResourceManager');
-    
-    try {
-      await this.loadData();
-      this.render();
-      this.attachEventListeners();
-    } catch (error) {
-      debugError('Failed to initialize:', error);
-      showToast(translate('error.loading_failed'), 'error');
-    }
-  }
-
-  async loadData() {
-    try {
-      const response = await getResources({ forceRefresh: false });
-      this.resources = response.data || [];
-      debugLog('Loaded resources:', this.resources.length);
-    } catch (error) {
-      debugError('Failed to load resources:', error);
-      throw error;
-    }
-  }
-
-  render() {
-    const container = document.getElementById('app');
-    
-    const html = `
-      <section class="page">
-        <header class="page__header">
-          <h1>${translate('resources.title')}</h1>
-          ${this.canManage ? `
-            <button class="button button--primary" id="add-resource-btn">
-              ${translate('resources.add')}
-            </button>
-          ` : ''}
-        </header>
-        
-        <div class="resource-list">
-          ${this.resources.length === 0 ? `
-            <p class="empty-state">${translate('resources.empty')}</p>
-          ` : this.resources.map(r => this.renderResourceCard(r)).join('')}
-        </div>
-      </section>
-    `;
-    
-    setContent(container, html);
-  }
-
-  renderResourceCard(resource) {
-    const safeName = sanitizeHTML(resource.name);
-    const safeDescription = sanitizeHTML(resource.description || '');
-    
-    return `
-      <div class="resource-card" data-id="${resource.id}">
-        <h3>${safeName}</h3>
-        <p>${safeDescription}</p>
-        ${this.canManage ? `
-          <div class="resource-card__actions">
-            <button class="button button--small edit-btn" data-id="${resource.id}">
-              ${translate('edit')}
-            </button>
-            <button class="button button--small button--danger delete-btn" data-id="${resource.id}">
-              ${translate('delete')}
-            </button>
-          </div>
-        ` : ''}
-      </div>
-    `;
-  }
-
-  attachEventListeners() {
-    if (this.canManage) {
-      document.getElementById('add-resource-btn')?.addEventListener('click', () => {
-        this.showResourceModal();
-      });
-
-      document.querySelectorAll('.edit-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const id = parseInt(e.target.dataset.id);
-          const resource = this.resources.find(r => r.id === id);
-          if (resource) {
-            this.showResourceModal(resource);
-          }
-        });
-      });
-
-      document.querySelectorAll('.delete-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-          const id = parseInt(e.target.dataset.id);
-          await this.handleDelete(id);
-        });
-      });
-    }
-  }
-
-  async handleDelete(id) {
-    if (!confirm(translate('resources.confirm_delete'))) {
-      return;
-    }
-
-    try {
-      await deleteResource(id);
-      showToast(translate('resources.deleted'), 'success');
-      await this.loadData();
-      this.render();
-      this.attachEventListeners();
-    } catch (error) {
-      debugError('Delete failed:', error);
-      showToast(translate('error.delete_failed'), 'error');
-    }
-  }
-
-  // Additional methods...
+/** @returns {Promise<Object>} API response */
+export function deleteResource(resourceId) {
+  return API.delete(`v1/resources/${encodeURIComponent(resourceId)}`);  // invalidates the cache itself
 }
 ```
 
----
+```javascript
+// spa/modules/resources/ResourceManager.js
+/**
+ * Resources — what the unit lends out, and removing what it no longer has.
+ *
+ * @module spa/modules/resources/ResourceManager
+ */
+import { translate } from '../../app.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { debugError } from '../../utils/DebugUtils.js';
+import { hasPermission } from '../../utils/PermissionUtils.js';
+import { confirmDestructive } from '../../utils/DialogUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { getResources, deleteResource } from '../../api/api-resources.js';
+
+export class ResourceManager {
+  /** @param {Object} app - Application instance */
+  constructor(app) {
+    this.app = app;
+    this.resources = [];
+    this.canDelete = hasPermission('resources.delete');
+  }
+
+  /** @returns {Promise<void>} */
+  async init() {
+    this.renderLoading();
+    try {
+      await this.load();
+      this.render();
+    } catch (error) {
+      debugError('Failed to load resources:', error);
+      this.renderError();
+    }
+  }
+
+  /** @param {{forceRefresh?: boolean}} [options] */
+  async load(options = {}) {
+    const response = await getResources(options);
+    this.resources = Array.isArray(response?.data) ? response.data : [];
+  }
+
+  /** @returns {HTMLElement|null} The page root */
+  root() {
+    return document.getElementById('app');
+  }
+
+  renderLoading() {
+    setContent(this.root(), `
+      <section class="page resources" aria-busy="true">
+        ${renderBackLink()}
+        <h1>${translate('resources_title')}</h1>
+        <p role="status">${translate('loading')}</p>
+      </section>
+    `);
+  }
+
+  renderError() {
+    setContent(this.root(), `
+      <section class="page resources">
+        ${renderBackLink()}
+        <h1>${translate('resources_title')}</h1>
+        <p class="status-message error" role="alert">${translate('error_loading_data')}</p>
+        <button type="button" class="button" id="resources-retry">${translate('retry')}</button>
+      </section>
+    `);
+    document.getElementById('resources-retry')?.addEventListener('click', () => this.init());
+  }
+
+  render() {
+    const root = this.root();
+    if (!root) {
+      return; // the person has left this screen
+    }
+    const items = this.resources.map((resource) => `
+      <li class="resource-card">
+        <span>${escapeHTML(resource.name)}</span>
+        ${this.canDelete ? `
+          <button type="button" class="button button--small button--danger" data-delete="${Number(resource.id)}">
+            ${translate('delete')}
+          </button>` : ''}
+      </li>`).join('');
+    setContent(root, `
+      <section class="page resources">
+        ${renderBackLink()}
+        <h1>${translate('resources_title')}</h1>
+        ${items ? `<ul class="resource-list">${items}</ul>` : `<p>${translate('resources_empty')}</p>`}
+      </section>
+    `);
+    // The markup was just replaced, so these listeners never stack.
+    root.querySelectorAll('[data-delete]').forEach((button) => {
+      button.addEventListener('click', () => this.remove(Number(button.dataset.delete)));
+    });
+  }
+
+  /** @param {number} resourceId */
+  async remove(resourceId) {
+    const resource = this.resources.find((item) => item.id === resourceId);
+    const confirmed = await confirmDestructive({
+      title: translate('resources_delete_title'),
+      message: translate('resources_delete_confirm').replace('{name}', resource?.name ?? ''),
+    });
+    if (!confirmed) {
+      return;
+    }
+    try {
+      await deleteResource(resourceId);
+      this.app.showMessage(translate('resources_deleted'), 'success');
+      await this.load({ forceRefresh: true });
+      this.render();
+    } catch (error) {
+      debugError('Failed to delete resource:', error);
+      this.app.showMessage(apiErrorMessage(error, 'resources_delete_failed'), 'error');
+    }
+  }
+}
+```
+
+Then register it in `spa/router.js` (loader, path, `guard(hasPermission('resources.view'))`), add every
+key to `lang/en.json` and `lang/fr.json`, and add `test/spa/ResourceManager.test.js` (§12).
 
 ## Code Review Checklist
 
@@ -949,17 +1118,19 @@ Before submitting code, verify:
 - [ ] User IDs treated as UUIDs (strings), not parsed to integers
 - [ ] No new keys added to `lang/en.json` without a matching key in `lang/fr.json`
 
-**Frontend (Web/Mobile):**
-- [ ] Uses `spa/config.js` constants (no hardcoded URLs)
-- [ ] New features in `spa/modules/<feature>/`, not in `spa/` root
-- [ ] No `innerHTML =` outside `DOMUtils.js` and `SecurityUtils.js`
-- [ ] API calls through centralized functions
-- [ ] `debugLog`/`debugError` instead of `console.*`
-- [ ] All user input sanitized before display
-- [ ] Translations for all user-facing text; keys added to both `en.json` and `fr.json`
-- [ ] Mobile-responsive layout
-- [ ] Loading/error/empty states
-- [ ] Permission checks before showing UI elements
+**Frontend (SPA):**
+- [ ] New screens in `spa/modules/<feature>/`, API calls in `spa/api/api-<feature>.js` through `API`
+- [ ] Route guarded by the permission its endpoints require; dashboard tile gated the same way
+- [ ] `setContent()` only; text escaped with `escapeHTML()`, attributes with `escapeAttribute()`
+- [ ] Back link first; loading, error (with retry) and empty states
+- [ ] Every key in both `en.json` and `fr.json`; no raw keys, role names or server messages on screen
+- [ ] Errors explained with `apiErrorMessage()`; success via `this.app.showMessage()`
+- [ ] Modals with `openModal()`, confirmations with `DialogUtils`, no browser dialogs
+- [ ] Native, labelled controls; 44px touch targets; visible focus; works at 390px wide
+- [ ] Permission checks with `hasPermission()` / `isParent()`, never `hasRole()`
+- [ ] No listeners stacked across re-renders; `destroy()` releases document-level ones
+- [ ] `test/spa/` test covering the behaviour, escaping, and an axe check
+- [ ] `debugLog`/`debugError` instead of `console.*`; `spa/config.js` constants, no hardcoded values
 
 **Linting (run all before PR):**
 - [ ] `npm run lint:all` passes (all checks in §11, ESLint included)
@@ -977,4 +1148,4 @@ Before submitting code, verify:
 
 ---
 
-**This document is the source of truth for development practices. When in doubt, refer to existing code in `routes/`, `spa/`, and `middleware/` for examples.**
+**This document is the source of truth for development practices, after the tests (§12). When in doubt, read the tests of the area, then the reference screens named in §7 and existing code in `routes/` and `middleware/`. When a test and this document disagree, fix this document.**

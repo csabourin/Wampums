@@ -118,17 +118,22 @@ The complete command list is authoritative in `package.json`.
 - `routes/` — REST endpoints, primarily under `/api/v1`
 - `middleware/` — authentication, authorization, validation, and response envelopes
 - `services/` — long-running and domain services
-- `spa/` — web application modules, API clients, utilities, offline support, and routing
+- `spa/` — web application: `modules/<feature>/` for screens, `api/` for API clients, `utils/` for shared helpers, `config/` for tiles and languages, `router.js` for routing
 - `mobile/` — Expo/React Native application
 - `lang/` — English and French web translations; key parity is enforced by lint
 - `migrations/` — SQL schema and seed changes
-- `test/` and `tests/` — server, SPA, integration, security, and user-story tests
+- `test/` and `tests/` — server, integration, security and user-story tests; `test/spa/` holds the jsdom tests of SPA screens
 - `content/blog/` — published bilingual Markdown content, not developer documentation
 
 ## Maintained documentation
 
 - `CLAUDE.md` — primary engineering standards and review checklist
 - `AGENTS.md` — repository instructions for coding agents
+- `.github/copilot-instructions.md` — the same, for Copilot
+- `.claude/skills/run-wampums/` — run, seed and screenshot the app locally (agents)
+- `devdocs/FAMILY_ACCESS.md`, `devdocs/EMAIL_SENDER.md`, `devdocs/UNIT_CUSTOMIZATION.md`,
+  `devdocs/GESTION_ANNEE_SCOUTE.md`, `devdocs/REFONTE_TABLEAU_DE_BORD.md`,
+  `devdocs/AI_PROMPT_SECURITY.md` — durable design notes for those features
 - `mobile/docs/README.md` — mobile setup and architecture entry point
 - `devdocs/oas-catalog-pipeline.md` — versioned program catalog workflow
 - `devdocs/go-to-market/` — current positioning and pilot material

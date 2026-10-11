@@ -7,9 +7,14 @@ This directory contains durable material that is not better expressed by code, t
 - [`../CLAUDE.md`](../CLAUDE.md) — engineering conventions, architecture rules, security requirements, and review checklist
 - [`../AGENTS.md`](../AGENTS.md) — concise coding-agent instructions
 - [`../readme.md`](../readme.md) — setup, commands, project map, and source-of-truth order
+- [`../.claude/skills/run-wampums/SKILL.md`](../.claude/skills/run-wampums/SKILL.md) — run, seed and screenshot the app locally
 - [`FAMILY_ACCESS.md`](./FAMILY_ACCESS.md) — invitations, parent onboarding, family links, and who can see which child
 - [`EMAIL_SENDER.md`](./EMAIL_SENDER.md) — a unit's email sender name, From and Reply-To, and the DNS that keeps them from being marked as spoofed
 - [`oas-catalog-pipeline.md`](./oas-catalog-pipeline.md) — versioned bilingual program catalog workflow
+- [`UNIT_CUSTOMIZATION.md`](./UNIT_CUSTOMIZATION.md) — unit vocabulary (dens, sections…) and which dashboard tiles a unit shows
+- [`REFONTE_TABLEAU_DE_BORD.md`](./REFONTE_TABLEAU_DE_BORD.md) — dashboard tile naming and grouping rules (French), cited by `spa/config/dashboard-tiles.js`
+- [`GESTION_ANNEE_SCOUTE.md`](./GESTION_ANNEE_SCOUTE.md) — scout-year architecture: transitions, archives, rollback, alumni, transfers (French)
+- [`AI_PROMPT_SECURITY.md`](./AI_PROMPT_SECURITY.md) — trust boundary for data sent to the AI endpoints
 - [`go-to-market/pilot-playbook.md`](./go-to-market/pilot-playbook.md) — pilot operating guide
 - [`go-to-market/positioning-en.md`](./go-to-market/positioning-en.md) — English positioning
 - [`go-to-market/positioning-fr.md`](./go-to-market/positioning-fr.md) — French positioning
