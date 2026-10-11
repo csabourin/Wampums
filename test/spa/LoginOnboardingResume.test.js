@@ -45,6 +45,7 @@ jest.mock('../../spa/api/api-family.js', () => ({ getOnboardingContext: jest.fn(
 
 import { getOnboardingContext } from '../../spa/api/api-family.js';
 import { Login } from '../../spa/login.js';
+import { buildLoginRedirect } from '../../spa/utils/LoginRedirectUtils.js';
 
 /**
  * Run the post-login redirect and report where it went.
@@ -58,9 +59,50 @@ async function landing() {
 }
 
 beforeEach(() => {
+  history.replaceState(null, '', '/login');
   jest.clearAllMocks();
   mockRole.parent = true;
   mockRole.permissions = new Set(['participants.create_own']);
+});
+
+test.each([true, false])('a notification destination survives login for parent=%s', async (parent) => {
+  mockRole.parent = parent;
+  history.replaceState(null, '', '/login?returnTo=%2Fmessages%2F42');
+  expect(await landing()).toBe('/messages/42');
+  expect(getOnboardingContext).not.toHaveBeenCalled();
+});
+
+test('a local return destination preserves its query string and fragment', async () => {
+  history.replaceState(null, '', '/messages/42?source=push#message-title');
+  const routePath = window.location.pathname + window.location.search;
+  history.pushState(null, '', buildLoginRedirect(routePath, window.location.href));
+  expect(await landing()).toBe('/messages/42?source=push');
+  expect(window.location.hash).toBe('#message-title');
+});
+
+test('a static destination with a fragment is routed without the fragment', async () => {
+  history.replaceState(null, '', '/dashboard#announcements');
+  history.pushState(null, '', buildLoginRedirect('/dashboard', window.location.href));
+  expect(await landing()).toBe('/dashboard');
+  expect(window.location.hash).toBe('#announcements');
+});
+
+test('programmatic navigation does not copy a different page fragment', async () => {
+  history.replaceState(null, '', '/dashboard#announcements');
+  history.pushState(null, '', buildLoginRedirect('/messages/42', window.location.href));
+  expect(await landing()).toBe('/messages/42');
+  expect(window.location.hash).toBe('');
+});
+
+test('a destination fragment wins over the current page fragment', () => {
+  const redirect = buildLoginRedirect('/messages/42#requested', 'http://localhost/messages/42#previous');
+  expect(new URLSearchParams(redirect.split('?')[1]).get('returnTo')).toBe('/messages/42#requested');
+});
+
+test.each(['https://example.com/messages/42', '//example.com/messages/42', '/\\example.com/messages/42', '/login?returnTo=/messages/42'])('rejects unsafe or looping return destination %s', async (destination) => {
+  mockRole.parent = false;
+  history.replaceState(null, '', `/login?returnTo=${encodeURIComponent(destination)}`);
+  expect(await landing()).toBe('/dashboard');
 });
 
 test('a parent with children still to register is taken back to that step', async () => {

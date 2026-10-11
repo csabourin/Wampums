@@ -329,6 +329,7 @@ const result = await pool.query(
   (`withFormBusy` disables those too). Cancel buttons carry `data-modal-close`.
 - ✅ Confirmations, alerts and prompts use `confirm` / `confirmDestructive` / `alert` / `prompt` from
   `spa/utils/DialogUtils.js`, never the browser's.
+  While one is open, underlying modals defer keyboard handling to it.
 - ❌ No hand-built overlays, native `<dialog>`, or page styles for `.modal-*` classes.
 
 #### Configuration

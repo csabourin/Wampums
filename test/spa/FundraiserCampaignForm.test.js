@@ -53,7 +53,10 @@ jest.mock('../../spa/utils/DOMUtils.js', () => {
   };
 });
 
-jest.mock('../../spa/utils/DialogUtils.js', () => ({ confirmDestructive: jest.fn() }));
+jest.mock('../../spa/utils/DialogUtils.js', () => ({
+  ...jest.requireActual('../../spa/utils/DialogUtils.js'),
+  confirmDestructive: jest.fn(),
+}));
 jest.mock('../../spa/indexedDB.js', () => ({ clearFundraiserRelatedCaches: jest.fn() }));
 
 // Each action follows its own permission; tests switch them off one by one.

@@ -20,6 +20,7 @@ jest.mock('../../spa/app.js', () => ({
 }));
 
 const { openModal, closeModal, closeAllModals } = require('../../spa/utils/ModalUtils.js');
+const { confirm, dismissActiveDialog } = require('../../spa/utils/DialogUtils.js');
 
 const AXE_OPTIONS = {
   runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
@@ -47,9 +48,35 @@ function openForm(options = {}) {
 }
 
 beforeEach(() => {
+  dismissActiveDialog();
   closeAllModals();
   document.body.innerHTML = '<main><button id="opener">Open</button></main>';
   document.getElementById('opener').focus();
+});
+
+test('a confirmation above a modal owns Tab and Escape until it closes', async () => {
+  openForm();
+  const pending = confirm('Delete camp?');
+  const confirmation = document.querySelector('.dialog-overlay');
+  const buttons = confirmation.querySelectorAll('button');
+  // jsdom has no layout; expose the controls as visible to DialogUtils.
+  buttons.forEach((button) => Object.defineProperty(button, 'offsetParent', { get: () => confirmation }));
+  buttons[0].focus();
+  press('Tab', { cancelable: true });
+  expect(document.activeElement).toBe(buttons[0]);
+  // The browser's default Tab action moves to the next button. At its edge,
+  // the confirmation's own focus trap wraps back to the first.
+  buttons[1].focus();
+  press('Tab', { cancelable: true });
+  expect(document.activeElement).toBe(buttons[0]);
+  press('Tab', { shiftKey: true, cancelable: true });
+  expect(document.activeElement).toBe(buttons[1]);
+  press('Escape', { cancelable: true });
+  expect(await pending).toBe(false);
+  expect(document.getElementById('test-modal')).not.toBeNull();
+  expect(document.activeElement.id).toBe('camp-name');
+  press('Escape', { cancelable: true });
+  expect(document.getElementById('test-modal')).toBeNull();
 });
 
 describe('openModal', () => {

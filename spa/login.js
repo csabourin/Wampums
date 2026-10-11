@@ -322,6 +322,9 @@ export class Login {
   /**
    * Send the user to where they should land.
    *
+   * A local returnTo destination (such as a tapped notification) takes priority
+   * and survives a login-page reload. Other origins and login loops are rejected.
+   *
    * A parent who accepted an invitation but has not finished registering their
    * children is sent back to that step. Whether they have is read from the
    * server, not from anything this browser remembered: the invitation may have
@@ -333,8 +336,22 @@ export class Login {
    */
   async redirectAfterLogin() {
     let targetPath = isParent() ? "/parent-dashboard" : "/dashboard";
+    const requestedPath = new URLSearchParams(window.location.search).get('returnTo');
+    let returnPath = null;
+    // Accept only local app paths; a crafted login URL must never redirect
+    // to another origin or back to the login screen.
+    if (requestedPath?.startsWith('/') && !requestedPath.startsWith('//')) {
+      try {
+        const destination = new URL(requestedPath, window.location.origin);
+        if (destination.origin === window.location.origin && destination.pathname !== '/login') {
+          returnPath = `${destination.pathname}${destination.search}${destination.hash}`;
+        }
+      } catch (_error) {
+        // An invalid destination falls back to the member's usual landing page.
+      }
+    }
 
-    if (isParent() && hasPermission("participants.create_own")) {
+    if (!returnPath && isParent() && hasPermission("participants.create_own")) {
       try {
         const context = await getOnboardingContext();
         if (context?.data?.onboarding_pending) {
@@ -345,11 +362,14 @@ export class Login {
       }
     }
 
+    targetPath = returnPath || targetPath;
     debugLog(`Redirecting to ${targetPath}`);
 
     // Update the URL in browser history and navigate immediately
     history.pushState(null, "", targetPath);
-    this.app.router.route(targetPath);
+    // The fragment remains in browser history; route matching uses only the
+    // pathname and query, just as it does when the app initially loads.
+    this.app.router.route(targetPath.split('#')[0]);
   }
 
   /**

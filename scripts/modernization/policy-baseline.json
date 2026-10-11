@@ -203,7 +203,7 @@
     "spa/resource_dashboard.js": 108,
     "spa/revenue-dashboard.js": 168,
     "spa/role_management.js": 15,
-    "spa/router.js": 336,
+    "spa/router.js": 335,
     "spa/time_since_registration.js": 61,
     "spa/upcoming_meeting.js": 102,
     "spa/utils/ActivityDateUtils.js": 1,
