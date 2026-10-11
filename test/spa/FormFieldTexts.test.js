@@ -146,9 +146,9 @@ describe('Resolving a field text', () => {
       .toEqual({ text: 'Consentement', own: false });
   });
 
-  it('then to the unit\'s text in another language', () => {
+  it('never borrows another language\'s text: a page shows one language', () => {
     expect(resolveFormText({ it: 'Il nostro testo' }, 'cle_inconnue', 'fr', translate))
-      .toEqual({ text: 'Il nostro testo', own: true });
+      .toEqual({ text: 'cle_inconnue', own: false });
   });
 });
 
@@ -272,15 +272,23 @@ describe('Form builder: the translations dialog', () => {
     });
   });
 
-  it('reports a missing text only when neither the unit nor the app has one', () => {
+  it('flags each interface language where a field would show its bare key', () => {
     builderWith([
       LABEL_FIELD,
       { name: 'autre', type: 'text', label: 'cle_absente' },
       { name: 'propre', type: 'text', label: 'cle_absente', labelText: { fr: 'Le nôtre' } },
+      { name: 'complet', type: 'text', label: 'cle_absente', labelText: { fr: 'Le nôtre', en: 'Ours' } },
     ]);
-    const warnings = Array.from(document.querySelectorAll('.field-item'))
-      .map((item) => item.querySelector('.badge-warning') !== null);
-    expect(warnings).toEqual([false, true, false]);
+    const badges = Array.from(document.querySelectorAll('.field-item'))
+      .map((item) => item.querySelector('.badge-warning .sr-only')?.textContent ?? null);
+    const name = (code) => new Intl.DisplayNames(['fr'], { type: 'language' }).of(code).replace(/^./, (c) => c.toUpperCase());
+
+    expect(badges).toEqual([
+      null,
+      `translation_missing : ${name('en')}, ${name('fr')}`,
+      `translation_missing : ${name('en')}`,
+      null,
+    ]);
   });
 });
 

@@ -16,11 +16,12 @@ import { setContent, insertHTML } from './utils/DOMUtils.js';
 import { openModal, closeModal } from './utils/ModalUtils.js';
 import { BaseModule } from './utils/BaseModule.js';
 import { confirmDestructive } from './utils/DialogUtils.js';
-import { DEFAULT_LANG, FORM_CONTENT_LANGS } from './config/languages.js';
+import { DEFAULT_LANG, FORM_CONTENT_LANGS, SUPPORTED_LANGS } from './config/languages.js';
 import {
   formInfoHtml,
   hasOwnText,
   resolveFormText,
+  richTextHasContent,
   sanitizeRichText,
 } from './utils/FormTextUtils.js';
 import {
@@ -88,7 +89,11 @@ export class FormBuilder extends BaseModule {
      */
   async init() {
     debugLog('Initializing FormBuilder');
-    await this.loadData();
+    // Every interface language's bundle, to flag fields missing one of them.
+    await Promise.all([
+      this.loadData(),
+      ...SUPPORTED_LANGS.map((lang) => app?.loadTranslation?.(lang)),
+    ]);
     this.render();
     this.attachEventListeners();
   }
@@ -234,7 +239,7 @@ export class FormBuilder extends BaseModule {
                             <span class="field-type">${escapeHTML(field.type)}</span>
                             ${field.required ? `<span class="badge">${translate('required')}</span>` : ''}
                             ${field.dependsOn ? `<span class="badge badge-info">${translate('conditional')}: ${escapeHTML(`${field.dependsOn.field} = ${field.dependsOn.value}`)}</span>` : ''}
-                            ${this.checkTranslation(field) ? '' : `<span class="badge badge-warning" title="${translate('translation_missing')}"><span aria-hidden="true">⚠</span><span class="sr-only">${translate('translation_missing')}</span></span>`}
+                            ${this.renderMissingTextBadge(field)}
                         </div>
                         <div class="field-actions">
                             <button class="btn-icon move-up" data-index="${index}" 
@@ -255,19 +260,36 @@ export class FormBuilder extends BaseModule {
   }
 
   /**
-   * Whether a field shows a real text rather than its bare key: the unit
-   * wrote its own, or the key has a translation in the app's bundle.
+   * The interface languages in which a field would show its bare key: the
+   * unit wrote no text of its own there and the app has none for the key.
    *
    * @param {Object} field - Form field
-   * @returns {boolean}
+   * @returns {string[]} Language codes, empty when every language has a text
    */
-  checkTranslation(field) {
+  missingTextLanguages(field) {
     const kind = field.type === 'infoText' ? 'infoHtml' : 'labelText';
-    if (hasOwnText(field[kind])) {
-      return true;
-    }
     const key = field[FIELD_TEXT_KINDS[kind].keyProperty];
-    return Boolean(key) && translate(key) !== key;
+    return SUPPORTED_LANGS.filter((lang) => {
+      if (richTextHasContent(field[kind]?.[lang])) {
+        return false;
+      }
+      return !(key && app?.translations?.[lang]?.[key]);
+    });
+  }
+
+  /**
+   * The "missing translation" badge, naming the languages concerned.
+   *
+   * @param {Object} field - Form field
+   * @returns {string} HTML, empty when nothing is missing
+   */
+  renderMissingTextBadge(field) {
+    const missing = this.missingTextLanguages(field);
+    if (missing.length === 0) {
+      return '';
+    }
+    const label = `${translate('translation_missing')} : ${missing.map(languageName).join(', ')}`;
+    return `<span class="badge badge-warning" title="${escapeHTML(label)}"><span aria-hidden="true">⚠</span><span class="sr-only">${escapeHTML(label)}</span></span>`;
   }
 
   /**

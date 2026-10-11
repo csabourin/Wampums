@@ -8,15 +8,14 @@
  *   labelText: { fr: 'Autres langues', en: 'Other languages', it: '…' }
  *   infoHtml:  { fr: '<p>Tout au long de l’année…</p>', en: '…' }
  *
- * The field's own text in the reader's language wins; then the key's bundle
- * text; then the field's own text in any other language, so a unit that wrote
- * only French still shows something to an English reader.
+ * The field's own text in the reader's language wins, then the key's bundle
+ * text in that language. Texts in other languages are never shown in its
+ * place: a page shows one language.
  *
  * @module utils/FormTextUtils
  */
 
 import DOMPurify from 'dompurify';
-import { DEFAULT_LANG } from '../config/languages.js';
 import { escapeHTML } from './SecurityUtils.js';
 
 /** Tags the information-text editor produces; anything else is dropped. */
@@ -74,24 +73,10 @@ export function hasOwnText(texts) {
 }
 
 /**
- * The field's own text in `lang`, else in the default language, else in the
- * first language that has one.
- *
- * @param {Object<string, string>|undefined} texts - Language code → text
- * @param {string} lang - Reader's language
- * @returns {string|null} The text, or null when the field has none of its own
- */
-function ownText(texts, lang) {
-  if (!texts) {
-    return null;
-  }
-  const candidates = [texts[lang], texts[DEFAULT_LANG], ...Object.values(texts)];
-  return candidates.find((text) => richTextHasContent(text)) ?? null;
-}
-
-/**
- * Resolve a field text: own text in the reader's language, then the bundle
- * text for the key, then own text in another language, then the key itself.
+ * Resolve a field text in the reader's language only: the unit's own text,
+ * then the bundle text for the key, then the key itself. Another language's
+ * text is never borrowed — a page shows one language (CLAUDE.md §1); the
+ * builder flags fields missing an interface language instead.
  *
  * @param {Object<string, string>|undefined} texts - The field's own texts
  * @param {string|undefined} key - Translation key
@@ -108,10 +93,6 @@ export function resolveFormText(texts, key, lang, translate) {
     if (translated && translated !== key) {
       return { text: translated, own: false };
     }
-  }
-  const fallback = ownText(texts, lang);
-  if (fallback !== null) {
-    return { text: fallback, own: true };
   }
   return { text: key || '', own: false };
 }
