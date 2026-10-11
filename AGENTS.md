@@ -27,7 +27,9 @@ test wins and the document gets fixed.
   `services/roleAssignment.js`. Schema changes are re-runnable files in `migrations/`.
 
 ## Frontend (SPA)
-- New screens in `spa/modules/<feature>/`, never the `spa/` root. API calls in
+- New screens in `spa/modules/<feature>/`, never the `spa/` root. **An older screen in the `spa/` root
+  that you touch moves to `spa/modules/<feature>/`** in its own commit, and the parts you change follow
+  CLAUDE.md §7 (details there). API calls in
   `spa/api/api-<feature>.js` through `API` from `spa/api/api-core.js`; writes invalidate the cache.
 - `setContent()`, never `innerHTML =`; `escapeHTML()` / `escapeAttribute()` for anything from people.
 - Every screen: `renderBackLink()` first, then loading, error-with-retry and empty states.
@@ -39,8 +41,9 @@ test wins and the document gets fixed.
 - Reference screens: `spa/modules/walk-in/WalkInChildren.js`, `spa/modules/messages/Messages.js`.
 
 ## Mobile (Expo)
-- `mobile/` has its own toolchain and is changed only when a task asks for it. It mirrors web security
-  practices (`mobile/src/utils/SecurityUtils.js`) and the `lang/*.json` keys.
+- **`mobile/` is frozen.** It will be ported from the SPA in one piece once the SPA is stable; do not
+  change it unless a task explicitly asks. Keep SPA configuration declarative (tiles, tabbed pages,
+  buttons in `spa/config/`) so that port can reuse it.
 
 ## Testing & Deployment
 - Every behaviour change comes with a test named as a plain statement of behaviour. SPA tests live in

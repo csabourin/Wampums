@@ -78,7 +78,7 @@
     "scripts/modernization/check-api-version.js": 77,
     "scripts/modernization/check-duplicate-mounts.js": 24,
     "scripts/modernization/check-i18n-parity.js": 2,
-    "scripts/modernization/check-spa-files.js": 85,
+    "scripts/modernization/check-spa-files.js": 82,
     "scripts/run-base-migrations.js": 2,
     "scripts/run-migration.js": 2,
     "scripts/setup-local-database.js": 227,

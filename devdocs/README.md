@@ -12,8 +12,8 @@ This directory contains durable material that is not better expressed by code, t
 - [`EMAIL_SENDER.md`](./EMAIL_SENDER.md) — a unit's email sender name, From and Reply-To, and the DNS that keeps them from being marked as spoofed
 - [`oas-catalog-pipeline.md`](./oas-catalog-pipeline.md) — versioned bilingual program catalog workflow
 - [`UNIT_CUSTOMIZATION.md`](./UNIT_CUSTOMIZATION.md) — unit vocabulary (dens, sections…) and which dashboard tiles a unit shows
-- [`REFONTE_TABLEAU_DE_BORD.md`](./REFONTE_TABLEAU_DE_BORD.md) — dashboard tile naming and grouping rules (French), cited by `spa/config/dashboard-tiles.js`
-- [`GESTION_ANNEE_SCOUTE.md`](./GESTION_ANNEE_SCOUTE.md) — scout-year architecture: transitions, archives, rollback, alumni, transfers (French)
+- [`REFONTE_TABLEAU_DE_BORD.md`](./REFONTE_TABLEAU_DE_BORD.md) — dashboard tile naming, grouping and tabbed-page rules, and what the mobile port can reuse (French)
+- [`GESTION_ANNEE_SCOUTE.md`](./GESTION_ANNEE_SCOUTE.md) — scout-year rules: transition, archives, rollback, alumni, transfers, erasure (French)
 - [`AI_PROMPT_SECURITY.md`](./AI_PROMPT_SECURITY.md) — trust boundary for data sent to the AI endpoints
 - [`go-to-market/pilot-playbook.md`](./go-to-market/pilot-playbook.md) — pilot operating guide
 - [`go-to-market/positioning-en.md`](./go-to-market/positioning-en.md) — English positioning

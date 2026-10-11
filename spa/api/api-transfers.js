@@ -1,7 +1,7 @@
 // api-transfers.js
 // API client for moving a participant to a sister unit.
 //
-// The interface that calls this is meant to live in the district space (§8.5 of
+// The interface that calls this is meant to live in the district space (« Transfert vers une unité sœur » in
 // devdocs/GESTION_ANNEE_SCOUTE.md), which is not built yet. The client is here so
 // the endpoints have a single caller when it is.
 import { API } from './api-core.js';

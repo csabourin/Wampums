@@ -19,6 +19,7 @@ Core constraints:
 - Sanitize untrusted data, avoid direct SPA `innerHTML` assignments, and never expose secrets.
 - Keep web UI mobile-first and touch-friendly.
 - Put new SPA screens under `spa/modules/<feature>/` and their API calls in `spa/api/api-<feature>.js`; use `setContent()`, `escapeHTML()`, `openModal()`, `DialogUtils`, `apiErrorMessage()` and `hasPermission()` (never `hasRole()`), and avoid `console.*` in SPA code. CLAUDE.md §7 describes a screen end to end.
+- An older screen in the `spa/` root that you touch moves to `spa/modules/<feature>/` in its own commit. `mobile/` is frozen until the SPA is stable; do not change it unless asked.
 - Never show the server's English `message`, a raw translation key, or a role's internal name.
 - Add or update tests with behavior changes (SPA tests in `test/spa/`, with an `axe-core` check for new screens and dialogs) and run `npm run lint:all`, `npm run build` and `npm run test:quality`.
 

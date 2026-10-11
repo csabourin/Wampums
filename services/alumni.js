@@ -6,7 +6,7 @@
  * module is how a deactivated membership is offered the chance to become one,
  * and how it leaves again.
  *
- * Three properties hold the whole design together (§8.8 of
+ * Three properties hold the whole design together (« Alumni » in
  * devdocs/GESTION_ANNEE_SCOUTE.md):
  *
  * 1. **Never automatic.** A year transition posts `inactive` and stops there.

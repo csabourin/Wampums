@@ -4,8 +4,8 @@
 **Project:** Wampums Scout Management System
 **Tech Stack:** Node.js + Express, PostgreSQL, Vite (SPA), Vanilla JavaScript (ES modules), Expo/React Native (mobile)
 
-**Scope.** Most work is on the API and the web SPA (`spa/`). `mobile/` has its own toolchain and is
-changed only when a task asks for it. **The tests are the most current specification** (§12): read
+**Scope.** Work is on the API and the web SPA (`spa/`). **`mobile/` is frozen**: it will be ported
+from the SPA in one piece once the SPA is stable, so do not change it unless a task explicitly asks. **The tests are the most current specification** (§12): read
 those of the area you touch before you change it. §7 says how to build an SPA screen, and the templates
 at the end show one.
 
@@ -358,8 +358,22 @@ const result = await pool.query(
 
 #### Where code goes
 - ✅ ES modules only. **New screens go in `spa/modules/<feature>/`**; no new files in the `spa/` root
-  (`npm run lint:spa-files`). The root files (`spa/manage_points.js`, `spa/dashboard.js`, …) are older
-  screens: change them in place, and move one into `spa/modules/` only as its own change.
+  (`npm run lint:spa-files`).
+- ✅ **Touching an older screen in the `spa/` root (`spa/manage_points.js`, `spa/badge_tracker.js`, …)
+  means bringing it into line.** The app is to read as one codebase, however long it has been built:
+  - move it to `spa/modules/<feature>/<Screen>.js` (`git mv`, so history follows), then update its
+    imports, the router's loader, every test's import and `jest.mock` path, and remove its name from
+    `SPA_ALLOW_LIST` in `scripts/modernization/check-spa-files.js`;
+  - the lint ratchets count by path, so carry the file's existing counts to its new path: rename its key
+    in `scripts/modernization/policy-baseline.json` and in `eslint-suppressions.json`, counts unchanged.
+    This rename is the only hand edit those files accept. Then `npx eslint --fix` the moved file and
+    lower the baseline (§10);
+  - bring the parts you change up to this section (back link, states, escaping, `apiErrorMessage`,
+    `showMessage`, `openModal`, `button` classes), and at least what a test of your change exercises;
+  - do the move in its own commit, before the behaviour change, so the review can tell them apart;
+  - shared infrastructure in the root (`app.js`, `router.js`, `config.js`, `ajax-functions.js`,
+    `indexedDB.js`, `JSONFormRenderer.js`, `dynamicFormHandler.js`, `functions.js`, `jwt-helper.js`,
+    `offline-init.js`, `pwa-update-manager.js`) stays where it is: many files import it.
 - ✅ Shared helpers go in `spa/utils/`, configuration in `spa/config.js` and `spa/config/*.js`, and a
   feature's API calls in `spa/api/api-<feature>.js`. Check `spa/utils/` before writing a helper; most
   needs (dates, money, labels, dialogs, scroll lock, back link, errors) already have one there.
@@ -548,7 +562,7 @@ The project enforces ESLint 9 rules. **Errors block CI; warnings must be resolve
   warnings, lower the baseline with `npm run lint:policy -- --update-baseline`.
 - After fixing a suppressed error, run `npm run lint:eslint:prune` and commit the smaller file — CI also
   fails while the suppressions list errors that no longer exist.
-- Never add to `eslint-suppressions.json` by hand. A false positive gets an inline
+- Never add to `eslint-suppressions.json` by hand (renaming a moved file's key, §7, is the one exception). A false positive gets an inline
   `// eslint-disable-next-line <rule> -- <reason>`.
 - `mobile/` has its own toolchain and is not linted by the root config.
 
@@ -1120,6 +1134,7 @@ Before submitting code, verify:
 
 **Frontend (SPA):**
 - [ ] New screens in `spa/modules/<feature>/`, API calls in `spa/api/api-<feature>.js` through `API`
+- [ ] An older `spa/` root screen that was touched has been moved into `spa/modules/` (own commit)
 - [ ] Route guarded by the permission its endpoints require; dashboard tile gated the same way
 - [ ] `setContent()` only; text escaped with `escapeHTML()`, attributes with `escapeAttribute()`
 - [ ] Back link first; loading, error (with retry) and empty states
