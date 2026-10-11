@@ -12,6 +12,7 @@ import { hasPermission } from '../../utils/PermissionUtils.js';
 import { skeletonTable } from '../../utils/SkeletonUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { CONFIG } from '../../config.js';
+import { INTERFACE_LANGS } from '../../config/languages.js';
 import { buildYearModel } from './PlannerModel.js';
 import { renderYearGrid, renderYearSummary, renderArmBar, renderLiveRegion } from './YearGridView.js';
 import { openMeetingSheet } from './MeetingSheet.js';
@@ -67,7 +68,8 @@ export class YearlyPlanner extends BaseModule {
       || localStorage.getItem('lang')
       || localStorage.getItem('language')
       || CONFIG.DEFAULT_LANG;
-    this.lang = CONFIG.SUPPORTED_LANGS.includes(requestedLang)
+    // Any interface language the unit offers, optional ones included.
+    this.lang = INTERFACE_LANGS.includes(requestedLang)
       ? requestedLang
       : CONFIG.DEFAULT_LANG;
     this.placement = new ArmedPlacement();

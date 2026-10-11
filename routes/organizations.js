@@ -41,7 +41,13 @@ const {
 // Settings that have their own validated endpoint and must not be written
 // through the generic PUT /settings.
 const PARENT_DASHBOARD_SETTING_KEY = 'parent_dashboard_configuration';
-const DEDICATED_SETTING_KEYS = new Set([EMAIL_SENDER_SETTING_KEY, PARENT_DASHBOARD_SETTING_KEY]);
+// Settings with a validated endpoint of their own; the generic PUT must not
+// bypass that validation.
+const DEDICATED_SETTING_KEYS = new Set([
+  EMAIL_SENDER_SETTING_KEY,
+  PARENT_DASHBOARD_SETTING_KEY,
+  INTERFACE_LANGUAGES_SETTING_KEY,
+]);
 const HTTP_BAD_REQUEST = 400;
 
 // Validate JWT secret at startup

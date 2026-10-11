@@ -123,14 +123,15 @@ async function refreshOrganizationSettings(application) {
  * translation route keeps them too.
  *
  * @param {string} currentLang - The language already loaded
+ * @param {string[]} languages - The languages the unit offers
  */
-function cacheOtherLanguagesForOffline(currentLang) {
+function cacheOtherLanguagesForOffline(currentLang, languages) {
   // Without service workers the app does not work offline at all.
   if (!('serviceWorker' in navigator)) {
     return;
   }
   const prefetch = () => {
-    CONFIG.SUPPORTED_LANGS
+    languages
       .filter((langCode) => langCode !== currentLang && window.__wampumsLangVersions?.[langCode])
       .forEach((langCode) => {
         fetch(translationUrl(langCode), { priority: 'low' })
@@ -375,7 +376,7 @@ export const app = {
       // Ensure service worker is registered (fallback if vite-plugin-pwa injection missed)
       this.registerServiceWorker();
 
-      cacheOtherLanguagesForOffline(this.lang);
+      cacheOtherLanguagesForOffline(this.lang, this.getUnitLanguages().available);
 
       // Initialize offline support
       initOfflineSupport();
@@ -651,8 +652,11 @@ export const app = {
    * @returns {Promise<void>}
    */
   async applyUnitLanguages() {
-    const { fallback } = this.getUnitLanguages();
+    const { available, fallback } = this.getUnitLanguages();
     localStorage.setItem(FALLBACK_LANG_STORAGE_KEY, fallback);
+    // Startup ran before the settings were known; cache the unit's optional
+    // languages too, so switching works offline.
+    cacheOtherLanguagesForOffline(this.lang, available);
     const lang = resolveInterfaceLanguage(this.lang, this.organizationSettings);
     const expectedFallback = fallbackLanguageFor(lang, fallback);
     if (lang !== this.lang || expectedFallback !== this.fallbackLang) {
