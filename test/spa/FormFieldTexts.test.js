@@ -253,7 +253,7 @@ describe('Form builder: the translations dialog', () => {
     expect(builder.currentFields[0].label).toBe('consentement_label');
   });
 
-  it('makes the information key optional once the field has its own text', async () => {
+  it('keeps the key required, since the mobile app reads only the key', async () => {
     const builder = builderWith([{ type: 'infoText' }]);
     builder.renderFieldEditor(0);
     const key = document.getElementById('field-info-text');
@@ -263,9 +263,13 @@ describe('Form builder: the translations dialog', () => {
     document.getElementById('trans-fr').innerHTML = '<p>Bienvenue</p>';
     saveTranslations();
 
-    expect(key.required).toBe(false);
+    expect(key.required).toBe(true);
+    expect(key.checkValidity()).toBe(false);
+    key.value = 'bienvenue_texte';
     document.querySelector('#field-editor-modal .modal-footer button[type="submit"]').click();
-    expect(builder.currentFields[0]).toEqual({ type: 'infoText', required: false, infoHtml: { fr: '<p>Bienvenue</p>' } });
+    expect(builder.currentFields[0]).toEqual({
+      type: 'infoText', required: false, infoText: 'bienvenue_texte', infoHtml: { fr: '<p>Bienvenue</p>' },
+    });
   });
 
   it('reports a missing text only when neither the unit nor the app has one', () => {

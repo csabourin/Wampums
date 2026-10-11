@@ -2559,7 +2559,7 @@
   "required": "Required",
   "conditional": "Conditional",
   "text_preview": "Preview:",
-  "info_text_key_hint": "Optional when you write the text with “Add a translation”.",
+  "info_text_key_hint": "Used by the mobile app and for any language without a text of its own.",
   "translations_hint": "Each language starts from the current text. Leave a language empty to use the app’s default text.",
   "rte_toolbar": "Formatting",
   "rte_bold": "Bold",

@@ -289,8 +289,9 @@ export class FormBuilder extends BaseModule {
   }
 
   /**
-   * Refresh the preview lines and which key inputs are required: a key is
-   * optional once the field has a text of its own.
+   * Refresh the preview lines and which key input is required. The key stays
+   * required even when the field has texts of its own: the mobile app reads
+   * only the key until it learns `labelText` and `infoHtml`.
    *
    * @returns {void}
    */
@@ -301,7 +302,7 @@ export class FormBuilder extends BaseModule {
       const preview = document.getElementById(`${keyInput}-preview`);
       const applies = (kind === 'infoHtml') === (type === 'infoText');
       if (input) {
-        input.required = applies && !hasOwnText(this.editorTexts?.[kind]);
+        input.required = applies;
       }
       if (preview) {
         setContent(preview, this.renderTextPreview(kind));
@@ -366,7 +367,7 @@ export class FormBuilder extends BaseModule {
                 </div>
 
                 <div class="form-group" id="field-info-text-group" ${field.type === 'infoText' ? '' : 'style="display:none;"'}>
-                    <label for="field-info-text">${translate('info_text_key')}</label>
+                    <label for="field-info-text">${translate('info_text_key')} *</label>
                     <div class="input-with-button">
                         <input type="text" id="field-info-text" name="infoText" value="${escapeHTML(field.infoText || '')}"
                                placeholder="info_text_key" aria-describedby="field-info-text-hint">

@@ -2553,7 +2553,7 @@
   "required": "Requis",
   "conditional": "Conditionnel",
   "text_preview": "Aperçu :",
-  "info_text_key_hint": "Facultative si vous écrivez le texte avec « Ajouter une traduction ».",
+  "info_text_key_hint": "Utilisée par l’application mobile et pour toute langue sans texte propre.",
   "translations_hint": "Chaque langue part du texte actuel. Laissez une langue vide pour utiliser le texte par défaut de l’application.",
   "rte_toolbar": "Mise en forme",
   "rte_bold": "Gras",
