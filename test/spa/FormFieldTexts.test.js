@@ -253,6 +253,16 @@ describe('Form builder: the translations dialog', () => {
     expect(builder.currentFields[0].label).toBe('consentement_label');
   });
 
+  it('keeps quotes in a text when the dialog is reopened', async () => {
+    const builder = builderWith([{ ...LABEL_FIELD, labelText: { en: 'The child’s "preferred" name' } }]);
+    builder.renderFieldEditor(0);
+    await openTranslations(builder, 'labelText');
+
+    expect(document.getElementById('trans-en').value).toBe('The child’s "preferred" name');
+    saveTranslations();
+    expect(builder.editorTexts.labelText.en).toBe('The child’s "preferred" name');
+  });
+
   it('keeps the key required, since the mobile app reads only the key', async () => {
     const builder = builderWith([{ type: 'infoText' }]);
     builder.renderFieldEditor(0);

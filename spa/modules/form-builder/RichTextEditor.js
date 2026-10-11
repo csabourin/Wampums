@@ -17,7 +17,7 @@
  */
 
 import { translate } from '../../app.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { escapeAttribute } from '../../utils/SecurityUtils.js';
 import { prompt, alert } from '../../utils/DialogUtils.js';
 import {
   RICH_TEXT_LINK_PATTERN,
@@ -62,14 +62,14 @@ export function richTextEditorHTML({ id, labelId, html = '' }) {
   const buttons = COMMANDS.map(({ command, icon, labelKey, toggle }, index) => `
     <button type="button" class="rte__button" data-rte-command="${command}"
             tabindex="${index === 0 ? '0' : '-1'}"
-            aria-label="${escapeHTML(translate(labelKey))}"
+            aria-label="${escapeAttribute(translate(labelKey))}"
             ${toggle ? 'aria-pressed="false"' : ''}>
       <i class="fa-solid ${icon}" aria-hidden="true"></i>
     </button>`).join('');
 
   return `
     <div class="rte" data-rte>
-      <div class="rte__toolbar" role="toolbar" aria-label="${escapeHTML(translate('rte_toolbar'))}" aria-controls="${id}">
+      <div class="rte__toolbar" role="toolbar" aria-label="${escapeAttribute(translate('rte_toolbar'))}" aria-controls="${id}">
         ${buttons}
       </div>
       <div id="${id}" class="rte__area" role="textbox" aria-multiline="true"

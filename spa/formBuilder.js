@@ -10,7 +10,7 @@
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { API } from './api/api-core.js';
 import { app, translate } from './app.js';
-import { escapeHTML } from './utils/SecurityUtils.js';
+import { escapeAttribute, escapeHTML } from './utils/SecurityUtils.js';
 import { JSONFormRenderer } from './JSONFormRenderer.js';
 import { setContent, insertHTML } from './utils/DOMUtils.js';
 import { openModal, closeModal } from './utils/ModalUtils.js';
@@ -289,7 +289,7 @@ export class FormBuilder extends BaseModule {
       return '';
     }
     const label = `${translate('translation_missing')} : ${missing.map(languageName).join(', ')}`;
-    return `<span class="badge badge-warning" title="${escapeHTML(label)}"><span aria-hidden="true">⚠</span><span class="sr-only">${escapeHTML(label)}</span></span>`;
+    return `<span class="badge badge-warning" title="${escapeAttribute(label)}"><span aria-hidden="true">⚠</span><span class="sr-only">${escapeHTML(label)}</span></span>`;
   }
 
   /**
@@ -369,7 +369,7 @@ export class FormBuilder extends BaseModule {
 
                 <div class="form-group" id="field-name-group" ${field.type === 'infoText' ? 'style="display:none;"' : ''}>
                     <label for="field-name">${translate('field_name')} *</label>
-                    <input type="text" id="field-name" name="field_name" value="${escapeHTML(field.name || '')}"
+                    <input type="text" id="field-name" name="field_name" value="${escapeAttribute(field.name || '')}"
                            placeholder="field_name" pattern="[a-z_]+" required>
                     <small>${translate('field_name_hint')}</small>
                 </div>
@@ -377,7 +377,7 @@ export class FormBuilder extends BaseModule {
                 <div class="form-group" id="field-label-group" ${field.type === 'infoText' ? 'style="display:none;"' : ''}>
                     <label for="field-label">${translate('label_translation_key')} *</label>
                     <div class="input-with-button">
-                        <input type="text" id="field-label" name="label" value="${escapeHTML(field.label || '')}" 
+                        <input type="text" id="field-label" name="label" value="${escapeAttribute(field.label || '')}" 
                                placeholder="field_name_label" required>
                         <button type="button" id="add-label-translation" class="btn btn-sm">
                             ${translate('add_translation')}
@@ -391,7 +391,7 @@ export class FormBuilder extends BaseModule {
                 <div class="form-group" id="field-info-text-group" ${field.type === 'infoText' ? '' : 'style="display:none;"'}>
                     <label for="field-info-text">${translate('info_text_key')} *</label>
                     <div class="input-with-button">
-                        <input type="text" id="field-info-text" name="infoText" value="${escapeHTML(field.infoText || '')}"
+                        <input type="text" id="field-info-text" name="infoText" value="${escapeAttribute(field.infoText || '')}"
                                placeholder="info_text_key" aria-describedby="field-info-text-hint">
                         <button type="button" id="add-info-translation" class="btn btn-sm">
                             ${translate('add_translation')}
@@ -424,7 +424,7 @@ export class FormBuilder extends BaseModule {
                     <select id="depends-on-field" name="dependsOnField" aria-describedby="depends-on-hint">
                         <option value="">${translate('none')}</option>
                         ${controllingFields.map(f => `
-                            <option value="${escapeHTML(f.name)}" 
+                            <option value="${escapeAttribute(f.name)}" 
                                     ${field.dependsOn?.field === f.name ? 'selected' : ''}>
                                 ${escapeHTML(f.name)}
                             </option>
@@ -474,14 +474,14 @@ export class FormBuilder extends BaseModule {
     const position = index + 1;
     return `
             <div class="option-item" data-option-index="${index}">
-                <input type="text" class="option-label" value="${escapeHTML(option.label || '')}"
+                <input type="text" class="option-label" value="${escapeAttribute(option.label || '')}"
                        placeholder="${translate('label_key')}"
-                       aria-label="${escapeHTML(`${translate('label_key')} ${position}`)}">
-                <input type="text" class="option-value" value="${escapeHTML(option.value || '')}"
+                       aria-label="${escapeAttribute(`${translate('label_key')} ${position}`)}">
+                <input type="text" class="option-value" value="${escapeAttribute(option.value || '')}"
                        placeholder="${translate('value')}"
-                       aria-label="${escapeHTML(`${translate('value')} ${position}`)}">
+                       aria-label="${escapeAttribute(`${translate('value')} ${position}`)}">
                 <button type="button" class="btn-icon remove-option" data-index="${index}"
-                        aria-label="${escapeHTML(`${translate('remove_option')} ${position}`)}"><span aria-hidden="true">🗑️</span></button>
+                        aria-label="${escapeAttribute(`${translate('remove_option')} ${position}`)}"><span aria-hidden="true">🗑️</span></button>
             </div>
         `;
   }
@@ -545,7 +545,7 @@ export class FormBuilder extends BaseModule {
     if (!choices) {
       return `${label}
                 <input type="text" id="depends-on-value" name="dependsOnValue"
-                       value="${escapeHTML(currentValue || '')}"
+                       value="${escapeAttribute(currentValue || '')}"
                        placeholder="${CHECKBOX_CHECKED_VALUE}" aria-describedby="depends-on-value-hint">
                 ${hint}`;
     }
@@ -559,7 +559,7 @@ export class FormBuilder extends BaseModule {
     return `${label}
             <select id="depends-on-value" name="dependsOnValue" aria-describedby="depends-on-value-hint">
                 ${choices.map(choice => `
-                    <option value="${escapeHTML(choice.value)}" ${String(currentValue) === choice.value ? 'selected' : ''}>
+                    <option value="${escapeAttribute(choice.value)}" ${String(currentValue) === choice.value ? 'selected' : ''}>
                         ${escapeHTML(choice.text)}
                     </option>
                 `).join('')}
@@ -916,7 +916,7 @@ export class FormBuilder extends BaseModule {
       return `
         <div class="form-group">
           <label for="${id}">${name}</label>
-          <input type="text" id="${id}" name="${lang}" lang="${lang}" value="${escapeHTML(drafts[lang].text)}">
+          <input type="text" id="${id}" name="${lang}" lang="${lang}" value="${escapeAttribute(drafts[lang].text)}">
         </div>`;
     }).join('');
 
