@@ -1,25 +1,25 @@
-import "@fortawesome/fontawesome-free/css/fontawesome.min.css";
-import "@fortawesome/fontawesome-free/css/solid.min.css";
-import { initRouter, Router } from "./router.js";
-import { checkSession } from "./utils/SessionUtils.js";
-import { getOrganizationSettings, getPublicOrganizationSettings, fetchOrganizationId, fetchOrganizationJwt } from "./ajax-functions.js";
-import { makeApiRequest } from "./api/api-core.js";
-import { CONFIG } from "./config.js";
-import { debugLog, debugError, debugWarn, isDebugMode } from "./utils/DebugUtils.js";
-import { getStorage, setStorage, setStorageMultiple } from "./utils/StorageUtils.js";
-import { registerPushSubscription } from "./modules/push/PushSubscription.js";
-import updateManager from "./pwa-update-manager.js";
-import { initOfflineSupport } from "./offline-init.js";
-import { offlineManager } from "./modules/OfflineManager.js";
-import { setContent, clearElement, createElement } from "./utils/DOMUtils.js";
-import { applyPalette as applyDashboardPalette } from "./utils/DashboardPreferences.js";
-import { checkForStaleClient, installChunkErrorRecovery } from "./modules/app-recovery/StaleClientRecovery.js";
+import '@fortawesome/fontawesome-free/css/fontawesome.min.css';
+import '@fortawesome/fontawesome-free/css/solid.min.css';
+import { initRouter, Router } from './router.js';
+import { checkSession } from './utils/SessionUtils.js';
+import { getOrganizationSettings, getPublicOrganizationSettings, fetchOrganizationId, fetchOrganizationJwt } from './ajax-functions.js';
+import { makeApiRequest } from './api/api-core.js';
+import { CONFIG } from './config.js';
+import { debugLog, debugError, debugWarn, isDebugMode } from './utils/DebugUtils.js';
+import { getStorage, setStorage, setStorageMultiple } from './utils/StorageUtils.js';
+import { registerPushSubscription } from './modules/push/PushSubscription.js';
+import updateManager from './pwa-update-manager.js';
+import { initOfflineSupport } from './offline-init.js';
+import { offlineManager } from './modules/OfflineManager.js';
+import { setContent, clearElement, createElement } from './utils/DOMUtils.js';
+import { applyPalette as applyDashboardPalette } from './utils/DashboardPreferences.js';
+import { checkForStaleClient, installChunkErrorRecovery } from './modules/app-recovery/StaleClientRecovery.js';
 import { localizeStaticChrome } from './utils/StaticChromeUtils.js';
 import {
-        getDirectVocabularyTermKey,
-        getUnitVocabulary,
-        getVocabularyTemplateKey,
-} from "./utils/UnitVocabularyUtils.js";
+  getDirectVocabularyTermKey,
+  getUnitVocabulary,
+  getVocabularyTemplateKey,
+} from './utils/UnitVocabularyUtils.js';
 
 const debugMode = isDebugMode();
 
@@ -139,689 +139,689 @@ function cacheOtherLanguagesForOffline(currentLang) {
 }
 
 export const app = {
-        isLoggedIn: false,
-        userRole: null, // Primary role (for backward compatibility)
-        userRoles: [], // All user roles
-        userPermissions: [], // All user permissions
-        userFullName: null,
-        lang: null,
-        currentPage: "",
-        translations: {},
-        db: null,
-        router: null,
-        organizationSettings: null,
-        organizationId: null,
-        isOrganizationSettingsFetched: false,
-        initCompleted: false,
-        _settingsPromise: null,
+  isLoggedIn: false,
+  userRole: null, // Primary role (for backward compatibility)
+  userRoles: [], // All user roles
+  userPermissions: [], // All user permissions
+  userFullName: null,
+  lang: null,
+  currentPage: '',
+  translations: {},
+  db: null,
+  router: null,
+  organizationSettings: null,
+  organizationId: null,
+  isOrganizationSettingsFetched: false,
+  initCompleted: false,
+  _settingsPromise: null,
 
-        // Helper to wait for organization settings to be loaded
-        async waitForOrganizationSettings() {
-                if (this.isOrganizationSettingsFetched && this.organizationSettings) {
-                        return this.organizationSettings;
-                }
-                // If settings are being fetched, wait for that promise
-                if (this._settingsPromise) {
-                        await this._settingsPromise;
-                        return this.organizationSettings;
-                }
-                // Otherwise fetch them
-                await this.fetchOrganizationSettings();
-                return this.organizationSettings;
-        },
+  // Helper to wait for organization settings to be loaded
+  async waitForOrganizationSettings() {
+    if (this.isOrganizationSettingsFetched && this.organizationSettings) {
+      return this.organizationSettings;
+    }
+    // If settings are being fetched, wait for that promise
+    if (this._settingsPromise) {
+      await this._settingsPromise;
+      return this.organizationSettings;
+    }
+    // Otherwise fetch them
+    await this.fetchOrganizationSettings();
+    return this.organizationSettings;
+  },
 
-        async init() {
-                debugLog("App init started");
-                // Apply user's saved dashboard palette so colors are right before first paint.
-                try { applyDashboardPalette(); } catch (e) { debugLog("Palette apply skipped:", e); }
-                this.createMessageBanner();
+  async init() {
+    debugLog('App init started');
+    // Apply user's saved dashboard palette so colors are right before first paint.
+    try { applyDashboardPalette(); } catch (e) { debugLog('Palette apply skipped:', e); }
+    this.createMessageBanner();
 
-                try {
-                        // Check for existing session (synchronous from localStorage)
-                        const session = checkSession();
-                        this.isLoggedIn = session.isLoggedIn;
-                        this.userRole = session.userRole;
-                        this.userRoles = session.userRoles || [];
-                        this.userPermissions = session.userPermissions || [];
-                        this.userDataScope = session.userDataScope;
-                        this.userFullName = session.userFullName;
+    try {
+      // Check for existing session (synchronous from localStorage)
+      const session = checkSession();
+      this.isLoggedIn = session.isLoggedIn;
+      this.userRole = session.userRole;
+      this.userRoles = session.userRoles || [];
+      this.userPermissions = session.userPermissions || [];
+      this.userDataScope = session.userDataScope;
+      this.userFullName = session.userFullName;
 
-                        debugLog('Session checked:', {
-                                isLoggedIn: this.isLoggedIn,
-                                userRole: this.userRole,
-                                userFullName: this.userFullName,
-                        });
+      debugLog('Session checked:', {
+        isLoggedIn: this.isLoggedIn,
+        userRole: this.userRole,
+        userFullName: this.userFullName,
+      });
 
-                        // CRITICAL: Get organization ID FIRST - everything depends on it
-                        let storedOrgId = getStorage('currentOrganizationId') || getStorage('organizationId');
-                        if (storedOrgId && storedOrgId.startsWith('{')) {
-                                try {
-                                        const parsed = JSON.parse(storedOrgId);
-                                        storedOrgId = parsed.organization_id || parsed.organizationId || parsed.id;
-                                } catch (e) {
-                                        storedOrgId = null;
-                                }
-                        }
+      // CRITICAL: Get organization ID FIRST - everything depends on it
+      let storedOrgId = getStorage('currentOrganizationId') || getStorage('organizationId');
+      if (storedOrgId && storedOrgId.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(storedOrgId);
+          storedOrgId = parsed.organization_id || parsed.organizationId || parsed.id;
+        } catch (e) {
+          storedOrgId = null;
+        }
+      }
 
-                        // If no valid org ID in storage, fetch it NOW (blocking but fast)
-                        if (!storedOrgId || storedOrgId === '[object Object]') {
-                                try {
-                                        debugLog("Fetching organization ID (required)...");
-                                        const orgData = await fetchOrganizationId();
-                                        let orgId;
-                                        if (typeof orgData === 'object' && orgData.data) {
-                                                orgId = orgData.data.organization_id || orgData.data.organizationId || orgData.data.id || orgData.data;
-                                        } else if (typeof orgData === 'object') {
-                                                orgId = orgData.organization_id || orgData.organizationId || orgData.id || orgData;
-                                        } else {
-                                                orgId = orgData;
-                                        }
-                                        const isValidOrgId = (typeof orgId === 'string' || typeof orgId === 'number') && orgId !== '' && orgId !== '[object Object]';
-                                        this.organizationId = isValidOrgId ? orgId : null;
-                                        if (isValidOrgId) {
-                                                setStorageMultiple({
-                                                        currentOrganizationId: orgId,
-                                                        organizationId: orgId
-                                                });
-                                                debugLog("Organization ID fetched:", orgId);
-                                        } else {
-                                                debugWarn("Fetched invalid organization ID, ignoring:", orgId);
-                                        }
-                                } catch (error) {
-                                        debugError("Error fetching organization ID:", error);
-                                        if (!navigator.onLine) {
-                                                debugWarn("Offline: proceeding without organization ID");
-                                                this.organizationId = null;
-                                        } else {
-                                                throw error;
-                                        }
-                                }
-                        } else {
-                                this.organizationId = storedOrgId;
-                                debugLog("Using stored organization ID:", storedOrgId);
-                        }
+      // If no valid org ID in storage, fetch it NOW (blocking but fast)
+      if (!storedOrgId || storedOrgId === '[object Object]') {
+        try {
+          debugLog('Fetching organization ID (required)...');
+          const orgData = await fetchOrganizationId();
+          let orgId;
+          if (typeof orgData === 'object' && orgData.data) {
+            orgId = orgData.data.organization_id || orgData.data.organizationId || orgData.data.id || orgData.data;
+          } else if (typeof orgData === 'object') {
+            orgId = orgData.organization_id || orgData.organizationId || orgData.id || orgData;
+          } else {
+            orgId = orgData;
+          }
+          const isValidOrgId = (typeof orgId === 'string' || typeof orgId === 'number') && orgId !== '' && orgId !== '[object Object]';
+          this.organizationId = isValidOrgId ? orgId : null;
+          if (isValidOrgId) {
+            setStorageMultiple({
+              currentOrganizationId: orgId,
+              organizationId: orgId
+            });
+            debugLog('Organization ID fetched:', orgId);
+          } else {
+            debugWarn('Fetched invalid organization ID, ignoring:', orgId);
+          }
+        } catch (error) {
+          debugError('Error fetching organization ID:', error);
+          if (!navigator.onLine) {
+            debugWarn('Offline: proceeding without organization ID');
+            this.organizationId = null;
+          } else {
+            throw error;
+          }
+        }
+      } else {
+        this.organizationId = storedOrgId;
+        debugLog('Using stored organization ID:', storedOrgId);
+      }
 
-                        // CRITICAL: Load current language translations BEFORE routing to prevent flicker
-                        const currentLang = this.lang || getStorage('lang', false, CONFIG.DEFAULT_LANG);
-                        const normalizedLang = CONFIG.SUPPORTED_LANGS.includes(currentLang) ? currentLang : CONFIG.DEFAULT_LANG;
-                        this.lang = normalizedLang;
-                        this.language = normalizedLang;
-                        document.documentElement.lang = normalizedLang;
-                        debugLog(`Loading translations for ${normalizedLang} before routing...`);
-                        try {
-                                await this.loadTranslation(normalizedLang);
-                                debugLog(`Translations loaded for ${normalizedLang}`);
-                                localizeStaticChrome(this.translate.bind(this));
-                        } catch (error) {
-                                debugWarn("Failed to load translations offline:", error);
-                        }
+      // CRITICAL: Load current language translations BEFORE routing to prevent flicker
+      const currentLang = this.lang || getStorage('lang', false, CONFIG.DEFAULT_LANG);
+      const normalizedLang = CONFIG.SUPPORTED_LANGS.includes(currentLang) ? currentLang : CONFIG.DEFAULT_LANG;
+      this.lang = normalizedLang;
+      this.language = normalizedLang;
+      document.documentElement.lang = normalizedLang;
+      debugLog(`Loading translations for ${normalizedLang} before routing...`);
+      try {
+        await this.loadTranslation(normalizedLang);
+        debugLog(`Translations loaded for ${normalizedLang}`);
+        localizeStaticChrome(this.translate.bind(this));
+      } catch (error) {
+        debugWarn('Failed to load translations offline:', error);
+      }
 
-                        // Initialize router IMMEDIATELY (now that we have org ID and translations)
-                        debugLog("Initializing router...");
-                        this.router = initRouter(this);
+      // Initialize router IMMEDIATELY (now that we have org ID and translations)
+      debugLog('Initializing router...');
+      this.router = initRouter(this);
 
-                        // Route to current path immediately to show UI fast
-                        const currentPath = `${window.location.pathname}${window.location.search}`;
-                        debugLog(`Routing to current path: ${currentPath}`);
-                        this.router.route(currentPath);
+      // Route to current path immediately to show UI fast
+      const currentPath = `${window.location.pathname}${window.location.search}`;
+      debugLog(`Routing to current path: ${currentPath}`);
+      this.router.route(currentPath);
 
-                        this.initCompleted = true;
-                        debugLog("App init completed (fast path)");
+      this.initCompleted = true;
+      debugLog('App init completed (fast path)');
 
-                        // Add settings icon if logged in
-                        if (this.isLoggedIn) {
-                                this.addSettingsIcon();
-                        }
+      // Add settings icon if logged in
+      if (this.isLoggedIn) {
+        this.addSettingsIcon();
+      }
 
-                        // Now perform remaining async operations in background (non-blocking)
-                        this.initializeBackgroundTasks();
+      // Now perform remaining async operations in background (non-blocking)
+      this.initializeBackgroundTasks();
 
-                } catch (error) {
-                        debugError("Initialization error:", error);
-                        this.renderError(this.translate('error_loading_application'), {
-                                titleKey: 'application_error',
-                                showReload: true,
-                                actions: [
-                                        { labelKey: 'go_to_homepage', href: CONFIG.UI.HOMEPAGE_URL }
-                                ]
-                        });
-                }
-        },
+    } catch (error) {
+      debugError('Initialization error:', error);
+      this.renderError(this.translate('error_loading_application'), {
+        titleKey: 'application_error',
+        showReload: true,
+        actions: [
+          { labelKey: 'go_to_homepage', href: CONFIG.UI.HOMEPAGE_URL }
+        ]
+      });
+    }
+  },
 
-        // Background initialization tasks (non-blocking)
-        // Organization ID and translations are already loaded in init() - these are lower priority tasks
-        async initializeBackgroundTasks() {
-                try {
-                        // Ensure JWT token exists (in background)
-                        const token = getStorage('jwtToken');
-                        if (!token && this.organizationId) {
-                                try {
-                                        debugLog('Fetching organization JWT...');
-                                        const data = await fetchOrganizationJwt(this.organizationId);
-                                        if (data.success && data.token) {
-                                                setStorage('jwtToken', data.token);
-                                                debugLog('Organization JWT obtained');
-                                        }
-                                } catch (error) {
-                                        debugError('Error getting organization JWT:', error);
-                                }
-                        }
+  // Background initialization tasks (non-blocking)
+  // Organization ID and translations are already loaded in init() - these are lower priority tasks
+  async initializeBackgroundTasks() {
+    try {
+      // Ensure JWT token exists (in background)
+      const token = getStorage('jwtToken');
+      if (!token && this.organizationId) {
+        try {
+          debugLog('Fetching organization JWT...');
+          const data = await fetchOrganizationJwt(this.organizationId);
+          if (data.success && data.token) {
+            setStorage('jwtToken', data.token);
+            debugLog('Organization JWT obtained');
+          }
+        } catch (error) {
+          debugError('Error getting organization JWT:', error);
+        }
+      }
 
-                        // Fetch organization settings (in background, with caching)
-                        this.fetchOrganizationSettings().catch(error => {
-                                debugError('Failed to fetch organization settings:', error);
-                                this.organizationSettings = { name: 'Scouts' };
-                        });
+      // Fetch organization settings (in background, with caching)
+      this.fetchOrganizationSettings().catch(error => {
+        debugError('Failed to fetch organization settings:', error);
+        this.organizationSettings = { name: 'Scouts' };
+      });
 
-                        // Handle post-login actions if logged in
-                        if (this.isLoggedIn) {
-                                this.handlePostLoginActions();
+      // Handle post-login actions if logged in
+      if (this.isLoggedIn) {
+        this.handlePostLoginActions();
 
-                                // Roles and permissions are stored at sign-in. Replace them with the
-                                // current ones, and show this screen again if they changed.
-                                import('./modules/session/AccessRefresh.js')
-                                        .then(({ refreshAccess }) => refreshAccess(this))
-                                        .then((changed) => {
-                                                if (!changed) {
-                                                        return undefined;
-                                                }
-                                                // The settings endpoint follows the permissions: read them again.
-                                                return refreshOrganizationSettings(this).then(() => {
-                                                        this.router.route(window.location.pathname + window.location.search);
-                                                        this.showMessage(this.translate('access_updated'), 'info');
-                                                });
-                                        })
-                                        .catch(error => debugError('Failed to refresh access:', error));
+        // Roles and permissions are stored at sign-in. Replace them with the
+        // current ones, and show this screen again if they changed.
+        import('./modules/session/AccessRefresh.js')
+          .then(({ refreshAccess }) => refreshAccess(this))
+          .then((changed) => {
+            if (!changed) {
+              return undefined;
+            }
+            // The settings endpoint follows the permissions: read them again.
+            return refreshOrganizationSettings(this).then(() => {
+              this.router.route(window.location.pathname + window.location.search);
+              this.showMessage(this.translate('access_updated'), 'info');
+            });
+          })
+          .catch(error => debugError('Failed to refresh access:', error));
 
-                                // The year selector sits outside #app so it survives navigation.
-                                // It draws nothing for a unit that has only ever had one year.
-                                import('./modules/scout-year/ScoutYearBanner.js')
-                                        .then(({ initScoutYearBanner }) => initScoutYearBanner())
-                                        .catch(error => debugError('Failed to mount the scout year selector:', error));
+        // The year selector sits outside #app so it survives navigation.
+        // It draws nothing for a unit that has only ever had one year.
+        import('./modules/scout-year/ScoutYearBanner.js')
+          .then(({ initScoutYearBanner }) => initScoutYearBanner())
+          .catch(error => debugError('Failed to mount the scout year selector:', error));
 
-                                // Pick up changes other leaders make while this session is open.
-                                import('./modules/live-sync/LiveDataSync.js')
-                                        .then(({ liveDataSync }) => liveDataSync.start())
-                                        .catch(error => debugError('Failed to start live sync:', error));
+        // Pick up changes other leaders make while this session is open.
+        import('./modules/live-sync/LiveDataSync.js')
+          .then(({ liveDataSync }) => liveDataSync.start())
+          .catch(error => debugError('Failed to start live sync:', error));
 
-                                // Grey out what cannot be changed while an archived year is shown.
-                                // The API layer already refuses those writes; this makes it visible.
-                                import('./modules/scout-year/ArchiveReadOnly.js')
-                                        .then(({ initArchiveReadOnly }) => initArchiveReadOnly())
-                                        .catch(error => debugError('Failed to install the archive read-only guard:', error));
-                        }
+        // Grey out what cannot be changed while an archived year is shown.
+        // The API layer already refuses those writes; this makes it visible.
+        import('./modules/scout-year/ArchiveReadOnly.js')
+          .then(({ initArchiveReadOnly }) => initArchiveReadOnly())
+          .catch(error => debugError('Failed to install the archive read-only guard:', error));
+      }
 
-                        // Detect a client running against a different server build than
-                        // its cached assets came from, and force a clean reload.
-                        checkForStaleClient().catch(error => {
-                                debugError('Stale client check failed:', error);
-                        });
+      // Detect a client running against a different server build than
+      // its cached assets came from, and force a clean reload.
+      checkForStaleClient().catch(error => {
+        debugError('Stale client check failed:', error);
+      });
 
-                        // Ensure service worker is registered (fallback if vite-plugin-pwa injection missed)
-                        this.registerServiceWorker();
+      // Ensure service worker is registered (fallback if vite-plugin-pwa injection missed)
+      this.registerServiceWorker();
 
-                        cacheOtherLanguagesForOffline(this.lang);
+      cacheOtherLanguagesForOffline(this.lang);
 
-                        // Initialize offline support
-                        initOfflineSupport();
-                        this.syncOfflineData();
+      // Initialize offline support
+      initOfflineSupport();
+      this.syncOfflineData();
 
-                } catch (error) {
-                        debugError('Background initialization error:', error);
-                }
-        },
+    } catch (error) {
+      debugError('Background initialization error:', error);
+    }
+  },
 
-        async fetchOrganizationSettings() {
-                debugLog("Inside fetchOrganizationSettings, this:", this);
-                if (this.isOrganizationSettingsFetched) {
-                        debugLog("Organization settings already fetched, skipping");
-                        return;
-                }
+  async fetchOrganizationSettings() {
+    debugLog('Inside fetchOrganizationSettings, this:', this);
+    if (this.isOrganizationSettingsFetched) {
+      debugLog('Organization settings already fetched, skipping');
+      return;
+    }
 
-                // Store the promise so other callers can wait for it
-                if (!this._settingsPromise) {
-                        this._settingsPromise = this._doFetchOrganizationSettings();
-                }
-                return this._settingsPromise;
-        },
+    // Store the promise so other callers can wait for it
+    if (!this._settingsPromise) {
+      this._settingsPromise = this._doFetchOrganizationSettings();
+    }
+    return this._settingsPromise;
+  },
 
-        async _doFetchOrganizationSettings() {
-                try {
-                        debugLog("Fetching organization settings ...", this.organizationId);
+  async _doFetchOrganizationSettings() {
+    try {
+      debugLog('Fetching organization settings ...', this.organizationId);
 
-                        // PERFORMANCE OPTIMIZATION: Reuse early fetch if available
-                        // This prevents duplicate API calls and improves performance
-                        let response;
-                        if (window.earlyOrgSettingsFetch) {
-                                debugLog("Reusing early organization settings fetch");
-                                response = await window.earlyOrgSettingsFetch;
-                                window.earlyOrgSettingsFetch = null; // Clear it after use
-                        }
+      // PERFORMANCE OPTIMIZATION: Reuse early fetch if available
+      // This prevents duplicate API calls and improves performance
+      let response;
+      if (window.earlyOrgSettingsFetch) {
+        debugLog('Reusing early organization settings fetch');
+        response = await window.earlyOrgSettingsFetch;
+        window.earlyOrgSettingsFetch = null; // Clear it after use
+      }
 
-                        if (!response) {
-                                const hasJwtToken = !!getStorage('jwtToken');
-                                const isAuthenticatedContext = this.isLoggedIn && hasJwtToken
+      if (!response) {
+        const hasJwtToken = !!getStorage('jwtToken');
+        const isAuthenticatedContext = this.isLoggedIn && hasJwtToken
                                         && canReadFullOrganizationSettings(this.userPermissions);
-                                response = isAuthenticatedContext
-                                        ? await getOrganizationSettings()
-                                        : await getPublicOrganizationSettings();
-                        }
-                        if (response && (response.organization_info || response.data)) {
-                                debugLog("Got organization settings: ", JSON.stringify(response));
-                                // The fix is here - use response.data directly as the settings
-                                this.organizationSettings = response.data || response;  // This is correct
-                                if (!Array.isArray(this.organizationSettings?.program_sections) || this.organizationSettings.program_sections.length === 0) {
-                                        this.organizationSettings = {
-                                                ...this.organizationSettings,
-                                                program_sections: CONFIG.PROGRAM_SECTIONS.DEFAULT
-                                        };
-                                }
-                                this.isOrganizationSettingsFetched = true;
-                                debugLog("Organization settings fetched successfully:", this.organizationSettings);
-                        } else {
-                                debugLog("Failed to fetch organization settings:", response?.message || "Unknown error");
-                                // Set default organization settings
-                                this.organizationSettings = { organization_info: { name: "Scouts" }, program_sections: CONFIG.PROGRAM_SECTIONS.DEFAULT };
-                                this.isOrganizationSettingsFetched = true;
-                                debugLog("Using default organization settings");
-                        }
-                } catch (error) {
-                        debugError("Error fetching organization settings:", error);
-                        // Set default organization settings
-                        this.organizationSettings = { organization_info: { name: "Scouts" }, program_sections: CONFIG.PROGRAM_SECTIONS.DEFAULT };
-                        this.isOrganizationSettingsFetched = true;
-                        debugLog("Using default organization settings due to error");
-                }
-        },
+        response = isAuthenticatedContext
+          ? await getOrganizationSettings()
+          : await getPublicOrganizationSettings();
+      }
+      if (response && (response.organization_info || response.data)) {
+        debugLog('Got organization settings: ', JSON.stringify(response));
+        // The fix is here - use response.data directly as the settings
+        this.organizationSettings = response.data || response;  // This is correct
+        if (!Array.isArray(this.organizationSettings?.program_sections) || this.organizationSettings.program_sections.length === 0) {
+          this.organizationSettings = {
+            ...this.organizationSettings,
+            program_sections: CONFIG.PROGRAM_SECTIONS.DEFAULT
+          };
+        }
+        this.isOrganizationSettingsFetched = true;
+        debugLog('Organization settings fetched successfully:', this.organizationSettings);
+      } else {
+        debugLog('Failed to fetch organization settings:', response?.message || 'Unknown error');
+        // Set default organization settings
+        this.organizationSettings = { organization_info: { name: 'Scouts' }, program_sections: CONFIG.PROGRAM_SECTIONS.DEFAULT };
+        this.isOrganizationSettingsFetched = true;
+        debugLog('Using default organization settings');
+      }
+    } catch (error) {
+      debugError('Error fetching organization settings:', error);
+      // Set default organization settings
+      this.organizationSettings = { organization_info: { name: 'Scouts' }, program_sections: CONFIG.PROGRAM_SECTIONS.DEFAULT };
+      this.isOrganizationSettingsFetched = true;
+      debugLog('Using default organization settings due to error');
+    }
+  },
 
-        // Load a single translation file (lazy loading)
-        async loadTranslation(langCode) {
-                if (this.translations[langCode]) {
-                        debugLog(`Translation for ${langCode} already loaded`);
-                        return;
-                }
-                try {
-                        debugLog(`Loading translation for ${langCode}...`);
-                        this.translations[langCode] = await fetchTranslationBundle(langCode);
-                        debugLog(`Translation for ${langCode} loaded successfully`);
-                } catch (error) {
-                        debugError(`Error loading translation for ${langCode}:`, error);
-                        this.translations[langCode] = {};
-                }
-        },
+  // Load a single translation file (lazy loading)
+  async loadTranslation(langCode) {
+    if (this.translations[langCode]) {
+      debugLog(`Translation for ${langCode} already loaded`);
+      return;
+    }
+    try {
+      debugLog(`Loading translation for ${langCode}...`);
+      this.translations[langCode] = await fetchTranslationBundle(langCode);
+      debugLog(`Translation for ${langCode} loaded successfully`);
+    } catch (error) {
+      debugError(`Error loading translation for ${langCode}:`, error);
+      this.translations[langCode] = {};
+    }
+  },
 
-        // Load all translations (fallback for backward compatibility)
-        async loadTranslations() {
-                if (Object.keys(this.translations).length === CONFIG.SUPPORTED_LANGS.length) {
-                        debugLog("All translations already loaded, skipping");
-                        return;
-                }
-                try {
-                        debugLog("Loading all translations...");
+  // Load all translations (fallback for backward compatibility)
+  async loadTranslations() {
+    if (Object.keys(this.translations).length === CONFIG.SUPPORTED_LANGS.length) {
+      debugLog('All translations already loaded, skipping');
+      return;
+    }
+    try {
+      debugLog('Loading all translations...');
 
-                        const translationFetches = CONFIG.SUPPORTED_LANGS.map(async (langCode) => {
-                                if (this.translations[langCode]) {
-                                        return [langCode, this.translations[langCode]];
-                                }
-                                return [langCode, await fetchTranslationBundle(langCode)];
-                        });
+      const translationFetches = CONFIG.SUPPORTED_LANGS.map(async (langCode) => {
+        if (this.translations[langCode]) {
+          return [langCode, this.translations[langCode]];
+        }
+        return [langCode, await fetchTranslationBundle(langCode)];
+      });
 
-                        const resolvedTranslations = await Promise.all(translationFetches);
-                        this.translations = Object.fromEntries(resolvedTranslations);
-                        debugLog("Translations loaded successfully", Object.keys(this.translations));
-                } catch (error) {
-                        debugError("Error loading translations:", error);
-                        this.translations = CONFIG.SUPPORTED_LANGS.reduce((acc, langCode) => {
-                                acc[langCode] = this.translations[langCode] || {};
-                                return acc;
-                        }, {});
-                }
-        },
+      const resolvedTranslations = await Promise.all(translationFetches);
+      this.translations = Object.fromEntries(resolvedTranslations);
+      debugLog('Translations loaded successfully', Object.keys(this.translations));
+    } catch (error) {
+      debugError('Error loading translations:', error);
+      this.translations = CONFIG.SUPPORTED_LANGS.reduce((acc, langCode) => {
+        acc[langCode] = this.translations[langCode] || {};
+        return acc;
+      }, {});
+    }
+  },
 
 
-        async handlePostLoginActions() {
-                // Dispatch userLoggedIn event for offline support
-                const userLoggedInEvent = new CustomEvent('userLoggedIn', {
-                        detail: {
-                                userRole: this.userRole,
-                                userId: this.userId,
-                                timestamp: Date.now()
-                        }
-                });
-                window.dispatchEvent(userLoggedInEvent);
+  async handlePostLoginActions() {
+    // Dispatch userLoggedIn event for offline support
+    const userLoggedInEvent = new CustomEvent('userLoggedIn', {
+      detail: {
+        userRole: this.userRole,
+        userId: this.userId,
+        timestamp: Date.now()
+      }
+    });
+    window.dispatchEvent(userLoggedInEvent);
 
-                if ('Notification' in window) {
-                        if (Notification.permission === 'granted') {
-                                registerPushSubscription();
-                        } else if (Notification.permission === 'default') {
-                                // Browsers suppress (or auto-deny) permission prompts that are
-                                // not triggered by a user gesture, so wait for the first
-                                // interaction before asking.
-                                const requestOnGesture = async () => {
-                                        try {
-                                                const permission = await Notification.requestPermission();
-                                                if (permission === 'granted') {
-                                                        registerPushSubscription();
-                                                }
-                                        } catch (error) {
-                                                debugError('Notification permission request failed:', error);
-                                        }
-                                };
-                                window.addEventListener('click', requestOnGesture, { once: true });
-                        }
-                } else {
-                        debugError('This browser does not support notifications.');
-                }
-        },
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        registerPushSubscription();
+      } else if (Notification.permission === 'default') {
+        // Browsers suppress (or auto-deny) permission prompts that are
+        // not triggered by a user gesture, so wait for the first
+        // interaction before asking.
+        const requestOnGesture = async () => {
+          try {
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') {
+              registerPushSubscription();
+            }
+          } catch (error) {
+            debugError('Notification permission request failed:', error);
+          }
+        };
+        window.addEventListener('click', requestOnGesture, { once: true });
+      }
+    } else {
+      debugError('This browser does not support notifications.');
+    }
+  },
 
-        toastQueue: [],
-        toastTimeout: null,
+  toastQueue: [],
+  toastTimeout: null,
 
-        showMessage(message, type = 'info') {
-                // Only translate if message looks like a translation key (no spaces)
-                const translatedMessage = /^[\w.]+$/.test(message) ? translate(message) : message;
+  showMessage(message, type = 'info') {
+    // Only translate if message looks like a translation key (no spaces)
+    const translatedMessage = /^[\w.]+$/.test(message) ? translate(message) : message;
 
-                // Add to queue
-                this.toastQueue.push({ message: translatedMessage, type });
+    // Add to queue
+    this.toastQueue.push({ message: translatedMessage, type });
 
-                // If no toast is currently showing, show the next one
-                if (this.toastQueue.length === 1) {
-                        this.displayNextToast();
-                }
-        },
+    // If no toast is currently showing, show the next one
+    if (this.toastQueue.length === 1) {
+      this.displayNextToast();
+    }
+  },
 
-        displayNextToast() {
-                if (this.toastQueue.length === 0) return;
+  displayNextToast() {
+    if (this.toastQueue.length === 0) {return;}
 
-                const { message, type } = this.toastQueue[0];
-                const container = document.getElementById('toast-container');
+    const { message, type } = this.toastQueue[0];
+    const container = document.getElementById('toast-container');
 
-                // Clear any existing toast
-                clearElement(container);
+    // Clear any existing toast
+    clearElement(container);
 
-                // Create toast element
-                const toast = document.createElement('div');
-                toast.className = `toast toast-${type}`;
-                toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
-                toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
-                toast.setAttribute('aria-atomic', 'true');
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+    toast.setAttribute('aria-atomic', 'true');
 
-                // Create icon
-                const icon = document.createElement('span');
-                icon.className = 'toast-icon';
-                icon.setAttribute('aria-hidden', 'true');
-                setContent(icon, type === 'error' ? '⚠' : '✓');
-                // Create message text
-                const messageText = document.createElement('span');
-                messageText.className = 'toast-message';
-                messageText.textContent = message;
+    // Create icon
+    const icon = document.createElement('span');
+    icon.className = 'toast-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    setContent(icon, type === 'error' ? '⚠' : '✓');
+    // Create message text
+    const messageText = document.createElement('span');
+    messageText.className = 'toast-message';
+    messageText.textContent = message;
 
-                // Create dismiss button
-                const dismissBtn = document.createElement('button');
-                dismissBtn.className = 'toast-dismiss';
-                dismissBtn.setAttribute('aria-label', translate('close'));
-                setContent(dismissBtn, '×');
-                dismissBtn.onclick = () => this.dismissToast();
+    // Create dismiss button
+    const dismissBtn = document.createElement('button');
+    dismissBtn.className = 'toast-dismiss';
+    dismissBtn.setAttribute('aria-label', translate('close'));
+    setContent(dismissBtn, '×');
+    dismissBtn.onclick = () => this.dismissToast();
 
-                // Assemble toast
-                toast.appendChild(icon);
-                toast.appendChild(messageText);
-                toast.appendChild(dismissBtn);
-                container.appendChild(toast);
+    // Assemble toast
+    toast.appendChild(icon);
+    toast.appendChild(messageText);
+    toast.appendChild(dismissBtn);
+    container.appendChild(toast);
 
-                // Show toast with animation
-                requestAnimationFrame(() => {
-                        toast.classList.add('toast-show');
-                });
+    // Show toast with animation
+    requestAnimationFrame(() => {
+      toast.classList.add('toast-show');
+    });
 
-                // Auto-dismiss after 5 seconds (longer for accessibility)
-                this.toastTimeout = setTimeout(() => {
-                        this.dismissToast();
-                }, 5000);
-        },
+    // Auto-dismiss after 5 seconds (longer for accessibility)
+    this.toastTimeout = setTimeout(() => {
+      this.dismissToast();
+    }, 5000);
+  },
 
-        dismissToast() {
-                const container = document.getElementById('toast-container');
-                const toast = container.querySelector('.toast');
+  dismissToast() {
+    const container = document.getElementById('toast-container');
+    const toast = container.querySelector('.toast');
 
-                // Ignore repeat calls (double-click, or timer firing after a manual
-                // dismiss) so the queue is only advanced once per toast.
-                if (!toast || !toast.classList.contains('toast-show')) return;
+    // Ignore repeat calls (double-click, or timer firing after a manual
+    // dismiss) so the queue is only advanced once per toast.
+    if (!toast || !toast.classList.contains('toast-show')) {return;}
 
-                // Clear timeout
-                if (this.toastTimeout) {
-                        clearTimeout(this.toastTimeout);
-                        this.toastTimeout = null;
-                }
+    // Clear timeout
+    if (this.toastTimeout) {
+      clearTimeout(this.toastTimeout);
+      this.toastTimeout = null;
+    }
 
-                // Hide with animation
-                toast.classList.remove('toast-show');
+    // Hide with animation
+    toast.classList.remove('toast-show');
 
-                setTimeout(() => {
-                        // Remove from queue and DOM
-                        this.toastQueue.shift();
-                        clearElement(container);
+    setTimeout(() => {
+      // Remove from queue and DOM
+      this.toastQueue.shift();
+      clearElement(container);
 
-                        // Show next toast if any
-                        if (this.toastQueue.length > 0) {
-                                setTimeout(() => this.displayNextToast(), 300);
-                        }
-                }, 300);
-        },
+      // Show next toast if any
+      if (this.toastQueue.length > 0) {
+        setTimeout(() => this.displayNextToast(), 300);
+      }
+    }, 300);
+  },
 
-        createMessageBanner() {
-                // Create toast container with ARIA live region
-                const container = document.createElement('div');
-                container.id = 'toast-container';
-                container.setAttribute('aria-live', 'polite');
-                container.setAttribute('aria-relevant', 'additions');
-                document.body.appendChild(container);
-        },
+  createMessageBanner() {
+    // Create toast container with ARIA live region
+    const container = document.createElement('div');
+    container.id = 'toast-container';
+    container.setAttribute('aria-live', 'polite');
+    container.setAttribute('aria-relevant', 'additions');
+    document.body.appendChild(container);
+  },
 
-        async setLanguage(lang) {
-                const fallbackLang = CONFIG.DEFAULT_LANG;
-                const normalizedLang = CONFIG.SUPPORTED_LANGS.includes(lang) ? lang : fallbackLang;
+  async setLanguage(lang) {
+    const fallbackLang = CONFIG.DEFAULT_LANG;
+    const normalizedLang = CONFIG.SUPPORTED_LANGS.includes(lang) ? lang : fallbackLang;
 
-                this.lang = normalizedLang;
-                this.language = normalizedLang;
-                document.documentElement.lang = normalizedLang;
-                setStorage('lang', normalizedLang);
-                localStorage.setItem('language', normalizedLang);
+    this.lang = normalizedLang;
+    this.language = normalizedLang;
+    document.documentElement.lang = normalizedLang;
+    setStorage('lang', normalizedLang);
+    localStorage.setItem('language', normalizedLang);
 
-                // Load only the required translation (lazy loading)
-                await this.loadTranslation(normalizedLang);
+    // Load only the required translation (lazy loading)
+    await this.loadTranslation(normalizedLang);
 
-                // Update page title
-                this.updatePageTitle();
-                localizeStaticChrome(this.translate.bind(this));
+    // Update page title
+    this.updatePageTitle();
+    localizeStaticChrome(this.translate.bind(this));
 
-                if (this.router && this.initCompleted) {
-                        this.router.reloadCurrentRoute();
-                }
-        },
+    if (this.router && this.initCompleted) {
+      this.router.reloadCurrentRoute();
+    }
+  },
 
-        updatePageTitle() {
-                const title = this.translate('app_title');
-                document.title = `${title} - Wampums`;
-        },
+  updatePageTitle() {
+    const title = this.translate('app_title');
+    document.title = `${title} - Wampums`;
+  },
 
-        /**
+  /**
          * Add settings icon to the page (top right)
          */
-        addSettingsIcon() {
-                // Remove existing icon if any
-                this.removeSettingsIcon();
+  addSettingsIcon() {
+    // Remove existing icon if any
+    this.removeSettingsIcon();
 
-                // Create settings icon element
-                const settingsIcon = createElement('a', {
-                        className: 'settings-icon',
-                        text: '⚙️',
-                        attributes: {
-                                href: '/account-info',
-                                'aria-label': this.translate('settings') || 'Settings',
-                                id: 'global-settings-icon'
-                        }
-                });
+    // Create settings icon element
+    const settingsIcon = createElement('a', {
+      className: 'settings-icon',
+      text: '⚙️',
+      attributes: {
+        href: '/account-info',
+        'aria-label': this.translate('settings') || 'Settings',
+        id: 'global-settings-icon'
+      }
+    });
 
-                // Add to body
-                document.body.appendChild(settingsIcon);
-                debugLog('Settings icon added');
-        },
+    // Add to body
+    document.body.appendChild(settingsIcon);
+    debugLog('Settings icon added');
+  },
 
-        /**
+  /**
          * Remove settings icon from the page
          */
-        removeSettingsIcon() {
-                const existingIcon = document.getElementById('global-settings-icon');
-                if (existingIcon) {
-                        existingIcon.remove();
-                        debugLog('Settings icon removed');
-                }
-        },
+  removeSettingsIcon() {
+    const existingIcon = document.getElementById('global-settings-icon');
+    if (existingIcon) {
+      existingIcon.remove();
+      debugLog('Settings icon removed');
+    }
+  },
 
-        async registerServiceWorker() {
-                if (!('serviceWorker' in navigator)) {
-                        debugLog('Service workers not supported');
-                        return;
-                }
+  async registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) {
+      debugLog('Service workers not supported');
+      return;
+    }
 
-                try {
-                        // Check if a service worker is already registered (e.g. by vite-plugin-pwa)
-                        const existingReg = await navigator.serviceWorker.getRegistration();
-                        if (existingReg) {
-                                debugLog('Service worker already registered:', existingReg.scope);
-                                return;
-                        }
+    try {
+      // Check if a service worker is already registered (e.g. by vite-plugin-pwa)
+      const existingReg = await navigator.serviceWorker.getRegistration();
+      if (existingReg) {
+        debugLog('Service worker already registered:', existingReg.scope);
+        return;
+      }
 
-                        // No fallback registration — src-sw.js is an uncompiled source file
-                        // that uses bare Workbox imports. It must be compiled by vite-plugin-pwa
-                        // during `vite build`, which also injects the registration script into
-                        // the built index.html. Attempting to register the raw source file will
-                        // always fail with a SyntaxError.
-                        debugLog('No service worker registered. Run `vite build` to enable PWA support.');
-                } catch (error) {
-                        debugError('Service worker check failed:', error);
-                }
-        },
+      // No fallback registration — src-sw.js is an uncompiled source file
+      // that uses bare Workbox imports. It must be compiled by vite-plugin-pwa
+      // during `vite build`, which also injects the registration script into
+      // the built index.html. Attempting to register the raw source file will
+      // always fail with a SyntaxError.
+      debugLog('No service worker registered. Run `vite build` to enable PWA support.');
+    } catch (error) {
+      debugError('Service worker check failed:', error);
+    }
+  },
 
-        showLoading() {
-                const loadingIndicator = document.getElementById("loading-indicator");
-                if (loadingIndicator) {
-                        loadingIndicator.classList.remove("hidden");
-                }
-        },
+  showLoading() {
+    const loadingIndicator = document.getElementById('loading-indicator');
+    if (loadingIndicator) {
+      loadingIndicator.classList.remove('hidden');
+    }
+  },
 
-        hideLoading() {
-                const loadingIndicator = document.getElementById("loading-indicator");
-                if (loadingIndicator) {
-                        loadingIndicator.classList.add("hidden");
-                }
-        },
+  hideLoading() {
+    const loadingIndicator = document.getElementById('loading-indicator');
+    if (loadingIndicator) {
+      loadingIndicator.classList.add('hidden');
+    }
+  },
 
-        renderError(message, options = {}) {
-                const {
-                        titleKey = 'error',
-                        actions = null,
-                        showReload = false
-                } = options;
+  renderError(message, options = {}) {
+    const {
+      titleKey = 'error',
+      actions = null,
+      showReload = false
+    } = options;
 
-                const appContainer = document.getElementById("app");
-                if (!appContainer) {
-                        debugError("App container not found");
-                        return;
-                }
+    const appContainer = document.getElementById('app');
+    if (!appContainer) {
+      debugError('App container not found');
+      return;
+    }
 
-                clearElement(appContainer);
+    clearElement(appContainer);
 
-                // Signed in, the way back is the same link every screen opens with.
-                if (this.isLoggedIn) {
-                        appContainer.appendChild(createElement('a', {
-                                text: `← ${this.translate('back')}`,
-                                className: 'button button--ghost',
-                                attributes: { href: '/dashboard' }
-                        }));
-                }
+    // Signed in, the way back is the same link every screen opens with.
+    if (this.isLoggedIn) {
+      appContainer.appendChild(createElement('a', {
+        text: `← ${this.translate('back')}`,
+        className: 'button button--ghost',
+        attributes: { href: '/dashboard' }
+      }));
+    }
 
-                const container = createElement('div', { className: 'error-container' });
-                const title = createElement('h1', { text: this.translate(titleKey) });
-                const messageText = createElement('p', { text: message });
-                container.appendChild(title);
-                container.appendChild(messageText);
+    const container = createElement('div', { className: 'error-container' });
+    const title = createElement('h1', { text: this.translate(titleKey) });
+    const messageText = createElement('p', { text: message });
+    container.appendChild(title);
+    container.appendChild(messageText);
 
-                const actionItems = actions || (this.isLoggedIn ? [] : [{ labelKey: 'back_to_home', href: '/' }]);
-                if (actionItems.length || showReload) {
-                        const actionsWrapper = createElement('div', { className: 'error-actions' });
+    const actionItems = actions || (this.isLoggedIn ? [] : [{ labelKey: 'back_to_home', href: '/' }]);
+    if (actionItems.length || showReload) {
+      const actionsWrapper = createElement('div', { className: 'error-actions' });
 
-                        if (showReload) {
-                                const reloadButton = createElement('button', {
-                                        text: this.translate('reload'),
-                                        className: 'btn'
-                                });
-                                reloadButton.addEventListener('click', () => window.location.reload());
-                                actionsWrapper.appendChild(reloadButton);
-                        }
+      if (showReload) {
+        const reloadButton = createElement('button', {
+          text: this.translate('reload'),
+          className: 'btn'
+        });
+        reloadButton.addEventListener('click', () => window.location.reload());
+        actionsWrapper.appendChild(reloadButton);
+      }
 
-                        actionItems.forEach(action => {
-                                const link = createElement('a', {
-                                        text: this.translate(action.labelKey),
-                                        className: 'btn',
-                                        attributes: { href: action.href }
-                                });
-                                actionsWrapper.appendChild(link);
-                        });
+      actionItems.forEach(action => {
+        const link = createElement('a', {
+          text: this.translate(action.labelKey),
+          className: 'btn',
+          attributes: { href: action.href }
+        });
+        actionsWrapper.appendChild(link);
+      });
 
-                        container.appendChild(actionsWrapper);
-                }
+      container.appendChild(actionsWrapper);
+    }
 
-                appContainer.appendChild(container);
-        },
+    appContainer.appendChild(container);
+  },
 
-        translate(key) {
-                const activeLang = this.lang && this.translations[this.lang] ? this.lang : CONFIG.DEFAULT_LANG;
-                const translationSet = this.translations[activeLang] || {};
-                const defaultSet = this.translations[CONFIG.DEFAULT_LANG] || {};
-                const vocabulary = getUnitVocabulary(this.organizationSettings, activeLang);
-                const directTermKey = getDirectVocabularyTermKey(key);
-                if (directTermKey && vocabulary[directTermKey]) {
-                        return vocabulary[directTermKey];
-                }
+  translate(key) {
+    const activeLang = this.lang && this.translations[this.lang] ? this.lang : CONFIG.DEFAULT_LANG;
+    const translationSet = this.translations[activeLang] || {};
+    const defaultSet = this.translations[CONFIG.DEFAULT_LANG] || {};
+    const vocabulary = getUnitVocabulary(this.organizationSettings, activeLang);
+    const directTermKey = getDirectVocabularyTermKey(key);
+    if (directTermKey && vocabulary[directTermKey]) {
+      return vocabulary[directTermKey];
+    }
 
-                const vocabularyTemplateKey = Object.keys(vocabulary).length > 0
-                        ? getVocabularyTemplateKey(key)
-                        : null;
-                const resolvedKey = vocabularyTemplateKey || key;
-                if (!translationSet[resolvedKey] && !defaultSet[resolvedKey]) {
-                        debugLog(`Missing translation for key: ${key} in language: ${activeLang}`);
-                }
-                const translated = translationSet[resolvedKey] || defaultSet[resolvedKey] || key;
-                return Object.entries(vocabulary).reduce(
-                        (text, [termKey, value]) => text.replaceAll(`{${termKey}}`, value),
-                        translated,
-                );
-        },
+    const vocabularyTemplateKey = Object.keys(vocabulary).length > 0
+      ? getVocabularyTemplateKey(key)
+      : null;
+    const resolvedKey = vocabularyTemplateKey || key;
+    if (!translationSet[resolvedKey] && !defaultSet[resolvedKey]) {
+      debugLog(`Missing translation for key: ${key} in language: ${activeLang}`);
+    }
+    const translated = translationSet[resolvedKey] || defaultSet[resolvedKey] || key;
+    return Object.entries(vocabulary).reduce(
+      (text, [termKey, value]) => text.replaceAll(`{${termKey}}`, value),
+      translated,
+    );
+  },
 
-        async syncOfflineData() {
-                if (navigator.onLine) {
-                        try {
-                                // Delegate replay/clear lifecycle to OfflineManager to avoid
-                                // deleting pending mutations before they are successfully synced.
-                                await offlineManager.syncPendingData();
-                        } catch (error) {
-                                debugError("Error syncing offline data:", error);
-                        }
-                }
-        },
+  async syncOfflineData() {
+    if (navigator.onLine) {
+      try {
+        // Delegate replay/clear lifecycle to OfflineManager to avoid
+        // deleting pending mutations before they are successfully synced.
+        await offlineManager.syncPendingData();
+      } catch (error) {
+        debugError('Error syncing offline data:', error);
+      }
+    }
+  },
 
-        showOfflineNotification(status) {
-                const offlineIndicator = document.getElementById("offline-indicator");
-                if (offlineIndicator) {
-                        if (status === "offline") {
-                                offlineIndicator.classList.remove("hidden");
-                        } else {
-                                offlineIndicator.classList.add("hidden");
-                        }
-                }
-        },
+  showOfflineNotification(status) {
+    const offlineIndicator = document.getElementById('offline-indicator');
+    if (offlineIndicator) {
+      if (status === 'offline') {
+        offlineIndicator.classList.remove('hidden');
+      } else {
+        offlineIndicator.classList.add('hidden');
+      }
+    }
+  },
 };
 
 if ('serviceWorker' in navigator) {
@@ -842,26 +842,26 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-window.addEventListener("online", () => {
-        debugLog("App is online");
-        app.showOfflineNotification("online");
-        document.body.classList.remove("offline");
-        // Use app object instead of this
-        app.syncOfflineData();
+window.addEventListener('online', () => {
+  debugLog('App is online');
+  app.showOfflineNotification('online');
+  document.body.classList.remove('offline');
+  // Use app object instead of this
+  app.syncOfflineData();
 });
 
-window.addEventListener("offline", () => {
-        debugLog("App is offline");
-        document.body.classList.add("offline");
-        app.showOfflineNotification("offline");
+window.addEventListener('offline', () => {
+  debugLog('App is offline');
+  document.body.classList.add('offline');
+  app.showOfflineNotification('offline');
 });
 
 // Check initial online status
 if (!navigator.onLine) {
-        document.body.classList.add("offline");
-        app.showOfflineNotification("offline");
+  document.body.classList.add('offline');
+  app.showOfflineNotification('offline');
 } else {
-        app.showOfflineNotification("online");
+  app.showOfflineNotification('online');
 }
 
 // PERFORMANCE OPTIMIZATION: Start fetching organization settings as early as possible
@@ -869,30 +869,30 @@ if (!navigator.onLine) {
 // The fetch starts immediately when this module loads, before app.init() completes
 const storedOrgId = getStorage('currentOrganizationId') || getStorage('organizationId');
 if (storedOrgId && storedOrgId !== '[object Object]' && !storedOrgId.startsWith('{')) {
-        debugLog("Starting early organization settings fetch for better performance");
+  debugLog('Starting early organization settings fetch for better performance');
 
-        // Check if user is logged in to determine which endpoint to use
-        const jwtToken = getStorage('jwtToken');
-        const useFullSettings = !!jwtToken
+  // Check if user is logged in to determine which endpoint to use
+  const jwtToken = getStorage('jwtToken');
+  const useFullSettings = !!jwtToken
                 && canReadFullOrganizationSettings(checkSession().userPermissions);
 
-        // Determine if we are on a public page (where we shouldn't force auth).
-        // '/permission-slip/' keeps the trailing slash so the staff dashboard
-        // at /permission-slips is NOT treated as public.
-        const publicPages = ['/login', '/reset-password', '/register', '/permission-slip/'];
-        const isPublicPage = publicPages.some(path => window.location.pathname.startsWith(path));
+  // Determine if we are on a public page (where we shouldn't force auth).
+  // '/permission-slip/' keeps the trailing slash so the staff dashboard
+  // at /permission-slips is NOT treated as public.
+  const publicPages = ['/login', '/reset-password', '/register', '/permission-slip/'];
+  const isPublicPage = publicPages.some(path => window.location.pathname.startsWith(path));
 
-        // Use public endpoint for unauthenticated users OR if on a public page
-        // to avoid 401 errors that might trigger redirects
-        window.earlyOrgSettingsFetch = (useFullSettings && !isPublicPage)
-                ? getOrganizationSettings().catch(error => {
-                        debugError("Early org settings fetch failed, will retry later:", error);
-                        return null;
-                })
-                : getPublicOrganizationSettings().catch(error => {
-                        debugError("Early public org settings fetch failed, will retry later:", error);
-                        return null;
-                });
+  // Use public endpoint for unauthenticated users OR if on a public page
+  // to avoid 401 errors that might trigger redirects
+  window.earlyOrgSettingsFetch = (useFullSettings && !isPublicPage)
+    ? getOrganizationSettings().catch(error => {
+      debugError('Early org settings fetch failed, will retry later:', error);
+      return null;
+    })
+    : getPublicOrganizationSettings().catch(error => {
+      debugError('Early public org settings fetch failed, will retry later:', error);
+      return null;
+    });
 }
 
 // Modules that cannot import app.js without a cycle (the offline manager, its
