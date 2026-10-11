@@ -6,6 +6,9 @@
  * render.
  */
 
+// routes/formBuilder.js loads the auth middleware, which needs a JWT secret.
+process.env.JWT_SECRET_KEY = process.env.JWT_SECRET_KEY || 'form-builder-field-texts-secret';
+
 const { validateFieldTexts } = require('../routes/formBuilder');
 
 const structure = (field) => ({ fields: [field] });
