@@ -264,3 +264,16 @@ describe('POST /api/v1/announcements/test', () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 });
+
+describe('GET /api/v1/resources/permission-slips', () => {
+  test('lists each slip with its own copy of the activity, not the current one', async () => {
+    const statements = mockDatabase({ permissions: ['participants.view'] });
+    await request(app)
+      .get('/api/v1/resources/permission-slips?activity_id=12')
+      .set('Authorization', `Bearer ${token(['permission_slips.view'])}`);
+
+    const list = statements.find((sql) => sql.includes('FROM permission_slips ps') && sql.includes('a.name AS activity_name'));
+    expect(list).toBeDefined();
+    expect(list).not.toMatch(/a\.description(_html)? AS activity_description/);
+  });
+});

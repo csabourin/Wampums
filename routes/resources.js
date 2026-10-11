@@ -1754,8 +1754,9 @@ module.exports = (pool) => {
           `SELECT ps.*,
                   p.first_name, p.last_name,
                   g.prenom AS guardian_first_name, g.nom AS guardian_last_name,
-                  a.name AS activity_name, a.description AS activity_description,
-                  a.description_html AS activity_description_html, a.activity_date
+                  -- A slip's own copy of the activity (title, description) is
+                  -- what its parents receive and sign: it is not overwritten.
+                  a.name AS activity_name, a.activity_date
            FROM permission_slips ps
            JOIN participants p ON p.id = ps.participant_id
            LEFT JOIN parents_guardians g ON g.id = ps.guardian_id
