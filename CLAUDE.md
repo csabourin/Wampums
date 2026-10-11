@@ -487,8 +487,9 @@ const ttl = CONFIG.CACHE_DURATION.SHORT;
 #### State Management
 - ✅ Optimistic updates go through `spa/utils/OptimisticUpdateManager.js`: a failure restores exactly the
   previous state, and a successful server write is never rolled back because a local step failed.
-- ✅ A response that arrives after the person has left the screen must not draw over the next one:
-  check the screen's container still exists before rendering.
+- ✅ A response that arrives after the person has left the screen must not draw over the next one.
+  `#app` outlives every screen, so check something the screen owns: a `destroyed` flag set in
+  `destroy()`, or the screen's own root element inside `#app`.
 
 ### 8) Code Quality
 
@@ -1013,7 +1014,14 @@ export class ResourceManager {
   constructor(app) {
     this.app = app;
     this.resources = [];
-    this.canDelete = hasPermission('resources.delete');
+    // The permission the DELETE route requires, so the button is offered exactly when it would work.
+    this.canManage = hasPermission('resources.manage');
+    this.destroyed = false;
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
   }
 
   /** @returns {Promise<void>} */
@@ -1050,6 +1058,9 @@ export class ResourceManager {
   }
 
   renderError() {
+    if (this.destroyed) {
+      return;
+    }
     setContent(this.root(), `
       <section class="page resources">
         ${renderBackLink()}
@@ -1062,14 +1073,15 @@ export class ResourceManager {
   }
 
   render() {
-    const root = this.root();
-    if (!root) {
-      return; // the person has left this screen
+    // #app outlives every screen: a late answer must not draw over the next one.
+    if (this.destroyed) {
+      return;
     }
+    const root = this.root();
     const items = this.resources.map((resource) => `
       <li class="resource-card">
         <span>${escapeHTML(resource.name)}</span>
-        ${this.canDelete ? `
+        ${this.canManage ? `
           <button type="button" class="button button--small button--danger" data-delete="${Number(resource.id)}">
             ${translate('delete')}
           </button>` : ''}
@@ -1097,14 +1109,26 @@ export class ResourceManager {
     if (!confirmed) {
       return;
     }
+    let result;
     try {
-      await deleteResource(resourceId);
-      this.app.showMessage(translate('resources_deleted'), 'success');
-      await this.load({ forceRefresh: true });
-      this.render();
+      result = await deleteResource(resourceId);
     } catch (error) {
       debugError('Failed to delete resource:', error);
       this.app.showMessage(apiErrorMessage(error, 'resources_delete_failed'), 'error');
+      return;
+    }
+    // Offline, the delete is only queued: say so rather than claim it is done.
+    this.app.showMessage(
+      translate(result?.queued ? 'resources_delete_queued' : 'resources_deleted'),
+      result?.queued ? 'info' : 'success',
+    );
+    // The delete stands even if the reload fails: show the error state, not "delete failed".
+    try {
+      await this.load({ forceRefresh: true });
+      this.render();
+    } catch (error) {
+      debugError('Failed to reload resources:', error);
+      this.renderError();
     }
   }
 }
