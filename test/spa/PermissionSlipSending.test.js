@@ -294,6 +294,23 @@ test('slips with different deadlines are listed, and tested, as separate groups'
   expect(groups).toHaveLength(2);
   const ids = [...groups].map((group) => group.querySelector('.btn-send-test[data-reminder="true"]').dataset.slipId);
   expect(ids.sort()).toEqual(['5', '6']);
+
+  endpoints.sendPermissionSlipReminders.mockResolvedValue({ data: { sent: 1, total: 1 } });
+  groups[1].querySelector('.btn-send-reminders').click();
+  await flush();
+  await flush();
+  const reminded = endpoints.sendPermissionSlipReminders.mock.calls[0][0];
+  expect(reminded.activity_id).toBe(12);
+  expect(reminded.participant_ids).toHaveLength(1);
+  expect([1, 2]).toContain(reminded.participant_ids[0]);
+
+  endpoints.sendPermissionSlipEmails.mockClear();
+  groups[0].querySelector('.btn-send-emails').click();
+  await flush();
+  await flush();
+  expect(endpoints.sendPermissionSlipEmails.mock.calls[0][0].participant_ids).toHaveLength(1);
+  expect(endpoints.sendPermissionSlipEmails.mock.calls[0][0].participant_ids[0])
+    .not.toBe(reminded.participant_ids[0]);
 });
 
 test('the create form has no WCAG A/AA violations', async () => {

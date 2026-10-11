@@ -41,6 +41,15 @@ import { richTextOrPlain } from './utils/RichTextUtils.js';
 // The server accepts at most this many participant_ids per request
 const SLIP_BATCH_SIZE = 200;
 
+/**
+ * The participant ids a group's button carries.
+ * @param {HTMLElement} button - A send or reminder button
+ * @returns {number[]}
+ */
+function readParticipantIds(button) {
+  return (button.dataset.participantIds || '').split(',').filter(Boolean).map(Number);
+}
+
 export class PermissionSlipDashboard {
   constructor(app, options = {}) {
     this.app = app;
@@ -487,6 +496,16 @@ export class PermissionSlipDashboard {
     return pick ? escapeHTML(String(pick.id)) : '';
   }
 
+  /**
+   * The children of a listed group, so its send and reminder actions reach
+   * that group's slips only.
+   * @param {Object[]} slips - The group's slips
+   * @returns {string} Comma-separated participant ids
+   */
+  groupParticipantIds(slips) {
+    return [...new Set(slips.filter((slip) => !slip._optimistic).map((slip) => slip.participant_id))].join(',');
+  }
+
   renderPermissionSlipsTable() {
     // Group permission slips by activity
     const activitiesMap = new Map();
@@ -540,10 +559,10 @@ export class PermissionSlipDashboard {
                   ${declinedCount > 0 ? `<br><strong>${escapeHTML(translate("permission_slip_status_declined"))}:</strong> ${declinedCount}` : ''}
                 </div>
                 <div>
-                  <button class="btn secondary btn-send-emails" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}">
+                  <button class="btn secondary btn-send-emails" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}" data-participant-ids="${escapeHTML(this.groupParticipantIds(activity.slips))}">
                     ${escapeHTML(translate("send_emails_to_parents"))}
                   </button>
-                  <button class="btn secondary btn-send-reminders" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}">
+                  <button class="btn secondary btn-send-reminders" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}" data-participant-ids="${escapeHTML(this.groupParticipantIds(activity.slips))}">
                     ${escapeHTML(translate("send_reminder_emails"))}
                   </button>
                   ${this.activityId && hasPermission('communications.send') ? `
@@ -724,7 +743,7 @@ export class PermissionSlipDashboard {
         e.preventDefault();
         const activityTitle = btn.getAttribute('data-activity-title');
         const date = btn.getAttribute('data-date');
-        withButtonLoading(btn, () => this.handleSendEmails(date, activityTitle));
+        withButtonLoading(btn, () => this.handleSendEmails(date, activityTitle, readParticipantIds(btn)));
       });
     });
 
@@ -742,7 +761,7 @@ export class PermissionSlipDashboard {
         e.preventDefault();
         const activityTitle = btn.getAttribute('data-activity-title');
         const date = btn.getAttribute('data-date');
-        withButtonLoading(btn, () => this.handleSendReminders(date, activityTitle));
+        withButtonLoading(btn, () => this.handleSendReminders(date, activityTitle, readParticipantIds(btn)));
       });
     });
 
@@ -1216,25 +1235,42 @@ export class PermissionSlipDashboard {
     }
   }
 
-  async handleSendEmails(date, activityTitle) {
+  /**
+   * Send a listed group's slips (or reminders), in batches the server
+   * accepts, and add up what the batches report.
+   * @param {Function} send - sendPermissionSlipEmails or sendPermissionSlipReminders
+   * @param {string} date - The group's meeting date (legacy slips without an activity)
+   * @param {string} activityTitle - The group's title
+   * @param {number[]} participantIds - The group's children; empty for every slip
+   * @returns {Promise<{data: {sent: number, total: number}, message: string}>}
+   */
+  async sendToGroup(send, date, activityTitle, participantIds) {
+    const base = this.activityId
+      ? { activity_id: this.activityId }
+      : { meeting_date: date, activity_title: activityTitle };
+    const batches = [];
+    for (let start = 0; start < participantIds.length; start += SLIP_BATCH_SIZE) {
+      batches.push(participantIds.slice(start, start + SLIP_BATCH_SIZE));
+    }
+    const results = await Promise.all((batches.length > 0 ? batches : [null])
+      .map((ids) => send(ids ? { ...base, participant_ids: ids } : base)));
+    const datas = results.map((result) => result?.data || result || {});
+    return {
+      data: {
+        sent: datas.reduce((count, data) => count + (data.sent || 0), 0),
+        total: datas.reduce((count, data) => count + (data.total || 0), 0),
+      },
+      message: results.map((result) => result?.message || '').join(' '),
+    };
+  }
+
+  async handleSendEmails(date, activityTitle, participantIds = []) {
     if (!(await confirmDialog(`${translate("send_emails_confirm")} "${activityTitle}"?\n\n${translate("emails_only_not_sent_note")}`))) {
       return;
     }
 
     try {
-      const payload = {};
-
-      // Prefer activity_id if available
-      if (this.activityId) {
-        payload.activity_id = this.activityId;
-      } else {
-        payload.meeting_date = date;
-        payload.activity_title = activityTitle;
-      }
-
-      const result = await sendPermissionSlipEmails(payload);
-      const data = result?.data || result;
-      const message = result?.message || "";
+      const { data, message } = await this.sendToGroup(sendPermissionSlipEmails, date, activityTitle, participantIds);
 
       // Show appropriate message based on response
       if (data.sent === 0 && data.total === 0) {
@@ -1255,25 +1291,13 @@ export class PermissionSlipDashboard {
     }
   }
 
-  async handleSendReminders(date, activityTitle) {
+  async handleSendReminders(date, activityTitle, participantIds = []) {
     if (!(await confirmDialog(`${translate("send_reminder_confirm")} "${activityTitle}"?\n\n${translate("reminder_only_unsigned_note")}`))) {
       return;
     }
 
     try {
-      const payload = {};
-
-      // Prefer activity_id if available
-      if (this.activityId) {
-        payload.activity_id = this.activityId;
-      } else {
-        payload.meeting_date = date;
-        payload.activity_title = activityTitle;
-      }
-
-      const result = await sendPermissionSlipReminders(payload);
-      const data = result?.data || result;
-      const message = result?.message || "";
+      const { data, message } = await this.sendToGroup(sendPermissionSlipReminders, date, activityTitle, participantIds);
 
       // Show appropriate message based on response
       if (data.sent === 0) {
