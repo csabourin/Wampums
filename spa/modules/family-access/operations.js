@@ -1,4 +1,5 @@
-import { translate } from '../../app.js';
+import { app, translate } from '../../app.js';
+import { languageNameIn } from '../../utils/InterfaceLanguageUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 
@@ -61,11 +62,16 @@ export async function refreshFamilyAfterWrite(page, { emailSent = null } = {}) {
  * @returns {string} Translated select field
  */
 export function invitationLanguageField(id, language) {
+  // The unit's languages, plus the invitation's own if the unit has since
+  // stopped offering it, so editing does not silently change it.
+  const offered = app?.getUnitLanguages?.().available || ['fr', 'en'];
+  const languages = offered.includes(language) || !language ? offered : [...offered, language];
+  const displayLang = app?.lang || 'fr';
+  const options = languages.map((code) => `
+      <option value="${escapeHTML(code)}" ${language === code ? 'selected' : ''}>${escapeHTML(languageNameIn(code, displayLang))}</option>`).join('');
   return `<div class="form-group">
     <label for="${escapeHTML(id)}">${translate('family_invitation_language')}</label>
-    <select id="${escapeHTML(id)}" name="language">
-      <option value="en" ${language === 'en' ? 'selected' : ''}>${translate('family_language_en')}</option>
-      <option value="fr" ${language === 'fr' ? 'selected' : ''}>${translate('family_language_fr')}</option>
+    <select id="${escapeHTML(id)}" name="language">${options}
     </select>
   </div>`;
 }

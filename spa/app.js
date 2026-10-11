@@ -15,11 +15,7 @@ import { setContent, clearElement, createElement } from './utils/DOMUtils.js';
 import { applyPalette as applyDashboardPalette } from './utils/DashboardPreferences.js';
 import { checkForStaleClient, installChunkErrorRecovery } from './modules/app-recovery/StaleClientRecovery.js';
 import { localizeStaticChrome } from './utils/StaticChromeUtils.js';
-import {
-  getDirectVocabularyTermKey,
-  getUnitVocabulary,
-  getVocabularyTemplateKey,
-} from './utils/UnitVocabularyUtils.js';
+import { translateKey } from './utils/TranslationUtils.js';
 import {
   fallbackLanguageFor,
   getUnitLanguages,
@@ -831,29 +827,17 @@ export const app = {
   },
 
   translate(key) {
-    const activeLang = this.lang && this.translations[this.lang] ? this.lang : CONFIG.DEFAULT_LANG;
-    const translationSet = this.translations[activeLang] || {};
-    // An optional language is partial: a missing key comes from the unit's
-    // fallback language. French and English are complete.
-    const defaultSet = this.translations[this.fallbackLang || CONFIG.DEFAULT_LANG] || {};
-    const vocabulary = getUnitVocabulary(this.organizationSettings, activeLang);
-    const directTermKey = getDirectVocabularyTermKey(key);
-    if (directTermKey && vocabulary[directTermKey]) {
-      return vocabulary[directTermKey];
+    const { text, missing } = translateKey(key, {
+      lang: this.lang,
+      fallbackLang: this.fallbackLang,
+      defaultLang: CONFIG.DEFAULT_LANG,
+      translations: this.translations,
+      settings: this.organizationSettings,
+    });
+    if (missing) {
+      debugLog(`Missing translation for key: ${key} in language: ${this.lang}`);
     }
-
-    const vocabularyTemplateKey = Object.keys(vocabulary).length > 0
-      ? getVocabularyTemplateKey(key)
-      : null;
-    const resolvedKey = vocabularyTemplateKey || key;
-    if (!translationSet[resolvedKey] && !defaultSet[resolvedKey]) {
-      debugLog(`Missing translation for key: ${key} in language: ${activeLang}`);
-    }
-    const translated = translationSet[resolvedKey] || defaultSet[resolvedKey] || key;
-    return Object.entries(vocabulary).reduce(
-      (text, [termKey, value]) => text.replaceAll(`{${termKey}}`, value),
-      translated,
-    );
+    return text;
   },
 
   async syncOfflineData() {

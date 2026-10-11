@@ -93,3 +93,19 @@ const FORMAT_LOCALES = { fr: 'fr-CA', en: 'en-CA', uk: 'uk-UA', it: 'it-IT', id:
 export function localeForLanguage(lang) {
   return FORMAT_LOCALES[lang] || FORMAT_LOCALES[DEFAULT_LANG];
 }
+
+/**
+ * A language's name in another language ("ukrainien" on a French page).
+ *
+ * @param {string} code - Language to name
+ * @param {string} displayLang - Language the name is written in
+ * @returns {string} Name, or the code when the browser cannot name it
+ */
+export function languageNameIn(code, displayLang) {
+  try {
+    const name = new Intl.DisplayNames([displayLang], { type: 'language' }).of(code);
+    return name ? name.charAt(0).toLocaleUpperCase(displayLang) + name.slice(1) : code;
+  } catch {
+    return code;
+  }
+}
