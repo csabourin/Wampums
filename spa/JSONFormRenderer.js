@@ -1,50 +1,61 @@
-import { translate } from "./app.js";
-import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
-import { isDependencyMet, isDependencySatisfied } from "./utils/FormDependencyUtils.js";
+import { app, translate } from './app.js';
+import { debugLog, debugWarn } from './utils/DebugUtils.js';
+import { isDependencyMet, isDependencySatisfied } from './utils/FormDependencyUtils.js';
+import { formInfoHtml, formLabelHtml } from './utils/FormTextUtils.js';
+import { DEFAULT_LANG } from './config/languages.js';
+
+/**
+ * The reader's language, for the texts a unit wrote itself.
+ *
+ * @returns {string} Language code
+ */
+function readerLanguage() {
+  return app?.lang || DEFAULT_LANG;
+}
 
 export class JSONFormRenderer {
-	constructor(formStructure, formData = {}, formOrigin, useUniqueIds = false, formIndex = null) {
-		this.formStructure = typeof formStructure === 'string' ? JSON.parse(formStructure) : formStructure;
-		this.formData = formData;
-		this.formOrigin = formOrigin;
-		this.useUniqueIds = useUniqueIds; 
-		this.formIndex = formIndex; 
-		debugLog("Form structure:", this.formStructure, "Form data:", this.formData);
-	}
+  constructor(formStructure, formData = {}, formOrigin, useUniqueIds = false, formIndex = null) {
+    this.formStructure = typeof formStructure === 'string' ? JSON.parse(formStructure) : formStructure;
+    this.formData = formData;
+    this.formOrigin = formOrigin;
+    this.useUniqueIds = useUniqueIds; 
+    this.formIndex = formIndex; 
+    debugLog('Form structure:', this.formStructure, 'Form data:', this.formData);
+  }
 
-	render(formData = this.formData) {
-		debugLog('\x1b[33m%s\x1b[0m', "Rendering with formData:", formData);
-		if (!this.formStructure.fields || !Array.isArray(this.formStructure.fields)) {
-			debugWarn("Invalid form structure:", this.formStructure);
-			return '<p>Invalid form structure</p>';
-		}
+  render(formData = this.formData) {
+    debugLog('\x1b[33m%s\x1b[0m', 'Rendering with formData:', formData);
+    if (!this.formStructure.fields || !Array.isArray(this.formStructure.fields)) {
+      debugWarn('Invalid form structure:', this.formStructure);
+      return '<p>Invalid form structure</p>';
+    }
 
-		// Update this.formData to the passed formData for use in renderField
-		this.formData = formData.form_data || formData;
+    // Update this.formData to the passed formData for use in renderField
+    this.formData = formData.form_data || formData;
 
-		// Render the form with the available form fields
-		const renderedFields = this.formStructure.fields.map((field, index) => {
-			if (field.type === 'infoText') {
-				return `<div class="info-text">${translate(field.infoText)}</div>`;
-			}
-			const fieldHtml = this.renderField(field, this.formOrigin, index);
-			return fieldHtml;
-		});
+    // Render the form with the available form fields
+    const renderedFields = this.formStructure.fields.map((field, index) => {
+      if (field.type === 'infoText') {
+        return `<div class="info-text">${formInfoHtml(field, readerLanguage(), translate)}</div>`;
+      }
+      const fieldHtml = this.renderField(field, this.formOrigin, index);
+      return fieldHtml;
+    });
 
-		return renderedFields.join('');
-	}
+    return renderedFields.join('');
+  }
 
-	/**
+  /**
 	 * Whether a `dependsOn` condition is already satisfied by the saved answers.
 	 *
 	 * @param {Object} dependsOn - `{ field, value }` from the form format
 	 * @returns {boolean} True when the dependent field should be editable
 	 */
-	isDependencyMet(dependsOn) {
-		return isDependencyMet(dependsOn, this.formData);
-	}
+  isDependencyMet(dependsOn) {
+    return isDependencyMet(dependsOn, this.formData);
+  }
 
-	/**
+  /**
 	 * The option a saved answer designates.
 	 *
 	 * An exact match wins. Otherwise the answer may be an older spelling of the
@@ -64,201 +75,201 @@ export class JSONFormRenderer {
 	 * @param {string} [fieldName] - The field's name, to find what its dependents wait for
 	 * @returns {string|undefined} The designated option's value, if any
 	 */
-	resolveChoice(value, options = [], fieldName = undefined) {
-		// Compared as strings, as the DOM and the dependency helpers see them: a
-		// JSON number 1 is the "1" option, not a legacy spelling of yes.
-		const exact = value === undefined || value === null
-			? undefined
-			: options.find(option => String(option.value) === String(value));
-		if (exact) {
-			return exact.value;
-		}
+  resolveChoice(value, options = [], fieldName = undefined) {
+    // Compared as strings, as the DOM and the dependency helpers see them: a
+    // JSON number 1 is the "1" option, not a legacy spelling of yes.
+    const exact = value === undefined || value === null
+      ? undefined
+      : options.find(option => String(option.value) === String(value));
+    if (exact) {
+      return exact.value;
+    }
 
-		const equivalent = options.filter(option => isDependencySatisfied(value, option.value));
-		const awaited = new Set(
-			(this.formStructure.fields || [])
-				.filter(field => fieldName && field.dependsOn?.field === fieldName)
-				.map(field => String(field.dependsOn.value))
-		);
-		const preferred = equivalent.find(option => awaited.has(String(option.value)));
-		return (preferred || equivalent[0])?.value;
-	}
+    const equivalent = options.filter(option => isDependencySatisfied(value, option.value));
+    const awaited = new Set(
+      (this.formStructure.fields || [])
+        .filter(field => fieldName && field.dependsOn?.field === fieldName)
+        .map(field => String(field.dependsOn.value))
+    );
+    const preferred = equivalent.find(option => awaited.has(String(option.value)));
+    return (preferred || equivalent[0])?.value;
+  }
 
-	renderField(field, formOrigin, index) {
-			const { type = 'text', name, label, required, infoText, options, dependsOn } = field;
-			let value = this.formData[name] || '';
+  renderField(field, formOrigin, index) {
+    const { type = 'text', name, required, infoText, options, dependsOn } = field;
+    let value = this.formData[name] || '';
 
-			// Convert date values from ISO format to YYYY-MM-DD for HTML5 date inputs
-			if (type === 'date' && value) {
-				try {
-					// Handle both ISO format dates and already formatted dates
-					if (value.includes('T') || value.includes(':')) {
-						const date = new Date(value);
-						if (!isNaN(date.getTime())) {
-							// Format as YYYY-MM-DD in local time (UTC would
-							// shift the date across midnight)
-							value = date.toLocaleDateString('en-CA');
-						}
-					}
-				} catch (e) {
-					debugWarn('Error formatting date value:', value, e);
-				}
-			}
+    // Convert date values from ISO format to YYYY-MM-DD for HTML5 date inputs
+    if (type === 'date' && value) {
+      try {
+        // Handle both ISO format dates and already formatted dates
+        if (value.includes('T') || value.includes(':')) {
+          const date = new Date(value);
+          if (!isNaN(date.getTime())) {
+            // Format as YYYY-MM-DD in local time (UTC would
+            // shift the date across midnight)
+            value = date.toLocaleDateString('en-CA');
+          }
+        }
+      } catch (e) {
+        debugWarn('Error formatting date value:', value, e);
+      }
+    }
 
-			const requiredAttr = required ? 'required' : '';
+    const requiredAttr = required ? 'required' : '';
 
-			// If the field has a dependsOn attribute, include it as a data-depends-on attribute in the HTML
-			const dependsOnAttr = dependsOn ? `data-depends-on='${JSON.stringify(dependsOn)}'` : '';
-			// A dependent field starts disabled only when its condition is not
-			// already met by the saved answers. Disabling it unconditionally made
-			// a filled-in fiche santé open with its allergy greyed out and
-			// uneditable, and — on the standalone form, which submits through
-			// FormData — dropped that allergy from the next save, because a
-			// disabled input is not submitted.
-			const disabled = dependsOn && !this.isDependencyMet(dependsOn) ? 'disabled' : '';
+    // If the field has a dependsOn attribute, include it as a data-depends-on attribute in the HTML
+    const dependsOnAttr = dependsOn ? `data-depends-on='${JSON.stringify(dependsOn)}'` : '';
+    // A dependent field starts disabled only when its condition is not
+    // already met by the saved answers. Disabling it unconditionally made
+    // a filled-in fiche santé open with its allergy greyed out and
+    // uneditable, and — on the standalone form, which submits through
+    // FormData — dropped that allergy from the next save, because a
+    // disabled input is not submitted.
+    const disabled = dependsOn && !this.isDependencyMet(dependsOn) ? 'disabled' : '';
 
-			const fieldId = this.useUniqueIds ? `${name}-${this.formIndex}-${index}` : name;
+    const fieldId = this.useUniqueIds ? `${name}-${this.formIndex}-${index}` : name;
 
-			// A dependent field whose condition is not met is hidden as well as
-			// disabled: the issue asked for the precision box to appear only when it
-			// is relevant. `disabled` stays, because it is also what makes the field
-			// required once the condition is met — and because hiding alone is not
-			// enough: a select is a successful form control even when invisible, so
-			// an unhidden-but-enabled one would submit its first option as an answer
-			// the user was never shown. Every branch below applies `disabled`.
-			const groupClasses = ['form-group'];
-			// A lone checkbox sits on one row before its label, like the options
-			// of a checkbox group, so the label widens the target to the full row.
-			if (type === 'checkbox') {
-					groupClasses.push('form-group--single-checkbox');
-			}
-			if (dependsOn) {
-					groupClasses.push('form-group--dependent');
-					if (disabled) {
-							groupClasses.push('form-group--hidden');
-					}
-			}
+    // A dependent field whose condition is not met is hidden as well as
+    // disabled: the issue asked for the precision box to appear only when it
+    // is relevant. `disabled` stays, because it is also what makes the field
+    // required once the condition is met — and because hiding alone is not
+    // enough: a select is a successful form control even when invisible, so
+    // an unhidden-but-enabled one would submit its first option as an answer
+    // the user was never shown. Every branch below applies `disabled`.
+    const groupClasses = ['form-group'];
+    // A lone checkbox sits on one row before its label, like the options
+    // of a checkbox group, so the label widens the target to the full row.
+    if (type === 'checkbox') {
+      groupClasses.push('form-group--single-checkbox');
+    }
+    if (dependsOn) {
+      groupClasses.push('form-group--dependent');
+      if (disabled) {
+        groupClasses.push('form-group--hidden');
+      }
+    }
 
-			let output = `<div class="${groupClasses.join(' ')}" data-form-origin="${formOrigin}"${dependsOnAttr ? ` data-group-for="${name}"` : ''}>`;
-			const labelHtml = `<label for="${fieldId}">${translate(label || name)}</label>`;
-			if (type !== 'checkbox') {
-					output += labelHtml;
-			}
+    let output = `<div class="${groupClasses.join(' ')}" data-form-origin="${formOrigin}"${dependsOnAttr ? ` data-group-for="${name}"` : ''}>`;
+    const labelHtml = `<label for="${fieldId}">${formLabelHtml(field, readerLanguage(), translate)}</label>`;
+    if (type !== 'checkbox') {
+      output += labelHtml;
+    }
 
-			switch (type) {
-					case 'textarea':
-							output += `<textarea id="${fieldId}" name="${name}" ${requiredAttr} ${disabled} ${dependsOnAttr}>${value}</textarea>`;
-							break;
-					case 'select':
-							if (field.multiple) {
-								// Multi-select: render as checkbox group
-								const selectedValues = Array.isArray(value) ? value : (value ? String(value).split(',') : []);
-								output += `<div class="checkbox-group" data-field-name="${name}">`;
-								options.forEach(option => {
-									const cbId = this.useUniqueIds ? `${name}_${option.value}-${this.formIndex}-${index}` : `${name}_${option.value}`;
-									const isChecked = selectedValues.includes(option.value) ? 'checked' : '';
-									output += `<div class="checkbox-option">`;
-									output += `<input type="checkbox" id="${cbId}" name="${name}" value="${option.value}" ${isChecked} ${disabled} ${dependsOnAttr}>`;
-									output += `<label for="${cbId}">${translate(option.label)}</label>`;
-									output += `</div>`;
-								});
-								output += `</div>`;
-							} else {
-								output += `<select id="${fieldId}" name="${name}" ${requiredAttr} ${disabled} ${dependsOnAttr}>`;
-								const chosen = this.resolveChoice(value, options, name);
-								options.forEach(option => {
-									const selected = chosen !== undefined && chosen === option.value ? 'selected' : '';
-									output += `<option value="${option.value}" ${selected}>${translate(option.label)}</option>`;
-								});
-								output += `</select>`;
-							}
-							break;
-					case 'checkbox':
-							// Every stored spelling of "yes", including "yes" and "oui"
-							const checked = isDependencySatisfied(value, 'yes') ? 'checked' : '';
-							output += `<input type="checkbox" id="${fieldId}" name="${name}" value="1" ${checked} ${requiredAttr} ${disabled} ${dependsOnAttr}>`;
-							output += labelHtml;
-							break;
-					case 'radio':
-							// Wrapped so the options lay out as a row. Bare inputs and labels
-							// dropped straight into `.form-group` (a column flex container)
-							// put every option on its own line under the question.
-							output += `<div class="radio-group" data-field-name="${name}">`;
-							const chosenRadio = this.resolveChoice(value, options, name);
-							options.forEach(option => {
-									const radioId = this.useUniqueIds ? `${name}_${option.value}-${index}` : `${name}_${option.value}`;
-									const checked = chosenRadio !== undefined && chosenRadio === option.value ? 'checked' : '';
-									output += `<div class="radio-option">`;
-									output += `<input type="radio" id="${radioId}" name="${name}" value="${option.value}" ${checked} ${requiredAttr} ${disabled} ${dependsOnAttr}>`;
-									output += `<label for="${radioId}">${translate(option.label)}</label>`;
-									output += `</div>`;
-							});
-							output += `</div>`;
-							break;
-					default:
-							output += `<input type="${type}" id="${fieldId}" name="${name}" value="${value}" ${requiredAttr} ${dependsOnAttr} ${disabled}>`;
-			}
+    switch (type) {
+      case 'textarea':
+        output += `<textarea id="${fieldId}" name="${name}" ${requiredAttr} ${disabled} ${dependsOnAttr}>${value}</textarea>`;
+        break;
+      case 'select':
+        if (field.multiple) {
+          // Multi-select: render as checkbox group
+          const selectedValues = Array.isArray(value) ? value : (value ? String(value).split(',') : []);
+          output += `<div class="checkbox-group" data-field-name="${name}">`;
+          options.forEach(option => {
+            const cbId = this.useUniqueIds ? `${name}_${option.value}-${this.formIndex}-${index}` : `${name}_${option.value}`;
+            const isChecked = selectedValues.includes(option.value) ? 'checked' : '';
+            output += `<div class="checkbox-option">`;
+            output += `<input type="checkbox" id="${cbId}" name="${name}" value="${option.value}" ${isChecked} ${disabled} ${dependsOnAttr}>`;
+            output += `<label for="${cbId}">${translate(option.label)}</label>`;
+            output += `</div>`;
+          });
+          output += `</div>`;
+        } else {
+          output += `<select id="${fieldId}" name="${name}" ${requiredAttr} ${disabled} ${dependsOnAttr}>`;
+          const chosen = this.resolveChoice(value, options, name);
+          options.forEach(option => {
+            const selected = chosen !== undefined && chosen === option.value ? 'selected' : '';
+            output += `<option value="${option.value}" ${selected}>${translate(option.label)}</option>`;
+          });
+          output += `</select>`;
+        }
+        break;
+      case 'checkbox':
+        // Every stored spelling of "yes", including "yes" and "oui"
+        const checked = isDependencySatisfied(value, 'yes') ? 'checked' : '';
+        output += `<input type="checkbox" id="${fieldId}" name="${name}" value="1" ${checked} ${requiredAttr} ${disabled} ${dependsOnAttr}>`;
+        output += labelHtml;
+        break;
+      case 'radio':
+        // Wrapped so the options lay out as a row. Bare inputs and labels
+        // dropped straight into `.form-group` (a column flex container)
+        // put every option on its own line under the question.
+        output += `<div class="radio-group" data-field-name="${name}">`;
+        const chosenRadio = this.resolveChoice(value, options, name);
+        options.forEach(option => {
+          const radioId = this.useUniqueIds ? `${name}_${option.value}-${index}` : `${name}_${option.value}`;
+          const checked = chosenRadio !== undefined && chosenRadio === option.value ? 'checked' : '';
+          output += `<div class="radio-option">`;
+          output += `<input type="radio" id="${radioId}" name="${name}" value="${option.value}" ${checked} ${requiredAttr} ${disabled} ${dependsOnAttr}>`;
+          output += `<label for="${radioId}">${translate(option.label)}</label>`;
+          output += `</div>`;
+        });
+        output += `</div>`;
+        break;
+      default:
+        output += `<input type="${type}" id="${fieldId}" name="${name}" value="${value}" ${requiredAttr} ${dependsOnAttr} ${disabled}>`;
+    }
 
-			if (infoText) {
-					output += `<div class="field-info">${translate(infoText)}</div>`;
-			}
+    if (infoText) {
+      output += `<div class="field-info">${translate(infoText)}</div>`;
+    }
 
-			output += '</div>';
-			return output;
-	}
+    output += '</div>';
+    return output;
+  }
 
 	
 
-	// Get the appropriate event type based on field type
-	getEventType(fieldType) {
-			switch (fieldType) {
-					case 'text':
-					case 'textarea':
-					case 'select':
-							return 'input';
-					case 'checkbox':
-					case 'radio':
-							return 'change';
-					default:
-							return 'input';
-			}
-	}
+  // Get the appropriate event type based on field type
+  getEventType(fieldType) {
+    switch (fieldType) {
+      case 'text':
+      case 'textarea':
+      case 'select':
+        return 'input';
+      case 'checkbox':
+      case 'radio':
+        return 'change';
+      default:
+        return 'input';
+    }
+  }
 
-	// Get the current value of a field based on its type
-	getFieldValue(field, element) {
-			switch (field.type) {
-					case 'checkbox':
-							return element.checked ? 'yes' : 'no'; // Normalizing value for checkboxes
-					case 'radio':
-							return element.checked ? element.value : '';
-					default:
-							return element.value;
-			}
-	}
+  // Get the current value of a field based on its type
+  getFieldValue(field, element) {
+    switch (field.type) {
+      case 'checkbox':
+        return element.checked ? 'yes' : 'no'; // Normalizing value for checkboxes
+      case 'radio':
+        return element.checked ? element.value : '';
+      default:
+        return element.value;
+    }
+  }
 
 
-	getFormData(formElement) {
-		if (!(formElement instanceof HTMLFormElement)) {
-			throw new Error('Invalid form element provided to getFormData');
-		}
-		const formData = new FormData(formElement);
-		const result = {};
+  getFormData(formElement) {
+    if (!(formElement instanceof HTMLFormElement)) {
+      throw new Error('Invalid form element provided to getFormData');
+    }
+    const formData = new FormData(formElement);
+    const result = {};
 
-		// Collect all keys first to detect multi-value fields (checkbox groups)
-		const allKeys = [...formData.keys()];
-		const multiKeys = new Set(allKeys.filter((k, i) => allKeys.indexOf(k) !== i));
+    // Collect all keys first to detect multi-value fields (checkbox groups)
+    const allKeys = [...formData.keys()];
+    const multiKeys = new Set(allKeys.filter((k, i) => allKeys.indexOf(k) !== i));
 
-		for (const [key, val] of formData.entries()) {
-			if (multiKeys.has(key)) {
-				// Multi-select checkbox group: collect all values as comma-separated string
-				if (!result[key]) {
-					result[key] = formData.getAll(key).join(',');
-				}
-			} else {
-				result[key] = val;
-			}
-		}
+    for (const [key, val] of formData.entries()) {
+      if (multiKeys.has(key)) {
+        // Multi-select checkbox group: collect all values as comma-separated string
+        if (!result[key]) {
+          result[key] = formData.getAll(key).join(',');
+        }
+      } else {
+        result[key] = val;
+      }
+    }
 
-		return result;
-	}
+    return result;
+  }
 }

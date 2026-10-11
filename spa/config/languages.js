@@ -12,3 +12,10 @@ export const SUPPORTED_LANGS = ['en', 'fr'];
 
 /** localStorage key holding the visitor's chosen language */
 export const LANG_STORAGE_KEY = 'lang';
+
+/**
+ * Languages a unit may write its own form texts in. Wider than the web
+ * interface: the mobile app and future interfaces read the same form formats,
+ * and each of these has a bundle in lang/ to start the text from.
+ */
+export const FORM_CONTENT_LANGS = ['fr', 'en', 'it', 'uk', 'id'];
