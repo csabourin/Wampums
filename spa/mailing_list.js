@@ -1,4 +1,5 @@
 import { getMailingList, getAnnouncements, createAnnouncement, getGroups } from './ajax-functions.js';
+import { sendAnnouncementTest } from './api/api-endpoints.js';
 import { aiGenerateText } from './modules/AI.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { translate } from './app.js';
@@ -172,6 +173,9 @@ export class MailingList {
 )}</button>
                                         <button type="button" id="save-announcement-draft" ${this.isSubmitting ? 'disabled' : ''}>${translate(
   'save_draft'
+)}</button>
+                                        <button type="button" id="send-announcement-test" class="button--ghost" ${this.isSubmitting ? 'disabled' : ''}>${translate(
+  'send_test_to_me'
 )}</button>
                                 </div>
                         </form>
@@ -415,6 +419,14 @@ export class MailingList {
     });
     this.toggleMemberFilters();
 
+    const testButton = document.getElementById('send-announcement-test');
+    if (testButton) {
+      testButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        this.handleSendTest(testButton);
+      });
+    }
+
     const draftButton = document.getElementById('save-announcement-draft');
     if (draftButton) {
       draftButton.addEventListener('click', (event) => {
@@ -490,15 +502,69 @@ export class MailingList {
     });
   }
 
-  async handleAnnouncementSubmit(saveAsDraft = false) {
-    if (this.isSubmitting) {return;}
-
-    const subject = document.getElementById('announcement-subject')?.value?.trim();
+  /**
+   * Read the message being written; on an empty one, show the error on the
+   * editor and return null.
+   *
+   * @returns {{subject: string, message: string, messageHtml: string, audience: string}|null}
+   */
+  readMessage() {
+    const subject = document.getElementById('announcement-subject')?.value?.trim() || '';
     const messageArea = document.getElementById('announcement-message');
     const messageHtml = messageArea ? getRichTextValue(messageArea) : '';
     const message = richTextToPlainText(messageHtml);
-    const scheduledAt = document.getElementById('announcement-scheduled-at')?.value;
     const audience = document.querySelector('input[name="announcement-audience"]:checked')?.value || 'members';
+    if (!message) {
+      this.setMessageError(translate('announcement_message_required'));
+      messageArea?.focus();
+      return null;
+    }
+    return { subject, message, messageHtml, audience };
+  }
+
+  /**
+   * Email the signed-in member the message as families would receive it.
+   * Nothing is saved and nobody else receives it.
+   *
+   * @param {HTMLButtonElement} button - The test button
+   * @returns {Promise<void>}
+   */
+  async handleSendTest(button) {
+    const draft = this.readMessage();
+    if (!draft) {
+      return;
+    }
+    if (!draft.subject) {
+      document.getElementById('announcement-subject')?.reportValidity?.();
+      return;
+    }
+    setButtonLoading(button, true);
+    try {
+      const response = await sendAnnouncementTest({
+        subject: draft.subject,
+        message: sanitizeHTML(draft.message, { stripAll: true }),
+        message_html: draft.messageHtml,
+        audience: draft.audience,
+      });
+      const email = response?.data?.email || '';
+      this.showFeedback(translate('test_email_sent').replace('{email}', email), 'success');
+    } catch (error) {
+      debugError('Error sending test announcement:', error);
+      this.showFeedback(apiErrorMessage(error, 'test_email_failed'), 'error');
+    } finally {
+      setButtonLoading(button, false);
+    }
+  }
+
+  async handleAnnouncementSubmit(saveAsDraft = false) {
+    if (this.isSubmitting) {return;}
+
+    const draft = this.readMessage();
+    if (!draft) {
+      return;
+    }
+    const { subject, message, messageHtml, audience } = draft;
+    const scheduledAt = document.getElementById('announcement-scheduled-at')?.value;
     const roleCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-role"]:checked'));
     const groupCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-group"]:checked'));
 
@@ -509,11 +575,6 @@ export class MailingList {
     const recipientRoles = isAlumni ? [] : roleCheckboxes.map((input) => input.value);
     const recipientGroupIds = isAlumni ? [] : groupCheckboxes.map((input) => Number(input.value));
 
-    if (!message) {
-      this.setMessageError(translate('announcement_message_required'));
-      messageArea?.focus();
-      return;
-    }
     if (!subject) {
       this.showFeedback(translate('error_loading_mailing_list'), 'error');
       return;

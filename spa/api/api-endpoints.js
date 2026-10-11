@@ -440,6 +440,14 @@ export async function sendPermissionSlipReminders(payload) {
 }
 
 /**
+ * Email the signed-in member a test copy of an activity's permission-slip
+ * email ({ activity_id, deadline_date?, reminder? }). No slip is created.
+ */
+export function sendPermissionSlipTestEmail(payload) {
+  return API.post('v1/resources/permission-slips/test-email', payload);
+}
+
+/**
  * Get public permission slip by token (no auth required)
  */
 export async function getPublicPermissionSlip(token) {
@@ -2140,6 +2148,14 @@ export async function getAnnouncements() {
 
 export async function createAnnouncement(payload) {
     return API.post('v1/announcements', payload);
+}
+
+/**
+ * Email the signed-in member a test copy of an announcement being written.
+ * Nothing is saved and nobody else receives it.
+ */
+export function sendAnnouncementTest(payload) {
+  return API.post('v1/announcements/test', payload);
 }
 
 // ============================================================================

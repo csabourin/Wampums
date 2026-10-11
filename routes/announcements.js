@@ -6,7 +6,7 @@
 
 const { authenticate, blockDemoRoles, requirePermission, getOrganizationId } = require('../middleware/auth');
 const express = require('express');
-const { asyncHandler, error: errorResponse } = require('../middleware/response');
+const { asyncHandler, error: errorResponse, success: successResponse } = require('../middleware/response');
 const { check } = require('express-validator');
 const router = express.Router();
 const {
@@ -30,6 +30,7 @@ const {
 } = require('../utils/web-push');
 const { recordUserMessages, messageUrl } = require('../services/userMessages');
 const { readRichTextField, sanitizeRichTextHtml } = require('../utils/richText');
+const { findTestRecipient, markAsTestEmail } = require('../utils/test-email');
 
 /** Upper bound on roles one announcement may address; the unit's catalog is far smaller. */
 const MAX_ANNOUNCEMENT_ROLES = 50;
@@ -40,6 +41,9 @@ const ALLOWED_AUDIENCES = [MEMBERS_AUDIENCE, ALUMNI_AUDIENCE];
 const MAX_ANNOUNCEMENT_SUBJECT_LENGTH = 255;
 const MAX_ANNOUNCEMENT_MESSAGE_LENGTH = 10000;
 const MAX_ANNOUNCEMENT_GROUPS = 200;
+const HTTP_BAD_REQUEST = 400;
+/** The email service did not accept a message. */
+const HTTP_BAD_GATEWAY = 502;
 /** How often the scheduler re-checks with nothing else to wake it. */
 const FALLBACK_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const pg = require('pg');
@@ -295,6 +299,31 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
 }
 
 /**
+ * The email an announcement sends: its formatted message when it has one,
+ * with the plain message as the text part; plain text only otherwise. An
+ * alumni mailing adds its recipient's unsubscribe footer.
+ *
+ * @param {Object} announcement - Announcement row (subject, message, message_html)
+ * @param {{text: string, html: string}|null} [footer] - Unsubscribe footer
+ * @returns {{subject: string, textBody: string, htmlBody: (string|null)}}
+ */
+function buildAnnouncementEmail(announcement, footer = null) {
+  const messageHtml = sanitizeRichTextHtml(announcement.message_html);
+  if (footer) {
+    return {
+      subject: announcement.subject,
+      textBody: `${announcement.message}${footer.text}`,
+      htmlBody: `<div>${messageHtml || escapeHtml(announcement.message).replace(/\n/g, '<br />')}</div>${footer.html}`,
+    };
+  }
+  return {
+    subject: announcement.subject,
+    textBody: announcement.message,
+    htmlBody: messageHtml ? `<div>${messageHtml}</div>` : null,
+  };
+}
+
+/**
  * Send announcement via email, push, WhatsApp, and Google Chat
  */
 async function dispatchAnnouncement(pool, logger, announcement, whatsappService = null, googleChatService = null) {
@@ -319,23 +348,19 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
 
   const emailLogs = await Promise.allSettled(
     emails.map(async (email) => {
-      let body = announcement.message;
-      const messageHtml = sanitizeRichTextHtml(announcement.message_html);
-      let html = messageHtml ? `<div>${messageHtml}</div>` : null;
-
       // An alumni mailing carries its own way out. Building the footer per
       // recipient is what makes the link personal — a shared one could only
       // unsubscribe everybody or nobody.
+      let footer = null;
       if (isAlumniSend) {
         const membership = alumniByEmail.get(email);
         const language = await getUserEmailLanguage(pool, email, announcement.organization_id);
         const unsubscribeLink = `${baseUrl}/alumni-unsubscribe?token=${issueAlumniToken(membership, UNSUBSCRIBE_PURPOSE)}`;
-        const footer = buildUnsubscribeFooter({ language, unsubscribeLink });
-        body = `${announcement.message}${footer.text}`;
-        html = `<div>${messageHtml || escapeHtml(announcement.message).replace(/\n/g, '<br />')}</div>${footer.html}`;
+        footer = buildUnsubscribeFooter({ language, unsubscribeLink });
       }
+      const { subject, textBody, htmlBody } = buildAnnouncementEmail(announcement, footer);
 
-      const success = await sendEmail(email, announcement.subject, body, html, sender);
+      const success = await sendEmail(email, subject, textBody, htmlBody, sender);
       await pool.query(
         `INSERT INTO announcement_logs (announcement_id, channel, recipient_email, status, error_message)
          VALUES ($1, 'email', $2, $3, $4)`,
@@ -900,6 +925,56 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
   );
 
   /**
+   * Send the signed-in member a test copy of an announcement being written:
+   * the email its recipients would get, marked as a test. Nothing is saved
+   * and nobody else receives it.
+   * Permission: communications.send
+   */
+  router.post(
+    '/v1/announcements/test',
+    authenticate, blockDemoRoles, requirePermission(['communications.send']),
+    [
+      check('subject').trim().notEmpty().withMessage('Subject is required'),
+      check('message').trim().notEmpty().withMessage('Message is required'),
+      check('audience').optional().isIn(ALLOWED_AUDIENCES).withMessage(`audience must be one of ${ALLOWED_AUDIENCES.join(', ')}`),
+    ],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const recipient = await findTestRecipient(pool, req.user.id, organizationId);
+      if (!recipient) {
+        return errorResponse(res, 'Your account has no email address', HTTP_BAD_REQUEST);
+      }
+
+      const normalized = normalizeAnnouncementPayload(req.body);
+      const noteKeys = [];
+      let footer = null;
+      // An alumni mailing shows its unsubscribe footer; in a test its link
+      // leads nowhere.
+      if (normalized.audience === ALUMNI_AUDIENCE) {
+        const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
+        footer = buildUnsubscribeFooter({
+          language: recipient.languageCode,
+          unsubscribeLink: `${baseUrl}/alumni-unsubscribe?token=test`,
+        });
+        noteKeys.push('announcement_test_unsubscribe_note');
+      }
+      const email = buildAnnouncementEmail({
+        subject: normalized.subject,
+        message: normalized.message,
+        message_html: normalized.messageHtml,
+      }, footer);
+      const test = markAsTestEmail(email, { languageCode: recipient.languageCode, noteKeys });
+      const sender = await resolveOrganizationEmailSender(pool, organizationId);
+      const sent = await sendEmail(recipient.email, test.subject, test.textBody, test.htmlBody, sender);
+      if (!sent) {
+        return errorResponse(res, 'The test email could not be sent', HTTP_BAD_GATEWAY);
+      }
+      return successResponse(res, { email: recipient.email }, 'Test email sent');
+    }),
+  );
+
+  /**
    * List announcements with delivery logs
    */
   router.get('/v1/announcements', authenticate, requirePermission(['communications.send']), asyncHandler(async (req, res) => {
@@ -985,3 +1060,4 @@ module.exports.shutdownListenerForTests = async function() {
   }
 };
 module.exports.normalizeAnnouncementPayloadForTests = normalizeAnnouncementPayload;
+module.exports.buildAnnouncementEmailForTests = buildAnnouncementEmail;

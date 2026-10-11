@@ -15,6 +15,7 @@ import {
   signPermissionSlip,
   sendPermissionSlipEmails,
   sendPermissionSlipReminders,
+  sendPermissionSlipTestEmail,
   getResourceDashboard,
   archivePermissionSlip
 } from "./api/api-endpoints.js";
@@ -39,6 +40,8 @@ import { richTextOrPlain } from './utils/RichTextUtils.js';
 
 // The server accepts at most this many participant_ids per request
 const SLIP_BATCH_SIZE = 200;
+/** Length of a YYYY-MM-DD date. */
+const ISO_DATE_LENGTH = 10;
 
 export class PermissionSlipDashboard {
   constructor(app, options = {}) {
@@ -179,8 +182,8 @@ export class PermissionSlipDashboard {
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
             <h2 style="margin: 0;">${escapeHTML(translate("permission_slip_section_title"))}</h2>
-            <button id="toggleCreateFormBtn" class="btn primary">
-              ${this.showCreateForm ? translate("cancel") : translate("permission_slip_create")}
+            <button id="toggleCreateFormBtn" class="btn primary" aria-expanded="${this.showCreateForm ? 'true' : 'false'}">
+              ${this.showCreateForm ? translate("cancel") : translate("permission_slip_new")}
             </button>
           </div>
 
@@ -440,9 +443,35 @@ export class PermissionSlipDashboard {
           </div>
         </div>
 
-        <button type="submit" class="btn primary" style="margin-top: 16px;">${escapeHTML(translate("permission_slip_create"))}</button>
+        ${this.renderCreateActions()}
       </form>
     `;
+  }
+
+  /**
+   * The create form's buttons, each saying whether it sends, with what each
+   * one does written beside them. Someone who may not write to families
+   * can only create.
+   * @returns {string} HTML
+   */
+  renderCreateActions() {
+    if (!hasPermission('communications.send')) {
+      return `
+        <p class="form-help" id="permission-slip-send-explainer">${escapeHTML(translate('permission_slip_send_explainer_create_only'))}</p>
+        <div class="form-actions">
+          <button type="submit" name="intent" value="create" class="btn primary"
+                  aria-describedby="permission-slip-send-explainer">${escapeHTML(translate('permission_slip_create_only'))}</button>
+        </div>`;
+    }
+    return `
+      <p class="form-help" id="permission-slip-send-explainer">${escapeHTML(translate('permission_slip_send_explainer'))}</p>
+      <div class="form-actions">
+        <button type="submit" name="intent" value="send" class="btn primary"
+                aria-describedby="permission-slip-send-explainer">${escapeHTML(translate('permission_slip_create_and_send'))}</button>
+        <button type="submit" name="intent" value="create" class="button button--outline"
+                aria-describedby="permission-slip-send-explainer">${escapeHTML(translate('permission_slip_create_only'))}</button>
+        <button type="button" class="button button--outline btn-send-test" data-reminder="false">${escapeHTML(translate('send_test_to_me'))}</button>
+      </div>`;
   }
 
   renderPermissionSlipsTable() {
@@ -496,6 +525,10 @@ export class PermissionSlipDashboard {
                   <button class="btn secondary btn-send-reminders" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}">
                     ${escapeHTML(translate("send_reminder_emails"))}
                   </button>
+                  ${this.activityId && hasPermission('communications.send') ? `
+                    <button class="button button--outline btn-send-test" data-reminder="false" data-deadline="${escapeHTML(activity.deadline ? String(activity.deadline).slice(0, ISO_DATE_LENGTH) : '')}">${escapeHTML(translate('send_test_to_me'))}</button>
+                    <button class="button button--outline btn-send-test" data-reminder="true" data-deadline="${escapeHTML(activity.deadline ? String(activity.deadline).slice(0, ISO_DATE_LENGTH) : '')}">${escapeHTML(translate('send_reminder_test_to_me'))}</button>
+                  ` : ''}
                 </div>
               </div>
             </div>
@@ -659,8 +692,8 @@ export class PermissionSlipDashboard {
     if (form) {
       form.addEventListener("submit", (e) => {
         e.preventDefault();
-        const submitBtn = form.querySelector('button[type="submit"]');
-        withButtonLoading(submitBtn, () => this.handleFormSubmit(e));
+        const submitBtn = e.submitter || form.querySelector('button[type="submit"]');
+        withButtonLoading(submitBtn, () => this.handleFormSubmit(e, submitBtn?.value === 'send'));
       });
     }
 
@@ -671,6 +704,14 @@ export class PermissionSlipDashboard {
         const activityTitle = btn.getAttribute('data-activity-title');
         const date = btn.getAttribute('data-date');
         withButtonLoading(btn, () => this.handleSendEmails(date, activityTitle));
+      });
+    });
+
+    // Test emails to the signed-in leader
+    document.querySelectorAll('.btn-send-test').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        withButtonLoading(btn, () => this.handleSendTest(btn.dataset.reminder === 'true', btn.dataset.deadline));
       });
     });
 
@@ -919,7 +960,14 @@ export class PermissionSlipDashboard {
     }
   }
 
-  async handleFormSubmit(event) {
+  /**
+   * Create the chosen children's permission slips and, when asked, email
+   * them to their parents right away.
+   * @param {SubmitEvent} event - The form's submission
+   * @param {boolean} [andSend=false] - Whether to send the new slips now
+   * @returns {Promise<void>}
+   */
+  async handleFormSubmit(event, andSend = false) {
     event.preventDefault();
 
     if (!this.activityId) {
@@ -952,6 +1000,12 @@ export class PermissionSlipDashboard {
       if (!(await confirmDialog(translate("permission_slip_duplicate_warning") + `: ${duplicateNames}. ${translate("continue_anyway")}`))) {
         return;
       }
+    }
+
+    if (andSend && !(await confirmDialog(translate('permission_slip_create_send_confirm')
+      .replace('{count}', participantIds.length)
+      .replace('{activity}', this.activity?.name || '')))) {
+      return;
     }
 
     // Build payload
@@ -1037,8 +1091,19 @@ export class PermissionSlipDashboard {
           translate('permission_slip_answered_kept').replace('{count}', answeredCount),
           'warning',
         );
-      } else {
-        this.app.showMessage(translate("permission_slip_saved"), "success");
+      } else if (!andSend) {
+        this.app.showMessage(translate('permission_slip_created_not_sent'), 'success');
+      }
+      if (andSend) {
+        // Only the slips saved now: a slip already answered is kept as it was
+        const answered = new Set(results.flatMap((result) => result?.data?.answered_participant_ids || []).map(Number));
+        const savedIds = batches
+          .filter((_ids, index) => settled[index].status === 'fulfilled')
+          .flat()
+          .filter((id) => !answered.has(id));
+        if (savedIds.length > 0) {
+          await this.sendCreatedSlips(savedIds);
+        }
       }
       this.showCreateForm = false;
 
@@ -1059,6 +1124,60 @@ export class PermissionSlipDashboard {
       } else {
         this.app.showMessage(translate("permission_slip_error_loading"), "error");
       }
+    }
+  }
+
+  /**
+   * Email the slips just created, and only those, to their parents.
+   * @param {number[]} participantIds - Children whose slips were created
+   * @returns {Promise<void>}
+   */
+  async sendCreatedSlips(participantIds) {
+    try {
+      const batches = [];
+      for (let start = 0; start < participantIds.length; start += SLIP_BATCH_SIZE) {
+        batches.push(participantIds.slice(start, start + SLIP_BATCH_SIZE));
+      }
+      const results = await Promise.all(batches.map((ids) => sendPermissionSlipEmails({
+        activity_id: this.activityId,
+        participant_ids: ids,
+      })));
+      const sent = results.reduce((count, result) => count + ((result?.data || result)?.sent || 0), 0);
+      const missing = new Set(results.flatMap((result) => ((result?.data || result)?.failed || [])
+        .filter((failure) => !failure.email)
+        .map((failure) => failure.participant_id)));
+      const messages = [translate('permission_slip_created_and_sent').replace('{sent}', sent)];
+      if (missing.size > 0) {
+        messages.push(translate('permission_slip_sent_missing_emails').replace('{count}', missing.size));
+      }
+      this.app.showMessage(messages.join(' '), missing.size > 0 ? 'warning' : 'success');
+    } catch (error) {
+      debugError('Error sending new permission slips', error);
+      this.app.showMessage(translate('permission_slip_created_send_failed'), 'error');
+    }
+  }
+
+  /**
+   * Email the signed-in leader a test copy of this activity's slip email.
+   * @param {boolean} reminder - Whether to send the reminder instead
+   * @param {string} [slipDeadline] - Deadline of slips already created
+   * @returns {Promise<void>}
+   */
+  async handleSendTest(reminder, slipDeadline = '') {
+    // In the create form, the deadline being chosen; else the slips' own
+    const deadline = slipDeadline
+      || document.querySelector('#permissionSlipForm input[name="deadline_date"]')?.value;
+    try {
+      const result = await sendPermissionSlipTestEmail({
+        activity_id: this.activityId,
+        reminder,
+        ...(deadline ? { deadline_date: deadline } : {}),
+      });
+      const email = (result?.data || result)?.email || '';
+      this.app.showMessage(translate('test_email_sent').replace('{email}', email), 'success');
+    } catch (error) {
+      debugError('Error sending test email', error);
+      this.app.showMessage(apiErrorMessage(error, 'test_email_failed'), 'error');
     }
   }
 

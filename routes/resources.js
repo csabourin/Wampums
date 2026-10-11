@@ -15,10 +15,11 @@ const {
 const { success, error, asyncHandler } = require("../middleware/response");
 const { checkValidation } = require("../middleware/validation");
 const { handleOrganizationResolutionError } = require("../utils/api-helpers");
-const { sendEmail, getUserEmailLanguage } = require("../utils/index");
+const { sendEmail, getUserEmailLanguage, getTranslationsByCode } = require("../utils/index");
 const { buildPermissionSlipEmailContent } = require("../utils/permission-slip-email");
 const { resolveOrganizationBaseUrl } = require("../utils/public-url");
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
+const { findTestRecipient, markAsTestEmail } = require('../utils/test-email');
 const { findUninvitedParticipants } = require('../services/activityInvitations');
 const {
   MAX_FILE_SIZE,
@@ -93,6 +94,9 @@ function parseDate(dateString) {
  */
 const HOLDING_STATUSES = ["reserved", "confirmed"];
 const HTTP_BAD_REQUEST = 400;
+const HTTP_NOT_FOUND = 404;
+/** The email service did not accept a message. */
+const HTTP_BAD_GATEWAY = 502;
 
 function activeReservationPredicate(alias = "") {
   const prefix = alias ? `${alias}.` : "";
@@ -2299,6 +2303,67 @@ module.exports = (pool) => {
         }
         return error(res, err.message || "Error sending reminders", err.statusCode || 500);
       }
+    }),
+  );
+
+  /**
+   * Send the signed-in leader a test copy of an activity's permission-slip
+   * email (or its reminder): the same email parents get, marked as a test,
+   * for a sample child. No slip is created or marked as sent.
+   */
+  router.post(
+    '/permission-slips/test-email',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('communications.send'),
+    [
+      check('activity_id').isInt({ min: 1 }),
+      check('deadline_date').optional({ values: 'falsy' }).isISO8601(),
+      check('reminder').optional().isBoolean(),
+    ],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const activityResult = await pool.query(
+        `SELECT name, description, description_html, activity_date
+           FROM activities
+          WHERE id = $1 AND organization_id = $2 AND is_active = TRUE`,
+        [req.body.activity_id, organizationId],
+      );
+      if (activityResult.rows.length === 0) {
+        return error(res, 'Activity not found', HTTP_NOT_FOUND);
+      }
+
+      const recipient = await findTestRecipient(pool, req.user.id, organizationId);
+      if (!recipient) {
+        return error(res, 'Your account has no email address', HTTP_BAD_REQUEST);
+      }
+
+      const activity = activityResult.rows[0];
+      const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
+      const content = buildPermissionSlipEmailContent({
+        activityTitle: activity.name,
+        activityDescription: activity.description,
+        activityDescriptionHtml: activity.description_html,
+        meetingDate: activity.activity_date,
+        deadlineDate: req.body.deadline_date || null,
+        participantFirstName: getTranslationsByCode(recipient.languageCode)?.permission_slip_test_participant
+          || getTranslationsByCode('en')?.permission_slip_test_participant || 'Child',
+        participantLastName: '',
+        signLink: `${baseUrl}/permission-slip/test`,
+        languageCode: recipient.languageCode,
+        isReminder: req.body.reminder === true || req.body.reminder === 'true',
+      });
+      const test = markAsTestEmail(content, {
+        languageCode: recipient.languageCode,
+        noteKeys: ['permission_slip_test_link_note'],
+      });
+      const sender = await resolveOrganizationEmailSender(pool, organizationId);
+      const sent = await sendEmail(recipient.email, test.subject, test.textBody, test.htmlBody, sender);
+      if (!sent) {
+        return error(res, 'The test email could not be sent', HTTP_BAD_GATEWAY);
+      }
+      return success(res, { email: recipient.email }, 'Test email sent');
     }),
   );
 
