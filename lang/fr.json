@@ -3854,5 +3854,7 @@
   "message_sent_by": "Envoyé par",
   "delivery_log_push": "Notification push",
   "delivery_log_unknown_recipient": "Destinataire non enregistré",
-  "delivery_log_device": "appareil {service}"
+  "delivery_log_device": "appareil {service}",
+  "announcement_message_required": "Écrivez le message.",
+  "activity_description_help": "Envoyée aux familles dans le courriel d'autorisation parentale. Le gras, l'italique, les listes et les liens sont conservés."
 }

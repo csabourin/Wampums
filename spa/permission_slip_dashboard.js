@@ -35,6 +35,7 @@ import { deleteActivity } from './api/api-activities.js';
 import { hasPermission } from './utils/PermissionUtils.js';
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
+import { richTextOrPlain } from './utils/RichTextUtils.js';
 
 // The server accepts at most this many participant_ids per request
 const SLIP_BATCH_SIZE = 200;
@@ -149,7 +150,7 @@ export class PermissionSlipDashboard {
             <strong>${translate("activity_start")}:</strong> ${formatDate(getActivityStartDate(this.activity), this.app.lang || 'fr')}${getActivityStartTime(this.activity) ? ` ${escapeHTML(getActivityStartTime(this.activity))}` : ''}
             ${`<span style="margin-left: 0.75rem;"><strong>${translate("activity_end")}:</strong> ${formatDate(getActivityEndDate(this.activity), this.app.lang || 'fr')}${getActivityEndTime(this.activity) ? ` ${escapeHTML(getActivityEndTime(this.activity))}` : ''}</span>`}
           </p>
-          ${this.activity.description ? `<p>${escapeHTML(this.activity.description)}</p>` : ''}
+          ${this.activity.description ? `<div class="rich-text">${richTextOrPlain(this.activity.description_html, this.activity.description)}</div>` : ''}
           ${this.renderActivityActions()}
         </div>
 

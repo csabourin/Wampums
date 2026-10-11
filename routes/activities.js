@@ -7,6 +7,7 @@ const logger = require('../config/logger');
 const { sendActivityUpdateNotifications } = require('../utils/carpool-notifications');
 const { carpoolRosterRestriction } = require('../services/carpoolAccess');
 const { mayReadInviteeList, readInvitation, saveInvitation } = require('../services/activityInvitations');
+const { readRichTextField } = require('../utils/richText');
 
 module.exports = (pool) => {
   const ICAL_PROD_ID = '-//Wampums//Activities Calendar//EN';
@@ -424,6 +425,21 @@ module.exports = (pool) => {
   };
 
   /**
+   * The description an activity write sends. A formatted description
+   * (`description_html`) brings its own plain text; a plain one alone clears
+   * any formatted version, so the two never disagree.
+   * @param {Object} body - Request body
+   * @returns {{description: string|null, description_html: string|null}}
+   */
+  const readDescription = (body) => {
+    if (Object.prototype.hasOwnProperty.call(body, 'description_html')) {
+      const rich = readRichTextField(body.description_html);
+      return { description: rich.text, description_html: rich.html };
+    }
+    return { description: optionalText(body.description), description_html: null };
+  };
+
+  /**
    * Normalize a time to HH:MM:SS so values from forms and the database compare.
    * @param {*} value
    * @returns {string|null} Normalized time, or null when absent or malformed
@@ -506,7 +522,6 @@ module.exports = (pool) => {
     const activityName = optionalText(req.body.activity_name || req.body.name);
 
     const {
-      description,
       authorization_text,
       activity_date,
       activity_start_date,
@@ -562,7 +577,7 @@ module.exports = (pool) => {
 
     const activity = {
       name: activityName,
-      description: optionalText(description),
+      ...readDescription(req.body),
       authorization_text: optionalText(authorization_text),
       activity_date: normalizedActivityDate,
       activity_start_date: normalizedStartDate,
@@ -637,12 +652,12 @@ module.exports = (pool) => {
         name, description, authorization_text, activity_date, activity_start_date, activity_start_time,
         activity_end_date, activity_end_time, meeting_location_going, meeting_time_going,
         departure_time_going, meeting_location_return, meeting_time_return,
-        departure_time_return, created_by, organization_id
+        departure_time_return, created_by, organization_id, description_html
       ) VALUES (
         $1, $2, $3, $4, $5, $6,
         $7, $8, $9, $10,
         $11, $12, $13,
-        $14, $15, $16
+        $14, $15, $16, $17
       ) RETURNING *`,
       [
         activity.name,
@@ -660,7 +675,8 @@ module.exports = (pool) => {
         activity.meeting_time_return,
         activity.departure_time_return,
         userId,
-        organizationId
+        organizationId,
+        activity.description_html
       ]
     );
     return result.rows[0];
@@ -694,7 +710,7 @@ module.exports = (pool) => {
       await client.query('BEGIN');
 
       const existingResult = await client.query(
-        `SELECT name, description, authorization_text, is_active, invites_everyone,
+        `SELECT name, description, description_html, authorization_text, is_active, invites_everyone,
                 activity_date::text AS activity_date,
                 activity_start_date::text AS activity_start_date,
                 activity_start_time::text AS activity_start_time,
@@ -735,6 +751,9 @@ module.exports = (pool) => {
       OPTIONAL_TEXT_FIELDS.filter(has).forEach((field) => {
         activity[field] = optionalText(body[field]);
       });
+      if (has('description') || has('description_html')) {
+        Object.assign(activity, readDescription(body));
+      }
       REQUIRED_TEXT_FIELDS.filter(has).forEach((field) => {
         activity[field] = optionalText(body[field]);
       });
@@ -799,6 +818,7 @@ module.exports = (pool) => {
                 meeting_time_return = $13,
                 departure_time_return = $14,
                 is_active = $15,
+                description_html = $18,
                 updated_at = CURRENT_TIMESTAMP
           WHERE id = $16 AND organization_id = $17
           RETURNING *`,
@@ -819,7 +839,8 @@ module.exports = (pool) => {
           activity.departure_time_return,
           activity.is_active,
           activityId,
-          organizationId
+          organizationId,
+          activity.description_html
         ]
       );
 
@@ -830,6 +851,7 @@ module.exports = (pool) => {
             SET activity_title = $1,
                 activity_description = $2,
                 authorization_text = $3,
+                activity_description_html = $7,
                 meeting_date = CASE
                   WHEN NOT EXISTS (
                     SELECT 1 FROM permission_slips other
@@ -848,7 +870,8 @@ module.exports = (pool) => {
           activity.authorization_text,
           activity.activity_date,
           activityId,
-          organizationId
+          organizationId,
+          activity.description_html
         ]
       );
 

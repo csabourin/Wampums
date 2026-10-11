@@ -12,6 +12,14 @@ import { setButtonLoading } from './utils/SkeletonUtils.js';
 import { localeForLanguage } from './utils/InterfaceLanguageUtils.js';
 
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
+import {
+  attachRichTextEditor,
+  getRichTextValue,
+  richTextEditorHTML,
+  setRichTextDisabled,
+  setRichTextValue,
+} from './modules/rich-text/RichTextEditor.js';
+import { plainTextToRichText, richTextToPlainText } from './utils/RichTextUtils.js';
 export class MailingList {
   constructor(app) {
     this.app = app;
@@ -100,25 +108,32 @@ export class MailingList {
                                 </label>
                         `
       : '';
+    const messageEditor = richTextEditorHTML({
+      id: 'announcement-message',
+      labelId: 'announcement-message-label',
+      describedBy: 'announcement-message-error',
+      required: true,
+    });
 
     return `
                         <h2>${translate('compose_announcement')}</h2>
                         <p class="text-muted">${translate('announcement_roles_help')}</p>
-                        <div id="announcement-feedback" class="status-message"></div>
+                        <div id="announcement-feedback" class="status-message" role="status" aria-live="polite"></div>
                         <form id="announcement-form">
                                 ${templateOptions}
                                 <label class="input-group">
                                         <span>${translate('announcement_subject')}</span>
                                         <input type="text" id="announcement-subject" name="announcement-subject" maxlength="255" required />
                                 </label>
-                                <label class="input-group">
-                                        <span>${translate('announcement_message')}</span>
-                                        <textarea id="announcement-message" name="announcement-message" rows="5" required></textarea>
+                                <div class="input-group">
+                                        <span id="announcement-message-label">${translate('announcement_message')}</span>
+                                        ${messageEditor}
+                                        <p id="announcement-message-error" class="field-error" hidden></p>
                                         <div class="ai-toolbar" style="margin-top: 5px; display: flex; gap: 10px;">
                                                 <button type="button" class="button button--small button--secondary" id="ai-rewrite-btn">✨ ${translate('rewrite_professional')}</button>
                                                 <button type="button" class="button button--small button--secondary" id="ai-translate-btn">🌐 ${translate('translate_en_fr')}</button>
                                         </div>
-                                </label>
+                                </div>
                                 <div class="input-group">
                                         <span>${translate('alumni_audience')}</span>
                                         <label>
@@ -381,6 +396,11 @@ export class MailingList {
     });
 
     const announcementForm = document.getElementById('announcement-form');
+    const messageEditor = announcementForm?.querySelector('[data-rte]');
+    if (messageEditor) {
+      attachRichTextEditor(messageEditor);
+      messageEditor.querySelector('.rte__area').addEventListener('input', () => this.setMessageError(''));
+    }
     if (announcementForm) {
       announcementForm.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -413,13 +433,13 @@ export class MailingList {
     if (rewriteBtn) {
       rewriteBtn.addEventListener('click', async () => {
         const msgArea = document.getElementById('announcement-message');
-        const text = msgArea.value;
+        const text = richTextToPlainText(getRichTextValue(msgArea));
         if (!text) {return;}
 
         setButtonLoading(rewriteBtn, true);
         try {
           const res = await aiGenerateText('rewrite', { text, tone: 'professional' });
-          msgArea.value = res.data.text;
+          setRichTextValue(msgArea, plainTextToRichText(res.data.text));
           this.showFeedback(translate('rewrite_success'), 'success');
         } catch (err) {
           this.showFeedback(apiErrorMessage(err, 'error_occurred'), 'error');
@@ -433,7 +453,7 @@ export class MailingList {
     if (translateBtn) {
       translateBtn.addEventListener('click', async () => {
         const msgArea = document.getElementById('announcement-message');
-        const text = msgArea.value;
+        const text = richTextToPlainText(getRichTextValue(msgArea));
         if (!text) {return;}
 
         const currentLang = this.app.lang || CONFIG.DEFAULT_LANG;
@@ -444,7 +464,7 @@ export class MailingList {
         setButtonLoading(translateBtn, true);
         try {
           const res = await aiGenerateText('translate', { text, from, to });
-          msgArea.value = res.data.text;
+          setRichTextValue(msgArea, plainTextToRichText(res.data.text));
           this.showFeedback(translate('translate_success'), 'success');
         } catch (err) {
           this.showFeedback(apiErrorMessage(err, 'error_occurred'), 'error');
@@ -474,7 +494,9 @@ export class MailingList {
     if (this.isSubmitting) {return;}
 
     const subject = document.getElementById('announcement-subject')?.value?.trim();
-    const message = document.getElementById('announcement-message')?.value?.trim();
+    const messageArea = document.getElementById('announcement-message');
+    const messageHtml = messageArea ? getRichTextValue(messageArea) : '';
+    const message = richTextToPlainText(messageHtml);
     const scheduledAt = document.getElementById('announcement-scheduled-at')?.value;
     const audience = document.querySelector('input[name="announcement-audience"]:checked')?.value || 'members';
     const roleCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-role"]:checked'));
@@ -487,7 +509,12 @@ export class MailingList {
     const recipientRoles = isAlumni ? [] : roleCheckboxes.map((input) => input.value);
     const recipientGroupIds = isAlumni ? [] : groupCheckboxes.map((input) => Number(input.value));
 
-    if (!subject || !message) {
+    if (!message) {
+      this.setMessageError(translate('announcement_message_required'));
+      messageArea?.focus();
+      return;
+    }
+    if (!subject) {
       this.showFeedback(translate('error_loading_mailing_list'), 'error');
       return;
     }
@@ -500,6 +527,7 @@ export class MailingList {
       const response = await createAnnouncement({
         subject,
         message: sanitizeHTML(message, { stripAll: true }),
+        message_html: messageHtml,
         audience,
         recipient_roles: recipientRoles,
         recipient_group_ids: recipientGroupIds,
@@ -541,7 +569,27 @@ export class MailingList {
     const messageField = document.getElementById('announcement-message');
 
     if (subjectField) {subjectField.value = template.subject || '';}
-    if (messageField) {messageField.value = template.body || '';}
+    if (messageField) {setRichTextValue(messageField, plainTextToRichText(template.body || ''));}
+  }
+
+  /**
+   * Show, or clear with an empty string, the message's error, tied to the
+   * editor so screen readers announce it with the field.
+   *
+   * @param {string} text - Error text
+   * @returns {void}
+   */
+  setMessageError(text) {
+    const errorEl = document.getElementById('announcement-message-error');
+    const area = document.getElementById('announcement-message');
+    if (!errorEl || !area) {return;}
+    errorEl.textContent = text;
+    errorEl.hidden = !text;
+    if (text) {
+      area.setAttribute('aria-invalid', 'true');
+    } else {
+      area.removeAttribute('aria-invalid');
+    }
   }
 
   toggleFormDisabled(disabled) {
@@ -551,12 +599,20 @@ export class MailingList {
     Array.from(form.elements).forEach((element) => {
       element.disabled = disabled;
     });
+    const editor = form.querySelector('[data-rte]');
+    if (editor) {
+      setRichTextDisabled(editor, disabled);
+    }
   }
 
   clearForm() {
     const form = document.getElementById('announcement-form');
     if (!form) {return;}
     form.reset();
+    const area = document.getElementById('announcement-message');
+    if (area) {
+      setRichTextValue(area, '');
+    }
   }
 
   showFeedback(message, type = 'info') {

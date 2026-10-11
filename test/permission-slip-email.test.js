@@ -94,4 +94,23 @@ describe('Permission slip email content', () => {
 
     expect(result.subject).toBe('Потрібен дозвіл батьків - Camp - Alex Rivers');
   });
+
+  test('sends a formatted description as sanitized HTML and its plain text in the text part', () => {
+    const result = buildPermissionSlipEmailContent({
+      activityTitle: 'Camp',
+      activityDescription: 'Bring:\n\n- boots',
+      activityDescriptionHtml: '<p>Bring:</p><ul><li><strong>boots</strong></li></ul><img src=x onerror="alert(1)"><a href="javascript:alert(1)">x</a>',
+      meetingDate: '2026-06-01',
+      deadlineDate: null,
+      participantFirstName: 'Alex',
+      participantLastName: 'Rivers',
+      signLink: 'https://example.com/permission-slip/token',
+      languageCode: 'en',
+      isReminder: false,
+    });
+
+    expect(result.htmlBody).toContain('<div><p>Bring:</p><ul><li><strong>boots</strong></li></ul>x</div>');
+    expect(result.htmlBody).not.toMatch(/onerror|javascript:|<img/);
+    expect(result.textBody).toContain('Bring:\n\n- boots');
+  });
 });

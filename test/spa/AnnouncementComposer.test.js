@@ -1,0 +1,138 @@
+/**
+ * @jest-environment jsdom
+ */
+
+/**
+ * "Write to families": the message is written in the basic rich-text editor,
+ * and the announcement carries both its formatting and its plain text.
+ *
+ * @module test/spa/AnnouncementComposer
+ */
+
+import axe from 'axe-core';
+
+jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
+jest.mock('../../spa/utils/DebugUtils.js', () => ({
+  debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn(), debugInfo: jest.fn(),
+}));
+jest.mock('../../spa/config.js', () => ({ CONFIG: { DEFAULT_LANG: 'fr' } }));
+jest.mock('../../spa/ajax-functions.js', () => ({
+  getMailingList: jest.fn(),
+  getAnnouncements: jest.fn(),
+  createAnnouncement: jest.fn(),
+  getGroups: jest.fn(),
+}));
+jest.mock('../../spa/modules/AI.js', () => ({ aiGenerateText: jest.fn() }));
+jest.mock('../../spa/utils/PermissionUtils.js', () => ({ canSendCommunications: () => true }));
+jest.mock('../../spa/utils/DialogUtils.js', () => ({ prompt: jest.fn(), alert: jest.fn() }));
+
+const ajax = require('../../spa/ajax-functions.js');
+const { aiGenerateText } = require('../../spa/modules/AI.js');
+const { MailingList } = require('../../spa/mailing_list.js');
+
+const AXE_OPTIONS = {
+  runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+  rules: { 'color-contrast': { enabled: false } },
+};
+
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+/**
+ * Render the page with one template.
+ * @returns {Promise<MailingList>}
+ */
+async function renderPage() {
+  document.body.innerHTML = '<main id="app"></main>';
+  ajax.getMailingList.mockResolvedValue({ success: true, emails_by_role: {} });
+  ajax.getGroups.mockResolvedValue({ data: [] });
+  ajax.getAnnouncements.mockResolvedValue({
+    data: [],
+    templates: [{ title: 'Rappel', subject: 'Rappel', body: 'Bonjour\n\nÀ <bientôt>' }],
+    roles: [{ role_name: 'parent' }],
+  });
+  ajax.createAnnouncement.mockResolvedValue({ success: true, data: { id: 1, status: 'sent', subject: 'Camp', logs: [] } });
+  const page = new MailingList({ lang: 'fr', router: { navigate: jest.fn() }, showMessage: jest.fn() });
+  await page.init();
+  return page;
+}
+
+const messageArea = () => document.getElementById('announcement-message');
+const submit = () => document.getElementById('announcement-form')
+  .dispatchEvent(new Event('submit', { cancelable: true }));
+
+beforeEach(() => jest.clearAllMocks());
+
+test('the message is a labelled, required rich-text editor with its toolbar', async () => {
+  await renderPage();
+
+  const area = messageArea();
+  expect(area.getAttribute('role')).toBe('textbox');
+  expect(area.getAttribute('contenteditable')).toBe('true');
+  expect(area.getAttribute('aria-required')).toBe('true');
+  expect(document.getElementById(area.getAttribute('aria-labelledby')).textContent).toBe('announcement_message');
+  expect(document.querySelector('#announcement-form [role="toolbar"]')).not.toBeNull();
+  expect(document.querySelector('textarea#announcement-message')).toBeNull();
+});
+
+test('sends the formatted message with its plain text', async () => {
+  await renderPage();
+  document.getElementById('announcement-subject').value = 'Camp';
+  messageArea().innerHTML = '<p>Apportez :</p><ul><li><strong>des bottes</strong></li></ul>';
+
+  submit();
+  await flush();
+
+  expect(ajax.createAnnouncement).toHaveBeenCalledWith(expect.objectContaining({
+    subject: 'Camp',
+    message: 'Apportez :\n\n- des bottes',
+    message_html: '<p>Apportez :</p><ul><li><strong>des bottes</strong></li></ul>',
+  }));
+});
+
+test('an empty message is refused with an error tied to the editor', async () => {
+  await renderPage();
+  document.getElementById('announcement-subject').value = 'Camp';
+  messageArea().innerHTML = '<p><br></p>';
+
+  submit();
+  await flush();
+
+  expect(ajax.createAnnouncement).not.toHaveBeenCalled();
+  const area = messageArea();
+  expect(area.getAttribute('aria-invalid')).toBe('true');
+  expect(area.getAttribute('aria-describedby')).toBe('announcement-message-error');
+  expect(document.getElementById('announcement-message-error').textContent).toBe('announcement_message_required');
+  expect(document.activeElement).toBe(area);
+
+  area.innerHTML = '<p>Bonjour</p>';
+  area.dispatchEvent(new Event('input'));
+  expect(area.hasAttribute('aria-invalid')).toBe(false);
+  expect(document.getElementById('announcement-message-error').textContent).toBe('');
+});
+
+test('a template fills the editor with its text as paragraphs, escaped', async () => {
+  await renderPage();
+  const select = document.getElementById('announcement-template');
+  select.value = '0';
+  select.dispatchEvent(new Event('change'));
+
+  expect(messageArea().innerHTML).toBe('<p>Bonjour</p><p>À &lt;bientôt&gt;</p>');
+});
+
+test('the writing assistant gets the plain text and its answer becomes paragraphs', async () => {
+  await renderPage();
+  messageArea().innerHTML = '<p>Salut <em>tout le monde</em></p>';
+  aiGenerateText.mockResolvedValue({ data: { text: 'Bonjour à tous\n\nMerci' } });
+
+  document.getElementById('ai-rewrite-btn').click();
+  await flush();
+
+  expect(aiGenerateText).toHaveBeenCalledWith('rewrite', { text: 'Salut tout le monde', tone: 'professional' });
+  expect(messageArea().innerHTML).toBe('<p>Bonjour à tous</p><p>Merci</p>');
+});
+
+test('the composer has no WCAG A/AA violations', async () => {
+  await renderPage();
+  const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
+  expect(results.violations).toEqual([]);
+});

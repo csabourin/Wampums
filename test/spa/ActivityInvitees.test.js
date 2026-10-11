@@ -331,13 +331,14 @@ describe('activity invitations', () => {
     const { close } = openActivityFormModal(app, { activity });
     const overlay = document.getElementById('activity-modal');
     await flush();
-    overlay.querySelector('#activity-description').value = 'Apportez un sac de couchage';
+    overlay.querySelector('#activity-description').textContent = 'Apportez un sac de couchage';
 
     overlay.querySelector('#activity-form').dispatchEvent(new Event('submit', { cancelable: true }));
     await flush();
     expect(updateActivity).toHaveBeenCalledTimes(1);
     const payload = updateActivity.mock.calls[0][1];
     expect(payload.description).toBe('Apportez un sac de couchage');
+    expect(payload.description_html).toBe('Apportez un sac de couchage');
     expect(payload).not.toHaveProperty('invites_everyone');
     expect(payload).not.toHaveProperty('invited_participant_ids');
     close();
@@ -394,6 +395,52 @@ describe('activity invitations', () => {
 
     const results = await axe.run(overlay.querySelector('.activity-invitees'), AXE_OPTIONS);
     expect(results.violations).toEqual([]);
+    close();
+  });
+
+  test('the description is a labelled rich-text editor, starting from the formatted text', async () => {
+    const activity = {
+      id: 5, name: 'Camp', invites_everyone: true,
+      description: 'Bring boots', description_html: '<p>Bring <strong>boots</strong></p>',
+      activity_start_date: '2026-10-24', activity_start_time: '18:00:00',
+      activity_end_date: '2026-10-26', activity_end_time: '12:00:00',
+      meeting_location_going: 'Local', meeting_time_going: '17:30:00', departure_time_going: '17:45:00',
+    };
+    const { close } = openActivityFormModal(app, { activity });
+    const overlay = document.getElementById('activity-modal');
+    await flush();
+
+    const area = overlay.querySelector('#activity-description');
+    expect(area.getAttribute('role')).toBe('textbox');
+    expect(area.getAttribute('contenteditable')).toBe('true');
+    expect(overlay.querySelector(`#${area.getAttribute('aria-labelledby')}`).textContent).toBe('description');
+    expect(area.getAttribute('aria-describedby')).toBe('activity-description-help');
+    expect(area.innerHTML).toBe('<p>Bring <strong>boots</strong></p>');
+
+    const results = await axe.run(area.closest('.form-group'), AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+
+    area.innerHTML = '<p>Bring <em>boots</em></p><ol><li>Hat</li></ol>';
+    overlay.querySelector('#activity-form').dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    expect(updateActivity).toHaveBeenCalledWith(5, expect.objectContaining({
+      description: 'Bring boots\n\n1. Hat',
+      description_html: '<p>Bring <em>boots</em></p><ol><li>Hat</li></ol>',
+    }));
+
+    close();
+  });
+
+  test('an older plain description opens as paragraphs', () => {
+    const activity = {
+      id: 6, name: 'Camp', invites_everyone: true, description: 'Line one\nLine <two>',
+      activity_start_date: '2026-10-24', activity_start_time: '18:00:00',
+      activity_end_date: '2026-10-26', activity_end_time: '12:00:00',
+      meeting_location_going: 'Local', meeting_time_going: '17:30:00', departure_time_going: '17:45:00',
+    };
+    const { close } = openActivityFormModal(app, { activity });
+    const overlay = document.getElementById('activity-modal');
+    expect(overlay.querySelector('#activity-description').innerHTML).toBe('<p>Line one<br>Line &lt;two&gt;</p>');
     close();
   });
 });

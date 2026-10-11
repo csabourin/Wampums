@@ -3854,5 +3854,7 @@
   "message_sent_by": "Sent by",
   "delivery_log_push": "Push notification",
   "delivery_log_unknown_recipient": "Recipient not recorded",
-  "delivery_log_device": "device {service}"
+  "delivery_log_device": "device {service}",
+  "announcement_message_required": "Write the message.",
+  "activity_description_help": "Sent to families in the permission-slip email. Bold, italic, lists and links are kept."
 }

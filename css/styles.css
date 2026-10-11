@@ -10779,6 +10779,34 @@ details p {
   padding-inline-start: 1.5rem;
 }
 
+/* Formatted texts shown on a page (announcements, activity descriptions) */
+.rich-text p {
+  margin: 0 0 0.5rem;
+}
+
+.rich-text ul,
+.rich-text ol {
+  margin: 0 0 0.5rem;
+  padding-inline-start: 1.5rem;
+}
+
+.rich-text > :last-child {
+  margin-bottom: 0;
+}
+
+.rich-text a {
+  text-decoration: underline;
+}
+
+.rte__area[aria-disabled="true"] {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.rte__area[aria-invalid="true"] {
+  border-color: var(--color-error);
+}
+
 /* Options Editor */
 .option-item {
   display: flex;

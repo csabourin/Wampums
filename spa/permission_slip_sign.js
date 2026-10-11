@@ -15,6 +15,7 @@ import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { confirm as confirmDialog } from "./utils/DialogUtils.js";
+import { richTextOrPlain } from './utils/RichTextUtils.js';
 
 export class PermissionSlipSign {
   constructor(app, token) {
@@ -77,7 +78,7 @@ export class PermissionSlipSign {
     const canSign = this.slip.status === 'pending' &&
       (!this.slip.deadline_date || this.slip.deadline_date.substring(0, 10) >= getTodayISO());
     const activityTitle = escapeHTML(this.slip.activity_title || translate('activity'));
-    const activityDescription = escapeHTML(this.slip.activity_description || '');
+    const activityDescription = richTextOrPlain(this.slip.activity_description_html, this.slip.activity_description);
     const participantName = escapeHTML(this.slip.participant_name || '');
 
     setContent(appDiv, `
@@ -96,7 +97,7 @@ export class PermissionSlipSign {
             ${this.slip.activity_description ? `
               <div class="mb-3">
                 <strong>${translate('activity_description_label')}:</strong>
-                <div class="mt-2">${activityDescription}</div>
+                <div class="mt-2 rich-text">${activityDescription}</div>
               </div>
             ` : ''}
 

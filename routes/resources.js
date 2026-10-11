@@ -1750,7 +1750,8 @@ module.exports = (pool) => {
           `SELECT ps.*,
                   p.first_name, p.last_name,
                   g.prenom AS guardian_first_name, g.nom AS guardian_last_name,
-                  a.name AS activity_name, a.description AS activity_description, a.activity_date
+                  a.name AS activity_name, a.description AS activity_description,
+                  a.description_html AS activity_description_html, a.activity_date
            FROM permission_slips ps
            JOIN participants p ON p.id = ps.participant_id
            LEFT JOIN parents_guardians g ON g.id = ps.guardian_id
@@ -1970,6 +1971,7 @@ module.exports = (pool) => {
               buildPermissionSlipEmailContent({
                 activityTitle: slip.activity_title,
                 activityDescription: slip.activity_description,
+                activityDescriptionHtml: slip.activity_description_html,
                 meetingDate: slip.meeting_date,
                 deadlineDate: slip.deadline_date,
                 participantFirstName: slip.first_name,
@@ -2234,6 +2236,7 @@ module.exports = (pool) => {
               buildPermissionSlipEmailContent({
                 activityTitle: slip.activity_title,
                 activityDescription: slip.activity_description,
+                activityDescriptionHtml: slip.activity_description_html,
                 meetingDate: slip.meeting_date,
                 deadlineDate: slip.deadline_date,
                 participantFirstName: slip.first_name,
@@ -2365,11 +2368,12 @@ module.exports = (pool) => {
         let finalActivityTitle = activity_title;
         let finalActivityDescription = activity_description;
         let finalAuthorizationText = null;
+        let finalActivityDescriptionHtml = null;
 
         // If activity_id provided, fetch activity details and use them
         if (activity_id) {
           const activityResult = await pool.query(
-            'SELECT name, description, authorization_text, activity_date FROM activities WHERE id = $1 AND organization_id = $2 AND is_active = TRUE',
+            'SELECT name, description, description_html, authorization_text, activity_date FROM activities WHERE id = $1 AND organization_id = $2 AND is_active = TRUE',
             [activity_id, organizationId]
           );
 
@@ -2397,6 +2401,7 @@ module.exports = (pool) => {
           finalMeetingDate = activity.activity_date;
           finalActivityTitle = activity.name;
           finalActivityDescription = activity.description;
+          finalActivityDescriptionHtml = activity.description_html;
           finalAuthorizationText = activity.authorization_text;
         } else {
           // Legacy mode: require meeting_date if no activity_id
@@ -2436,8 +2441,8 @@ module.exports = (pool) => {
             `INSERT INTO permission_slips
              (organization_id, participant_id, guardian_id, meeting_id, meeting_date,
               activity_id, activity_title, activity_description, authorization_text, deadline_date,
-              consent_payload, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+              consent_payload, status, activity_description_html)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
              ON CONFLICT (organization_id, participant_id, meeting_date)
              DO UPDATE SET consent_payload = EXCLUDED.consent_payload,
                            guardian_id = EXCLUDED.guardian_id,
@@ -2445,6 +2450,7 @@ module.exports = (pool) => {
                            activity_id = EXCLUDED.activity_id,
                            activity_title = EXCLUDED.activity_title,
                            activity_description = EXCLUDED.activity_description,
+                           activity_description_html = EXCLUDED.activity_description_html,
                            authorization_text = EXCLUDED.authorization_text,
                            deadline_date = EXCLUDED.deadline_date,
                            status = EXCLUDED.status,
@@ -2480,6 +2486,7 @@ module.exports = (pool) => {
               normalizedDeadline,
               consent_payload,
               status,
+              finalActivityDescriptionHtml,
             ],
           );
 

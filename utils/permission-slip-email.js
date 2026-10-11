@@ -1,5 +1,6 @@
 const { escapeHtml } = require("./api-helpers");
 const { sanitizeInput, getTranslationsByCode } = require("./index");
+const { sanitizeRichTextHtml } = require('./richText');
 
 const LANGUAGE_LOCALES = {
   en: "en-CA",
@@ -59,6 +60,7 @@ function getLocaleForLanguage(languageCode = "en") {
  * @param {object} params - Email data.
  * @param {string} params.activityTitle - Activity title.
  * @param {string} params.activityDescription - Activity description.
+ * @param {string} [params.activityDescriptionHtml] - Formatted description, when it has one.
  * @param {string|Date} params.meetingDate - Activity date.
  * @param {string|Date} params.deadlineDate - Deadline date.
  * @param {string} params.participantFirstName - Participant first name.
@@ -71,6 +73,7 @@ function getLocaleForLanguage(languageCode = "en") {
 function buildPermissionSlipEmailContent({
   activityTitle,
   activityDescription,
+  activityDescriptionHtml = null,
   meetingDate,
   deadlineDate,
   participantFirstName,
@@ -218,10 +221,9 @@ function buildPermissionSlipEmailContent({
   );
 
   const safeActivityTitle = escapeHtml(sanitizedActivityTitle);
-  const safeActivityDescription = escapeHtml(sanitizedActivityDescription).replace(
-    /\n/g,
-    "<br>",
-  );
+  const safeActivityDescription =
+    sanitizeRichTextHtml(activityDescriptionHtml) ||
+    escapeHtml(sanitizedActivityDescription).replace(/\n/g, "<br>");
   const safeSignLink = escapeHtml(signLink);
   const safeIntro = formatTranslation(introTemplate, {
     activityTitle: safeActivityTitle,

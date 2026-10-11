@@ -36,3 +36,29 @@ test('keeps any role name for the unit check instead of a fixed list', () => {
 
   expect(normalized.roles).toEqual(['district', 'parent']);
 });
+
+test('derives the plain message from a formatted one and keeps the formatting safe', () => {
+  const normalized = normalizeAnnouncementPayloadForTests({
+    subject: 'Camp',
+    message: 'ignored when a formatted message is sent',
+    message_html: '<p>Hello <b>families</b></p><ol><li>Boots</li></ol><p onclick="x">See <a href="https://example.com">the list</a></p>',
+    recipient_roles: ['parent']
+  });
+
+  expect(normalized.messageHtml).toBe(
+    '<p>Hello <strong>families</strong></p><ol><li>Boots</li></ol><p>See <a href="https://example.com">the list</a></p>'
+  );
+  expect(normalized.message).toBe('Hello families\n\n1. Boots\n\nSee the list (https://example.com)');
+});
+
+test('keeps a plain message without formatting', () => {
+  const normalized = normalizeAnnouncementPayloadForTests({
+    subject: 'Camp',
+    message: 'Plain text',
+    message_html: '<p> </p>',
+    recipient_roles: ['parent']
+  });
+
+  expect(normalized.messageHtml).toBeNull();
+  expect(normalized.message).toBe('Plain text');
+});

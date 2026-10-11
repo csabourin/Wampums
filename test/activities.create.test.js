@@ -275,7 +275,8 @@ describe('POST /api/v1/activities', () => {
       null,               // meeting_time_return
       null,               // departure_time_return
       expect.anything(),  // created_by
-      expect.any(Number)  // organization_id
+      expect.any(Number), // organization_id
+      null                // description_html (plain description)
     ]);
   });
 
