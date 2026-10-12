@@ -32,7 +32,7 @@ const ajax = {
   ...require('../../spa/api/api-endpoints.js'),
 };
 const { aiGenerateText } = require('../../spa/modules/AI.js');
-const { MailingList } = require('../../spa/mailing_list.js');
+const { MailingList } = require('../../spa/modules/mailing-list/MailingList.js');
 
 const AXE_OPTIONS = {
   runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },

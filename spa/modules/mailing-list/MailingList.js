@@ -1,26 +1,26 @@
-import { getMailingList, getAnnouncements, createAnnouncement, getGroups } from './ajax-functions.js';
-import { sendAnnouncementTest } from './api/api-endpoints.js';
-import { aiGenerateText } from './modules/AI.js';
-import { debugLog, debugError } from './utils/DebugUtils.js';
-import { translate } from './app.js';
-import { escapeHTML, sanitizeHTML } from './utils/SecurityUtils.js';
-import { renderDeliveryLog } from './modules/announcements/deliveryLog.js';
-import { CONFIG } from './config.js';
-import { canSendCommunications } from './utils/PermissionUtils.js';
-import { roleLabel } from './utils/RoleLabelUtils.js';
-import { setContent } from './utils/DOMUtils.js';
-import { setButtonLoading } from './utils/SkeletonUtils.js';
-import { localeForLanguage } from './utils/InterfaceLanguageUtils.js';
+import { getMailingList, getAnnouncements, createAnnouncement, getGroups } from '../../ajax-functions.js';
+import { sendAnnouncementTest } from '../../api/api-endpoints.js';
+import { aiGenerateText } from '../AI.js';
+import { debugLog, debugError } from '../../utils/DebugUtils.js';
+import { translate } from '../../app.js';
+import { escapeHTML, sanitizeHTML } from '../../utils/SecurityUtils.js';
+import { renderDeliveryLog } from '../announcements/deliveryLog.js';
+import { CONFIG } from '../../config.js';
+import { canSendCommunications } from '../../utils/PermissionUtils.js';
+import { roleLabel } from '../../utils/RoleLabelUtils.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { setButtonLoading } from '../../utils/SkeletonUtils.js';
+import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 
-import { apiErrorMessage } from './utils/ApiErrorUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import {
   attachRichTextEditor,
   getRichTextValue,
   richTextEditorHTML,
   setRichTextDisabled,
   setRichTextValue,
-} from './modules/rich-text/RichTextEditor.js';
-import { plainTextToRichText, richTextToPlainText } from './utils/RichTextUtils.js';
+} from '../rich-text/RichTextEditor.js';
+import { plainTextToRichText, richTextToPlainText } from '../../utils/RichTextUtils.js';
 export class MailingList {
   constructor(app) {
     this.app = app;

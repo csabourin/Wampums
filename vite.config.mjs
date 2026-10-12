@@ -186,7 +186,7 @@ export default defineConfig({
           // Reports - lazy loaded
           reports: [
             "./spa/reports.js",
-            "./spa/mailing_list.js",
+            "./spa/modules/mailing-list/MailingList.js",
             "./spa/calendars.js",
           ],
 

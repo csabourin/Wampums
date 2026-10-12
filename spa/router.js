@@ -96,7 +96,7 @@ const lazyModules = {
   BadgeForm: () => import('./badge_form.js').then(m => m.BadgeForm),
   Register: () => import('./register.js').then(m => m.Register),
   Admin: () => import('./admin.js').then(m => m.Admin),
-  MailingList: () => import('./mailing_list.js').then(m => m.MailingList),
+  MailingList: () => import('./modules/mailing-list/MailingList.js').then(m => m.MailingList),
   Calendars: () => import('./calendars.js').then(m => m.Calendars),
   Fundraisers: () => import('./fundraisers.js').then(m => m.Fundraisers),
   ResetPassword: () => import('./reset_password.js').then(m => m.ResetPassword),

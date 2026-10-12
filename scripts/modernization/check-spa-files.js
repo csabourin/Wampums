@@ -47,7 +47,6 @@ const SPA_ALLOW_LIST = [
     'inventory.js',
     'jwt-helper.js',
     'login.js',
-    'mailing_list.js',
     'manage_groups.js',
     'manage_honors.js',
     'manage_participants.js',
