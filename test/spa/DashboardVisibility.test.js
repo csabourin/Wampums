@@ -100,7 +100,7 @@ jest.mock('../../spa/modules/CommandPalette.js', () => ({
 jest.mock('../../spa/modules/DashboardSettingsModal.js', () => ({ DashboardSettingsModal: jest.fn() }));
 jest.mock('../../spa/modules/OfflineManager.js', () => ({ offlineManager: {} }));
 
-import { Dashboard } from '../../spa/dashboard.js';
+import { Dashboard } from '../../spa/modules/dashboard/Dashboard.js';
 import {
   DASHBOARD_TILES,
   FINANCE_WORKSPACE_EXTRA_TILES,

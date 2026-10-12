@@ -1,7 +1,7 @@
 // router.js
 
 // Critical imports - loaded immediately (core functionality)
-import { Dashboard } from "./dashboard.js";
+import { Dashboard } from "./modules/dashboard/Dashboard.js";
 // Login imported dynamically to avoid circular dependency
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, isDebugMode } from "./utils/DebugUtils.js";

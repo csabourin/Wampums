@@ -29,7 +29,6 @@ const SPA_ALLOW_LIST = [
     'communication-settings.js',
     'config.js',
     'create_organization.js',
-    'dashboard.js',
     'district_management.js',
     'dynamicFormHandler.js',
     'expenses.js',

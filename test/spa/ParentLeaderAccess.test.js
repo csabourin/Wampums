@@ -113,7 +113,7 @@ describe('guardian access is not a persona choice', () => {
   const fs = require('fs');
   const path = require('path');
   const routerSource = fs.readFileSync(path.join(__dirname, '../../spa/router.js'), 'utf8');
-  const dashboardSource = fs.readFileSync(path.join(__dirname, '../../spa/dashboard.js'), 'utf8');
+  const dashboardSource = fs.readFileSync(path.join(__dirname, '../../spa/modules/dashboard/Dashboard.js'), 'utf8');
 
   test('no page grants access because the person is parent-only', () => {
     // isParent() is false for a parent who is also a leader; as an access
