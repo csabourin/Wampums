@@ -1,7 +1,7 @@
 // router.js
 
 // Critical imports - loaded immediately (core functionality)
-import { Dashboard } from "./dashboard.js";
+import { Dashboard } from "./modules/dashboard/Dashboard.js";
 // Login imported dynamically to avoid circular dependency
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, isDebugMode } from "./utils/DebugUtils.js";
@@ -96,7 +96,8 @@ const lazyModules = {
   BadgeForm: () => import('./badge_form.js').then(m => m.BadgeForm),
   Register: () => import('./register.js').then(m => m.Register),
   Admin: () => import('./admin.js').then(m => m.Admin),
-  MailingList: () => import('./mailing_list.js').then(m => m.MailingList),
+  MailingList: () => import('./modules/mailing-list/MailingList.js').then(m => m.MailingList),
+  CommunicationHistory: () => import('./modules/communication-history/CommunicationHistory.js').then(m => m.CommunicationHistory),
   Calendars: () => import('./calendars.js').then(m => m.Calendars),
   Fundraisers: () => import('./fundraisers.js').then(m => m.Fundraisers),
   ResetPassword: () => import('./reset_password.js').then(m => m.ResetPassword),
@@ -181,6 +182,7 @@ const routes = {
   "/parent-program-progress": "parentProgramProgress",
   "/parent-contact-list": "parentContactList",
   "/mailing-list": "mailingList",
+  '/communication-history': 'communicationHistory',
   "/badge-form/:id": "badgeForm",
   "/register": "register",
   "/fundraisers": "fundraisers",
@@ -795,6 +797,11 @@ export class Router {
             break;
           }
           await this.loadMailingList();
+          break;
+        case 'communicationHistory':
+          // Every member reads the unit's news; the screen offers the sent messages
+          // and the archive only to those who may send communications.
+          await this.loadModuleInstance('CommunicationHistory');
           break;
         case "managePoints":
           if (!guard(canManagePoints())) {

@@ -7,14 +7,14 @@
 const { authenticate, blockDemoRoles, requirePermission, getOrganizationId } = require('../middleware/auth');
 const express = require('express');
 const { asyncHandler, error: errorResponse, success: successResponse } = require('../middleware/response');
-const { check } = require('express-validator');
+const { body, check } = require('express-validator');
 const router = express.Router();
 const {
   handleOrganizationResolutionError,
   escapeHtml,
 } = require('../utils/api-helpers');
 const { sanitizeInput, sendEmail, sendWhatsApp, getUserEmailLanguage } = require('../utils');
-const { checkValidation } = require('../middleware/validation');
+const { checkValidation, validateIdParam } = require('../middleware/validation');
 const { isTestEnvironment } = require('../test/test-helpers');
 const {
   listAlumni,
@@ -44,6 +44,13 @@ const MAX_ANNOUNCEMENT_GROUPS = 200;
 const HTTP_BAD_REQUEST = 400;
 /** The email service did not accept a message. */
 const HTTP_BAD_GATEWAY = 502;
+const HTTP_NOT_FOUND = 404;
+const HTTP_CONFLICT = 409;
+/** Statuses of a message that is still to go out: it cannot leave the history yet. */
+const PENDING_STATUSES = ['scheduled', 'sending'];
+/** Messages listed per page of the history, and the last page number accepted. */
+const HISTORY_PAGE_SIZE = 50;
+const MAX_HISTORY_PAGE = 100000;
 /** How often the scheduler re-checks with nothing else to wake it. */
 const FALLBACK_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const pg = require('pg');
@@ -975,21 +982,38 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
   );
 
   /**
-   * List announcements with delivery logs
+   * List announcements with delivery logs.
+   * `?archived=true` lists the archived ones instead of the active ones.
    */
-  router.get('/v1/announcements', authenticate, requirePermission(['communications.send']), asyncHandler(async (req, res) => {
+  router.get('/v1/announcements', authenticate, requirePermission(['communications.send']), [
+    check('archived').optional().isIn(['true', 'false']).withMessage('archived must be true or false'),
+    check('page').optional().isInt({ min: 1, max: MAX_HISTORY_PAGE }).withMessage('page must be a positive integer'),
+  ], checkValidation, asyncHandler(async (req, res) => {
     try {
 
       const organizationId = await getOrganizationId(req, pool);
+      const archived = req.query.archived === 'true';
+      const page = Number(req.query.page) || 1;
 
       const announcementsQuery = `
-        SELECT id, subject, message, recipient_roles, recipient_groups, audience, scheduled_at, sent_at, status, created_at
+        SELECT id, subject, message, recipient_roles, recipient_groups, audience, scheduled_at, sent_at, status, created_at, archived_at
         FROM announcements
         WHERE organization_id = $1
-        ORDER BY created_at DESC
-        LIMIT 50
+          AND (archived_at IS NOT NULL) = $2
+        ORDER BY created_at DESC, id DESC
+        LIMIT $3 OFFSET $4
       `;
-      const announcementsResult = await pool.query(announcementsQuery, [organizationId]);
+      const [announcementsResult, countResult, groupsResult] = await Promise.all([
+        pool.query(announcementsQuery, [organizationId, archived, HISTORY_PAGE_SIZE, (page - 1) * HISTORY_PAGE_SIZE]),
+        pool.query(
+          'SELECT COUNT(*)::int AS total FROM announcements WHERE organization_id = $1 AND (archived_at IS NOT NULL) = $2',
+          [organizationId, archived],
+        ),
+        // The groups' names label each message's recipients, so reading the history
+        // does not depend on holding groups.view as well.
+        pool.query('SELECT id, name FROM groups WHERE organization_id = $1 ORDER BY name', [organizationId]),
+      ]);
+      const total = countResult.rows[0]?.total || 0;
 
       const announcementIds = announcementsResult.rows.map((row) => row.id);
       let logsByAnnouncement = {};
@@ -1023,6 +1047,15 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
           message: escapeHtml(row.message),
           logs: logsByAnnouncement[row.id] || [],
         })),
+        pagination: {
+          page,
+          limit: HISTORY_PAGE_SIZE,
+          total,
+          totalPages: Math.ceil(total / HISTORY_PAGE_SIZE),
+          hasNext: page * HISTORY_PAGE_SIZE < total,
+          hasPrev: page > 1,
+        },
+        groups: groupsResult.rows,
         templates,
         roles,
       });
@@ -1034,6 +1067,45 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
       return errorResponse(res, 'internal_server_error', 500);
     }
   }));
+
+  /**
+   * Archive an announcement out of the history, or restore it.
+   * A message still waiting to go out (scheduled or sending) cannot be archived.
+   * Permission: communications.send
+   */
+  router.patch(
+    '/v1/announcements/:announcementId/archive',
+    authenticate, blockDemoRoles, requirePermission(['communications.send']),
+    validateIdParam('announcementId'),
+    [body('archived').isIn(['true', 'false']).withMessage('archived must be true or false in the request body')],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const archived = String(req.body.archived) === 'true';
+
+      const result = await pool.query(
+        `UPDATE announcements
+         SET archived_at = CASE WHEN $1::boolean THEN COALESCE(archived_at, NOW()) ELSE NULL END,
+             updated_at = NOW()
+         WHERE id = $2 AND organization_id = $3
+           AND (NOT $1::boolean OR status <> ALL($4::text[]))
+         RETURNING id, status, archived_at`,
+        [archived, Number(req.params.announcementId), organizationId, PENDING_STATUSES],
+      );
+      if (result.rows.length) {
+        return successResponse(res, result.rows[0], archived ? 'announcement_archived' : 'announcement_restored');
+      }
+
+      const exists = await pool.query(
+        'SELECT id FROM announcements WHERE id = $1 AND organization_id = $2',
+        [Number(req.params.announcementId), organizationId],
+      );
+      if (!exists.rows.length) {
+        return errorResponse(res, 'announcement_not_found', HTTP_NOT_FOUND);
+      }
+      return errorResponse(res, 'announcement_not_archivable', HTTP_CONFLICT);
+    }),
+  );
 
   return router;
 };

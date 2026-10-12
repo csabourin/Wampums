@@ -79,12 +79,6 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
 jest.mock('../../spa/utils/DashboardCacheManager.js', () => ({
   DashboardCacheManager: { preloadCachedData: jest.fn() },
 }));
-jest.mock('../../spa/modules/NewsFeed.js', () => ({
-  NewsFeed: class {
-    renderContent() { return ''; }
-    getIsLoading() { return false; }
-  },
-}));
 jest.mock('../../spa/modules/modals/CarpoolQuickAccessModal.js', () => ({ CarpoolQuickAccessModal: jest.fn() }));
 jest.mock('../../spa/utils/DashboardPreferences.js', () => ({
   applyPalette: jest.fn(),
@@ -100,7 +94,7 @@ jest.mock('../../spa/modules/CommandPalette.js', () => ({
 jest.mock('../../spa/modules/DashboardSettingsModal.js', () => ({ DashboardSettingsModal: jest.fn() }));
 jest.mock('../../spa/modules/OfflineManager.js', () => ({ offlineManager: {} }));
 
-import { Dashboard } from '../../spa/dashboard.js';
+import { Dashboard } from '../../spa/modules/dashboard/Dashboard.js';
 import {
   DASHBOARD_TILES,
   FINANCE_WORKSPACE_EXTRA_TILES,
@@ -165,6 +159,12 @@ test('backend dashboard visibility keys match the current configurable tiles', (
   expect([...customizationConfig.dashboardFeatureKeys].sort()).toEqual(tileFeatureKeys);
 });
 
+test('the news screen is offered to every member of the dashboard, not only to those who send messages', () => {
+  const tile = DASHBOARD_TILES.find((candidate) => candidate.href === '/communication-history');
+
+  expect(tile.gate).toEqual({ check: 'member' });
+});
+
 describe('tool groups separate weekly work from unit set-up', () => {
   const routesIn = (domain) => DASHBOARD_TILES
     .filter((tile) => tile.moment === 'tools' && tile.domain === domain)
@@ -181,6 +181,7 @@ describe('tool groups separate weekly work from unit set-up', () => {
 
   test('"Administration de l\'unité" holds the settings changed a few times a year', () => {
     expect(routesIn('admin').sort()).toEqual([
+      '/communication-history',
       '/form-permissions',
       '/manage-groups',
       '/manage-participants',
@@ -252,6 +253,7 @@ describe('tiles follow the permissions their page acts on', () => {
       '/parent-invitations',
       '/manage-users-participants',
       '/participant-duplicates',
+      '/communication-history',
     ]);
   });
 });
