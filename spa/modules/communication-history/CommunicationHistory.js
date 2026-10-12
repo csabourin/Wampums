@@ -290,15 +290,19 @@ export class CommunicationHistory {
     const writeLink = this.canSend
       ? `<p><a href="/mailing-list" class="button button--primary">${escapeHTML(translate('mailing_list'))}</a></p>`
       : '';
+    // The archive is read with communications.send; offering it to anyone else would only end in a refusal.
+    const archiveToggle = this.canSend
+      ? `<label class="checkbox-option" for="communication-history-archived">
+          <input type="checkbox" id="communication-history-archived" data-archive-safe ${this.showArchived ? 'checked' : ''}>
+          <span>${escapeHTML(translate('communication_history_show_archived'))}</span>
+        </label>`
+      : '';
     setContent(this.root(), `
       <section class="page communication-history">
         ${renderBackLink()}
         <h1>${escapeHTML(translate('communication_history_title'))}</h1>
         ${writeLink}
-        <label class="checkbox-option" for="communication-history-archived">
-          <input type="checkbox" id="communication-history-archived" data-archive-safe ${this.showArchived ? 'checked' : ''}>
-          <span>${escapeHTML(translate('communication_history_show_archived'))}</span>
-        </label>
+        ${archiveToggle}
         ${messages}
         ${news}
       </section>

@@ -266,6 +266,14 @@ describe('without the right to send communications', () => {
     expect(document.querySelector('[data-news-id="9"]')).not.toBeNull();
     expect(archiveButtons()).toHaveLength(0);
   });
+
+  test('does not offer the archive, which they could not read', async () => {
+    await open();
+
+    expect(document.getElementById('communication-history-archived')).toBeNull();
+    expect(api.getNewsHistory).toHaveBeenCalledTimes(1);
+    expect(api.getNewsHistory).toHaveBeenCalledWith({ archived: false });
+  });
 });
 
 describe('late answers', () => {
