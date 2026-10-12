@@ -4,6 +4,8 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 
 const TEST_SECRET = 'communication-archive-secret';
+// The routes read the secret when they load, so it is set before they are required.
+process.env.JWT_SECRET_KEY = TEST_SECRET;
 const USER_ID = '550e8400-e29b-41d4-a716-446655440000';
 const ORGANIZATION_ID = 7;
 const quiet = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
@@ -77,10 +79,6 @@ function given(overrides = {}) {
 }
 
 const authorized = (req) => req.set('Authorization', `Bearer ${token()}`);
-
-beforeAll(() => {
-  process.env.JWT_SECRET_KEY = TEST_SECRET;
-});
 
 beforeEach(() => {
   queryLog = [];
