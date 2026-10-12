@@ -7,7 +7,7 @@
 const { authenticate, blockDemoRoles, requirePermission, getOrganizationId } = require('../middleware/auth');
 const express = require('express');
 const { asyncHandler, error: errorResponse, success: successResponse } = require('../middleware/response');
-const { check } = require('express-validator');
+const { body, check } = require('express-validator');
 const router = express.Router();
 const {
   handleOrganizationResolutionError,
@@ -1077,7 +1077,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
     '/v1/announcements/:announcementId/archive',
     authenticate, blockDemoRoles, requirePermission(['communications.send']),
     validateIdParam('announcementId'),
-    [check('archived').isIn(['true', 'false']).withMessage('archived must be true or false')],
+    [body('archived').isIn(['true', 'false']).withMessage('archived must be true or false in the request body')],
     checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);

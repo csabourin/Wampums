@@ -157,6 +157,23 @@ describe('long lists', () => {
     expect(document.activeElement.dataset.newsId).toBe('3');
   });
 
+  test('are not extended twice by a double tap', async () => {
+    api.getNewsHistory.mockResolvedValueOnce({ success: true, data: [news(1)], pagination: { hasNext: true } });
+    await open();
+    let release;
+    api.getNewsHistory.mockReturnValueOnce(new Promise((resolve) => { release = resolve; }));
+
+    const button = document.querySelector('[data-load-more="news"]');
+    click(button);
+    click(button);
+    expect(button.disabled).toBe(true);
+    release({ success: true, data: [news(2)], pagination: { hasNext: false } });
+    await new Promise(process.nextTick);
+
+    expect(api.getNewsHistory).toHaveBeenCalledTimes(2);
+    expect(Array.from(document.querySelectorAll('[data-news-id]')).map((item) => item.dataset.newsId)).toEqual(['1', '2']);
+  });
+
   test('say so when the next page cannot be loaded, and keep what is shown', async () => {
     api.getNewsHistory.mockResolvedValueOnce({ success: true, data: [news(1)], pagination: { hasNext: true } });
     await open();

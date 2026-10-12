@@ -202,6 +202,16 @@ describe('the archived flag', () => {
   });
 });
 
+describe('the archived flag in the query string', () => {
+  test('is not taken for the request body, which would restore the item', async () => {
+    const announcement = await authorized(request(app).patch('/api/v1/announcements/4/archive?archived=true')).send({});
+    const news = await authorized(request(app).patch('/api/v1/news/9/archive?archived=true')).send({});
+
+    expect([announcement.status, news.status]).toEqual([400, 400]);
+    expect(queryLog.some(({ query }) => query.includes('UPDATE'))).toBe(false);
+  });
+});
+
 describe('news', () => {
   test('are listed to any member of the unit', async () => {
     given({ permissions: [] });

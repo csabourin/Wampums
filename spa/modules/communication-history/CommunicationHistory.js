@@ -61,6 +61,7 @@ export class CommunicationHistory {
     this.errors = { announcements: false, news: false };
     this.destroyed = false;
     this.loadGeneration = 0;
+    this.loadingMore = new Set();
   }
 
   /** Called by the router when the person leaves this screen. */
@@ -366,6 +367,29 @@ export class CommunicationHistory {
    * @returns {Promise<void>}
    */
   async loadMore(kind) {
+    // A second tap while the page is on its way would append the same page twice.
+    if (this.loadingMore.has(kind)) {
+      return;
+    }
+    this.loadingMore.add(kind);
+    const button = document.querySelector(`[data-load-more="${kind}"]`);
+    if (button) {
+      button.disabled = true;
+    }
+    try {
+      await this.fetchNextPage(kind);
+    } finally {
+      this.loadingMore.delete(kind);
+    }
+  }
+
+  /**
+   * Fetch and append the page after the one shown.
+   *
+   * @param {'announcement'|'news'} kind - The list to extend
+   * @returns {Promise<void>}
+   */
+  async fetchNextPage(kind) {
     const generation = this.loadGeneration;
     const archived = this.showArchived;
     const page = this.pages[kind] + 1;
@@ -376,6 +400,10 @@ export class CommunicationHistory {
     } catch (error) {
       debugError('Failed to load more of the history:', error);
       this.app.showMessage(apiErrorMessage(error, 'communication_history_more_failed'), 'error');
+      const retry = document.querySelector(`[data-load-more="${kind}"]`);
+      if (retry) {
+        retry.disabled = false;
+      }
       return;
     }
     // The person switched lists, or reloaded, while this page was on its way.

@@ -11,7 +11,7 @@
  */
 
 const express = require('express');
-const { check } = require('express-validator');
+const { body, check } = require('express-validator');
 const { authenticate, blockDemoRoles, getOrganizationId, requirePermission } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { checkValidation, validateIdParam } = require('../middleware/validation');
@@ -78,7 +78,7 @@ module.exports = (pool) => {
     '/:newsId/archive',
     authenticate, blockDemoRoles, requirePermission('communications.send'),
     validateIdParam('newsId'),
-    [check('archived').isIn(['true', 'false']).withMessage('archived must be a boolean')],
+    [body('archived').isIn(['true', 'false']).withMessage('archived must be true or false in the request body')],
     checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
