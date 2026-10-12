@@ -418,7 +418,8 @@ const result = await pool.query(
   (`test/spa/DomPurifyClobbering.test.js`). Prefix ids with the feature: `walk-in-retry`.
 
 #### Feedback and errors
-- ✅ Toasts: `this.app.showMessage(translate('key') | 'key', 'success' | 'error' | 'info')`.
+- ✅ Toasts: `this.app.showMessage(translate('thing_saved'), 'success')`. The type is `'success'`,
+  `'error'` or `'info'`; a bare key (`'thing_saved'`) is translated for you.
 - ✅ A failed call: `apiErrorMessage(error, 'screen_fallback_key')` (§1), never `error.message`. A
   refused action reads as a refusal, not as a generic error. A failed request is never reported as
   success, and a write that committed but whose reload failed says it was saved and offers a retry.
@@ -456,10 +457,13 @@ const result = await pool.query(
 - ✅ Endpoints are written without the prefix: `API.get('v1/messages')`. `API.get(endpoint, params,
   { cacheDuration, forceRefresh })` caches in IndexedDB (`CONFIG.CACHE_DURATION.*`); use
   `API.getNoCache()` for data that must be fresh (anything just written by someone else, links).
-- ✅ **Writes invalidate the cache themselves.** `API.post/put/patch/delete` clear the cached
-  responses built from that resource, and every screen derived from the roster when the roster changes
-  (`spa/utils/CacheInvalidation.js`). Do not hand-clear cache keys after a write. To reload after one,
-  call the read again with `forceRefresh: true`.
+- ✅ **A confirmed write invalidates the cache itself.** When the server accepts it,
+  `API.post/put/patch/delete` clear the cached responses built from that resource, and every screen
+  derived from the roster when the roster changes (`spa/utils/CacheInvalidation.js`). Do not hand-clear
+  cache keys after such a write. To reload after one, call the read again with `forceRefresh: true`.
+  A write that was only **queued** (`{ queued: true }`) is not covered: one queued after a network error
+  clears nothing, and replaying the queue clears nothing either, so reload with `forceRefresh: true` once
+  it is sent.
 - ✅ Cache keys are scoped by user and unit (`spa/utils/OfflineCacheKeys.js`); never build one by hand.
 - ✅ Offline, writes are queued and answer `{ queued: true }`. Resources listed in
   `CONFIG.ONLINE_REQUIRED_MUTATION_RESOURCES` (invitations, parent onboarding, walk-ins, family links)
@@ -526,8 +530,9 @@ router.get('/data', authenticate, asyncHandler(async (req, res) => {
 - ✅ A 5xx never sends `error.message`, a provider's error, or a database error to the client
   (`test/server-error-leaks.test.js` checks every route file). Log it and answer a generic message.
 - ✅ Bad input is a 400, never a 500: a malformed id, a non-array where an array is expected, an id
-  beyond the integer range. Validate ids strictly (`validateIdParam()` + `checkValidation`), not with
-  `parseInt()`, which reads `12abc` as 12.
+  beyond the integer range. Validate ids strictly with `validateIdParam()` / `validateIdBody()` /
+  `validateIdQuery()` + `checkValidation`, which accept only 1 to 2147483647 (a PostgreSQL `integer`),
+  not with `parseInt()`, which reads `12abc` as 12.
 - ✅ A message the SPA may show is a translation key (`invalid_or_expired_token`); the SPA displays a
   server message only when it is a key it knows (§1).
 

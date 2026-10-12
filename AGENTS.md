@@ -30,7 +30,8 @@ test wins and the document gets fixed.
 - New screens in `spa/modules/<feature>/`, never the `spa/` root. **An older screen in the `spa/` root
   that you touch moves to `spa/modules/<feature>/`** in its own commit, and the parts you change follow
   CLAUDE.md §7 (details there). API calls in
-  `spa/api/api-<feature>.js` through `API` from `spa/api/api-core.js`; writes invalidate the cache.
+  `spa/api/api-<feature>.js` through `API` from `spa/api/api-core.js`; a confirmed write invalidates
+  the cache, a queued one does not.
 - `setContent()`, never `innerHTML =`; `escapeHTML()` / `escapeAttribute()` for anything from people.
 - Every screen: `renderBackLink()` first, then loading, error-with-retry and empty states.
 - `openModal()` and `DialogUtils`, never hand-built overlays or browser dialogs.

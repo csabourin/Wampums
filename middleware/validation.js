@@ -7,6 +7,11 @@
 
 const { check, param, query, validationResult } = require('express-validator');
 
+/** Largest value of a PostgreSQL `integer` column: a larger id would fail in the database with a 500. */
+const POSTGRES_INT_MAX = 2147483647;
+/** The range every integer id must fall in. */
+const ID_RANGE = { min: 1, max: POSTGRES_INT_MAX };
+
 /**
  * Middleware to check validation results and return errors
  *
@@ -173,7 +178,7 @@ const validateNewPasswordForChange = check('newPassword')
  */
 const validateIdParam = (paramName = 'id') =>
   param(paramName)
-    .isInt({ min: 1 })
+    .isInt(ID_RANGE)
     .withMessage(`${paramName} must be a positive integer`);
 
 /**
@@ -181,7 +186,7 @@ const validateIdParam = (paramName = 'id') =>
  */
 const validateIdBody = (fieldName = 'id') =>
   check(fieldName)
-    .isInt({ min: 1 })
+    .isInt(ID_RANGE)
     .withMessage(`${fieldName} must be a positive integer`);
 
 /**
@@ -190,7 +195,7 @@ const validateIdBody = (fieldName = 'id') =>
 const validateIdBodyOptional = (fieldName = 'id') =>
   check(fieldName)
     .optional()
-    .isInt({ min: 1 })
+    .isInt(ID_RANGE)
     .withMessage(`${fieldName} must be a positive integer`);
 
 /**
@@ -199,7 +204,7 @@ const validateIdBodyOptional = (fieldName = 'id') =>
 const validateIdQuery = (fieldName = 'id') =>
   query(fieldName)
     .optional()
-    .isInt({ min: 1 })
+    .isInt(ID_RANGE)
     .withMessage(`${fieldName} must be a positive integer`);
 
 // ============================================
