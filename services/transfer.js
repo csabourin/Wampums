@@ -4,7 +4,7 @@
  * Moving a participant to a sister unit — the family relocates, the child ages
  * into the next section, two units merge.
  *
- * The decision this implements (§8.5 of devdocs/GESTION_ANNEE_SCOUTE.md) is
+ * The decision this implements (« Transfert vers une unité sœur » in devdocs/GESTION_ANNEE_SCOUTE.md) is
  * that **a transfer takes the parents with the child**. A parent left behind in
  * the old unit's account list and absent from the new one has to be re-invited
  * by hand, which in practice means they are not.

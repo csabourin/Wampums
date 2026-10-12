@@ -45,7 +45,7 @@ const {
  *
  * The residual limit is stated plainly: a submission edited in a later season is
  * a mutable row, so its *content* is today's. Scoping fixes which record is
- * shown, not the absence of version history — see §9 of
+ * shown, not the absence of version history — see « Limites connues » in
  * devdocs/GESTION_ANNEE_SCOUTE.md.
  *
  * Both fragments expect `$1` = organization id, `$4`/`$5` = the window bounds

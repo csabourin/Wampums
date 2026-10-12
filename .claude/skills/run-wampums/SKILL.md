@@ -13,7 +13,7 @@ All paths are relative to the repo root.
 
 ## Prerequisites
 
-- Node 20 and a local PostgreSQL reachable over the Unix socket
+- Node 22.12 or newer (as `package.json` requires) and a local PostgreSQL reachable over the Unix socket
   `/var/run/postgresql`, with a role that may `CREATE DATABASE` (peer auth; no
   password). No `apt-get install` is needed: `setup.sh` unpacks the one missing
   system library into a cache.

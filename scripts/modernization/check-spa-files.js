@@ -10,11 +10,11 @@ const path = require('path');
 
 const SPA_ROOT = path.join(__dirname, '../../spa');
 
-// Initial allow-list of 68 files as identified in the audit
+// Older screens and shared infrastructure still in the spa/ root. A screen moved
+// into spa/modules/ when it is touched comes off this list (see CLAUDE.md §7).
 const SPA_ALLOW_LIST = [
     'JSONFormRenderer.js',
     'MANUEL_PARENTS.md',
-    'acceptation_risque.js',
     'activity-widget.js',
     'admin.js',
     'ajax-functions.js',
@@ -34,7 +34,6 @@ const SPA_ALLOW_LIST = [
     'dynamicFormHandler.js',
     'expenses.js',
     'external-revenue.js',
-    'fiche_sante.js',
     'finance.js',
     'formBuilder.js',
     'form_permissions.js',
@@ -66,7 +65,6 @@ const SPA_ALLOW_LIST = [
     'permission_slip_sign.js',
     'pwa-update-manager.js',
     'register.js',
-    'register_organization.js',
     'reports.js',
     'reset_password.js',
     'resource_dashboard.js',
