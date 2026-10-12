@@ -59,6 +59,7 @@ export class CommunicationHistory {
     this.unitRoles = [];
     this.errors = { announcements: false, news: false };
     this.destroyed = false;
+    this.loadGeneration = 0;
   }
 
   /** Called by the router when the person leaves this screen. */
@@ -81,15 +82,21 @@ export class CommunicationHistory {
   /**
    * Load both lists. One failing does not hide the other.
    *
-   * @returns {Promise<void>}
+   * @returns {Promise<boolean>} False when a newer load superseded this one and nothing was applied
    */
   async load() {
     const archived = this.showArchived;
+    this.loadGeneration += 1;
+    const generation = this.loadGeneration;
     const [announcements, news, groups] = await Promise.allSettled([
       this.canSend ? getAnnouncementHistory({ archived }) : Promise.resolve(null),
       getNewsHistory({ archived }),
       this.canSend ? getGroups() : Promise.resolve(null),
     ]);
+    // A newer load started while this one was in flight: its answer is the one to show.
+    if (generation !== this.loadGeneration) {
+      return false;
+    }
     this.errors.announcements = announcements.status === 'rejected';
     this.errors.news = news.status === 'rejected';
     [announcements, news].forEach((result) => {
@@ -103,6 +110,7 @@ export class CommunicationHistory {
     this.news = Array.isArray(news.value?.data) ? news.value.data : [];
     const groupData = groups.value;
     this.groups = groupData?.data || groupData?.groups || [];
+    return true;
   }
 
   renderLoading() {
@@ -325,7 +333,9 @@ export class CommunicationHistory {
     if (!focusId) {
       this.renderLoading();
     }
-    await this.load();
+    if (!(await this.load())) {
+      return;
+    }
     this.render();
     if (focusId) {
       document.getElementById(focusId)?.focus();
@@ -343,8 +353,9 @@ export class CommunicationHistory {
     const archived = archiveTo === 'true';
     const { setArchived, headingId } = KINDS[kind];
     button.disabled = true;
+    let result;
     try {
-      await setArchived(Number(id), archived);
+      result = await setArchived(Number(id), archived);
     } catch (error) {
       debugError('Failed to archive:', error);
       button.disabled = false;
@@ -354,9 +365,17 @@ export class CommunicationHistory {
       );
       return;
     }
+    // Offline, the write is only queued: say so rather than claim it is done.
+    if (result?.queued) {
+      button.disabled = false;
+      this.app.showMessage(translate('communication_history_queued'), 'info');
+      return;
+    }
     this.app.showMessage(translate(archived ? 'communication_history_archived' : 'communication_history_restored'), 'success');
     // The write stands even if the reload fails: the lists show their own error.
-    await this.load();
+    if (!(await this.load())) {
+      return;
+    }
     this.render();
     // The button that held focus is gone; keep the person in the section they were working in.
     document.getElementById(headingId)?.focus();

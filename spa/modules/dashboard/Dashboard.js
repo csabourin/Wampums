@@ -485,6 +485,8 @@ export class Dashboard extends BaseModule {
         return holdsFamilyRole() || canViewCarpools();
       case 'createOrganization':
         return canCreateOrganization();
+      case 'member':
+        return true;
       default:
         debugError('Unknown dashboard tile gate:', gate);
         return false;

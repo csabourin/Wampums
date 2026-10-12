@@ -205,6 +205,42 @@ describe('archiving', () => {
     expect(document.getElementById('communication-history-archived').hasAttribute('data-archive-safe')).toBe(true);
   });
 
+  test('an archive that was only queued offline is not reported as done', async () => {
+    await open();
+    api.setAnnouncementArchived.mockResolvedValue({ success: true, queued: true });
+    api.getAnnouncementHistory.mockClear();
+
+    const button = document.querySelector('[data-announcement-id="4"] [data-archive-kind]');
+    click(button);
+    await new Promise(process.nextTick);
+
+    expect(app.showMessage).toHaveBeenCalledWith('communication_history_queued', 'info');
+    expect(app.showMessage).not.toHaveBeenCalledWith('communication_history_archived', 'success');
+    expect(api.getAnnouncementHistory).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-announcement-id="4"]')).not.toBeNull();
+    expect(button.disabled).toBe(false);
+  });
+
+  test('a slow answer for the archive does not overwrite the list the person went back to', async () => {
+    await open();
+    let releaseArchived;
+    api.getAnnouncementHistory.mockReturnValueOnce(new Promise((resolve) => { releaseArchived = resolve; }));
+    const toggle = document.getElementById('communication-history-archived');
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(process.nextTick);
+    releaseArchived({ success: true, data: [{ ...ANNOUNCEMENT, id: 99, subject: 'Archivé' }] });
+    await new Promise(process.nextTick);
+
+    expect(document.getElementById('communication-history-archived').checked).toBe(false);
+    expect(document.querySelector('[data-announcement-id="99"]')).toBeNull();
+    expect(document.querySelector('[data-announcement-id="4"]')).not.toBeNull();
+    expect(document.getElementById('communication-history-messages').textContent).toBe('announcement_history');
+  });
+
   test('restores an archived message', async () => {
     await open();
     document.getElementById('communication-history-archived').checked = true;

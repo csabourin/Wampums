@@ -799,9 +799,8 @@ export class Router {
           await this.loadMailingList();
           break;
         case 'communicationHistory':
-          if (!guard(canSendCommunications())) {
-            break;
-          }
+          // Every member reads the unit's news; the screen offers the sent messages
+          // and the archive only to those who may send communications.
           await this.loadModuleInstance('CommunicationHistory');
           break;
         case "managePoints":

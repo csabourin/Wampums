@@ -441,7 +441,8 @@ export const DASHBOARD_TILES = [
     moment: 'tools',
     domain: 'admin',
     priority: 16,
-    gate: { permission: 'communications.send' },
+    // Everyone on the dashboard reads the news; the sent messages and the archive need communications.send.
+    gate: { check: 'member' },
   },
   {
     featureKey: "role_management",

@@ -159,6 +159,12 @@ test('backend dashboard visibility keys match the current configurable tiles', (
   expect([...customizationConfig.dashboardFeatureKeys].sort()).toEqual(tileFeatureKeys);
 });
 
+test('the news screen is offered to every member of the dashboard, not only to those who send messages', () => {
+  const tile = DASHBOARD_TILES.find((candidate) => candidate.href === '/communication-history');
+
+  expect(tile.gate).toEqual({ check: 'member' });
+});
+
 describe('tool groups separate weekly work from unit set-up', () => {
   const routesIn = (domain) => DASHBOARD_TILES
     .filter((tile) => tile.moment === 'tools' && tile.domain === domain)
@@ -247,6 +253,7 @@ describe('tiles follow the permissions their page acts on', () => {
       '/parent-invitations',
       '/manage-users-participants',
       '/participant-duplicates',
+      '/communication-history',
     ]);
   });
 });
