@@ -3918,5 +3918,7 @@
   "news_not_found": "Cette nouvelle n’existe plus.",
   "tile_communication_history": "Messages et nouvelles",
   "tile_communication_history_aliases": "historique, archive, envoyé, annonces, nouvelles, messages",
-  "communication_history_queued": "Enregistré hors ligne. Il sera appliqué au retour de la connexion."
+  "communication_history_queued": "Enregistré hors ligne. Il sera appliqué au retour de la connexion.",
+  "communication_history_load_more": "Afficher la suite",
+  "communication_history_more_failed": "Impossible de charger la suite pour le moment."
 }

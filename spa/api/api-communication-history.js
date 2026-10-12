@@ -15,10 +15,11 @@ import { API } from './api-core.js';
  *
  * @param {Object} [options]
  * @param {boolean} [options.archived=false] - List the archived ones instead
- * @returns {Promise<Object>} API response
+ * @param {number} [options.page=1] - Page of the list
+ * @returns {Promise<Object>} API response, with `groups` naming the unit's groups
  */
-export function getAnnouncementHistory({ archived = false } = {}) {
-  return API.getNoCache('v1/announcements', { archived });
+export function getAnnouncementHistory({ archived = false, page = 1 } = {}) {
+  return API.getNoCache('v1/announcements', { archived, page });
 }
 
 /**
@@ -37,10 +38,11 @@ export function setAnnouncementArchived(announcementId, archived) {
  *
  * @param {Object} [options]
  * @param {boolean} [options.archived=false] - List the archived ones instead
+ * @param {number} [options.page=1] - Page of the list
  * @returns {Promise<Object>} API response
  */
-export function getNewsHistory({ archived = false } = {}) {
-  return API.getNoCache(archived ? 'v1/news/archived' : 'v1/news');
+export function getNewsHistory({ archived = false, page = 1 } = {}) {
+  return API.getNoCache(archived ? 'v1/news/archived' : 'v1/news', { page });
 }
 
 /**

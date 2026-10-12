@@ -60,6 +60,12 @@ function answer(query, params) {
   if (query.includes('UPDATE news')) {
     return newsItem ? { rows: [{ id: newsItem.id, archived_at: params[0] ? 'now' : null }] } : { rows: [] };
   }
+  if (query.includes('COUNT(*)')) {
+    return { rows: [{ total: 120 }] };
+  }
+  if (query.includes('FROM groups')) {
+    return { rows: [{ id: 2, name: 'Tanière' }] };
+  }
   if (query.includes('FROM news')) {
     return { rows: [{ id: 9, title: 'Camp', content: 'Text', created_at: '2026-10-01T00:00:00Z' }] };
   }
@@ -155,14 +161,44 @@ describe('listing the message history', () => {
     await authorized(request(app).get('/api/v1/announcements'));
     await authorized(request(app).get('/api/v1/announcements?archived=true'));
 
-    const lists = queryLog.filter(({ query }) => query.includes('FROM announcements') && query.includes('LIMIT 50'));
-    expect(lists.map(({ params }) => params)).toEqual([[ORGANIZATION_ID, false], [ORGANIZATION_ID, true]]);
+    const lists = queryLog.filter(({ query }) => query.includes('FROM announcements') && query.includes('LIMIT $3'));
+    expect(lists.map(({ params }) => params)).toEqual([[ORGANIZATION_ID, false, 50, 0], [ORGANIZATION_ID, true, 50, 0]]);
+  });
+
+  test('names the unit\'s groups itself, so reading the history needs no other permission', async () => {
+    const response = await authorized(request(app).get('/api/v1/announcements'));
+
+    expect(response.body.groups).toEqual([{ id: 2, name: 'Tanière' }]);
+  });
+
+  test('pages through the history, 50 at a time', async () => {
+    const response = await authorized(request(app).get('/api/v1/announcements?archived=true&page=2'));
+
+    expect(response.body.pagination).toEqual(expect.objectContaining({ page: 2, limit: 50, total: 120, hasNext: true, hasPrev: true }));
+    const list = queryLog.find(({ query }) => query.includes('LIMIT $3'));
+    expect(list.params).toEqual([ORGANIZATION_ID, true, 50, 50]);
+  });
+
+  test.each(['0', 'abc', '1e9'])('rejects the page %s', async (page) => {
+    const response = await authorized(request(app).get(`/api/v1/announcements?page=${page}`));
+
+    expect(response.status).toBe(400);
   });
 
   test('rejects an archived filter that is not true or false', async () => {
     const response = await authorized(request(app).get('/api/v1/announcements?archived=soon'));
 
     expect(response.status).toBe(400);
+  });
+});
+
+describe('the archived flag', () => {
+  test.each([[1], ['1'], ['yes'], [null]])('%p is refused rather than read as "restore"', async (flag) => {
+    const announcement = await authorized(request(app).patch('/api/v1/announcements/4/archive')).send({ archived: flag });
+    const news = await authorized(request(app).patch('/api/v1/news/9/archive')).send({ archived: flag });
+
+    expect([announcement.status, news.status]).toEqual([400, 400]);
+    expect(queryLog.some(({ query }) => query.includes('UPDATE'))).toBe(false);
   });
 });
 
@@ -173,9 +209,17 @@ describe('news', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.data[0].title).toBe('Camp');
-    const list = queryLog.find(({ query }) => query.includes('FROM news'));
-    expect(list.query).toContain('archived_at IS NULL');
+    const list = queryLog.find(({ query }) => query.includes('FROM news') && query.includes('LIMIT'));
+    expect(list.params).toEqual([ORGANIZATION_ID, false, 50, 0]);
     expect(list.params[0]).toBe(ORGANIZATION_ID);
+  });
+
+  test('are paged, 50 at a time', async () => {
+    const response = await authorized(request(app).get('/api/v1/news?page=3'));
+
+    expect(response.body.pagination).toEqual(expect.objectContaining({ page: 3, total: 120, hasNext: false, hasPrev: true }));
+    const list = queryLog.find(({ query }) => query.includes('FROM news') && query.includes('LIMIT'));
+    expect(list.params).toEqual([ORGANIZATION_ID, false, 50, 100]);
   });
 
   test('their archive is for those who send communications only', async () => {

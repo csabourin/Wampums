@@ -48,6 +48,9 @@ const HTTP_NOT_FOUND = 404;
 const HTTP_CONFLICT = 409;
 /** Statuses of a message that is still to go out: it cannot leave the history yet. */
 const PENDING_STATUSES = ['scheduled', 'sending'];
+/** Messages listed per page of the history, and the last page number accepted. */
+const HISTORY_PAGE_SIZE = 50;
+const MAX_HISTORY_PAGE = 100000;
 /** How often the scheduler re-checks with nothing else to wake it. */
 const FALLBACK_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const pg = require('pg');
@@ -983,22 +986,34 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
    * `?archived=true` lists the archived ones instead of the active ones.
    */
   router.get('/v1/announcements', authenticate, requirePermission(['communications.send']), [
-    check('archived').optional().isBoolean().withMessage('archived must be a boolean'),
+    check('archived').optional().isIn(['true', 'false']).withMessage('archived must be true or false'),
+    check('page').optional().isInt({ min: 1, max: MAX_HISTORY_PAGE }).withMessage('page must be a positive integer'),
   ], checkValidation, asyncHandler(async (req, res) => {
     try {
 
       const organizationId = await getOrganizationId(req, pool);
       const archived = req.query.archived === 'true';
+      const page = Number(req.query.page) || 1;
 
       const announcementsQuery = `
         SELECT id, subject, message, recipient_roles, recipient_groups, audience, scheduled_at, sent_at, status, created_at, archived_at
         FROM announcements
         WHERE organization_id = $1
           AND (archived_at IS NOT NULL) = $2
-        ORDER BY created_at DESC
-        LIMIT 50
+        ORDER BY created_at DESC, id DESC
+        LIMIT $3 OFFSET $4
       `;
-      const announcementsResult = await pool.query(announcementsQuery, [organizationId, archived]);
+      const [announcementsResult, countResult, groupsResult] = await Promise.all([
+        pool.query(announcementsQuery, [organizationId, archived, HISTORY_PAGE_SIZE, (page - 1) * HISTORY_PAGE_SIZE]),
+        pool.query(
+          'SELECT COUNT(*)::int AS total FROM announcements WHERE organization_id = $1 AND (archived_at IS NOT NULL) = $2',
+          [organizationId, archived],
+        ),
+        // The groups' names label each message's recipients, so reading the history
+        // does not depend on holding groups.view as well.
+        pool.query('SELECT id, name FROM groups WHERE organization_id = $1 ORDER BY name', [organizationId]),
+      ]);
+      const total = countResult.rows[0]?.total || 0;
 
       const announcementIds = announcementsResult.rows.map((row) => row.id);
       let logsByAnnouncement = {};
@@ -1032,6 +1047,15 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
           message: escapeHtml(row.message),
           logs: logsByAnnouncement[row.id] || [],
         })),
+        pagination: {
+          page,
+          limit: HISTORY_PAGE_SIZE,
+          total,
+          totalPages: Math.ceil(total / HISTORY_PAGE_SIZE),
+          hasNext: page * HISTORY_PAGE_SIZE < total,
+          hasPrev: page > 1,
+        },
+        groups: groupsResult.rows,
         templates,
         roles,
       });
@@ -1053,11 +1077,11 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
     '/v1/announcements/:announcementId/archive',
     authenticate, blockDemoRoles, requirePermission(['communications.send']),
     validateIdParam('announcementId'),
-    [check('archived').isBoolean().withMessage('archived must be a boolean')],
+    [check('archived').isIn(['true', 'false']).withMessage('archived must be true or false')],
     checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const archived = req.body.archived === true || req.body.archived === 'true';
+      const archived = String(req.body.archived) === 'true';
 
       const result = await pool.query(
         `UPDATE announcements

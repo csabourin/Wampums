@@ -3918,5 +3918,7 @@
   "news_not_found": "This news item no longer exists.",
   "tile_communication_history": "Messages and news",
   "tile_communication_history_aliases": "history, archive, sent, announcements, news, messages",
-  "communication_history_queued": "Saved offline. It will be applied when you are back online."
+  "communication_history_queued": "Saved offline. It will be applied when you are back online.",
+  "communication_history_load_more": "Load more",
+  "communication_history_more_failed": "Unable to load more right now."
 }

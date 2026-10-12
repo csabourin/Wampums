@@ -16,7 +16,6 @@ import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { canSendCommunications } from '../../utils/PermissionUtils.js';
 import { roleLabel } from '../../utils/RoleLabelUtils.js';
 import { renderDeliveryLog } from '../announcements/deliveryLog.js';
-import { getGroups } from '../../api/api-endpoints.js';
 import {
   getAnnouncementHistory,
   getNewsHistory,
@@ -57,6 +56,8 @@ export class CommunicationHistory {
     this.news = [];
     this.groups = [];
     this.unitRoles = [];
+    this.pages = { announcement: 1, news: 1 };
+    this.hasMore = { announcement: false, news: false };
     this.errors = { announcements: false, news: false };
     this.destroyed = false;
     this.loadGeneration = 0;
@@ -88,10 +89,9 @@ export class CommunicationHistory {
     const archived = this.showArchived;
     this.loadGeneration += 1;
     const generation = this.loadGeneration;
-    const [announcements, news, groups] = await Promise.allSettled([
+    const [announcements, news] = await Promise.allSettled([
       this.canSend ? getAnnouncementHistory({ archived }) : Promise.resolve(null),
       getNewsHistory({ archived }),
-      this.canSend ? getGroups() : Promise.resolve(null),
     ]);
     // A newer load started while this one was in flight: its answer is the one to show.
     if (generation !== this.loadGeneration) {
@@ -108,8 +108,12 @@ export class CommunicationHistory {
     this.announcements = Array.isArray(announcementData?.data) ? announcementData.data : [];
     this.unitRoles = Array.isArray(announcementData?.roles) ? announcementData.roles : [];
     this.news = Array.isArray(news.value?.data) ? news.value.data : [];
-    const groupData = groups.value;
-    this.groups = groupData?.data || groupData?.groups || [];
+    this.groups = Array.isArray(announcementData?.groups) ? announcementData.groups : [];
+    this.pages = { announcement: 1, news: 1 };
+    this.hasMore = {
+      announcement: Boolean(announcementData?.pagination?.hasNext),
+      news: Boolean(news.value?.pagination?.hasNext),
+    };
     return true;
   }
 
@@ -188,7 +192,7 @@ export class CommunicationHistory {
       ? `<span class="badge warning">${escapeHTML(translate('push_failed').replace('{count}', delivery.push.failed))}</span>`
       : '';
     return `
-      <li class="news-item announcement-item" data-announcement-id="${Number(announcement.id)}">
+      <li class="news-item announcement-item" tabindex="-1" data-announcement-id="${Number(announcement.id)}">
         <div class="news-item-header">
           <h3 class="news-title">${escapeHTML(announcement.subject)}</h3>
           <span class="news-date">${escapeHTML(translate(announcement.status))}</span>
@@ -222,7 +226,7 @@ export class CommunicationHistory {
       : '';
     const title = item.title || translate('news_untitled');
     return `
-      <li class="news-item" data-news-id="${Number(item.id)}">
+      <li class="news-item" tabindex="-1" data-news-id="${Number(item.id)}">
         <div class="news-item-header">
           <h3 class="news-title">${escapeHTML(title)}</h3>
           <span class="news-date">${escapeHTML(translate('news_published'))}: <time datetime="${escapeAttribute(item.created_at || '')}">${escapeHTML(this.formatDateTime(item.created_at))}</time></span>
@@ -243,16 +247,20 @@ export class CommunicationHistory {
    * @param {string[]} section.items - Rendered list items
    * @param {string} section.emptyKey - Translation key of the empty note
    * @param {string} section.errorKey - Translation key of the error
+   * @param {'announcement'|'news'} section.kind - Kind of item the section lists
    * @returns {string} HTML
    */
-  renderSection({ headingId, titleKey, failed, items, emptyKey, errorKey }) {
+  renderSection({ headingId, titleKey, failed, items, emptyKey, errorKey, kind }) {
     let body;
     if (failed) {
       body = `
         <p class="status-message error" role="alert">${escapeHTML(translate(errorKey))}</p>
         <button type="button" class="button" data-communication-retry>${escapeHTML(translate('retry'))}</button>`;
     } else if (items.length) {
-      body = `<ul class="news-list">${items.join('')}</ul>`;
+      const more = this.hasMore[kind]
+        ? `<button type="button" class="button button--secondary" data-load-more="${kind}">${escapeHTML(translate('communication_history_load_more'))}</button>`
+        : '';
+      body = `<ul class="news-list">${items.join('')}</ul>${more}`;
     } else {
       body = `<p class="muted-text">${escapeHTML(translate(emptyKey))}</p>`;
     }
@@ -277,6 +285,7 @@ export class CommunicationHistory {
         items: this.announcements.map((item) => this.renderAnnouncement(item)),
         emptyKey: `communication_history_no_messages${archivedSuffix}`,
         errorKey: 'communication_history_messages_error',
+        kind: 'announcement',
       })
       : '';
     const news = this.renderSection({
@@ -286,6 +295,7 @@ export class CommunicationHistory {
       items: this.news.map((item) => this.renderNewsItem(item)),
       emptyKey: this.showArchived ? 'communication_history_no_news_archived' : 'news_empty',
       errorKey: 'news_error',
+      kind: 'news',
     });
     const writeLink = this.canSend
       ? `<p><a href="/mailing-list" class="button button--primary">${escapeHTML(translate('mailing_list'))}</a></p>`
@@ -320,6 +330,9 @@ export class CommunicationHistory {
     root.querySelectorAll('[data-communication-retry]').forEach((button) => {
       button.addEventListener('click', () => this.reload());
     });
+    root.querySelectorAll('[data-load-more]').forEach((button) => {
+      button.addEventListener('click', () => this.loadMore(button.dataset.loadMore));
+    });
     root.querySelectorAll('[data-archive-kind]').forEach((button) => {
       button.addEventListener('click', () => this.setArchived(button));
     });
@@ -344,6 +357,42 @@ export class CommunicationHistory {
     if (focusId) {
       document.getElementById(focusId)?.focus();
     }
+  }
+
+  /**
+   * Append the next page of one list, keeping focus on the first item it added.
+   *
+   * @param {'announcement'|'news'} kind - The list to extend
+   * @returns {Promise<void>}
+   */
+  async loadMore(kind) {
+    const generation = this.loadGeneration;
+    const archived = this.showArchived;
+    const page = this.pages[kind] + 1;
+    const previousCount = (kind === 'announcement' ? this.announcements : this.news).length;
+    let response;
+    try {
+      response = await (kind === 'announcement' ? getAnnouncementHistory : getNewsHistory)({ archived, page });
+    } catch (error) {
+      debugError('Failed to load more of the history:', error);
+      this.app.showMessage(apiErrorMessage(error, 'communication_history_more_failed'), 'error');
+      return;
+    }
+    // The person switched lists, or reloaded, while this page was on its way.
+    if (generation !== this.loadGeneration || this.destroyed) {
+      return;
+    }
+    const rows = Array.isArray(response?.data) ? response.data : [];
+    if (kind === 'announcement') {
+      this.announcements = [...this.announcements, ...rows];
+    } else {
+      this.news = [...this.news, ...rows];
+    }
+    this.pages[kind] = page;
+    this.hasMore[kind] = Boolean(response?.pagination?.hasNext);
+    this.render();
+    const items = document.querySelectorAll(`#${KINDS[kind].headingId} ~ ul > li`);
+    items[previousCount]?.focus();
   }
 
   /**

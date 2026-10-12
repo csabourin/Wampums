@@ -18,7 +18,6 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
 jest.mock('../../spa/config.js', () => ({ CONFIG: {}, getStorageKey: (key) => key }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({ canSendCommunications: jest.fn() }));
 jest.mock('../../spa/utils/RoleLabelUtils.js', () => ({ roleLabel: (role) => role }));
-jest.mock('../../spa/api/api-endpoints.js', () => ({ getGroups: jest.fn() }));
 jest.mock('../../spa/api/api-communication-history.js', () => ({
   getAnnouncementHistory: jest.fn(),
   getNewsHistory: jest.fn(),
@@ -27,7 +26,6 @@ jest.mock('../../spa/api/api-communication-history.js', () => ({
 }));
 
 const { canSendCommunications } = require('../../spa/utils/PermissionUtils.js');
-const { getGroups } = require('../../spa/api/api-endpoints.js');
 const api = require('../../spa/api/api-communication-history.js');
 const { CommunicationHistory } = require('../../spa/modules/communication-history/CommunicationHistory.js');
 
@@ -78,8 +76,9 @@ beforeEach(() => {
   document.body.innerHTML = '<main id="app"></main>';
   jest.clearAllMocks();
   canSendCommunications.mockReturnValue(true);
-  getGroups.mockResolvedValue({ data: [{ id: 2, name: 'Tanière <i>Sud</i>' }] });
-  api.getAnnouncementHistory.mockResolvedValue({ success: true, data: [ANNOUNCEMENT], roles: [] });
+  api.getAnnouncementHistory.mockResolvedValue({
+    success: true, data: [ANNOUNCEMENT], roles: [], groups: [{ id: 2, name: 'Tanière <i>Sud</i>' }],
+  });
   api.getNewsHistory.mockResolvedValue({ success: true, data: [NEWS] });
   api.setAnnouncementArchived.mockResolvedValue({ success: true });
   api.setNewsArchived.mockResolvedValue({ success: true });
@@ -138,6 +137,43 @@ describe('the history', () => {
 
     expect(document.querySelector('[data-announcement-id="4"]')).not.toBeNull();
     expect(document.querySelector('[role="alert"]')).toBeNull();
+  });
+});
+
+describe('long lists', () => {
+  const news = (id) => ({ ...NEWS, id, title: `Nouvelle ${id}` });
+
+  test('offer the next page, add it to the list and keep focus on its first item', async () => {
+    api.getNewsHistory.mockResolvedValueOnce({ success: true, data: [news(1), news(2)], pagination: { hasNext: true } });
+    await open();
+    api.getNewsHistory.mockResolvedValueOnce({ success: true, data: [news(3)], pagination: { hasNext: false } });
+
+    click(document.querySelector('[data-load-more="news"]'));
+    await new Promise(process.nextTick);
+
+    expect(api.getNewsHistory).toHaveBeenLastCalledWith({ archived: false, page: 2 });
+    expect(Array.from(document.querySelectorAll('[data-news-id]')).map((item) => item.dataset.newsId)).toEqual(['1', '2', '3']);
+    expect(document.querySelector('[data-load-more="news"]')).toBeNull();
+    expect(document.activeElement.dataset.newsId).toBe('3');
+  });
+
+  test('say so when the next page cannot be loaded, and keep what is shown', async () => {
+    api.getNewsHistory.mockResolvedValueOnce({ success: true, data: [news(1)], pagination: { hasNext: true } });
+    await open();
+    api.getNewsHistory.mockRejectedValueOnce(new Error('offline'));
+
+    click(document.querySelector('[data-load-more="news"]'));
+    await new Promise(process.nextTick);
+
+    expect(app.showMessage).toHaveBeenCalledWith(expect.any(String), 'error');
+    expect(document.querySelector('[data-news-id="1"]')).not.toBeNull();
+    expect(document.querySelector('[data-load-more="news"]')).not.toBeNull();
+  });
+
+  test('show no button when everything fits on one page', async () => {
+    await open();
+
+    expect(document.querySelector('[data-load-more]')).toBeNull();
   });
 });
 
