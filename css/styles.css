@@ -1442,6 +1442,9 @@ tr:hover {
 .ghost-button {
   border: 1px solid var(--color-border);
   background-color: transparent;
+  /* The global button rule paints a green gradient; dark text on it fails contrast. */
+  background-image: none;
+  box-shadow: none;
   color: var(--color-text-primary);
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-md);
@@ -1453,6 +1456,16 @@ tr:hover {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   cursor: pointer;
+}
+
+/* Beats the global `button:hover` gradient (also sticky after a tap). */
+.ghost-button:hover:not(:disabled) {
+  background-color: var(--color-secondary);
+  background-image: none;
+  border-color: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  transform: none;
+  box-shadow: none;
 }
 
 .ghost-button:disabled {
