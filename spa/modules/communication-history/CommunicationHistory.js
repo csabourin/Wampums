@@ -23,6 +23,9 @@ import {
   setNewsArchived,
 } from '../../api/api-communication-history.js';
 
+/** Statuses of a message still waiting to go out: the server refuses to archive it. */
+const PENDING_STATUSES = ['scheduled', 'sending'];
+
 /** Kinds of item the screen archives, each with the call that archives it. */
 const KINDS = {
   announcement: { setArchived: setAnnouncementArchived, headingId: 'communication-history-messages' },
@@ -177,6 +180,8 @@ export class CommunicationHistory {
    * @returns {string} HTML list item
    */
   renderAnnouncement(announcement) {
+    // A message that is still to go out cannot be archived; once archived it can always be restored.
+    const pending = !this.showArchived && PENDING_STATUSES.includes(announcement.status);
     const logs = Array.isArray(announcement.logs) ? announcement.logs : [];
     const delivery = summarizeDelivery(logs);
     const roles = (announcement.recipient_roles || []).map((role) => this.roleName(role));
@@ -212,7 +217,7 @@ export class CommunicationHistory {
           ${pushFailed}
         </div>
         ${renderDeliveryLog(logs)}
-        <div>${this.renderArchiveButton('announcement', announcement.id, announcement.subject)}</div>
+        <div>${pending ? '' : this.renderArchiveButton('announcement', announcement.id, announcement.subject)}</div>
       </li>`;
   }
 

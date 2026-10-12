@@ -208,6 +208,16 @@ describe('archiving', () => {
     expect(document.activeElement.id).toBe('communication-history-messages');
   });
 
+  test.each(['scheduled', 'sending'])('offers no archive for a message that is still %s', async (status) => {
+    api.getAnnouncementHistory.mockResolvedValue({
+      success: true, data: [{ ...ANNOUNCEMENT, status }], roles: [], groups: [],
+    });
+    await open();
+
+    expect(document.querySelector('[data-announcement-id="4"]')).not.toBeNull();
+    expect(document.querySelector('[data-announcement-id="4"] [data-archive-kind]')).toBeNull();
+  });
+
   test('archives a news item', async () => {
     await open();
 
