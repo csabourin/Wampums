@@ -99,3 +99,13 @@ export function withdrawFamilyLinkRequest(requestId) {
 export function endFamilyLink(linkId) {
   return API.delete(`v1/family-links/${linkId}`);
 }
+
+/**
+ * The campaigns under way and where this parent's children stand in them.
+ * Uncached: a leader recording a payment must show on the parent's next visit.
+ *
+ * @returns {Promise<Object>} API response
+ */
+export function getFamilyFundraisers() {
+  return API.getNoCache('v1/fundraisers/family');
+}

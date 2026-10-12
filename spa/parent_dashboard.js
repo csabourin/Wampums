@@ -35,7 +35,7 @@ import { apiErrorMessage, apiErrorMessageKey } from './utils/ApiErrorUtils.js';
 import { setContent, loadStylesheet } from './utils/DOMUtils.js';
 import { openModal } from './utils/ModalUtils.js';
 import { CarpoolQuickAccessModal } from './modules/modals/CarpoolQuickAccessModal.js';
-import { isParent, hasPermission, canViewFinance, canManageFinance, canViewBudget, canManageBudget, canViewBadges, canApproveBadges, canViewReports, canViewActivities, canViewCarpools } from './utils/PermissionUtils.js';
+import { isParent, hasPermission, canViewBadges, canApproveBadges, canViewReports, canViewActivities, canViewCarpools } from './utils/PermissionUtils.js';
 import { formatDateShort, parseDate } from './utils/DateUtils.js';
 import {
         confirm as confirmDialog,
@@ -56,15 +56,6 @@ export class ParentDashboard {
                 this.formsToReview = [];
                 this.authorizationsToSign = [];
                 this.hiddenButtons = new Set();
-        }
-
-        canAccessFinanceWorkspace() {
-                return (
-                        canViewFinance() ||
-                        canManageFinance() ||
-                        canViewBudget() ||
-                        canManageBudget()
-                );
         }
 
         async init() {
@@ -472,9 +463,11 @@ export class ParentDashboard {
                 const familySharingLink = managesOwnFamily && !this.hiddenButtons.has('family_access')
                         ? `<a href="/family-access" class="dashboard-button dashboard-button--secondary">${translate('family_access_title')}</a>`
                         : '';
-                const financeWorkspaceLink = this.canAccessFinanceWorkspace()
-                        ? `<a href="/main-dashboard" class="dashboard-button dashboard-button--secondary">${translate('dashboard_finance_section')}</a>`
-                        : '';
+                // Where the family's children stand in the campaigns under way.
+                // The unit-wide campaign screens stay behind fundraisers.view.
+                const fundraisersLink = this.hiddenButtons.has('fundraisers')
+                        ? ''
+                        : `<a href="/parent-fundraisers" class="dashboard-button dashboard-button--secondary">${translate('parent_fundraisers_title')}</a>`;
 
                 // Dynamically replace the title with the organization name
                 const userName =
@@ -498,7 +491,7 @@ export class ParentDashboard {
                                                 ${this.hiddenButtons.has('finances') ? '' : `<a href="/parent-finance" class="dashboard-button dashboard-button--primary">
                                                         ${translate('my_finances')}
                                                 </a>`}
-                                                ${financeWorkspaceLink}
+                                                ${fundraisersLink}
                                                 ${familySharingLink}
                                                 <a href="/account-info" class="dashboard-button dashboard-button--secondary">
                                                         ${translate('account_settings')}

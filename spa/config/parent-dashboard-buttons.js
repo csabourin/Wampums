@@ -19,6 +19,7 @@ import { debugError } from '../utils/DebugUtils.js';
  */
 export const PARENT_DASHBOARD_BUTTONS = Object.freeze([
   { key: 'finances', label: 'my_finances', section: 'actions' },
+  { key: 'fundraisers', label: 'parent_fundraisers_title', section: 'actions' },
   { key: 'family_access', label: 'family_access_title', section: 'actions' },
   { key: 'program_progress', label: 'program_progress_parent_link', section: 'actions' },
   { key: 'download_calendar', label: 'download_activities_calendar', section: 'actions' },

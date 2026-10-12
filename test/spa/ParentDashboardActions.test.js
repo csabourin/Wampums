@@ -280,6 +280,28 @@ describe('buttons the unit hides', () => {
     ]));
   });
 
+  test('fundraisers open the family\'s own page, for every parent', async () => {
+    // The button used to show only to accounts holding a finance permission,
+    // and sent them to /main-dashboard: back to a dashboard.
+    ajax.getPublicOrganizationSettings.mockResolvedValue({ success: true, data: {} });
+    await renderDashboard({ organizationSettings: {} });
+
+    const link = document.querySelector('.parent-dashboard__actions a[href="/parent-fundraisers"]');
+    expect(link.textContent.trim()).toBe('parent_fundraisers_title');
+    expect(hrefs()).not.toContain('/main-dashboard');
+  });
+
+  test('a unit that runs no fundraisers can hide the button', async () => {
+    ajax.getPublicOrganizationSettings.mockResolvedValue({
+      success: true,
+      data: { parent_dashboard_configuration: { hidden_button_keys: ['fundraisers'] } },
+    });
+    await renderDashboard({ organizationSettings: {} });
+
+    expect(hrefs()).not.toContain('/parent-fundraisers');
+    expect(hrefs()).toContain('/parent-finance');
+  });
+
   test('adding a child sits right above sign-out', async () => {
     await renderDashboard({ organizationSettings: { parent_dashboard_configuration: { hidden_button_keys: [] } } });
 
