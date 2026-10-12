@@ -452,7 +452,8 @@
   justify-content: space-between;
   gap: var(--space-sm);
   padding: var(--space-md);
-  background: transparent;
+  background-color: transparent;
+  background-image: none;
   border: none;
   cursor: pointer;
   font-weight: 600;
@@ -464,19 +465,21 @@
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-/* Override the global button gradient, which otherwise pairs a dark green
-   hover background with the toggle's dark text. */
-@media (hover: hover) and (pointer: fine) {
-  .dashboard-v2__group-toggle:hover:not(:disabled) {
-    background: var(--color-secondary, #e7f2ee);
-    color: var(--color-primary-dark, #0b5b43);
-    transform: none;
-    box-shadow: none;
-  }
+/* Override the global `button:hover` gradient, which otherwise pairs a dark
+   green background with the toggle's dark text. Not limited to hover-capable
+   pointers: on a touch screen :hover sticks after a tap and the gradient
+   stayed on the toggle. */
+.dashboard-v2__group-toggle:hover:not(:disabled) {
+  background-color: var(--color-secondary, #e7f2ee);
+  background-image: none;
+  color: var(--color-primary-dark, #0b5b43);
+  transform: none;
+  box-shadow: none;
 }
 
 .dashboard-v2__group-toggle:focus-visible {
-  background: var(--color-secondary, #e7f2ee);
+  background-color: var(--color-secondary, #e7f2ee);
+  background-image: none;
   color: var(--color-primary-dark, #0b5b43);
   outline: 2px solid var(--color-primary, #0f7a5a);
   outline-offset: -2px;
@@ -484,7 +487,8 @@
 }
 
 .dashboard-v2__group-toggle:active:not(:disabled) {
-  background: var(--color-primary-dark, #0b5b43);
+  background-color: var(--color-primary-dark, #0b5b43);
+  background-image: none;
   color: #ffffff;
   transform: none;
   box-shadow: none;
