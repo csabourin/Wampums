@@ -33,7 +33,6 @@ import {
   holdsFamilyRole,
 } from '../../utils/PermissionUtils.js';
 import { DashboardCacheManager } from '../../utils/DashboardCacheManager.js';
-import { NewsFeed } from '../NewsFeed.js';
 import { CarpoolQuickAccessModal } from '../modals/CarpoolQuickAccessModal.js';
 import {
   ROLE_WEIGHTS,
@@ -63,7 +62,6 @@ export class Dashboard extends BaseModule {
     super(app);
     this.groups = [];
     this.participants = [];
-    this.newsFeed = new NewsFeed(app);
     this.pointsCollapsed = this.loadPointsCollapsedState();
     this.isLoading = true;
     this.mode = options.mode || 'default';
@@ -117,7 +115,6 @@ export class Dashboard extends BaseModule {
       // This is non-blocking and runs in background
       this.prefetchCriticalPages();
 
-      this.loadNews();
     } catch (error) {
       debugError('Error initializing dashboard:', error);
       this.isLoading = false;
@@ -313,7 +310,7 @@ export class Dashboard extends BaseModule {
   //          RENDER
   // -----------------------------
   render() {
-    // A background refresh (counters, news, preload) may resolve after the
+    // A background refresh (counters, preload) may resolve after the
     // user navigated away; never paint over the next screen.
     if (this.isDestroyed) {
       return;
@@ -371,7 +368,6 @@ export class Dashboard extends BaseModule {
         <p><a href="/logout" id="logout-link">${translate('logout')}</a></p>
       `;
       setContent(container, content);
-      this.updateNewsSection();
       return;
     }
 
@@ -416,20 +412,12 @@ export class Dashboard extends BaseModule {
       ${this._renderHero(buckets.now)}
       ${this._renderWeek(buckets.week)}
       ${this._renderTools(buckets.tools)}
-      <div class="dashboard-card" id="news-section">
-        <div class="section-header">
-          <h3>${translate('news_updates')}</h3>
-          <button type="button" id="refresh-news-btn" class="ghost-button">${translate('refresh')}</button>
-        </div>
-        <div id="news-content"></div>
-      </div>
       ${this._renderFab()}
       <p><a href="/logout" id="logout-link">${translate('logout')}</a></p>
     `;
 
     setContent(container, `<div class="dashboard-v2">${content}</div>`);
     this.updatePointsList();
-    this.updateNewsSection();
   }
 
   // -----------------------------
@@ -1117,33 +1105,12 @@ export class Dashboard extends BaseModule {
   }
 
   // -----------------------------
-  // NEWS FEED
-  // -----------------------------
-  // Load news with NewsFeed module
-  async loadNews(force = false) {
-    await this.newsFeed.load(force);
-    this.updateNewsSection();
-  }
-
-  updateNewsSection() {
-    const container = document.getElementById('news-content');
-    if (container) {setContent(container, this.newsFeed.renderContent());}
-
-    const btn = document.getElementById('refresh-news-btn');
-    if (btn) {btn.disabled = this.newsFeed.getIsLoading();}
-  }
-
-  // -----------------------------
   // EVENT LISTENERS
   // -----------------------------
   attachEventListeners() {
     this.addEventListener(document.getElementById('logout-link'), 'click', (e) => {
       e.preventDefault();
       this.lazyLogout();
-    });
-
-    this.addEventListener(document.getElementById('refresh-news-btn'), 'click', () => {
-      this.loadNews(true);
     });
 
     this.addEventListener(document.getElementById('carpool-quick-access'), 'click', async (e) => {

@@ -76,22 +76,6 @@ export class DashboardCacheManager {
   }
 
   /**
-   * Cache news items
-   * @param {Array} newsItems - News items to cache
-   */
-  static async cacheNews(newsItems) {
-    try {
-      await setCachedData(
-        "dashboard_news",
-        newsItems,
-        CONFIG.CACHE_DURATION.SHORT
-      );
-    } catch (error) {
-      debugError("Error caching news:", error);
-    }
-  }
-
-  /**
    * Clear all dashboard-related caches
    */
   static async clearAll() {

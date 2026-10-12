@@ -76,6 +76,7 @@ module.exports = (app, pool) => {
   const notificationsRoutes = require('./notifications')(pool, logger);
   const messagesRoutes = require('./messages')(pool);
   const announcementsRoutes = require('./announcements')(pool, logger, whatsappService, googleChatService);
+  const newsRoutes = require('./news')(pool);
   const whatsappBaileysRoutes = require('./whatsapp-baileys')(pool, logger, whatsappService);
   const googleChatRoutes = require('./google-chat')(pool, logger);
   const honorsRoutes = require('./honors')(pool, logger);
@@ -151,6 +152,8 @@ module.exports = (app, pool) => {
   app.use('/api/v1/notifications', notificationsRoutes);
 
   app.use('/api/v1/messages', messagesRoutes);
+
+  app.use('/api/v1/news', newsRoutes);
 
   app.use('/api', announcementsRoutes);
 

@@ -79,12 +79,6 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
 jest.mock('../../spa/utils/DashboardCacheManager.js', () => ({
   DashboardCacheManager: { preloadCachedData: jest.fn() },
 }));
-jest.mock('../../spa/modules/NewsFeed.js', () => ({
-  NewsFeed: class {
-    renderContent() { return ''; }
-    getIsLoading() { return false; }
-  },
-}));
 jest.mock('../../spa/modules/modals/CarpoolQuickAccessModal.js', () => ({ CarpoolQuickAccessModal: jest.fn() }));
 jest.mock('../../spa/utils/DashboardPreferences.js', () => ({
   applyPalette: jest.fn(),
@@ -181,6 +175,7 @@ describe('tool groups separate weekly work from unit set-up', () => {
 
   test('"Administration de l\'unité" holds the settings changed a few times a year', () => {
     expect(routesIn('admin').sort()).toEqual([
+      '/communication-history',
       '/form-permissions',
       '/manage-groups',
       '/manage-participants',

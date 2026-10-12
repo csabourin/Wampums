@@ -433,6 +433,17 @@ export const DASHBOARD_TILES = [
     gate: { permission: "participants.edit" },
   },
   {
+    featureKey: 'communication_history',
+    href: '/communication-history',
+    icon: 'fa-box-archive',
+    label: 'tile_communication_history',
+    aliases: 'tile_communication_history_aliases',
+    moment: 'tools',
+    domain: 'admin',
+    priority: 16,
+    gate: { permission: 'communications.send' },
+  },
+  {
     featureKey: "role_management",
     href: "/role-management",
     icon: "fa-user-tag",

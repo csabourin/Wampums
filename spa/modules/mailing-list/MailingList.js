@@ -1,16 +1,14 @@
 import { getMailingList, getAnnouncements, createAnnouncement, getGroups } from '../../ajax-functions.js';
 import { sendAnnouncementTest } from '../../api/api-endpoints.js';
 import { aiGenerateText } from '../AI.js';
-import { debugLog, debugError } from '../../utils/DebugUtils.js';
+import { debugError } from '../../utils/DebugUtils.js';
 import { translate } from '../../app.js';
 import { escapeHTML, sanitizeHTML } from '../../utils/SecurityUtils.js';
-import { renderDeliveryLog } from '../announcements/deliveryLog.js';
 import { CONFIG } from '../../config.js';
 import { canSendCommunications } from '../../utils/PermissionUtils.js';
 import { roleLabel } from '../../utils/RoleLabelUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { setButtonLoading } from '../../utils/SkeletonUtils.js';
-import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import {
@@ -25,7 +23,6 @@ export class MailingList {
   constructor(app) {
     this.app = app;
     this.mailingList = {};
-    this.announcements = [];
     this.groups = [];
     this.templates = [];
     this.unitRoles = [];
@@ -61,7 +58,6 @@ export class MailingList {
 
     this.mailingList = mailingResponse;
     this.groups = groupsResponse?.data || groupsResponse?.groups || [];
-    this.announcements = announcementResponse?.data || [];
     this.templates = announcementResponse?.templates || [];
     this.unitRoles = announcementResponse?.roles || [];
   }
@@ -73,9 +69,7 @@ export class MailingList {
                         <div class="announcement-composer card">
                                 ${this.renderAnnouncementComposer()}
                         </div>
-                        <div class="announcement-history card">
-                                ${this.renderAnnouncementHistory()}
-                        </div>
+    <p><a href="/communication-history" class="button button--secondary">${translate('communication_history_title')}</a></p>
                         <div id="mailing-list">
                                 ${this.renderMailingList()}
                         </div>
@@ -202,72 +196,6 @@ export class MailingList {
     )
     .join('')}
                                 </div>
-                        </div>
-                `;
-  }
-
-  renderAnnouncementHistory() {
-    if (!this.announcements?.length) {
-      return `<p>${translate('no_announcements')}</p>`;
-    }
-
-    return `
-                        <h2>${translate('announcement_history')}</h2>
-                        <div class="announcement-list">
-                                ${this.announcements
-    .map((announcement) => {
-      const statusLabel = translate(announcement.status) || announcement.status;
-      const scheduled = announcement.scheduled_at
-        ? `${translate('scheduled_for')}: ${this.formatDateTime(announcement.scheduled_at)}`
-        : '';
-      const sent = announcement.sent_at
-        ? `${translate('sent_at')}: ${this.formatDateTime(announcement.sent_at)}`
-        : '';
-      const groups = Array.isArray(announcement.recipient_groups)
-        ? announcement.recipient_groups
-          .map((id) => this.groups.find((group) => group.id === id)?.name)
-          .filter(Boolean)
-        : [];
-      const logs = Array.isArray(announcement.logs) ? announcement.logs : [];
-      const deliverySummary = this.getDeliverySummary(logs);
-      const pushFailureLabel = translate('push_failed').replace(
-        '{count}',
-        deliverySummary.push.failed
-      );
-
-      return `
-                                                        <div class="announcement-item">
-                                                                <div class="announcement-meta">
-                                                                        <div class="announcement-title">${escapeHTML(announcement.subject)}</div>
-                                                                        <div class="announcement-status">${statusLabel}</div>
-                                                                </div>
-                                                                <div class="announcement-details">
-                                                                        <div>${translate('recipient_roles')}: ${announcement.recipient_roles
-  ?.map((role) => escapeHTML(this.roleLabel(role)))
-  .join(', ') || translate('no_data_available')
-}</div>
-                                                                        ${groups.length
-    ? `<div>${translate('select_groups')}: ${groups
-      .map((group) => escapeHTML(group))
-      .join(', ')}</div>`
-    : ''}
-                                                                        ${scheduled ? `<div>${scheduled}</div>` : ''}
-                                                                        ${sent ? `<div>${sent}</div>` : ''}
-                                                                </div>
-                                                                <div class="announcement-logs">
-                                                                        <strong>${translate('delivery_status_summary')}:</strong>
-                                                                        <span class="badge success">${translate('emails')}: ${deliverySummary.email.sent}</span>
-                                                                        <span class="badge warning">${translate('failed')}: ${deliverySummary.email.failed}</span>
-                                                                        <span class="badge info">${translate('push_notifications')}: ${deliverySummary.push.sent}</span>
-                                                                        ${deliverySummary.push.failed
-    ? `<span class="badge warning">${pushFailureLabel}</span>`
-    : ''}
-                                                                </div>
-                                                                ${renderDeliveryLog(logs)}
-                                                        </div>
-                                                `;
-    })
-    .join('')}
                         </div>
                 `;
   }
@@ -601,7 +529,6 @@ export class MailingList {
         throw new Error(response?.message || 'Failed to send announcement');
       }
 
-      this.announcements = [response.data, ...this.announcements];
       this.render();
       this.attachEventListeners();
       const feedbackKeys = { draft: 'announcement_saved', scheduled: 'announcement_scheduled' };
@@ -681,38 +608,6 @@ export class MailingList {
     if (!feedbackEl) {return;}
     feedbackEl.textContent = message;
     feedbackEl.className = `status-message ${type}`;
-  }
-
-  getDeliverySummary(logs) {
-    const summary = {
-      email: { sent: 0, failed: 0 },
-      push: { sent: 0, failed: 0 },
-    };
-
-    logs.forEach((log) => {
-      if (log.channel === 'email') {
-        if (log.status === 'sent') {summary.email.sent += 1;}
-        if (log.status === 'failed') {summary.email.failed += 1;}
-      }
-      if (log.channel === 'push') {
-        if (log.status === 'sent') {summary.push.sent += 1;}
-        if (log.status === 'failed') {summary.push.failed += 1;}
-      }
-    });
-
-    return summary;
-  }
-
-  formatDateTime(dateString) {
-    if (!dateString) {return '';}
-    try {
-      const lang = this.app?.lang || this.app?.language || localStorage.getItem('lang') || localStorage.getItem('language') || CONFIG.DEFAULT_LANG;
-      const locale = localeForLanguage(lang);
-      return new Date(dateString).toLocaleString(locale);
-    } catch (error) {
-      debugLog('Unable to format date', error);
-      return dateString;
-    }
   }
 
   copyRoleEmailsToClipboard(role) {
