@@ -37,6 +37,8 @@ const SCREENS = {
   'spa/modules/participant-duplicates/ParticipantDuplicates.js': '${renderBackLink()}',
   'spa/modules/family-access/FamilyAccess.js': '${renderBackLink()}',
   'spa/modules/parent-onboarding/ParentOnboarding.js': '${renderBackLink()}',
+  // A parent page: back means the parent dashboard, for staff previewing it too.
+  'spa/modules/fundraising/ParentFundraisers.js': "${renderBackLink('/parent-dashboard')}",
   // Reached from an email, possibly signed out: the link shows only with a session.
   'spa/modules/family-access/CompleteRegistration.js': '${this.backLink()}',
   'spa/modules/family-access/FamilyLinkReview.js': '${this.backLink()}',

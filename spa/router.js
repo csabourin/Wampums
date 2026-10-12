@@ -78,6 +78,7 @@ class NavigationCancelledError extends Error {
 const lazyModules = {
   ParentDashboard: () => import('./parent_dashboard.js').then(m => m.ParentDashboard),
   ParentFinance: () => import('./parent_finance.js').then(m => m.ParentFinance),
+  ParentFundraisers: () => import('./modules/fundraising/ParentFundraisers.js').then(m => m.ParentFundraisers),
   ParentProgramProgress: () => import('./modules/program-progress/ParentProgramProgress.js').then(m => m.ParentProgramProgress),
   FormulaireInscription: () => import('./formulaire_inscription.js').then(m => m.FormulaireInscription),
   ManagePoints: () => import('./manage_points.js').then(m => m.ManagePoints),
@@ -163,6 +164,7 @@ const routes = {
   "/logout": "logout",
   "/parent-dashboard": "parentDashboard",
   "/parent-finance": "parentFinance",
+  '/parent-fundraisers': 'parentFundraisers',
   "/formulaire-inscription": "formulaireInscription",
   "/formulaire-inscription/:id": "formulaireInscription",
   "/attendance": "attendance",
@@ -629,6 +631,14 @@ export class Router {
             break;
           }
           await this.loadParentFinance();
+          break;
+        case 'parentFundraisers':
+          // Same door as the parent dashboard that links here; the API limits
+          // the answer to the account's own children.
+          if (!guard(canAccessParentTools())) {
+            break;
+          }
+          await this.loadParentFundraisers();
           break;
         case "communications":
           if (!guard(canSendCommunications() || canAccessAdminPanel())) {
@@ -1139,6 +1149,13 @@ export class Router {
     const parentFinance = new ParentFinance(this.app);
     this.currentModuleInstance = parentFinance;
     await parentFinance.init();
+  }
+
+  async loadParentFundraisers() {
+    const ParentFundraisers = await this.loadModule('ParentFundraisers');
+    const parentFundraisers = new ParentFundraisers(this.app);
+    this.currentModuleInstance = parentFundraisers;
+    await parentFundraisers.init();
   }
 
   async loadManagePoints() {

@@ -23,6 +23,7 @@ const {
   isValidCampaignType,
   toNullableNumber,
 } = require('../services/fundraiserCampaigns');
+const { listFamilyFundraisers } = require('../services/familyFundraisers');
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_NAME_LENGTH = 255;
@@ -201,6 +202,33 @@ module.exports = (pool, logger) => {
       const result = await pool.query(query, [organizationId]);
 
       return success(res, { fundraisers: result.rows });
+  }));
+
+  /**
+   * @swagger
+   * /api/v1/fundraisers/family:
+   *   get:
+   *     summary: Campaigns under way, for the caller's own children
+   *     description: >
+   *       Every member may call this. It returns the campaigns that are not
+   *       archived and either have not ended or still have money to hand in,
+   *       with the standing of the children linked to the account only.
+   *     tags: [Fundraisers]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Campaigns and the family's entries
+   *       401:
+   *         description: Unauthorized
+   */
+  // Declared before '/:id' so "family" is not read as a campaign id.
+  // No permission key: the query is limited to the caller's linked children.
+  router.get('/family', authenticate, requirePermission(), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const data = await listFamilyFundraisers(pool, { organizationId, userId: req.user.id });
+
+    return success(res, data);
   }));
 
   /**
