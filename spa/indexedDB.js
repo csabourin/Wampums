@@ -1,6 +1,6 @@
 import { debugLog, debugError, debugWarn } from "./utils/DebugUtils.js";
 import { buildApiCacheKey, buildScopedCacheKey, normalizeApiPath } from "./utils/OfflineCacheKeys.js";
-import { notePageCacheKey } from "./modules/live-sync/LiveSyncState.js";
+import { notePageCacheHit, notePageCacheKey } from "./modules/live-sync/LiveSyncState.js";
 
 const DB_NAME = "WampumsAppDB";
 const DB_VERSION = 12;
@@ -147,6 +147,7 @@ export async function getCachedData(key) {
 
       if (record && record.expiration > Date.now()) {
         debugLog("Returning valid cached data:", record.data);
+        notePageCacheHit(scopedKey);
         resolve(record.data);
       } else {
         if (!record) {
@@ -200,6 +201,7 @@ export async function getCachedDataIgnoreExpiration(key) {
       const record = request.result;
       if (record) {
         debugLog("Returning cached data (ignoring expiration) for key:", scopedKey);
+        notePageCacheHit(scopedKey);
         resolve(record.data);
       } else {
         debugLog("No data found for key:", scopedKey);
