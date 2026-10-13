@@ -110,14 +110,24 @@ describe('liveSyncBroadcaster', () => {
     expect(versionOf(13)).toBe(otherUnit);
   });
 
-  test('a write accepted but still under way is counted, without being announced or acknowledged', async () => {
+  test('a write accepted but still under way is neither counted, announced nor acknowledged', async () => {
     const writer = openSession('Writer123', 'org-12');
     const before = versionOf(12);
 
     await runRequest({ url: '/api/v1/notifications/subscription', status: 202, headers: { 'x-live-sync-client': 'Writer123' } });
 
-    expect(versionOf(12)).toBe(before + 1);
+    expect(versionOf(12)).toBe(before);
     expect(mockEmit).not.toHaveBeenCalled();
+    expect(writer.emit).not.toHaveBeenCalled();
+  });
+
+  test('a change the database could not count is still announced, without a version to count as seen', async () => {
+    const writer = openSession('Writer123', 'org-12');
+    mockPool.query.mockRejectedValueOnce(new Error('connection terminated'));
+
+    await runRequest({ url: '/api/v1/points', headers: { 'x-live-sync-client': 'Writer123' } });
+
+    expect(mockEmit).toHaveBeenCalledWith('data-changed', { path: '/api/v1/points' });
     expect(writer.emit).not.toHaveBeenCalled();
   });
 

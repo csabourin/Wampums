@@ -110,12 +110,13 @@ async function countAndAnnounce(req, res) {
     return;
   }
 
-  const version = await recordChange(pool, organizationId);
-  // 202 Accepted: the write is still under way. Counted, so a reconnection
-  // catches it up, but neither announced nor acknowledged, since a session
-  // refreshing now could read the data before the write lands.
-  if (res.statusCode === HTTP_ACCEPTED) {
-    return;
+  let version = null;
+  try {
+    version = await recordChange(pool, organizationId);
+  } catch (error) {
+    // Still announce the change: sessions on display refresh as before, and,
+    // with no version, none counts it as seen.
+    logger.warn(`Live sync change not counted for ${path}: ${error.message}`);
   }
   const io = socketService.getIO();
   const roomName = `org-${organizationId}`;
@@ -125,13 +126,13 @@ async function countAndAnnounce(req, res) {
     room = room.except(originId);
     // The header comes from the client: only a session of this unit hears back.
     const origin = io.sockets?.sockets?.get(originId);
-    if (origin?.rooms?.has(roomName)) {
+    if (version !== null && origin?.rooms?.has(roomName)) {
       // The writer's own version: a later one could include changes it has not applied.
       const state = await syncStateFor(pool, organizationId);
       origin.emit(SYNC_STATE_EVENT, { ...state, version });
     }
   }
-  room.emit(DATA_CHANGED_EVENT, { path, version });
+  room.emit(DATA_CHANGED_EVENT, version === null ? { path } : { path, version });
 }
 
 /**
@@ -144,6 +145,14 @@ function liveSyncBroadcaster(req, res, next) {
 
   res.on('finish', () => {
     if (res.statusCode < HTTP_OK_MIN || res.statusCode > HTTP_OK_MAX) {
+      return;
+    }
+    // 202 Accepted: the write is still under way, and nothing tells when it
+    // lands. Neither counted nor announced: a session refreshing now could read
+    // the data before it changes and count it seen. The reconnection bound on
+    // absences (spa/modules/live-sync/LiveDataSync.js) covers it, as it covers
+    // any change that is never announced.
+    if (res.statusCode === HTTP_ACCEPTED) {
       return;
     }
     countAndAnnounce(req, res).catch((error) => {
