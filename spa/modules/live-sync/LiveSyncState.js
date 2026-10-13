@@ -9,6 +9,7 @@ let clientId = null;
 const pageCacheKeys = new Set();
 const pageRequestPaths = new Set();
 const pageCachedRequests = new Map();
+const pageCacheHits = new Set();
 let pageMadeUncachedRead = false;
 
 /**
@@ -70,6 +71,16 @@ export function getPageCachedRequests() {
 }
 
 /**
+ * Record a cache entry the current page found and used. An entry no recorded
+ * request fills (a snapshot a screen stores itself) cannot be fetched again in
+ * advance: once cleared, the screen would rebuild it from the network.
+ * @param {string} scopedKey - Full (scoped) cache key
+ */
+export function notePageCacheHit(scopedKey) {
+  pageCacheHits.add(String(scopedKey));
+}
+
+/**
  * Record a GET made while the current page was shown that no cache keeps, so
  * fetching the page's cached reads again would not spare its redraw the network.
  */
@@ -78,11 +89,20 @@ export function notePageUncachedRead() {
 }
 
 /**
- * @returns {boolean} True when every read the current page made is kept in the
- *   cache, so it can be fetched again before the page is redrawn
+ * @returns {boolean} True when every read the current page made can be fetched
+ *   again before the page is redrawn: no GET bypassed the cache, and every cache
+ *   entry it found is one a recorded request fills
  */
 export function pageReadsAreReplayable() {
-  return !pageMadeUncachedRead;
+  if (pageMadeUncachedRead) {
+    return false;
+  }
+  for (const key of pageCacheHits) {
+    if (!pageCachedRequests.has(key)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -92,6 +112,7 @@ export function resetPageReads() {
   pageCacheKeys.clear();
   pageRequestPaths.clear();
   pageCachedRequests.clear();
+  pageCacheHits.clear();
   pageMadeUncachedRead = false;
 }
 

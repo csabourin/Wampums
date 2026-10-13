@@ -293,6 +293,33 @@ describe('what live sync fetches again before redrawing a screen', () => {
     ]);
   });
 
+  test('a snapshot a screen found in the cache cannot be fetched in advance', async () => {
+    await setCachedData('attendance_2026-09-27', { participants: [{ id: 42 }] }, ONE_HOUR);
+    resetPageReads();
+
+    await API.get('v1/groups', {}, { cacheKey: 'groups' });
+    await getCachedData('attendance_2026-09-27');
+
+    expect(pageReadsAreReplayable()).toBe(false);
+  });
+
+  test('a snapshot that was missing, then rebuilt from cached reads, can be', async () => {
+    await getCachedData('attendance_2026-09-27');
+    await API.get('v1/attendance', { date: '2026-09-27' }, { cacheKey: 'attendance_api_2026-09-27' });
+    await setCachedData('attendance_2026-09-27', { participants: [{ id: 42 }] }, ONE_HOUR);
+
+    expect(pageReadsAreReplayable()).toBe(true);
+  });
+
+  test('a cached read found in the cache can be fetched again', async () => {
+    await API.get('v1/groups', {}, { cacheKey: 'groups' });
+    resetPageReads();
+
+    await API.get('v1/groups', {}, { cacheKey: 'groups' });
+
+    expect(pageReadsAreReplayable()).toBe(true);
+  });
+
   test('a read no cache keeps cannot be fetched in advance', async () => {
     await API.get('v1/groups', {}, { cacheKey: 'groups' });
     await API.getNoCache('v1/walk-in-children');
