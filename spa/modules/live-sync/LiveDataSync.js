@@ -18,9 +18,11 @@ import { makeApiRequestWithCache } from '../../api/api-core.js';
 import {
   getPageCachedRequests,
   isPageCachedRequestCurrent,
+  onWriteSettled,
   pageReadAnyOf,
   pageReadsAreReplayable,
   setLiveSyncClientId,
+  takeWriteState,
 } from './LiveSyncState.js';
 
 const DATA_CHANGED_EVENT = 'data-changed';
@@ -188,7 +190,9 @@ class LiveDataSync {
     this.redrawLocation = null;
     this.reconnectTimer = null;
     this.syncState = null;
-    this.awaitingSyncState = false;
+    this.awaitingConnectionState = false;
+    this.reconnected = false;
+    this.pendingWriteStates = [];
     this.syncStateTimer = null;
     this.onVisibilityChange = () => this.checkToken();
   }
@@ -225,6 +229,7 @@ class LiveDataSync {
     this.socket.on('disconnect', () => setLiveSyncClientId(null));
     this.socket.on('connect_error', (error) => this.handleConnectError(error));
     this.socket.on(SYNC_STATE_EVENT, (state) => this.handleSyncState(state));
+    onWriteSettled(() => this.acceptPendingWriteState());
     this.socket.on(DATA_CHANGED_EVENT, (payload) => {
       this.handleDataChanged(payload).catch((error) => debugWarn('Live sync update failed:', error));
     });
@@ -238,8 +243,10 @@ class LiveDataSync {
     clearTimeout(this.redrawTimer);
     clearTimeout(this.reconnectTimer);
     clearTimeout(this.syncStateTimer);
+    onWriteSettled(null);
     this.syncState = null;
-    this.awaitingSyncState = false;
+    this.awaitingConnectionState = false;
+    this.pendingWriteStates = [];
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.socket?.disconnect();
     this.socket = null;
@@ -251,15 +258,17 @@ class LiveDataSync {
     setLiveSyncClientId(this.socket.id);
     debugLog('Live sync connected:', this.socket.id);
 
-    // Changes made while disconnected were never announced to this session.
-    // The server's sync state, sent right after connecting, tells whether any
-    // were: a phone reconnects each time the app returns from the background.
-    if (this.hasConnectedBefore) {
-      this.awaitingSyncState = true;
-      clearTimeout(this.syncStateTimer);
+    // The server sends its sync state right after connecting. On a first
+    // connection it is the baseline. On a reconnection (a phone reconnects
+    // each time the app returns from the background) it tells whether
+    // changes were announced while this session was away.
+    this.awaitingConnectionState = true;
+    this.reconnected = this.hasConnectedBefore;
+    clearTimeout(this.syncStateTimer);
+    if (this.reconnected) {
       this.syncStateTimer = setTimeout(() => {
-        this.awaitingSyncState = false;
-        this.catchUp();
+        this.awaitingConnectionState = false;
+        this.catchUp(null);
       }, SYNC_STATE_WAIT_MS);
     }
     this.hasConnectedBefore = true;
@@ -273,29 +282,86 @@ class LiveDataSync {
     if (!isSyncState(state)) {
       return;
     }
-    const seen = this.syncState;
-    this.syncState = { run: state.run, org: state.org, version: state.version };
-    if (!this.awaitingSyncState) {
+    if (!this.awaitingConnectionState) {
+      // After one of this session's own writes: seen once its response is handled.
+      this.pendingWriteStates.push(state);
+      this.acceptPendingWriteState();
       return;
     }
-    this.awaitingSyncState = false;
+    this.awaitingConnectionState = false;
     clearTimeout(this.syncStateTimer);
-    if (nothingChangedSince(seen, state)) {
+    if (!this.reconnected) {
+      this.recordSeen(state);
+      return;
+    }
+    if (nothingChangedSince(this.syncState, state)) {
       debugLog('Live sync: nothing changed while disconnected');
       return;
     }
-    this.catchUp();
+    this.catchUp(state);
   }
 
   /**
-   * Drop what changes made while disconnected may have made stale.
+   * Count the server's state after one of this session's writes as seen only
+   * once every write has been handled, cache invalidation included. A write
+   * that went unconfirmed (its response lost) leaves the state unseen, so the
+   * next reconnection catches up.
    */
-  catchUp() {
+  acceptPendingWriteState() {
+    if (this.pendingWriteStates.length === 0) {
+      return;
+    }
+    const writes = takeWriteState();
+    if (writes === 'pending') {
+      return;
+    }
+    const states = this.pendingWriteStates.sort((a, b) => a.version - b.version);
+    this.pendingWriteStates = [];
+    if (writes === 'settled') {
+      states.forEach((state) => this.advanceSeen(state));
+    }
+  }
+
+  /**
+   * Count one more change as seen, only when it directly follows the last one
+   * seen: a gap means a change this session never applied.
+   * @param {{ run?: string, org?: string, version: number }} state - Version just applied
+   */
+  advanceSeen(state) {
+    const seen = this.syncState;
+    if (!seen || (state.run && state.run !== seen.run) || (state.org && state.org !== seen.org)) {
+      return;
+    }
+    if (state.version === seen.version + 1) {
+      seen.version = state.version;
+    }
+  }
+
+  /**
+   * @param {{ run: string, org: string, version: number }} state - State the
+   *   whole cache now reflects (first connection, or after a full catch-up)
+   */
+  recordSeen(state) {
+    this.syncState = { run: state.run, org: state.org, version: state.version };
+  }
+
+  /**
+   * Drop what changes made while disconnected may have made stale. The
+   * server's state is recorded only once that is done: offline, in camp mode,
+   * or if it fails, the next reconnection tries again.
+   * @param {Object|null} state - Server state to record afterwards
+   */
+  catchUp(state) {
     if (!isLiveSyncActive()) {
       return;
     }
     applyInvalidation(planFullRefresh())
-      .then((invalidation) => this.redrawIfShown(invalidation))
+      .then((invalidation) => {
+        if (state) {
+          this.recordSeen(state);
+        }
+        this.redrawIfShown(invalidation);
+      })
       .catch((error) => debugWarn('Live sync catch-up failed:', error));
   }
 
@@ -339,8 +405,8 @@ class LiveDataSync {
     debugLog('Live sync: data changed elsewhere', path);
     const invalidation = await invalidateForWrite(path);
     // Counted as seen only once applied: an ignored change is caught up on reconnection.
-    if (this.syncState && Number.isInteger(payload?.version)) {
-      this.syncState.version = Math.max(this.syncState.version, payload.version);
+    if (Number.isInteger(payload?.version)) {
+      this.advanceSeen({ version: payload.version });
     }
     this.redrawIfShown(invalidation);
   }

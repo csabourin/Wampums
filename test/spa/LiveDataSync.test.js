@@ -69,6 +69,8 @@ import {
   notePageCachedRequest,
   notePageRequestPath,
   notePageUncachedRead,
+  noteWriteSettled,
+  noteWriteStarted,
   resetPageReads,
 } from '../../spa/modules/live-sync/LiveSyncState.js';
 
@@ -366,4 +368,55 @@ describe('returning from the background', () => {
 
     expect(applyInvalidation).toHaveBeenCalledTimes(1);
   });
+
+  test('a change found while in camp mode is caught up on the next reconnection', async () => {
+    offlineManager.isOffline = true;
+    await connect(state({ version: 6 }));
+    offlineManager.isOffline = false;
+    expect(applyInvalidation).not.toHaveBeenCalled();
+
+    await connect(state({ version: 6 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('a catch-up that failed is tried again on the next reconnection', async () => {
+    applyInvalidation.mockRejectedValueOnce(new Error('IndexedDB unavailable'));
+    await connect(state({ version: 6 }));
+
+    await connect(state({ version: 6 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(2);
+  });
+
+  test('the server telling of an own write is counted once its response is handled', async () => {
+    noteWriteStarted();
+    mockSocketHandlers['sync-state'](state({ version: 6 }));
+    noteWriteSettled(true);
+
+    await connect(state({ version: 6 }));
+
+    expect(applyInvalidation).not.toHaveBeenCalled();
+  });
+
+  test('an own write whose response was lost leaves the reconnection to catch up', async () => {
+    noteWriteStarted();
+    mockSocketHandlers['sync-state'](state({ version: 6 }));
+    // The network dropped before the response arrived: nothing was invalidated.
+    noteWriteSettled(false);
+
+    await connect(state({ version: 6 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('a change that skips a version is not counted, so the missing one is caught up', async () => {
+    await mockSocketHandlers['data-changed']({ path: '/api/v1/points', version: 7 });
+    await jest.advanceTimersByTimeAsync(SETTLE_MS);
+
+    await connect(state({ version: 7 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
 });
+

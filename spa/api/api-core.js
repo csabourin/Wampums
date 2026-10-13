@@ -22,6 +22,8 @@ import {
   notePageCachedRequest,
   notePageRequestPath,
   notePageUncachedRead,
+  noteWriteSettled,
+  noteWriteStarted,
 } from '../modules/live-sync/LiveSyncState.js';
 
 /**
@@ -215,7 +217,30 @@ async function invalidateCachedResource(endpoint) {
     }
 }
 
+/**
+ * Send a request. Writes are tracked until their response is handled, cache
+ * invalidation included, so live sync never counts a change as seen before
+ * this client has dropped what it made stale.
+ * @param {string} endpoint - Endpoint without the API prefix
+ * @param {Object} [options] - Method, params, body, headers…
+ * @returns {Promise<Object>} API response
+ */
 export async function makeApiRequest(endpoint, options = {}) {
+  if ((options.method || 'GET') === 'GET') {
+    return sendApiRequest(endpoint, options);
+  }
+  noteWriteStarted();
+  let confirmed = false;
+  try {
+    const result = await sendApiRequest(endpoint, options);
+    confirmed = Boolean(result?.success) && !result?.queued;
+    return result;
+  } finally {
+    noteWriteSettled(confirmed);
+  }
+}
+
+async function sendApiRequest(endpoint, options = {}) {
     const {
         method = 'GET',
         params = {},
