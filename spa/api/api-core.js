@@ -5,19 +5,24 @@ import {
     getCachedData,
     getCachedDataIgnoreExpiration,
     clearCachedApiPaths
-} from "../indexedDB.js";
-import { CONFIG } from "../config.js";
-import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
-import { getCurrentOrganizationId, getAuthHeader } from "./api-helpers.js";
-import { PerformanceMonitor } from "../utils/PerformanceUtils.js";
+} from '../indexedDB.js';
+import { CONFIG } from '../config.js';
+import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
+import { getCurrentOrganizationId, getAuthHeader } from './api-helpers.js';
+import { PerformanceMonitor } from '../utils/PerformanceUtils.js';
 import {
     buildApiCacheKey,
     buildScopedCacheKey,
     cachePathsForMutation,
     normalizeApiPath
-} from "../utils/OfflineCacheKeys.js";
+} from '../utils/OfflineCacheKeys.js';
 import { invalidateForWrite } from '../utils/CacheInvalidation.js';
-import { getLiveSyncClientId, notePageCachedRequest, notePageRequestPath } from '../modules/live-sync/LiveSyncState.js';
+import {
+  getLiveSyncClientId,
+  notePageCachedRequest,
+  notePageRequestPath,
+  notePageUncachedRead,
+} from '../modules/live-sync/LiveSyncState.js';
 
 /**
  * Add cache buster parameter to URL
@@ -219,7 +224,8 @@ export async function makeApiRequest(endpoint, options = {}) {
         cacheBuster = false,
         retries = 1,
     queueOffline = true,
-        signal = null
+        signal = null,
+        cached = false
     } = options;
 
     let url = buildApiUrl(endpoint, params);
@@ -243,6 +249,7 @@ export async function makeApiRequest(endpoint, options = {}) {
 
     if (method === 'GET') {
         notePageRequestPath(normalizeApiPath(endpoint));
+        markUncachedRead(cached);
     }
 
     const liveSyncClientId = getLiveSyncClientId();
@@ -386,11 +393,22 @@ export async function makeApiRequest(endpoint, options = {}) {
 
 /**
  * The cache options a later read of the same data repeats: not a forced refresh.
- * @param {Object} cacheOptions - Options a screen passed to API.get
+ * @param {Object} cacheOptions - Options a screen passed to a cached read
  * @returns {Object} The same options without forceRefresh
  */
 function repeatableCacheOptions({ forceRefresh: _forceRefresh, ...options }) {
   return options;
+}
+
+/**
+ * Live sync fetches a page's cached reads again before redrawing it; a read
+ * no cache keeps would still wait on the network during the redraw.
+ * @param {boolean} cached - Whether the read is made for a cached request
+ */
+function markUncachedRead(cached) {
+  if (!cached) {
+    notePageUncachedRead();
+  }
 }
 
 // Request deduplication: Track in-flight requests to prevent duplicate API calls
@@ -406,6 +424,7 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
         forceRefresh = false
     } = cacheOptions;
     const cacheKey = buildScopedCacheKey(requestedCacheKey);
+    notePageCachedRequest(endpoint, options, repeatableCacheOptions(cacheOptions));
 
     // Create a unique request key for deduplication
     const requestKey = `${endpoint}-${JSON.stringify(options)}`;
@@ -437,7 +456,7 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
     const requestPromise = (async () => {
         try {
             // Make API request
-            const result = await makeApiRequest(endpoint, options);
+            const result = await makeApiRequest(endpoint, { ...options, cached: true });
 
             // Cache successful results
             if (result.success) {
@@ -489,7 +508,6 @@ export const API = {
      * GET request with optional caching
      */
     async get(endpoint, params = {}, cacheOptions = {}) {
-        notePageCachedRequest(endpoint, params, repeatableCacheOptions(cacheOptions));
         const mergedCacheOptions = {
             cacheKey: cacheOptions.cacheKey || buildApiCacheKey(endpoint, params),
             ...cacheOptions

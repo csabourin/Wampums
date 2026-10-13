@@ -9,6 +9,7 @@ let clientId = null;
 const pageCacheKeys = new Set();
 const pageRequestPaths = new Set();
 const pageCachedRequests = new Map();
+let pageMadeUncachedRead = false;
 
 /**
  * Remember the live-sync connection id, sent with each write so the server
@@ -46,20 +47,36 @@ export function notePageRequestPath(path) {
  * Record a cached GET made while the current page was shown, so live sync can
  * fetch the same data again before redrawing the page.
  * @param {string} endpoint - Endpoint as the screen requested it
- * @param {Object} params - Query parameters
- * @param {Object} cacheOptions - Cache options (key, duration)
+ * @param {Object} options - Request options (params)
+ * @param {Object} cacheOptions - Cache options (key, duration), without forceRefresh
  */
-export function notePageCachedRequest(endpoint, params, cacheOptions) {
-  const request = { endpoint, params: { ...params }, cacheOptions: { ...cacheOptions } };
+export function notePageCachedRequest(endpoint, options, cacheOptions) {
+  const request = { endpoint, options: { ...options }, cacheOptions: { ...cacheOptions } };
   pageCachedRequests.set(JSON.stringify(request), request);
 }
 
 /**
- * @returns {Array<{endpoint: string, params: Object, cacheOptions: Object}>}
+ * @returns {Array<{endpoint: string, options: Object, cacheOptions: Object}>}
  *   Cached GETs made while the current page was shown
  */
 export function getPageCachedRequests() {
   return Array.from(pageCachedRequests.values());
+}
+
+/**
+ * Record a GET made while the current page was shown that no cache keeps, so
+ * fetching the page's cached reads again would not spare its redraw the network.
+ */
+export function notePageUncachedRead() {
+  pageMadeUncachedRead = true;
+}
+
+/**
+ * @returns {boolean} True when every read the current page made is kept in the
+ *   cache, so it can be fetched again before the page is redrawn
+ */
+export function pageReadsAreReplayable() {
+  return !pageMadeUncachedRead;
 }
 
 /**
@@ -69,6 +86,7 @@ export function resetPageReads() {
   pageCacheKeys.clear();
   pageRequestPaths.clear();
   pageCachedRequests.clear();
+  pageMadeUncachedRead = false;
 }
 
 /**

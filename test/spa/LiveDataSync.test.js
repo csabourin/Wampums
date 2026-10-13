@@ -55,7 +55,7 @@ jest.mock('../../spa/utils/SocketIOClient.js', () => ({
 
 const mockApiGet = jest.fn();
 jest.mock('../../spa/api/api-core.js', () => ({
-  API: { get: (...args) => mockApiGet(...args) },
+  makeApiRequestWithCache: (...args) => mockApiGet(...args),
 }));
 
 const mockRoute = jest.fn();
@@ -65,7 +65,12 @@ jest.mock('../../spa/app.js', () => ({
 }));
 
 import { liveDataSync } from '../../spa/modules/live-sync/LiveDataSync.js';
-import { notePageCachedRequest, notePageRequestPath, resetPageReads } from '../../spa/modules/live-sync/LiveSyncState.js';
+import {
+  notePageCachedRequest,
+  notePageRequestPath,
+  notePageUncachedRead,
+  resetPageReads,
+} from '../../spa/modules/live-sync/LiveSyncState.js';
 
 /**
  * The screen on display, as the router would draw it after loading its data.
@@ -100,7 +105,7 @@ describe('live sync redraw', () => {
     drawScreen('12 points');
     resetPageReads();
     notePageRequestPath('/api/v1/points');
-    notePageCachedRequest('v1/points', { group: 3 }, { cacheDuration: 60000 });
+    notePageCachedRequest('v1/points', { params: { group: 3 } }, { cacheDuration: 60000 });
     mockApiGet.mockReset();
     mockApiGet.mockResolvedValue({ success: true, data: [] });
     mockRoute.mockReset();
@@ -146,7 +151,11 @@ describe('live sync redraw', () => {
 
     await pointsChangedElsewhere();
 
-    expect(mockApiGet).toHaveBeenCalledWith('v1/points', { group: 3 }, { cacheDuration: 60000, forceRefresh: true });
+    expect(mockApiGet).toHaveBeenCalledWith(
+      'v1/points',
+      { params: { group: 3 } },
+      { cacheDuration: 60000, forceRefresh: true },
+    );
     expect(order).toEqual(['refetch', 'redraw']);
   });
 
@@ -198,6 +207,17 @@ describe('live sync redraw', () => {
     // Nothing was redrawn before the browser captured the current screen.
     expect(log.shownAtStart).toEqual(['12 points']);
     expect(mockRoute).toHaveBeenCalledWith('/');
+    expect(document.getElementById('app').textContent).toBe('15 points');
+  });
+
+  test('a screen that reads data no cache keeps is redrawn without a transition, which would freeze it during the read', async () => {
+    fakeViewTransitions();
+    notePageUncachedRead();
+
+    await pointsChangedElsewhere();
+
+    expect(document.startViewTransition).not.toHaveBeenCalled();
+    expect(mockRoute).toHaveBeenCalledTimes(1);
     expect(document.getElementById('app').textContent).toBe('15 points');
   });
 

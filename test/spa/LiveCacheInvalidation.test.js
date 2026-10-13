@@ -65,6 +65,7 @@ import {
   getPageCachedRequests,
   notePageRequestPath,
   pageReadAnyOf,
+  pageReadsAreReplayable,
   resetPageReads,
   setLiveSyncClientId,
 } from '../../spa/modules/live-sync/LiveSyncState.js';
@@ -273,9 +274,25 @@ describe('what live sync fetches again before redrawing a screen', () => {
     await API.get('v1/groups', {}, { cacheKey: 'groups', forceRefresh: true });
 
     expect(getPageCachedRequests()).toEqual([
-      { endpoint: 'v1/attendance', params: { date: '2026-09-27' }, cacheOptions: { cacheKey: 'attendance_api_2026-09-27' } },
-      { endpoint: 'v1/groups', params: {}, cacheOptions: { cacheKey: 'groups' } },
+      {
+        endpoint: 'v1/attendance',
+        options: { params: { date: '2026-09-27' } },
+        cacheOptions: { cacheKey: 'attendance_api_2026-09-27' },
+      },
+      { endpoint: 'v1/groups', options: { params: {} }, cacheOptions: { cacheKey: 'groups' } },
     ]);
+    expect(pageReadsAreReplayable()).toBe(true);
+  });
+
+  test('a read no cache keeps cannot be fetched in advance', async () => {
+    await API.get('v1/groups', {}, { cacheKey: 'groups' });
+    await API.getNoCache('v1/walk-in-children');
+
+    expect(pageReadsAreReplayable()).toBe(false);
+
+    resetPageReads();
+
+    expect(pageReadsAreReplayable()).toBe(true);
   });
 
   test('nothing the previous screen read', async () => {

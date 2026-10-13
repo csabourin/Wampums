@@ -14,8 +14,8 @@ import { applyInvalidation, invalidateForWrite, planFullRefresh } from '../../ut
 import { loadSocketIOClient } from '../../utils/SocketIOClient.js';
 import { debugLog, debugWarn } from '../../utils/DebugUtils.js';
 import { CONFIG } from '../../config.js';
-import { API } from '../../api/api-core.js';
-import { getPageCachedRequests, pageReadAnyOf, setLiveSyncClientId } from './LiveSyncState.js';
+import { makeApiRequestWithCache } from '../../api/api-core.js';
+import { getPageCachedRequests, pageReadAnyOf, pageReadsAreReplayable, setLiveSyncClientId } from './LiveSyncState.js';
 
 const DATA_CHANGED_EVENT = 'data-changed';
 const TOKEN_STORAGE_KEY = 'jwtToken';
@@ -104,14 +104,17 @@ function currentLocation() {
  * @returns {Promise<void>}
  */
 async function refetchPageData() {
-  await Promise.allSettled(getPageCachedRequests().map(({ endpoint, params, cacheOptions }) =>
-    API.get(endpoint, params, { ...cacheOptions, forceRefresh: true })));
+  await Promise.allSettled(getPageCachedRequests().map(({ endpoint, options, cacheOptions }) =>
+    makeApiRequestWithCache(endpoint, options, { ...cacheOptions, forceRefresh: true })));
 }
 
 /**
  * Replace the screen with its refreshed copy in one step. Inside a view
  * transition the browser keeps showing the current screen until the update
- * has drawn the new one, so its loading state never flashes up. The hold ends
+ * has drawn the new one, so its loading state never flashes up. That holds
+ * only for a screen whose reads were all fetched again beforehand: a screen
+ * reading data no cache keeps is redrawn without a transition, since the page
+ * ignores taps during one. The hold ends
  * after MAX_TRANSITION_HOLD_MS even if the update is still running: the screen
  * then shows its loading state, as it would without a transition. Browsers
  * without view transitions redraw as the router normally does.
@@ -119,7 +122,7 @@ async function refetchPageData() {
  * @returns {Promise<void>} Settles once the update has run
  */
 async function showRefreshed(update) {
-  if (typeof document.startViewTransition !== 'function') {
+  if (typeof document.startViewTransition !== 'function' || !pageReadsAreReplayable()) {
     await update();
     return;
   }
