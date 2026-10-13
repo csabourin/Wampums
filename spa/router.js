@@ -251,6 +251,18 @@ export class Router {
     // MEMORY LEAK FIX: Track current module instance for cleanup
     this.currentModuleInstance = null;
     this.navigationId = 0;
+    this.pendingRefresh = false;
+    this.refreshNavigationId = null;
+  }
+
+  /**
+   * Whether the screen being drawn replaces itself, with the same screen on
+   * display (live sync redrawing it), rather than being navigated to. Such a
+   * screen keeps what is on display while it loads instead of a skeleton.
+   * @returns {boolean} True during a refresh of the screen on display
+   */
+  isRefreshingScreen() {
+    return this.refreshNavigationId !== null && this.refreshNavigationId === this.navigationId;
   }
 
   /**
@@ -329,9 +341,12 @@ export class Router {
   /**
    * Show the screen for a path, returning it to where it was last scrolled.
    * @param {string} path - Path and query string to show
+   * @param {{ refresh?: boolean }} [options] - `refresh`: the screen on
+   *   display is drawn again with fresh data (see isRefreshingScreen)
    * @returns {Promise<void>}
    */
-  async route(path) {
+  async route(path, { refresh = false } = {}) {
+    this.pendingRefresh = refresh;
     const scrollToken = beginScrollNavigation(path);
     try {
       await this.renderRoute(path);
@@ -342,6 +357,8 @@ export class Router {
 
   async renderRoute(path) {
     const navigationId = ++this.navigationId;
+    this.refreshNavigationId = this.pendingRefresh ? navigationId : null;
+    this.pendingRefresh = false;
     debugLog("Routing to:", path);
 
     // MEMORY LEAK FIX: Clean up previous module before loading new one

@@ -469,7 +469,8 @@ class LiveDataSync {
       return;
     }
     // The router keeps the screen where it was scrolled.
-    await showRefreshed(() => router.route(currentLocation()));
+    // A refresh: screens keep what is on display while they load (no skeleton).
+    await showRefreshed(() => router.route(currentLocation(), { refresh: true }));
   }
 }
 

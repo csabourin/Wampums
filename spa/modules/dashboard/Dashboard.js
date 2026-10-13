@@ -64,6 +64,8 @@ export class Dashboard extends BaseModule {
     this.participants = [];
     this.pointsCollapsed = this.loadPointsCollapsedState();
     this.isLoading = true;
+    // Drawn again in place (live sync): keep the dashboard on display while it loads.
+    this.keepsPreviousContent = Boolean(app?.router?.isRefreshingScreen?.());
     this.mode = options.mode || 'default';
     this.nextMeeting = null;
     this.medicationDoseIsTimeSensitive = false;
@@ -86,7 +88,8 @@ export class Dashboard extends BaseModule {
         debugError('Failed to load dashboard-v2 stylesheet:', error);
       });
 
-      // Show loading skeleton immediately
+      // Show loading skeleton immediately, unless the dashboard on display
+      // is only being refreshed: it then stays, marked busy, until replaced.
       this.isLoading = true;
       this.render();
 
@@ -317,9 +320,14 @@ export class Dashboard extends BaseModule {
     }
     const container = document.getElementById('app');
     if (this.isLoading) {
+      if (this.keepsPreviousContent && container?.querySelector('.dashboard-v2')) {
+        container.setAttribute('aria-busy', 'true');
+        return;
+      }
       setContent(container, skeletonDashboard());
       return;
     }
+    container?.removeAttribute('aria-busy');
 
     // Apply user's chosen palette as CSS variables (idempotent).
     applyPalette();
@@ -1231,6 +1239,7 @@ export class Dashboard extends BaseModule {
   // See spa/modules/modals/CarpoolQuickAccessModal.js
 
   renderError() {
+    document.getElementById('app')?.removeAttribute('aria-busy');
     setContent(
       document.getElementById('app'),
       `
@@ -1246,6 +1255,10 @@ export class Dashboard extends BaseModule {
    */
   destroy() {
     super.destroy();
+    // A refresh still loading leaves #app marked busy for the next screen otherwise.
+    if (this.isLoading && this.keepsPreviousContent) {
+      document.getElementById('app')?.removeAttribute('aria-busy');
+    }
     // Detach global keyboard shortcut and close any open palette
     if (this.commandPalette) {
       this.commandPalette.detach();

@@ -222,7 +222,7 @@ describe('live sync redraw', () => {
     expect(document.startViewTransition).toHaveBeenCalledTimes(1);
     // Nothing was redrawn before the browser captured the current screen.
     expect(log.shownAtStart).toEqual(['12 points']);
-    expect(mockRoute).toHaveBeenCalledWith('/');
+    expect(mockRoute).toHaveBeenCalledWith('/', { refresh: true });
     expect(document.getElementById('app').textContent).toBe('15 points');
   });
 
