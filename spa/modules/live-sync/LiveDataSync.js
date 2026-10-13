@@ -105,9 +105,6 @@ function isSafeToRedraw() {
 }
 
 /**
- * @returns {string} Path and query of the screen on display
- */
-/**
  * @param {*} state - `sync-state` payload
  * @returns {boolean} Whether it names a server run, a unit and a version
  */
@@ -124,6 +121,9 @@ function nothingChangedSince(seen, current) {
   return Boolean(seen) && seen.run === current.run && seen.org === current.org && seen.version === current.version;
 }
 
+/**
+ * @returns {string} Path and query of the screen on display
+ */
 function currentLocation() {
   return `${window.location.pathname}${window.location.search}`;
 }
