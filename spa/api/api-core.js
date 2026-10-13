@@ -424,7 +424,7 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
         forceRefresh = false
     } = cacheOptions;
     const cacheKey = buildScopedCacheKey(requestedCacheKey);
-    notePageCachedRequest(endpoint, options, repeatableCacheOptions(cacheOptions));
+    notePageCachedRequest(cacheKey, endpoint, options, repeatableCacheOptions(cacheOptions));
 
     // Create a unique request key for deduplication
     const requestKey = `${endpoint}-${JSON.stringify(options)}`;

@@ -45,14 +45,20 @@ export function notePageRequestPath(path) {
 
 /**
  * Record a cached GET made while the current page was shown, so live sync can
- * fetch the same data again before redrawing the page.
+ * fetch the same data again before redrawing the page. Only the latest request
+ * for each cache entry is kept: replaying older ones (another filter stored
+ * under the same key) would race to overwrite what the page now shows.
+ * @param {string} scopedCacheKey - Cache entry the request fills
  * @param {string} endpoint - Endpoint as the screen requested it
  * @param {Object} options - Request options (params)
  * @param {Object} cacheOptions - Cache options (key, duration), without forceRefresh
  */
-export function notePageCachedRequest(endpoint, options, cacheOptions) {
-  const request = { endpoint, options: { ...options }, cacheOptions: { ...cacheOptions } };
-  pageCachedRequests.set(JSON.stringify(request), request);
+export function notePageCachedRequest(scopedCacheKey, endpoint, options, cacheOptions) {
+  pageCachedRequests.set(String(scopedCacheKey), {
+    endpoint,
+    options: { ...options },
+    cacheOptions: { ...cacheOptions },
+  });
 }
 
 /**

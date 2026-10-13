@@ -105,7 +105,7 @@ describe('live sync redraw', () => {
     drawScreen('12 points');
     resetPageReads();
     notePageRequestPath('/api/v1/points');
-    notePageCachedRequest('v1/points', { params: { group: 3 } }, { cacheDuration: 60000 });
+    notePageCachedRequest('points_group_3', 'v1/points', { params: { group: 3 } }, { cacheDuration: 60000 });
     mockApiGet.mockReset();
     mockApiGet.mockResolvedValue({ success: true, data: [] });
     mockRoute.mockReset();

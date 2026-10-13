@@ -284,6 +284,15 @@ describe('what live sync fetches again before redrawing a screen', () => {
     expect(pageReadsAreReplayable()).toBe(true);
   });
 
+  test('only the latest filter read into a shared cache entry, so an older one cannot overwrite it', async () => {
+    await API.get('v1/expenses', { category: 'camp' }, { cacheKey: 'budget_expenses' });
+    await API.get('v1/expenses', { category: 'food' }, { cacheKey: 'budget_expenses' });
+
+    expect(getPageCachedRequests()).toEqual([
+      { endpoint: 'v1/expenses', options: { params: { category: 'food' } }, cacheOptions: { cacheKey: 'budget_expenses' } },
+    ]);
+  });
+
   test('a read no cache keeps cannot be fetched in advance', async () => {
     await API.get('v1/groups', {}, { cacheKey: 'groups' });
     await API.getNoCache('v1/walk-in-children');
