@@ -90,6 +90,26 @@ function currentLocation() {
   return `${window.location.pathname}${window.location.search}`;
 }
 
+/**
+ * Replace the screen with its refreshed copy in one step. Inside a view
+ * transition the browser keeps showing the current screen until the update
+ * has drawn the new one, so its loading state never flashes up. Browsers
+ * without view transitions redraw as the router normally does.
+ * @param {function(): Promise<void>} update - Draws the refreshed screen
+ * @returns {Promise<void>} Settles once the update has run
+ */
+async function showRefreshed(update) {
+  if (typeof document.startViewTransition !== 'function') {
+    await update();
+    return;
+  }
+  const transition = document.startViewTransition(update);
+  // A skipped or timed-out transition rejects these, yet the update still applies.
+  transition.ready.catch(() => {});
+  transition.finished.catch(() => {});
+  await transition.updateCallbackDone;
+}
+
 class LiveDataSync {
   constructor() {
     this.socket = null;
@@ -233,7 +253,7 @@ class LiveDataSync {
       return;
     }
     // The router keeps the screen where it was scrolled.
-    await router.route(currentLocation());
+    await showRefreshed(() => router.route(currentLocation()));
   }
 }
 

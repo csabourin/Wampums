@@ -197,6 +197,13 @@ html {
   }
 }
 
+/* Live sync redraws a screen inside a view transition so its loading state
+   never shows. The refreshed screen replaces the old one at once: no fade. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
 body {
   min-block-size: 100%;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
