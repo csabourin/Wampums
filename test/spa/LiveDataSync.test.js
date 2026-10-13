@@ -268,3 +268,102 @@ describe('live sync redraw', () => {
     expect(mockRoute).not.toHaveBeenCalled();
   });
 });
+
+describe('returning from the background', () => {
+  const { applyInvalidation } = jest.requireMock('../../spa/utils/CacheInvalidation.js');
+  const { offlineManager } = jest.requireMock('../../spa/modules/OfflineManager.js');
+  const SYNC_STATE_WAIT_MS = 3000;
+  const SETTLE_MS = SYNC_STATE_WAIT_MS + REDRAW_DEBOUNCE_MS;
+  const state = (overrides = {}) => ({ run: 'run-1', org: '12', version: 5, ...overrides });
+
+  /**
+   * The socket connects, as when the app opens, and hears the server's state.
+   * @param {Object} [syncState] - State the server sends
+   */
+  async function connect(syncState = state()) {
+    mockSocketHandlers.connect();
+    if (syncState) {
+      mockSocketHandlers['sync-state'](syncState);
+    }
+    await jest.advanceTimersByTimeAsync(SETTLE_MS);
+  }
+
+  beforeEach(async () => {
+    jest.useFakeTimers();
+    document.body.innerHTML = '<main id="app"></main>';
+    drawScreen('12 points');
+    resetPageReads();
+    notePageRequestPath('/api/v1/points');
+    mockApiGet.mockReset();
+    mockApiGet.mockResolvedValue({ success: true });
+    mockRoute.mockReset();
+    mockRoute.mockResolvedValue();
+    offlineManager.isOffline = false;
+    localStorage.setItem('jwtToken', 'token');
+    liveDataSync.stop();
+    await liveDataSync.start();
+    await connect();
+    applyInvalidation.mockClear();
+  });
+
+  afterEach(() => {
+    liveDataSync.stop();
+    jest.useRealTimers();
+  });
+
+  test('when nothing changed while away, the screen is left as it is', async () => {
+    await connect(state());
+
+    expect(applyInvalidation).not.toHaveBeenCalled();
+    expect(mockRoute).not.toHaveBeenCalled();
+  });
+
+  test('a change announced while away is caught up and the screen redrawn', async () => {
+    await connect(state({ version: 6 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+    expect(mockRoute).toHaveBeenCalledTimes(1);
+  });
+
+  test('a restarted server, or another unit, is caught up', async () => {
+    await connect(state({ run: 'run-2' }));
+    await connect(state({ run: 'run-2', org: '13' }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(2);
+  });
+
+  test('a server that sends no state is caught up after a short wait', async () => {
+    await connect(null);
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('a change already seen while connected is not caught up again', async () => {
+    await mockSocketHandlers['data-changed']({ path: '/api/v1/points', version: 6 });
+    // The session's own write: the server tells it the unit's new version.
+    mockSocketHandlers['sync-state'](state({ version: 7 }));
+    await jest.advanceTimersByTimeAsync(SETTLE_MS);
+    mockRoute.mockClear();
+
+    await connect(state({ version: 7 }));
+
+    expect(applyInvalidation).not.toHaveBeenCalled();
+    expect(mockRoute).not.toHaveBeenCalled();
+  });
+
+  test('a change ignored while offline is caught up on reconnection', async () => {
+    offlineManager.isOffline = true;
+    await mockSocketHandlers['data-changed']({ path: '/api/v1/points', version: 6 });
+    offlineManager.isOffline = false;
+
+    await connect(state({ version: 6 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('a malformed state is ignored, and the reconnection caught up', async () => {
+    await connect({ run: 'run-1', org: 12, version: '5' });
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+});

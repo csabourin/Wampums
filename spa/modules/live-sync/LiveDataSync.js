@@ -24,6 +24,7 @@ import {
 } from './LiveSyncState.js';
 
 const DATA_CHANGED_EVENT = 'data-changed';
+const SYNC_STATE_EVENT = 'sync-state';
 const TOKEN_STORAGE_KEY = 'jwtToken';
 
 /** Wait for a burst of changes (a leader awarding points) to settle before redrawing. */
@@ -36,6 +37,11 @@ const REFRESH_RETRY_MS = 5000;
  * reads the new content, so the hold stays short: its data is already fetched.
  */
 const MAX_TRANSITION_HOLD_MS = 300;
+/**
+ * How long a reconnected session waits for the server's sync state before
+ * catching up anyway (a server that does not send one).
+ */
+const SYNC_STATE_WAIT_MS = 3000;
 /** Delay before retrying a connection the server refused. */
 const RECONNECT_DELAY_MS = 30000;
 
@@ -99,6 +105,23 @@ function isSafeToRedraw() {
 /**
  * @returns {string} Path and query of the screen on display
  */
+/**
+ * @param {*} state - `sync-state` payload
+ * @returns {boolean} Whether it names a server run, a unit and a version
+ */
+function isSyncState(state) {
+  return typeof state?.run === 'string' && typeof state?.org === 'string' && Number.isInteger(state?.version);
+}
+
+/**
+ * @param {Object|null} seen - Last sync state this session saw
+ * @param {Object} current - Sync state the server sent on reconnection
+ * @returns {boolean} True when the server announced nothing while away
+ */
+function nothingChangedSince(seen, current) {
+  return Boolean(seen) && seen.run === current.run && seen.org === current.org && seen.version === current.version;
+}
+
 function currentLocation() {
   return `${window.location.pathname}${window.location.search}`;
 }
@@ -164,6 +187,9 @@ class LiveDataSync {
     this.redrawTimer = null;
     this.redrawLocation = null;
     this.reconnectTimer = null;
+    this.syncState = null;
+    this.awaitingSyncState = false;
+    this.syncStateTimer = null;
     this.onVisibilityChange = () => this.checkToken();
   }
 
@@ -198,6 +224,7 @@ class LiveDataSync {
     this.socket.on('connect', () => this.handleConnect());
     this.socket.on('disconnect', () => setLiveSyncClientId(null));
     this.socket.on('connect_error', (error) => this.handleConnectError(error));
+    this.socket.on(SYNC_STATE_EVENT, (state) => this.handleSyncState(state));
     this.socket.on(DATA_CHANGED_EVENT, (payload) => {
       this.handleDataChanged(payload).catch((error) => debugWarn('Live sync update failed:', error));
     });
@@ -210,6 +237,9 @@ class LiveDataSync {
   stop() {
     clearTimeout(this.redrawTimer);
     clearTimeout(this.reconnectTimer);
+    clearTimeout(this.syncStateTimer);
+    this.syncState = null;
+    this.awaitingSyncState = false;
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.socket?.disconnect();
     this.socket = null;
@@ -222,12 +252,51 @@ class LiveDataSync {
     debugLog('Live sync connected:', this.socket.id);
 
     // Changes made while disconnected were never announced to this session.
-    if (this.hasConnectedBefore && isLiveSyncActive()) {
-      applyInvalidation(planFullRefresh())
-        .then((invalidation) => this.redrawIfShown(invalidation))
-        .catch((error) => debugWarn('Live sync catch-up failed:', error));
+    // The server's sync state, sent right after connecting, tells whether any
+    // were: a phone reconnects each time the app returns from the background.
+    if (this.hasConnectedBefore) {
+      this.awaitingSyncState = true;
+      clearTimeout(this.syncStateTimer);
+      this.syncStateTimer = setTimeout(() => {
+        this.awaitingSyncState = false;
+        this.catchUp();
+      }, SYNC_STATE_WAIT_MS);
     }
     this.hasConnectedBefore = true;
+  }
+
+  /**
+   * @param {*} state - `sync-state` from the server: on connection, and after
+   *   this session's own writes
+   */
+  handleSyncState(state) {
+    if (!isSyncState(state)) {
+      return;
+    }
+    const seen = this.syncState;
+    this.syncState = { run: state.run, org: state.org, version: state.version };
+    if (!this.awaitingSyncState) {
+      return;
+    }
+    this.awaitingSyncState = false;
+    clearTimeout(this.syncStateTimer);
+    if (nothingChangedSince(seen, state)) {
+      debugLog('Live sync: nothing changed while disconnected');
+      return;
+    }
+    this.catchUp();
+  }
+
+  /**
+   * Drop what changes made while disconnected may have made stale.
+   */
+  catchUp() {
+    if (!isLiveSyncActive()) {
+      return;
+    }
+    applyInvalidation(planFullRefresh())
+      .then((invalidation) => this.redrawIfShown(invalidation))
+      .catch((error) => debugWarn('Live sync catch-up failed:', error));
   }
 
   /**
@@ -268,7 +337,12 @@ class LiveDataSync {
       return;
     }
     debugLog('Live sync: data changed elsewhere', path);
-    this.redrawIfShown(await invalidateForWrite(path));
+    const invalidation = await invalidateForWrite(path);
+    // Counted as seen only once applied: an ignored change is caught up on reconnection.
+    if (this.syncState && Number.isInteger(payload?.version)) {
+      this.syncState.version = Math.max(this.syncState.version, payload.version);
+    }
+    this.redrawIfShown(invalidation);
   }
 
   /**
