@@ -6,11 +6,15 @@
  * Live sync redraws the screen on display by routing to it again, and the
  * router rebuilds it from its loading state. Shown as is, the screen went
  * blank for a moment at every redraw (each socket reconnection triggers one).
- * The redraw now runs inside a view transition, where the browser keeps the
- * current screen on display until the refreshed one is drawn.
+ * The screen's data is now fetched again first, then the redraw runs inside a
+ * view transition, where the browser keeps the current screen on display until
+ * the refreshed one is drawn. The page ignores taps during a transition, so the
+ * transition holds only briefly and never spans a network round trip.
  */
 
 const REDRAW_DEBOUNCE_MS = 1500;
+const MAX_TRANSITION_HOLD_MS = 300;
+const SLOW_SCREEN_MS = 2000;
 
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn(),
@@ -49,6 +53,11 @@ jest.mock('../../spa/utils/SocketIOClient.js', () => ({
   loadSocketIOClient: () => Promise.resolve(() => mockSocket),
 }));
 
+const mockApiGet = jest.fn();
+jest.mock('../../spa/api/api-core.js', () => ({
+  API: { get: (...args) => mockApiGet(...args) },
+}));
+
 const mockRoute = jest.fn();
 jest.mock('../../spa/app.js', () => ({
   app: { router: { route: (...args) => mockRoute(...args) } },
@@ -56,7 +65,7 @@ jest.mock('../../spa/app.js', () => ({
 }));
 
 import { liveDataSync } from '../../spa/modules/live-sync/LiveDataSync.js';
-import { notePageRequestPath, resetPageReads } from '../../spa/modules/live-sync/LiveSyncState.js';
+import { notePageCachedRequest, notePageRequestPath, resetPageReads } from '../../spa/modules/live-sync/LiveSyncState.js';
 
 /**
  * The screen on display, as the router would draw it after loading its data.
@@ -91,6 +100,9 @@ describe('live sync redraw', () => {
     drawScreen('12 points');
     resetPageReads();
     notePageRequestPath('/api/v1/points');
+    notePageCachedRequest('v1/points', { group: 3 }, { cacheDuration: 60000 });
+    mockApiGet.mockReset();
+    mockApiGet.mockResolvedValue({ success: true, data: [] });
     mockRoute.mockReset();
     // The router shows its loading state, then the refreshed screen.
     mockRoute.mockImplementation(async () => {
@@ -105,23 +117,86 @@ describe('live sync redraw', () => {
     jest.useRealTimers();
   });
 
-  test('the screen is redrawn inside a view transition, so the old one stays until the new one is drawn', async () => {
-    const shownWhenTransitionStarted = [];
+  /**
+   * A browser's view transition: runs the update and reports when the update
+   * callback has settled, recording what was on screen when it started.
+   * @returns {{ shownAtStart: string[], callbackSettledAt: number[] }}
+   */
+  function fakeViewTransitions() {
+    const log = { shownAtStart: [], callbackSettledAt: [] };
     document.startViewTransition = jest.fn((update) => {
-      shownWhenTransitionStarted.push(document.getElementById('app').textContent);
+      log.shownAtStart.push(document.getElementById('app').textContent);
       const updateCallbackDone = Promise.resolve().then(update);
-      return {
-        updateCallbackDone,
-        ready: updateCallbackDone,
-        finished: updateCallbackDone,
-      };
+      updateCallbackDone.then(() => log.callbackSettledAt.push(Date.now()));
+      return { updateCallbackDone, ready: updateCallbackDone, finished: updateCallbackDone };
     });
+    return log;
+  }
+
+  test('the screen\'s data is fetched again before the redraw, so the redraw reads the cache', async () => {
+    const order = [];
+    mockApiGet.mockImplementation(() => {
+      order.push('refetch');
+      return Promise.resolve({ success: true });
+    });
+    mockRoute.mockImplementation(() => {
+      order.push('redraw');
+      return Promise.resolve();
+    });
+
+    await pointsChangedElsewhere();
+
+    expect(mockApiGet).toHaveBeenCalledWith('v1/points', { group: 3 }, { cacheDuration: 60000, forceRefresh: true });
+    expect(order).toEqual(['refetch', 'redraw']);
+  });
+
+  test('a failed refetch still redraws, leaving the screen to report the error', async () => {
+    mockApiGet.mockRejectedValue(new Error('offline'));
+
+    await pointsChangedElsewhere();
+
+    expect(mockRoute).toHaveBeenCalledTimes(1);
+  });
+
+  test('the view transition holds the old screen briefly at most, even when the screen is slow to draw', async () => {
+    const log = fakeViewTransitions();
+    mockRoute.mockImplementation(async () => {
+      drawScreen('loading');
+      await new Promise((resolve) => setTimeout(resolve, SLOW_SCREEN_MS));
+      drawScreen('15 points');
+    });
+    const start = Date.now();
+
+    await pointsChangedElsewhere();
+    await jest.advanceTimersByTimeAsync(SLOW_SCREEN_MS);
+
+    expect(log.callbackSettledAt).toHaveLength(1);
+    expect(log.callbackSettledAt[0] - start).toBeLessThanOrEqual(REDRAW_DEBOUNCE_MS + MAX_TRANSITION_HOLD_MS);
+    expect(document.getElementById('app').textContent).toBe('15 points');
+  });
+
+  test('the screen is not redrawn when the person starts typing while its data loads', async () => {
+    fakeViewTransitions();
+    mockApiGet.mockImplementation(() => {
+      document.getElementById('app').insertAdjacentHTML('beforeend', '<input id="live-sync-test-field">');
+      document.getElementById('live-sync-test-field').focus();
+      return Promise.resolve({ success: true });
+    });
+
+    await pointsChangedElsewhere();
+
+    expect(mockApiGet).toHaveBeenCalled();
+    expect(mockRoute).not.toHaveBeenCalled();
+  });
+
+  test('the screen is redrawn inside a view transition, so the old one stays until the new one is drawn', async () => {
+    const log = fakeViewTransitions();
 
     await pointsChangedElsewhere();
 
     expect(document.startViewTransition).toHaveBeenCalledTimes(1);
     // Nothing was redrawn before the browser captured the current screen.
-    expect(shownWhenTransitionStarted).toEqual(['12 points']);
+    expect(log.shownAtStart).toEqual(['12 points']);
     expect(mockRoute).toHaveBeenCalledWith('/');
     expect(document.getElementById('app').textContent).toBe('15 points');
   });

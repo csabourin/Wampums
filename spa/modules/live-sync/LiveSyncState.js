@@ -8,6 +8,7 @@
 let clientId = null;
 const pageCacheKeys = new Set();
 const pageRequestPaths = new Set();
+const pageCachedRequests = new Map();
 
 /**
  * Remember the live-sync connection id, sent with each write so the server
@@ -42,11 +43,32 @@ export function notePageRequestPath(path) {
 }
 
 /**
+ * Record a cached GET made while the current page was shown, so live sync can
+ * fetch the same data again before redrawing the page.
+ * @param {string} endpoint - Endpoint as the screen requested it
+ * @param {Object} params - Query parameters
+ * @param {Object} cacheOptions - Cache options (key, duration)
+ */
+export function notePageCachedRequest(endpoint, params, cacheOptions) {
+  const request = { endpoint, params: { ...params }, cacheOptions: { ...cacheOptions } };
+  pageCachedRequests.set(JSON.stringify(request), request);
+}
+
+/**
+ * @returns {Array<{endpoint: string, params: Object, cacheOptions: Object}>}
+ *   Cached GETs made while the current page was shown
+ */
+export function getPageCachedRequests() {
+  return Array.from(pageCachedRequests.values());
+}
+
+/**
  * Forget what the previous page read. Called on every navigation.
  */
 export function resetPageReads() {
   pageCacheKeys.clear();
   pageRequestPaths.clear();
+  pageCachedRequests.clear();
 }
 
 /**

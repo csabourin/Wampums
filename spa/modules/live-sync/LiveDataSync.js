@@ -14,7 +14,8 @@ import { applyInvalidation, invalidateForWrite, planFullRefresh } from '../../ut
 import { loadSocketIOClient } from '../../utils/SocketIOClient.js';
 import { debugLog, debugWarn } from '../../utils/DebugUtils.js';
 import { CONFIG } from '../../config.js';
-import { pageReadAnyOf, setLiveSyncClientId } from './LiveSyncState.js';
+import { API } from '../../api/api-core.js';
+import { getPageCachedRequests, pageReadAnyOf, setLiveSyncClientId } from './LiveSyncState.js';
 
 const DATA_CHANGED_EVENT = 'data-changed';
 const TOKEN_STORAGE_KEY = 'jwtToken';
@@ -23,6 +24,12 @@ const TOKEN_STORAGE_KEY = 'jwtToken';
 const REFRESH_DEBOUNCE_MS = 1500;
 /** How often to check again whether the person has finished editing. */
 const REFRESH_RETRY_MS = 5000;
+/**
+ * Longest the browser may keep showing the old screen while the new one is
+ * drawn. During a view transition the page ignores taps and the screen reader
+ * reads the new content, so the hold stays short: its data is already fetched.
+ */
+const MAX_TRANSITION_HOLD_MS = 300;
 /** Delay before retrying a connection the server refused. */
 const RECONNECT_DELAY_MS = 30000;
 
@@ -91,9 +98,22 @@ function currentLocation() {
 }
 
 /**
+ * Fetch again the cached data the screen on display read, so that redrawing
+ * it reads the cache instead of waiting on the network. A request that fails
+ * is left for the screen itself to report when it redraws.
+ * @returns {Promise<void>}
+ */
+async function refetchPageData() {
+  await Promise.allSettled(getPageCachedRequests().map(({ endpoint, params, cacheOptions }) =>
+    API.get(endpoint, params, { ...cacheOptions, forceRefresh: true })));
+}
+
+/**
  * Replace the screen with its refreshed copy in one step. Inside a view
  * transition the browser keeps showing the current screen until the update
- * has drawn the new one, so its loading state never flashes up. Browsers
+ * has drawn the new one, so its loading state never flashes up. The hold ends
+ * after MAX_TRANSITION_HOLD_MS even if the update is still running: the screen
+ * then shows its loading state, as it would without a transition. Browsers
  * without view transitions redraw as the router normally does.
  * @param {function(): Promise<void>} update - Draws the refreshed screen
  * @returns {Promise<void>} Settles once the update has run
@@ -103,11 +123,22 @@ async function showRefreshed(update) {
     await update();
     return;
   }
-  const transition = document.startViewTransition(update);
+  let updated = null;
+  let holdTimer = null;
+  const transition = document.startViewTransition(() => {
+    updated = update();
+    const holdEnded = new Promise((resolve) => {
+      holdTimer = setTimeout(resolve, MAX_TRANSITION_HOLD_MS);
+    });
+    return Promise.race([updated, holdEnded]);
+  });
   // A skipped or timed-out transition rejects these, yet the update still applies.
   transition.ready.catch(() => {});
   transition.finished.catch(() => {});
-  await transition.updateCallbackDone;
+  // A failed update is reported through `updated` below.
+  await transition.updateCallbackDone.catch(() => {});
+  clearTimeout(holdTimer);
+  await updated;
 }
 
 class LiveDataSync {
@@ -239,6 +270,15 @@ class LiveDataSync {
 
   async redraw() {
     // Navigating away already loaded the next screen from the refreshed cache.
+    if (currentLocation() !== this.redrawLocation) {
+      return;
+    }
+    if (!isSafeToRedraw()) {
+      this.redrawTimer = setTimeout(() => this.redraw(), REFRESH_RETRY_MS);
+      return;
+    }
+    await refetchPageData();
+    // The person may have moved on, or started typing, while it loaded.
     if (currentLocation() !== this.redrawLocation) {
       return;
     }

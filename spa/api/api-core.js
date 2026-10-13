@@ -16,8 +16,8 @@ import {
     cachePathsForMutation,
     normalizeApiPath
 } from "../utils/OfflineCacheKeys.js";
-import { invalidateForWrite } from "../utils/CacheInvalidation.js";
-import { getLiveSyncClientId, notePageRequestPath } from "../modules/live-sync/LiveSyncState.js";
+import { invalidateForWrite } from '../utils/CacheInvalidation.js';
+import { getLiveSyncClientId, notePageCachedRequest, notePageRequestPath } from '../modules/live-sync/LiveSyncState.js';
 
 /**
  * Add cache buster parameter to URL
@@ -384,6 +384,15 @@ export async function makeApiRequest(endpoint, options = {}) {
     throw finalError;
 }
 
+/**
+ * The cache options a later read of the same data repeats: not a forced refresh.
+ * @param {Object} cacheOptions - Options a screen passed to API.get
+ * @returns {Object} The same options without forceRefresh
+ */
+function repeatableCacheOptions({ forceRefresh: _forceRefresh, ...options }) {
+  return options;
+}
+
 // Request deduplication: Track in-flight requests to prevent duplicate API calls
 const pendingRequests = new Map();
 
@@ -480,6 +489,7 @@ export const API = {
      * GET request with optional caching
      */
     async get(endpoint, params = {}, cacheOptions = {}) {
+        notePageCachedRequest(endpoint, params, repeatableCacheOptions(cacheOptions));
         const mergedCacheOptions = {
             cacheKey: cacheOptions.cacheKey || buildApiCacheKey(endpoint, params),
             ...cacheOptions

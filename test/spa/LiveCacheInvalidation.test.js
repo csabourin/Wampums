@@ -62,6 +62,7 @@ import {
 import { buildScopedCacheKey } from '../../spa/utils/OfflineCacheKeys.js';
 import { planInvalidation, invalidateForWrite } from '../../spa/utils/CacheInvalidation.js';
 import {
+  getPageCachedRequests,
   notePageRequestPath,
   pageReadAnyOf,
   resetPageReads,
@@ -262,5 +263,26 @@ describe('whether the screen on display must be redrawn', () => {
     const invalidation = await invalidateForWrite('/api/v1/points');
 
     expect(pageReadAnyOf(invalidation)).toBe(false);
+  });
+});
+
+describe('what live sync fetches again before redrawing a screen', () => {
+  test('the cached reads the screen made, as it made them, once each', async () => {
+    await API.get('v1/attendance', { date: '2026-09-27' }, { cacheKey: 'attendance_api_2026-09-27' });
+    await API.get('v1/attendance', { date: '2026-09-27' }, { cacheKey: 'attendance_api_2026-09-27' });
+    await API.get('v1/groups', {}, { cacheKey: 'groups', forceRefresh: true });
+
+    expect(getPageCachedRequests()).toEqual([
+      { endpoint: 'v1/attendance', params: { date: '2026-09-27' }, cacheOptions: { cacheKey: 'attendance_api_2026-09-27' } },
+      { endpoint: 'v1/groups', params: {}, cacheOptions: { cacheKey: 'groups' } },
+    ]);
+  });
+
+  test('nothing the previous screen read', async () => {
+    await API.get('v1/groups', {}, { cacheKey: 'groups' });
+
+    resetPageReads();
+
+    expect(getPageCachedRequests()).toEqual([]);
   });
 });
