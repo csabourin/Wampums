@@ -256,9 +256,11 @@ describe('POST /api/v1/activities', () => {
     expect(response.status).toBe(201);
     expect(response.body.success).toBe(true);
     
-    // Blank optional fields become NULL: an empty string is not a valid TIME
-    expect(__mPool.query).toHaveBeenCalledTimes(3);
-    const insertCall = __mPool.query.mock.calls[2];
+    // Blank optional fields become NULL: an empty string is not a valid TIME.
+    // The live-sync change counter (services/liveSyncState.js) is not the route's.
+    const routeCalls = __mPool.query.mock.calls.filter(([sql]) => !/live_sync_versions/.test(String(sql)));
+    expect(routeCalls).toHaveLength(3);
+    const insertCall = routeCalls[2];
     expect(insertCall[1]).toEqual([
       'Test Activity',    // name
       null,               // description (not provided)

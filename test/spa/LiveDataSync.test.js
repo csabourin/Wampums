@@ -37,9 +37,15 @@ jest.mock('../../spa/utils/CacheInvalidation.js', () => ({
 }));
 
 const mockSocketHandlers = {};
+const mockManagerHandlers = {};
 const mockSocket = {
   id: 'socket-1',
   connected: true,
+  io: {
+    on: (event, handler) => {
+      mockManagerHandlers[event] = handler;
+    },
+  },
   on: (event, handler) => {
     mockSocketHandlers[event] = handler;
   },
@@ -69,6 +75,8 @@ import {
   notePageCachedRequest,
   notePageRequestPath,
   notePageUncachedRead,
+  noteWriteSettled,
+  noteWriteStarted,
   resetPageReads,
 } from '../../spa/modules/live-sync/LiveSyncState.js';
 
@@ -220,7 +228,7 @@ describe('live sync redraw', () => {
     expect(document.startViewTransition).toHaveBeenCalledTimes(1);
     // Nothing was redrawn before the browser captured the current screen.
     expect(log.shownAtStart).toEqual(['12 points']);
-    expect(mockRoute).toHaveBeenCalledWith('/');
+    expect(mockRoute).toHaveBeenCalledWith('/', { refresh: true });
     expect(document.getElementById('app').textContent).toBe('15 points');
   });
 
@@ -266,5 +274,226 @@ describe('live sync redraw', () => {
 
     expect(document.startViewTransition).not.toHaveBeenCalled();
     expect(mockRoute).not.toHaveBeenCalled();
+  });
+});
+
+describe('returning from the background', () => {
+  const { applyInvalidation } = jest.requireMock('../../spa/utils/CacheInvalidation.js');
+  const { offlineManager } = jest.requireMock('../../spa/modules/OfflineManager.js');
+  const SYNC_STATE_WAIT_MS = 3000;
+  const SETTLE_MS = SYNC_STATE_WAIT_MS + REDRAW_DEBOUNCE_MS;
+  const state = (overrides = {}) => ({ org: '12', version: 5, shared: 0, ...overrides });
+
+  /**
+   * The socket connects, as when the app opens, and hears the server's state.
+   * @param {Object} [syncState] - State the server sends
+   */
+  async function connect(syncState = state()) {
+    mockSocketHandlers.connect();
+    if (syncState) {
+      mockSocketHandlers['sync-state']({ ...syncState, connection: true });
+    }
+    await jest.advanceTimersByTimeAsync(SETTLE_MS);
+  }
+
+  beforeEach(async () => {
+    jest.useFakeTimers();
+    document.body.innerHTML = '<main id="app"></main>';
+    drawScreen('12 points');
+    resetPageReads();
+    notePageRequestPath('/api/v1/points');
+    mockApiGet.mockReset();
+    mockApiGet.mockResolvedValue({ success: true });
+    mockRoute.mockReset();
+    mockRoute.mockResolvedValue();
+    offlineManager.isOffline = false;
+    localStorage.setItem('jwtToken', 'token');
+    liveDataSync.stop();
+    await liveDataSync.start();
+    await connect();
+    applyInvalidation.mockClear();
+  });
+
+  afterEach(() => {
+    liveDataSync.stop();
+    jest.useRealTimers();
+  });
+
+  test('when nothing changed while away, the screen is left as it is', async () => {
+    await connect(state());
+
+    expect(applyInvalidation).not.toHaveBeenCalled();
+    expect(mockRoute).not.toHaveBeenCalled();
+  });
+
+  test('a change announced while away is caught up and the screen redrawn', async () => {
+    await connect(state({ version: 6 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+    expect(mockRoute).toHaveBeenCalledTimes(1);
+  });
+
+  test('another unit is caught up', async () => {
+    await connect(state({ org: '13' }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('a write acknowledged before the connection state is not taken for it', async () => {
+    mockSocketHandlers.connect();
+    // This session's write, answered before the server read the connection state.
+    mockSocketHandlers['sync-state'](state({ version: 6 }));
+    mockSocketHandlers['sync-state']({ ...state({ version: 6 }), connection: true });
+    await jest.advanceTimersByTimeAsync(SETTLE_MS);
+
+    // Taken for the connection state, 6 against 5 would have meant a missed change.
+    expect(applyInvalidation).not.toHaveBeenCalled();
+  });
+
+  test('a write no unit was named for (a public page) is caught up', async () => {
+    await connect(state({ shared: 1 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('an own write acknowledged while a shared write happened leaves the shared one to catch up', async () => {
+    noteWriteStarted();
+    mockSocketHandlers['sync-state'](state({ version: 6, shared: 1 }));
+    noteWriteSettled(true);
+
+    await connect(state({ version: 6, shared: 1 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('a server that sends no state is caught up after a short wait', async () => {
+    await connect(null);
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('a change already seen while connected is not caught up again', async () => {
+    await mockSocketHandlers['data-changed']({ path: '/api/v1/points', version: 6 });
+    // The session's own write: the server tells it the unit's new version.
+    mockSocketHandlers['sync-state'](state({ version: 7 }));
+    await jest.advanceTimersByTimeAsync(SETTLE_MS);
+    mockRoute.mockClear();
+
+    await connect(state({ version: 7 }));
+
+    expect(applyInvalidation).not.toHaveBeenCalled();
+    expect(mockRoute).not.toHaveBeenCalled();
+  });
+
+  test('a change ignored while offline is caught up on reconnection', async () => {
+    offlineManager.isOffline = true;
+    await mockSocketHandlers['data-changed']({ path: '/api/v1/points', version: 6 });
+    offlineManager.isOffline = false;
+
+    await connect(state({ version: 6 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('a malformed state is ignored, and the reconnection caught up', async () => {
+    await connect({ org: 12, version: '5', shared: 0 });
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('a change found while in camp mode is caught up on the next reconnection', async () => {
+    offlineManager.isOffline = true;
+    await connect(state({ version: 6 }));
+    offlineManager.isOffline = false;
+    expect(applyInvalidation).not.toHaveBeenCalled();
+
+    await connect(state({ version: 6 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('a catch-up that failed is tried again on the next reconnection', async () => {
+    applyInvalidation.mockRejectedValueOnce(new Error('IndexedDB unavailable'));
+    await connect(state({ version: 6 }));
+
+    await connect(state({ version: 6 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(2);
+  });
+
+  test('the server telling of an own write is counted once its response is handled', async () => {
+    noteWriteStarted();
+    mockSocketHandlers['sync-state'](state({ version: 6 }));
+    noteWriteSettled(true);
+
+    await connect(state({ version: 6 }));
+
+    expect(applyInvalidation).not.toHaveBeenCalled();
+  });
+
+  test('an own write whose response was lost leaves the reconnection to catch up', async () => {
+    noteWriteStarted();
+    mockSocketHandlers['sync-state'](state({ version: 6 }));
+    // The network dropped before the response arrived: nothing was invalidated.
+    noteWriteSettled(false);
+
+    await connect(state({ version: 6 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('a change that skips a version is not counted, so the missing one is caught up', async () => {
+    await mockSocketHandlers['data-changed']({ path: '/api/v1/points', version: 7 });
+    await jest.advanceTimersByTimeAsync(SETTLE_MS);
+
+    await connect(state({ version: 7 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('a state arriving after the wait is counted once the catch-up it outlasted succeeds', async () => {
+    await connect(null);
+    mockSocketHandlers['sync-state']({ ...state({ version: 6 }), connection: true });
+    await jest.advanceTimersByTimeAsync(SETTLE_MS);
+    applyInvalidation.mockClear();
+
+    await connect(state({ version: 6 }));
+
+    expect(applyInvalidation).not.toHaveBeenCalled();
+  });
+
+  test('a state arriving after a catch-up that failed is not counted', async () => {
+    applyInvalidation.mockRejectedValueOnce(new Error('IndexedDB unavailable'));
+    await connect(null);
+    mockSocketHandlers['sync-state']({ ...state({ version: 6 }), connection: true });
+    await jest.advanceTimersByTimeAsync(SETTLE_MS);
+    applyInvalidation.mockClear();
+
+    await connect(state({ version: 6 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('after a long absence the reconnection catches up even when the state matches', async () => {
+    const LONG_ABSENCE_MS = 11 * 60 * 1000;
+    await jest.advanceTimersByTimeAsync(LONG_ABSENCE_MS);
+
+    await connect(state());
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('a connection kept alive by the server\'s pings trusts the state after a short drop', async () => {
+    const PING_INTERVAL_MS = 25000;
+    const PINGS = 30;
+    for (let ping = 0; ping < PINGS; ping += 1) {
+      // eslint-disable-next-line no-await-in-loop -- time passes ping by ping
+      await jest.advanceTimersByTimeAsync(PING_INTERVAL_MS);
+      mockManagerHandlers.ping();
+    }
+
+    await connect(state());
+
+    expect(applyInvalidation).not.toHaveBeenCalled();
   });
 });

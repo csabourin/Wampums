@@ -66,6 +66,7 @@ import {
   notePageRequestPath,
   pageReadAnyOf,
   pageReadsAreReplayable,
+  takeWriteState,
   resetPageReads,
   setLiveSyncClientId,
 } from '../../spa/modules/live-sync/LiveSyncState.js';
@@ -360,3 +361,51 @@ describe('what live sync fetches again before redrawing a screen', () => {
     expect(getPageCachedRequests()).toEqual([]);
   });
 });
+
+describe('whether this client has handled its own writes', () => {
+  test('a write the server confirmed is settled once its response is handled', async () => {
+    takeWriteState();
+    const sent = API.post('v1/points', { points: 1 });
+
+    expect(takeWriteState()).toBe('pending');
+    await sent;
+    expect(takeWriteState()).toBe('settled');
+  });
+
+  test('a write whose response was lost is unconfirmed, once', async () => {
+    takeWriteState();
+    global.fetch = jest.fn(() => Promise.reject(new TypeError('Failed to fetch')));
+
+    await API.post('v1/points', { points: 1 });
+
+    expect(takeWriteState()).toBe('unconfirmed');
+    expect(takeWriteState()).toBe('settled');
+  });
+
+  test('a refused write is unconfirmed', async () => {
+    takeWriteState();
+    global.fetch = jest.fn(() => Promise.resolve({
+      ok: false,
+      status: 403,
+      headers: { get: () => 'application/json' },
+      json: () => Promise.resolve({ success: false, message: 'forbidden' }),
+    }));
+
+    await expect(API.post('v1/points', { points: 1 })).rejects.toThrow();
+
+    expect(takeWriteState()).toBe('unconfirmed');
+  });
+
+  test('a write whose cache could not be cleared is unconfirmed', async () => {
+    takeWriteState();
+    const cacheInvalidation = jest.requireActual('../../spa/utils/CacheInvalidation.js');
+    const failure = jest.spyOn(cacheInvalidation, 'invalidateForWrite').mockRejectedValueOnce(new Error('quota'));
+
+    const result = await API.post('v1/points', { points: 1 });
+
+    expect(result.success).toBe(true);
+    expect(takeWriteState()).toBe('unconfirmed');
+    failure.mockRestore();
+  });
+});
+

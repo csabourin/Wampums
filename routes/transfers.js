@@ -132,6 +132,8 @@ module.exports = (pool, logger) => {
         }
 
         await client.query('COMMIT');
+        // The destination unit changed too: its sessions catch up on reconnection.
+        res.locals.liveSyncOrganizationIds = [targetOrganizationId];
         logger?.info('Participant transferred', {
           participantId,
           from: organizationId,

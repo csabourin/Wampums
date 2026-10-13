@@ -11,6 +11,9 @@ const pageRequestPaths = new Set();
 const pageCachedRequests = new Map();
 const pageCacheHits = new Set();
 let pageMadeUncachedRead = false;
+let writesInFlight = 0;
+let unconfirmedWriteSinceCheck = false;
+let writeSettledListener = null;
 
 /**
  * Remember the live-sync connection id, sent with each write so the server
@@ -148,4 +151,56 @@ export function pageReadAnyOf({ deletedKeys = [], matchesPath = () => false }) {
     }
   }
   return false;
+}
+
+/**
+ * Record a write sent to the server. The server may tell live sync it has
+ * seen the change before this client has dropped what the write made stale.
+ */
+export function noteWriteStarted() {
+  writesInFlight += 1;
+}
+
+/**
+ * Record that a write's response was handled, its cache invalidation included.
+ * @param {boolean} confirmed - Whether the server confirmed it (not queued, not failed)
+ */
+export function noteWriteSettled(confirmed) {
+  writesInFlight = Math.max(0, writesInFlight - 1);
+  if (!confirmed) {
+    unconfirmedWriteSinceCheck = true;
+  }
+  writeSettledListener?.();
+}
+
+/**
+ * Record that a write succeeded on the server but this client failed to drop
+ * what it made stale, so live sync must not count it as seen.
+ */
+export function noteWriteUnconfirmed() {
+  unconfirmedWriteSinceCheck = true;
+}
+
+/**
+ * @returns {'pending'|'unconfirmed'|'settled'} Whether this client's writes
+ *   have all been handled since the last check, and whether one went
+ *   unconfirmed (a response lost to the network, for instance). Reading an
+ *   'unconfirmed' result clears it.
+ */
+export function takeWriteState() {
+  if (writesInFlight > 0) {
+    return 'pending';
+  }
+  if (unconfirmedWriteSinceCheck) {
+    unconfirmedWriteSinceCheck = false;
+    return 'unconfirmed';
+  }
+  return 'settled';
+}
+
+/**
+ * @param {function(): void|null} listener - Called whenever a write settles
+ */
+export function onWriteSettled(listener) {
+  writeSettledListener = listener;
 }

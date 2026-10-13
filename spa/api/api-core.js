@@ -1,20 +1,20 @@
 // api-core.js
 // Core API request infrastructure for the Wampums application
 import {
-    setCachedData,
-    getCachedData,
-    getCachedDataIgnoreExpiration,
-    clearCachedApiPaths
+  setCachedData,
+  getCachedData,
+  getCachedDataIgnoreExpiration,
+  clearCachedApiPaths
 } from '../indexedDB.js';
 import { CONFIG } from '../config.js';
 import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
 import { getCurrentOrganizationId, getAuthHeader } from './api-helpers.js';
 import { PerformanceMonitor } from '../utils/PerformanceUtils.js';
 import {
-    buildApiCacheKey,
-    buildScopedCacheKey,
-    cachePathsForMutation,
-    normalizeApiPath
+  buildApiCacheKey,
+  buildScopedCacheKey,
+  cachePathsForMutation,
+  normalizeApiPath
 } from '../utils/OfflineCacheKeys.js';
 import { invalidateForWrite } from '../utils/CacheInvalidation.js';
 import {
@@ -22,6 +22,9 @@ import {
   notePageCachedRequest,
   notePageRequestPath,
   notePageUncachedRead,
+  noteWriteSettled,
+  noteWriteStarted,
+  noteWriteUnconfirmed,
 } from '../modules/live-sync/LiveSyncState.js';
 
 /**
@@ -212,10 +215,34 @@ async function invalidateCachedResource(endpoint) {
     } catch (error) {
         // A failed invalidation must never fail the mutation the user just made.
         debugWarn('Cache invalidation after mutation failed:', error);
+        noteWriteUnconfirmed();
     }
 }
 
+/**
+ * Send a request. Writes are tracked until their response is handled, cache
+ * invalidation included, so live sync never counts a change as seen before
+ * this client has dropped what it made stale.
+ * @param {string} endpoint - Endpoint without the API prefix
+ * @param {Object} [options] - Method, params, body, headers…
+ * @returns {Promise<Object>} API response
+ */
 export async function makeApiRequest(endpoint, options = {}) {
+  if ((options.method || 'GET') === 'GET') {
+    return sendApiRequest(endpoint, options);
+  }
+  noteWriteStarted();
+  let confirmed = false;
+  try {
+    const result = await sendApiRequest(endpoint, options);
+    confirmed = Boolean(result?.success) && !result?.queued;
+    return result;
+  } finally {
+    noteWriteSettled(confirmed);
+  }
+}
+
+async function sendApiRequest(endpoint, options = {}) {
     const {
         method = 'GET',
         params = {},
