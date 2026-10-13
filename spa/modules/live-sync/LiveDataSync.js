@@ -106,10 +106,12 @@ function isSafeToRedraw() {
 
 /**
  * @param {*} state - `sync-state` payload
- * @returns {boolean} Whether it names a server run, a unit and a version
+ * @returns {boolean} Whether it names a server run, a unit, its version and
+ *   the shared version (writes no unit could be named for)
  */
 function isSyncState(state) {
-  return typeof state?.run === 'string' && typeof state?.org === 'string' && Number.isInteger(state?.version);
+  return typeof state?.run === 'string' && typeof state?.org === 'string'
+    && Number.isInteger(state?.version) && Number.isInteger(state?.shared);
 }
 
 /**
@@ -118,7 +120,8 @@ function isSyncState(state) {
  * @returns {boolean} True when the server announced nothing while away
  */
 function nothingChangedSince(seen, current) {
-  return Boolean(seen) && seen.run === current.run && seen.org === current.org && seen.version === current.version;
+  return Boolean(seen) && seen.run === current.run && seen.org === current.org
+    && seen.version === current.version && seen.shared === current.shared;
 }
 
 /**
@@ -355,7 +358,7 @@ class LiveDataSync {
    *   whole cache now reflects (first connection, or after a full catch-up)
    */
   recordSeen(state) {
-    this.syncState = { run: state.run, org: state.org, version: state.version };
+    this.syncState = { run: state.run, org: state.org, version: state.version, shared: state.shared };
   }
 
   /**

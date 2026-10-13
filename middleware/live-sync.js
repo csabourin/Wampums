@@ -11,10 +11,16 @@
  *
  * Only the path is sent — no body, no query string — so nothing reaches a
  * session that its own reads would not reveal.
+ *
+ * Writes that are not announced still count, so a reconnecting session knows
+ * it may have missed them: a route that changes another unit names it in
+ * `res.locals.liveSyncOrganizationIds` (that unit's version moves on), and a
+ * write no unit can be named for, such as a public page, moves the shared
+ * version every unit compares.
  */
 const logger = require('../config/logger');
 const socketService = require('../services/socket');
-const { recordChange, syncStateFor } = require('../services/liveSyncState');
+const { recordChange, recordSharedChange, syncStateFor } = require('../services/liveSyncState');
 
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const API_V1_PREFIX = '/api/v1/';
@@ -30,6 +36,13 @@ const SILENT_PATHS = [
   /^\/api\/v1\/users\/permissions\/check$/,
   /^\/api\/v1\/transfers\/preview$/,
   /^\/api\/v1\/ai(\/|$)/,
+];
+
+/** Signed-out writes that change no unit's data, and happen all the time. */
+const UNCOUNTED_PATHS = [
+  /^\/(api\/v1\/auth|api\/auth|public)\/(login|verify-2fa|verify-session|logout|request-reset|reset-password(\/describe)?)$/,
+  /^\/api\/v1\/logout$/,
+  /^\/api\/v1\/public\/contact-demo$/,
 ];
 
 const HTTP_OK_MIN = 200;
@@ -48,6 +61,31 @@ function announcedPath(req) {
 }
 
 /**
+ * @param {import('express').Request} req
+ * @returns {boolean} Whether a signed-out write may have changed some unit's data
+ */
+function isSharedChange(req) {
+  const path = String(req.originalUrl || '').split('?')[0].replace(/\/+$/, '');
+  return !UNCOUNTED_PATHS.some((pattern) => pattern.test(path))
+    && !SILENT_PATHS.some((pattern) => pattern.test(path));
+}
+
+/**
+ * Count changes a route made to units other than the writer's.
+ * @param {import('express').Response} res
+ * @param {number|string|undefined} organizationId - The writer's unit
+ */
+function countOtherUnits(res, organizationId) {
+  const others = Array.isArray(res.locals?.liveSyncOrganizationIds) ? res.locals.liveSyncOrganizationIds : [];
+  new Set(others.map(String))
+    .forEach((other) => {
+      if (other && other !== String(organizationId)) {
+        recordChange(other);
+      }
+    });
+}
+
+/**
  * Express middleware; attach before the routes.
  */
 function liveSyncBroadcaster(req, res, next) {
@@ -62,7 +100,14 @@ function liveSyncBroadcaster(req, res, next) {
     // Set by `authenticate`: public and unauthenticated writes are not announced.
     const organizationId = req.user?.organizationId;
     const path = announcedPath(req);
-    if (!organizationId || !path) {
+    countOtherUnits(res, organizationId);
+    if (!organizationId) {
+      if (isSharedChange(req)) {
+        recordSharedChange();
+      }
+      return;
+    }
+    if (!path) {
       return;
     }
 

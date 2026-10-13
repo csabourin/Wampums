@@ -32,7 +32,7 @@ function openSession(id, room) {
  * @param {Object} options
  * @returns {void}
  */
-function runRequest({ method = 'POST', url, status = 200, user = { organizationId: 12 }, headers = {} }) {
+function runRequest({ method = 'POST', url, status = 200, user = { organizationId: 12 }, headers = {}, locals = {} }) {
   const req = {
     method,
     originalUrl: url,
@@ -41,6 +41,7 @@ function runRequest({ method = 'POST', url, status = 200, user = { organizationI
   };
   const res = new EventEmitter();
   res.statusCode = status;
+  res.locals = locals;
   const next = jest.fn();
 
   liveSyncBroadcaster(req, res, next);
@@ -139,6 +140,52 @@ describe('liveSyncBroadcaster', () => {
     });
 
     expect(() => runRequest({ url: '/api/v1/points' })).not.toThrow();
+  });
+});
+
+describe('writes that are not announced', () => {
+  test('a public page\'s write moves the shared version, announcing nothing', () => {
+    const before = syncStateFor(12).shared;
+
+    runRequest({ url: '/api/v1/public/parent-invitations/accept', user: null });
+
+    expect(syncStateFor(12).shared).toBe(before + 1);
+    expect(mockEmit).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    '/api/v1/auth/login',
+    '/api/v1/auth/verify-2fa',
+    '/api/v1/auth/verify-session',
+    '/api/v1/auth/logout',
+    '/public/login',
+    '/api/v1/public/contact-demo',
+  ])('signing in and the like (%s) do not count', (url) => {
+    const before = syncStateFor(12).shared;
+
+    runRequest({ url, user: null });
+
+    expect(syncStateFor(12).shared).toBe(before);
+  });
+
+  test('a failed public write does not count', () => {
+    const before = syncStateFor(12).shared;
+
+    runRequest({ url: '/api/v1/public/family-links/accept', user: null, status: 400 });
+
+    expect(syncStateFor(12).shared).toBe(before);
+  });
+
+  test('another unit a write changed moves on, without being told what changed', () => {
+    const destination = syncStateFor(31).version;
+    const writer = syncStateFor(12).version;
+
+    runRequest({ url: '/api/v1/transfers', locals: { liveSyncOrganizationIds: [31, 31, 12] } });
+
+    expect(syncStateFor(31).version).toBe(destination + 1);
+    expect(syncStateFor(12).version).toBe(writer + 1);
+    expect(mockTo).toHaveBeenCalledTimes(1);
+    expect(mockTo).toHaveBeenCalledWith('org-12');
   });
 });
 

@@ -1,11 +1,11 @@
 /**
  * What a reconnecting session compares to tell whether it missed a change.
  */
-const { recordChange, syncStateFor } = require('../services/liveSyncState');
+const { recordChange, recordSharedChange, syncStateFor } = require('../services/liveSyncState');
 
 describe('live sync state', () => {
   test('a unit nobody changed is at version 0', () => {
-    expect(syncStateFor(901)).toEqual({ run: expect.any(String), org: '901', version: 0 });
+    expect(syncStateFor(901)).toEqual({ run: expect.any(String), org: '901', version: 0, shared: expect.any(Number) });
   });
 
   test('each change moves only its own unit forward', () => {
@@ -20,5 +20,14 @@ describe('live sync state', () => {
   test('names this server run, so a restarted server is told apart', () => {
     expect(syncStateFor(902).run).toBe(syncStateFor(903).run);
     expect(syncStateFor(902).run).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  test('a write no unit could be named for moves every unit\'s shared version', () => {
+    const before = syncStateFor(904).shared;
+
+    recordSharedChange();
+
+    expect(syncStateFor(904).shared).toBe(before + 1);
+    expect(syncStateFor(905).shared).toBe(before + 1);
   });
 });

@@ -276,7 +276,7 @@ describe('returning from the background', () => {
   const { offlineManager } = jest.requireMock('../../spa/modules/OfflineManager.js');
   const SYNC_STATE_WAIT_MS = 3000;
   const SETTLE_MS = SYNC_STATE_WAIT_MS + REDRAW_DEBOUNCE_MS;
-  const state = (overrides = {}) => ({ run: 'run-1', org: '12', version: 5, ...overrides });
+  const state = (overrides = {}) => ({ run: 'run-1', org: '12', version: 5, shared: 0, ...overrides });
 
   /**
    * The socket connects, as when the app opens, and hears the server's state.
@@ -334,6 +334,22 @@ describe('returning from the background', () => {
     expect(applyInvalidation).toHaveBeenCalledTimes(2);
   });
 
+  test('a write no unit was named for (a public page) is caught up', async () => {
+    await connect(state({ shared: 1 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('an own write acknowledged while a shared write happened leaves the shared one to catch up', async () => {
+    noteWriteStarted();
+    mockSocketHandlers['sync-state'](state({ version: 6, shared: 1 }));
+    noteWriteSettled(true);
+
+    await connect(state({ version: 6, shared: 1 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
   test('a server that sends no state is caught up after a short wait', async () => {
     await connect(null);
 
@@ -364,7 +380,7 @@ describe('returning from the background', () => {
   });
 
   test('a malformed state is ignored, and the reconnection caught up', async () => {
-    await connect({ run: 'run-1', org: 12, version: '5' });
+    await connect({ run: 'run-1', org: 12, version: '5', shared: 0 });
 
     expect(applyInvalidation).toHaveBeenCalledTimes(1);
   });
