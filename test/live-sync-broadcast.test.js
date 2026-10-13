@@ -146,6 +146,17 @@ describe('liveSyncBroadcaster', () => {
     expect(writer.emit).toHaveBeenCalledWith('sync-state', { org: '12', version: 1, shared: 0 });
   });
 
+  test('when the writer\'s acknowledgement cannot be read, the other sessions are still told', async () => {
+    const writer = openSession('Writer123', 'org-12');
+    const realQuery = mockPool.query.getMockImplementation();
+    mockPool.query.mockImplementationOnce(realQuery).mockRejectedValueOnce(new Error('connection terminated'));
+
+    await runRequest({ url: '/api/v1/points', headers: { 'x-live-sync-client': 'Writer123' } });
+
+    expect(mockEmit).toHaveBeenCalledWith('data-changed', { path: '/api/v1/points', version: 1 });
+    expect(writer.emit).not.toHaveBeenCalled();
+  });
+
   test('a write that fails changes no version', async () => {
     const before = versionOf(12);
 
@@ -238,6 +249,15 @@ describe('writes that are not announced', () => {
     await runRequest({ url: '/api/v1/public/family-links/accept', user: null, status: 400 });
 
     expect(versionOf(0)).toBe(before);
+  });
+
+  test('a destination unit that could not be counted does not stop the writer\'s unit being told', async () => {
+    mockPool.query.mockRejectedValueOnce(new Error('connection terminated'));
+
+    await runRequest({ url: '/api/v1/transfers', locals: { liveSyncOrganizationIds: [31] } });
+
+    expect(versionOf(12)).toBe(1);
+    expect(mockEmit).toHaveBeenCalledWith('data-changed', { path: '/api/v1/transfers', version: 1 });
   });
 
   test('another unit a write changed moves on, without being told what changed', async () => {

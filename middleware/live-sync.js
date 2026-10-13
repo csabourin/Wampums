@@ -82,7 +82,13 @@ function isSharedChange(req) {
 async function countOtherUnits(pool, res, organizationId) {
   const others = Array.isArray(res.locals?.liveSyncOrganizationIds) ? res.locals.liveSyncOrganizationIds : [];
   const units = [...new Set(others.map(String))].filter((other) => other && other !== String(organizationId));
-  await Promise.all(units.map((other) => recordChange(pool, other)));
+  // Each on its own: a failure here must not stop the writer's unit being counted and told.
+  const results = await Promise.allSettled(units.map((other) => recordChange(pool, other)));
+  results.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      logger.warn(`Live sync change not counted for unit ${units[index]}: ${result.reason?.message}`);
+    }
+  });
 }
 
 /**
@@ -120,19 +126,19 @@ async function countAndAnnounce(req, res) {
   }
   const io = socketService.getIO();
   const roomName = `org-${organizationId}`;
-  let room = io.to(roomName);
   const originId = req.get(CLIENT_HEADER);
-  if (originId && SOCKET_ID_PATTERN.test(originId)) {
-    room = room.except(originId);
-    // The header comes from the client: only a session of this unit hears back.
-    const origin = io.sockets?.sockets?.get(originId);
-    if (version !== null && origin?.rooms?.has(roomName)) {
-      // The writer's own version: a later one could include changes it has not applied.
-      const state = await syncStateFor(pool, organizationId);
-      origin.emit(SYNC_STATE_EVENT, { ...state, version });
-    }
-  }
+  const validOrigin = Boolean(originId) && SOCKET_ID_PATTERN.test(originId);
+  const room = validOrigin ? io.to(roomName).except(originId) : io.to(roomName);
+  // The other sessions first: acknowledging the writer needs a read that may fail.
   room.emit(DATA_CHANGED_EVENT, version === null ? { path } : { path, version });
+
+  // The header comes from the client: only a session of this unit hears back.
+  const origin = validOrigin ? io.sockets?.sockets?.get(originId) : null;
+  if (version !== null && origin?.rooms?.has(roomName)) {
+    // The writer's own version: a later one could include changes it has not applied.
+    const state = await syncStateFor(pool, organizationId);
+    origin.emit(SYNC_STATE_EVENT, { ...state, version });
+  }
 }
 
 /**
