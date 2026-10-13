@@ -401,6 +401,34 @@ function repeatableCacheOptions({ forceRefresh: _forceRefresh, ...options }) {
 }
 
 /**
+ * Record a cached read made by the page on display. A replay of one (live sync
+ * fetching it again, marked by `isCurrent`) is not a new read by the page.
+ * @param {string} cacheKey - Scoped cache key the read fills
+ * @param {string} endpoint - Endpoint as requested
+ * @param {Object} options - Request options
+ * @param {Object} cacheOptions - Cache options
+ */
+function recordPageRead(cacheKey, endpoint, options, cacheOptions) {
+  if (typeof cacheOptions.isCurrent !== 'function') {
+    notePageCachedRequest(cacheKey, endpoint, options, repeatableCacheOptions(cacheOptions));
+  }
+}
+
+/**
+ * A replay the page no longer wants (it moved on, or asked again with another
+ * filter) must not overwrite the entry the page now fills.
+ * @param {Object} result - API response
+ * @param {Object} cacheOptions - Cache options, with an optional `isCurrent`
+ * @returns {boolean} Whether to store the response
+ */
+function shouldCache(result, cacheOptions) {
+  if (!result?.success) {
+    return false;
+  }
+  return typeof cacheOptions.isCurrent !== 'function' || cacheOptions.isCurrent();
+}
+
+/**
  * Live sync fetches a page's cached reads again before redrawing it; a read
  * no cache keeps would still wait on the network during the redraw.
  * @param {boolean} cached - Whether the read is made for a cached request
@@ -424,7 +452,7 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
         forceRefresh = false
     } = cacheOptions;
     const cacheKey = buildScopedCacheKey(requestedCacheKey);
-    notePageCachedRequest(cacheKey, endpoint, options, repeatableCacheOptions(cacheOptions));
+    recordPageRead(cacheKey, endpoint, options, cacheOptions);
 
     // Create a unique request key for deduplication
     const requestKey = `${endpoint}-${JSON.stringify(options)}`;
@@ -459,7 +487,7 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
             const result = await makeApiRequest(endpoint, { ...options, cached: true });
 
             // Cache successful results
-            if (result.success) {
+            if (shouldCache(result, cacheOptions)) {
                 try {
                     await setCachedData(cacheKey, result, cacheDuration, {
                         sources: [normalizeApiPath(endpoint)]

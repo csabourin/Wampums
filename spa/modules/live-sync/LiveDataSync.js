@@ -15,7 +15,13 @@ import { loadSocketIOClient } from '../../utils/SocketIOClient.js';
 import { debugLog, debugWarn } from '../../utils/DebugUtils.js';
 import { CONFIG } from '../../config.js';
 import { makeApiRequestWithCache } from '../../api/api-core.js';
-import { getPageCachedRequests, pageReadAnyOf, pageReadsAreReplayable, setLiveSyncClientId } from './LiveSyncState.js';
+import {
+  getPageCachedRequests,
+  isPageCachedRequestCurrent,
+  pageReadAnyOf,
+  pageReadsAreReplayable,
+  setLiveSyncClientId,
+} from './LiveSyncState.js';
 
 const DATA_CHANGED_EVENT = 'data-changed';
 const TOKEN_STORAGE_KEY = 'jwtToken';
@@ -100,12 +106,18 @@ function currentLocation() {
 /**
  * Fetch again the cached data the screen on display read, so that redrawing
  * it reads the cache instead of waiting on the network. A request that fails
- * is left for the screen itself to report when it redraws.
+ * is left for the screen itself to report when it redraws. A response that
+ * arrives after the page moved on is not stored.
  * @returns {Promise<void>}
  */
 async function refetchPageData() {
-  await Promise.allSettled(getPageCachedRequests().map(({ endpoint, options, cacheOptions }) =>
-    makeApiRequestWithCache(endpoint, options, { ...cacheOptions, forceRefresh: true })));
+  await Promise.allSettled(getPageCachedRequests().map((request) =>
+    makeApiRequestWithCache(request.endpoint, request.options, {
+      ...request.cacheOptions,
+      forceRefresh: true,
+      // Stored only while the page still reads its entry through this request.
+      isCurrent: () => isPageCachedRequestCurrent(request),
+    })));
 }
 
 /**

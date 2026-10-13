@@ -52,7 +52,7 @@ jest.mock('../../spa/modules/OfflineManager.js', () => ({
   },
 }));
 
-import { API } from '../../spa/api/api-core.js';
+import { API, makeApiRequestWithCache } from '../../spa/api/api-core.js';
 import {
   setCachedData,
   getCachedData,
@@ -318,6 +318,27 @@ describe('what live sync fetches again before redrawing a screen', () => {
     await API.get('v1/groups', {}, { cacheKey: 'groups' });
 
     expect(pageReadsAreReplayable()).toBe(true);
+  });
+
+  test('a replay the page no longer wants does not overwrite its entry, nor count as a read', async () => {
+    global.fetch = jest.fn((url) => Promise.resolve({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'application/json' },
+      json: () => Promise.resolve({ success: true, data: [String(url).includes('camp') ? 'camp' : 'food'] }),
+    }));
+    await API.get('v1/expenses', { category: 'food' }, { cacheKey: 'budget_expenses' });
+    const recorded = getPageCachedRequests();
+
+    await makeApiRequestWithCache('v1/expenses', { params: { category: 'camp' } }, {
+      cacheKey: 'budget_expenses',
+      forceRefresh: true,
+      isCurrent: () => false,
+    });
+
+    expect(getPageCachedRequests()).toEqual(recorded);
+    expect(await getCachedData('budget_expenses')).toEqual({ success: true, data: ['food'] });
+    expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 
   test('a read no cache keeps cannot be fetched in advance', async () => {

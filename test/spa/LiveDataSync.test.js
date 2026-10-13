@@ -154,9 +154,23 @@ describe('live sync redraw', () => {
     expect(mockApiGet).toHaveBeenCalledWith(
       'v1/points',
       { params: { group: 3 } },
-      { cacheDuration: 60000, forceRefresh: true },
+      { cacheDuration: 60000, forceRefresh: true, isCurrent: expect.any(Function) },
     );
     expect(order).toEqual(['refetch', 'redraw']);
+  });
+
+  test('a refetch answered after the page asked again with another filter is not stored', async () => {
+    let replayIsCurrent = null;
+    mockApiGet.mockImplementation((endpoint, options, cacheOptions) => {
+      // The person changes the filter while the refetch is in flight.
+      notePageCachedRequest('points_group_3', 'v1/points', { params: { group: 4 } }, { cacheDuration: 60000 });
+      replayIsCurrent = cacheOptions.isCurrent();
+      return Promise.resolve({ success: true });
+    });
+
+    await pointsChangedElsewhere();
+
+    expect(replayIsCurrent).toBe(false);
   });
 
   test('a failed refetch still redraws, leaving the screen to report the error', async () => {

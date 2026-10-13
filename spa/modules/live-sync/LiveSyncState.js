@@ -71,6 +71,20 @@ export function getPageCachedRequests() {
 }
 
 /**
+ * @param {Object} request - One of getPageCachedRequests()
+ * @returns {boolean} Whether the page still reads its entry through this
+ *   request: false once it navigated, or asked again with other parameters
+ */
+export function isPageCachedRequestCurrent(request) {
+  for (const recorded of pageCachedRequests.values()) {
+    if (recorded === request) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Record a cache entry the current page found and used. An entry no recorded
  * request fills (a snapshot a screen stores itself) cannot be fetched again in
  * advance: once cleared, the screen would rebuild it from the network.
