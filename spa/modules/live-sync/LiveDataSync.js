@@ -193,6 +193,7 @@ class LiveDataSync {
     this.awaitingConnectionState = false;
     this.reconnected = false;
     this.pendingWriteStates = [];
+    this.fallbackCatchUp = null;
     this.syncStateTimer = null;
     this.onVisibilityChange = () => this.checkToken();
   }
@@ -246,6 +247,7 @@ class LiveDataSync {
     onWriteSettled(null);
     this.syncState = null;
     this.awaitingConnectionState = false;
+    this.fallbackCatchUp = null;
     this.pendingWriteStates = [];
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.socket?.disconnect();
@@ -264,11 +266,12 @@ class LiveDataSync {
     // changes were announced while this session was away.
     this.awaitingConnectionState = true;
     this.reconnected = this.hasConnectedBefore;
+    this.fallbackCatchUp = null;
     clearTimeout(this.syncStateTimer);
     if (this.reconnected) {
       this.syncStateTimer = setTimeout(() => {
-        this.awaitingConnectionState = false;
-        this.catchUp(null);
+        // Still awaiting the connection's state, but no longer to decide.
+        this.fallbackCatchUp = this.catchUp(null);
       }, SYNC_STATE_WAIT_MS);
     }
     this.hasConnectedBefore = true;
@@ -290,6 +293,16 @@ class LiveDataSync {
     }
     this.awaitingConnectionState = false;
     clearTimeout(this.syncStateTimer);
+    if (this.fallbackCatchUp) {
+      // Arrived after the wait: seen once the catch-up already under way succeeds.
+      this.fallbackCatchUp.then((caughtUp) => {
+        if (caughtUp) {
+          this.recordSeen(state);
+        }
+      });
+      this.fallbackCatchUp = null;
+      return;
+    }
     if (!this.reconnected) {
       this.recordSeen(state);
       return;
@@ -350,19 +363,24 @@ class LiveDataSync {
    * server's state is recorded only once that is done: offline, in camp mode,
    * or if it fails, the next reconnection tries again.
    * @param {Object|null} state - Server state to record afterwards
+   * @returns {Promise<boolean>} Whether the cache was cleared
    */
   catchUp(state) {
     if (!isLiveSyncActive()) {
-      return;
+      return Promise.resolve(false);
     }
-    applyInvalidation(planFullRefresh())
+    return applyInvalidation(planFullRefresh())
       .then((invalidation) => {
         if (state) {
           this.recordSeen(state);
         }
         this.redrawIfShown(invalidation);
+        return true;
       })
-      .catch((error) => debugWarn('Live sync catch-up failed:', error));
+      .catch((error) => {
+        debugWarn('Live sync catch-up failed:', error);
+        return false;
+      });
   }
 
   /**

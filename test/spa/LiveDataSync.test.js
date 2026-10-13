@@ -418,5 +418,27 @@ describe('returning from the background', () => {
 
     expect(applyInvalidation).toHaveBeenCalledTimes(1);
   });
-});
 
+  test('a state arriving after the wait is counted once the catch-up it outlasted succeeds', async () => {
+    await connect(null);
+    mockSocketHandlers['sync-state'](state({ version: 6 }));
+    await jest.advanceTimersByTimeAsync(SETTLE_MS);
+    applyInvalidation.mockClear();
+
+    await connect(state({ version: 6 }));
+
+    expect(applyInvalidation).not.toHaveBeenCalled();
+  });
+
+  test('a state arriving after a catch-up that failed is not counted', async () => {
+    applyInvalidation.mockRejectedValueOnce(new Error('IndexedDB unavailable'));
+    await connect(null);
+    mockSocketHandlers['sync-state'](state({ version: 6 }));
+    await jest.advanceTimersByTimeAsync(SETTLE_MS);
+    applyInvalidation.mockClear();
+
+    await connect(state({ version: 6 }));
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+});

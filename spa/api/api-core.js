@@ -1,20 +1,20 @@
 // api-core.js
 // Core API request infrastructure for the Wampums application
 import {
-    setCachedData,
-    getCachedData,
-    getCachedDataIgnoreExpiration,
-    clearCachedApiPaths
+  setCachedData,
+  getCachedData,
+  getCachedDataIgnoreExpiration,
+  clearCachedApiPaths
 } from '../indexedDB.js';
 import { CONFIG } from '../config.js';
 import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
 import { getCurrentOrganizationId, getAuthHeader } from './api-helpers.js';
 import { PerformanceMonitor } from '../utils/PerformanceUtils.js';
 import {
-    buildApiCacheKey,
-    buildScopedCacheKey,
-    cachePathsForMutation,
-    normalizeApiPath
+  buildApiCacheKey,
+  buildScopedCacheKey,
+  cachePathsForMutation,
+  normalizeApiPath
 } from '../utils/OfflineCacheKeys.js';
 import { invalidateForWrite } from '../utils/CacheInvalidation.js';
 import {
@@ -24,6 +24,7 @@ import {
   notePageUncachedRead,
   noteWriteSettled,
   noteWriteStarted,
+  noteWriteUnconfirmed,
 } from '../modules/live-sync/LiveSyncState.js';
 
 /**
@@ -214,6 +215,7 @@ async function invalidateCachedResource(endpoint) {
     } catch (error) {
         // A failed invalidation must never fail the mutation the user just made.
         debugWarn('Cache invalidation after mutation failed:', error);
+        noteWriteUnconfirmed();
     }
 }
 

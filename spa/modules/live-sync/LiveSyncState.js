@@ -174,6 +174,14 @@ export function noteWriteSettled(confirmed) {
 }
 
 /**
+ * Record that a write succeeded on the server but this client failed to drop
+ * what it made stale, so live sync must not count it as seen.
+ */
+export function noteWriteUnconfirmed() {
+  unconfirmedWriteSinceCheck = true;
+}
+
+/**
  * @returns {'pending'|'unconfirmed'|'settled'} Whether this client's writes
  *   have all been handled since the last check, and whether one went
  *   unconfirmed (a response lost to the network, for instance). Reading an

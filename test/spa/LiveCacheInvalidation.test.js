@@ -395,5 +395,17 @@ describe('whether this client has handled its own writes', () => {
 
     expect(takeWriteState()).toBe('unconfirmed');
   });
+
+  test('a write whose cache could not be cleared is unconfirmed', async () => {
+    takeWriteState();
+    const cacheInvalidation = jest.requireActual('../../spa/utils/CacheInvalidation.js');
+    const failure = jest.spyOn(cacheInvalidation, 'invalidateForWrite').mockRejectedValueOnce(new Error('quota'));
+
+    const result = await API.post('v1/points', { points: 1 });
+
+    expect(result.success).toBe(true);
+    expect(takeWriteState()).toBe('unconfirmed');
+    failure.mockRestore();
+  });
 });
 
