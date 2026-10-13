@@ -7,7 +7,8 @@
  * that change made stale. The session that made the write names its own
  * connection in the X-Live-Sync-Client header and is left out; it receives
  * the unit's new `sync-state` instead, so it knows it has seen this change.
- * Every announcement carries the unit's version (services/liveSyncState.js).
+ * Every announcement carries the unit's version (services/liveSyncState.js),
+ * counted in the database so every server instance sees the same ones.
  *
  * Only the path is sent — no body, no query string — so nothing reaches a
  * session that its own reads would not reveal.
@@ -46,6 +47,7 @@ const UNCOUNTED_PATHS = [
 ];
 
 const HTTP_OK_MIN = 200;
+const HTTP_ACCEPTED = 202;
 const HTTP_OK_MAX = 299;
 
 /**
@@ -72,17 +74,64 @@ function isSharedChange(req) {
 
 /**
  * Count changes a route made to units other than the writer's.
+ * @param {import('pg').Pool} pool - Database pool
  * @param {import('express').Response} res
  * @param {number|string|undefined} organizationId - The writer's unit
+ * @returns {Promise<void>}
  */
-function countOtherUnits(res, organizationId) {
+async function countOtherUnits(pool, res, organizationId) {
   const others = Array.isArray(res.locals?.liveSyncOrganizationIds) ? res.locals.liveSyncOrganizationIds : [];
-  new Set(others.map(String))
-    .forEach((other) => {
-      if (other && other !== String(organizationId)) {
-        recordChange(other);
-      }
-    });
+  const units = [...new Set(others.map(String))].filter((other) => other && other !== String(organizationId));
+  await Promise.all(units.map((other) => recordChange(pool, other)));
+}
+
+/**
+ * Count a finished write and announce it to the writer's unit.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @returns {Promise<void>}
+ */
+async function countAndAnnounce(req, res) {
+  const pool = req.app?.locals?.pool;
+  if (!pool) {
+    return;
+  }
+  // Set by `authenticate`: public and unauthenticated writes are not announced.
+  const organizationId = req.user?.organizationId;
+  const path = announcedPath(req);
+  await countOtherUnits(pool, res, organizationId);
+  if (!organizationId) {
+    if (isSharedChange(req)) {
+      await recordSharedChange(pool);
+    }
+    return;
+  }
+  if (!path) {
+    return;
+  }
+
+  const version = await recordChange(pool, organizationId);
+  // 202 Accepted: the write is still under way. Counted, so a reconnection
+  // catches it up, but neither announced nor acknowledged, since a session
+  // refreshing now could read the data before the write lands.
+  if (res.statusCode === HTTP_ACCEPTED) {
+    return;
+  }
+  const io = socketService.getIO();
+  const roomName = `org-${organizationId}`;
+  let room = io.to(roomName);
+  const originId = req.get(CLIENT_HEADER);
+  if (originId && SOCKET_ID_PATTERN.test(originId)) {
+    room = room.except(originId);
+    // The header comes from the client: only a session of this unit hears back.
+    const origin = io.sockets?.sockets?.get(originId);
+    if (origin?.rooms?.has(roomName)) {
+      // The writer's own version: a later one could include changes it has not applied.
+      const state = await syncStateFor(pool, organizationId);
+      origin.emit(SYNC_STATE_EVENT, { ...state, version });
+    }
+  }
+  room.emit(DATA_CHANGED_EVENT, { path, version });
 }
 
 /**
@@ -97,39 +146,11 @@ function liveSyncBroadcaster(req, res, next) {
     if (res.statusCode < HTTP_OK_MIN || res.statusCode > HTTP_OK_MAX) {
       return;
     }
-    // Set by `authenticate`: public and unauthenticated writes are not announced.
-    const organizationId = req.user?.organizationId;
-    const path = announcedPath(req);
-    countOtherUnits(res, organizationId);
-    if (!organizationId) {
-      if (isSharedChange(req)) {
-        recordSharedChange();
-      }
-      return;
-    }
-    if (!path) {
-      return;
-    }
-
-    try {
-      const io = socketService.getIO();
-      const roomName = `org-${organizationId}`;
-      const version = recordChange(organizationId);
-      let room = io.to(roomName);
-      const originId = req.get(CLIENT_HEADER);
-      if (originId && SOCKET_ID_PATTERN.test(originId)) {
-        room = room.except(originId);
-        // The header comes from the client: only a session of this unit hears back.
-        const origin = io.sockets?.sockets?.get(originId);
-        if (origin?.rooms?.has(roomName)) {
-          origin.emit(SYNC_STATE_EVENT, syncStateFor(organizationId));
-        }
-      }
-      room.emit(DATA_CHANGED_EVENT, { path, version });
-    } catch (error) {
+    countAndAnnounce(req, res).catch((error) => {
       // Never let the announcement affect a write that already succeeded.
-      logger.warn(`Live sync announcement failed for ${path}: ${error.message}`);
-    }
+      const path = String(req.originalUrl || '').split('?')[0];
+      logger.warn(`Live sync announcement failed for ${req.method} ${path}: ${error.message}`);
+    });
   });
 
   return next();

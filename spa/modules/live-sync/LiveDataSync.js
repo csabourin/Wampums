@@ -113,12 +113,11 @@ function isSafeToRedraw() {
 
 /**
  * @param {*} state - `sync-state` payload
- * @returns {boolean} Whether it names a server run, a unit, its version and
- *   the shared version (writes no unit could be named for)
+ * @returns {boolean} Whether it names a unit, its version and the shared
+ *   version (writes no unit could be named for)
  */
 function isSyncState(state) {
-  return typeof state?.run === 'string' && typeof state?.org === 'string'
-    && Number.isInteger(state?.version) && Number.isInteger(state?.shared);
+  return typeof state?.org === 'string' && Number.isInteger(state?.version) && Number.isInteger(state?.shared);
 }
 
 /**
@@ -127,7 +126,7 @@ function isSyncState(state) {
  * @returns {boolean} True when the server announced nothing while away
  */
 function nothingChangedSince(seen, current) {
-  return Boolean(seen) && seen.run === current.run && seen.org === current.org
+  return Boolean(seen) && seen.org === current.org
     && seen.version === current.version && seen.shared === current.shared;
 }
 
@@ -301,8 +300,9 @@ class LiveDataSync {
     if (!isSyncState(state)) {
       return;
     }
-    if (!this.awaitingConnectionState) {
-      // After one of this session's own writes: seen once its response is handled.
+    // The connection's state is marked; anything else follows one of this
+    // session's own writes, and is seen once its response is handled.
+    if (!this.awaitingConnectionState || state.connection !== true) {
       this.pendingWriteStates.push(state);
       this.acceptPendingWriteState();
       return;
@@ -359,11 +359,11 @@ class LiveDataSync {
   /**
    * Count one more change as seen, only when it directly follows the last one
    * seen: a gap means a change this session never applied.
-   * @param {{ run?: string, org?: string, version: number }} state - Version just applied
+   * @param {{ org?: string, version: number }} state - Version just applied
    */
   advanceSeen(state) {
     const seen = this.syncState;
-    if (!seen || (state.run && state.run !== seen.run) || (state.org && state.org !== seen.org)) {
+    if (!seen || (state.org && state.org !== seen.org)) {
       return;
     }
     if (state.version === seen.version + 1) {
@@ -372,11 +372,11 @@ class LiveDataSync {
   }
 
   /**
-   * @param {{ run: string, org: string, version: number }} state - State the
+   * @param {{ org: string, version: number, shared: number }} state - State the
    *   whole cache now reflects (first connection, or after a full catch-up)
    */
   recordSeen(state) {
-    this.syncState = { run: state.run, org: state.org, version: state.version, shared: state.shared };
+    this.syncState = { org: state.org, version: state.version, shared: state.shared };
   }
 
   /**

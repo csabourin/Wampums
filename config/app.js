@@ -27,7 +27,7 @@ function createApp() {
     app.use(generalLimiter);
 
     // 3. Initialize Socket.IO
-    const io = socketService.init(server);
+    const io = socketService.init(server, pool);
 
     // 4. Initialize Services (WhatsApp, etc.)
     const serviceManager = require("../services/manager");

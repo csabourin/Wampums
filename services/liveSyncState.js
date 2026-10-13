@@ -1,51 +1,69 @@
 /**
- * How many changes this server has announced to each unit.
+ * How many changes the server has counted for each unit.
  *
  * Each announced write bumps its unit's version. A session that reconnects
  * compares the version it last saw with the one sent on connection: when they
- * match, nothing was announced while it was away, and it keeps its cache and
+ * match, nothing was counted while it was away, and it keeps its cache and
  * the screen on display instead of rebuilding them.
  *
- * Versions live in memory, as the Socket.IO rooms do. `run` names this server
- * process, so a session that reconnects to a restarted server always catches up.
- * `shared` counts writes no unit could be named for (public pages, webhooks):
- * any of them makes every reconnecting session catch up, as before.
+ * Several server instances serve the app at once, so the counts live in
+ * PostgreSQL (migrations/028_live_sync_versions.sql) and every instance sees
+ * the same ones. Row 0, `shared`, counts writes no unit could be named for
+ * (public pages, webhooks): any of them makes every reconnecting session catch
+ * up.
  */
-const crypto = require('crypto');
-
-const SERVER_RUN_ID = crypto.randomUUID();
-const versions = new Map();
-let sharedVersion = 0;
+const SHARED_ROW = 0;
 
 /**
- * Count one announced change for a unit.
- * @param {number|string} organizationId - Unit the change belongs to
- * @returns {number} The unit's new version
+ * @param {import('pg').Pool} pool - Database pool
+ * @param {number} organizationId - Row to count in
+ * @returns {Promise<number>} The row's new version
  */
-function recordChange(organizationId) {
-  const key = String(organizationId);
-  const version = (versions.get(key) || 0) + 1;
-  versions.set(key, version);
-  return version;
+async function increment(pool, organizationId) {
+  const result = await pool.query(
+    `INSERT INTO live_sync_versions (organization_id, version, updated_at)
+     VALUES ($1, 1, NOW())
+     ON CONFLICT (organization_id) DO UPDATE
+       SET version = live_sync_versions.version + 1, updated_at = NOW()
+     RETURNING version`,
+    [organizationId],
+  );
+  return Number(result.rows[0].version);
+}
+
+/**
+ * Count one change for a unit.
+ * @param {import('pg').Pool} pool - Database pool
+ * @param {number|string} organizationId - Unit the change belongs to
+ * @returns {Promise<number>} The unit's new version
+ */
+function recordChange(pool, organizationId) {
+  return increment(pool, Number(organizationId));
 }
 
 /**
  * Count one change no unit could be named for.
- * @returns {number} The new shared version
+ * @param {import('pg').Pool} pool - Database pool
+ * @returns {Promise<number>} The new shared version
  */
-function recordSharedChange() {
-  sharedVersion += 1;
-  return sharedVersion;
+function recordSharedChange(pool) {
+  return increment(pool, SHARED_ROW);
 }
 
 /**
+ * @param {import('pg').Pool} pool - Database pool
  * @param {number|string} organizationId - Unit
- * @returns {{ run: string, org: string, version: number, shared: number }}
- *   What a session of that unit compares on reconnection
+ * @returns {Promise<{ org: string, version: number, shared: number }>} What a
+ *   session of that unit compares on reconnection
  */
-function syncStateFor(organizationId) {
-  const key = String(organizationId);
-  return { run: SERVER_RUN_ID, org: key, version: versions.get(key) || 0, shared: sharedVersion };
+async function syncStateFor(pool, organizationId) {
+  const unit = Number(organizationId);
+  const result = await pool.query(
+    'SELECT organization_id, version FROM live_sync_versions WHERE organization_id = ANY($1::int[])',
+    [[unit, SHARED_ROW]],
+  );
+  const versionOf = (id) => Number(result.rows.find((row) => Number(row.organization_id) === id)?.version || 0);
+  return { org: String(unit), version: versionOf(unit), shared: versionOf(SHARED_ROW) };
 }
 
 module.exports = { recordChange, recordSharedChange, syncStateFor };

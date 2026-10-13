@@ -1,33 +1,27 @@
 /**
  * What a reconnecting session compares to tell whether it missed a change.
+ * The counting itself runs against PostgreSQL in live-sync-state.integration.test.js.
  */
 const { recordChange, recordSharedChange, syncStateFor } = require('../services/liveSyncState');
 
-describe('live sync state', () => {
-  test('a unit nobody changed is at version 0', () => {
-    expect(syncStateFor(901)).toEqual({ run: expect.any(String), org: '901', version: 0, shared: expect.any(Number) });
-  });
+test('a unit nobody changed is at version 0, as is the shared row', async () => {
+  const pool = { query: jest.fn(() => Promise.resolve(({ rows: [] }))) };
 
-  test('each change moves only its own unit forward', () => {
-    recordChange(902);
-    recordChange(902);
-    recordChange(903);
+  await expect(syncStateFor(pool, 901)).resolves.toEqual({ org: '901', version: 0, shared: 0 });
+  expect(pool.query.mock.calls[0][1]).toEqual([[901, 0]]);
+});
 
-    expect(syncStateFor(902).version).toBe(2);
-    expect(syncStateFor(903).version).toBe(1);
-  });
+test('versions read back as numbers, whatever the driver returns', async () => {
+  const pool = { query: jest.fn(() => Promise.resolve(({ rows: [{ organization_id: '902', version: '7' }, { organization_id: 0, version: '3' }] }))) };
 
-  test('names this server run, so a restarted server is told apart', () => {
-    expect(syncStateFor(902).run).toBe(syncStateFor(903).run);
-    expect(syncStateFor(902).run).toMatch(/^[0-9a-f-]{36}$/);
-  });
+  await expect(syncStateFor(pool, '902')).resolves.toEqual({ org: '902', version: 7, shared: 3 });
+});
 
-  test('a write no unit could be named for moves every unit\'s shared version', () => {
-    const before = syncStateFor(904).shared;
+test('a change is counted in its unit\'s row, a shared one in row 0', async () => {
+  const pool = { query: jest.fn(() => Promise.resolve(({ rows: [{ version: 1 }] }))) };
 
-    recordSharedChange();
+  await recordChange(pool, '903');
+  await recordSharedChange(pool);
 
-    expect(syncStateFor(904).shared).toBe(before + 1);
-    expect(syncStateFor(905).shared).toBe(before + 1);
-  });
+  expect(pool.query.mock.calls.map(([, params]) => params)).toEqual([[903], [0]]);
 });

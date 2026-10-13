@@ -10,9 +10,10 @@ let io;
  * Initialize Socket.IO
  * 
  * @param {http.Server} server - The HTTP server instance
+ * @param {import('pg').Pool} [pool] - Database pool, for the live-sync state
  * @returns {SocketIO} The Socket.IO server instance
  */
-function init(server) {
+function init(server, pool) {
   io = new SocketIO(server, {
     // Same allow-list as the HTTP API; allowRequest also covers WebSocket
     // upgrades, which CORS does not.
@@ -52,8 +53,13 @@ function init(server) {
 
     if (socket.organizationId) {
       socket.join(`org-${socket.organizationId}`);
-      // Lets a reconnecting session tell whether it missed any change.
-      socket.emit('sync-state', syncStateFor(socket.organizationId));
+      // Lets a reconnecting session tell whether it missed any change. Marked
+      // as the connection's, since a write's acknowledgement can arrive first.
+      if (pool) {
+        syncStateFor(pool, socket.organizationId)
+          .then((state) => socket.emit('sync-state', { ...state, connection: true }))
+          .catch((error) => logger.warn(`Live sync state unavailable: ${error.message}`));
+      }
     }
 
     socket.on('disconnect', () => {

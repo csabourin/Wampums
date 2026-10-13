@@ -14,7 +14,10 @@ jest.mock('socket.io', () => ({
 jest.mock('../config/logger', () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn() }));
 
 const socketService = require('../services/socket');
-const { recordChange, syncStateFor } = require('../services/liveSyncState');
+
+const mockPool = {
+  query: jest.fn(() => Promise.resolve({ rows: [{ organization_id: 77, version: '4' }, { organization_id: 0, version: 2 }] })),
+};
 
 /**
  * @param {Object} overrides - Fields of the authenticated socket
@@ -26,23 +29,34 @@ function connectSocket(overrides) {
   return socket;
 }
 
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
 beforeAll(() => {
-  socketService.init({});
+  socketService.init({}, mockPool);
 });
 
-test("a session joins its unit and is told the unit's current version", () => {
-  recordChange(77);
-
+test('a session joins its unit and is told the unit\'s current state, marked as the connection\'s', async () => {
   const socket = connectSocket({ userId: 'u-1', organizationId: 77 });
+  await flush();
 
   expect(socket.join).toHaveBeenCalledWith('org-77');
-  expect(socket.emit).toHaveBeenCalledWith('sync-state', syncStateFor(77));
-  expect(syncStateFor(77).version).toBe(1);
+  expect(socket.emit).toHaveBeenCalledWith('sync-state', { org: '77', version: 4, shared: 2, connection: true });
 });
 
-test('a session with no unit joins nothing and is told nothing', () => {
+test('a session with no unit joins nothing and is told nothing', async () => {
   const socket = connectSocket({ userId: 'u-2', organizationId: undefined });
+  await flush();
 
   expect(socket.join).not.toHaveBeenCalled();
+  expect(socket.emit).not.toHaveBeenCalled();
+});
+
+test('a state the database cannot give is not sent: the session catches up on its own', async () => {
+  mockPool.query.mockRejectedValueOnce(new Error('connection refused'));
+
+  const socket = connectSocket({ userId: 'u-3', organizationId: 77 });
+  await flush();
+
+  expect(socket.join).toHaveBeenCalledWith('org-77');
   expect(socket.emit).not.toHaveBeenCalled();
 });

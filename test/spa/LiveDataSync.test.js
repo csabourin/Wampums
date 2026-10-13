@@ -282,7 +282,7 @@ describe('returning from the background', () => {
   const { offlineManager } = jest.requireMock('../../spa/modules/OfflineManager.js');
   const SYNC_STATE_WAIT_MS = 3000;
   const SETTLE_MS = SYNC_STATE_WAIT_MS + REDRAW_DEBOUNCE_MS;
-  const state = (overrides = {}) => ({ run: 'run-1', org: '12', version: 5, shared: 0, ...overrides });
+  const state = (overrides = {}) => ({ org: '12', version: 5, shared: 0, ...overrides });
 
   /**
    * The socket connects, as when the app opens, and hears the server's state.
@@ -291,7 +291,7 @@ describe('returning from the background', () => {
   async function connect(syncState = state()) {
     mockSocketHandlers.connect();
     if (syncState) {
-      mockSocketHandlers['sync-state'](syncState);
+      mockSocketHandlers['sync-state']({ ...syncState, connection: true });
     }
     await jest.advanceTimersByTimeAsync(SETTLE_MS);
   }
@@ -333,11 +333,21 @@ describe('returning from the background', () => {
     expect(mockRoute).toHaveBeenCalledTimes(1);
   });
 
-  test('a restarted server, or another unit, is caught up', async () => {
-    await connect(state({ run: 'run-2' }));
-    await connect(state({ run: 'run-2', org: '13' }));
+  test('another unit is caught up', async () => {
+    await connect(state({ org: '13' }));
 
-    expect(applyInvalidation).toHaveBeenCalledTimes(2);
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('a write acknowledged before the connection state is not taken for it', async () => {
+    mockSocketHandlers.connect();
+    // This session's write, answered before the server read the connection state.
+    mockSocketHandlers['sync-state'](state({ version: 6 }));
+    mockSocketHandlers['sync-state']({ ...state({ version: 6 }), connection: true });
+    await jest.advanceTimersByTimeAsync(SETTLE_MS);
+
+    // Taken for the connection state, 6 against 5 would have meant a missed change.
+    expect(applyInvalidation).not.toHaveBeenCalled();
   });
 
   test('a write no unit was named for (a public page) is caught up', async () => {
@@ -386,7 +396,7 @@ describe('returning from the background', () => {
   });
 
   test('a malformed state is ignored, and the reconnection caught up', async () => {
-    await connect({ run: 'run-1', org: 12, version: '5', shared: 0 });
+    await connect({ org: 12, version: '5', shared: 0 });
 
     expect(applyInvalidation).toHaveBeenCalledTimes(1);
   });
@@ -443,7 +453,7 @@ describe('returning from the background', () => {
 
   test('a state arriving after the wait is counted once the catch-up it outlasted succeeds', async () => {
     await connect(null);
-    mockSocketHandlers['sync-state'](state({ version: 6 }));
+    mockSocketHandlers['sync-state']({ ...state({ version: 6 }), connection: true });
     await jest.advanceTimersByTimeAsync(SETTLE_MS);
     applyInvalidation.mockClear();
 
@@ -455,7 +465,7 @@ describe('returning from the background', () => {
   test('a state arriving after a catch-up that failed is not counted', async () => {
     applyInvalidation.mockRejectedValueOnce(new Error('IndexedDB unavailable'));
     await connect(null);
-    mockSocketHandlers['sync-state'](state({ version: 6 }));
+    mockSocketHandlers['sync-state']({ ...state({ version: 6 }), connection: true });
     await jest.advanceTimersByTimeAsync(SETTLE_MS);
     applyInvalidation.mockClear();
 

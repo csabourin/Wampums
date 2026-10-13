@@ -13,7 +13,30 @@ jest.mock('../services/socket', () => ({
 }));
 
 const { liveSyncBroadcaster, announcedPath } = require('../middleware/live-sync');
-const { syncStateFor } = require('../services/liveSyncState');
+
+/** The live_sync_versions table, as the two statements of services/liveSyncState.js see it. */
+const mockVersions = new Map();
+const mockPool = {
+  query: jest.fn((sql, params) => {
+    if (/INSERT INTO live_sync_versions/.test(sql)) {
+      const version = (mockVersions.get(params[0]) || 0) + 1;
+      mockVersions.set(params[0], version);
+      return Promise.resolve({ rows: [{ version }] });
+    }
+    const [ids] = params;
+    return Promise.resolve({
+      rows: ids.filter((id) => mockVersions.has(id)).map((id) => ({ organization_id: id, version: mockVersions.get(id) })),
+    });
+  }),
+};
+
+/**
+ * @param {number} organizationId - Unit (0 for the shared row)
+ * @returns {number} Its counted version
+ */
+function versionOf(organizationId) {
+  return mockVersions.get(organizationId) || 0;
+}
 
 /**
  * An open session, as Socket.IO keeps it.
@@ -28,15 +51,17 @@ function openSession(id, room) {
 }
 
 /**
- * Run a request through the middleware and finish it with a status.
+ * Run a request through the middleware, finish it with a status, and let the
+ * announcement complete.
  * @param {Object} options
- * @returns {void}
+ * @returns {Promise<void>}
  */
-function runRequest({ method = 'POST', url, status = 200, user = { organizationId: 12 }, headers = {}, locals = {} }) {
+async function runRequest({ method = 'POST', url, status = 200, user = { organizationId: 12 }, headers = {}, locals = {} }) {
   const req = {
     method,
     originalUrl: url,
     user,
+    app: { locals: { pool: mockPool } },
     get: (name) => headers[name.toLowerCase()],
   };
   const res = new EventEmitter();
@@ -47,6 +72,8 @@ function runRequest({ method = 'POST', url, status = 200, user = { organizationI
   liveSyncBroadcaster(req, res, next);
   expect(next).toHaveBeenCalledTimes(1);
   res.emit('finish');
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
 }
 
 beforeEach(() => {
@@ -54,14 +81,15 @@ beforeEach(() => {
   mockExcept.mockReset();
   mockTo.mockReset();
   mockSockets.clear();
+  mockVersions.clear();
   const room = { emit: mockEmit, except: mockExcept };
   mockExcept.mockReturnValue(room);
   mockTo.mockReturnValue(room);
 });
 
 describe('liveSyncBroadcaster', () => {
-  test("announces a successful write to the writer's unit, with the path only", () => {
-    runRequest({ method: 'DELETE', url: '/api/v1/participants/42?organization_id=12', status: 204 });
+  test("announces a successful write to the writer's unit, with the path only", async () => {
+    await runRequest({ method: 'DELETE', url: '/api/v1/participants/42?organization_id=12', status: 204 });
 
     expect(mockTo).toHaveBeenCalledWith('org-12');
     expect(mockEmit).toHaveBeenCalledWith('data-changed', {
@@ -70,51 +98,77 @@ describe('liveSyncBroadcaster', () => {
     });
   });
 
-  test("each announcement carries the unit's next version, counted per unit", () => {
-    const before = syncStateFor(12).version;
-    const otherUnit = syncStateFor(13).version;
+  test("each announcement carries the unit's next version, counted per unit", async () => {
+    const before = versionOf(12);
+    const otherUnit = versionOf(13);
 
-    runRequest({ url: '/api/v1/points' });
-    runRequest({ url: '/api/v1/points' });
+    await runRequest({ url: '/api/v1/points' });
+    await runRequest({ url: '/api/v1/points' });
 
     expect(mockEmit.mock.calls.map(([, payload]) => payload.version)).toEqual([before + 1, before + 2]);
-    expect(syncStateFor(12).version).toBe(before + 2);
-    expect(syncStateFor(13).version).toBe(otherUnit);
+    expect(versionOf(12)).toBe(before + 2);
+    expect(versionOf(13)).toBe(otherUnit);
   });
 
-  test('a write that fails changes no version', () => {
-    const before = syncStateFor(12).version;
+  test('a write accepted but still under way is counted, without being announced or acknowledged', async () => {
+    const writer = openSession('Writer123', 'org-12');
+    const before = versionOf(12);
 
-    runRequest({ url: '/api/v1/points', status: 400 });
+    await runRequest({ url: '/api/v1/notifications/subscription', status: 202, headers: { 'x-live-sync-client': 'Writer123' } });
 
-    expect(syncStateFor(12).version).toBe(before);
+    expect(versionOf(12)).toBe(before + 1);
+    expect(mockEmit).not.toHaveBeenCalled();
+    expect(writer.emit).not.toHaveBeenCalled();
   });
 
-  test("the session that made the write learns the unit's new version", () => {
+  test("the writer's acknowledgement names its own write's version, not a later one", async () => {
+    const writer = openSession('Writer123', 'org-12');
+    // Another instance counts a change between this write and the acknowledgement.
+    const realQuery = mockPool.query.getMockImplementation();
+    mockPool.query.mockImplementationOnce(realQuery).mockImplementationOnce((sql, params) => {
+      mockVersions.set(12, (mockVersions.get(12) || 0) + 1);
+      return realQuery(sql, params);
+    });
+
+    await runRequest({ url: '/api/v1/points', headers: { 'x-live-sync-client': 'Writer123' } });
+
+    expect(versionOf(12)).toBe(2);
+    expect(writer.emit).toHaveBeenCalledWith('sync-state', { org: '12', version: 1, shared: 0 });
+  });
+
+  test('a write that fails changes no version', async () => {
+    const before = versionOf(12);
+
+    await runRequest({ url: '/api/v1/points', status: 400 });
+
+    expect(versionOf(12)).toBe(before);
+  });
+
+  test("the session that made the write learns the unit's new version", async () => {
     const writer = openSession('Writer123', 'org-12');
 
-    runRequest({ url: '/api/v1/points', headers: { 'x-live-sync-client': 'Writer123' } });
+    await runRequest({ url: '/api/v1/points', headers: { 'x-live-sync-client': 'Writer123' } });
 
-    expect(writer.emit).toHaveBeenCalledWith('sync-state', syncStateFor(12));
+    expect(writer.emit).toHaveBeenCalledWith('sync-state', { org: '12', version: versionOf(12), shared: 0 });
   });
 
-  test('a session of another unit named in the header hears nothing', () => {
+  test('a session of another unit named in the header hears nothing', async () => {
     const stranger = openSession('Stranger99', 'org-13');
 
-    runRequest({ url: '/api/v1/points', headers: { 'x-live-sync-client': 'Stranger99' } });
+    await runRequest({ url: '/api/v1/points', headers: { 'x-live-sync-client': 'Stranger99' } });
 
     expect(stranger.emit).not.toHaveBeenCalled();
   });
 
-  test('leaves out the session that made the write', () => {
-    runRequest({ url: '/api/v1/points', headers: { 'x-live-sync-client': 'AbC123_-xyz' } });
+  test('leaves out the session that made the write', async () => {
+    await runRequest({ url: '/api/v1/points', headers: { 'x-live-sync-client': 'AbC123_-xyz' } });
 
     expect(mockExcept).toHaveBeenCalledWith('AbC123_-xyz');
     expect(mockEmit).toHaveBeenCalledTimes(1);
   });
 
-  test('ignores a malformed connection id rather than passing it to Socket.IO', () => {
-    runRequest({ url: '/api/v1/points', headers: { 'x-live-sync-client': 'not a socket id!' } });
+  test('ignores a malformed connection id rather than passing it to Socket.IO', async () => {
+    await runRequest({ url: '/api/v1/points', headers: { 'x-live-sync-client': 'not a socket id!' } });
 
     expect(mockExcept).not.toHaveBeenCalled();
     expect(mockEmit).toHaveBeenCalledTimes(1);
@@ -128,28 +182,28 @@ describe('liveSyncBroadcaster', () => {
     ['a legacy path', { url: '/api/points' }],
     ['a read made with POST', { url: '/api/v1/users/permissions/check' }],
     ['an AI query', { url: '/api/v1/ai/ask' }],
-  ])('says nothing about %s', (_label, request) => {
-    runRequest(request);
+  ])('says nothing about %s', async (_label, request) => {
+    await runRequest(request);
 
     expect(mockEmit).not.toHaveBeenCalled();
   });
 
-  test('a failed announcement never throws into the finished request', () => {
+  test('a failed announcement never throws into the finished request', async () => {
     mockTo.mockImplementation(() => {
       throw new Error('Socket.IO not initialized!');
     });
 
-    expect(() => runRequest({ url: '/api/v1/points' })).not.toThrow();
+    await expect(runRequest({ url: '/api/v1/points' })).resolves.toBeUndefined();
   });
 });
 
 describe('writes that are not announced', () => {
-  test('a public page\'s write moves the shared version, announcing nothing', () => {
-    const before = syncStateFor(12).shared;
+  test('a public page\'s write moves the shared version, announcing nothing', async () => {
+    const before = versionOf(0);
 
-    runRequest({ url: '/api/v1/public/parent-invitations/accept', user: null });
+    await runRequest({ url: '/api/v1/public/parent-invitations/accept', user: null });
 
-    expect(syncStateFor(12).shared).toBe(before + 1);
+    expect(versionOf(0)).toBe(before + 1);
     expect(mockEmit).not.toHaveBeenCalled();
   });
 
@@ -160,30 +214,30 @@ describe('writes that are not announced', () => {
     '/api/v1/auth/logout',
     '/public/login',
     '/api/v1/public/contact-demo',
-  ])('signing in and the like (%s) do not count', (url) => {
-    const before = syncStateFor(12).shared;
+  ])('signing in and the like (%s) do not count', async (url) => {
+    const before = versionOf(0);
 
-    runRequest({ url, user: null });
+    await runRequest({ url, user: null });
 
-    expect(syncStateFor(12).shared).toBe(before);
+    expect(versionOf(0)).toBe(before);
   });
 
-  test('a failed public write does not count', () => {
-    const before = syncStateFor(12).shared;
+  test('a failed public write does not count', async () => {
+    const before = versionOf(0);
 
-    runRequest({ url: '/api/v1/public/family-links/accept', user: null, status: 400 });
+    await runRequest({ url: '/api/v1/public/family-links/accept', user: null, status: 400 });
 
-    expect(syncStateFor(12).shared).toBe(before);
+    expect(versionOf(0)).toBe(before);
   });
 
-  test('another unit a write changed moves on, without being told what changed', () => {
-    const destination = syncStateFor(31).version;
-    const writer = syncStateFor(12).version;
+  test('another unit a write changed moves on, without being told what changed', async () => {
+    const destination = versionOf(31);
+    const writer = versionOf(12);
 
-    runRequest({ url: '/api/v1/transfers', locals: { liveSyncOrganizationIds: [31, 31, 12] } });
+    await runRequest({ url: '/api/v1/transfers', locals: { liveSyncOrganizationIds: [31, 31, 12] } });
 
-    expect(syncStateFor(31).version).toBe(destination + 1);
-    expect(syncStateFor(12).version).toBe(writer + 1);
+    expect(versionOf(31)).toBe(destination + 1);
+    expect(versionOf(12)).toBe(writer + 1);
     expect(mockTo).toHaveBeenCalledTimes(1);
     expect(mockTo).toHaveBeenCalledWith('org-12');
   });
