@@ -37,9 +37,15 @@ jest.mock('../../spa/utils/CacheInvalidation.js', () => ({
 }));
 
 const mockSocketHandlers = {};
+const mockManagerHandlers = {};
 const mockSocket = {
   id: 'socket-1',
   connected: true,
+  io: {
+    on: (event, handler) => {
+      mockManagerHandlers[event] = handler;
+    },
+  },
   on: (event, handler) => {
     mockSocketHandlers[event] = handler;
   },
@@ -456,5 +462,28 @@ describe('returning from the background', () => {
     await connect(state({ version: 6 }));
 
     expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('after a long absence the reconnection catches up even when the state matches', async () => {
+    const LONG_ABSENCE_MS = 11 * 60 * 1000;
+    await jest.advanceTimersByTimeAsync(LONG_ABSENCE_MS);
+
+    await connect(state());
+
+    expect(applyInvalidation).toHaveBeenCalledTimes(1);
+  });
+
+  test('a connection kept alive by the server\'s pings trusts the state after a short drop', async () => {
+    const PING_INTERVAL_MS = 25000;
+    const PINGS = 30;
+    for (let ping = 0; ping < PINGS; ping += 1) {
+      // eslint-disable-next-line no-await-in-loop -- time passes ping by ping
+      await jest.advanceTimersByTimeAsync(PING_INTERVAL_MS);
+      mockManagerHandlers.ping();
+    }
+
+    await connect(state());
+
+    expect(applyInvalidation).not.toHaveBeenCalled();
   });
 });

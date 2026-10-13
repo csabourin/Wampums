@@ -44,6 +44,13 @@ const MAX_TRANSITION_HOLD_MS = 300;
  * catching up anyway (a server that does not send one).
  */
 const SYNC_STATE_WAIT_MS = 3000;
+/**
+ * Longest absence after which a reconnection trusts the server's sync state.
+ * Some changes are never announced (a background job, a name seen by other
+ * units); after a longer absence (10 minutes) the session catches up whatever
+ * the state.
+ */
+const MAX_TRUSTED_ABSENCE_MS = 600000;
 /** Delay before retrying a connection the server refused. */
 const RECONNECT_DELAY_MS = 30000;
 
@@ -197,6 +204,8 @@ class LiveDataSync {
     this.reconnected = false;
     this.pendingWriteStates = [];
     this.fallbackCatchUp = null;
+    this.lastAliveAt = 0;
+    this.awayTooLong = false;
     this.syncStateTimer = null;
     this.onVisibilityChange = () => this.checkToken();
   }
@@ -233,6 +242,8 @@ class LiveDataSync {
     this.socket.on('disconnect', () => setLiveSyncClientId(null));
     this.socket.on('connect_error', (error) => this.handleConnectError(error));
     this.socket.on(SYNC_STATE_EVENT, (state) => this.handleSyncState(state));
+    // The server pings every connection: the last ping marks when this one was last alive.
+    this.socket.io?.on?.('ping', () => this.markAlive());
     onWriteSettled(() => this.acceptPendingWriteState());
     this.socket.on(DATA_CHANGED_EVENT, (payload) => {
       this.handleDataChanged(payload).catch((error) => debugWarn('Live sync update failed:', error));
@@ -269,6 +280,8 @@ class LiveDataSync {
     // changes were announced while this session was away.
     this.awaitingConnectionState = true;
     this.reconnected = this.hasConnectedBefore;
+    this.awayTooLong = this.reconnected && Date.now() - this.lastAliveAt > MAX_TRUSTED_ABSENCE_MS;
+    this.markAlive();
     this.fallbackCatchUp = null;
     clearTimeout(this.syncStateTimer);
     if (this.reconnected) {
@@ -310,11 +323,16 @@ class LiveDataSync {
       this.recordSeen(state);
       return;
     }
-    if (nothingChangedSince(this.syncState, state)) {
+    if (!this.awayTooLong && nothingChangedSince(this.syncState, state)) {
       debugLog('Live sync: nothing changed while disconnected');
       return;
     }
     this.catchUp(state);
+  }
+
+  /** Note that the connection was alive just now. */
+  markAlive() {
+    this.lastAliveAt = Date.now();
   }
 
   /**
@@ -419,6 +437,7 @@ class LiveDataSync {
    */
   async handleDataChanged(payload) {
     this.checkToken();
+    this.markAlive();
     const path = typeof payload?.path === 'string' ? payload.path : null;
     if (!path || !isLiveSyncActive()) {
       return;
