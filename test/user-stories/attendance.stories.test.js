@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  *
- * User stories: attendance page (spa/attendance.js) with the real IndexedDB
+ * User stories: attendance page (spa/modules/attendance/Attendance.js) with the real IndexedDB
  * layer (fake-indexeddb) and real date/cache-parsing logic.
  *
  * Implements: US-ATT-001, US-ATT-002, US-ATT-004, US-ATT-005, US-ATT-006,
@@ -73,7 +73,7 @@ const { app: mockGlobalApp } = require('../../spa/app.js');
 const { getActivities } = require('../../spa/api/api-activities.js');
 const { setCachedData, getCachedData } = require('../../spa/indexedDB.js');
 const { formatDate, getTodayISO } = require('../../spa/utils/DateUtils.js');
-const { Attendance } = require('../../spa/attendance.js');
+const { Attendance } = require('../../spa/modules/attendance/Attendance.js');
 const {
   tr,
   flushPromises,

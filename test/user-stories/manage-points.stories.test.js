@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  *
- * User stories: manage points page (spa/manage_points.js) driving the real
+ * User stories: manage points page (spa/modules/points/ManagePoints.js) driving the real
  * PointsStore and the real IndexedDB layer (fake-indexeddb).
  *
  * Implements: US-PTS-001, US-PTS-002, US-PTS-003, US-PTS-005, US-PTS-006,
@@ -69,7 +69,7 @@ const ajax = require('../../spa/ajax-functions.js');
 const { app: mockGlobalApp } = require('../../spa/app.js');
 const { offlineManager } = require('../../spa/modules/OfflineManager.js');
 const { getCachedData } = require('../../spa/indexedDB.js');
-const { ManagePoints } = require('../../spa/manage_points.js');
+const { ManagePoints } = require('../../spa/modules/points/ManagePoints.js');
 const {
   tr,
   deferred,

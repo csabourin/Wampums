@@ -912,8 +912,8 @@ export class OfflineManager {
      */
     async preloadCampModules() {
         const campModules = [
-            () => import('../attendance.js'),
-            () => import('../manage_points.js'),
+            () => import('./attendance/Attendance.js'),
+            () => import('./points/ManagePoints.js'),
             () => import('../manage_honors.js'),
             () => import('./activities/Activities.js'),
             () => import('../medication_management.js'),

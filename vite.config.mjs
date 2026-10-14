@@ -177,8 +177,8 @@ export default defineConfig({
 
           // Staff functionality - lazy loaded
           staff: [
-            "./spa/attendance.js",
-            "./spa/manage_points.js",
+            "./spa/modules/attendance/Attendance.js",
+            "./spa/modules/points/ManagePoints.js",
             "./spa/manage_honors.js",
             "./spa/modules/meetings/MeetingPrep.js",
           ],
