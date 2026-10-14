@@ -362,9 +362,19 @@ describe.skipIf(!DATABASE_URL)('Leader invitations', () => {
       [userId, ids.organizationId]
     );
 
+    // The invitation was about to lapse when it was followed
+    await pool.query(
+      "UPDATE parent_invitations SET expires_at = now() + interval '1 minute' WHERE email = $1",
+      ['kaa@leaders.example.org']
+    );
     const waiting = await accept(token);
 
     expect(waiting.body.data.result).toBe(ACCEPTANCE_RESULT.PENDING_APPROVAL);
+    // Kept, and given a full validity again so it still works after the approval
+    expect(await one(
+      "SELECT expires_at > now() + interval '1 day' FROM parent_invitations WHERE email = $1",
+      ['kaa@leaders.example.org']
+    )).toBe(true);
     expect(await one('SELECT status FROM parent_invitations WHERE email = $1', ['kaa@leaders.example.org'])).toBe('pending');
     expect(await one(
       'SELECT role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2',

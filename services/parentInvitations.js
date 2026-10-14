@@ -1035,7 +1035,13 @@ async function acceptInvitation(pool, params, { now = new Date(), logger } = {})
     // roles are granted only once they can be, by following the link again
     // after the approval. The reactivation request itself stands.
     const keepForApproval = forLeader && result === ACCEPTANCE_RESULT.PENDING_APPROVAL;
-    if (!keepForApproval) {
+    if (keepForApproval) {
+      // The link must still work once the return is approved
+      await client.query(
+        'UPDATE parent_invitations SET expires_at = $1, updated_at = now() WHERE id = $2',
+        [invitationExpiresAt({ from: now }), invitation.id]
+      );
+    } else {
       await client.query(
         `UPDATE parent_invitations
             SET status = 'accepted',
