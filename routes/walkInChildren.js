@@ -236,6 +236,46 @@ module.exports = (pool, logger) => {
   );
 
   /**
+   * Invite another parent for a child, from the screen linking youth to
+   * parents. Unlike a walk-in, the child may already have parents: they and
+   * their pending invitations stay. An administrator's grant, so it takes
+   * the permission to link (participants.edit) and to invite (users.invite).
+   */
+  router.post('/:id/invite-another-parent',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('participants.edit', 'users.invite'),
+    familyInvitationLimiter,
+    param('id').isInt({ min: 1, max: 2147483647 }),
+    ...parentFields,
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const context = await parentContext(req, organizationId);
+
+      const outcome = await inviteParentForChild(pool, {
+        organizationId,
+        adminId: req.user.id,
+        participantId: Number(req.params.id),
+        parentEmail: normalizeEmailValue(req.body.parent_email),
+        language: context.language,
+        deactivationOverrideReason: context.deactivationOverrideReason,
+        additionalParent: true,
+      });
+
+      if (outcome.result === 'not_found') {
+        return error(res, 'Participant not found', HTTP_STATUS.NOT_FOUND);
+      }
+      if (outcome.result === 'manually_deactivated') {
+        return refuseBlocked(res, outcome, context.canOverride);
+      }
+
+      const emailSent = await mailIfNeeded(outcome);
+      return success(res, { parent: outcome.parent, email_sent: emailSent }, 'Parent invited');
+    })
+  );
+
+  /**
    * Send a fresh link for an invitation that was sent for a child.
    */
   router.post('/invitations/:invitationId/resend',

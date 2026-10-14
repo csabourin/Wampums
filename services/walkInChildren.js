@@ -175,6 +175,7 @@ async function attachParent(client, {
   adminId,
   language,
   deactivationOverrideReason = null,
+  keepOtherInvitations = false,
   now = new Date(),
 }) {
   await client.query(
@@ -185,7 +186,9 @@ async function attachParent(client, {
   const standing = await findMembershipStanding(client, email, organizationId);
 
   if (classifyStanding(standing) === 'already_active') {
-    await detachFromOtherInvitations(client, { organizationId, participantId, keepEmail: null, adminId });
+    if (!keepOtherInvitations) {
+      await detachFromOtherInvitations(client, { organizationId, participantId, keepEmail: null, adminId });
+    }
     await grantParticipantAccess(client, {
       participantId,
       userId: standing.user_id,
@@ -241,7 +244,9 @@ async function attachParent(client, {
     token = resent.token;
   }
 
-  await detachFromOtherInvitations(client, { organizationId, participantId, keepEmail: email, adminId });
+  if (!keepOtherInvitations) {
+    await detachFromOtherInvitations(client, { organizationId, participantId, keepEmail: email, adminId });
+  }
   await client.query(
     `INSERT INTO parent_invitation_participants (invitation_id, participant_id, organization_id, added_by)
      VALUES ($1, $2, $3, $4)
@@ -355,10 +360,14 @@ async function createWalkInChild(pool, params) {
  * an address that needs correcting.
  *
  * Refused for a child an account can already see: that child has a parent, and
- * a second one joins through a family link, which asks the first parent.
+ * a second one joins through a family link, which asks the first parent --
+ * unless `additionalParent` is set. Then an administrator linking youth to
+ * parents invites another parent: the child's other parents and their
+ * pending invitations are left as they are.
  *
  * @param {Object} pool - Database pool
  * @param {Object} params - Child, parent address, acting administrator
+ * @param {boolean} [params.additionalParent] - Invite a parent beside those the child has
  * @returns {Promise<Object>} `{ result, parent?, invitation?, token?, blocked? }`
  */
 async function inviteParentForChild(pool, params) {
@@ -369,6 +378,7 @@ async function inviteParentForChild(pool, params) {
     parentEmail,
     language,
     deactivationOverrideReason = null,
+    additionalParent = false,
     now = new Date(),
   } = params;
 
@@ -388,7 +398,7 @@ async function inviteParentForChild(pool, params) {
       await client.query('ROLLBACK');
       return { result: 'not_found' };
     }
-    if (child.rows[0].has_parent) {
+    if (child.rows[0].has_parent && !additionalParent) {
       await client.query('ROLLBACK');
       return { result: 'already_has_parent' };
     }
@@ -400,6 +410,7 @@ async function inviteParentForChild(pool, params) {
       adminId,
       language,
       deactivationOverrideReason,
+      keepOtherInvitations: additionalParent,
       now,
     });
 

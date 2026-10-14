@@ -3951,5 +3951,15 @@
   "complete_registration_done_leader": "Votre compte est prêt et vous faites partie de l’équipe de l’unité. Connectez-vous pour commencer.",
   "complete_registration_roles_unavailable": "Le rôle offert par cette invitation n’existe plus. Demandez à l’unité de vous envoyer une nouvelle invitation.",
   "leader_invitation_role_invalid": "Choisissez un rôle d’équipe de cette unité.",
-  "leader_invitation_email_intro": "{organization} vous invite à vous joindre à son équipe d’animation. Complétez votre profil pour créer votre compte; les outils de l’unité vous y attendront."
+  "leader_invitation_email_intro": "{organization} vous invite à vous joindre à son équipe d’animation. Complétez votre profil pour créer votre compte; les outils de l’unité vous y attendront.",
+  "invite_another_parent": "Inviter un autre parent",
+  "invite_another_parent_title": "Inviter un autre parent de {name}",
+  "invite_another_parent_hint": "L’enfant garde les parents déjà liés. Un membre de l’unité ayant cette adresse est lié tout de suite; toute autre personne reçoit une invitation à créer un compte.",
+  "invite_another_parent_send": "Envoyer l’invitation",
+  "invite_another_parent_email_required": "Inscrivez l’adresse courriel du parent.",
+  "invite_another_parent_sent": "Invitation envoyée. Le lien avec l’enfant se fera dès l’acceptation de l’invitation.",
+  "invite_another_parent_linked": "Cette adresse appartient à un membre de l’unité, maintenant lié à l’enfant.",
+  "invite_another_parent_not_sent": "L’invitation a été enregistrée, mais le courriel n’a pas pu être envoyé. Renvoyez-la à partir des invitations aux familles.",
+  "invite_another_parent_deactivated": "Cette adresse appartient à une personne retirée de l’unité par un administrateur. Invitez-la à partir des invitations aux familles, où vous pourrez la réintégrer.",
+  "invite_another_parent_failed": "L’invitation n’a pas pu être envoyée. Réessayez."
 }

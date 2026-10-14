@@ -3951,5 +3951,15 @@
   "complete_registration_done_leader": "Your account is ready and you are part of the unit's team. Sign in to get started.",
   "complete_registration_roles_unavailable": "The role this invitation offered no longer exists. Ask the unit to send you a new invitation.",
   "leader_invitation_role_invalid": "Choose a team role of this unit.",
-  "leader_invitation_email_intro": "{organization} invites you to join its team of leaders. Complete your profile to create your account; the unit's tools will be waiting for you."
+  "leader_invitation_email_intro": "{organization} invites you to join its team of leaders. Complete your profile to create your account; the unit's tools will be waiting for you.",
+  "invite_another_parent": "Invite another parent",
+  "invite_another_parent_title": "Invite another parent of {name}",
+  "invite_another_parent_hint": "The child keeps the parents already linked. A member of the unit with this address is linked at once; anyone else receives an invitation to create an account.",
+  "invite_another_parent_send": "Send the invitation",
+  "invite_another_parent_email_required": "Enter the parent's email address.",
+  "invite_another_parent_sent": "Invitation sent. The parent will be linked to the child once they accept it.",
+  "invite_another_parent_linked": "This address belongs to a member of the unit: they are now linked to the child.",
+  "invite_another_parent_not_sent": "The invitation was saved, but the email could not be sent. Resend it from the family invitations.",
+  "invite_another_parent_deactivated": "This address belongs to someone an administrator removed from the unit. Invite them from the family invitations, where you can reinstate them.",
+  "invite_another_parent_failed": "The invitation could not be sent. Try again."
 }

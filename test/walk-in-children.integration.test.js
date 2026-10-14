@@ -390,6 +390,75 @@ describe.skipIf(!DATABASE_URL)('Walk-in children', () => {
     expect(response.body.code).toBe('already_has_parent');
   });
 
+  describe('inviting another parent from the screen linking youth to parents', () => {
+    const inviteAnother = (userId, childId, body) => as(userId)
+      .post(`/api/v1/walk-in-children/${childId}/invite-another-parent`)
+      .send(body);
+
+    test('a child with a parent gets a second parent invited, and keeps the first', async () => {
+      const added = await walkIn(ids.leader.id, { parent_email: ids.parent.email });
+      const childId = added.body.data.participant_id;
+
+      const response = await inviteAnother(ids.admin.id, childId, { parent_email: `papa@new.${DOMAIN}` });
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toMatchObject({ parent: 'invited', email_sent: true });
+      expect(await sees(ids.parent.id, childId)).toBe(true);
+      expect(await one(
+        `SELECT count(*) FROM parent_invitation_participants pip
+           JOIN parent_invitations pi ON pi.id = pip.invitation_id
+          WHERE pi.email = $1 AND pip.participant_id = $2 AND pi.status = 'pending'`,
+        [`papa@new.${DOMAIN}`, childId]
+      )).toBe('1');
+    });
+
+    test('the first parent\'s pending invitation stays when a second one is invited', async () => {
+      const added = await walkIn(ids.leader.id, { parent_email: `maman@new.${DOMAIN}` });
+      const childId = added.body.data.participant_id;
+
+      await inviteAnother(ids.admin.id, childId, { parent_email: `papa@new.${DOMAIN}` });
+
+      expect(await one('SELECT status FROM parent_invitations WHERE email = $1', [`maman@new.${DOMAIN}`])).toBe('pending');
+      expect(await one('SELECT status FROM parent_invitations WHERE email = $1', [`papa@new.${DOMAIN}`])).toBe('pending');
+    });
+
+    test('an address that is already a member is linked to the child at once', async () => {
+      const added = await walkIn(ids.leader.id, { parent_email: `maman@new.${DOMAIN}` });
+      const childId = added.body.data.participant_id;
+      sentEmails.length = 0;
+
+      const response = await inviteAnother(ids.admin.id, childId, { parent_email: ids.parent.email });
+
+      expect(response.body.data.parent).toBe('linked_existing_account');
+      expect(await sees(ids.parent.id, childId)).toBe(true);
+      expect(sentEmails).toHaveLength(0);
+      expect(await one('SELECT status FROM parent_invitations WHERE email = $1', [`maman@new.${DOMAIN}`])).toBe('pending');
+    });
+
+    test('it takes users.invite as well as participants.edit', async () => {
+      const added = await walkIn(ids.leader.id, { parent_email: ids.parent.email });
+
+      const response = await inviteAnother(ids.leader.id, added.body.data.participant_id, { parent_email: `papa@new.${DOMAIN}` });
+
+      expect(response.status).toBe(403);
+      expect(response.body.missing).toEqual(['users.invite']);
+      expect(await one('SELECT count(*) FROM parent_invitations WHERE email = $1', [`papa@new.${DOMAIN}`])).toBe('0');
+    });
+
+    test('another unit\'s child is not found, and a malformed address is a bad request', async () => {
+      const foreignChild = await one(
+        "INSERT INTO participants (first_name, last_name) VALUES ('Far', 'Away') RETURNING id"
+      );
+      const missing = await inviteAnother(ids.admin.id, foreignChild, { parent_email: `papa@new.${DOMAIN}` });
+      expect(missing.status).toBe(404);
+      await pool.query('DELETE FROM participants WHERE id = $1', [foreignChild]);
+
+      const added = await walkIn(ids.leader.id, { parent_email: ids.parent.email });
+      const malformed = await inviteAnother(ids.admin.id, added.body.data.participant_id, { parent_email: 'not-an-address' });
+      expect(malformed.status).toBe(400);
+    });
+  });
+
   test('a leader cannot readmit someone an administrator removed; an admin can, with a reason', async () => {
     const removed = await one(
       "INSERT INTO users (email, password, full_name) VALUES ($1, 'x', 'Removed') RETURNING id",

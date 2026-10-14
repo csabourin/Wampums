@@ -7,12 +7,19 @@ import {
 } from '../../ajax-functions.js';
 import { eraseParticipant, unlinkParticipantUser } from '../../api/api-endpoints.js';
 import { translate } from '../../app.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { canViewUsers, hasPermission } from '../../utils/PermissionUtils.js';
-import { setContent } from '../../utils/DOMUtils.js';
+import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
 import { confirmDestructive, prompt, alert as alertDialog } from '../../utils/DialogUtils.js';
+import { openModal, closeModal } from '../../utils/ModalUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { inviteAnotherParent } from '../../api/api-walk-in.js';
+import { invitationLanguageField } from '../family-access/operations.js';
 
-import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { apiErrorMessage, apiErrorMessageKey } from '../../utils/ApiErrorUtils.js';
+
+const INVITE_PARENT_MODAL_ID = 'invite-another-parent-modal';
+
 export class ManageUsersParticipants {
   constructor(app) {
     this.app = app;
@@ -21,6 +28,8 @@ export class ManageUsersParticipants {
     // Erasure is irreversible and crosses families, so it sits with whoever is
     // accountable for the unit rather than with anyone who can edit a record.
     this.canErase = hasPermission('participants.erase');
+    // POST /v1/walk-in-children/:id/invite-another-parent requires both
+    this.canInviteParent = hasPermission('participants.edit') && hasPermission('users.invite');
   }
 
   async init() {
@@ -163,7 +172,7 @@ export class ManageUsersParticipants {
 
   render() {
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <h1>${translate('manage_users_participants')}</h1>
       <div id="message"></div>
       <table>
@@ -212,6 +221,12 @@ export class ManageUsersParticipants {
               <button class="associate-user" data-participant-id="${participant.id}">
                 ${translate('associate_user')}
               </button>
+              ${this.canInviteParent ? `
+                <button type="button" class="button button--secondary button--small invite-another-parent"
+                        data-participant-id="${Number(participant.id)}"
+                        data-participant-name="${escapeAttribute(`${participant.first_name || ''} ${participant.last_name || ''}`.trim())}">
+                  ${translate('invite_another_parent')}
+                </button>` : ''}
               ${this.canErase ? `
                 <button class="erase-participant button--danger"
                         data-participant-id="${participant.id}"
@@ -297,6 +312,121 @@ export class ManageUsersParticipants {
 
     document.querySelectorAll('.unlink-user').forEach((button) => {
       button.addEventListener('click', (event) => this.handleUnlinkUser(event));
+    });
+
+    document.querySelectorAll('.invite-another-parent').forEach((button) => {
+      button.addEventListener('click', () => this.openInviteAnotherParent(
+        Number(button.dataset.participantId),
+        button.dataset.participantName || '',
+      ));
+    });
+  }
+
+  /**
+   * Ask for another parent's address, for a child who may already have parents.
+   *
+   * @param {number} participantId - The child
+   * @param {string} participantName - Shown in the dialog title
+   * @returns {void}
+   */
+  openInviteAnotherParent(participantId, participantName) {
+    this.invitingParent = false;
+    openModal({
+      id: INVITE_PARENT_MODAL_ID,
+      title: escapeHTML(translate('invite_another_parent_title').replace('{name}', participantName)),
+      canClose: () => !this.invitingParent,
+      closeOnBackdrop: false,
+      body: `
+        <form id="invite-another-parent-form" novalidate>
+          <p class="form-hint" id="invite-another-parent-hint">${translate('invite_another_parent_hint')}</p>
+          <div class="form-group">
+            <label for="invite-another-parent-email">${translate('email')}</label>
+            <input type="email" id="invite-another-parent-email" name="parent_email" required maxlength="255"
+                   autocomplete="off" aria-describedby="invite-another-parent-hint invite-another-parent-error">
+          </div>
+          ${invitationLanguageField('invite-another-parent-language', this.app?.lang || 'fr')}
+          <p id="invite-another-parent-error" class="status-message error" role="alert" hidden></p>
+        </form>
+      `,
+      footer: `
+        <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="submit" form="invite-another-parent-form" class="button button--primary">${translate('invite_another_parent_send')}</button>
+      `,
+    });
+    const form = document.getElementById('invite-another-parent-form');
+    form?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      this.submitInviteAnotherParent(form, participantId);
+    });
+    form?.querySelector('input')?.addEventListener('input', () => this.showInviteParentError(null));
+  }
+
+  /**
+   * Show or clear the dialog's error, tied to the address field.
+   *
+   * @param {string|null} key - Translation key, or null to clear
+   * @returns {void}
+   */
+  showInviteParentError(key) {
+    const element = document.getElementById('invite-another-parent-error');
+    const input = document.getElementById('invite-another-parent-email');
+    if (!element) {
+      return;
+    }
+    element.textContent = key ? translate(key) : '';
+    element.hidden = !key;
+    input?.setAttribute('aria-invalid', key ? 'true' : 'false');
+  }
+
+  /**
+   * Send the invitation; a member already in the unit is linked at once.
+   *
+   * @param {HTMLFormElement} form - The dialog's form
+   * @param {number} participantId - The child
+   * @returns {Promise<void>}
+   */
+  async submitInviteAnotherParent(form, participantId) {
+    const email = form.querySelector('[name="parent_email"]').value.trim();
+    if (!email || !form.querySelector('[name="parent_email"]').checkValidity()) {
+      this.showInviteParentError('invite_another_parent_email_required');
+      form.querySelector('[name="parent_email"]').focus();
+      return;
+    }
+    const language = form.querySelector('[name="language"]')?.value;
+
+    await withFormBusy(form, async () => {
+      this.invitingParent = true;
+      let response;
+      try {
+        response = await inviteAnotherParent(participantId, { parent_email: email, language });
+      } catch (error) {
+        debugError('Error inviting another parent:', error);
+        this.invitingParent = false;
+        this.showInviteParentError(error?.code === 'manually_deactivated'
+          ? 'invite_another_parent_deactivated'
+          : apiErrorMessageKey(error, 'invite_another_parent_failed'));
+        return;
+      }
+      this.invitingParent = false;
+      closeModal(INVITE_PARENT_MODAL_ID);
+
+      const outcome = response?.data || {};
+      if (outcome.parent === 'linked_existing_account') {
+        this.app.showMessage(translate('invite_another_parent_linked'), 'success');
+      } else if (outcome.email_sent === false) {
+        this.app.showMessage(translate('invite_another_parent_not_sent'), 'error');
+      } else {
+        this.app.showMessage(translate('invite_another_parent_sent'), 'success');
+      }
+      // The write stands even if the reload fails
+      try {
+        await this.fetchData(true);
+        this.render();
+        this.attachEventListeners();
+      } catch (error) {
+        debugError('Error reloading after inviting a parent:', error);
+        this.renderError();
+      }
     });
   }
 
@@ -468,10 +598,13 @@ export class ManageUsersParticipants {
 
   renderError() {
     const errorMessage = `
-      <h1>${translate('error')}</h1>
-      <p>${translate('error_loading_manage_users_participants')}</p>
+      ${renderBackLink()}
+      <h1>${translate('manage_users_participants')}</h1>
+      <p class="status-message error" role="alert">${translate('error_loading_manage_users_participants')}</p>
+      <button type="button" class="button" id="manage-users-participants-retry">${translate('retry')}</button>
     `;
     setContent(document.getElementById('app'), errorMessage);
+    document.getElementById('manage-users-participants-retry')?.addEventListener('click', () => this.init());
   }
 
   /**
