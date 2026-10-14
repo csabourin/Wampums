@@ -99,6 +99,11 @@ test('changing the nickname saves it, trimmed, and says so', async () => {
 
   expect(updateParticipantNickname).toHaveBeenCalledWith(11, 'Vince');
   expect(app.showMessage).toHaveBeenCalledWith('nickname_saved', 'success');
+  // The row shows the new name at once, the legal one beside it, still as text
+  const cell = field.closest('tr').cells[0];
+  expect(cell.textContent).toContain('Vince Tremblay');
+  expect(cell.querySelector('.participant-legal-name').textContent).toBe(`${HOSTILE_NAME} Tremblay`);
+  expect(cell.querySelector('img')).toBeNull();
 });
 
 test('a nickname saved offline is said to be queued, not saved', async () => {

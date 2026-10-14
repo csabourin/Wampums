@@ -224,7 +224,7 @@ export class ManageParticipants {
           const label = (key) => escapeAttribute(`${translate(key)} — ${legalName}`);
           return `
         <tr>
-          <td>${escapeHTML(youthDisplayName(participant))}${participant.nickname ? `<br><small class="participant-legal-name">${escapeHTML(legalName)}</small>` : ''}</td>
+          <td class="participant-name-cell">${this.renderNameCell(participant)}</td>
           <td>
             <input
               type="text"
@@ -267,6 +267,17 @@ export class ManageParticipants {
         }
       )
       .join('');
+  }
+
+  /**
+   * A youth's name as the unit says it, with the legal name beside a nickname.
+   * @param {Object} participant - Participant record
+   * @returns {string} HTML
+   */
+  renderNameCell(participant) {
+    const legalName = `${participant.first_name || ''} ${participant.last_name || ''}`.trim();
+    return `${escapeHTML(youthDisplayName(participant))}${participant.nickname
+      ? `<br><small class="participant-legal-name">${escapeHTML(legalName)}</small>` : ''}`;
   }
 
   renderGroupOptions(selectedGroupId) {
@@ -418,6 +429,11 @@ export class ManageParticipants {
       const participant = this.participants.find((item) => item.id === participantId);
       if (participant) {
         participant.nickname = nickname || null;
+        // The row shows the name just saved
+        const cell = input.closest('tr')?.querySelector('.participant-name-cell');
+        if (cell) {
+          setContent(cell, this.renderNameCell(participant));
+        }
       }
       this.app.showMessage(translate(result?.queued ? 'nickname_saved_offline' : 'nickname_saved'), result?.queued ? 'info' : 'success');
     } catch (error) {
