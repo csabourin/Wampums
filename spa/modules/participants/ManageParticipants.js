@@ -221,7 +221,7 @@ export class ManageParticipants {
           <td>
             <select class="role-select" data-participant-id="${participant.id}" ${!participant.group_id ? 'disabled' : ''}>
               <option value="none" ${!participant.first_leader && !participant.second_leader ? 'selected' : ''}>${translate('none')}</option>
-              <option value="leader" ${participant.first_leader ? 'selected' : ''}>${translate('leader')}</option>
+              <option value="leader" ${participant.first_leader ? 'selected' : ''}>${translate('first_leader')}</option>
               <option value="second_leader" ${participant.second_leader ? 'selected' : ''}>${translate('second_leader')}</option>
             </select>
           </td>

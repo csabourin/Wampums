@@ -4,6 +4,7 @@ import { translate } from '../../app.js';
 import { normalizeParticipantList } from '../../utils/ParticipantRoleUtils.js';
 import { setContent, insertHTML } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 export class PrintableGroupParticipantReport {
   constructor(app) {
@@ -59,12 +60,12 @@ export class PrintableGroupParticipantReport {
   render() {
     const content = `
 						<div class="report-container">
-								<a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+								${renderBackLink()}
 								<h1>${translate('den_list_report')}</h1>
 								<div id="report-content">
 										${this.renderTable()}
 								</div>
-								<button id="print-report">${translate('print_report')}</button>
+								<button type="button" class="button button--primary" id="print-report">${translate('print_report')}</button>
 								<p><a href="/dashboard">${translate('back_to_dashboard')}</a></p>
 						</div>
 				`;
@@ -119,10 +120,10 @@ export class PrintableGroupParticipantReport {
 
       return groupParticipants.map((participant, index) => `
 								<tr>
-										${index === 0 ? `<td rowspan="${groupParticipants.length}">${group.name}</td>` : ''}
+										${index === 0 ? `<td rowspan="${groupParticipants.length}">${escapeHTML(group.name)}</td>` : ''}
 										<td>${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}</td>
 										<td>
-												${participant.first_leader ? `<strong>${translate('leader')}</strong>` : 
+												${participant.first_leader ? `<strong>${translate('first_leader')}</strong>` : 
     participant.second_leader ? `<strong>${translate('second_leader')}</strong>` : ''}
 										</td>
 								</tr>

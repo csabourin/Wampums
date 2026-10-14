@@ -1104,7 +1104,7 @@ export class Dashboard extends BaseModule {
               data-name="${escapeAttribute(p.first_name)}">
             <span class="participant-name">
               ${escapeHTML(p.first_name)} ${escapeHTML(p.last_name)}
-              ${p.first_leader ? ` <span class="badge leader">${translate('leader')}</span>` : ''}
+              ${p.first_leader ? ` <span class="badge leader">${translate('first_leader')}</span>` : ''}
               ${p.second_leader ? ` <span class="badge second-leader">${translate('second_leader')}</span>` : ''}
             </span>
             <span class="participant-points" id="name-points-${p.id}">${pts}</span>
