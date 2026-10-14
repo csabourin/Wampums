@@ -7,8 +7,43 @@ import { isoToDateString } from './DateUtils.js';
 export const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const DAYS_IN_WEEK = 7;
-// After this hour on meeting day, "next meeting" rolls to the following week
+const MINUTES_PER_HOUR = 60;
+// Without a known start time, after this hour on meeting day "next meeting"
+// rolls to the following week
 const EVENING_CUTOFF_HOUR = 20;
+
+/**
+ * Whether tonight's meeting has begun: once it has, a leader planning a
+ * meeting is planning the next one.
+ * @param {string|null} meetingTime - Start time (HH:MM or HH:MM:SS)
+ * @param {Date} [now] - Reference moment
+ * @returns {boolean}
+ */
+export function hasMeetingStarted(meetingTime, now = new Date()) {
+  const match = /^(\d{1,2}):(\d{2})/.exec(String(meetingTime || ''));
+  if (!match) {
+    return now.getHours() >= EVENING_CUTOFF_HOUR;
+  }
+  const minutesNow = now.getHours() * MINUTES_PER_HOUR + now.getMinutes();
+  return minutesNow >= Number(match[1]) * MINUTES_PER_HOUR + Number(match[2]);
+}
+
+/**
+ * First meeting still to come in the calendar. Tonight's meeting counts only
+ * until it starts; after that the next one is the one to plan.
+ * @param {Array<{date: string, is_cancelled?: boolean}>} meetings - Calendar
+ * @param {{meetingTime?: string|null, now?: Date}} [options]
+ * @returns {string|null} Meeting date (YYYY-MM-DD)
+ */
+export function firstUpcomingMeetingDate(meetings, { meetingTime = null, now = new Date() } = {}) {
+  const today = toLocalDateString(now);
+  const tonightIsOver = hasMeetingStarted(meetingTime, now);
+  return (meetings || [])
+    .filter(meeting => !meeting.is_cancelled)
+    .map(meeting => normalizeDateString(meeting.date))
+    .filter(date => date > today || (date === today && !tonightIsOver))
+    .sort((a, b) => a.localeCompare(b))[0] || null;
+}
 
 /**
  * Format a Date as a local YYYY-MM-DD string (never use toISOString for this —
@@ -40,9 +75,11 @@ export function normalizeDateString(value) {
  * Fallback for organizations without a year plan.
  * @param {string} meetingDay - Day name (e.g., 'Tuesday')
  * @param {Date} [from] - Reference date (defaults to now)
+ * @param {string} [meetingTime] - Start time (HH:MM); on meeting day, once it
+ *   has passed, the following week is next
  * @returns {string} Next meeting date (YYYY-MM-DD)
  */
-export function getNextWeekdayDate(meetingDay, from = new Date()) {
+export function getNextWeekdayDate(meetingDay, from = new Date(), meetingTime = null) {
   const targetIndex = DAYS_OF_WEEK.indexOf(meetingDay);
   const reference = new Date(from);
   if (targetIndex === -1) {
@@ -50,7 +87,7 @@ export function getNextWeekdayDate(meetingDay, from = new Date()) {
   }
 
   let daysUntil = (targetIndex - reference.getDay() + DAYS_IN_WEEK) % DAYS_IN_WEEK;
-  if (daysUntil === 0 && reference.getHours() >= EVENING_CUTOFF_HOUR) {
+  if (daysUntil === 0 && hasMeetingStarted(meetingTime, reference)) {
     daysUntil = DAYS_IN_WEEK;
   }
 
