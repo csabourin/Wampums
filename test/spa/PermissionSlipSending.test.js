@@ -62,7 +62,7 @@ const { getActivity } = require('../../spa/api/api-activities.js');
 const { fetchParticipants } = require('../../spa/ajax-functions.js');
 const { confirm } = require('../../spa/utils/DialogUtils.js');
 const { hasPermission } = require('../../spa/utils/PermissionUtils.js');
-const { PermissionSlipDashboard } = require('../../spa/permission_slip_dashboard.js');
+const { PermissionSlipDashboard } = require('../../spa/modules/permission-slips/PermissionSlipDashboard.js');
 
 const AXE_OPTIONS = {
   runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },

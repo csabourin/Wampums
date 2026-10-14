@@ -170,9 +170,9 @@ export default defineConfig({
           // Admin pages - lazy loaded
           admin: [
             "./spa/admin.js",
-            "./spa/manage_participants.js",
+            "./spa/modules/participants/ManageParticipants.js",
             "./spa/manage_groups.js",
-            "./spa/manage_users_participants.js",
+            "./spa/modules/participants/ManageUsersParticipants.js",
           ],
 
           // Staff functionality - lazy loaded

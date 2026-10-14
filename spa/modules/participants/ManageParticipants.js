@@ -2,20 +2,20 @@ import {
   getParticipants,
   getGroups,
   updateParticipantGroup,
-} from "./ajax-functions.js";
+} from '../../ajax-functions.js';
 import {
   setCachedData,
   clearGroupRelatedCaches
-} from "./indexedDB.js";
-import { translate } from "./app.js";
-import { CONFIG } from "./config.js";
-import { debugLog, debugError } from "./utils/DebugUtils.js";
-import { escapeHTML } from "./utils/SecurityUtils.js";
-import { canViewParticipants } from "./utils/PermissionUtils.js";
-import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
-import { setContent } from "./utils/DOMUtils.js";
+} from '../../indexedDB.js';
+import { translate } from '../../app.js';
+import { CONFIG } from '../../config.js';
+import { debugLog, debugError } from '../../utils/DebugUtils.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { canViewParticipants } from '../../utils/PermissionUtils.js';
+import { normalizeParticipantList } from '../../utils/ParticipantRoleUtils.js';
+import { setContent } from '../../utils/DOMUtils.js';
 
-import { apiErrorMessage } from './utils/ApiErrorUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 export class ManageParticipants {
   constructor(app) {
     this.app = app;
@@ -37,7 +37,7 @@ export class ManageParticipants {
           ? settingsSections
           : CONFIG.PROGRAM_SECTIONS.DEFAULT;
     } catch (error) {
-      debugError("Error loading program sections:", error);
+      debugError('Error loading program sections:', error);
       this.programSections = CONFIG.PROGRAM_SECTIONS.DEFAULT;
     }
   }
@@ -45,7 +45,7 @@ export class ManageParticipants {
   async init() {
     // Check permission
     if (!canViewParticipants()) {
-      this.app.router.navigate("/dashboard");
+      this.app.router.navigate('/dashboard');
       return;
     }
 
@@ -53,9 +53,9 @@ export class ManageParticipants {
       await this.loadProgramSections();
       await this.fetchData();
     } catch (error) {
-      debugError("Error loading manage participants data:", error);
+      debugError('Error loading manage participants data:', error);
       // Continue rendering even if some data failed to load
-      this.app.showMessage(translate("error_loading_data"), "warning");
+      this.app.showMessage(translate('error_loading_data'), 'warning');
     }
 
     // Always render the page, even with partial data
@@ -63,7 +63,7 @@ export class ManageParticipants {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Error rendering manage participants page:", error);
+      debugError('Error rendering manage participants page:', error);
       this.renderError();
     }
   }
@@ -72,11 +72,11 @@ export class ManageParticipants {
     // Load data with individual error handling to prevent total failure
     const [participantsResponse, groupsResponse] = await Promise.all([
       getParticipants().catch(error => {
-        debugError("Error loading participants:", error);
+        debugError('Error loading participants:', error);
         return { success: false, data: [] };
       }),
       getGroups().catch(error => {
-        debugError("Error loading groups:", error);
+        debugError('Error loading groups:', error);
         return { success: false, data: [] };
       }),
     ]);
@@ -86,7 +86,7 @@ export class ManageParticipants {
       const rawParticipants = participantsResponse.data || participantsResponse.participants || [];
       this.participants = normalizeParticipantList(rawParticipants);
     } else {
-      debugError("Failed to fetch participants data");
+      debugError('Failed to fetch participants data');
       this.participants = [];
     }
 
@@ -94,12 +94,12 @@ export class ManageParticipants {
       // Support both new format (data) and old format (groups)
       this.groups = groupsResponse.data || groupsResponse.groups || [];
     } else {
-      debugError("Failed to fetch groups data");
+      debugError('Failed to fetch groups data');
       this.groups = [];
     }
 
-    debugLog("Fetched Participants:", this.participants);
-    debugLog("Fetched Groups:", this.groups);
+    debugLog('Fetched Participants:', this.participants);
+    debugLog('Fetched Groups:', this.groups);
 
     // Cache data for offline access
     try {
@@ -108,23 +108,23 @@ export class ManageParticipants {
         groups: this.groups
       }, CONFIG.CACHE_DURATION?.MEDIUM || 600000);
     } catch (error) {
-      debugError("Error caching participant data:", error);
+      debugError('Error caching participant data:', error);
       // Don't throw - this is not critical
     }
   }
 
   render() {
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-      <h1>${translate("manage_participants")}</h1>
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      <h1>${translate('manage_participants')}</h1>
       <div class="participants-table-container">
         <table class="participants-table">
           <thead>
             <tr>
-              <th>${translate("name")}</th>
-              <th>${translate("group")}</th>
-              <th>${translate("role")}</th>
-              <th>${translate("additional_roles")}</th>
+              <th>${translate('name')}</th>
+              <th>${translate('group')}</th>
+              <th>${translate('role')}</th>
+              <th>${translate('additional_roles')}</th>
             </tr>
           </thead>
           <tbody>
@@ -203,7 +203,7 @@ export class ManageParticipants {
         }
       </style>
     `;
-    setContent(document.getElementById("app"), content, { allowStyleTags: true });
+    setContent(document.getElementById('app'), content, { allowStyleTags: true });
   }
 
   renderParticipantRows() {
@@ -214,15 +214,15 @@ export class ManageParticipants {
           <td>${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}</td>
           <td>
             <select class="group-select" data-participant-id="${participant.id}">
-              <option value="none" ${!participant.group_id ? "selected" : ""}>${translate("no_group")}</option>
+              <option value="none" ${!participant.group_id ? 'selected' : ''}>${translate('no_group')}</option>
               ${this.renderGroupOptions(participant.group_id)}
             </select>
           </td>
           <td>
-            <select class="role-select" data-participant-id="${participant.id}" ${!participant.group_id ? "disabled" : ""}>
-              <option value="none" ${!participant.first_leader && !participant.second_leader ? "selected" : ""}>${translate("none")}</option>
-              <option value="leader" ${participant.first_leader ? "selected" : ""}>${translate("leader")}</option>
-              <option value="second_leader" ${participant.second_leader ? "selected" : ""}>${translate("second_leader")}</option>
+            <select class="role-select" data-participant-id="${participant.id}" ${!participant.group_id ? 'disabled' : ''}>
+              <option value="none" ${!participant.first_leader && !participant.second_leader ? 'selected' : ''}>${translate('none')}</option>
+              <option value="leader" ${participant.first_leader ? 'selected' : ''}>${translate('leader')}</option>
+              <option value="second_leader" ${participant.second_leader ? 'selected' : ''}>${translate('second_leader')}</option>
             </select>
           </td>
           <td>
@@ -231,37 +231,37 @@ export class ManageParticipants {
               class="roles-input"
               data-participant-id="${participant.id}"
               value="${escapeHTML(participant.roles || '')}"
-              placeholder="${translate("additional_roles")}"
-              ${!participant.group_id ? "disabled" : ""}
+              placeholder="${translate('additional_roles')}"
+              ${!participant.group_id ? 'disabled' : ''}
             />
           </td>
         </tr>
       `
       )
-      .join("");
+      .join('');
   }
 
   renderGroupOptions(selectedGroupId) {
     return this.groups
       .map((group) => {
         const sectionLabel = this.getSectionLabel(group.program_section);
-        const safeGroupName = escapeHTML(group.name || "");
+        const safeGroupName = escapeHTML(group.name || '');
         const displayLabel = sectionLabel
           ? `${escapeHTML(sectionLabel)} — ${safeGroupName}`
           : safeGroupName;
 
         return `
-        <option value="${group.id}" ${String(group.id) === String(selectedGroupId) ? "selected" : ""}>
+        <option value="${group.id}" ${String(group.id) === String(selectedGroupId) ? 'selected' : ''}>
           ${displayLabel}
         </option>
       `;
       })
-      .join("");
+      .join('');
   }
 
   getSectionLabel(sectionKey) {
     if (!sectionKey) {
-      return "";
+      return '';
     }
 
     const match = (this.programSections || []).find(
@@ -289,18 +289,18 @@ export class ManageParticipants {
   }
 
   attachEventListeners() {
-    document.querySelectorAll(".group-select").forEach((select) => {
-      select.addEventListener("change", (event) => this.handleGroupChange(event));
+    document.querySelectorAll('.group-select').forEach((select) => {
+      select.addEventListener('change', (event) => this.handleGroupChange(event));
     });
 
-    document.querySelectorAll(".role-select").forEach((select) => {
-      select.addEventListener("change", (event) => this.handleRoleChange(event));
+    document.querySelectorAll('.role-select').forEach((select) => {
+      select.addEventListener('change', (event) => this.handleRoleChange(event));
     });
 
-    document.querySelectorAll(".roles-input").forEach((input) => {
-      input.addEventListener("blur", (event) => this.handleRolesChange(event));
-      input.addEventListener("keypress", (event) => {
-        if (event.key === "Enter") {
+    document.querySelectorAll('.roles-input').forEach((input) => {
+      input.addEventListener('blur', (event) => this.handleRolesChange(event));
+      input.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
           event.target.blur();
         }
       });
@@ -308,76 +308,76 @@ export class ManageParticipants {
   }
 
   async handleGroupChange(event) {
-      const participantId = parseInt(event.target.getAttribute("data-participant-id"), 10);
-      const groupIdRaw = event.target.value;
-      const groupId = groupIdRaw === "none" ? null : parseInt(groupIdRaw, 10);
-      const row = event.target.closest("tr");
-      const roleSelect = row.querySelector(".role-select");
-      const rolesInput = row.querySelector(".roles-input");
+    const participantId = parseInt(event.target.getAttribute('data-participant-id'), 10);
+    const groupIdRaw = event.target.value;
+    const groupId = groupIdRaw === 'none' ? null : parseInt(groupIdRaw, 10);
+    const row = event.target.closest('tr');
+    const roleSelect = row.querySelector('.role-select');
+    const rolesInput = row.querySelector('.roles-input');
 
-      const requestData = {
-          participant_id: participantId,
-          group_id: groupId,
-          first_leader: false,
-          second_leader: false,
-          roles: null
-      };
+    const requestData = {
+      participant_id: participantId,
+      group_id: groupId,
+      first_leader: false,
+      second_leader: false,
+      roles: null
+    };
 
-      debugLog("Sending group change data to backend:", JSON.stringify(requestData));
+    debugLog('Sending group change data to backend:', JSON.stringify(requestData));
 
-      try {
-          const result = await updateParticipantGroup(
-              requestData.participant_id,
-              requestData.group_id,
-              requestData.first_leader,
-              requestData.second_leader,
-              requestData.roles
-          );
+    try {
+      const result = await updateParticipantGroup(
+        requestData.participant_id,
+        requestData.group_id,
+        requestData.first_leader,
+        requestData.second_leader,
+        requestData.roles
+      );
 
-          if (result.success) {
-              roleSelect.disabled = !groupId;
-              rolesInput.disabled = !groupId;
-              if (!groupId) {
-                  roleSelect.value = "none";
-                  rolesInput.value = "";
-              }
-            this.app.showMessage(translate("group_updated_successfully"), "success");
-            // Wait for DB transaction to complete before refreshing
-            setTimeout(async () => {
-              await clearGroupRelatedCaches();
-              await this.fetchData();
-              this.render();
-              this.attachEventListeners();
-            }, 500);
-          } else {
-              throw new Error(result.message || translate("error_updating_group"));
-          }
-      } catch (error) {
-          debugError("Error updating group membership:", error);
-          // Revert the select to its previous value if there was an error
-          event.target.value = event.target.getAttribute("data-previous-value") || "none";
-          this.app.showMessage(apiErrorMessage(error, 'error_updating_group'), 'error');
+      if (result.success) {
+        roleSelect.disabled = !groupId;
+        rolesInput.disabled = !groupId;
+        if (!groupId) {
+          roleSelect.value = 'none';
+          rolesInput.value = '';
+        }
+        this.app.showMessage(translate('group_updated_successfully'), 'success');
+        // Wait for DB transaction to complete before refreshing
+        setTimeout(async () => {
+          await clearGroupRelatedCaches();
+          await this.fetchData();
+          this.render();
+          this.attachEventListeners();
+        }, 500);
+      } else {
+        throw new Error(result.message || translate('error_updating_group'));
       }
+    } catch (error) {
+      debugError('Error updating group membership:', error);
+      // Revert the select to its previous value if there was an error
+      event.target.value = event.target.getAttribute('data-previous-value') || 'none';
+      this.app.showMessage(apiErrorMessage(error, 'error_updating_group'), 'error');
+    }
   }
 
 
   async handleRoleChange(event) {
-    const participantId = event.target.getAttribute("data-participant-id");
+    const participantId = event.target.getAttribute('data-participant-id');
     const role = event.target.value;
-    const row = event.target.closest("tr");
-    const groupId = row.querySelector(".group-select").value;
-    const rolesInput = row.querySelector(".roles-input");
+    const row = event.target.closest('tr');
+    const groupId = row.querySelector('.group-select').value;
+    const rolesInput = row.querySelector('.roles-input');
     const roles = rolesInput.value.trim() || null;
 
-    if (!groupId || groupId === "none") {
-      this.app.showMessage(translate("assign_group_before_role"), "error");
-      event.target.value = "no_group";
+    if (!groupId || groupId === 'none') {
+      this.app.showMessage(translate('assign_group_before_role'), 'error');
+      event.target.value = 'no_group';
       return;
     }
 
     // Ensure we are passing valid boolean values (true/false) for first_leader and second_leader
-    const isLeader = role === "leader";
-    const isSecondLeader = role === "second_leader";
+    const isLeader = role === 'leader';
+    const isSecondLeader = role === 'second_leader';
 
     // Log the data that will be sent
     const requestData = {
@@ -388,13 +388,13 @@ export class ManageParticipants {
       roles: roles
     };
 
-    debugLog("Sending role change data to backend:", JSON.stringify(requestData));
+    debugLog('Sending role change data to backend:', JSON.stringify(requestData));
 
     try {
       const result = await updateParticipantGroup(participantId, groupId, isLeader, isSecondLeader, roles);
 
       if (result.success) {
-        this.app.showMessage(translate("role_updated_successfully"), "success");
+        this.app.showMessage(translate('role_updated_successfully'), 'success');
         // Wait for DB transaction to complete before refreshing
         setTimeout(async () => {
           await clearGroupRelatedCaches();
@@ -406,28 +406,28 @@ export class ManageParticipants {
         this.app.showMessage(translate('error_updating_role'), 'error');
       }
     } catch (error) {
-      debugError("Error updating participant role:", error);
-      this.app.showMessage(translate("error_updating_role"), "error");
+      debugError('Error updating participant role:', error);
+      this.app.showMessage(translate('error_updating_role'), 'error');
     }
   }
 
   async handleRolesChange(event) {
-    const participantId = parseInt(event.target.getAttribute("data-participant-id"), 10);
+    const participantId = parseInt(event.target.getAttribute('data-participant-id'), 10);
     const roles = event.target.value.trim() || null;
-    const row = event.target.closest("tr");
-    const groupId = row.querySelector(".group-select").value;
-    const roleSelect = row.querySelector(".role-select");
+    const row = event.target.closest('tr');
+    const groupId = row.querySelector('.group-select').value;
+    const roleSelect = row.querySelector('.role-select');
 
-    if (!groupId || groupId === "none") {
-      this.app.showMessage(translate("assign_group_before_role"), "error");
-      event.target.value = "";
+    if (!groupId || groupId === 'none') {
+      this.app.showMessage(translate('assign_group_before_role'), 'error');
+      event.target.value = '';
       return;
     }
 
     // Get current role values
     const role = roleSelect.value;
-    const isLeader = role === "leader";
-    const isSecondLeader = role === "second_leader";
+    const isLeader = role === 'leader';
+    const isSecondLeader = role === 'second_leader';
 
     // Log the data that will be sent
     const requestData = {
@@ -438,13 +438,13 @@ export class ManageParticipants {
       roles: roles
     };
 
-    debugLog("Sending roles change data to backend:", JSON.stringify(requestData));
+    debugLog('Sending roles change data to backend:', JSON.stringify(requestData));
 
     try {
       const result = await updateParticipantGroup(participantId, groupId, isLeader, isSecondLeader, roles);
 
       if (result.success) {
-        this.app.showMessage(translate("role_updated_successfully"), "success");
+        this.app.showMessage(translate('role_updated_successfully'), 'success');
         // Wait for DB transaction to complete before refreshing
         setTimeout(async () => {
           await clearGroupRelatedCaches();
@@ -456,7 +456,7 @@ export class ManageParticipants {
         this.app.showMessage(translate('error_updating_role'), 'error');
       }
     } catch (error) {
-      debugError("Error updating participant roles:", error);
+      debugError('Error updating participant roles:', error);
       this.app.showMessage(apiErrorMessage(error, 'error_updating_role'), 'error');
     }
   }
@@ -466,9 +466,9 @@ export class ManageParticipants {
 
   renderError() {
     const errorMessage = `
-      <h1>${translate("error")}</h1>
-      <p>${translate("error_loading_manage_participants")}</p>
+      <h1>${translate('error')}</h1>
+      <p>${translate('error_loading_manage_participants')}</p>
     `;
-    setContent(document.getElementById("app"), errorMessage);
+    setContent(document.getElementById('app'), errorMessage);
   }
 }

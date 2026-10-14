@@ -1,14 +1,14 @@
-import { translate } from "./app.js";
-import { debugError, debugLog } from "./utils/DebugUtils.js";
-import { escapeHTML } from "./utils/SecurityUtils.js";
-import { formatDate } from "./utils/DateUtils.js";
+import { translate } from '../../app.js';
+import { debugError, debugLog } from '../../utils/DebugUtils.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { formatDate } from '../../utils/DateUtils.js';
 import {
   getActivityEndDate,
   getActivityEndDateObj,
   getActivityEndTime,
   getActivityStartDate,
   getActivityStartTime
-} from "./utils/ActivityDateUtils.js";
+} from '../../utils/ActivityDateUtils.js';
 import {
   getPermissionSlips,
   savePermissionSlip,
@@ -18,25 +18,25 @@ import {
   sendPermissionSlipTestEmail,
   getResourceDashboard,
   archivePermissionSlip
-} from "./api/api-endpoints.js";
-import { getGroups } from "./api/api-endpoints.js";
+} from '../../api/api-endpoints.js';
+import { getGroups } from '../../api/api-endpoints.js';
 import {
   confirm as confirmDialog,
   confirmDestructive,
   prompt as promptDialog,
-} from "./utils/DialogUtils.js";
-import { getParticipants } from "./api/api-endpoints.js";
-import { fetchParticipants, getCurrentOrganizationId } from './ajax-functions.js';
-import { clearActivityPermissionSlipCaches, deleteCachedData } from "./indexedDB.js";
-import { setContent } from "./utils/DOMUtils.js";
-import { withButtonLoading } from "./utils/PerformanceUtils.js";
-import { QuickCreateActivityModal } from "./modules/modals/QuickCreateActivityModal.js";
-import { openActivityFormModal } from './modules/activities/ActivityFormModal.js';
-import { deleteActivity } from './api/api-activities.js';
-import { hasPermission } from './utils/PermissionUtils.js';
+} from '../../utils/DialogUtils.js';
+import { getParticipants } from '../../api/api-endpoints.js';
+import { fetchParticipants, getCurrentOrganizationId } from '../../ajax-functions.js';
+import { clearActivityPermissionSlipCaches, deleteCachedData } from '../../indexedDB.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { withButtonLoading } from '../../utils/PerformanceUtils.js';
+import { QuickCreateActivityModal } from '../../modules/modals/QuickCreateActivityModal.js';
+import { openActivityFormModal } from '../../modules/activities/ActivityFormModal.js';
+import { deleteActivity } from '../../api/api-activities.js';
+import { hasPermission } from '../../utils/PermissionUtils.js';
 
-import { apiErrorMessage } from './utils/ApiErrorUtils.js';
-import { richTextOrPlain } from './utils/RichTextUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { richTextOrPlain } from '../../utils/RichTextUtils.js';
 
 // The server accepts at most this many participant or slip ids per request
 const SLIP_BATCH_SIZE = 200;
@@ -75,14 +75,14 @@ export class PermissionSlipDashboard {
       this.render();
       this.attachEventHandlers();
     } catch (error) {
-      debugError("Error initializing permission slip dashboard:", error);
-      this.app.showMessage(translate("permission_slip_error_loading"), "error");
+      debugError('Error initializing permission slip dashboard:', error);
+      this.app.showMessage(translate('permission_slip_error_loading'), 'error');
     }
   }
 
   async loadActivity() {
     try {
-      const { getActivity } = await import('./api/api-activities.js');
+      const { getActivity } = await import('../../api/api-activities.js');
       this.activity = await getActivity(this.activityId);
       debugLog('Loaded activity:', this.activity);
       // An activity for some participants offers its invitees first
@@ -115,7 +115,7 @@ export class PermissionSlipDashboard {
       this.participants = Array.isArray(participantsResponse) ? participantsResponse : [];
     } else {
       // Main dashboard mode: load activities with permission slip counts
-      const { getActivitiesWithPermissionSlips } = await import('./api/api-activities.js');
+      const { getActivitiesWithPermissionSlips } = await import('../../api/api-activities.js');
       const [activitiesResponse, groupsResponse, participantsResponse] = await Promise.all([
         getActivitiesWithPermissionSlips({ forceRefresh }),
         getGroups(),
@@ -135,8 +135,8 @@ export class PermissionSlipDashboard {
   }
 
   render() {
-    const container = document.getElementById("app");
-    if (!container) return;
+    const container = document.getElementById('app');
+    if (!container) {return;}
 
     // Activity-specific view
     if (this.activityId && this.activity) {
@@ -152,13 +152,13 @@ export class PermissionSlipDashboard {
     const permissionSummary = this.dashboardSummary?.permission_summary || [];
 
     setContent(container, `
-      <a href="/permission-slips" class="button button--ghost">← ${translate("back_to_permission_slips")}</a>
+      <a href="/permission-slips" class="button button--ghost">← ${translate('back_to_permission_slips')}</a>
       <section class="page permission-slip-dashboard">
         <div class="card">
-          <h1>${escapeHTML(translate("permission_slips_for_activity"))} "${escapeHTML(this.activity.name)}"</h1>
+          <h1>${escapeHTML(translate('permission_slips_for_activity'))} "${escapeHTML(this.activity.name)}"</h1>
           <p class="subtitle">
-            <strong>${translate("activity_start")}:</strong> ${formatDate(getActivityStartDate(this.activity), this.app.lang || 'fr')}${getActivityStartTime(this.activity) ? ` ${escapeHTML(getActivityStartTime(this.activity))}` : ''}
-            ${`<span style="margin-left: 0.75rem;"><strong>${translate("activity_end")}:</strong> ${formatDate(getActivityEndDate(this.activity), this.app.lang || 'fr')}${getActivityEndTime(this.activity) ? ` ${escapeHTML(getActivityEndTime(this.activity))}` : ''}</span>`}
+            <strong>${translate('activity_start')}:</strong> ${formatDate(getActivityStartDate(this.activity), this.app.lang || 'fr')}${getActivityStartTime(this.activity) ? ` ${escapeHTML(getActivityStartTime(this.activity))}` : ''}
+            ${`<span style="margin-left: 0.75rem;"><strong>${translate('activity_end')}:</strong> ${formatDate(getActivityEndDate(this.activity), this.app.lang || 'fr')}${getActivityEndTime(this.activity) ? ` ${escapeHTML(getActivityEndTime(this.activity))}` : ''}</span>`}
           </p>
           ${this.activity.description ? `<div class="rich-text">${richTextOrPlain(this.activity.description_html, this.activity.description)}</div>` : ''}
           ${this.renderActivityActions()}
@@ -171,16 +171,16 @@ export class PermissionSlipDashboard {
         </div>
 
         <div class="card">
-          <h2>${escapeHTML(translate("dashboard_summary_title"))}</h2>
+          <h2>${escapeHTML(translate('dashboard_summary_title'))}</h2>
           <div class="summary-grid">
             <div class="summary-tile">
-              <div class="summary-label">${escapeHTML(translate("permission_slip_status"))}</div>
+              <div class="summary-label">${escapeHTML(translate('permission_slip_status'))}</div>
               <ul class="summary-list">
                 ${permissionSummary.length === 0
-        ? `<li>${escapeHTML(translate("no_data_available"))}</li>`
-        : permissionSummary
-          .map((row) => `<li>${escapeHTML(translate(`permission_slip_status_${row.status}`))}: <strong>${row.count}</strong></li>`)
-          .join('')}
+    ? `<li>${escapeHTML(translate('no_data_available'))}</li>`
+    : permissionSummary
+      .map((row) => `<li>${escapeHTML(translate(`permission_slip_status_${row.status}`))}: <strong>${row.count}</strong></li>`)
+      .join('')}
               </ul>
             </div>
           </div>
@@ -188,9 +188,9 @@ export class PermissionSlipDashboard {
 
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
-            <h2 style="margin: 0;">${escapeHTML(translate("permission_slip_section_title"))}</h2>
+            <h2 style="margin: 0;">${escapeHTML(translate('permission_slip_section_title'))}</h2>
             <button id="toggleCreateFormBtn" class="btn primary" aria-expanded="${this.showCreateForm ? 'true' : 'false'}">
-              ${this.showCreateForm ? translate("cancel") : translate("permission_slip_new")}
+              ${this.showCreateForm ? translate('cancel') : translate('permission_slip_new')}
             </button>
           </div>
 
@@ -257,23 +257,23 @@ export class PermissionSlipDashboard {
     });
 
     setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <section class="page permission-slip-dashboard">
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap;">
             <div>
-              <h1>${escapeHTML(translate("permission_slip_dashboard_title"))}</h1>
-              <p class="subtitle">${escapeHTML(translate("permission_slip_activity_first_description"))}</p>
+              <h1>${escapeHTML(translate('permission_slip_dashboard_title'))}</h1>
+              <p class="subtitle">${escapeHTML(translate('permission_slip_activity_first_description'))}</p>
             </div>
             <button id="createActivityBtn" class="button button--primary" style="white-space: nowrap;">
-              ➕ ${translate("quick_create_activity")}
+              ➕ ${translate('quick_create_activity')}
             </button>
           </div>
         </div>
 
         ${activitiesWithPending.length > 0 ? `
           <div class="card">
-            <h2 style="color: #dc3545;">${escapeHTML(translate("activities_with_pending_slips"))}</h2>
+            <h2 style="color: #dc3545;">${escapeHTML(translate('activities_with_pending_slips'))}</h2>
             <div class="activity-list">
               ${activitiesWithPending.map(activity => this.renderActivityCard(activity, true)).join('')}
             </div>
@@ -282,7 +282,7 @@ export class PermissionSlipDashboard {
 
         ${otherUpcoming.length > 0 ? `
           <div class="card">
-            <h2>${escapeHTML(translate("upcoming_activities"))}</h2>
+            <h2>${escapeHTML(translate('upcoming_activities'))}</h2>
             <div class="activity-list">
               ${otherUpcoming.map(activity => this.renderActivityCard(activity, false)).join('')}
             </div>
@@ -291,9 +291,9 @@ export class PermissionSlipDashboard {
 
         ${upcomingActivities.length === 0 ? `
           <div class="card" style="text-align: center; padding: 3rem;">
-            <p style="color: #666; margin-bottom: 1rem;">${escapeHTML(translate("no_upcoming_activities"))}</p>
+            <p style="color: #666; margin-bottom: 1rem;">${escapeHTML(translate('no_upcoming_activities'))}</p>
             <button id="createActivityBtnEmpty" class="button button--primary">
-              ➕ ${translate("quick_create_activity")}
+              ➕ ${translate('quick_create_activity')}
             </button>
           </div>
         ` : ''}
@@ -301,7 +301,7 @@ export class PermissionSlipDashboard {
         ${pastActivities.length > 0 ? `
           <details class="card">
             <summary style="cursor: pointer; padding: 1rem; font-weight: 600;">
-              ${escapeHTML(translate("past_activities"))} (${pastActivities.length})
+              ${escapeHTML(translate('past_activities'))} (${pastActivities.length})
             </summary>
             <div class="activity-list" style="padding: 1rem;">
               ${pastActivities.map(activity => this.renderActivityCard(activity, false)).join('')}
@@ -350,30 +350,30 @@ export class PermissionSlipDashboard {
                   ${signedCount}/${totalSlips}
                 </span>
                 <div style="font-size: 0.85rem; color: #666;">
-                  ${translate("signed")}
+                  ${translate('signed')}
                 </div>
               </div>
               ${declinedCount > 0 ? `
                 <div style="font-size: 0.85rem; color: var(--color-error); margin-bottom: 0.5rem;">
-                  ${declinedCount} ${translate("permission_slip_status_declined")}
+                  ${declinedCount} ${translate('permission_slip_status_declined')}
                 </div>
               ` : ''}
               ${pendingCount > 0 ? `
                 <span style="background: #ffc107; color: #000; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem;">
-                  ${pendingCount} ${translate("pending")}
+                  ${pendingCount} ${translate('pending')}
                 </span>
               ` : declinedCount > 0 ? `
                 <span style="background: var(--color-error); color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem;">
-                  ${translate("permission_slip_status_declined")}
+                  ${translate('permission_slip_status_declined')}
                 </span>
               ` : `
                 <span style="background: #28a745; color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem;">
-                  ✓ ${translate("all_signed")}
+                  ✓ ${translate('all_signed')}
                 </span>
               `}
             ` : `
               <button class="button button--small button--primary" style="pointer-events: none;">
-                ${translate("create_slips")}
+                ${translate('create_slips')}
               </button>
             `}
           </div>
@@ -416,19 +416,19 @@ export class PermissionSlipDashboard {
     return `
       <form id="permissionSlipForm" class="stacked" style="border: 1px solid #ddd; padding: 20px; border-radius: 4px; margin-bottom: 20px; background: #f9f9f9;">
         <div style="background: #e7f2ee; padding: 12px; border-radius: 4px; margin-bottom: 16px;">
-          <p style="margin: 0; color: #0f7a5a;"><strong>${translate("activity_label")}:</strong> ${escapeHTML(this.activity.name)}</p>
+          <p style="margin: 0; color: #0f7a5a;"><strong>${translate('activity_label')}:</strong> ${escapeHTML(this.activity.name)}</p>
           ${invitedOnly ? `<p style="margin: 8px 0 0;">${escapeHTML(translate('permission_slip_invited_only_notice'))}</p>` : ''}
         </div>
 
         <label class="stacked">
-          <span>${escapeHTML(translate("deadline_date_label"))}</span>
+          <span>${escapeHTML(translate('deadline_date_label'))}</span>
           <input type="date" name="deadline_date" />
         </label>
 
         <label class="stacked">
-          <span>${escapeHTML(translate("select_group_label"))} *</span>
+          <span>${escapeHTML(translate('select_group_label'))} *</span>
           <select id="groupSelect" required>
-            <option value="" ${selectedValue === '' ? 'selected' : ''}>-- ${escapeHTML(translate("select_group_label"))} --</option>
+            <option value="" ${selectedValue === '' ? 'selected' : ''}>-- ${escapeHTML(translate('select_group_label'))} --</option>
             <optgroup label="${escapeHTML(translate('participant_audience_categories'))}">
               ${audienceOptionHtml}
             </optgroup>
@@ -440,10 +440,10 @@ export class PermissionSlipDashboard {
 
         <div id="participantsSection" style="display: none;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span><strong>${escapeHTML(translate("select_participants_label"))}</strong> (<span id="selectedCount">0</span> ${escapeHTML(translate("participants_selected"))})</span>
+            <span><strong>${escapeHTML(translate('select_participants_label'))}</strong> (<span id="selectedCount">0</span> ${escapeHTML(translate('participants_selected'))})</span>
             <div>
-              <button type="button" id="selectAllBtn" class="btn link">${escapeHTML(translate("select_all_participants"))}</button>
-              <button type="button" id="deselectAllBtn" class="btn link">${escapeHTML(translate("deselect_all_participants"))}</button>
+              <button type="button" id="selectAllBtn" class="btn link">${escapeHTML(translate('select_all_participants'))}</button>
+              <button type="button" id="deselectAllBtn" class="btn link">${escapeHTML(translate('deselect_all_participants'))}</button>
             </div>
           </div>
           <div id="participantsList" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 12px; background: white; border-radius: 4px;">
@@ -522,7 +522,7 @@ export class PermissionSlipDashboard {
       ]);
       if (!activitiesMap.has(key)) {
         activitiesMap.set(key, {
-          title: slip.activity_title || translate("no_data_available"),
+          title: slip.activity_title || translate('no_data_available'),
           date: slip.meeting_date,
           description: slip.activity_description,
           deadline: slip.deadline_date,
@@ -533,7 +533,7 @@ export class PermissionSlipDashboard {
     });
 
     if (activitiesMap.size === 0) {
-      return `<p>${escapeHTML(translate("no_permission_slips"))}</p>`;
+      return `<p>${escapeHTML(translate('no_permission_slips'))}</p>`;
     }
 
     let html = '';
@@ -549,21 +549,21 @@ export class PermissionSlipDashboard {
               <div>
                 <h3 style="margin: 0 0 8px 0;">${escapeHTML(activity.title)}</h3>
                 <p style="margin: 0; color: #666;">
-                  ${translate("activity_date_label")}: ${formatDate(activity.date, this.app.lang || 'fr')}
-                  ${activity.deadline ? ` | ${translate("permission_slip_deadline")}: ${formatDate(activity.deadline, this.app.lang || 'fr')}` : ''}
+                  ${translate('activity_date_label')}: ${formatDate(activity.date, this.app.lang || 'fr')}
+                  ${activity.deadline ? ` | ${translate('permission_slip_deadline')}: ${formatDate(activity.deadline, this.app.lang || 'fr')}` : ''}
                 </p>
               </div>
               <div style="text-align: right;">
                 <div style="margin-bottom: 8px;">
-                  <strong>${escapeHTML(translate("signed_count"))}:</strong> ${signedCount} / ${activity.slips.length}
-                  ${declinedCount > 0 ? `<br><strong>${escapeHTML(translate("permission_slip_status_declined"))}:</strong> ${declinedCount}` : ''}
+                  <strong>${escapeHTML(translate('signed_count'))}:</strong> ${signedCount} / ${activity.slips.length}
+                  ${declinedCount > 0 ? `<br><strong>${escapeHTML(translate('permission_slip_status_declined'))}:</strong> ${declinedCount}` : ''}
                 </div>
                 ${this.groupSlipIds(activity.slips) ? `<div>
                   <button class="btn secondary btn-send-emails" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}" data-slip-ids="${escapeHTML(this.groupSlipIds(activity.slips))}">
-                    ${escapeHTML(translate("send_emails_to_parents"))}
+                    ${escapeHTML(translate('send_emails_to_parents'))}
                   </button>
                   <button class="btn secondary btn-send-reminders" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}" data-slip-ids="${escapeHTML(this.groupSlipIds(activity.slips))}">
-                    ${escapeHTML(translate("send_reminder_emails"))}
+                    ${escapeHTML(translate('send_reminder_emails'))}
                   </button>
                   ${this.activityId && hasPermission('communications.send') ? `
                     <button class="button button--outline btn-send-test" data-reminder="false" data-slip-id="${this.representativeSlipId(activity.slips, false)}">${escapeHTML(translate('send_test_to_me'))}</button>
@@ -577,11 +577,11 @@ export class PermissionSlipDashboard {
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>${escapeHTML(translate("participant"))}</th>
-                  <th>${escapeHTML(translate("permission_slip_status"))}</th>
-                  <th>${escapeHTML(translate("email_sent"))}</th>
-                  <th>${escapeHTML(translate("permission_slip_signed_at"))}</th>
-                  <th>${escapeHTML(translate("actions"))}</th>
+                  <th>${escapeHTML(translate('participant'))}</th>
+                  <th>${escapeHTML(translate('permission_slip_status'))}</th>
+                  <th>${escapeHTML(translate('email_sent'))}</th>
+                  <th>${escapeHTML(translate('permission_slip_signed_at'))}</th>
+                  <th>${escapeHTML(translate('actions'))}</th>
                 </tr>
               </thead>
               <tbody>
@@ -591,22 +591,22 @@ export class PermissionSlipDashboard {
                     <td>
                       <span class="status-badge status-${slip.status}">${escapeHTML(translate(`permission_slip_status_${slip.status}`))}</span>
                     </td>
-                    <td>${slip.email_sent ? '✓ ' + translate("email_sent") : translate("email_not_sent")}</td>
+                    <td>${slip.email_sent ? `✓ ${  translate('email_sent')}` : translate('email_not_sent')}</td>
                     <td>${slip.signed_at
-                      ? escapeHTML(formatDate(slip.signed_at, this.app.lang || 'fr'))
-                      : slip.declined_at
-                        ? escapeHTML(formatDate(slip.declined_at, this.app.lang || 'fr'))
-                        : '-'}</td>
+    ? escapeHTML(formatDate(slip.signed_at, this.app.lang || 'fr'))
+    : slip.declined_at
+      ? escapeHTML(formatDate(slip.declined_at, this.app.lang || 'fr'))
+      : '-'}</td>
                     <td>
                       ${[
-          slip.status === 'pending'
-            ? `<button class="btn link sign-slip" data-id="${slip.id}">${escapeHTML(translate("permission_slip_sign"))}</button>`
-            : '',
-          !slip.email_sent
-            ? `<button class="button button--danger delete-slip" data-id="${slip.id}">${escapeHTML(translate("delete"))}</button>`
-            : '',
-          `<button class="btn link archive-slip" data-id="${slip.id}">${escapeHTML(translate("permission_slip_archive"))}</button>`
-        ].filter(Boolean).join(' ')}
+    slip.status === 'pending'
+      ? `<button class="btn link sign-slip" data-id="${slip.id}">${escapeHTML(translate('permission_slip_sign'))}</button>`
+      : '',
+    !slip.email_sent
+      ? `<button class="button button--danger delete-slip" data-id="${slip.id}">${escapeHTML(translate('delete'))}</button>`
+      : '',
+    `<button class="btn link archive-slip" data-id="${slip.id}">${escapeHTML(translate('permission_slip_archive'))}</button>`
+  ].filter(Boolean).join(' ')}
                     </td>
                   </tr>
                 `).join('')}
@@ -622,17 +622,17 @@ export class PermissionSlipDashboard {
 
   attachEventHandlers() {
     // Create Activity button (main dashboard)
-    const createActivityBtn = document.getElementById("createActivityBtn");
-    const createActivityBtnEmpty = document.getElementById("createActivityBtnEmpty");
+    const createActivityBtn = document.getElementById('createActivityBtn');
+    const createActivityBtnEmpty = document.getElementById('createActivityBtnEmpty');
 
     if (createActivityBtn) {
-      createActivityBtn.addEventListener("click", async () => {
+      createActivityBtn.addEventListener('click', async () => {
         await this.showQuickCreateActivity();
       });
     }
 
     if (createActivityBtnEmpty) {
-      createActivityBtnEmpty.addEventListener("click", async () => {
+      createActivityBtnEmpty.addEventListener('click', async () => {
         await this.showQuickCreateActivity();
       });
     }
@@ -684,9 +684,9 @@ export class PermissionSlipDashboard {
     });
 
     // Toggle create form
-    const toggleBtn = document.getElementById("toggleCreateFormBtn");
+    const toggleBtn = document.getElementById('toggleCreateFormBtn');
     if (toggleBtn) {
-      toggleBtn.addEventListener("click", (e) => {
+      toggleBtn.addEventListener('click', (e) => {
         e.preventDefault();
         this.showCreateForm = !this.showCreateForm;
         this.render();
@@ -695,20 +695,20 @@ export class PermissionSlipDashboard {
     }
 
     // Group selection
-    const groupSelect = document.getElementById("groupSelect");
+    const groupSelect = document.getElementById('groupSelect');
     if (groupSelect) {
-      groupSelect.addEventListener("change", (e) => {
+      groupSelect.addEventListener('change', (e) => {
         this.selectedAudience = e.target.value || null;
         this.updateParticipantsList();
       });
     }
 
     // Select all / Deselect all
-    const selectAllBtn = document.getElementById("selectAllBtn");
-    const deselectAllBtn = document.getElementById("deselectAllBtn");
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const deselectAllBtn = document.getElementById('deselectAllBtn');
 
     if (selectAllBtn) {
-      selectAllBtn.addEventListener("click", (e) => {
+      selectAllBtn.addEventListener('click', (e) => {
         e.preventDefault();
         document.querySelectorAll('.participant-checkbox').forEach(cb => {
           cb.checked = true;
@@ -718,7 +718,7 @@ export class PermissionSlipDashboard {
     }
 
     if (deselectAllBtn) {
-      deselectAllBtn.addEventListener("click", (e) => {
+      deselectAllBtn.addEventListener('click', (e) => {
         e.preventDefault();
         document.querySelectorAll('.participant-checkbox').forEach(cb => {
           cb.checked = false;
@@ -728,9 +728,9 @@ export class PermissionSlipDashboard {
     }
 
     // Form submission
-    const form = document.getElementById("permissionSlipForm");
+    const form = document.getElementById('permissionSlipForm');
     if (form) {
-      form.addEventListener("submit", (e) => {
+      form.addEventListener('submit', (e) => {
         e.preventDefault();
         const submitBtn = e.submitter || form.querySelector('button[type="submit"]');
         withButtonLoading(submitBtn, () => this.handleFormSubmit(e, submitBtn?.value === 'send'));
@@ -766,28 +766,28 @@ export class PermissionSlipDashboard {
     });
 
     // Sign permission slip
-    document.querySelectorAll(".sign-slip").forEach((button) => {
-      button.addEventListener("click", async (event) => {
+    document.querySelectorAll('.sign-slip').forEach((button) => {
+      button.addEventListener('click', async (event) => {
         event.preventDefault();
         // `event.currentTarget` is nulled once dispatch ends, so capture the
         // button before awaiting the dialog below.
         const trigger = event.currentTarget;
-        const slipId = trigger.getAttribute("data-id");
+        const slipId = trigger.getAttribute('data-id');
         const signerName = (await promptDialog({
-          title: translate("permission_slip_signer"),
-          message: translate("permission_slip_signer"),
+          title: translate('permission_slip_signer'),
+          message: translate('permission_slip_signer'),
         }))?.trim();
-        if (!signerName) return;
+        if (!signerName) {return;}
 
         withButtonLoading(trigger, async () => {
           try {
             await signPermissionSlip(slipId, { signed_by: signerName, signature_hash: `signed-${Date.now()}` });
-            this.app.showMessage(translate("permission_slip_signed"), "success");
+            this.app.showMessage(translate('permission_slip_signed'), 'success');
             await this.clearPermissionSlipCaches();
             await this.refreshData(true);
           } catch (error) {
-            debugError("Error signing permission slip", error);
-            this.app.showMessage(translate("permission_slip_error_loading"), "error");
+            debugError('Error signing permission slip', error);
+            this.app.showMessage(translate('permission_slip_error_loading'), 'error');
           }
         });
       });
@@ -800,7 +800,7 @@ export class PermissionSlipDashboard {
         // button before awaiting the confirmation dialog below.
         const trigger = event.currentTarget;
         const slipId = trigger.getAttribute('data-id');
-        if (!(await confirmDestructive(translate("permission_slip_archive_confirm")))) {
+        if (!(await confirmDestructive(translate('permission_slip_archive_confirm')))) {
           return;
         }
 
@@ -813,22 +813,22 @@ export class PermissionSlipDashboard {
               );
               this.render();
               this.attachEventHandlers();
-              this.app.showMessage(result.message, "info");
+              this.app.showMessage(result.message, 'info');
               return;
             }
 
-            this.app.showMessage(translate("permission_slip_archived"), "success");
+            this.app.showMessage(translate('permission_slip_archived'), 'success');
             await this.clearPermissionSlipCaches();
             await this.refreshData(true);
           } catch (error) {
-            debugError("Error archiving permission slip", error);
+            debugError('Error archiving permission slip', error);
             this.app.showMessage(
               translate(
                 error?.status === 403
-                  ? "insufficient_permissions"
-                  : "permission_slip_error_loading",
+                  ? 'insufficient_permissions'
+                  : 'permission_slip_error_loading',
               ),
-              "error",
+              'error',
             );
           }
         });
@@ -843,20 +843,20 @@ export class PermissionSlipDashboard {
         // button before awaiting the confirmation dialog below.
         const trigger = event.currentTarget;
         const slipId = trigger.getAttribute('data-id');
-        if (!(await confirmDestructive(translate("permission_slip_delete_confirm")))) {
+        if (!(await confirmDestructive(translate('permission_slip_delete_confirm')))) {
           return;
         }
 
         withButtonLoading(trigger, async () => {
           try {
-            const { deletePermissionSlip } = await import('./api/api-endpoints.js');
+            const { deletePermissionSlip } = await import('../../api/api-endpoints.js');
             await deletePermissionSlip(slipId);
-            this.app.showMessage(translate("permission_slip_deleted"), "success");
+            this.app.showMessage(translate('permission_slip_deleted'), 'success');
             await this.clearPermissionSlipCaches();
             await this.refreshData(true);
           } catch (error) {
-            debugError("Error deleting permission slip", error);
-            this.app.showMessage(translate("error_deleting_permission_slip"), "error");
+            debugError('Error deleting permission slip', error);
+            this.app.showMessage(translate('error_deleting_permission_slip'), 'error');
           }
         });
       });
@@ -868,18 +868,18 @@ export class PermissionSlipDashboard {
   }
 
   updateParticipantsList() {
-    const participantsSection = document.getElementById("participantsSection");
-    const participantsList = document.getElementById("participantsList");
+    const participantsSection = document.getElementById('participantsSection');
+    const participantsList = document.getElementById('participantsList');
 
     if (!participantsSection || !participantsList || !this.selectedAudience) {
-      if (participantsSection) participantsSection.style.display = 'none';
+      if (participantsSection) {participantsSection.style.display = 'none';}
       return;
     }
 
     const filteredParticipants = this.filterParticipantsByAudience(this.selectedAudience);
 
     if (filteredParticipants.length === 0) {
-      setContent(participantsList, `<p>${escapeHTML(translate("no_participants_in_selection"))}</p>`);
+      setContent(participantsList, `<p>${escapeHTML(translate('no_participants_in_selection'))}</p>`);
       participantsSection.style.display = 'block';
       return;
     }
@@ -946,9 +946,9 @@ export class PermissionSlipDashboard {
   }
 
   getParticipantAge(dateString) {
-    if (!dateString) return null;
+    if (!dateString) {return null;}
     const birthDate = new Date(dateString);
-    if (Number.isNaN(birthDate.getTime())) return null;
+    if (Number.isNaN(birthDate.getTime())) {return null;}
 
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
@@ -963,9 +963,9 @@ export class PermissionSlipDashboard {
   }
 
   getYearsWithOrganization(inscriptionDate) {
-    if (!inscriptionDate) return null;
+    if (!inscriptionDate) {return null;}
     const startDate = new Date(inscriptionDate);
-    if (Number.isNaN(startDate.getTime())) return null;
+    if (Number.isNaN(startDate.getTime())) {return null;}
 
     const now = new Date();
     let years = now.getFullYear() - startDate.getFullYear();
@@ -1011,7 +1011,7 @@ export class PermissionSlipDashboard {
     event.preventDefault();
 
     if (!this.activityId) {
-      this.app.showMessage(translate("error_no_activity_selected"), "error");
+      this.app.showMessage(translate('error_no_activity_selected'), 'error');
       return;
     }
 
@@ -1023,7 +1023,7 @@ export class PermissionSlipDashboard {
       .map(cb => parseInt(cb.value));
 
     if (participantIds.length === 0) {
-      this.app.showMessage(translate("select_at_least_one_participant"), "error");
+      this.app.showMessage(translate('select_at_least_one_participant'), 'error');
       return;
     }
 
@@ -1037,7 +1037,7 @@ export class PermissionSlipDashboard {
         return `${participant?.first_name} ${participant?.last_name}`;
       }).join(', ');
 
-      if (!(await confirmDialog(translate("permission_slip_duplicate_warning") + `: ${duplicateNames}. ${translate("continue_anyway")}`))) {
+      if (!(await confirmDialog(`${translate('permission_slip_duplicate_warning')  }: ${duplicateNames}. ${translate('continue_anyway')}`))) {
         return;
       }
     }
@@ -1061,7 +1061,7 @@ export class PermissionSlipDashboard {
     }
 
     try {
-      debugLog("Sending permission slip payload:", payload);
+      debugLog('Sending permission slip payload:', payload);
 
       // Optimistic update - immediately add new slips to UI
       const optimisticSlips = participantIds.map((pid, index) => {
@@ -1151,7 +1151,7 @@ export class PermissionSlipDashboard {
       // Refresh with real data from server
       await this.refreshData(true);
     } catch (error) {
-      debugError("Error saving permission slip", error);
+      debugError('Error saving permission slip', error);
 
       // Rollback optimistic updates on error
       this.permissionSlips = this.permissionSlips.filter(slip => !slip._optimistic);
@@ -1161,9 +1161,9 @@ export class PermissionSlipDashboard {
       // Show detailed validation errors if available
       if (error.message.includes('Validation') && error.response?.errors) {
         const errorMessages = error.response.errors.map(e => e.msg).join(', ');
-        this.app.showMessage(`${translate("permission_slip_error_loading")}: ${errorMessages}`, "error");
+        this.app.showMessage(`${translate('permission_slip_error_loading')}: ${errorMessages}`, 'error');
       } else {
-        this.app.showMessage(translate("permission_slip_error_loading"), "error");
+        this.app.showMessage(translate('permission_slip_error_loading'), 'error');
       }
     }
   }
@@ -1270,7 +1270,7 @@ export class PermissionSlipDashboard {
   }
 
   async handleSendEmails(date, activityTitle, slipIds = []) {
-    if (!(await confirmDialog(`${translate("send_emails_confirm")} "${activityTitle}"?\n\n${translate("emails_only_not_sent_note")}`))) {
+    if (!(await confirmDialog(`${translate('send_emails_confirm')} "${activityTitle}"?\n\n${translate('emails_only_not_sent_note')}`))) {
       return;
     }
 
@@ -1280,24 +1280,24 @@ export class PermissionSlipDashboard {
       // Show appropriate message based on response
       if (data.sent === 0 && data.total === 0) {
         // Check message to determine which translation to use
-        if (message.includes("No pending")) {
-          this.app.showMessage(translate("no_pending_permission_slips"), "info");
+        if (message.includes('No pending')) {
+          this.app.showMessage(translate('no_pending_permission_slips'), 'info');
         } else {
-          this.app.showMessage(translate("all_permission_slips_emailed"), "info");
+          this.app.showMessage(translate('all_permission_slips_emailed'), 'info');
         }
       } else {
-        this.app.showMessage(`${translate("emails_sent_successfully")}: ${data.sent}/${data.total}`, "success");
+        this.app.showMessage(`${translate('emails_sent_successfully')}: ${data.sent}/${data.total}`, 'success');
       }
       await this.clearPermissionSlipCaches();
       await this.refreshData(true);
     } catch (error) {
-      debugError("Error sending emails", error);
-      this.app.showMessage(translate("email_send_error"), "error");
+      debugError('Error sending emails', error);
+      this.app.showMessage(translate('email_send_error'), 'error');
     }
   }
 
   async handleSendReminders(date, activityTitle, slipIds = []) {
-    if (!(await confirmDialog(`${translate("send_reminder_confirm")} "${activityTitle}"?\n\n${translate("reminder_only_unsigned_note")}`))) {
+    if (!(await confirmDialog(`${translate('send_reminder_confirm')} "${activityTitle}"?\n\n${translate('reminder_only_unsigned_note')}`))) {
       return;
     }
 
@@ -1307,21 +1307,21 @@ export class PermissionSlipDashboard {
       // Show appropriate message based on response
       if (data.sent === 0) {
         // Check message to determine which translation to use
-        if (message.includes("signed")) {
-          this.app.showMessage(translate("all_sent_slips_signed"), "info");
-        } else if (message.includes("24 hours") || message.includes("recently")) {
-          this.app.showMessage(translate("reminder_cooldown_active"), "warning");
+        if (message.includes('signed')) {
+          this.app.showMessage(translate('all_sent_slips_signed'), 'info');
+        } else if (message.includes('24 hours') || message.includes('recently')) {
+          this.app.showMessage(translate('reminder_cooldown_active'), 'warning');
         } else {
-          this.app.showMessage(`${translate("reminder_sent_successfully")}: 0/${data.total}`, "info");
+          this.app.showMessage(`${translate('reminder_sent_successfully')}: 0/${data.total}`, 'info');
         }
       } else {
-        this.app.showMessage(`${translate("reminder_sent_successfully")}: ${data.sent}/${data.total}`, "success");
+        this.app.showMessage(`${translate('reminder_sent_successfully')}: ${data.sent}/${data.total}`, 'success');
       }
       await this.clearPermissionSlipCaches();
       await this.refreshData(true);
     } catch (error) {
-      debugError("Error sending reminders", error);
-      this.app.showMessage(translate("email_send_error"), "error");
+      debugError('Error sending reminders', error);
+      this.app.showMessage(translate('email_send_error'), 'error');
     }
   }
 

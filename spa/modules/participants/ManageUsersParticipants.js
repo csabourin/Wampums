@@ -1,18 +1,18 @@
-import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
+import { debugLog, debugError, debugWarn, debugInfo } from '../../utils/DebugUtils.js';
 import {
   getParticipantsWithUsers,
   getParentUsers,
   removeParticipantFromOrganization,
   associateUser
-} from "./ajax-functions.js";
-import { eraseParticipant, unlinkParticipantUser } from "./api/api-endpoints.js";
-import { translate } from "./app.js";
-import { escapeHTML } from "./utils/SecurityUtils.js";
-import { canViewUsers, hasPermission } from "./utils/PermissionUtils.js";
-import { setContent } from "./utils/DOMUtils.js";
-import { confirmDestructive, prompt, alert as alertDialog } from "./utils/DialogUtils.js";
+} from '../../ajax-functions.js';
+import { eraseParticipant, unlinkParticipantUser } from '../../api/api-endpoints.js';
+import { translate } from '../../app.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { canViewUsers, hasPermission } from '../../utils/PermissionUtils.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { confirmDestructive, prompt, alert as alertDialog } from '../../utils/DialogUtils.js';
 
-import { apiErrorMessage } from './utils/ApiErrorUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 export class ManageUsersParticipants {
   constructor(app) {
     this.app = app;
@@ -20,21 +20,21 @@ export class ManageUsersParticipants {
     this.parentUsers = [];
     // Erasure is irreversible and crosses families, so it sits with whoever is
     // accountable for the unit rather than with anyone who can edit a record.
-    this.canErase = hasPermission("participants.erase");
+    this.canErase = hasPermission('participants.erase');
   }
 
   async init() {
     if (!canViewUsers()) {
-      this.app.router.navigate("/");
+      this.app.router.navigate('/');
       return;
     }
 
     try {
       await this.fetchData();
     } catch (error) {
-      debugError("Error loading manage users participants data:", error);
+      debugError('Error loading manage users participants data:', error);
       // Continue rendering even if some data failed to load
-      this.app.showMessage(translate("error_loading_data"), "warning");
+      this.app.showMessage(translate('error_loading_data'), 'warning');
     }
 
     // Always render the page, even with partial data
@@ -42,7 +42,7 @@ export class ManageUsersParticipants {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Error rendering manage users participants page:", error);
+      debugError('Error rendering manage users participants page:', error);
       this.renderError();
     }
   }
@@ -51,11 +51,11 @@ export class ManageUsersParticipants {
     // Load data with individual error handling to prevent total failure
     const [participantsResponse, parentUsersResponse] = await Promise.all([
       getParticipantsWithUsers(forceRefresh).catch(error => {
-        debugError("Error loading participants with users:", error);
+        debugError('Error loading participants with users:', error);
         return { success: false, data: [] };
       }),
       getParentUsers(forceRefresh).catch(error => {
-        debugError("Error loading parent users:", error);
+        debugError('Error loading parent users:', error);
         return { success: false, data: [] };
       })
     ]);
@@ -68,7 +68,7 @@ export class ManageUsersParticipants {
         [];
       this.participants = this.normalizeParticipants(participantsData);
     } else {
-      debugError("Failed to fetch participants with users");
+      debugError('Failed to fetch participants with users');
       this.participants = [];
     }
 
@@ -80,7 +80,7 @@ export class ManageUsersParticipants {
         [];
       this.parentUsers = this.normalizeParentUsers(parentUsersData);
     } else {
-      debugError("Failed to fetch parent users");
+      debugError('Failed to fetch parent users');
       this.parentUsers = [];
     }
   }
@@ -98,10 +98,10 @@ export class ManageUsersParticipants {
     const participantMap = new Map();
 
     participantsData.forEach((participant) => {
-      if (!participant || typeof participant !== "object") return;
+      if (!participant || typeof participant !== 'object') {return;}
 
       const participantId = participant.id || participant.participant_id;
-      if (!participantId) return;
+      if (!participantId) {return;}
 
       const existingEntry = participantMap.get(participantId) || {
         ...participant,
@@ -112,16 +112,16 @@ export class ManageUsersParticipants {
       // association be removed without rewriting the whole set.
       if (
         !existingEntry.associatedUsers.length &&
-        typeof participant.associated_users === "string"
+        typeof participant.associated_users === 'string'
       ) {
         participant.associated_users
-          .split(",")
+          .split(',')
           .map((name) => name.trim())
           .filter(Boolean)
           .forEach((name) => existingEntry.associatedUsers.push({ id: null, name }));
       }
 
-      const associatedName = (participant.user_full_name || participant.user_email || "").trim();
+      const associatedName = (participant.user_full_name || participant.user_email || '').trim();
       const associatedId = participant.user_id || null;
       const alreadyListed = existingEntry.associatedUsers.some(
         (user) => (associatedId && user.id === associatedId) || (!associatedId && user.name === associatedName)
@@ -135,7 +135,7 @@ export class ManageUsersParticipants {
 
     return Array.from(participantMap.values()).map((participant) => ({
       ...participant,
-      associated_users: participant.associatedUsers?.map((user) => user.name).join(", ") || ""
+      associated_users: participant.associatedUsers?.map((user) => user.name).join(', ') || ''
     }));
   }
 
@@ -152,7 +152,7 @@ export class ManageUsersParticipants {
     const parentUserMap = new Map();
 
     parentUsersData.forEach((user) => {
-      if (!user || typeof user !== "object" || !user.id) return;
+      if (!user || typeof user !== 'object' || !user.id) {return;}
       if (!parentUserMap.has(user.id)) {
         parentUserMap.set(user.id, user);
       }
@@ -163,31 +163,31 @@ export class ManageUsersParticipants {
 
   render() {
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-      <h1>${translate("manage_users_participants")}</h1>
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      <h1>${translate('manage_users_participants')}</h1>
       <div id="message"></div>
       <table>
         <thead>
           <tr>
-            <th>${translate("name")}</th>
-            <th>${translate("associated_users")}</th>
-            <th>${translate("actions")}</th>
+            <th>${translate('name')}</th>
+            <th>${translate('associated_users')}</th>
+            <th>${translate('actions')}</th>
           </tr>
         </thead>
         <tbody>
           ${this.renderParticipantRows()}
         </tbody>
       </table>
-      <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+      <p><a href="/dashboard">${translate('back_to_dashboard')}</a></p>
     `;
-    setContent(document.getElementById("app"), content);
+    setContent(document.getElementById('app'), content);
   }
 
   renderParticipantRows() {
     if (!Array.isArray(this.participants) || this.participants.length === 0) {
       return `
         <tr>
-          <td colspan="3">${translate("no_participants_found")}</td>
+          <td colspan="3">${translate('no_participants_found')}</td>
         </tr>
       `;
     }
@@ -196,35 +196,35 @@ export class ManageUsersParticipants {
       .map(
         (participant) => `
           <tr>
-            <td>${escapeHTML(participant.first_name || "")} ${escapeHTML(participant.last_name || "")}</td>
+            <td>${escapeHTML(participant.first_name || '')} ${escapeHTML(participant.last_name || '')}</td>
             <td>${this.renderAssociatedUsers(participant)}</td>
             <td>
               <button class="remove-from-organization"
                       data-participant-id="${participant.id}"
-                      title="${translate("remove_from_organization_help")}">
-                ${translate("remove_from_organization")}
+                      title="${translate('remove_from_organization_help')}">
+                ${translate('remove_from_organization')}
               </button>
-              <small class="action-help">${translate("remove_from_organization_help")}</small>
+              <small class="action-help">${translate('remove_from_organization_help')}</small>
               <select class="user-select" data-participant-id="${participant.id}">
-                <option value="">${translate("select_parent")}</option>
+                <option value="">${translate('select_parent')}</option>
                 ${this.renderParentUserOptions()}
               </select>
               <button class="associate-user" data-participant-id="${participant.id}">
-                ${translate("associate_user")}
+                ${translate('associate_user')}
               </button>
               ${this.canErase ? `
                 <button class="erase-participant button--danger"
                         data-participant-id="${participant.id}"
-                        data-participant-name="${escapeHTML(`${participant.first_name || ""} ${participant.last_name || ""}`.trim())}"
-                        title="${translate("erase_participant_help")}">
-                  ${translate("erase_participant")}
+                        data-participant-name="${escapeHTML(`${participant.first_name || ''} ${participant.last_name || ''}`.trim())}"
+                        title="${translate('erase_participant_help')}">
+                  ${translate('erase_participant')}
                 </button>
-                <small class="action-help">${translate("erase_participant_help")}</small>` : ""}
+                <small class="action-help">${translate('erase_participant_help')}</small>` : ''}
             </td>
           </tr>
         `
       )
-      .join("");
+      .join('');
   }
 
   /**
@@ -237,14 +237,14 @@ export class ManageUsersParticipants {
     const users = Array.isArray(participant.associatedUsers) ? participant.associatedUsers : [];
 
     if (users.length === 0) {
-      return `<span class="muted">${translate("no_associated_users")}</span>`;
+      return `<span class="muted">${translate('no_associated_users')}</span>`;
     }
 
     return `
       <ul class="linked-users">
         ${users
-          .map(
-            (user) => `
+    .map(
+      (user) => `
           <li class="linked-users__item">
             <span>${escapeHTML(user.name)}</span>
             ${user.id ? `
@@ -253,50 +253,50 @@ export class ManageUsersParticipants {
                       data-participant-id="${participant.id}"
                       data-user-id="${escapeHTML(user.id)}"
                       data-user-name="${escapeHTML(user.name)}"
-                      title="${translate("unlink_parent")}"
-                      aria-label="${translate("unlink_parent")} — ${escapeHTML(user.name)}">&times;</button>
-            ` : ""}
+                      title="${translate('unlink_parent')}"
+                      aria-label="${translate('unlink_parent')} — ${escapeHTML(user.name)}">&times;</button>
+            ` : ''}
           </li>
         `
-          )
-          .join("")}
+    )
+    .join('')}
       </ul>
     `;
   }
 
   renderParentUserOptions() {
     if (!Array.isArray(this.parentUsers) || this.parentUsers.length === 0) {
-      return "";
+      return '';
     }
 
     return this.parentUsers
       .map(
         (user) => `
-          <option value="${user.id}">${escapeHTML(user.full_name || "")}</option>
+          <option value="${user.id}">${escapeHTML(user.full_name || '')}</option>
         `
       )
-      .join("");
+      .join('');
   }
 
   attachEventListeners() {
-    document.querySelectorAll(".remove-from-organization").forEach((button) => {
-      button.addEventListener("click", (event) =>
+    document.querySelectorAll('.remove-from-organization').forEach((button) => {
+      button.addEventListener('click', (event) =>
         this.handleRemoveFromOrganization(event)
       );
     });
 
-    document.querySelectorAll(".associate-user").forEach((button) => {
-      button.addEventListener("click", (event) =>
+    document.querySelectorAll('.associate-user').forEach((button) => {
+      button.addEventListener('click', (event) =>
         this.handleAssociateUser(event)
       );
     });
 
-    document.querySelectorAll(".erase-participant").forEach((button) => {
-      button.addEventListener("click", (event) => this.handleErase(event));
+    document.querySelectorAll('.erase-participant').forEach((button) => {
+      button.addEventListener('click', (event) => this.handleErase(event));
     });
 
-    document.querySelectorAll(".unlink-user").forEach((button) => {
-      button.addEventListener("click", (event) => this.handleUnlinkUser(event));
+    document.querySelectorAll('.unlink-user').forEach((button) => {
+      button.addEventListener('click', (event) => this.handleUnlinkUser(event));
     });
   }
 
@@ -313,23 +313,23 @@ export class ManageUsersParticipants {
    * @returns {Promise<void>}
    */
   async handleErase(event) {
-    const button = event.target.closest(".erase-participant");
-    const participantId = button.getAttribute("data-participant-id");
-    const participantName = button.getAttribute("data-participant-name");
+    const button = event.target.closest('.erase-participant');
+    const participantId = button.getAttribute('data-participant-id');
+    const participantName = button.getAttribute('data-participant-name');
 
     const understood = await confirmDestructive({
-      title: translate("erase_participant_title"),
-      message: translate("erase_participant_warning").replace("{name}", participantName),
-      confirmLabel: translate("erase_participant_continue"),
+      title: translate('erase_participant_title'),
+      message: translate('erase_participant_warning').replace('{name}', participantName),
+      confirmLabel: translate('erase_participant_continue'),
     });
     if (!understood) {
       return;
     }
 
     const typed = await prompt({
-      title: translate("erase_participant_title"),
-      message: translate("erase_participant_confirm_prompt").replace("{name}", participantName),
-      confirmLabel: translate("erase_participant"),
+      title: translate('erase_participant_title'),
+      message: translate('erase_participant_confirm_prompt').replace('{name}', participantName),
+      confirmLabel: translate('erase_participant'),
     });
     if (typed === null) {
       return;
@@ -339,9 +339,9 @@ export class ManageUsersParticipants {
       const result = await eraseParticipant(participantId, typed);
       const summary = result?.data || result;
       this.showMessage(
-        translate("erase_participant_done")
-          .replace("{users}", String(summary?.users_erased ?? 0))
-          .replace("{guardians}", String(summary?.guardians_erased ?? 0))
+        translate('erase_participant_done')
+          .replace('{users}', String(summary?.users_erased ?? 0))
+          .replace('{guardians}', String(summary?.guardians_erased ?? 0))
       );
 
       // Anything left naming them is not something the app can clean up on its
@@ -349,9 +349,9 @@ export class ManageUsersParticipants {
       // told rather than left assuming it is finished.
       if (summary?.incident_reports_still_mentioning > 0) {
         await alertDialog({
-          title: translate("erase_participant_title"),
-          message: translate("erase_participant_remaining_mentions")
-            .replace("{count}", String(summary.incident_reports_still_mentioning)),
+          title: translate('erase_participant_title'),
+          message: translate('erase_participant_remaining_mentions')
+            .replace('{count}', String(summary.incident_reports_still_mentioning)),
         });
       }
 
@@ -359,19 +359,19 @@ export class ManageUsersParticipants {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Erasure failed:", error);
+      debugError('Erasure failed:', error);
       // erasure_awaiting_organization_approvals arrives as a translation key.
       this.showError(apiErrorMessage(error, 'erase_participant_failed'));
     }
   }
 
   async handleRemoveFromOrganization(event) {
-    const participantId = event.target.getAttribute("data-participant-id");
-    if (await confirmDestructive(translate("confirm_remove_participant_from_organization"))) {
+    const participantId = event.target.getAttribute('data-participant-id');
+    if (await confirmDestructive(translate('confirm_remove_participant_from_organization'))) {
       try {
         const result = await removeParticipantFromOrganization(participantId);
         if (result.success) {
-          this.showMessage(translate("participant_removed_from_organization"));
+          this.showMessage(translate('participant_removed_from_organization'));
           this.removeParticipantLocally(participantId);
           this.render();
           this.attachEventListeners();
@@ -382,8 +382,8 @@ export class ManageUsersParticipants {
           this.showError(translate('error_removing_participant_from_organization'));
         }
       } catch (error) {
-        debugError("Error:", error);
-        this.showError(translate("error_removing_participant_from_organization"));
+        debugError('Error:', error);
+        this.showError(translate('error_removing_participant_from_organization'));
       }
     }
   }
@@ -401,16 +401,16 @@ export class ManageUsersParticipants {
    */
   async handleUnlinkUser(event) {
     const button = event.currentTarget;
-    const participantId = button.getAttribute("data-participant-id");
-    const userId = button.getAttribute("data-user-id");
-    const userName = button.getAttribute("data-user-name");
+    const participantId = button.getAttribute('data-participant-id');
+    const userId = button.getAttribute('data-user-id');
+    const userName = button.getAttribute('data-user-name');
 
     if (!participantId || !userId) {
       return;
     }
 
     const confirmed = await confirmDestructive(
-      `${translate("confirm_unlink_parent")} ${userName}`
+      `${translate('confirm_unlink_parent')} ${userName}`
     );
     if (!confirmed) {
       return;
@@ -419,7 +419,7 @@ export class ManageUsersParticipants {
     try {
       const result = await unlinkParticipantUser(participantId, userId);
       if (result?.success) {
-        this.showMessage(translate("parent_unlinked_successfully"));
+        this.showMessage(translate('parent_unlinked_successfully'));
         await this.fetchData(true);
         this.render();
         this.attachEventListeners();
@@ -427,19 +427,19 @@ export class ManageUsersParticipants {
         this.showError(translate('error_unlinking_parent'));
       }
     } catch (error) {
-      debugError("Error unlinking parent:", error);
-      this.showError(translate("error_unlinking_parent"));
+      debugError('Error unlinking parent:', error);
+      this.showError(translate('error_unlinking_parent'));
     }
   }
 
   async handleAssociateUser(event) {
-    const participantId = event.target.getAttribute("data-participant-id");
+    const participantId = event.target.getAttribute('data-participant-id');
     const userId = event.target.previousElementSibling.value;
     if (userId) {
       try {
         const result = await associateUser(participantId, userId);
         if (result.success) {
-          this.showMessage(translate("user_associated_successfully"));
+          this.showMessage(translate('user_associated_successfully'));
           this.updateParticipantAssociationLocally(participantId, userId);
           this.render();
           this.attachEventListeners();
@@ -450,11 +450,11 @@ export class ManageUsersParticipants {
           this.showError(translate('error_associating_user'));
         }
       } catch (error) {
-        debugError("Error:", error);
-        this.showError(translate("error_associating_user"));
+        debugError('Error:', error);
+        this.showError(translate('error_associating_user'));
       }
     } else {
-      this.showError(translate("please_select_parent"));
+      this.showError(translate('please_select_parent'));
     }
   }
 
@@ -468,10 +468,10 @@ export class ManageUsersParticipants {
 
   renderError() {
     const errorMessage = `
-      <h1>${translate("error")}</h1>
-      <p>${translate("error_loading_manage_users_participants")}</p>
+      <h1>${translate('error')}</h1>
+      <p>${translate('error_loading_manage_users_participants')}</p>
     `;
-    setContent(document.getElementById("app"), errorMessage);
+    setContent(document.getElementById('app'), errorMessage);
   }
 
   /**
@@ -520,8 +520,8 @@ export class ManageUsersParticipants {
       return;
     }
 
-    const currentAssociations = (participant.associated_users || "")
-      .split(",")
+    const currentAssociations = (participant.associated_users || '')
+      .split(',')
       .map((name) => name.trim())
       .filter(Boolean);
 
@@ -529,6 +529,6 @@ export class ManageUsersParticipants {
       currentAssociations.push(associationName);
     }
 
-    participant.associated_users = currentAssociations.join(", ");
+    participant.associated_users = currentAssociations.join(', ');
   }
 }
