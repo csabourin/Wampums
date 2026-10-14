@@ -1031,15 +1031,21 @@ async function acceptInvitation(pool, params, { now = new Date(), logger } = {})
       });
     }
 
-    await client.query(
-      `UPDATE parent_invitations
-          SET status = 'accepted',
-              accepted_user_id = $1,
-              accepted_at = now(),
-              updated_at = now()
-        WHERE id = $2`,
-      [userId, invitation.id]
-    );
+    // A leader whose membership now waits on a human keeps the invitation: its
+    // roles are granted only once they can be, by following the link again
+    // after the approval. The reactivation request itself stands.
+    const keepForApproval = forLeader && result === ACCEPTANCE_RESULT.PENDING_APPROVAL;
+    if (!keepForApproval) {
+      await client.query(
+        `UPDATE parent_invitations
+            SET status = 'accepted',
+                accepted_user_id = $1,
+                accepted_at = now(),
+                updated_at = now()
+          WHERE id = $2`,
+        [userId, invitation.id]
+      );
+    }
 
     await client.query('COMMIT');
 

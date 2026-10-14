@@ -3,7 +3,8 @@
 -- When a unit emails an activity's permission slips to the families, its
 -- leaders receive the same request for information, without a signing link:
 -- only a child's own family answers its slip, leaders included. A leader who
--- is the parent of an invited child receives the parent's email instead.
+-- is the parent of an invited child and received the parent's email needs no
+-- copy: that delivery is recorded here as their row.
 --
 -- The screen sends a large activity's slips in several requests at once, so
 -- each leader's copy is claimed here before it is sent: the unique key lets
@@ -23,6 +24,6 @@ CREATE TABLE IF NOT EXISTS public.permission_slip_leader_copies (
 );
 
 COMMENT ON TABLE public.permission_slip_leader_copies IS
-  'One row per leader who was sent a copy, for information, of an activity''s permission slip email. Claimed before sending, so parallel sends mail each leader once.';
+  'One row per leader who has an activity''s permission slip request: a copy sent for information, or the family email itself when they are an invited child''s parent. Claimed before sending, so parallel sends mail each leader once.';
 COMMENT ON COLUMN public.permission_slip_leader_copies.group_key IS
   'What the slips were for: activity:<id>, or meeting:<date>:<title> for slips with no activity.';

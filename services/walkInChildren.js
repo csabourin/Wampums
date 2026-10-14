@@ -39,6 +39,11 @@ const { ensureActiveScoutYear } = require('./scoutYear');
 const { findMembershipStanding, classifyStanding } = require('./reactivation');
 const { ACCESS_SOURCE, grantParticipantAccess } = require('./participantAccess');
 const { createInvitation, resendInvitation } = require('./parentInvitations');
+const { ensureFamilyRole, upsertGuardianContact } = require('./accountProvisioning');
+const { recordRoleChange } = require('./roleAssignment');
+
+/** Note kept in role_assignment_audit when naming a member a child's parent adds the parent role. */
+const PARENT_LINK_AUDIT_NOTE = 'Named the parent of a child';
 const { isInvitationExpired } = require('../utils/invitation-tokens');
 
 /**
@@ -199,6 +204,24 @@ async function attachParent(client, {
       sourceType: ACCESS_SOURCE.ADMIN,
       sourceId: adminId,
       grantedBy: adminId,
+    });
+    // A member named as a parent -- a leader with a child here -- becomes one
+    // of the unit's families too: the parent role, and a contact record the
+    // unit can call.
+    const familyRole = await ensureFamilyRole(client, standing.user_id, organizationId);
+    if (familyRole) {
+      await recordRoleChange(client, {
+        organizationId,
+        userId: standing.user_id,
+        changedBy: adminId,
+        ...familyRole,
+        note: PARENT_LINK_AUDIT_NOTE,
+      });
+    }
+    await upsertGuardianContact(client, {
+      userId: standing.user_id,
+      email: standing.email || email,
+      accountFullName: standing.full_name,
     });
     await client.query(
       `INSERT INTO participant_guardians (guardian_id, participant_id)

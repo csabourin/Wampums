@@ -71,10 +71,13 @@ const SLIP = {
  * @param {boolean} [options.alreadyCopied] - Whether the leaders' copies were already claimed
  * @returns {string[]} Statements run
  */
-function mockDatabase({ permissions = ['permission_slips.sign'], ownChild = false, alreadyCopied = false, allSent = false } = {}) {
+function mockDatabase({ permissions = ['permission_slips.sign'], ownChild = false, alreadyCopied = false, allSent = false, delivered = [] } = {}) {
   const { __mClient, __mPool } = require('pg');
   const statements = [];
-  mockQueryImplementation(__mClient, __mPool, (query) => {
+  // Who holds the activity's request: a copy claimed, or a family email delivered
+  const claimed = new Set(alreadyCopied ? [USER_ID, LEADER_PARENT_ID] : delivered);
+  const accounts = { 'akela@unit.test': USER_ID, 'baloo@unit.test': LEADER_PARENT_ID };
+  mockQueryImplementation(__mClient, __mPool, (query, params) => {
     statements.push(query);
     if (query.includes('HAVING COUNT(DISTINCT p.permission_key)')) {
       return { rows: [
@@ -114,14 +117,21 @@ function mockDatabase({ permissions = ['permission_slips.sign'], ownChild = fals
       return { rows: [{ id: 2, prenom: 'Julie', nom: 'Tremblay', courriel: 'julie@famille.test' }] };
     }
     if (query.includes('JOIN users u ON u.id = up.user_id')) {
+      // Baloo, a leader, is the parent of the invited child
+      return { rows: [{ id: LEADER_PARENT_ID, email: 'baloo@unit.test', full_name: 'Baloo' }] };
+    }
+    if (query.includes('INSERT INTO permission_slip_leader_copies') && query.includes('LOWER(u.email)')) {
+      if (accounts[params[2]]) {
+        claimed.add(accounts[params[2]]);
+      }
       return { rows: [] };
     }
-    if (query.includes('JOIN user_participants up ON up.participant_id = ps.participant_id')) {
-      // Baloo is the parent of an invited child
-      return { rows: [{ user_id: LEADER_PARENT_ID }] };
-    }
     if (query.includes('INSERT INTO permission_slip_leader_copies')) {
-      return { rows: alreadyCopied ? [] : [{ id: 1 }] };
+      if (claimed.has(params[2])) {
+        return { rows: [] };
+      }
+      claimed.add(params[2]);
+      return { rows: [{ id: 1 }] };
     }
     if (query.includes('language_preference')) {
       return { rows: [{ language_preference: 'fr' }] };
@@ -216,7 +226,8 @@ describe('emailing an activity\'s permission slips', () => {
     const res = await send();
 
     expect(res.status).toBe(200);
-    expect(res.body.data.sent).toBe(1);
+    // Julie and Baloo, the child's two parents
+    expect(res.body.data.sent).toBe(2);
     expect(res.body.data.leader_copies_sent).toBe(1);
 
     const recipients = sendEmail.mock.calls.map(([to]) => to);
@@ -233,12 +244,29 @@ describe('emailing an activity\'s permission slips', () => {
     expect(parentEmail[2]).toContain(ACCESS_TOKEN);
   });
 
-  test('a leader who is the parent of an invited child gets no copy', async () => {
+  test('a leader who is the parent of an invited child gets the parent\'s email, not a copy', async () => {
     mockDatabase({ permissions: ['communications.send'] });
 
     await send();
 
-    expect(sendEmail.mock.calls.map(([to]) => to)).not.toContain('baloo@unit.test');
+    const toBaloo = sendEmail.mock.calls.filter(([to]) => to === 'baloo@unit.test');
+    expect(toBaloo).toHaveLength(1);
+    expect(toBaloo[0][2]).toContain(ACCESS_TOKEN);
+  });
+
+  test('a leader-parent whose family email failed still gets the copy', async () => {
+    mockDatabase({ permissions: ['communications.send'] });
+    sendEmail.mockImplementation((to, subject) => Promise.resolve(
+      !(to === 'baloo@unit.test' && !subject.includes('Pour information'))
+    ));
+
+    const res = await send();
+
+    const toBaloo = sendEmail.mock.calls.filter(([to]) => to === 'baloo@unit.test');
+    expect(toBaloo).toHaveLength(2);
+    expect(toBaloo[1][1]).toContain('Pour information');
+    expect(res.body.data.leader_copies_sent).toBe(2);
+    sendEmail.mockImplementation(() => Promise.resolve(true));
   });
 
   test('a leader already sent a copy for the activity is not sent another', async () => {
@@ -247,13 +275,14 @@ describe('emailing an activity\'s permission slips', () => {
     const res = await send();
 
     expect(res.body.data.leader_copies_sent).toBe(0);
-    expect(sendEmail.mock.calls.map(([to]) => to)).toEqual(['julie@famille.test']);
+    expect(sendEmail.mock.calls.map(([to]) => to)).toEqual(['julie@famille.test', 'baloo@unit.test']);
   });
 });
 
 describe('a leader copy the email service refused', () => {
   test('is sent when the slips are sent again, though every family already has theirs', async () => {
-    mockDatabase({ permissions: ['communications.send'], allSent: true });
+    // Baloo received the family email when the slips first went out
+    mockDatabase({ permissions: ['communications.send'], allSent: true, delivered: [LEADER_PARENT_ID] });
 
     const res = await request(app)
       .post('/api/v1/resources/permission-slips/send-emails')

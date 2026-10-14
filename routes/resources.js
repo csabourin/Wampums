@@ -361,8 +361,10 @@ module.exports = (pool, logger) => {
   /**
    * Send the unit's leaders a copy, for information, of the request the
    * families just received: once per leader and activity, without a signing
-   * link. A leader who is the parent of an invited child already received the
-   * parent's email, with its link, and gets no copy.
+   * link. A leader who is the parent of an invited child and received the
+   * parent's email, with its link, gets no copy: that delivery was recorded
+   * as their claim (recordFamilyDelivery). One whose family email failed
+   * still gets the copy.
    *
    * Each copy is claimed in permission_slip_leader_copies before it is sent,
    * so the parallel requests of one large send mail each leader once. A copy
@@ -373,6 +375,35 @@ module.exports = (pool, logger) => {
    * @param {object} sender - Unit email sender
    * @returns {Promise<number>} Copies sent
    */
+  /**
+   * What a slip was for, as permission_slip_leader_copies records it.
+   * @param {object} slip - Permission slip row
+   * @returns {string} 'activity:<id>' or 'meeting:<date>:<title>'
+   */
+  function slipGroupKey(slip) {
+    return slip.activity_id
+      ? `activity:${slip.activity_id}`
+      : `meeting:${parseDate(slip.meeting_date)}:${slip.activity_title || ''}`;
+  }
+
+  /**
+   * A family email reached this address: an account with it (a leader who is
+   * also a parent) has the request, with its signing link, and needs no copy.
+   *
+   * @param {number} organizationId - Active organization
+   * @param {object} slip - The slip emailed
+   * @param {string} email - Address that accepted it
+   * @returns {Promise<void>}
+   */
+  async function recordFamilyDelivery(organizationId, slip, email) {
+    await pool.query(
+      `INSERT INTO permission_slip_leader_copies (organization_id, group_key, user_id)
+       SELECT $1, $2, u.id FROM users u WHERE LOWER(u.email) = LOWER($3)
+       ON CONFLICT (organization_id, group_key, user_id) DO NOTHING`,
+      [organizationId, slipGroupKey(slip), email],
+    );
+  }
+
   async function sendLeaderCopies(organizationId, sentSlips, sender) {
     if (sentSlips.length === 0) {
       return 0;
@@ -384,9 +415,7 @@ module.exports = (pool, logger) => {
 
     const groups = new Map();
     for (const slip of sentSlips) {
-      const groupKey = slip.activity_id
-        ? `activity:${slip.activity_id}`
-        : `meeting:${parseDate(slip.meeting_date)}:${slip.activity_title || ''}`;
+      const groupKey = slipGroupKey(slip);
       if (!groups.has(groupKey)) {
         groups.set(groupKey, slip);
       }
@@ -394,29 +423,11 @@ module.exports = (pool, logger) => {
     const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
 
     const sentPerGroup = await Promise.all([...groups].map(async ([groupKey, slip]) => {
-      const parentsResult = slip.activity_id
-        ? await pool.query(
-          `SELECT DISTINCT up.user_id
-             FROM permission_slips ps
-             JOIN user_participants up ON up.participant_id = ps.participant_id
-            WHERE ps.organization_id = $1 AND ps.activity_id = $2 AND ps.status <> 'archived'`,
-          [organizationId, slip.activity_id],
-        )
-        : await pool.query(
-          `SELECT DISTINCT up.user_id
-             FROM permission_slips ps
-             JOIN user_participants up ON up.participant_id = ps.participant_id
-            WHERE ps.organization_id = $1 AND ps.meeting_date = $2
-              AND ps.activity_title IS NOT DISTINCT FROM $3 AND ps.status <> 'archived'`,
-          [organizationId, parseDate(slip.meeting_date), slip.activity_title || null],
-        );
-      const parentIds = new Set(parentsResult.rows.map((row) => String(row.user_id)));
       const followLink = slip.activity_id
         ? `${baseUrl}/permission-slips/${slip.activity_id}`
         : `${baseUrl}/permission-slips`;
 
       const outcomes = await Promise.all(leaders
-        .filter((leader) => !parentIds.has(String(leader.id)))
         .map(async (leader) => {
           const claim = await pool.query(
             `INSERT INTO permission_slip_leader_copies (organization_id, group_key, user_id)
@@ -2156,6 +2167,8 @@ module.exports = (pool, logger) => {
             if (emailSent) {
               slipSentCount++;
               emailsSentCount++;
+              // eslint-disable-next-line no-await-in-loop -- recorded as each email is accepted, like the sends around it
+              await recordFamilyDelivery(organizationId, slip, recipient.email);
               // Track guardian IDs that were emailed
               if (recipient.type === 'guardian' && !newGuardiansEmailed.includes(recipient.id)) {
                 newGuardiansEmailed.push(recipient.id);

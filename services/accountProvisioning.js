@@ -59,6 +59,20 @@ async function insertParentMembership(client, userId, organizationId, roleIds = 
     return;
   }
 
+  await client.query(
+    `INSERT INTO user_organizations (user_id, organization_id, role_ids, status)
+     VALUES ($1, $2, $3, 'active')`,
+    [userId, organizationId, JSON.stringify([await findParentRoleId(client)])]
+  );
+}
+
+/**
+ * The built-in parent role, which every family membership holds.
+ *
+ * @param {Object} client - Database client
+ * @returns {Promise<number>} Role id
+ */
+async function findParentRoleId(client) {
   const roleResult = await client.query(
     'SELECT id FROM roles WHERE role_name = $1',
     ['parent']
@@ -67,12 +81,41 @@ async function insertParentMembership(client, userId, organizationId, roleIds = 
   if (roleResult.rows.length === 0) {
     throw new Error("Role 'parent' not found in roles table");
   }
+  return roleResult.rows[0].id;
+}
 
-  await client.query(
-    `INSERT INTO user_organizations (user_id, organization_id, role_ids, status)
-     VALUES ($1, $2, $3, 'active')`,
-    [userId, organizationId, JSON.stringify([roleResult.rows[0].id])]
+/**
+ * Make an active member of the unit one of its families too: a member named
+ * a child's parent who holds no family (linked-scope) role receives the parent
+ * role, so the parent features reach them.
+ *
+ * @param {Object} client - Client inside the caller's transaction
+ * @param {string} userId - Member UUID
+ * @param {number} organizationId - Unit
+ * @returns {Promise<{previousRoleIds: number[], newRoleIds: number[]}|null>}
+ *   The change, or null when they already had a family role
+ */
+async function ensureFamilyRole(client, userId, organizationId) {
+  const membership = await client.query(
+    `SELECT uo.id, uo.role_ids,
+            EXISTS (
+              SELECT 1 FROM jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
+                JOIN roles r ON r.id = role_id_text::integer
+               WHERE r.data_scope = 'linked'
+            ) AS has_family_role
+       FROM user_organizations uo
+      WHERE uo.user_id = $1 AND uo.organization_id = $2
+      FOR UPDATE`,
+    [userId, organizationId]
   );
+  const row = membership.rows[0];
+  if (!row || row.has_family_role) {
+    return null;
+  }
+  const previousRoleIds = (row.role_ids || []).map(Number);
+  await addMembershipRoles(client, row.id, [await findParentRoleId(client)]);
+  const updated = await client.query('SELECT role_ids FROM user_organizations WHERE id = $1', [row.id]);
+  return { previousRoleIds, newRoleIds: (updated.rows[0].role_ids || []).map(Number) };
 }
 
 /**
@@ -315,6 +358,7 @@ module.exports = {
   ACCEPTANCE_RESULT,
   PASSWORD_HASH_ROUNDS,
   insertParentMembership,
+  ensureFamilyRole,
   splitFullName,
   upsertGuardianContact,
   attachExistingAccount,

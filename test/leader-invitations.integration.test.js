@@ -349,6 +349,43 @@ describe.skipIf(!DATABASE_URL)('Leader invitations', () => {
     expect(emails).not.toContain('outings-only@leaders.example.org');
   });
 
+  test('a member removed by hand after the invitation keeps it until approved, then receives the role', async () => {
+    const userId = await one(
+      "INSERT INTO users (email, password, full_name, is_verified) VALUES ('kaa@leaders.example.org', 'x', 'Kaa', true) RETURNING id"
+    );
+    await invite({ email: 'kaa@leaders.example.org', role_ids: [ids.teamRoleId] });
+    const token = tokenFromLastEmail();
+    // Removed by an administrator after the invitation went out
+    await pool.query(
+      `INSERT INTO user_organizations (user_id, organization_id, role_ids, status, deactivated_at, deactivated_reason)
+       VALUES ($1, $2, '[]'::jsonb, 'inactive', now(), 'removed_by_admin')`,
+      [userId, ids.organizationId]
+    );
+
+    const waiting = await accept(token);
+
+    expect(waiting.body.data.result).toBe(ACCEPTANCE_RESULT.PENDING_APPROVAL);
+    expect(await one('SELECT status FROM parent_invitations WHERE email = $1', ['kaa@leaders.example.org'])).toBe('pending');
+    expect(await one(
+      'SELECT role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+      [userId, ids.organizationId]
+    )).toEqual([]);
+
+    // An administrator approves the return; the link then grants the role
+    await pool.query(
+      "UPDATE user_organizations SET status = 'active', deactivated_at = NULL, deactivated_reason = NULL WHERE user_id = $1 AND organization_id = $2",
+      [userId, ids.organizationId]
+    );
+    const granted = await accept(token);
+
+    expect(granted.body.data.result).toBe(ACCEPTANCE_RESULT.ALREADY_MEMBER);
+    expect(await one(
+      'SELECT role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+      [userId, ids.organizationId]
+    )).toEqual([ids.teamRoleId]);
+    expect(await one('SELECT status FROM parent_invitations WHERE email = $1', ['kaa@leaders.example.org'])).toBe('accepted');
+  });
+
   test('a family invitation still makes a parent', async () => {
     const response = await invite({ email: 'family@leaders.example.org' });
     expect(response.status).toBe(201);

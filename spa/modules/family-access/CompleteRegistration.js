@@ -266,9 +266,12 @@ export class CompleteRegistration {
 
     if (data.result) {
       // A new leader has no children to add: the page says so
-      const messageKey = data.as_leader && data.result === 'account_created'
-        ? 'complete_registration_done_leader'
-        : RESULT_MESSAGES[data.result] || RESULT_MESSAGES.membership_added;
+      const leaderMessages = {
+        account_created: 'complete_registration_done_leader',
+        pending_approval: 'complete_registration_done_pending_leader',
+      };
+      const messageKey = (data.as_leader && leaderMessages[data.result])
+        || RESULT_MESSAGES[data.result] || RESULT_MESSAGES.membership_added;
       this.renderMessage(messageKey, {
         showLogin: data.result !== 'pending_approval',
       });

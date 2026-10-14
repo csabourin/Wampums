@@ -455,6 +455,47 @@ describe.skipIf(!DATABASE_URL)('Walk-in children', () => {
       expect(sentEmails).toHaveLength(0);
     });
 
+    test('a leader named a child\'s parent becomes one of the families: parent role, contact record, history', async () => {
+      const added = await walkIn(ids.leader.id, { parent_email: ids.parent.email });
+      const childId = added.body.data.participant_id;
+      const leaderParent = await member('Leader Parent', ids.leaderRole);
+
+      const response = await inviteAnother(ids.admin.id, childId, { parent_email: leaderParent.email });
+
+      expect(response.body.data.parent).toBe('linked_existing_account');
+      expect(await sees(leaderParent.id, childId)).toBe(true);
+      const roleIds = await one(
+        'SELECT role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+        [leaderParent.id, ids.unit]
+      );
+      expect(roleIds).toEqual(expect.arrayContaining([ids.leaderRole, ids.parentRole]));
+      const guardianId = await one('SELECT id FROM parents_guardians WHERE user_uuid = $1', [leaderParent.id]);
+      expect(guardianId).toBeDefined();
+      expect(await one(
+        'SELECT count(*) FROM participant_guardians WHERE guardian_id = $1 AND participant_id = $2',
+        [guardianId, childId]
+      )).toBe('1');
+      expect(await one(
+        'SELECT changed_by FROM role_assignment_audit WHERE user_id = $1 AND organization_id = $2',
+        [leaderParent.id, ids.unit]
+      )).toBe(ids.admin.id);
+    });
+
+    test('a member who is already a parent here keeps their roles as they are', async () => {
+      const added = await walkIn(ids.leader.id, { parent_email: `maman@new.${DOMAIN}` });
+      const before = await one(
+        'SELECT role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+        [ids.parent.id, ids.unit]
+      );
+
+      await inviteAnother(ids.admin.id, added.body.data.participant_id, { parent_email: ids.parent.email });
+
+      expect(await one(
+        'SELECT role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+        [ids.parent.id, ids.unit]
+      )).toEqual(before);
+    });
+
     test('it takes users.invite as well as participants.edit', async () => {
       const added = await walkIn(ids.leader.id, { parent_email: ids.parent.email });
 
