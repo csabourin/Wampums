@@ -19,7 +19,7 @@ const {
   isAssociationInUnit,
 } = require('../services/participantAccess');
 const { listUnitLeaders } = require('../services/unitLeaders');
-const { checkRoleChange, checkRolesGrantable, findRolesInUnit, normalizeRoleIds } = require('../services/roleAssignment');
+const { checkRoleChange, checkRolesGrantable, findRolesInUnit, normalizeRoleIds, recordRoleChange } = require('../services/roleAssignment');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 const { ROUTINE_DEACTIVATION_REASON } = require('../services/reactivation');
 const { param, body } = require('express-validator');
@@ -58,47 +58,6 @@ function auditNoteFrom(value) {
   }
   const note = value.trim().slice(0, AUDIT_NOTE_MAX_LENGTH);
   return note || null;
-}
-
-/**
- * Record a change to a member's roles, with the roles as they are now, so the
- * history stays readable after a role is renamed or deleted. Nothing is
- * written when the roles did not change.
- *
- * @param {Object} client - Client inside the change's transaction
- * @param {Object} entry
- * @param {number} entry.organizationId - Unit
- * @param {string} entry.userId - Member UUID
- * @param {string} entry.changedBy - UUID of the person making the change
- * @param {number[]} entry.previousRoleIds - Roles before
- * @param {number[]} entry.newRoleIds - Roles after
- * @param {?string} entry.note - Optional reason
- * @returns {Promise<void>}
- */
-async function recordRoleChange(client, { organizationId, userId, changedBy, previousRoleIds, newRoleIds, note }) {
-  const before = normalizeRoleIds(previousRoleIds);
-  const after = normalizeRoleIds(newRoleIds);
-  const unchanged = before.length === after.length && before.every((id) => after.includes(id));
-  if (unchanged) {
-    return;
-  }
-
-  await client.query(
-    `WITH snapshot AS (
-       SELECT id, jsonb_build_object('id', id, 'role_name', role_name, 'display_name', display_name) AS role
-         FROM roles
-        WHERE id = ANY($4::int[]) OR id = ANY($5::int[])
-     )
-     INSERT INTO role_assignment_audit
-       (organization_id, user_id, changed_by, previous_roles, new_roles, note)
-     VALUES (
-       $1, $2, $3,
-       COALESCE((SELECT jsonb_agg(role ORDER BY id) FROM snapshot WHERE id = ANY($4::int[])), '[]'::jsonb),
-       COALESCE((SELECT jsonb_agg(role ORDER BY id) FROM snapshot WHERE id = ANY($5::int[])), '[]'::jsonb),
-       $6
-     )`,
-    [organizationId, userId, changedBy, before, after, note]
-  );
 }
 
 module.exports = (pool, logger) => {
@@ -275,7 +234,7 @@ module.exports = (pool, logger) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
-      `SELECT u.id, u.full_name
+      `SELECT DISTINCT u.id, u.full_name, u.nickname
        FROM users u
        JOIN user_organizations uo ON u.id = uo.user_id
        JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)

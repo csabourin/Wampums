@@ -94,8 +94,8 @@ const {
   clearPointsRelatedCaches
 } = require('../../spa/indexedDB.js');
 const { getTodayISO } = require('../../spa/utils/DateUtils.js');
-const { ManagePoints } = require('../../spa/manage_points.js');
-const { Attendance } = require('../../spa/attendance.js');
+const { ManagePoints } = require('../../spa/modules/points/ManagePoints.js');
+const { Attendance } = require('../../spa/modules/attendance/Attendance.js');
 const { PointsStore } = require('../../spa/modules/points/PointsStore.js');
 const {
   tr,

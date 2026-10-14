@@ -14,6 +14,7 @@ import { openModal } from '../../utils/ModalUtils.js';
 import { setButtonLoading } from '../../utils/SkeletonUtils.js';
 import {
   getNextWeekdayDate,
+  firstUpcomingMeetingDate,
   nextDateAfter,
   previousDateBefore,
   normalizeDateString,
@@ -26,6 +27,7 @@ import {
   normalizeMeetingDurationMinutes,
 } from '../../utils/MeetingPlanUtils.js';
 import { getUnitVocabulary } from '../../utils/UnitVocabularyUtils.js';
+import { memberDisplayName } from '../../utils/DisplayNameUtils.js';
 import { deleteCachedData, clearYearlyPlannerCaches } from '../../indexedDB.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { ActivityManager } from '../ActivityManager.js';
@@ -181,19 +183,15 @@ export class MeetingPrep extends BaseModule {
 
   /**
    * Pick the initial date: the next non-cancelled planned meeting, falling
-   * back to weekday arithmetic when no calendar exists yet.
+   * back to weekday arithmetic when no calendar exists yet. Once tonight's
+   * meeting has started, the leader is planning the next one.
    * @returns {string} Meeting date (YYYY-MM-DD)
    */
   getInitialDate() {
-    const today = new Date().toLocaleDateString('en-CA');
-    const upcoming = this.meetingDates
-      .filter(d => !d.is_cancelled && normalizeDateString(d.date) >= today)
-      .map(d => normalizeDateString(d.date))
-      .sort((a, b) => a.localeCompare(b));
-    if (upcoming.length > 0) {
-      return upcoming[0];
-    }
-    return getNextWeekdayDate(this.organizationSettings.organization_info?.meeting_day || 'Wednesday');
+    const organizationInfo = this.organizationSettings.organization_info || {};
+    const meetingTime = organizationInfo.meeting_time || null;
+    return firstUpcomingMeetingDate(this.meetingDates, { meetingTime })
+      || getNextWeekdayDate(organizationInfo.meeting_day || 'Wednesday', new Date(), meetingTime);
   }
 
   /**
@@ -524,7 +522,7 @@ export class MeetingPrep extends BaseModule {
               <label for="animateur-responsable">${translate('animateur_responsable')}:</label>
               <select id="animateur-responsable" required>
                 <option value="">${translate('select_animateur')}</option>
-                ${this.animateurs.map(a => `<option value="${a.id}" ${String(a.id) === String(meeting.animateur_responsable || '') ? 'selected' : ''}>${escapeHTML(a.full_name)}</option>`).join('')}
+                ${this.animateurs.map(a => `<option value="${a.id}" ${String(a.id) === String(meeting.animateur_responsable || '') ? 'selected' : ''}>${escapeHTML(memberDisplayName(a))}</option>`).join('')}
               </select>
             </div>
             <div class="form-group">

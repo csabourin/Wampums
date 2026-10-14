@@ -23,13 +23,14 @@ const {
   normalizeEmailInput,
   validateCurrentPassword,
   validateNewPasswordForChange,
-  hasNameMarkup
+  hasNameMarkup,
+  validateNickname,
 } = require('../middleware/validation');
 const { RATE_LIMITS } = require('../config/constants');
 const { renameAccount, syncAccountNames } = require('../services/accountNames');
 const { ALL_INTERFACE_LANGUAGES } = require('../utils/interfaceLanguages');
 
-const HTTP_STATUS = { BAD_REQUEST: 400 };
+const HTTP_STATUS = { BAD_REQUEST: 400, NOT_FOUND: 404 };
 
 /** Longest name the profile accepts, in each field. */
 const PROFILE_NAME_MAX_LENGTH = 100;
@@ -227,14 +228,14 @@ module.exports = (pool, logger) => {
     const organizationId = req.user.organizationId;
 
     const result = await pool.query(
-      `SELECT u.id, u.full_name, u.email, u.language_preference, u.whatsapp_phone_number,
+      `SELECT u.id, u.full_name, u.nickname, u.email, u.language_preference, u.whatsapp_phone_number,
               jsonb_agg(DISTINCT r.role_name) as roles
        FROM users u
        JOIN user_organizations uo ON u.id = uo.user_id
        CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
        LEFT JOIN roles r ON r.id = role_id_text::integer
        WHERE u.id = $1 AND uo.organization_id = $2
-       GROUP BY u.id, u.full_name, u.email, u.language_preference, u.whatsapp_phone_number`,
+       GROUP BY u.id, u.full_name, u.nickname, u.email, u.language_preference, u.whatsapp_phone_number`,
       [userId, organizationId]
     );
 
@@ -415,6 +416,31 @@ module.exports = (pool, logger) => {
       logger.info(`User ${userId} updated their name`);
 
       return success(res, result.rows[0], 'Name updated successfully');
+    })
+  );
+
+  /**
+   * PATCH /api/v1/users/me/nickname
+   * Set the name the member goes by in the unit (a leader's totem name),
+   * shown in place of their full name. An empty value clears it.
+   */
+  router.patch('/nickname',
+    authenticate,
+    blockDemoRoles,
+    validateNickname,
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const nickname = typeof req.body.nickname === 'string' && req.body.nickname.trim()
+        ? req.body.nickname.trim()
+        : null;
+      const result = await pool.query(
+        'UPDATE users SET nickname = $1 WHERE id = $2 RETURNING id, full_name, nickname',
+        [nickname, req.user.id]
+      );
+      if (result.rows.length === 0) {
+        return errorResponse(res, 'User not found', HTTP_STATUS.NOT_FOUND);
+      }
+      return success(res, result.rows[0], 'Nickname saved');
     })
   );
 

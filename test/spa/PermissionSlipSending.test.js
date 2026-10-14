@@ -62,7 +62,7 @@ const { getActivity } = require('../../spa/api/api-activities.js');
 const { fetchParticipants } = require('../../spa/ajax-functions.js');
 const { confirm } = require('../../spa/utils/DialogUtils.js');
 const { hasPermission } = require('../../spa/utils/PermissionUtils.js');
-const { PermissionSlipDashboard } = require('../../spa/permission_slip_dashboard.js');
+const { PermissionSlipDashboard } = require('../../spa/modules/permission-slips/PermissionSlipDashboard.js');
 
 const AXE_OPTIONS = {
   runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
@@ -340,4 +340,54 @@ test('the create form has no WCAG A/AA violations', async () => {
   await openCreateForm();
   const results = await axe.run(document.getElementById('permissionSlipForm'), AXE_OPTIONS);
   expect(results.violations).toEqual([]);
+});
+
+describe('leaders and signing', () => {
+  const slip = (id, firstName, isOwnChild) => ({
+    id, participant_id: id, first_name: firstName, last_name: 'T', status: 'pending', email_sent: true,
+    activity_id: 12, activity_title: 'Sortie canot', meeting_date: '2026-11-07', is_own_child: isOwnChild,
+  });
+
+  async function openSlipList(slips) {
+    document.body.innerHTML = '<main id="app"></main>';
+    getActivity.mockResolvedValue(ACTIVITY);
+    endpoints.getPermissionSlips.mockResolvedValue({ data: { permission_slips: slips } });
+    endpoints.getResourceDashboard.mockResolvedValue({ data: { permission_summary: [] } });
+    endpoints.getGroups.mockResolvedValue({ data: [] });
+    fetchParticipants.mockResolvedValue(PARTICIPANTS);
+    const dashboard = new PermissionSlipDashboard(app, { activityId: 12 });
+    await dashboard.init();
+    return document.getElementById('app');
+  }
+
+  test('a leader is offered to sign only the slips of their own children', async () => {
+    const root = await openSlipList([slip(1, 'Alice', false), slip(2, 'Bob', true)]);
+
+    const signButtons = [...root.querySelectorAll('.sign-slip')];
+    expect(signButtons).toHaveLength(1);
+    expect(signButtons[0].closest('tr').textContent).toContain('Bob');
+    expect(signButtons[0].getAttribute('type')).toBe('button');
+    expect(root.querySelector('tr[data-slip-id="1"] .sign-slip')).toBeNull();
+  });
+
+  test('a slip with no answer about the viewer\'s own children offers no signature', async () => {
+    const root = await openSlipList([{ ...slip(1, 'Alice', undefined) }]);
+    expect(root.querySelector('.sign-slip')).toBeNull();
+  });
+
+  test('the slip list with a sign button has no accessibility violations', async () => {
+    const root = await openSlipList([slip(1, 'Alice', false), slip(2, 'Bob', true)]);
+    const results = await axe.run(root, AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+
+  test('after sending, the leader is told the other leaders received a copy', async () => {
+    await openCreateForm();
+    endpoints.sendPermissionSlipEmails.mockResolvedValueOnce({ data: { sent: 2, total: 2, failed: [], leader_copies_sent: 4 } });
+    await submitWith('send');
+
+    const [message, type] = app.showMessage.mock.calls.at(-1);
+    expect(message).toContain('permission_slip_leader_copies_sent');
+    expect(type).toBe('success');
+  });
 });

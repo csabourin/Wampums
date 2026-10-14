@@ -25,6 +25,13 @@ describe('UnitVocabularyUtils', () => {
     expect(getVocabularyTemplateKey('last_honor_date')).toBe('vocabulary_last_honor_date');
   });
 
+  test('a cub den leader is a Pisteur, not an Animateur', () => {
+    expect(getDirectVocabularyTermKey('first_leader')).toBe('primary_youth_leader');
+    expect(getDirectVocabularyTermKey('second_leader')).toBe('assistant_youth_leader');
+    expect(getUnitVocabulary({}, 'fr').primary_youth_leader).toBe('Pisteur');
+    expect(getUnitVocabulary({}, 'fr').assistant_youth_leader).toBe('Second pisteur');
+  });
+
   test('keeps unsupported locales on their existing same-language translations', () => {
     expect(getUnitVocabulary({ unit_vocabulary: createVocabularyFromProfile('beavers') }, 'it')).toEqual({});
     expect(getVocabularyTemplateKey('badge_tracker_title')).toBe('vocabulary_badge_tracker_title');

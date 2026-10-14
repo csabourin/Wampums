@@ -55,9 +55,27 @@ const {
 } = require('./accountProvisioning');
 const { ACCESS_SOURCE, grantParticipantAccess } = require('./participantAccess');
 const { DETECTED_VIA, flagDuplicatesAmong } = require('./duplicateCandidates');
+const { findRolesInUnit, recordRoleChange } = require('./roleAssignment');
 
 /** Languages the email bundles cover. Anything else falls back to the unit's own. */
 const SUPPORTED_EMAIL_LANGUAGES = ['en', 'fr', 'uk', 'it', 'id'];
+
+/** Note kept in role_assignment_audit for roles granted by accepting an invitation. */
+const LEADER_INVITATION_AUDIT_NOTE = 'Accepted a leader invitation';
+
+/** Who an invitation is for: a family (the parent role) or the unit's team. */
+const INVITATION_KIND = Object.freeze({ FAMILY: 'family', LEADER: 'leader' });
+
+/**
+ * The roles a leader's invitation grants; empty for a family invitation.
+ *
+ * @param {Object|null} invitation - Row from `parent_invitations`
+ * @returns {number[]} Role ids
+ */
+function invitationRoleIds(invitation) {
+  const roleIds = invitation?.role_ids;
+  return Array.isArray(roleIds) ? roleIds.map(Number).filter(Number.isInteger) : [];
+}
 
 /**
  * Pick the language the invitation will be written in.
@@ -190,6 +208,7 @@ async function findInvitationByToken(pool, token) {
             pi.expires_at,
             pi.accepted_user_id,
             pi.onboarding_completed_at,
+            pi.role_ids,
             o.name AS organization_name,
             (u.id IS NOT NULL) AS account_exists
        FROM parent_invitations pi
@@ -251,6 +270,8 @@ async function describeInvitation(pool, token, { now = new Date(), logger } = {}
     support_contact_name: invitation.support_contact_name,
     support_contact_email: invitation.support_contact_email,
     language: invitation.language,
+    // A leader joins the unit's team; the page does not ask them to add children
+    invites_leader: invitationRoleIds(invitation).length > 0,
   };
 }
 
@@ -283,7 +304,7 @@ function invitationAdminState(invitation, now = new Date()) {
  * @param {Date} [options.now] - Clock reading, for tests
  * @returns {Promise<Array<Object>>} Invitations with a derived `state`
  */
-async function listInvitations(pool, organizationId, { now = new Date() } = {}) {
+async function listInvitations(pool, organizationId, { now = new Date(), kind = INVITATION_KIND.FAMILY } = {}) {
   const result = await pool.query(
     `SELECT pi.id,
             pi.email,
@@ -304,6 +325,12 @@ async function listInvitations(pool, organizationId, { now = new Date() } = {}) 
             pi.deactivation_override_reason,
             pi.deactivation_override_at,
             pi.created_at,
+            pi.role_ids,
+            COALESCE((
+              SELECT json_agg(json_build_object('id', r.id, 'display_name', r.display_name) ORDER BY r.id)
+                FROM roles r
+               WHERE COALESCE(pi.role_ids, '[]'::jsonb) @> jsonb_build_array(r.id)
+            ), '[]'::json) AS roles,
             inviter.full_name AS invited_by_name,
             COALESCE((
               SELECT json_agg(json_build_object('id', p.id, 'first_name', p.first_name, 'last_name', p.last_name)
@@ -315,8 +342,9 @@ async function listInvitations(pool, organizationId, { now = new Date() } = {}) 
        FROM parent_invitations pi
        LEFT JOIN users inviter ON inviter.id = pi.invited_by
       WHERE pi.organization_id = $1
+        AND (jsonb_array_length(COALESCE(pi.role_ids, '[]'::jsonb)) > 0) = ($2::text = 'leader')
       ORDER BY pi.created_at DESC`,
-    [organizationId]
+    [organizationId, kind === INVITATION_KIND.LEADER ? INVITATION_KIND.LEADER : INVITATION_KIND.FAMILY]
   );
 
   return result.rows.map((row) => ({ ...row, state: invitationAdminState(row, now) }));
@@ -371,6 +399,7 @@ async function createInvitation(pool, params) {
     language = null,
     invitedBy = null,
     deactivationOverrideReason = null,
+    roleIds = null,
     now = new Date(),
   } = params;
 
@@ -408,10 +437,10 @@ async function createInvitation(pool, params) {
          telephone_residence, telephone_cellulaire,
          support_contact_name, support_contact_email,
          language, token_digest, expires_at, invited_by,
-         deactivation_override_reason, deactivation_override_at
+         deactivation_override_reason, deactivation_override_at, role_ids
        )
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-               CASE WHEN $13::text IS NULL THEN NULL ELSE now() END)
+               CASE WHEN $13::text IS NULL THEN NULL ELSE now() END, $14::jsonb)
        RETURNING *`,
       [
         organizationId, email, firstName, lastName,
@@ -419,6 +448,7 @@ async function createInvitation(pool, params) {
         supportContactName, supportContactEmail,
         language, digest, invitationExpiresAt({ from: now }), invitedBy,
         overrideReason,
+        Array.isArray(roleIds) && roleIds.length > 0 ? JSON.stringify(roleIds) : null,
       ]
     );
 
@@ -456,7 +486,8 @@ async function updateInvitation(pool, params) {
     }
     let updated;
     if (previous.email !== params.email) {
-      updated = await createInvitation(client, params);
+      // The roles were checked when the invitation was made; editing keeps them
+      updated = await createInvitation(client, { ...params, roleIds: invitationRoleIds(previous) });
       if (!updated.ok) {
         await client.query('ROLLBACK');
         return updated;
@@ -631,6 +662,7 @@ function buildInvitationMessage({
   supportContactName = null,
   supportContactEmail = null,
   forChild = false,
+  forLeader = false,
 }) {
   const t = getTranslationsByCode(language);
   const fallback = getTranslationsByCode('en');
@@ -645,7 +677,7 @@ function buildInvitationMessage({
   // An invitation sent for a child says so -- but never names the child. The
   // address was often typed in a hurry at a meeting, and a typo must not tell a
   // stranger a child's name and where they spend their Tuesday evenings.
-  const intro = (forChild
+  const familyIntro = forChild
     ? pick(
       'parent_invitation_email_intro_child',
       '{organization} has started a registration for your child. Complete your profile to create your account; your child\'s file will be waiting for you.'
@@ -653,7 +685,13 @@ function buildInvitationMessage({
     : pick(
       'parent_invitation_email_intro',
       '{organization} has started a file for you. Complete your profile to create your account, then add your children — it takes a few minutes.'
-    )).replace('{organization}', organizationName);
+    );
+  const intro = (forLeader
+    ? pick(
+      'leader_invitation_email_intro',
+      '{organization} invites you to join its team of leaders. Complete your profile to create your account; the unit\'s tools will be waiting for you.'
+    )
+    : familyIntro).replace('{organization}', organizationName);
   const button = pick('parent_invitation_email_button', 'Complete my profile');
   const copyHint = pick('parent_invitation_email_copy_hint', 'Or copy this link:');
   const expiry = pick('parent_invitation_email_expiry', 'This link will expire in 7 days.');
@@ -722,6 +760,7 @@ async function deliverInvitation(pool, { invitation, token, baseUrl, logger }) {
 
   const { subject, text, html } = buildInvitationMessage({
     forChild: children.rows[0].n > 0,
+    forLeader: invitationRoleIds(invitation).length > 0,
     language: invitation.language,
     organizationName,
     completeLink,
@@ -817,6 +856,23 @@ async function linkInvitationChildren(client, { invitation, userId }) {
 }
 
 /**
+ * The roles an account holds in the unit now.
+ *
+ * @param {Object} client - Client inside the acceptance transaction
+ * @param {string} userId - User UUID
+ * @param {number} organizationId - Unit
+ * @returns {Promise<number[]>} Role ids
+ */
+async function membershipRoleIds(client, userId, organizationId) {
+  const membership = await client.query(
+    'SELECT role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+    [userId, organizationId]
+  );
+  const roleIds = membership.rows[0]?.role_ids;
+  return Array.isArray(roleIds) ? roleIds.map(Number).filter(Number.isInteger) : [];
+}
+
+/**
  * Spend an invitation.
  *
  * One transaction, opened by locking the invitation row. That lock is what makes
@@ -891,6 +947,19 @@ async function acceptInvitation(pool, params, { now = new Date(), logger } = {})
     let userId = invitation.existing_user_id;
     let result;
 
+    // A leader's invitation grants the roles it carries that the unit still has
+    const forLeader = invitationRoleIds(invitation).length > 0;
+    const roleIds = forLeader
+      ? (await findRolesInUnit(client, invitationRoleIds(invitation), invitation.organization_id)).map((role) => role.id)
+      : null;
+    if (forLeader && roleIds.length === 0) {
+      await client.query('ROLLBACK');
+      return { state, error: 'invitation_roles_unavailable' };
+    }
+    const rolesBefore = forLeader && userId
+      ? await membershipRoleIds(client, userId, invitation.organization_id)
+      : [];
+
     if (state === INVITATION_STATE.READY_NEW_ACCOUNT) {
       if (!password) {
         await client.query('ROLLBACK');
@@ -917,25 +986,29 @@ async function acceptInvitation(pool, params, { now = new Date(), logger } = {})
         fullName,
         language: invitation.language,
       });
-      await insertParentMembership(client, userId, invitation.organization_id);
+      await insertParentMembership(client, userId, invitation.organization_id, roleIds);
       result = ACCEPTANCE_RESULT.ACCOUNT_CREATED;
 
-      await upsertGuardianContact(client, {
-        userId,
-        email: invitation.email,
-        firstName: resolvedFirstName,
-        lastName: resolvedLastName,
-        telephoneResidence: telephoneResidence || invitation.telephone_residence,
-        telephoneCellulaire: telephoneCellulaire || invitation.telephone_cellulaire,
-      });
+      // A leader joins the team: no guardian contact record is made for them
+      if (!forLeader) {
+        await upsertGuardianContact(client, {
+          userId,
+          email: invitation.email,
+          firstName: resolvedFirstName,
+          lastName: resolvedLastName,
+          telephoneResidence: telephoneResidence || invitation.telephone_residence,
+          telephoneCellulaire: telephoneCellulaire || invitation.telephone_cellulaire,
+        });
+      }
     } else {
       // An account already exists. Its password and its profile are its owner's,
       // not an invitation's, and nothing here touches either.
       result = await attachExistingAccount(client, userId, invitation.organization_id, {
         overrideDeactivation: Boolean(invitation.deactivation_override_at),
+        roleIds,
       });
 
-      if (result !== ACCEPTANCE_RESULT.PENDING_APPROVAL) {
+      if (result !== ACCEPTANCE_RESULT.PENDING_APPROVAL && !forLeader) {
         await upsertGuardianContact(client, {
           userId,
           email: invitation.email,
@@ -946,15 +1019,39 @@ async function acceptInvitation(pool, params, { now = new Date(), logger } = {})
 
     await linkInvitationChildren(client, { invitation, userId });
 
-    await client.query(
-      `UPDATE parent_invitations
-          SET status = 'accepted',
-              accepted_user_id = $1,
-              accepted_at = now(),
-              updated_at = now()
-        WHERE id = $2`,
-      [userId, invitation.id]
-    );
+    if (forLeader && result !== ACCEPTANCE_RESULT.PENDING_APPROVAL) {
+      // The roles were chosen by whoever sent the invitation, and recorded as theirs
+      await recordRoleChange(client, {
+        organizationId: invitation.organization_id,
+        userId,
+        changedBy: invitation.invited_by,
+        previousRoleIds: rolesBefore,
+        newRoleIds: await membershipRoleIds(client, userId, invitation.organization_id),
+        note: LEADER_INVITATION_AUDIT_NOTE,
+      });
+    }
+
+    // A leader whose membership now waits on a human keeps the invitation: its
+    // roles are granted only once they can be, by following the link again
+    // after the approval. The reactivation request itself stands.
+    const keepForApproval = forLeader && result === ACCEPTANCE_RESULT.PENDING_APPROVAL;
+    if (keepForApproval) {
+      // The link must still work once the return is approved
+      await client.query(
+        'UPDATE parent_invitations SET expires_at = $1, updated_at = now() WHERE id = $2',
+        [invitationExpiresAt({ from: now }), invitation.id]
+      );
+    } else {
+      await client.query(
+        `UPDATE parent_invitations
+            SET status = 'accepted',
+                accepted_user_id = $1,
+                accepted_at = now(),
+                updated_at = now()
+          WHERE id = $2`,
+        [userId, invitation.id]
+      );
+    }
 
     await client.query('COMMIT');
 
@@ -967,6 +1064,7 @@ async function acceptInvitation(pool, params, { now = new Date(), logger } = {})
     return {
       state,
       result,
+      as_leader: forLeader,
       email: invitation.email,
       organization_name: await getOrganizationName(pool, invitation.organization_id),
     };
@@ -988,6 +1086,8 @@ async function acceptInvitation(pool, params, { now = new Date(), logger } = {})
 }
 
 module.exports = {
+  INVITATION_KIND,
+  invitationRoleIds,
   resolveInvitationLanguage,
   INVITATION_STATE,
   ACCEPTANCE_RESULT,

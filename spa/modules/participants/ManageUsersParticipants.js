@@ -1,0 +1,675 @@
+import { debugLog, debugError, debugWarn, debugInfo } from '../../utils/DebugUtils.js';
+import {
+  getParticipantsWithUsers,
+  getParentUsers,
+  removeParticipantFromOrganization,
+  associateUser
+} from '../../ajax-functions.js';
+import { eraseParticipant, unlinkParticipantUser } from '../../api/api-endpoints.js';
+import { translate } from '../../app.js';
+import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
+import { canViewUsers, hasPermission } from '../../utils/PermissionUtils.js';
+import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
+import { confirmDestructive, prompt, alert as alertDialog } from '../../utils/DialogUtils.js';
+import { openModal, closeModal } from '../../utils/ModalUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { inviteAnotherParent } from '../../api/api-walk-in.js';
+import { invitationLanguageField } from '../family-access/operations.js';
+
+import { apiErrorMessage, apiErrorMessageKey } from '../../utils/ApiErrorUtils.js';
+
+const INVITE_PARENT_MODAL_ID = 'invite-another-parent-modal';
+
+/** Refusals the server explains with a code, and how to say them. */
+const INVITE_PARENT_REFUSALS = {
+  manually_deactivated: 'invite_another_parent_deactivated',
+  leader_invitation_pending: 'parent_error_leader_invitation_pending',
+};
+
+export class ManageUsersParticipants {
+  constructor(app) {
+    this.app = app;
+    this.participants = [];
+    this.parentUsers = [];
+    // Erasure is irreversible and crosses families, so it sits with whoever is
+    // accountable for the unit rather than with anyone who can edit a record.
+    this.canErase = hasPermission('participants.erase');
+    // POST /v1/walk-in-children/:id/invite-another-parent requires both
+    this.canInviteParent = hasPermission('participants.edit') && hasPermission('users.invite');
+  }
+
+  async init() {
+    if (!canViewUsers()) {
+      this.app.router.navigate('/');
+      return;
+    }
+
+    try {
+      await this.fetchData();
+    } catch (error) {
+      debugError('Error loading manage users participants data:', error);
+      // Continue rendering even if some data failed to load
+      this.app.showMessage(translate('error_loading_data'), 'warning');
+    }
+
+    // Always render the page, even with partial data
+    try {
+      this.render();
+      this.attachEventListeners();
+    } catch (error) {
+      debugError('Error rendering manage users participants page:', error);
+      this.renderError();
+    }
+  }
+
+  async fetchData(forceRefresh = false) {
+    // Load data with individual error handling to prevent total failure
+    const [participantsResponse, parentUsersResponse] = await Promise.all([
+      getParticipantsWithUsers(forceRefresh).catch(error => {
+        debugError('Error loading participants with users:', error);
+        return { success: false, data: [] };
+      }),
+      getParentUsers(forceRefresh).catch(error => {
+        debugError('Error loading parent users:', error);
+        return { success: false, data: [] };
+      })
+    ]);
+
+    if (participantsResponse?.success) {
+      const participantsData =
+        participantsResponse.data?.participants ||
+        participantsResponse.participants ||
+        participantsResponse.data ||
+        [];
+      this.participants = this.normalizeParticipants(participantsData);
+    } else {
+      debugError('Failed to fetch participants with users');
+      this.participants = [];
+    }
+
+    if (parentUsersResponse?.success) {
+      const parentUsersData =
+        parentUsersResponse.data?.users ||
+        parentUsersResponse.users ||
+        parentUsersResponse.data ||
+        [];
+      this.parentUsers = this.normalizeParentUsers(parentUsersData);
+    } else {
+      debugError('Failed to fetch parent users');
+      this.parentUsers = [];
+    }
+  }
+
+  /**
+   * Normalize participants to ensure unique participants with deduped associated users.
+   * @param {Array} participantsData
+   * @returns {Array}
+   */
+  normalizeParticipants(participantsData) {
+    if (!Array.isArray(participantsData)) {
+      return [];
+    }
+
+    const participantMap = new Map();
+
+    participantsData.forEach((participant) => {
+      if (!participant || typeof participant !== 'object') {return;}
+
+      const participantId = participant.id || participant.participant_id;
+      if (!participantId) {return;}
+
+      const existingEntry = participantMap.get(participantId) || {
+        ...participant,
+        associatedUsers: []
+      };
+
+      // The id matters as much as the name: it is what lets a single wrong
+      // association be removed without rewriting the whole set.
+      if (
+        !existingEntry.associatedUsers.length &&
+        typeof participant.associated_users === 'string'
+      ) {
+        participant.associated_users
+          .split(',')
+          .map((name) => name.trim())
+          .filter(Boolean)
+          .forEach((name) => existingEntry.associatedUsers.push({ id: null, name }));
+      }
+
+      const associatedName = (participant.user_full_name || participant.user_email || '').trim();
+      const associatedId = participant.user_id || null;
+      const alreadyListed = existingEntry.associatedUsers.some(
+        (user) => (associatedId && user.id === associatedId) || (!associatedId && user.name === associatedName)
+      );
+      if (associatedName && !alreadyListed) {
+        existingEntry.associatedUsers.push({ id: associatedId, name: associatedName });
+      }
+
+      participantMap.set(participantId, existingEntry);
+    });
+
+    return Array.from(participantMap.values()).map((participant) => ({
+      ...participant,
+      associated_users: participant.associatedUsers?.map((user) => user.name).join(', ') || ''
+    }));
+  }
+
+  /**
+   * Normalize parent users to ensure unique options in the select list.
+   * @param {Array} parentUsersData
+   * @returns {Array}
+   */
+  normalizeParentUsers(parentUsersData) {
+    if (!Array.isArray(parentUsersData)) {
+      return [];
+    }
+
+    const parentUserMap = new Map();
+
+    parentUsersData.forEach((user) => {
+      if (!user || typeof user !== 'object' || !user.id) {return;}
+      if (!parentUserMap.has(user.id)) {
+        parentUserMap.set(user.id, user);
+      }
+    });
+
+    return Array.from(parentUserMap.values());
+  }
+
+  render() {
+    const content = `
+      ${renderBackLink()}
+      <h1>${translate('manage_users_participants')}</h1>
+      <div id="message"></div>
+      <table>
+        <thead>
+          <tr>
+            <th>${translate('name')}</th>
+            <th>${translate('associated_users')}</th>
+            <th>${translate('actions')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${this.renderParticipantRows()}
+        </tbody>
+      </table>
+      <p><a href="/dashboard">${translate('back_to_dashboard')}</a></p>
+    `;
+    setContent(document.getElementById('app'), content);
+  }
+
+  renderParticipantRows() {
+    if (!Array.isArray(this.participants) || this.participants.length === 0) {
+      return `
+        <tr>
+          <td colspan="3">${translate('no_participants_found')}</td>
+        </tr>
+      `;
+    }
+
+    return this.participants
+      .map(
+        (participant) => `
+          <tr>
+            <td>${escapeHTML(participant.first_name || '')} ${escapeHTML(participant.last_name || '')}</td>
+            <td>${this.renderAssociatedUsers(participant)}</td>
+            <td>
+              <button class="remove-from-organization"
+                      data-participant-id="${participant.id}"
+                      title="${translate('remove_from_organization_help')}">
+                ${translate('remove_from_organization')}
+              </button>
+              <small class="action-help">${translate('remove_from_organization_help')}</small>
+              <select class="user-select" data-participant-id="${participant.id}">
+                <option value="">${translate('select_parent')}</option>
+                ${this.renderParentUserOptions()}
+              </select>
+              <button class="associate-user" data-participant-id="${participant.id}">
+                ${translate('associate_user')}
+              </button>
+              ${this.canInviteParent ? `
+                <button type="button" class="button button--secondary button--small invite-another-parent"
+                        data-participant-id="${Number(participant.id)}"
+                        data-participant-name="${escapeAttribute(`${participant.first_name || ''} ${participant.last_name || ''}`.trim())}">
+                  ${translate('invite_another_parent')}
+                </button>` : ''}
+              ${this.canErase ? `
+                <button class="erase-participant button--danger"
+                        data-participant-id="${participant.id}"
+                        data-participant-name="${escapeHTML(`${participant.first_name || ''} ${participant.last_name || ''}`.trim())}"
+                        title="${translate('erase_participant_help')}">
+                  ${translate('erase_participant')}
+                </button>
+                <small class="action-help">${translate('erase_participant_help')}</small>` : ''}
+            </td>
+          </tr>
+        `
+      )
+      .join('');
+  }
+
+  /**
+   * List the parents linked to a youth, each with a control to detach it.
+   *
+   * @param {Object} participant - Normalized participant record
+   * @returns {string} HTML for the associated-users cell
+   */
+  renderAssociatedUsers(participant) {
+    const users = Array.isArray(participant.associatedUsers) ? participant.associatedUsers : [];
+
+    if (users.length === 0) {
+      return `<span class="muted">${translate('no_associated_users')}</span>`;
+    }
+
+    return `
+      <ul class="linked-users">
+        ${users
+    .map(
+      (user) => `
+          <li class="linked-users__item">
+            <span>${escapeHTML(user.name)}</span>
+            ${user.id ? `
+              <button type="button"
+                      class="linked-users__remove unlink-user"
+                      data-participant-id="${participant.id}"
+                      data-user-id="${escapeHTML(user.id)}"
+                      data-user-name="${escapeHTML(user.name)}"
+                      title="${translate('unlink_parent')}"
+                      aria-label="${translate('unlink_parent')} — ${escapeHTML(user.name)}">&times;</button>
+            ` : ''}
+          </li>
+        `
+    )
+    .join('')}
+      </ul>
+    `;
+  }
+
+  renderParentUserOptions() {
+    if (!Array.isArray(this.parentUsers) || this.parentUsers.length === 0) {
+      return '';
+    }
+
+    return this.parentUsers
+      .map(
+        (user) => `
+          <option value="${user.id}">${escapeHTML(user.full_name || '')}</option>
+        `
+      )
+      .join('');
+  }
+
+  attachEventListeners() {
+    document.querySelectorAll('.remove-from-organization').forEach((button) => {
+      button.addEventListener('click', (event) =>
+        this.handleRemoveFromOrganization(event)
+      );
+    });
+
+    document.querySelectorAll('.associate-user').forEach((button) => {
+      button.addEventListener('click', (event) =>
+        this.handleAssociateUser(event)
+      );
+    });
+
+    document.querySelectorAll('.erase-participant').forEach((button) => {
+      button.addEventListener('click', (event) => this.handleErase(event));
+    });
+
+    document.querySelectorAll('.unlink-user').forEach((button) => {
+      button.addEventListener('click', (event) => this.handleUnlinkUser(event));
+    });
+
+    document.querySelectorAll('.invite-another-parent').forEach((button) => {
+      button.addEventListener('click', () => this.openInviteAnotherParent(
+        Number(button.dataset.participantId),
+        button.dataset.participantName || '',
+      ));
+    });
+  }
+
+  /**
+   * Ask for another parent's address, for a child who may already have parents.
+   *
+   * @param {number} participantId - The child
+   * @param {string} participantName - Shown in the dialog title
+   * @returns {void}
+   */
+  openInviteAnotherParent(participantId, participantName) {
+    this.invitingParent = false;
+    openModal({
+      id: INVITE_PARENT_MODAL_ID,
+      title: escapeHTML(translate('invite_another_parent_title').replace('{name}', participantName)),
+      canClose: () => !this.invitingParent,
+      closeOnBackdrop: false,
+      body: `
+        <form id="invite-another-parent-form" novalidate>
+          <p class="form-hint" id="invite-another-parent-hint">${translate('invite_another_parent_hint')}</p>
+          <div class="form-group">
+            <label for="invite-another-parent-email">${translate('email')}</label>
+            <input type="email" id="invite-another-parent-email" name="parent_email" required maxlength="255"
+                   autocomplete="off" aria-describedby="invite-another-parent-hint invite-another-parent-error">
+          </div>
+          ${invitationLanguageField('invite-another-parent-language', this.app?.lang || 'fr')}
+          <p id="invite-another-parent-error" class="status-message error" role="alert" hidden></p>
+        </form>
+      `,
+      footer: `
+        <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="submit" form="invite-another-parent-form" class="button button--primary">${translate('invite_another_parent_send')}</button>
+      `,
+    });
+    const form = document.getElementById('invite-another-parent-form');
+    form?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      this.submitInviteAnotherParent(form, participantId);
+    });
+    form?.querySelector('input')?.addEventListener('input', () => this.showInviteParentError(null));
+  }
+
+  /**
+   * Show or clear the dialog's error, tied to the address field.
+   *
+   * @param {string|null} key - Translation key, or null to clear
+   * @returns {void}
+   */
+  showInviteParentError(key) {
+    const element = document.getElementById('invite-another-parent-error');
+    const input = document.getElementById('invite-another-parent-email');
+    if (!element) {
+      return;
+    }
+    element.textContent = key ? translate(key) : '';
+    element.hidden = !key;
+    input?.setAttribute('aria-invalid', key ? 'true' : 'false');
+  }
+
+  /**
+   * Send the invitation; a member already in the unit is linked at once.
+   *
+   * @param {HTMLFormElement} form - The dialog's form
+   * @param {number} participantId - The child
+   * @returns {Promise<void>}
+   */
+  async submitInviteAnotherParent(form, participantId) {
+    const email = form.querySelector('[name="parent_email"]').value.trim();
+    if (!email || !form.querySelector('[name="parent_email"]').checkValidity()) {
+      this.showInviteParentError('invite_another_parent_email_required');
+      form.querySelector('[name="parent_email"]').focus();
+      return;
+    }
+    const language = form.querySelector('[name="language"]')?.value;
+
+    await withFormBusy(form, async () => {
+      this.invitingParent = true;
+      let response;
+      try {
+        response = await inviteAnotherParent(participantId, { parent_email: email, language });
+      } catch (error) {
+        debugError('Error inviting another parent:', error);
+        this.invitingParent = false;
+        this.showInviteParentError(INVITE_PARENT_REFUSALS[error?.code]
+          || apiErrorMessageKey(error, 'invite_another_parent_failed'));
+        return;
+      }
+      this.invitingParent = false;
+      closeModal(INVITE_PARENT_MODAL_ID);
+
+      const outcome = response?.data || {};
+      if (outcome.parent === 'linked_existing_account') {
+        this.app.showMessage(translate('invite_another_parent_linked'), 'success');
+      } else if (outcome.parent === 'added_to_invitation') {
+        // No new email: the child joins the invitation already waiting for this address
+        this.app.showMessage(translate('invite_another_parent_added'), 'success');
+      } else if (outcome.email_sent === false) {
+        this.app.showMessage(translate('invite_another_parent_not_sent'), 'error');
+      } else {
+        this.app.showMessage(translate('invite_another_parent_sent'), 'success');
+      }
+      // The write stands even if the reload fails
+      try {
+        await this.fetchData(true);
+        this.render();
+        this.attachEventListeners();
+      } catch (error) {
+        debugError('Error reloading after inviting a parent:', error);
+        this.renderError();
+      }
+    });
+  }
+
+  /**
+   * Honour a family's request to be forgotten.
+   *
+   * Two gates, on purpose. The first states plainly what will disappear, because
+   * this is the only action in the app that cannot be undone by consulting an
+   * earlier year — the record will not be there to consult. The second asks for
+   * the name to be typed: a destructive confirm is too easy to click through,
+   * and the server checks the same thing anyway.
+   *
+   * @param {Event} event - Click on the erase button
+   * @returns {Promise<void>}
+   */
+  async handleErase(event) {
+    const button = event.target.closest('.erase-participant');
+    const participantId = button.getAttribute('data-participant-id');
+    const participantName = button.getAttribute('data-participant-name');
+
+    const understood = await confirmDestructive({
+      title: translate('erase_participant_title'),
+      message: translate('erase_participant_warning').replace('{name}', participantName),
+      confirmLabel: translate('erase_participant_continue'),
+    });
+    if (!understood) {
+      return;
+    }
+
+    const typed = await prompt({
+      title: translate('erase_participant_title'),
+      message: translate('erase_participant_confirm_prompt').replace('{name}', participantName),
+      confirmLabel: translate('erase_participant'),
+    });
+    if (typed === null) {
+      return;
+    }
+
+    try {
+      const result = await eraseParticipant(participantId, typed);
+      const summary = result?.data || result;
+      this.showMessage(
+        translate('erase_participant_done')
+          .replace('{users}', String(summary?.users_erased ?? 0))
+          .replace('{guardians}', String(summary?.guardians_erased ?? 0))
+      );
+
+      // Anything left naming them is not something the app can clean up on its
+      // own — a safety record is not the family's to delete — so the admin is
+      // told rather than left assuming it is finished.
+      if (summary?.incident_reports_still_mentioning > 0) {
+        await alertDialog({
+          title: translate('erase_participant_title'),
+          message: translate('erase_participant_remaining_mentions')
+            .replace('{count}', String(summary.incident_reports_still_mentioning)),
+        });
+      }
+
+      await this.fetchData(true);
+      this.render();
+      this.attachEventListeners();
+    } catch (error) {
+      debugError('Erasure failed:', error);
+      // erasure_awaiting_organization_approvals arrives as a translation key.
+      this.showError(apiErrorMessage(error, 'erase_participant_failed'));
+    }
+  }
+
+  async handleRemoveFromOrganization(event) {
+    const participantId = event.target.getAttribute('data-participant-id');
+    if (await confirmDestructive(translate('confirm_remove_participant_from_organization'))) {
+      try {
+        const result = await removeParticipantFromOrganization(participantId);
+        if (result.success) {
+          this.showMessage(translate('participant_removed_from_organization'));
+          this.removeParticipantLocally(participantId);
+          this.render();
+          this.attachEventListeners();
+          await this.fetchData(true);
+          this.render();
+          this.attachEventListeners();
+        } else {
+          this.showError(translate('error_removing_participant_from_organization'));
+        }
+      } catch (error) {
+        debugError('Error:', error);
+        this.showError(translate('error_removing_participant_from_organization'));
+      }
+    }
+  }
+
+  /**
+   * Detach one parent from one youth.
+   *
+   * Confirmed because the link carries real consequences — a detached parent
+   * loses sight of that child's forms, attendance and permission slips — but
+   * not gated behind typing a name: unlike erasure this is trivially undone by
+   * associating the parent again.
+   *
+   * @param {Event} event - Click on a chip's remove control
+   * @returns {Promise<void>}
+   */
+  async handleUnlinkUser(event) {
+    const button = event.currentTarget;
+    const participantId = button.getAttribute('data-participant-id');
+    const userId = button.getAttribute('data-user-id');
+    const userName = button.getAttribute('data-user-name');
+
+    if (!participantId || !userId) {
+      return;
+    }
+
+    const confirmed = await confirmDestructive(
+      `${translate('confirm_unlink_parent')} ${userName}`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const result = await unlinkParticipantUser(participantId, userId);
+      if (result?.success) {
+        this.showMessage(translate('parent_unlinked_successfully'));
+        await this.fetchData(true);
+        this.render();
+        this.attachEventListeners();
+      } else {
+        this.showError(translate('error_unlinking_parent'));
+      }
+    } catch (error) {
+      debugError('Error unlinking parent:', error);
+      this.showError(translate('error_unlinking_parent'));
+    }
+  }
+
+  async handleAssociateUser(event) {
+    const participantId = event.target.getAttribute('data-participant-id');
+    const userId = event.target.previousElementSibling.value;
+    if (userId) {
+      try {
+        const result = await associateUser(participantId, userId);
+        if (result.success) {
+          this.showMessage(translate('user_associated_successfully'));
+          this.updateParticipantAssociationLocally(participantId, userId);
+          this.render();
+          this.attachEventListeners();
+          await this.fetchData(true);
+          this.render();
+          this.attachEventListeners();
+        } else {
+          this.showError(translate('error_associating_user'));
+        }
+      } catch (error) {
+        debugError('Error:', error);
+        this.showError(translate('error_associating_user'));
+      }
+    } else {
+      this.showError(translate('please_select_parent'));
+    }
+  }
+
+  showMessage(message, type = 'success') {
+    this.app.showMessage(message, type);
+  }
+
+  showError(message) {
+    this.app.showMessage(message, 'error');
+  }
+
+  renderError() {
+    const errorMessage = `
+      ${renderBackLink()}
+      <h1>${translate('manage_users_participants')}</h1>
+      <p class="status-message error" role="alert">${translate('error_loading_manage_users_participants')}</p>
+      <button type="button" class="button" id="manage-users-participants-retry">${translate('retry')}</button>
+    `;
+    setContent(document.getElementById('app'), errorMessage);
+    document.getElementById('manage-users-participants-retry')?.addEventListener('click', () => this.init());
+  }
+
+  /**
+   * Remove a participant from local state for immediate UI feedback.
+   * @param {string|number} participantId
+   */
+  removeParticipantLocally(participantId) {
+    if (!participantId) {
+      return;
+    }
+    this.participants = this.participants.filter(
+      (participant) => `${participant.id}` !== `${participantId}`
+    );
+  }
+
+  /**
+   * Update participant association locally so the UI reflects changes without waiting for a fresh fetch.
+   * @param {string|number} participantId
+   * @param {string|number} userId
+   */
+  updateParticipantAssociationLocally(participantId, userId) {
+    if (!participantId || !userId) {
+      return;
+    }
+
+    const participant = this.participants.find(
+      (entry) => `${entry.id}` === `${participantId}`
+    );
+    if (!participant) {
+      return;
+    }
+
+    const parentUser = this.parentUsers.find(
+      (user) => `${user.id}` === `${userId}`
+    );
+    if (!parentUser) {
+      return;
+    }
+
+    const associationName =
+      parentUser.full_name ||
+      parentUser.user_full_name ||
+      parentUser.email ||
+      parentUser.user_email;
+    if (!associationName) {
+      return;
+    }
+
+    const currentAssociations = (participant.associated_users || '')
+      .split(',')
+      .map((name) => name.trim())
+      .filter(Boolean);
+
+    if (!currentAssociations.includes(associationName)) {
+      currentAssociations.push(associationName);
+    }
+
+    participant.associated_users = currentAssociations.join(', ');
+  }
+}

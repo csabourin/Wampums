@@ -5,32 +5,33 @@ import {
   getAttendanceDates,
   saveGuest,
   getGuestsByDate,
-} from "./ajax-functions.js";
-import { API } from "./api/api-core.js";
-import { translate } from "./app.js";
-import { getCachedData, setCachedData, deleteCachedData } from "./indexedDB.js";
-import { offlineManager } from "./modules/OfflineManager.js";
-import { getActivities } from "./api/api-activities.js";
+} from '../../ajax-functions.js';
+import { API } from '../../api/api-core.js';
+import { translate } from '../../app.js';
+import { getCachedData, setCachedData, deleteCachedData } from '../../indexedDB.js';
+import { offlineManager } from '../../modules/OfflineManager.js';
+import { getActivities } from '../../api/api-activities.js';
 import {
   getActivityStartDate,
   getActivityEndDate,
-} from "./utils/ActivityDateUtils.js";
+} from '../../utils/ActivityDateUtils.js';
 import {
   getTodayISO,
   formatDate,
   isValidDate,
   isoToDateString,
-} from "./utils/DateUtils.js";
-import { debugLog, debugError } from "./utils/DebugUtils.js";
-import { escapeHTML } from "./utils/SecurityUtils.js";
-import { CONFIG } from "./config.js";
-import { canViewAttendance } from "./utils/PermissionUtils.js";
-import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
-import { OptimisticUpdateManager } from "./utils/OptimisticUpdateManager.js";
-import { setContent } from "./utils/DOMUtils.js";
-import { withButtonLoading, debounce } from "./utils/PerformanceUtils.js";
+} from '../../utils/DateUtils.js';
+import { debugLog, debugError } from '../../utils/DebugUtils.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
+import { CONFIG } from '../../config.js';
+import { canViewAttendance } from '../../utils/PermissionUtils.js';
+import { normalizeParticipantList } from '../../utils/ParticipantRoleUtils.js';
+import { OptimisticUpdateManager } from '../../utils/OptimisticUpdateManager.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { withButtonLoading, debounce } from '../../utils/PerformanceUtils.js';
 
-import { apiErrorMessage } from './utils/ApiErrorUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 export class Attendance {
   constructor(app) {
     this.app = app;
@@ -62,7 +63,7 @@ export class Attendance {
   async init() {
     // Check permission
     if (!canViewAttendance()) {
-      this.app.router.navigate("/dashboard");
+      this.app.router.navigate('/dashboard');
       return;
     }
 
@@ -87,12 +88,12 @@ export class Attendance {
       this.isInitialized = true;
       this.isLoading = false;
       // Only render if we're still on the attendance page
-      if (document.querySelector(".attendance-container")) {
+      if (document.querySelector('.attendance-container')) {
         this.render();
         this.attachEventListeners();
       }
     } catch (error) {
-      debugError("Error initializing attendance:", error);
+      debugError('Error initializing attendance:', error);
       this.isLoading = false;
       this.renderError();
     }
@@ -104,14 +105,14 @@ export class Attendance {
       const cachedData = await getCachedData(`attendance_${this.currentDate}`);
       if (cachedData) {
         if (offlineManager.isDatePrepared(this.currentDate) || offlineManager.campMode) {
-          debugLog("Using camp-prepared attendance data for", this.currentDate);
+          debugLog('Using camp-prepared attendance data for', this.currentDate);
         }
         this.applyCacheEntry(this.parseAttendanceCacheEntry(cachedData));
         return;
       }
       await this.fetchData();
     } catch (error) {
-      debugError("Error preloading attendance data:", error);
+      debugError('Error preloading attendance data:', error);
       throw error;
     }
   }
@@ -217,19 +218,19 @@ export class Attendance {
 
     Object.values(grouped).forEach((group) => {
       group.participants.sort((a, b) => {
-        if (a.first_leader && !b.first_leader) return -1;
-        if (!a.first_leader && b.first_leader) return 1;
-        if (a.second_leader && !b.second_leader) return 1;
-        if (!a.second_leader && b.second_leader) return -1;
-        return a.first_name.localeCompare(b.first_name);
+        if (a.first_leader && !b.first_leader) {return -1;}
+        if (!a.first_leader && b.first_leader) {return 1;}
+        if (a.second_leader && !b.second_leader) {return 1;}
+        if (!a.second_leader && b.second_leader) {return -1;}
+        return youthFirstName(a).localeCompare(youthFirstName(b));
       });
     });
 
     return Object.entries(grouped)
       .map(([id, group]) => ({ id, ...group }))
       .sort((a, b) => {
-        if (!a.name) return 1;
-        if (!b.name) return -1;
+        if (!a.name) {return 1;}
+        if (!b.name) {return -1;}
         return a.name.localeCompare(b.name);
       });
   }
@@ -240,7 +241,7 @@ export class Attendance {
       if (offlineManager.campMode) {
         const preparedActivity = offlineManager.getPreparedActivityForDate(getTodayISO());
         if (preparedActivity && preparedActivity.dates) {
-          debugLog("Using camp-prepared dates:", preparedActivity.dates);
+          debugLog('Using camp-prepared dates:', preparedActivity.dates);
           this.availableDates = [...preparedActivity.dates];
           this.finalizeAvailableDates();
           return;
@@ -248,28 +249,28 @@ export class Attendance {
       }
 
       const response = await getAttendanceDates(); // Call the API
-      debugLog("Attendance dates response:", response);
+      debugLog('Attendance dates response:', response);
       if (response.success && response.data) {
-        debugLog("Raw dates from API:", response.data);
+        debugLog('Raw dates from API:', response.data);
         // Convert ISO dates to YYYY-MM-DD format and filter out invalid dates
         this.availableDates = response.data
           .map((date) => isoToDateString(date)) // Convert ISO to YYYY-MM-DD
           .filter((date) => {
             const valid = isValidDate(date);
-            debugLog(`Date ${date} is ${valid ? "valid" : "invalid"}`);
+            debugLog(`Date ${date} is ${valid ? 'valid' : 'invalid'}`);
             return valid;
           });
-        debugLog("Available dates after filtering:", this.availableDates);
+        debugLog('Available dates after filtering:', this.availableDates);
       } else {
         throw new Error(
-          "Failed to fetch attendance dates or no dates available.",
+          'Failed to fetch attendance dates or no dates available.',
         );
       }
 
       this.finalizeAvailableDates();
-      debugLog("Final available dates:", this.availableDates);
+      debugLog('Final available dates:', this.availableDates);
     } catch (error) {
-      debugError("Error fetching attendance dates:", error);
+      debugError('Error fetching attendance dates:', error);
       throw error;
     }
   }
@@ -295,7 +296,7 @@ export class Attendance {
         const cachedData = await getCachedData(`attendance_${this.currentDate}`);
         if (cachedData) {
           this.applyCacheEntry(this.parseAttendanceCacheEntry(cachedData));
-          debugLog("Loaded data from cache");
+          debugLog('Loaded data from cache');
           return; // No need to proceed if cached data is found
         }
       }
@@ -314,13 +315,13 @@ export class Attendance {
       if (participantsResponse.success && Array.isArray(participantsList)) {
         this.participants = normalizeParticipantList(participantsList);
       } else {
-        throw new Error("Invalid participants data structure");
+        throw new Error('Invalid participants data structure');
       }
 
       // Transform attendance response into a map of participant_id -> status
       // Handle multiple API formats
       this.attendanceData = {};
-      if (attendanceResponse && typeof attendanceResponse === "object") {
+      if (attendanceResponse && typeof attendanceResponse === 'object') {
         const attendanceData = attendanceResponse.data || attendanceResponse;
 
         if (Array.isArray(attendanceData)) {
@@ -345,7 +346,7 @@ export class Attendance {
           this.attendanceData = attendanceResponse;
         }
       }
-      debugLog("Final attendanceData:", this.attendanceData);
+      debugLog('Final attendanceData:', this.attendanceData);
 
       // Standard envelope: data is the guests array
       this.guests = Array.isArray(guestsResponse)
@@ -357,7 +358,7 @@ export class Attendance {
 
       await this.writeAttendanceCache();
     } catch (error) {
-      debugError("Error fetching attendance data:", error);
+      debugError('Error fetching attendance data:', error);
       throw error;
     }
   }
@@ -393,13 +394,13 @@ export class Attendance {
             dates,
             dayIndex,
           };
-          debugLog("Multi-day activity context:", activity.name, `day ${this.activeActivity.dayIndex + 1}/${dates.length}`);
+          debugLog('Multi-day activity context:', activity.name, `day ${this.activeActivity.dayIndex + 1}/${dates.length}`);
           return;
         }
       }
     } catch (error) {
       // Non-critical: attendance works without activity context
-      debugError("Could not detect activity context:", error);
+      debugError('Could not detect activity context:', error);
     }
   }
 
@@ -419,8 +420,8 @@ export class Attendance {
     }
     const PAD_LENGTH = 2;
     while (current <= end) {
-      const month = String(current.getMonth() + 1).padStart(PAD_LENGTH, "0");
-      const day = String(current.getDate()).padStart(PAD_LENGTH, "0");
+      const month = String(current.getMonth() + 1).padStart(PAD_LENGTH, '0');
+      const day = String(current.getDate()).padStart(PAD_LENGTH, '0');
       dates.push(`${current.getFullYear()}-${month}-${day}`);
       current.setDate(current.getDate() + 1);
     }
@@ -459,13 +460,13 @@ export class Attendance {
       id => this.attendanceData[id] && this.attendanceData[id] !== ''
     );
     if (hasAttendanceData) {
-      debugLog("Attendance data exists for", this.currentDate, "- no carry-forward needed");
+      debugLog('Attendance data exists for', this.currentDate, '- no carry-forward needed');
       return;
     }
 
     const dateIndex = campDates.indexOf(this.currentDate);
     if (dateIndex <= 0) {
-      debugLog("No previous day to carry forward from (day 1 of camp or date not in range)");
+      debugLog('No previous day to carry forward from (day 1 of camp or date not in range)');
       return;
     }
 
@@ -475,7 +476,7 @@ export class Attendance {
       : await this.findCarryForwardSourceOffline(previousDates);
 
     if (!source) {
-      debugLog("No previous day with attendance data found in camp dates");
+      debugLog('No previous day with attendance data found in camp dates');
       return;
     }
 
@@ -490,7 +491,7 @@ export class Attendance {
 
     const carryCount = Object.keys(toCarryForward).length;
     if (carryCount === 0) {
-      debugLog("No attendance statuses to carry forward from", source.date);
+      debugLog('No attendance statuses to carry forward from', source.date);
       return;
     }
 
@@ -501,27 +502,27 @@ export class Attendance {
     await this.writeAttendanceCache();
 
     try {
-      const result = await API.post("attendance/carry-forward", {
+      const result = await API.post('attendance/carry-forward', {
         fromDate: source.date,
         toDate: this.currentDate
       });
-      debugLog("Server carry-forward result:", {
+      debugLog('Server carry-forward result:', {
         success: result?.success,
         queued: result?.queued,
       });
       await deleteCachedData(`attendance_api_${this.currentDate}`);
-      const message = translate("attendance_carried_forward")
-        .replace("{{count}}", carryCount)
-        .replace("{{date}}", formatDate(source.date, this.app.lang));
+      const message = translate('attendance_carried_forward')
+        .replace('{{count}}', carryCount)
+        .replace('{{date}}', formatDate(source.date, this.app.lang));
       this.app.showMessage(
-        result?.queued ? `${message}. ${translate("offline.savedLocally")}` : message,
-        "info",
+        result?.queued ? `${message}. ${translate('offline.savedLocally')}` : message,
+        'info',
       );
     } catch (error) {
-      debugError("Failed to carry attendance forward:", error);
+      debugError('Failed to carry attendance forward:', error);
       this.app.showMessage(
-        translate("attendance_carry_forward_sync_failed"),
-        "warning",
+        translate('attendance_carry_forward_sync_failed'),
+        'warning',
       );
     }
   }
@@ -540,7 +541,7 @@ export class Attendance {
             const response = await getAttendance(date);
             return { date, response };
           } catch (err) {
-            debugError("Could not fetch attendance for", date, err);
+            debugError('Could not fetch attendance for', date, err);
             return { date, response: null };
           }
         })
@@ -562,7 +563,7 @@ export class Attendance {
       }
       return null;
     } catch (error) {
-      debugError("Error searching carry-forward source online:", error);
+      debugError('Error searching carry-forward source online:', error);
       return null;
     }
   }
@@ -582,7 +583,7 @@ export class Attendance {
 
     for (let i = caches.length - 1; i >= 0; i--) {
       const { date, cache } = caches[i];
-      if (!cache) continue;
+      if (!cache) {continue;}
       const { attendanceMap } = this.parseAttendanceCacheEntry(cache);
       const hasData = Object.values(attendanceMap).some(
         status => status === 'present' || status === 'late' || status === 'absent' || status === 'excused'
@@ -596,7 +597,7 @@ export class Attendance {
 
   renderSkeleton() {
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <div class="attendance-container skeleton">
         <div class="date-navigation">
           <select id="skeleton-dateSelect" class="date-select skeleton-text"></select>
@@ -605,10 +606,10 @@ export class Attendance {
           ${this.renderSkeletonGroups()}
         </div>
         <div class="guest-entry">
-          <h3>${translate("add_guest")}</h3>
+          <h3>${translate('add_guest')}</h3>
           <input type="text" id="skeleton-guestName" class="skeleton-text" disabled>
           <input type="email" id="skeleton-guestEmail" class="skeleton-text" disabled>
-          <button id="skeleton-addGuestButton" class="skeleton-button" disabled>${translate("add_guest_button")}</button>
+          <button id="skeleton-addGuestButton" class="skeleton-button" disabled>${translate('add_guest_button')}</button>
           <div id="skeleton-guestList" class="skeleton-guest-list">
             ${this.renderSkeletonGuests()}
           </div>
@@ -621,7 +622,7 @@ export class Attendance {
         </div>
       </div>
     `;
-    setContent(document.getElementById("app"), content);
+    setContent(document.getElementById('app'), content);
   }
 
   renderSkeletonGroups() {
@@ -657,7 +658,7 @@ export class Attendance {
       return;
     }
     // Safety check to prevent rendering if we've navigated away
-    if (!document.querySelector(".attendance-container")) {
+    if (!document.querySelector('.attendance-container')) {
       return;
     }
 
@@ -666,7 +667,7 @@ export class Attendance {
       return;
     }
     this.freshContent = `
-      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <div class="attendance-container">
         ${this.renderCampBanner()}
         <div class="date-navigation">
@@ -675,36 +676,36 @@ export class Attendance {
           </select>
         </div>
         <div class="search-container" style="margin-bottom: 1rem;">
-          <input type="search" id="attendance-search" class="search-input" data-archive-safe style="width: 100%; padding: 0.5rem;" placeholder="${translate("search")}..." value="${escapeHTML(this.searchTerm)}">
+          <input type="search" id="attendance-search" class="search-input" data-archive-safe style="width: 100%; padding: 0.5rem;" placeholder="${translate('search')}..." value="${escapeHTML(this.searchTerm)}">
         </div>
         ${this.renderMarkRemainingButton()}
         <div id="attendance-list" class="attendance-list">
           <!-- This will be filled by renderGroupsAndNames() -->
         </div>
         <div class="guest-entry">
-          <h3>${translate("add_guest")}</h3>
-          <input type="text" id="guestName" placeholder="${translate("guest_name")}">
-          <input type="email" id="guestEmail" placeholder="${translate("guest_email_optional")}">
-          <button id="addGuestButton">${translate("add_guest_button")}</button>
+          <h3>${translate('add_guest')}</h3>
+          <input type="text" id="guestName" placeholder="${translate('guest_name')}">
+          <input type="email" id="guestEmail" placeholder="${translate('guest_email_optional')}">
+          <button id="addGuestButton">${translate('add_guest_button')}</button>
           <div id="guestList">
             ${this.renderGuests()}
           </div>
         </div>
         <div class="status-buttons fixed-footer">
-          <button class="status-btn present" data-status="present">${translate("present")}</button>
-          <button class="status-btn absent" data-status="absent">${translate("absent")}</button>
-          <button class="status-btn late" data-status="late">${translate("late")}</button>
-          <button class="status-btn excused" data-status="excused">${translate("excused")}</button>
+          <button class="status-btn present" data-status="present">${translate('present')}</button>
+          <button class="status-btn absent" data-status="absent">${translate('absent')}</button>
+          <button class="status-btn late" data-status="late">${translate('late')}</button>
+          <button class="status-btn excused" data-status="excused">${translate('excused')}</button>
         </div>
       </div>
     `;
 
-    const appElement = document.querySelector("#app");
+    const appElement = document.querySelector('#app');
     if (appElement) {
       setContent(appElement, this.freshContent);
-      const attendanceList = document.getElementById("attendance-list");
+      const attendanceList = document.getElementById('attendance-list');
       if (attendanceList) {
-        setContent(attendanceList, "");
+        setContent(attendanceList, '');
         attendanceList.appendChild(this.renderGroupsAndNames());
       }
     }
@@ -715,12 +716,12 @@ export class Attendance {
    */
   renderCampBanner() {
     if (!this.activeActivity) {
-      return "";
+      return '';
     }
     const { activity, dates, dayIndex } = this.activeActivity;
-    const dayLabel = translate("camp_day_of")
-      .replace("{{day}}", dayIndex + 1)
-      .replace("{{total}}", dates.length);
+    const dayLabel = translate('camp_day_of')
+      .replace('{{day}}', dayIndex + 1)
+      .replace('{{total}}', dates.length);
     return `
       <div class="camp-banner">
         <span class="camp-banner__icon">🏕️</span>
@@ -736,11 +737,11 @@ export class Attendance {
   renderMarkRemainingButton() {
     const unmarkedCount = this.getUnmarkedParticipantIds().length;
     if (unmarkedCount === 0) {
-      return "";
+      return '';
     }
     return `
       <button id="mark-remaining-present" class="button button--secondary mark-remaining-btn">
-        ${translate("mark_remaining_present").replace("{{count}}", unmarkedCount)}
+        ${translate('mark_remaining_present').replace('{{count}}', unmarkedCount)}
       </button>
     `;
   }
@@ -752,19 +753,19 @@ export class Attendance {
   }
 
   renderDateOptions() {
-    debugLog("Rendering date options. Available dates:", this.availableDates);
-    debugLog("Current date:", this.currentDate);
-    debugLog("App language:", this.app.lang);
+    debugLog('Rendering date options. Available dates:', this.availableDates);
+    debugLog('Current date:', this.currentDate);
+    debugLog('App language:', this.app.lang);
     const options = this.availableDates
       .map((date) => {
         const formatted = formatDate(date, this.app.lang);
         debugLog(`Date ${date} formatted as: ${formatted}`);
-        return `<option value="${date}" ${date === this.currentDate ? "selected" : ""}>
+        return `<option value="${date}" ${date === this.currentDate ? 'selected' : ''}>
         ${formatted}
       </option>`;
       })
-      .join("");
-    debugLog("Final options HTML:", options);
+      .join('');
+    debugLog('Final options HTML:', options);
     return options;
   }
 
@@ -775,23 +776,24 @@ export class Attendance {
     Object.values(this.groups).forEach((group) => {
       // Filter participants if search term exists
       const filteredParticipants = group.participants.filter(p => {
-        if (!term) return true;
-        const name = `${p.first_name} ${p.last_name}`.toLowerCase();
+        if (!term) {return true;}
+        // Found by the name the unit uses as by the legal one
+        const name = `${p.first_name} ${p.nickname || ''} ${p.last_name}`.toLowerCase();
         return name.includes(term);
       });
 
-      if (filteredParticipants.length === 0) return;
+      if (filteredParticipants.length === 0) {return;}
 
-      let groupDiv = document.createElement("div");
-      groupDiv.classList.add("group-card");
+      const groupDiv = document.createElement('div');
+      groupDiv.classList.add('group-card');
 
       // Create group header with proper class and data attribute
-      let groupHeader = document.createElement("h3");
-      groupHeader.classList.add("group-header"); // Make sure this class is added
+      const groupHeader = document.createElement('h3');
+      groupHeader.classList.add('group-header'); // Make sure this class is added
       groupHeader.dataset.groupId = group.id;
       // Children without a den -- walk-ins, until a leader places them -- share a
       // group with no name; say so rather than show an empty bar.
-      groupHeader.textContent = group.name || translate("unassigned_participants");
+      groupHeader.textContent = group.name || translate('unassigned_participants');
       groupDiv.appendChild(groupHeader);
 
 
@@ -800,18 +802,18 @@ export class Attendance {
         // No fake default: a participant with no recorded status shows as
         // "unmarked" so what the leader sees matches what is persisted
         const recordedStatus = this.attendanceData[participant.id] || null;
-        const status = recordedStatus || "unmarked";
-        const statusClass = recordedStatus || "unmarked";
-        const participantRow = document.createElement("div");
-        participantRow.classList.add("participant-row");
+        const status = recordedStatus || 'unmarked';
+        const statusClass = recordedStatus || 'unmarked';
+        const participantRow = document.createElement('div');
+        participantRow.classList.add('participant-row');
         participantRow.dataset.participantId = participant.id;
         participantRow.dataset.groupId = group.id;
         setContent(
           participantRow,
           `
-          <span class="participant-name">${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}
-            ${participant.first_leader ? `<span class="badge leader">${translate("first_leader")}</span>` : ""}
-            ${participant.second_leader ? `<span class="badge second-leader">${translate("second_leader")}</span>` : ""}
+          <span class="participant-name">${escapeHTML(youthDisplayName(participant))}
+            ${participant.first_leader ? `<span class="badge leader">${translate('first_leader')}</span>` : ''}
+            ${participant.second_leader ? `<span class="badge second-leader">${translate('second_leader')}</span>` : ''}
           </span>
           <span class="participant-status ${statusClass}">${translate(status)}</span>
         `,
@@ -831,12 +833,12 @@ export class Attendance {
         (guest) => `
       <div class="guest-row">
         <span class="guest-name">${escapeHTML(guest.name)}</span>
-        <span class="guest-email">${escapeHTML(guest.email || translate("no_email"))}</span>
+        <span class="guest-email">${escapeHTML(guest.email || translate('no_email'))}</span>
         <span class="guest-date">${formatDate(guest.attendance_date, this.app.lang)}</span>
       </div>
     `,
       )
-      .join("");
+      .join('');
   }
 
   attachEventListeners() {
@@ -844,21 +846,21 @@ export class Attendance {
     if (typeof document === 'undefined') {
       return;
     }
-    const dateSelect = document.getElementById("dateSelect");
+    const dateSelect = document.getElementById('dateSelect');
     if (dateSelect) {
       const newDateSelect = dateSelect.cloneNode(true);
       dateSelect.parentNode.replaceChild(newDateSelect, dateSelect);
-      newDateSelect.addEventListener("change", (e) =>
+      newDateSelect.addEventListener('change', (e) =>
         this.changeDate(e.target.value),
       );
     }
 
     // Use event delegation with a more specific target check
-    const attendanceList = document.getElementById("attendance-list");
+    const attendanceList = document.getElementById('attendance-list');
     if (attendanceList) {
-      attendanceList.addEventListener("click", (e) => {
-        const groupHeader = e.target.closest(".group-header");
-        const participantRow = e.target.closest(".participant-row");
+      attendanceList.addEventListener('click', (e) => {
+        const groupHeader = e.target.closest('.group-header');
+        const participantRow = e.target.closest('.participant-row');
         debugLog(groupHeader, participantRow);
         if (groupHeader) {
           this.toggleGroupSelection(groupHeader);
@@ -868,22 +870,22 @@ export class Attendance {
       });
     }
 
-    document.querySelectorAll(".status-btn").forEach((button) => {
-      button.addEventListener("click", (e) => {
+    document.querySelectorAll('.status-btn').forEach((button) => {
+      button.addEventListener('click', (e) => {
         withButtonLoading(e.target, () => this.updateStatus(e.target.dataset.status));
       });
     });
 
-    const addGuestButton = document.getElementById("addGuestButton");
+    const addGuestButton = document.getElementById('addGuestButton');
     if (addGuestButton) {
-      addGuestButton.addEventListener("click", (e) => {
+      addGuestButton.addEventListener('click', (e) => {
         withButtonLoading(e.target, () => this.addGuest());
       });
     }
 
-    const markRemainingButton = document.getElementById("mark-remaining-present");
+    const markRemainingButton = document.getElementById('mark-remaining-present');
     if (markRemainingButton) {
-      markRemainingButton.addEventListener("click", (e) => {
+      markRemainingButton.addEventListener('click', (e) => {
         withButtonLoading(e.target, () => this.markAllRemainingPresent());
       });
     }
@@ -894,7 +896,7 @@ export class Attendance {
     if (searchInput) {
       this.searchHandler?.cancel?.();
       this.searchHandler = debounce((e) => {
-        if (typeof document === 'undefined') return;
+        if (typeof document === 'undefined') {return;}
         this.searchTerm = e.target.value;
         const attendanceList = document.getElementById('attendance-list');
         if (attendanceList) {
@@ -921,7 +923,7 @@ export class Attendance {
 
     // Remove any existing participant selection
     if (this.selectedParticipant) {
-      this.selectedParticipant.classList.remove("selected");
+      this.selectedParticipant.classList.remove('selected');
       this.selectedParticipant = null;
     }
 
@@ -929,30 +931,30 @@ export class Attendance {
     if (this.selectedGroup === groupId) {
       // Deselect current group
       this.selectedGroup = null;
-      header.classList.remove("selected");
+      header.classList.remove('selected');
       document
         .querySelectorAll(`.participant-row[data-group-id="${groupId}"]`)
-        .forEach((row) => row.classList.remove("highlighted"));
+        .forEach((row) => row.classList.remove('highlighted'));
     } else {
       // Deselect previous group if exists
       if (this.selectedGroup) {
         const previousHeader = document.querySelector(
           `.group-header[data-group-id="${this.selectedGroup}"]`,
         );
-        if (previousHeader) previousHeader.classList.remove("selected");
+        if (previousHeader) {previousHeader.classList.remove('selected');}
         document
           .querySelectorAll(
             `.participant-row[data-group-id="${this.selectedGroup}"]`,
           )
-          .forEach((row) => row.classList.remove("highlighted"));
+          .forEach((row) => row.classList.remove('highlighted'));
       }
 
       // Select new group
       this.selectedGroup = groupId;
-      header.classList.add("selected");
+      header.classList.add('selected');
       document
         .querySelectorAll(`.participant-row[data-group-id="${groupId}"]`)
-        .forEach((row) => row.classList.add("highlighted"));
+        .forEach((row) => row.classList.add('highlighted'));
     }
   }
 
@@ -962,25 +964,25 @@ export class Attendance {
       const groupHeader = document.querySelector(
         `.group-header[data-group-id="${this.selectedGroup}"]`,
       );
-      if (groupHeader) groupHeader.classList.remove("selected");
+      if (groupHeader) {groupHeader.classList.remove('selected');}
       document
         .querySelectorAll(
           `.participant-row[data-group-id="${this.selectedGroup}"]`,
         )
-        .forEach((r) => r.classList.remove("highlighted"));
+        .forEach((r) => r.classList.remove('highlighted'));
       this.selectedGroup = null;
     }
 
     // Handle participant selection
     if (this.selectedParticipant === row) {
       this.selectedParticipant = null;
-      row.classList.remove("selected");
+      row.classList.remove('selected');
     } else {
       if (this.selectedParticipant) {
-        this.selectedParticipant.classList.remove("selected");
+        this.selectedParticipant.classList.remove('selected');
       }
       this.selectedParticipant = row;
-      row.classList.add("selected");
+      row.classList.add('selected');
     }
   }
 
@@ -991,7 +993,7 @@ export class Attendance {
     } else if (this.selectedGroup) {
       await this.updateGroupStatus(this.selectedGroup, newStatus);
     } else {
-      this.app.showMessage(translate("no_selection"), "error");
+      this.app.showMessage(translate('no_selection'), 'error');
     }
   }
 
@@ -1002,59 +1004,59 @@ export class Attendance {
 
     try {
       await this.optimisticManager.execute(
-      `attendance-${participantId}-${this.currentDate}`,
-      {
-        optimisticFn: () => {
+        `attendance-${participantId}-${this.currentDate}`,
+        {
+          optimisticFn: () => {
           // Update data and UI immediately
-          this.attendanceData[participantId] = newStatus;
-          this.updateAttendanceDisplay(
-            participantId,
-            newStatus,
-            previousStatus,
-          );
+            this.attendanceData[participantId] = newStatus;
+            this.updateAttendanceDisplay(
+              participantId,
+              newStatus,
+              previousStatus,
+            );
 
-          return { previousStatus };
-        },
+            return { previousStatus };
+          },
 
-        apiFn: async () => {
+          apiFn: async () => {
           // Make actual API call in background
-          return await updateAttendance(
-            participantId,
-            newStatus,
-            this.currentDate,
-            previousStatus,
-          );
-        },
+            return await updateAttendance(
+              participantId,
+              newStatus,
+              this.currentDate,
+              previousStatus,
+            );
+          },
 
-        successFn: async (result) => {
+          successFn: async (result) => {
           // Handle offline queued state
-          if (result.queued) {
-            return; // Keep optimistic state
-          }
+            if (result.queued) {
+              return; // Keep optimistic state
+            }
 
-          // Success: Update cache with new data
-          this.app.showMessage(translate("attendance_updated"), "success");
-          // Clear API-level cache to ensure fresh data on next fetch
-          await deleteCachedData(`attendance_api_${this.currentDate}`);
-          // Update UI-level cache with current data
-          await this.writeAttendanceCache();
-        },
+            // Success: Update cache with new data
+            this.app.showMessage(translate('attendance_updated'), 'success');
+            // Clear API-level cache to ensure fresh data on next fetch
+            await deleteCachedData(`attendance_api_${this.currentDate}`);
+            // Update UI-level cache with current data
+            await this.writeAttendanceCache();
+          },
 
-        rollbackFn: ({ previousStatus }, error) => {
+          rollbackFn: ({ previousStatus }, error) => {
           // Rollback to original state on error
-          this.attendanceData[participantId] = previousStatus;
-          this.updateAttendanceDisplay(
-            participantId,
-            previousStatus,
-            newStatus,
-          );
-          debugError("Error updating attendance:", error);
-          this.app.showMessage(
-            apiErrorMessage(error, 'error_updating_attendance'),
-            "error",
-          );
+            this.attendanceData[participantId] = previousStatus;
+            this.updateAttendanceDisplay(
+              participantId,
+              previousStatus,
+              newStatus,
+            );
+            debugError('Error updating attendance:', error);
+            this.app.showMessage(
+              apiErrorMessage(error, 'error_updating_attendance'),
+              'error',
+            );
+          },
         },
-      },
       );
     } catch (_err) {
       // Error is already handled in rollbackFn (UI restored, message shown)
@@ -1099,7 +1101,7 @@ export class Attendance {
       const allSucceeded = results.every((result) => result.success);
 
       if (allSucceeded) {
-        this.app.showMessage(translate("group_attendance_updated"), "success");
+        this.app.showMessage(translate('group_attendance_updated'), 'success');
         // Clear API-level cache to ensure fresh data on next fetch
         await deleteCachedData(`attendance_api_${this.currentDate}`);
         // Update UI-level cache with current data
@@ -1114,20 +1116,20 @@ export class Attendance {
           }
         });
         this.app.showMessage(
-          translate("error_updating_group_attendance"),
-          "error",
+          translate('error_updating_group_attendance'),
+          'error',
         );
       }
     } catch (error) {
       // Rollback on error
-      debugError("Error updating group attendance:", error);
+      debugError('Error updating group attendance:', error);
       participantIds.forEach((id) => {
         this.attendanceData[id] = previousStatuses[id];
         this.updateAttendanceDisplay(id, previousStatuses[id], newStatus);
       });
       this.app.showMessage(
-        translate("error_updating_group_attendance"),
-        "error",
+        translate('error_updating_group_attendance'),
+        'error',
       );
     }
   }
@@ -1145,49 +1147,49 @@ export class Attendance {
 
     // Optimistically mark all as present
     unmarkedIds.forEach((id) => {
-      this.attendanceData[id] = "present";
-      this.updateAttendanceDisplay(id, "present", null);
+      this.attendanceData[id] = 'present';
+      this.updateAttendanceDisplay(id, 'present', null);
     });
 
     try {
       const results = await Promise.all(
         unmarkedIds.map((id) =>
-          updateAttendance(id, "present", this.currentDate, null),
+          updateAttendance(id, 'present', this.currentDate, null),
         ),
       );
 
       const failedIds = unmarkedIds.filter((_, index) => !results[index].success && !results[index].queued);
       if (failedIds.length === 0) {
-        this.app.showMessage(translate("attendance_updated"), "success");
+        this.app.showMessage(translate('attendance_updated'), 'success');
       } else {
         failedIds.forEach((id) => {
           delete this.attendanceData[id];
-          this.updateAttendanceDisplay(id, null, "present");
+          this.updateAttendanceDisplay(id, null, 'present');
         });
-        this.app.showMessage(translate("error_updating_attendance"), "error");
+        this.app.showMessage(translate('error_updating_attendance'), 'error');
       }
       await deleteCachedData(`attendance_api_${this.currentDate}`);
       await this.writeAttendanceCache();
     } catch (error) {
-      debugError("Error marking remaining present:", error);
+      debugError('Error marking remaining present:', error);
       unmarkedIds.forEach((id) => {
         delete this.attendanceData[id];
-        this.updateAttendanceDisplay(id, null, "present");
+        this.updateAttendanceDisplay(id, null, 'present');
       });
-      this.app.showMessage(translate("error_updating_attendance"), "error");
+      this.app.showMessage(translate('error_updating_attendance'), 'error');
     }
   }
 
   updateAttendanceDisplay(participantId, newStatus, previousStatus) {
-    if (typeof document === 'undefined') return;
+    if (typeof document === 'undefined') {return;}
     const row = document.querySelector(
       `.participant-row[data-participant-id="${participantId}"]`,
     );
     if (row) {
-      const statusSpan = row.querySelector(".participant-status");
-      statusSpan.classList.remove(previousStatus || "unmarked");
-      statusSpan.classList.add(newStatus || "unmarked");
-      statusSpan.textContent = translate(newStatus || "unmarked");
+      const statusSpan = row.querySelector('.participant-status');
+      statusSpan.classList.remove(previousStatus || 'unmarked');
+      statusSpan.classList.add(newStatus || 'unmarked');
+      statusSpan.textContent = translate(newStatus || 'unmarked');
     }
     this.refreshMarkRemainingButton();
   }
@@ -1196,14 +1198,14 @@ export class Attendance {
    * Keep the "mark remaining present" button count in sync without a full render
    */
   refreshMarkRemainingButton() {
-    if (typeof document === 'undefined') return;
-    const button = document.getElementById("mark-remaining-present");
+    if (typeof document === 'undefined') {return;}
+    const button = document.getElementById('mark-remaining-present');
     const unmarkedCount = this.getUnmarkedParticipantIds().length;
     if (button) {
       if (unmarkedCount === 0) {
         button.remove();
       } else {
-        button.textContent = translate("mark_remaining_present").replace("{{count}}", unmarkedCount);
+        button.textContent = translate('mark_remaining_present').replace('{{count}}', unmarkedCount);
       }
     }
   }
@@ -1284,28 +1286,28 @@ export class Attendance {
       // silently showing the old list under the new date.
       this.currentDate = previousDate;
       const dateSelect = typeof document !== 'undefined'
-        ? document.getElementById("dateSelect")
+        ? document.getElementById('dateSelect')
         : null;
       if (dateSelect) {
         dateSelect.value = previousDate;
       }
-      this.app.showMessage(translate("error_loading_attendance"), "error");
+      this.app.showMessage(translate('error_loading_attendance'), 'error');
     }
   }
 
   renderError() {
     const errorMessage = `
-      <h1>${translate("error")}</h1>
-      <p>${translate("error_loading_attendance")}</p>
+      <h1>${translate('error')}</h1>
+      <p>${translate('error_loading_attendance')}</p>
     `;
-    setContent(document.getElementById("app"), errorMessage);
+    setContent(document.getElementById('app'), errorMessage);
   }
 
   async addGuest() {
-    const guestName = document.getElementById("guestName").value.trim();
-    const guestEmail = document.getElementById("guestEmail").value.trim();
-    if (guestName === "") {
-      this.app.showMessage(translate("guest_name_required"), "error");
+    const guestName = document.getElementById('guestName').value.trim();
+    const guestEmail = document.getElementById('guestEmail').value.trim();
+    if (guestName === '') {
+      this.app.showMessage(translate('guest_name_required'), 'error');
       return;
     }
 
@@ -1318,13 +1320,13 @@ export class Attendance {
     try {
       await this.saveGuest(guest);
       this.guests.push(guest);
-      setContent(document.getElementById("guestList"), this.renderGuests());
-      document.getElementById("guestName").value = "";
-      document.getElementById("guestEmail").value = "";
-      this.app.showMessage(translate("guest_added_successfully"), "success");
+      setContent(document.getElementById('guestList'), this.renderGuests());
+      document.getElementById('guestName').value = '';
+      document.getElementById('guestEmail').value = '';
+      this.app.showMessage(translate('guest_added_successfully'), 'success');
     } catch (error) {
-      debugError("Error saving guest:", error);
-      this.app.showMessage(translate("error_saving_guest"), "error");
+      debugError('Error saving guest:', error);
+      this.app.showMessage(translate('error_saving_guest'), 'error');
     }
   }
 }

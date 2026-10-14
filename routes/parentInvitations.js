@@ -19,7 +19,7 @@
 const express = require('express');
 const HTTP_STATUS = { OK: 200, CREATED: 201, BAD_REQUEST: 400, FORBIDDEN: 403, NOT_FOUND: 404, CONFLICT: 409, INTERNAL_ERROR: 500 };
 const { familyInvitationLimiter: invitationWriteLimiter } = require('../middleware/familyInvitationLimiter');
-const { body, param } = require('express-validator');
+const { body, param, query } = require('express-validator');
 
 const {
   authenticate,
@@ -27,7 +27,8 @@ const {
   blockDemoRoles,
   getOrganizationId,
 } = require('../middleware/auth');
-const { success, error, asyncHandler } = require('../middleware/response');
+const { success, error, forbidden, asyncHandler } = require('../middleware/response');
+const { checkRolesGrantable, findRolesInUnit, normalizeRoleIds } = require('../services/roleAssignment');
 const { ALL_INTERFACE_LANGUAGES } = require('../utils/interfaceLanguages');
 const {
   validateEmail,
@@ -36,6 +37,7 @@ const {
 } = require('../middleware/validation');
 const { deliverParentInvitation } = require('../services/familyDelivery');
 const {
+  INVITATION_KIND,
   listInvitations,
   createInvitation,
   updateInvitation,
@@ -52,6 +54,33 @@ const MAX_PHONE_LENGTH = 20;
 
 /** Longest an admin's explanation for overriding a deactivation may be. */
 const MAX_OVERRIDE_REASON_LENGTH = 1000;
+
+/** Most roles one leader invitation may carry. */
+const MAX_INVITATION_ROLES = 10;
+
+/** A PostgreSQL integer id. */
+const ROLE_ID_RANGE = { min: 1, max: 2147483647 };
+
+/**
+ * Whether the request invites a leader: it names the roles they will hold.
+ *
+ * @param {Object} req - Request
+ * @returns {boolean}
+ */
+function invitesLeader(req) {
+  return Array.isArray(req.body?.role_ids) && req.body.role_ids.length > 0;
+}
+
+/**
+ * Inviting a leader is also granting them roles, so it takes the permission
+ * to assign roles as well as the one to invite.
+ *
+ * @param {Object} req - Request
+ * @returns {string[]} Permission keys required
+ */
+function invitationPermissions(req) {
+  return invitesLeader(req) ? ['users.invite', 'users.assign_roles'] : ['users.invite'];
+}
 
 /**
  * Trim a value to null when it carries nothing.
@@ -90,6 +119,8 @@ module.exports = (pool, logger) => {
     body('support_contact_name').optional({ nullable: true }).isString().trim().isLength({ max: MAX_NAME_LENGTH }),
     body('support_contact_email').optional({ values: 'falsy' }).isEmail().isLength({ max: MAX_NAME_LENGTH }),
     body('confirm_reactivation').optional({ nullable: true }).isBoolean(),
+    body('role_ids').optional({ nullable: true }).isArray({ max: MAX_INVITATION_ROLES }),
+    body('role_ids.*').isInt(ROLE_ID_RANGE),
     // Confirming without saying why is not confirming. The reason is required
     // exactly when the confirmation is given, and kept on the invitation.
     body('reactivation_reason')
@@ -106,13 +137,69 @@ module.exports = (pool, logger) => {
   router.get('/',
     authenticate,
     requirePermission('users.invite'),
+    query('kind').optional().isIn(Object.values(INVITATION_KIND)),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const invitations = await listInvitations(pool, organizationId);
+      const invitations = await listInvitations(pool, organizationId, {
+        kind: req.query.kind || INVITATION_KIND.FAMILY,
+      });
 
       return success(res, invitations);
     })
   );
+
+  /**
+   * The roles a leader may be invited into: the unit's staff roles (whole-unit
+   * data scope), each saying whether the caller may grant it.
+   */
+  router.get('/leader-roles',
+    authenticate,
+    requirePermission('users.invite', 'users.assign_roles'),
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const result = await pool.query(
+        `SELECT r.id, r.role_name, r.display_name,
+                NOT EXISTS (
+                  SELECT 1
+                    FROM role_permissions rp
+                    JOIN permissions p ON p.id = rp.permission_id
+                   WHERE rp.role_id = r.id
+                     AND NOT (p.permission_key = ANY($2::text[]))
+                ) AS assignable
+           FROM roles r
+          WHERE (r.organization_id = $1 OR (r.organization_id IS NULL AND r.is_system_role))
+            AND r.data_scope = 'organization'
+          ORDER BY r.display_name`,
+        [organizationId, req.userPermissions || []]
+      );
+      return success(res, result.rows);
+    })
+  );
+
+  /**
+   * Check the roles a leader invitation would grant: roles of this unit, for
+   * its team, that the caller holds every permission of.
+   *
+   * @param {Object} req - Request, after requirePermission
+   * @param {Object} res - Response
+   * @param {number} organizationId - Caller's unit
+   * @returns {Promise<{roleIds: number[]}|null>} The roles, or null once a refusal was sent
+   */
+  async function checkInvitationRoles(req, res, organizationId) {
+    const roleIds = normalizeRoleIds(req.body.role_ids);
+    const unitRoles = await findRolesInUnit(pool, roleIds, organizationId);
+    if (unitRoles.length !== roleIds.length || unitRoles.some((role) => role.data_scope !== 'organization')) {
+      error(res, 'leader_invitation_role_invalid', HTTP_STATUS.BAD_REQUEST, [{ field: 'role_ids', value: req.body.role_ids }]);
+      return null;
+    }
+    const check = await checkRolesGrantable(pool, roleIds, req.userPermissions || []);
+    if (!check.allowed) {
+      forbidden(res, 'You can only invite into roles whose permissions you hold', check.required, check.missing, { roles: check.roles });
+      return null;
+    }
+    return { roleIds };
+  }
 
   /**
    * Invite a parent.
@@ -130,8 +217,56 @@ module.exports = (pool, logger) => {
    * `reactivation_reason`. Nothing is created or sent until then.
    */
   /** Create or replace a pending invitation through the same validation and delivery path. */
+  /**
+   * Whether the caller may edit this invitation's roles along with it: a
+   * family invitation carries none; a leader invitation takes
+   * users.assign_roles and every permission of its roles.
+   *
+   * @param {Object} req - Request, after requirePermission
+   * @param {Object} res - Response
+   * @param {number} organizationId - Caller's unit
+   * @returns {Promise<boolean>} False once a refusal was sent
+   */
+  async function mayEditInvitationRoles(req, res, organizationId) {
+    const stored = await pool.query(
+      'SELECT role_ids FROM parent_invitations WHERE id = $1 AND organization_id = $2',
+      [req.params.id, organizationId]
+    );
+    const roleIds = normalizeRoleIds(stored.rows[0]?.role_ids || []);
+    if (roleIds.length === 0) {
+      return true;
+    }
+    const held = req.userPermissions || [];
+    if (!held.includes('users.assign_roles')) {
+      forbidden(res, 'Editing a leader invitation takes the permission to assign roles',
+        ['users.invite', 'users.assign_roles'], ['users.assign_roles']);
+      return false;
+    }
+    const check = await checkRolesGrantable(pool, roleIds, held);
+    if (!check.allowed) {
+      forbidden(res, 'You can only edit invitations into roles whose permissions you hold', check.required, check.missing, { roles: check.roles });
+      return false;
+    }
+    return true;
+  }
+
   async function writeInvitation(req, res, editing = false) {
     const organizationId = await getOrganizationId(req, pool);
+
+    // Editing keeps the roles the invitation was made with
+    let roleIds = null;
+    if (!editing && invitesLeader(req)) {
+      const checked = await checkInvitationRoles(req, res, organizationId);
+      if (!checked) {
+        return res;
+      }
+      ({ roleIds } = checked);
+    }
+    // Editing a leader invitation, above all its address, hands its roles to
+    // whoever receives it: the editor must be able to grant them too.
+    if (editing && !(await mayEditInvitationRoles(req, res, organizationId))) {
+      return res;
+    }
 
     const organization = await pool.query(
       'SELECT default_language FROM organizations WHERE id = $1',
@@ -153,6 +288,7 @@ module.exports = (pool, logger) => {
         organization.rows[0]?.default_language
       ),
       invitedBy: req.user.id,
+      roleIds,
       deactivationOverrideReason: isConfirmed(req.body.confirm_reactivation)
         ? optionalText(req.body.reactivation_reason)
         : null,
@@ -202,7 +338,7 @@ module.exports = (pool, logger) => {
     );
   }
 
-  const writeMiddleware = [authenticate, blockDemoRoles, requirePermission('users.invite'),
+  const writeMiddleware = [authenticate, blockDemoRoles, requirePermission(invitationPermissions),
     invitationWriteLimiter, validateEmail, ...validateOptionalFields, checkValidation];
   router.post('/', ...writeMiddleware, asyncHandler((req, res) => writeInvitation(req, res)));
   router.put('/:id', param('id').isUUID(), ...writeMiddleware,

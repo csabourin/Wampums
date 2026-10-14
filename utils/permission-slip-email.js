@@ -251,8 +251,91 @@ function buildPermissionSlipEmailContent({
   };
 }
 
+/**
+ * Build a leader's copy of an activity's permission slip email.
+ *
+ * The same request the families received, for information: it carries no
+ * signing link, since only a child's own family answers its slip, and points
+ * instead to the page where the leader follows the replies.
+ *
+ * @param {object} params - Email data.
+ * @param {string} params.activityTitle - Activity title.
+ * @param {string} params.activityDescription - Activity description.
+ * @param {string} [params.activityDescriptionHtml] - Formatted description, when it has one.
+ * @param {string|Date} params.meetingDate - Activity date.
+ * @param {string|Date} [params.deadlineDate] - Deadline date.
+ * @param {string} params.followLink - Page listing the activity's slips.
+ * @param {string} params.languageCode - Language code for localization.
+ * @returns {{subject: string, textBody: string, htmlBody: string}}
+ */
+function buildPermissionSlipLeaderCopyContent({
+  activityTitle,
+  activityDescription,
+  activityDescriptionHtml = null,
+  meetingDate,
+  deadlineDate = null,
+  followLink,
+  languageCode = 'en',
+}) {
+  const translations = getTranslationsByCode(languageCode);
+  const fallbackTranslations = getTranslationsByCode('en');
+  const locale = getLocaleForLanguage(languageCode);
+  const text = (key, defaultValue) =>
+    getTranslationValue(translations, fallbackTranslations, key, defaultValue);
+
+  const title = sanitizeInput(activityTitle) || text('activity', 'Activity');
+  const description = sanitizeInput(activityDescription || '');
+  const activityDate = new Date(meetingDate).toLocaleDateString(locale);
+  const deadlineText = deadlineDate
+    ? formatTranslation(
+      text('permission_slip_email_deadline_text', 'Signature deadline: {deadlineDate}'),
+      { deadlineDate: new Date(deadlineDate).toLocaleDateString(locale) },
+    )
+    : '';
+
+  const subject = formatTranslation(
+    text('permission_slip_leader_copy_subject',
+      'For your information: permission requested from families - {activityTitle}'),
+    { activityTitle: title },
+  );
+  const introTemplate = text('permission_slip_leader_copy_intro',
+    'The families of the invited youth have received the following permission request: {activityTitle}');
+  const note = text('permission_slip_leader_copy_note',
+    "This copy is for your information. Only a child's own family can sign their permission slip.");
+  const followLabel = text('permission_slip_leader_copy_button', 'Follow the replies');
+  const greeting = text('permission_slip_email_greeting', 'Hello,');
+  const dateLabel = text('permission_slip_email_date_label', 'Activity date:');
+
+  const textBody = [
+    greeting,
+    formatTranslation(introTemplate, { activityTitle: title }),
+    `${dateLabel} ${activityDate}`,
+    description,
+    note,
+    `${followLabel}\n${followLink}`,
+    deadlineText,
+  ].filter(Boolean).join('\n\n');
+
+  const safeDescription =
+    sanitizeRichTextHtml(activityDescriptionHtml) ||
+    escapeHtml(description).replace(/\n/g, '<br>');
+  const htmlBody = `
+    <h2>${escapeHtml(text('permission_slip_leader_copy_heading', 'Permission requested from families'))}</h2>
+    <p>${escapeHtml(greeting)}</p>
+    <p>${formatTranslation(introTemplate, { activityTitle: escapeHtml(title) })}</p>
+    <p><strong>${escapeHtml(dateLabel)}</strong> ${escapeHtml(activityDate)}</p>
+    ${safeDescription ? `<div>${safeDescription}</div>` : ''}
+    ${deadlineText ? `<p><em>${escapeHtml(deadlineText)}</em></p>` : ''}
+    <p style="padding: 12px; border-left: 4px solid #0066cc; background: #f0f6ff;">${escapeHtml(note)}</p>
+    <p><a href="${escapeHtml(followLink)}">${escapeHtml(followLabel)}</a></p>
+  `;
+
+  return { subject, textBody, htmlBody };
+}
+
 module.exports = {
   buildPermissionSlipEmailContent,
+  buildPermissionSlipLeaderCopyContent,
   formatTranslation,
   getLocaleForLanguage,
 };

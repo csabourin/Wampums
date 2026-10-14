@@ -912,8 +912,8 @@ export class OfflineManager {
      */
     async preloadCampModules() {
         const campModules = [
-            () => import('../attendance.js'),
-            () => import('../manage_points.js'),
+            () => import('./attendance/Attendance.js'),
+            () => import('./points/ManagePoints.js'),
             () => import('../manage_honors.js'),
             () => import('./activities/Activities.js'),
             () => import('../medication_management.js'),
@@ -921,7 +921,7 @@ export class OfflineManager {
             () => import('../badge_tracker.js'),
             () => import('../carpool.js'),
             () => import('../carpool_dashboard.js'),
-            () => import('../manage_participants.js'),
+            () => import('./participants/ManageParticipants.js'),
             () => import('../manage_groups.js'),
             () => import('../upcoming_meeting.js'),
             // Shell + tabs for the merged destinations reachable offline

@@ -8,24 +8,25 @@ import {
   getApiUrl,
   CONFIG,
   API,
-} from "./ajax-functions.js";
-import { translate } from "./app.js";
-import { debugLog, debugError, debugWarn } from "./utils/DebugUtils.js";
+} from '../../ajax-functions.js';
+import { translate } from '../../app.js';
+import { debugLog, debugError, debugWarn } from '../../utils/DebugUtils.js';
 import {
   setCachedData,
   getCachedData,
   getCachedDataIgnoreExpiration,
-} from "./indexedDB.js";
-import { canViewPoints } from "./utils/PermissionUtils.js";
-import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
-import { setContent } from "./utils/DOMUtils.js";
-import { getTodayISO } from "./utils/DateUtils.js";
-import { PointsStore } from "./modules/points/PointsStore.js";
-import { PointActionBar } from "./modules/points/PointActionBar.js";
+} from '../../indexedDB.js';
+import { canViewPoints } from '../../utils/PermissionUtils.js';
+import { normalizeParticipantList } from '../../utils/ParticipantRoleUtils.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { getTodayISO } from '../../utils/DateUtils.js';
+import { PointsStore } from '../../modules/points/PointsStore.js';
+import { PointActionBar } from '../../modules/points/PointActionBar.js';
 
-import { apiErrorMessage } from './utils/ApiErrorUtils.js';
-import { escapeHTML } from './utils/SecurityUtils.js';
-const POINTS_CACHE_KEY = "manage_points_data";
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
+const POINTS_CACHE_KEY = 'manage_points_data';
 
 export class ManagePoints {
   constructor(app) {
@@ -33,8 +34,8 @@ export class ManagePoints {
     // Selection is data rather than DOM references so it survives sorting and
     // list re-renders. Groups remain exclusive; individuals can be combined.
     this.selected = null; // { type: 'group', id } | { type: 'individual', ids: Set }
-    this.currentSort = { key: "group", order: "asc" };
-    this.currentFilter = "";
+    this.currentSort = { key: 'group', order: 'asc' };
+    this.currentFilter = '';
     this.eventController = null;
     this.highlightTimers = new Set();
     this.pendingActionKeys = new Set();
@@ -64,7 +65,7 @@ export class ManagePoints {
   async init() {
     // Check permission
     if (!canViewPoints()) {
-      this.app.router.navigate("/dashboard");
+      this.app.router.navigate('/dashboard');
       return;
     }
 
@@ -74,7 +75,7 @@ export class ManagePoints {
       this.attachEventListeners();
       this.unsubscribeStore?.();
       this.unsubscribeStore = this.store.subscribe((changedIds) => this.onStoreChange(changedIds));
-      debugLog("ManagePoints initialized");
+      debugLog('ManagePoints initialized');
       if (navigator.onLine) {
         await Promise.all([
           this.refreshPointsData(),
@@ -82,7 +83,7 @@ export class ManagePoints {
         ]);
       }
     } catch (error) {
-      debugError("Error initializing manage points:", error);
+      debugError('Error initializing manage points:', error);
       this.renderError();
     }
   }
@@ -101,13 +102,13 @@ export class ManagePoints {
             this.participants = normalizeParticipantList(
               freshData.data || freshData.participants || []
             );
-            debugLog("Fresh participants loaded:", this.participants.length, "records");
+            debugLog('Fresh participants loaded:', this.participants.length, 'records');
             this.store.load(this.participants, this.groups);
             this.organizeParticipants();
           }
         } catch (fetchError) {
           debugWarn(
-            "Could not fetch fresh participants (possibly offline), using cached data:",
+            'Could not fetch fresh participants (possibly offline), using cached data:',
             fetchError.message,
           );
         }
@@ -115,7 +116,7 @@ export class ManagePoints {
         await this.fetchData();
       }
     } catch (error) {
-      debugError("Error preloading manage points data:", error);
+      debugError('Error preloading manage points data:', error);
       this.participants = [];
       this.groups = [];
       this.groupedParticipants = {};
@@ -167,7 +168,7 @@ export class ManagePoints {
         // Backward compatibility
         this.groups = groupsResponse.groups;
       } else {
-        debugError("Unexpected groups data structure:", groupsResponse);
+        debugError('Unexpected groups data structure:', groupsResponse);
         this.groups = [];
       }
 
@@ -176,7 +177,7 @@ export class ManagePoints {
       if (participantsResponse.success && Array.isArray(participantsList)) {
         this.participants = normalizeParticipantList(participantsList);
       } else {
-        debugError("Unexpected participants data structure:", participantsResponse);
+        debugError('Unexpected participants data structure:', participantsResponse);
         this.participants = [];
       }
 
@@ -184,7 +185,7 @@ export class ManagePoints {
       this.organizeParticipants();
       await this.updateCache();
     } catch (error) {
-      debugError("Error fetching manage points data:", error);
+      debugError('Error fetching manage points data:', error);
       throw error;
     }
   }
@@ -205,7 +206,7 @@ export class ManagePoints {
           this.todayAttendance[record.participant_id] = status;
         }
       });
-      debugLog("Loaded today's attendance:", Object.keys(this.todayAttendance).length, "records");
+      debugLog("Loaded today's attendance:", Object.keys(this.todayAttendance).length, 'records');
     } catch (error) {
       debugWarn("Could not load today's attendance:", error.message);
       this.todayAttendance = {};
@@ -215,28 +216,28 @@ export class ManagePoints {
   render() {
     const content = `
       <section class="manage-points-page">
-        <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-        <h1>${translate("manage_points")}</h1>
+        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+        <h1>${translate('manage_points')}</h1>
         <div class="controls-container">
           <div class="sort-options">
             <button type="button" class="sort-btn" data-sort="name"
-              aria-label="${translate("sort_by_name")}">👤</button>
+              aria-label="${translate('sort_by_name')}">👤</button>
             <button type="button" class="sort-btn active" data-sort="group"
-              aria-label="${translate("sort_by_group")}">👥</button>
+              aria-label="${translate('sort_by_group')}">👥</button>
             <button type="button" class="sort-btn" data-sort="points"
-              aria-label="${translate("sort_by_points")}">🏆</button>
+              aria-label="${translate('sort_by_points')}">🏆</button>
             <button type="button" class="filter-toggle-btn" id="filter-toggle"
-              data-archive-safe aria-label="${translate("filter_by_group")}">🔍</button>
+              data-archive-safe aria-label="${translate('filter_by_group')}">🔍</button>
           </div>
           <div class="filter-options hidden" id="filter-container">
-            <label for="group-filter">${translate("filter_by_group")}:</label>
+            <label for="group-filter">${translate('filter_by_group')}:</label>
             <select id="group-filter" data-archive-safe>
-              <option value="">${translate("all_groups")}</option>
+              <option value="">${translate('all_groups')}</option>
               ${this.groups
-          .map(
-            (group) => `<option value="${group.id}">${group.name}</option>`,
-          )
-          .join("")}
+    .map(
+      (group) => `<option value="${group.id}">${group.name}</option>`,
+    )
+    .join('')}
             </select>
           </div>
         </div>
@@ -244,9 +245,9 @@ export class ManagePoints {
       </section>
       ${this.actionBar.render()}
     `;
-    const appRoot = document.getElementById("app");
+    const appRoot = document.getElementById('app');
     setContent(appRoot, content);
-    this.actionBar.mount(document.getElementById("points-action-bar"), appRoot);
+    this.actionBar.mount(document.getElementById('points-action-bar'), appRoot);
     this.renderList();
   }
 
@@ -256,12 +257,12 @@ export class ManagePoints {
    * headers and selections).
    */
   renderList() {
-    const pointsList = document.getElementById("points-list");
+    const pointsList = document.getElementById('points-list');
     if (!pointsList) {
       return;
     }
 
-    if (this.currentSort.key === "group") {
+    if (this.currentSort.key === 'group') {
       setContent(pointsList, this.renderGroupedList() + this.renderUnassignedParticipants());
     } else {
       setContent(pointsList, this.renderFlatList());
@@ -278,50 +279,50 @@ export class ManagePoints {
         <button type="button" class="group-header" data-group-id="${group.id}"
           data-type="group" aria-pressed="false">
           <span class="group-header__name">${group.name}</span>
-          <span class="group-header__points">${translate("group_points")}: ${this.store.getGroupTotal(group.id)}</span>
+          <span class="group-header__points">${translate('group_points')}: ${this.store.getGroupTotal(group.id)}</span>
         </button>
         <div class="group-content">
           ${this.renderParticipantsForGroup(group.id)}
           <div class="group-points" id="group-points-${group.id}">
-            ${translate("total_points")}: ${this.getGroupIndividualTotal(group.id)}
+            ${translate('total_points')}: ${this.getGroupIndividualTotal(group.id)}
           </div>
         </div>
       `,
       )
-      .join("");
+      .join('');
   }
 
   renderFlatList() {
     const sorted = [...this.participants].sort((a, b) => {
       let comparison = 0;
-      if (this.currentSort.key === "name") {
-        comparison = a.first_name.localeCompare(b.first_name);
+      if (this.currentSort.key === 'name') {
+        comparison = youthFirstName(a).localeCompare(youthFirstName(b));
       } else {
         comparison = this.store.getParticipantTotal(a.id) - this.store.getParticipantTotal(b.id);
       }
-      return this.currentSort.order === "asc" ? comparison : -comparison;
+      return this.currentSort.order === 'asc' ? comparison : -comparison;
     });
 
     return `
       <div class="group-content">
-        ${sorted.map((participant) => this.renderParticipantItem(participant)).join("")}
+        ${sorted.map((participant) => this.renderParticipantItem(participant)).join('')}
       </div>
     `;
   }
 
   renderUnassignedParticipants() {
     if (this.unassignedParticipants.length === 0) {
-      return `<h2>${translate("unassigned_participants")}</h2><p>${translate(
-        "no_unassigned_participants",
+      return `<h2>${translate('unassigned_participants')}</h2><p>${translate(
+        'no_unassigned_participants',
       )}</p>`;
     }
 
     return `
-      <h2>${translate("unassigned_participants")}</h2>
+      <h2>${translate('unassigned_participants')}</h2>
       <div class="group-content">
         ${this.unassignedParticipants
-        .map((participant) => this.renderParticipantItem(participant))
-        .join("")}
+    .map((participant) => this.renderParticipantItem(participant))
+    .join('')}
       </div>
     `;
   }
@@ -331,20 +332,20 @@ export class ManagePoints {
       (p) => String(p.group_id) === String(groupId),
     );
     if (groupParticipants.length === 0) {
-      return `<p>${translate("no_participants_in_group")}</p>`;
+      return `<p>${translate('no_participants_in_group')}</p>`;
     }
 
     return groupParticipants
       .map((participant) => this.renderParticipantItem(participant))
-      .join("");
+      .join('');
   }
 
   renderParticipantItem(participant) {
     return `
       <button type="button" class="list-item" data-participant-id="${participant.id}"
-        data-type="individual" data-group-id="${participant.group_id ?? "null"}"
+        data-type="individual" data-group-id="${participant.group_id ?? 'null'}"
         aria-pressed="false">
-        <span class="participant-name">${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}</span>
+        <span class="participant-name">${escapeHTML(youthDisplayName(participant))}</span>
         <span class="participant-points" id="name-points-${participant.id}">${this.store.getParticipantTotal(participant.id)}</span>
       </button>
     `;
@@ -362,23 +363,23 @@ export class ManagePoints {
     this.eventController?.abort();
     this.eventController = new AbortController();
     const { signal } = this.eventController;
-    const sortContainer = document.querySelector(".sort-options");
-    const pointsList = document.getElementById("points-list");
-    const filterDropdown = document.getElementById("group-filter");
-    const filterToggle = document.getElementById("filter-toggle");
+    const sortContainer = document.querySelector('.sort-options');
+    const pointsList = document.getElementById('points-list');
+    const filterDropdown = document.getElementById('group-filter');
+    const filterToggle = document.getElementById('filter-toggle');
 
     if (sortContainer) {
-      sortContainer.addEventListener("click", (event) => {
+      sortContainer.addEventListener('click', (event) => {
         const target = event.target;
-        if (target.tagName === "BUTTON" && target.dataset.sort) {
+        if (target.tagName === 'BUTTON' && target.dataset.sort) {
           this.sortItems(target.dataset.sort);
         }
       }, { signal });
     }
 
     if (pointsList) {
-      pointsList.addEventListener("click", (event) => {
-        const item = event.target.closest(".list-item, .group-header");
+      pointsList.addEventListener('click', (event) => {
+        const item = event.target.closest('.list-item, .group-header');
         if (item) {
           this.handleItemClick(item);
         }
@@ -386,14 +387,14 @@ export class ManagePoints {
     }
 
     if (filterDropdown) {
-      filterDropdown.addEventListener("change", (event) => {
+      filterDropdown.addEventListener('change', (event) => {
         this.currentFilter = event.target.value;
         this.applyFilter();
       }, { signal });
     }
 
     if (filterToggle) {
-      filterToggle.addEventListener("click", () => {
+      filterToggle.addEventListener('click', () => {
         this.toggleFilter();
       }, { signal });
     }
@@ -401,16 +402,16 @@ export class ManagePoints {
 
   handleItemClick(item) {
     const type = item.dataset.type;
-    const id = type === "group" ? item.dataset.groupId : item.dataset.participantId;
+    const id = type === 'group' ? item.dataset.groupId : item.dataset.participantId;
 
-    if (type === "group") {
-      if (this.selected?.type === "group" && this.selected.id === id) {
+    if (type === 'group') {
+      if (this.selected?.type === 'group' && this.selected.id === id) {
         this.selected = null;
       } else {
-        this.selected = { type: "group", id };
+        this.selected = { type: 'group', id };
       }
     } else {
-      const ids = this.selected?.type === "individual"
+      const ids = this.selected?.type === 'individual'
         ? new Set(this.selected.ids)
         : new Set();
       if (ids.has(id)) {
@@ -418,7 +419,7 @@ export class ManagePoints {
       } else {
         ids.add(id);
       }
-      this.selected = ids.size > 0 ? { type: "individual", ids } : null;
+      this.selected = ids.size > 0 ? { type: 'individual', ids } : null;
     }
     this.applySelection();
   }
@@ -427,26 +428,26 @@ export class ManagePoints {
    * Reflect this.selected in the DOM. Safe to call after any re-render.
    */
   applySelection() {
-    document.querySelectorAll(".list-item.selected, .group-header.selected").forEach((el) => {
-      el.classList.remove("selected");
-      el.setAttribute("aria-pressed", "false");
+    document.querySelectorAll('.list-item.selected, .group-header.selected').forEach((el) => {
+      el.classList.remove('selected');
+      el.setAttribute('aria-pressed', 'false');
     });
     if (!this.selected) {
-      this.actionBar.updateSelection(translate("points_selection_none"));
+      this.actionBar.updateSelection(translate('points_selection_none'));
       return;
     }
 
-    if (this.selected.type === "group") {
+    if (this.selected.type === 'group') {
       const selectedGroup = document.querySelector(
         `.group-header[data-group-id="${this.selected.id}"]`
       );
-      selectedGroup?.classList.add("selected");
-      selectedGroup?.setAttribute("aria-pressed", "true");
+      selectedGroup?.classList.add('selected');
+      selectedGroup?.setAttribute('aria-pressed', 'true');
     } else {
       this.selected.ids.forEach((id) => {
         const participant = document.querySelector(`.list-item[data-participant-id="${id}"]`);
-        participant?.classList.add("selected");
-        participant?.setAttribute("aria-pressed", "true");
+        participant?.classList.add('selected');
+        participant?.setAttribute('aria-pressed', 'true');
       });
     }
     this.actionBar.updateSelection(this.getSelectionSummary());
@@ -460,10 +461,10 @@ export class ManagePoints {
   }
 
   getSelectionSummary() {
-    if (!this.selected) return translate("points_selection_none");
-    if (this.selected.type === "group") {
+    if (!this.selected) {return translate('points_selection_none');}
+    if (this.selected.type === 'group') {
       const group = this.groups.find((item) => String(item.id) === String(this.selected.id));
-      return this.interpolate("points_selection_group", {
+      return this.interpolate('points_selection_group', {
         name: group?.name || this.selected.id,
       });
     }
@@ -472,38 +473,38 @@ export class ManagePoints {
     if (ids.length === 1) {
       const participant = this.participants.find((item) => String(item.id) === String(ids[0]));
       const name = participant
-        ? `${participant.first_name} ${participant.last_name}`.trim()
+        ? youthDisplayName(participant)
         : ids[0];
-      return this.interpolate("points_selection_individual", { name });
+      return this.interpolate('points_selection_individual', { name });
     }
-    return this.interpolate("points_selection_multiple", { count: ids.length });
+    return this.interpolate('points_selection_multiple', { count: ids.length });
   }
 
   getSelectionAnnouncementTarget() {
-    if (!this.selected) return "";
-    if (this.selected.type === "group") {
+    if (!this.selected) {return '';}
+    if (this.selected.type === 'group') {
       const group = this.groups.find((item) => String(item.id) === String(this.selected.id));
-      return this.interpolate("points_target_group", {
+      return this.interpolate('points_target_group', {
         name: group?.name || this.selected.id,
       });
     }
 
     const ids = [...this.selected.ids];
     if (ids.length > 1) {
-      return this.interpolate("points_target_multiple", { count: ids.length });
+      return this.interpolate('points_target_multiple', { count: ids.length });
     }
     const participant = this.participants.find((item) => String(item.id) === String(ids[0]));
     return participant
-      ? `${participant.first_name} ${participant.last_name}`.trim()
+      ? youthDisplayName(participant)
       : ids[0];
   }
 
   getActionKey(points) {
-    if (this.selected?.type === "group") {
+    if (this.selected?.type === 'group') {
       return `group:${this.selected.id}:${points}`;
     }
     const ids = [...(this.selected?.ids || [])].map(String).sort();
-    return `individual:${ids.join(",")}:${points}`;
+    return `individual:${ids.join(',')}:${points}`;
   }
 
   /**
@@ -525,7 +526,7 @@ export class ManagePoints {
     const skipped = [];
     memberIds.forEach((id) => {
       const status = this.todayAttendance[id];
-      if (status === "present" || status === "late") {
+      if (status === 'present' || status === 'late') {
         eligible.push(id);
       } else {
         skipped.push(id);
@@ -539,10 +540,10 @@ export class ManagePoints {
    */
   async applyPointAction(points) {
     if (!this.selected) {
-      const message = translate("please_select_group_or_individual");
+      const message = translate('please_select_group_or_individual');
       this.app.showMessage(
         message,
-        "error",
+        'error',
       );
       this.actionBar.announce(message);
       return false;
@@ -550,10 +551,10 @@ export class ManagePoints {
 
     const { type } = this.selected;
 
-    if (type === "no-group") {
+    if (type === 'no-group') {
       this.app.showMessage(
-        translate("cannot_assign_points_to_no_group"),
-        "error",
+        translate('cannot_assign_points_to_no_group'),
+        'error',
       );
       return false;
     }
@@ -563,13 +564,13 @@ export class ManagePoints {
     let payloads;
     const announcementTarget = this.getSelectionAnnouncementTarget();
 
-    if (type === "group") {
+    if (type === 'group') {
       const { id } = this.selected;
       const { eligible, skipped } = this.getEligibleGroupMemberIds(id);
       if (skipped.length > 0) {
         this.app.showMessage(
-          translate("points_skipped_absent_participants").replace("{{count}}", skipped.length),
-          "info"
+          translate('points_skipped_absent_participants').replace('{{count}}', skipped.length),
+          'info'
         );
       }
       txn = {
@@ -592,7 +593,7 @@ export class ManagePoints {
       };
       const timestamp = new Date().toISOString();
       payloads = ids.map((id) => ({
-        type: "individual",
+        type: 'individual',
         id,
         points,
         timestamp,
@@ -600,7 +601,7 @@ export class ManagePoints {
     }
 
     const actionKey = this.getActionKey(points);
-    if (this.pendingActionKeys.has(actionKey)) return false;
+    if (this.pendingActionKeys.has(actionKey)) {return false;}
     this.pendingActionKeys.add(actionKey);
 
     try {
@@ -626,8 +627,8 @@ export class ManagePoints {
   }
 
   selectedElements() {
-    if (!this.selected) return [];
-    if (this.selected.type === "group") {
+    if (!this.selected) {return [];}
+    if (this.selected.type === 'group') {
       return [...document.querySelectorAll(
         `.group-header[data-group-id="${this.selected.id}"]`
       )];
@@ -662,7 +663,7 @@ export class ManagePoints {
       const data = await updatePoints(payloads);
 
       if (data.queued) {
-        debugLog("Batch update queued for offline sync:", payloads.length, "updates");
+        debugLog('Batch update queued for offline sync:', payloads.length, 'updates');
         this.store.foldBatch(txns);
         await this.updateCache();
         return;
@@ -690,35 +691,35 @@ export class ManagePoints {
       }
       await this.updateCache();
     } catch (error) {
-      debugError("Error in batch update:", error);
+      debugError('Error in batch update:', error);
 
       // Network error (went offline mid-request): queue for offline sync
       if (error instanceof TypeError || !navigator.onLine) {
         try {
-          const { offlineManager } = await import("./modules/OfflineManager.js");
+          const { offlineManager } = await import('../../modules/OfflineManager.js');
           await offlineManager.queueMutation(
-            getApiUrl("api/v1/points"),
+            getApiUrl('api/v1/points'),
             {
-              method: "POST",
+              method: 'POST',
               headers: {
-                "Content-Type": "application/json",
+                'Content-Type': 'application/json',
                 ...getAuthHeader(),
-                "x-organization-id": getCurrentOrganizationId(),
+                'x-organization-id': getCurrentOrganizationId(),
               },
               body: JSON.stringify(payloads),
             }
           );
-          debugLog("Batch update queued for offline sync (network error fallback):", payloads.length, "updates");
+          debugLog('Batch update queued for offline sync (network error fallback):', payloads.length, 'updates');
         } catch (queueError) {
-          debugError("Failed to queue offline mutation:", queueError);
+          debugError('Failed to queue offline mutation:', queueError);
           // Point awards are additive and cannot be replayed safely until the
           // endpoint implements transactional idempotency. Restore the exact
           // pre-click state instead of showing totals that were never saved.
           this.store.rollbackBatch(txns);
           await this.updateCache();
           this.app.showMessage(
-            queueError.message || translate("offline.writeUnavailable"),
-            "error",
+            queueError.message || translate('offline.writeUnavailable'),
+            'error',
           );
           return;
         }
@@ -749,12 +750,12 @@ export class ManagePoints {
     const touchedGroups = new Set();
 
     changedIds.forEach((entityId) => {
-      const [kind, id] = entityId.split(":");
-      if (kind === "participant") {
+      const [kind, id] = entityId.split(':');
+      if (kind === 'participant') {
         const pointsElement = document.getElementById(`name-points-${id}`);
         if (pointsElement) {
           pointsElement.textContent = `${this.store.getParticipantTotal(id)}`;
-          this.addHighlightEffect(pointsElement.closest(".list-item"));
+          this.addHighlightEffect(pointsElement.closest('.list-item'));
         }
         const participant = this.participants.find((p) => String(p.id) === String(id));
         if (participant) {
@@ -763,12 +764,12 @@ export class ManagePoints {
             touchedGroups.add(String(participant.group_id));
           }
         }
-      } else if (kind === "group") {
+      } else if (kind === 'group') {
         touchedGroups.add(id);
         const header = document.querySelector(`.group-header[data-group-id="${id}"] .group-header__points`);
         if (header) {
-          header.textContent = `${translate("group_points")}: ${this.store.getGroupTotal(id)}`;
-          this.addHighlightEffect(header.closest(".group-header"));
+          header.textContent = `${translate('group_points')}: ${this.store.getGroupTotal(id)}`;
+          this.addHighlightEffect(header.closest('.group-header'));
         }
         const group = this.groups.find((g) => String(g.id) === String(id));
         if (group) {
@@ -781,7 +782,7 @@ export class ManagePoints {
     touchedGroups.forEach((groupId) => {
       const footer = document.getElementById(`group-points-${groupId}`);
       if (footer) {
-        footer.textContent = `${translate("total_points")}: ${this.getGroupIndividualTotal(groupId)}`;
+        footer.textContent = `${translate('total_points')}: ${this.getGroupIndividualTotal(groupId)}`;
       }
     });
   }
@@ -809,17 +810,17 @@ export class ManagePoints {
         },
         CONFIG.CACHE_DURATION.SHORT,
       );
-      debugLog("Cache updated with new points data.");
+      debugLog('Cache updated with new points data.');
     } catch (error) {
-      debugError("Error updating cache:", error);
+      debugError('Error updating cache:', error);
     }
   }
 
   showPointChangeAnimation(points, target) {
     const count = Math.abs(points);
     const feedbackKey = points > 0
-      ? (count === 1 ? "points_feedback_added_one" : "points_feedback_added_many")
-      : (count === 1 ? "points_feedback_removed_one" : "points_feedback_removed_many");
+      ? (count === 1 ? 'points_feedback_added_one' : 'points_feedback_added_many')
+      : (count === 1 ? 'points_feedback_removed_one' : 'points_feedback_removed_many');
     const announcement = this.interpolate(feedbackKey, { count, target });
     this.actionBar.showFeedback(points, announcement);
     this.selectedElements().forEach((element) => this.addHighlightEffect(element));
@@ -829,9 +830,9 @@ export class ManagePoints {
     if (!element) {
       return;
     }
-    element.classList.add("highlight");
+    element.classList.add('highlight');
     const timer = setTimeout(() => {
-      element.classList.remove("highlight");
+      element.classList.remove('highlight');
       this.highlightTimers.delete(timer);
     }, CONFIG.UI.POINT_HIGHLIGHT_DURATION);
     this.highlightTimers.add(timer);
@@ -842,10 +843,10 @@ export class ManagePoints {
 
     if (this.currentSort.key === key) {
       this.currentSort.order =
-        this.currentSort.order === "asc" ? "desc" : "asc";
+        this.currentSort.order === 'asc' ? 'desc' : 'asc';
     } else {
       this.currentSort.key = key;
-      this.currentSort.order = "asc";
+      this.currentSort.order = 'asc';
     }
 
     document.querySelectorAll('.sort-btn').forEach(btn => {
@@ -857,21 +858,21 @@ export class ManagePoints {
   }
 
   toggleFilter() {
-    const filterContainer = document.getElementById("filter-container");
+    const filterContainer = document.getElementById('filter-container');
     if (filterContainer) {
-      filterContainer.classList.toggle("hidden");
+      filterContainer.classList.toggle('hidden');
     }
   }
 
   applyFilter() {
     const groupId = this.currentFilter;
-    document.querySelectorAll(".group-header").forEach((header) => {
+    document.querySelectorAll('.group-header').forEach((header) => {
       header.style.display =
-        groupId === "" || header.dataset.groupId === groupId ? "" : "none";
+        groupId === '' || header.dataset.groupId === groupId ? '' : 'none';
     });
-    document.querySelectorAll(".list-item").forEach((item) => {
+    document.querySelectorAll('.list-item').forEach((item) => {
       item.style.display =
-        groupId === "" || item.dataset.groupId === groupId ? "" : "none";
+        groupId === '' || item.dataset.groupId === groupId ? '' : 'none';
     });
   }
 
@@ -879,13 +880,13 @@ export class ManagePoints {
     try {
       const cachedData = await getCachedData(POINTS_CACHE_KEY);
       if (cachedData) {
-        debugLog("Using cached points data");
+        debugLog('Using cached points data');
         this.applyPointsData(this.normalizePointsData(cachedData));
         this.renderList();
         return;
       }
 
-      debugLog("Fetching fresh points data");
+      debugLog('Fetching fresh points data');
       const data = await API.getNoCache('v1/points');
       const normalized = this.normalizePointsData(data);
 
@@ -910,11 +911,11 @@ export class ManagePoints {
       await this.updateCache();
       this.renderList();
     } catch (error) {
-      debugError("Error fetching points data:", error);
+      debugError('Error fetching points data:', error);
       if (!navigator.onLine) {
         const cachedData = await getCachedDataIgnoreExpiration(POINTS_CACHE_KEY);
         if (cachedData) {
-          debugLog("Using stale cached data due to offline status");
+          debugLog('Using stale cached data due to offline status');
           this.applyPointsData(this.normalizePointsData(cachedData));
           this.renderList();
           return;
@@ -953,15 +954,15 @@ export class ManagePoints {
     Object.values(this.groupedParticipants).forEach((groupParticipants) => {
       groupParticipants.sort((a, b) => {
         if (a.first_leader !== b.first_leader)
-          return b.first_leader ? 1 : -1;
+        {return b.first_leader ? 1 : -1;}
         if (a.second_leader !== b.second_leader)
-          return b.second_leader ? 1 : -1;
-        return a.first_name.localeCompare(b.first_name);
+        {return b.second_leader ? 1 : -1;}
+        return youthFirstName(a).localeCompare(youthFirstName(b));
       });
     });
 
     this.unassignedParticipants.sort((a, b) =>
-      a.first_name.localeCompare(b.first_name),
+      youthFirstName(a).localeCompare(youthFirstName(b)),
     );
   }
 
@@ -978,9 +979,9 @@ export class ManagePoints {
 
   renderError() {
     const errorMessage = `
-        <h1>${translate("error")}</h1>
-        <p>${translate("error_loading_manage_points")}</p>
+        <h1>${translate('error')}</h1>
+        <p>${translate('error_loading_manage_points')}</p>
     `;
-    setContent(document.getElementById("app"), errorMessage);
+    setContent(document.getElementById('app'), errorMessage);
   }
 }

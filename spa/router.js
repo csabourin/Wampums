@@ -81,12 +81,12 @@ const lazyModules = {
   ParentFundraisers: () => import('./modules/fundraising/ParentFundraisers.js').then(m => m.ParentFundraisers),
   ParentProgramProgress: () => import('./modules/program-progress/ParentProgramProgress.js').then(m => m.ParentProgramProgress),
   FormulaireInscription: () => import('./formulaire_inscription.js').then(m => m.FormulaireInscription),
-  ManagePoints: () => import('./manage_points.js').then(m => m.ManagePoints),
+  ManagePoints: () => import('./modules/points/ManagePoints.js').then(m => m.ManagePoints),
   TimeSinceRegistration: () => import('./time_since_registration.js').then(m => m.TimeSinceRegistration),
-  Attendance: () => import('./attendance.js').then(m => m.Attendance),
+  Attendance: () => import('./modules/attendance/Attendance.js').then(m => m.Attendance),
   ManageHonors: () => import('./manage_honors.js').then(m => m.ManageHonors),
-  ManageParticipants: () => import('./manage_participants.js').then(m => m.ManageParticipants),
-  ManageUsersParticipants: () => import('./manage_users_participants.js').then(m => m.ManageUsersParticipants),
+  ManageParticipants: () => import('./modules/participants/ManageParticipants.js').then(m => m.ManageParticipants),
+  ManageUsersParticipants: () => import('./modules/participants/ManageUsersParticipants.js').then(m => m.ManageUsersParticipants),
   ManageGroups: () => import('./manage_groups.js').then(m => m.ManageGroups),
   GuardianManagement: () => import('./guardian-management.js').then(m => m.initGuardianManagement),
   ViewParticipantDocuments: () => import('./view_participant_documents.js').then(m => m.ViewParticipantDocuments),
@@ -105,7 +105,7 @@ const lazyModules = {
   Reports: () => import('./reports.js').then(m => m.Reports),
   MeetingPrep: () => import('./modules/meetings/MeetingPrep.js').then(m => m.MeetingPrep),
   CreateOrganization: () => import('./create_organization.js').then(m => m.CreateOrganization),
-  PrintableGroupParticipantReport: () => import('./group-participant-report.js').then(m => m.PrintableGroupParticipantReport),
+  PrintableGroupParticipantReport: () => import('./modules/groups/GroupParticipantReport.js').then(m => m.PrintableGroupParticipantReport),
   UpcomingMeeting: () => import('./upcoming_meeting.js').then(m => m.UpcomingMeeting),
   Finance: () => import('./finance.js').then(m => m.Finance),
   Budgets: () => import('./budgets.js').then(m => m.Budgets),
@@ -117,7 +117,7 @@ const lazyModules = {
   MaterialManagement: () => import('./material_management.js').then(m => m.MaterialManagement),
   MedicationManagement: () => import('./medication_management.js').then(m => m.MedicationManagement),
   MedicationReception: () => import('./medication_reception.js').then(m => m.MedicationReception),
-  PermissionSlipDashboard: () => import('./permission_slip_dashboard.js').then(m => m.PermissionSlipDashboard),
+  PermissionSlipDashboard: () => import('./modules/permission-slips/PermissionSlipDashboard.js').then(m => m.PermissionSlipDashboard),
   PermissionSlipSign: () => import('./permission_slip_sign.js').then(m => m.PermissionSlipSign),
   AccountInfoModule: () => import('./modules/account-info.js').then(m => m.AccountInfoModule),
   FormBuilder: () => import('./formBuilder.js').then(m => m.FormBuilder),
@@ -194,6 +194,7 @@ const routes = {
   "/complete-registration": "completeRegistration",
   "/family-link": "familyLink",
   "/parent-invitations": "parentInvitations",
+  '/leader-invitations': 'leaderInvitations',
   "/participant-duplicates": "participantDuplicates",
   "/parent-onboarding": "parentOnboarding",
   "/family-access": "familyAccess",
@@ -767,6 +768,13 @@ export class Router {
           }
           await this.loadModuleInstance('ParentInvitations');
           break;
+        case 'leaderInvitations':
+          // Inviting a leader also grants them a role
+          if (!guard(hasPermission('users.invite') && hasPermission('users.assign_roles'))) {
+            break;
+          }
+          await this.loadModuleInstance('ParentInvitations', { kind: 'leader' });
+          break;
         case "participantDuplicates":
           if (!guard(hasPermission('participants.edit'))) {
             break;
@@ -1294,9 +1302,9 @@ export class Router {
    * @param {string} moduleName - Key in the module registry
    * @returns {Promise<void>}
    */
-  async loadModuleInstance(moduleName) {
+  async loadModuleInstance(moduleName, options = undefined) {
     const PageModule = await this.loadModule(moduleName);
-    const instance = new PageModule(this.app);
+    const instance = new PageModule(this.app, options);
     this.currentModuleInstance = instance;
     await instance.init();
   }

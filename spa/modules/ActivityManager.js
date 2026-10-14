@@ -5,6 +5,7 @@ import { setContent } from "../utils/DOMUtils.js";
 import { debugLog, debugWarn } from "../utils/DebugUtils.js";
 import { escapeAttribute, escapeHTML } from "../utils/SecurityUtils.js";
 import { badgeLabel } from "../utils/BadgeLabelUtils.js";
+import { memberDisplayName } from '../utils/DisplayNameUtils.js';
 import { AchievementModal } from "./AchievementModal.js";
 
 /**
@@ -288,7 +289,7 @@ export class ActivityManager {
                                 ${this.animateurs
                                         .map(
                                                 (animateur) => `
-                                        <option value="${escapeAttribute(animateur.full_name)}" ${animateur.full_name === a.responsable ? "selected" : ""}>${escapeHTML(animateur.full_name)}</option>
+                                        <option value="${escapeAttribute(animateur.full_name)}" ${animateur.full_name === a.responsable ? "selected" : ""}>${escapeHTML(memberDisplayName(animateur))}</option>
                                 `,
                                         )
                                         .join("")}

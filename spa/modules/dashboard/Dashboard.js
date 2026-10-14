@@ -55,6 +55,7 @@ import {
 import { CommandPalette } from '../CommandPalette.js';
 import { DashboardSettingsModal } from '../DashboardSettingsModal.js';
 import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
+import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
 import { offlineManager } from '../OfflineManager.js';
 
 export class Dashboard extends BaseModule {
@@ -205,6 +206,7 @@ export class Dashboard extends BaseModule {
           cached.participants.map((p) => ({
             id: p.id,
             first_name: p.first_name,
+            nickname: p.nickname || null,
             last_name: p.last_name,
             group_id: p.group_id,
             group_name: p.group_name,
@@ -470,13 +472,14 @@ export class Dashboard extends BaseModule {
    * Named checks map to PermissionUtils helpers that are more than a single
    * permission lookup (they also accept legacy role payloads).
    *
-   * @param {{permission?: string, any?: string[], check?: string}} [gate]
+   * @param {{permission?: string, any?: string[], all?: string[], check?: string}} [gate]
    * @returns {boolean} True when the tile should be shown.
    */
   _passesGate(gate) {
     if (!gate) {return true;}
     if (gate.permission) {return hasPermission(gate.permission);}
     if (gate.any) {return hasAnyPermission(...gate.any);}
+    if (gate.all) {return gate.all.every((permission) => hasPermission(permission));}
     switch (gate.check) {
       case 'adminPanel':
         return canAccessAdminPanel();
@@ -1088,7 +1091,7 @@ export class Dashboard extends BaseModule {
       if (!a.first_leader && b.first_leader) {return 1;}
       if (a.second_leader && !b.second_leader) {return 1;}
       if (!a.second_leader && b.second_leader) {return -1;}
-      return a.first_name.localeCompare(b.first_name);
+      return youthFirstName(a).localeCompare(youthFirstName(b));
     });
 
     return participants
@@ -1101,10 +1104,10 @@ export class Dashboard extends BaseModule {
                data-type="individual"
                data-group-id="${p.group_id || 'none'}"
                data-points="${pts}"
-              data-name="${escapeAttribute(p.first_name)}">
+              data-name="${escapeAttribute(youthFirstName(p))}">
             <span class="participant-name">
-              ${escapeHTML(p.first_name)} ${escapeHTML(p.last_name)}
-              ${p.first_leader ? ` <span class="badge leader">${translate('leader')}</span>` : ''}
+              ${escapeHTML(youthDisplayName(p))}
+              ${p.first_leader ? ` <span class="badge leader">${translate('first_leader')}</span>` : ''}
               ${p.second_leader ? ` <span class="badge second-leader">${translate('second_leader')}</span>` : ''}
             </span>
             <span class="participant-points" id="name-points-${p.id}">${pts}</span>
