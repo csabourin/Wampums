@@ -217,6 +217,39 @@ module.exports = (pool, logger) => {
    * `reactivation_reason`. Nothing is created or sent until then.
    */
   /** Create or replace a pending invitation through the same validation and delivery path. */
+  /**
+   * Whether the caller may edit this invitation's roles along with it: a
+   * family invitation carries none; a leader invitation takes
+   * users.assign_roles and every permission of its roles.
+   *
+   * @param {Object} req - Request, after requirePermission
+   * @param {Object} res - Response
+   * @param {number} organizationId - Caller's unit
+   * @returns {Promise<boolean>} False once a refusal was sent
+   */
+  async function mayEditInvitationRoles(req, res, organizationId) {
+    const stored = await pool.query(
+      'SELECT role_ids FROM parent_invitations WHERE id = $1 AND organization_id = $2',
+      [req.params.id, organizationId]
+    );
+    const roleIds = normalizeRoleIds(stored.rows[0]?.role_ids || []);
+    if (roleIds.length === 0) {
+      return true;
+    }
+    const held = req.userPermissions || [];
+    if (!held.includes('users.assign_roles')) {
+      forbidden(res, 'Editing a leader invitation takes the permission to assign roles',
+        ['users.invite', 'users.assign_roles'], ['users.assign_roles']);
+      return false;
+    }
+    const check = await checkRolesGrantable(pool, roleIds, held);
+    if (!check.allowed) {
+      forbidden(res, 'You can only edit invitations into roles whose permissions you hold', check.required, check.missing, { roles: check.roles });
+      return false;
+    }
+    return true;
+  }
+
   async function writeInvitation(req, res, editing = false) {
     const organizationId = await getOrganizationId(req, pool);
 
@@ -228,6 +261,11 @@ module.exports = (pool, logger) => {
         return res;
       }
       ({ roleIds } = checked);
+    }
+    // Editing a leader invitation, above all its address, hands its roles to
+    // whoever receives it: the editor must be able to grant them too.
+    if (editing && !(await mayEditInvitationRoles(req, res, organizationId))) {
+      return res;
     }
 
     const organization = await pool.query(

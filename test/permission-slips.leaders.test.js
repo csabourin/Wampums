@@ -71,7 +71,7 @@ const SLIP = {
  * @param {boolean} [options.alreadyCopied] - Whether the leaders' copies were already claimed
  * @returns {string[]} Statements run
  */
-function mockDatabase({ permissions = ['permission_slips.sign'], ownChild = false, alreadyCopied = false } = {}) {
+function mockDatabase({ permissions = ['permission_slips.sign'], ownChild = false, alreadyCopied = false, allSent = false } = {}) {
   const { __mClient, __mPool } = require('pg');
   const statements = [];
   mockQueryImplementation(__mClient, __mPool, (query) => {
@@ -102,7 +102,10 @@ function mockDatabase({ permissions = ['permission_slips.sign'], ownChild = fals
       return { rows: [{ id: SLIP_ID, status: 'declined' }] };
     }
     if (query.includes('COUNT(*) FILTER (WHERE ps.email_sent = false)')) {
-      return { rows: [{ unsent_count: '1', sent_count: '0' }] };
+      return { rows: [allSent ? { unsent_count: '0', sent_count: '1' } : { unsent_count: '1', sent_count: '0' }] };
+    }
+    if (query.includes('DISTINCT ON (ps.activity_id') && query.includes('ps.email_sent = true')) {
+      return { rows: [SLIP] };
     }
     if (query.includes('AND ps.email_sent = false') && query.includes('JOIN participants p')) {
       return { rows: [SLIP] };
@@ -245,6 +248,21 @@ describe('emailing an activity\'s permission slips', () => {
 
     expect(res.body.data.leader_copies_sent).toBe(0);
     expect(sendEmail.mock.calls.map(([to]) => to)).toEqual(['julie@famille.test']);
+  });
+});
+
+describe('a leader copy the email service refused', () => {
+  test('is sent when the slips are sent again, though every family already has theirs', async () => {
+    mockDatabase({ permissions: ['communications.send'], allSent: true });
+
+    const res = await request(app)
+      .post('/api/v1/resources/permission-slips/send-emails')
+      .set('Authorization', `Bearer ${token(['communications.send'])}`)
+      .send({ activity_id: ACTIVITY_ID });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ sent: 0, leader_copies_sent: 1 });
+    expect(sendEmail.mock.calls.map(([to]) => to)).toEqual(['akela@unit.test']);
   });
 });
 

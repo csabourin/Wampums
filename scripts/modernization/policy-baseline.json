@@ -56,7 +56,7 @@
     "routes/programProgress.js": 14,
     "routes/public.js": 24,
     "routes/reports.js": 9,
-    "routes/resources.js": 561,
+    "routes/resources.js": 560,
     "routes/roles.js": 21,
     "routes/scoutYears.js": 17,
     "routes/stripe.js": 36,

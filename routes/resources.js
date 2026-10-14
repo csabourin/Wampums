@@ -1937,11 +1937,8 @@ module.exports = (pool, logger) => {
           return error(res, "Invalid meeting date", 400);
         }
 
-        // First, check if there are any pending permission slips at all (regardless of email status)
-        let pendingCheckQuery = `
-          SELECT
-            COUNT(*) FILTER (WHERE ps.email_sent = false) as unsent_count,
-            COUNT(*) FILTER (WHERE ps.email_sent = true) as sent_count
+        // The slips this request is about, counted by email status; shared with the leaders' retry below
+        let slipFilter = `
           FROM permission_slips ps
           WHERE ps.organization_id = $1
             AND ps.status = 'pending'`;
@@ -1950,28 +1947,34 @@ module.exports = (pool, logger) => {
 
         if (activity_id) {
           pendingCheckParams.push(activity_id);
-          pendingCheckQuery += ` AND ps.activity_id = $${pendingCheckParams.length}`;
+          slipFilter += ` AND ps.activity_id = $${pendingCheckParams.length}`;
         } else if (normalizedDate) {
           pendingCheckParams.push(normalizedDate);
-          pendingCheckQuery += ` AND ps.meeting_date = $${pendingCheckParams.length}`;
+          slipFilter += ` AND ps.meeting_date = $${pendingCheckParams.length}`;
         }
 
         if (activity_title) {
           pendingCheckParams.push(activity_title);
-          pendingCheckQuery += ` AND ps.activity_title = $${pendingCheckParams.length}`;
+          slipFilter += ` AND ps.activity_title = $${pendingCheckParams.length}`;
         }
 
         if (participant_ids && participant_ids.length > 0) {
           pendingCheckParams.push(participant_ids);
-          pendingCheckQuery += ` AND ps.participant_id = ANY($${pendingCheckParams.length})`;
+          slipFilter += ` AND ps.participant_id = ANY($${pendingCheckParams.length})`;
         }
 
         if (slipIds && slipIds.length > 0) {
           pendingCheckParams.push(slipIds.map(Number));
-          pendingCheckQuery += ` AND ps.id = ANY($${pendingCheckParams.length}::int[])`;
+          slipFilter += ` AND ps.id = ANY($${pendingCheckParams.length}::int[])`;
         }
 
-        const pendingCheckResult = await pool.query(pendingCheckQuery, pendingCheckParams);
+        const pendingCheckResult = await pool.query(
+          `SELECT
+             COUNT(*) FILTER (WHERE ps.email_sent = false) as unsent_count,
+             COUNT(*) FILTER (WHERE ps.email_sent = true) as sent_count
+           ${slipFilter}`,
+          pendingCheckParams,
+        );
         const unsentCount = parseInt(pendingCheckResult.rows[0].unsent_count);
         const alreadySentCount = parseInt(pendingCheckResult.rows[0].sent_count);
 
@@ -1982,7 +1985,28 @@ module.exports = (pool, logger) => {
 
         // If pending slips exist but all have been sent already
         if (unsentCount === 0) {
-          return success(res, { sent: 0, total: alreadySentCount }, "All pending permission slips have already been emailed");
+          // A leader copy refused earlier gave its claim back: offer it again.
+          // Claims keep anyone already sent a copy from getting a second one.
+          let leaderCopiesSent = 0;
+          try {
+            const emailed = await pool.query(
+              `SELECT DISTINCT ON (ps.activity_id, ps.meeting_date, ps.activity_title) ps.*
+               ${slipFilter} AND ps.email_sent = true`,
+              pendingCheckParams,
+            );
+            leaderCopiesSent = await sendLeaderCopies(
+              organizationId,
+              emailed.rows,
+              await resolveOrganizationEmailSender(pool, organizationId),
+            );
+          } catch (copyError) {
+            logger?.error?.('Leader copies of permission slip emails failed:', copyError);
+          }
+          return success(
+            res,
+            { sent: 0, total: alreadySentCount, leader_copies_sent: leaderCopiesSent },
+            'All pending permission slips have already been emailed',
+          );
         }
 
         // Build query to find permission slips (without guardian join - we'll get all guardians separately)

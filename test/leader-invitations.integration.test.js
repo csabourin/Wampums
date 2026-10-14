@@ -230,6 +230,26 @@ describe.skipIf(!DATABASE_URL)('Leader invitations', () => {
     expect(await one('SELECT count(*) FROM parent_invitations WHERE organization_id = $1', [ids.organizationId])).toBe('0');
   });
 
+  test('editing a leader invitation, its address above all, takes the right to grant its roles', async () => {
+    await invite({ email: 'baloo@leaders.example.org', role_ids: [ids.teamRoleId] });
+    const invitationId = await one('SELECT id FROM parent_invitations WHERE email = $1', ['baloo@leaders.example.org']);
+    sentEmails.length = 0;
+
+    mockContext.permissions = ['users.invite'];
+    const refused = await request(app).put(`/api/v1/parent-invitations/${invitationId}`)
+      .send({ email: 'someone-else@leaders.example.org' });
+
+    expect(refused.status).toBe(403);
+    expect(refused.body.missing).toEqual(['users.assign_roles']);
+    expect(sentEmails).toHaveLength(0);
+    expect(await one('SELECT count(*) FROM parent_invitations WHERE email = $1', ['someone-else@leaders.example.org'])).toBe('0');
+
+    mockContext.permissions = INVITER_PERMISSIONS;
+    const allowed = await request(app).put(`/api/v1/parent-invitations/${invitationId}`)
+      .send({ email: 'someone-else@leaders.example.org' });
+    expect(allowed.status).toBe(200);
+  });
+
   test('a role whose permissions the inviter lacks cannot be offered', async () => {
     const response = await invite({ email: 'baloo@leaders.example.org', role_ids: [ids.bigRoleId] });
 
