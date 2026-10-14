@@ -39,6 +39,7 @@ const DEAD_LINK_MESSAGES = {
 const FIXABLE_ERRORS = {
   name_required: 'account_name_required',
   password_required: 'password_min_length',
+  invitation_roles_unavailable: 'complete_registration_roles_unavailable',
 };
 
 /** What the page says after the invitation was spent. */
@@ -170,7 +171,7 @@ export class CompleteRegistration {
       <section class="page complete-registration">
         ${this.backLink()}
         <h1>${this.heading()}</h1>
-        <p>${translate('complete_registration_intro')}</p>
+        <p>${translate(this.link?.invites_leader ? 'complete_registration_intro_leader' : 'complete_registration_intro')}</p>
         <form id="complete-registration-form" novalidate>
           ${renderAccountFields({ email: this.link.email, prefill: this.link })}
           <p id="complete-registration-error" class="status-message error" role="alert" hidden></p>
@@ -264,7 +265,11 @@ export class CompleteRegistration {
     }
 
     if (data.result) {
-      this.renderMessage(RESULT_MESSAGES[data.result] || RESULT_MESSAGES.membership_added, {
+      // A new leader has no children to add: the page says so
+      const messageKey = data.as_leader && data.result === 'account_created'
+        ? 'complete_registration_done_leader'
+        : RESULT_MESSAGES[data.result] || RESULT_MESSAGES.membership_added;
+      this.renderMessage(messageKey, {
         showLogin: data.result !== 'pending_approval',
       });
       return;

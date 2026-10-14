@@ -54,13 +54,15 @@ jest.mock('../middleware/auth', () => {
       req.user = { id: mockContext.userId, roleNames: ['unitadmin'] };
       next();
     },
-    requirePermission: (...permissions) => (_req, res, next) => {
+    requirePermission: (...permissions) => async (req, res, next) => {
       if (mockContext.permitted) {return next();}
+      // Like the real engine, a selector chooses the keys from the request
+      const required = typeof permissions[0] === 'function' ? await permissions[0](req) : permissions;
       return res.status(403).json({
         success: false,
         message: 'Forbidden',
-        required: permissions,
-        missing: permissions,
+        required,
+        missing: required,
       });
     },
     blockDemoRoles: (_req, res, next) => {

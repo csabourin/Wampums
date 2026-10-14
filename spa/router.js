@@ -194,6 +194,7 @@ const routes = {
   "/complete-registration": "completeRegistration",
   "/family-link": "familyLink",
   "/parent-invitations": "parentInvitations",
+  '/leader-invitations': 'leaderInvitations',
   "/participant-duplicates": "participantDuplicates",
   "/parent-onboarding": "parentOnboarding",
   "/family-access": "familyAccess",
@@ -767,6 +768,13 @@ export class Router {
           }
           await this.loadModuleInstance('ParentInvitations');
           break;
+        case 'leaderInvitations':
+          // Inviting a leader also grants them a role
+          if (!guard(hasPermission('users.invite') && hasPermission('users.assign_roles'))) {
+            break;
+          }
+          await this.loadModuleInstance('ParentInvitations', { kind: 'leader' });
+          break;
         case "participantDuplicates":
           if (!guard(hasPermission('participants.edit'))) {
             break;
@@ -1294,9 +1302,9 @@ export class Router {
    * @param {string} moduleName - Key in the module registry
    * @returns {Promise<void>}
    */
-  async loadModuleInstance(moduleName) {
+  async loadModuleInstance(moduleName, options = undefined) {
     const PageModule = await this.loadModule(moduleName);
-    const instance = new PageModule(this.app);
+    const instance = new PageModule(this.app, options);
     this.currentModuleInstance = instance;
     await instance.init();
   }

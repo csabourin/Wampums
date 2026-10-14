@@ -3936,5 +3936,20 @@
   "nickname_saved_offline": "Enregistré hors ligne. Le surnom sera envoyé au retour de la connexion.",
   "nickname_save_failed": "Le surnom n’a pas pu être enregistré. Réessayez.",
   "nickname_invalid": "Inscrivez le surnom sous forme de texte.",
-  "nickname_too_long": "Un surnom compte au plus 100 caractères."
+  "nickname_too_long": "Un surnom compte au plus 100 caractères.",
+  "leader_invitations_title": "Inviter des animateurs",
+  "leader_invitations_intro": "Une invitation envoie un lien pour créer un compte. Une fois l’invitation acceptée, la personne se joint à l’équipe de l’unité avec le rôle choisi ici. Rien n’est créé tant que le lien n’est pas utilisé.",
+  "leader_invitations_invite": "Inviter un animateur",
+  "leader_invitations_empty": "Aucune invitation d’animateur pour l’instant.",
+  "leader_invitations_roles": "Rôle :",
+  "leader_invitations_role": "Rôle dans l’unité",
+  "leader_invitations_role_hint": "Les rôles dont vous ne détenez pas vous-même les permissions ne peuvent pas être choisis.",
+  "leader_invitations_no_role": "Aucun rôle d’équipe ne peut être accordé par votre compte. Demandez à un administrateur d’inviter cette personne.",
+  "tile_leader_invitations": "Inviter des animateurs",
+  "tile_leader_invitations_aliases": "animateur, animatrice, équipe, invitation, recruter",
+  "complete_registration_intro_leader": "Vérifiez les renseignements ci-dessous, corrigez-les au besoin et choisissez un mot de passe. Vous ferez ensuite partie de l’équipe de l’unité.",
+  "complete_registration_done_leader": "Votre compte est prêt et vous faites partie de l’équipe de l’unité. Connectez-vous pour commencer.",
+  "complete_registration_roles_unavailable": "Le rôle offert par cette invitation n’existe plus. Demandez à l’unité de vous envoyer une nouvelle invitation.",
+  "leader_invitation_role_invalid": "Choisissez un rôle d’équipe de cette unité.",
+  "leader_invitation_email_intro": "{organization} vous invite à vous joindre à son équipe d’animation. Complétez votre profil pour créer votre compte; les outils de l’unité vous y attendront."
 }

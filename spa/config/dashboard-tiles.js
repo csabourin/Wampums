@@ -412,6 +412,18 @@ export const DASHBOARD_TILES = [
     gate: { permission: "users.invite" },
   },
   {
+    featureKey: 'leader_invitations',
+    href: '/leader-invitations',
+    icon: 'fa-user-plus',
+    label: 'tile_leader_invitations',
+    aliases: 'tile_leader_invitations_aliases',
+    moment: 'tools',
+    domain: 'admin',
+    priority: 13,
+    // Inviting a leader also grants them a role
+    gate: { all: ['users.invite', 'users.assign_roles'] },
+  },
+  {
     featureKey: "family_links",
     href: "/manage-users-participants",
     icon: "fa-user-gear",

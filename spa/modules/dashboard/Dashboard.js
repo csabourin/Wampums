@@ -472,13 +472,14 @@ export class Dashboard extends BaseModule {
    * Named checks map to PermissionUtils helpers that are more than a single
    * permission lookup (they also accept legacy role payloads).
    *
-   * @param {{permission?: string, any?: string[], check?: string}} [gate]
+   * @param {{permission?: string, any?: string[], all?: string[], check?: string}} [gate]
    * @returns {boolean} True when the tile should be shown.
    */
   _passesGate(gate) {
     if (!gate) {return true;}
     if (gate.permission) {return hasPermission(gate.permission);}
     if (gate.any) {return hasAnyPermission(...gate.any);}
+    if (gate.all) {return gate.all.every((permission) => hasPermission(permission));}
     switch (gate.check) {
       case 'adminPanel':
         return canAccessAdminPanel();

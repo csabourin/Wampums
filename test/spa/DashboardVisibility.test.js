@@ -183,6 +183,7 @@ describe('tool groups separate weekly work from unit set-up', () => {
     expect(routesIn('admin').sort()).toEqual([
       '/communication-history',
       '/form-permissions',
+      '/leader-invitations',
       '/manage-groups',
       '/manage-participants',
       '/manage-users-participants',
@@ -191,6 +192,11 @@ describe('tool groups separate weekly work from unit set-up', () => {
       '/role-management',
       '/unit-settings',
     ]);
+  });
+
+  test('inviting leaders is offered only to those who may also grant them a role', () => {
+    const tile = DASHBOARD_TILES.find((item) => item.href === '/leader-invitations');
+    expect(tile.gate).toEqual({ all: ['users.invite', 'users.assign_roles'] });
   });
 
   test('"Administration" holds my account first, then district and system tools', () => {

@@ -3936,5 +3936,20 @@
   "nickname_saved_offline": "Saved offline. The nickname will be sent when you are back online.",
   "nickname_save_failed": "The nickname could not be saved. Try again.",
   "nickname_invalid": "Enter the nickname as text.",
-  "nickname_too_long": "A nickname has at most 100 characters."
+  "nickname_too_long": "A nickname has at most 100 characters.",
+  "leader_invitations_title": "Invite leaders",
+  "leader_invitations_intro": "An invitation sends a link to create an account. Once it is accepted, the person joins the unit's team with the role chosen here. Nothing is created until they use the link.",
+  "leader_invitations_invite": "Invite a leader",
+  "leader_invitations_empty": "No leader invitations yet.",
+  "leader_invitations_roles": "Role:",
+  "leader_invitations_role": "Role in the unit",
+  "leader_invitations_role_hint": "Roles whose permissions you do not hold yourself cannot be chosen.",
+  "leader_invitations_no_role": "There is no team role you may grant. Ask an administrator to invite this leader.",
+  "tile_leader_invitations": "Invite leaders",
+  "tile_leader_invitations_aliases": "leader, team, staff, invite, recruit",
+  "complete_registration_intro_leader": "Check the details below, correct them if needed and choose a password. You will then join the unit's team.",
+  "complete_registration_done_leader": "Your account is ready and you are part of the unit's team. Sign in to get started.",
+  "complete_registration_roles_unavailable": "The role this invitation offered no longer exists. Ask the unit to send you a new invitation.",
+  "leader_invitation_role_invalid": "Choose a team role of this unit.",
+  "leader_invitation_email_intro": "{organization} invites you to join its team of leaders. Complete your profile to create your account; the unit's tools will be waiting for you."
 }
