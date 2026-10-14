@@ -3961,5 +3961,7 @@
   "invite_another_parent_linked": "This address belongs to a member of the unit: they are now linked to the child.",
   "invite_another_parent_not_sent": "The invitation was saved, but the email could not be sent. Resend it from the family invitations.",
   "invite_another_parent_deactivated": "This address belongs to someone an administrator removed from the unit. Invite them from the family invitations, where you can reinstate them.",
-  "invite_another_parent_failed": "The invitation could not be sent. Try again."
+  "invite_another_parent_failed": "The invitation could not be sent. Try again.",
+  "parent_error_leader_invitation_pending": "This address is waiting on a leader invitation. Once it is accepted, link the child to that account.",
+  "invite_another_parent_added": "The child was added to the invitation already waiting for this address. The link with the child will be made when it is accepted."
 }

@@ -20,6 +20,12 @@ import { apiErrorMessage, apiErrorMessageKey } from '../../utils/ApiErrorUtils.j
 
 const INVITE_PARENT_MODAL_ID = 'invite-another-parent-modal';
 
+/** Refusals the server explains with a code, and how to say them. */
+const INVITE_PARENT_REFUSALS = {
+  manually_deactivated: 'invite_another_parent_deactivated',
+  leader_invitation_pending: 'parent_error_leader_invitation_pending',
+};
+
 export class ManageUsersParticipants {
   constructor(app) {
     this.app = app;
@@ -402,9 +408,8 @@ export class ManageUsersParticipants {
       } catch (error) {
         debugError('Error inviting another parent:', error);
         this.invitingParent = false;
-        this.showInviteParentError(error?.code === 'manually_deactivated'
-          ? 'invite_another_parent_deactivated'
-          : apiErrorMessageKey(error, 'invite_another_parent_failed'));
+        this.showInviteParentError(INVITE_PARENT_REFUSALS[error?.code]
+          || apiErrorMessageKey(error, 'invite_another_parent_failed'));
         return;
       }
       this.invitingParent = false;
@@ -413,6 +418,9 @@ export class ManageUsersParticipants {
       const outcome = response?.data || {};
       if (outcome.parent === 'linked_existing_account') {
         this.app.showMessage(translate('invite_another_parent_linked'), 'success');
+      } else if (outcome.parent === 'added_to_invitation') {
+        // No new email: the child joins the invitation already waiting for this address
+        this.app.showMessage(translate('invite_another_parent_added'), 'success');
       } else if (outcome.email_sent === false) {
         this.app.showMessage(translate('invite_another_parent_not_sent'), 'error');
       } else {

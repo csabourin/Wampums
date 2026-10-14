@@ -327,6 +327,28 @@ describe.skipIf(!DATABASE_URL)('Leader invitations', () => {
     )).toEqual([ids.teamRoleId]);
   });
 
+  test('a leader copy goes only to team members who can open the slips page', async () => {
+    const { listActivityLeaderContacts } = require('../services/unitLeaders');
+    const activitiesOnly = await createRole(ids.organizationId, 'outings', 'organization', ['activities.view']);
+    const member = async (email, roleId) => {
+      const userId = await one(
+        "INSERT INTO users (email, password, full_name) VALUES ($1, 'x', $2) RETURNING id",
+        [email, email]
+      );
+      await pool.query(
+        "INSERT INTO user_organizations (user_id, organization_id, role_ids, status) VALUES ($1, $2, $3, 'active')",
+        [userId, ids.organizationId, JSON.stringify([roleId])]
+      );
+    };
+    await member('follows@leaders.example.org', ids.teamRoleId);
+    await member('outings-only@leaders.example.org', activitiesOnly);
+
+    const emails = (await listActivityLeaderContacts(pool, ids.organizationId)).map((leader) => leader.email);
+
+    expect(emails).toContain('follows@leaders.example.org');
+    expect(emails).not.toContain('outings-only@leaders.example.org');
+  });
+
   test('a family invitation still makes a parent', async () => {
     const response = await invite({ email: 'family@leaders.example.org' });
     expect(response.status).toBe(201);

@@ -3961,5 +3961,7 @@
   "invite_another_parent_linked": "Cette adresse appartient à un membre de l’unité, maintenant lié à l’enfant.",
   "invite_another_parent_not_sent": "L’invitation a été enregistrée, mais le courriel n’a pas pu être envoyé. Renvoyez-la à partir des invitations aux familles.",
   "invite_another_parent_deactivated": "Cette adresse appartient à une personne retirée de l’unité par un administrateur. Invitez-la à partir des invitations aux familles, où vous pourrez la réintégrer.",
-  "invite_another_parent_failed": "L’invitation n’a pas pu être envoyée. Réessayez."
+  "invite_another_parent_failed": "L’invitation n’a pas pu être envoyée. Réessayez.",
+  "parent_error_leader_invitation_pending": "Cette adresse attend une invitation d’animateur. Une fois l’invitation acceptée, liez l’enfant à ce compte.",
+  "invite_another_parent_added": "L’enfant a été ajouté à l’invitation qui attend déjà cette adresse. Le lien avec l’enfant se fera dès son acceptation."
 }

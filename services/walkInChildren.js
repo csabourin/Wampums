@@ -55,7 +55,11 @@ const PARENT_OUTCOME = {
   ADDED_TO_INVITATION: 'added_to_invitation',
   INVITED: 'invited',
   BLOCKED: 'manually_deactivated',
+  LEADER_INVITATION_PENDING: 'leader_invitation_pending',
 };
+
+/** Outcomes that leave nothing written: the caller rolls back and explains. */
+const REFUSED_OUTCOMES = new Set([PARENT_OUTCOME.BLOCKED, PARENT_OUTCOME.LEADER_INVITATION_PENDING]);
 
 /**
  * The unit's children who are on this year's roster but whom no account can
@@ -216,6 +220,12 @@ async function attachParent(client, {
   let token = null;
   let kind = PARENT_OUTCOME.ADDED_TO_INVITATION;
 
+  // A leader's invitation grants team roles and no guardian record: a child
+  // attached to it would make its reader neither a parent nor reachable as one.
+  if (Array.isArray(invitation?.role_ids) && invitation.role_ids.length > 0) {
+    return { kind: PARENT_OUTCOME.LEADER_INVITATION_PENDING };
+  }
+
   if (!invitation) {
     const created = await createInvitation(client, {
       organizationId,
@@ -340,9 +350,9 @@ async function createWalkInChild(pool, params) {
       now,
     });
 
-    if (parent.kind === PARENT_OUTCOME.BLOCKED) {
+    if (REFUSED_OUTCOMES.has(parent.kind)) {
       await client.query('ROLLBACK');
-      return { result: PARENT_OUTCOME.BLOCKED, blocked: parent.blocked };
+      return { result: parent.kind, blocked: parent.blocked };
     }
 
     await client.query('COMMIT');
@@ -414,9 +424,9 @@ async function inviteParentForChild(pool, params) {
       now,
     });
 
-    if (parent.kind === PARENT_OUTCOME.BLOCKED) {
+    if (REFUSED_OUTCOMES.has(parent.kind)) {
       await client.query('ROLLBACK');
-      return { result: PARENT_OUTCOME.BLOCKED, blocked: parent.blocked };
+      return { result: parent.kind, blocked: parent.blocked };
     }
 
     await client.query('COMMIT');

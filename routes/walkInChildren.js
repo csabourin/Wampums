@@ -135,6 +135,18 @@ module.exports = (pool, logger) => {
   }
 
   /**
+   * The address is waiting on a leader's invitation, which carries team roles
+   * and no guardian record: the child cannot ride on it.
+   *
+   * @param {Object} res - Express response
+   * @returns {Object} Express response
+   */
+  function refuseLeaderInvitation(res) {
+    return refuse(res, HTTP_STATUS.CONFLICT, 'leader_invitation_pending',
+      'This address has a pending leader invitation; a child cannot be attached to it');
+  }
+
+  /**
    * This year's children whom no account can see, with the invitation each is
    * waiting on.
    */
@@ -184,6 +196,9 @@ module.exports = (pool, logger) => {
       if (outcome.result === 'manually_deactivated') {
         return refuseBlocked(res, outcome, context.canOverride);
       }
+      if (outcome.result === 'leader_invitation_pending') {
+        return refuseLeaderInvitation(res);
+      }
 
       const emailSent = await mailIfNeeded(outcome);
       logger?.info('Walk-in child entered', { organizationId, participantId: outcome.participant_id, parent: outcome.parent });
@@ -229,6 +244,9 @@ module.exports = (pool, logger) => {
       if (outcome.result === 'manually_deactivated') {
         return refuseBlocked(res, outcome, context.canOverride);
       }
+      if (outcome.result === 'leader_invitation_pending') {
+        return refuseLeaderInvitation(res);
+      }
 
       const emailSent = await mailIfNeeded(outcome);
       return success(res, { parent: outcome.parent, email_sent: emailSent }, 'Parent invited');
@@ -268,6 +286,9 @@ module.exports = (pool, logger) => {
       }
       if (outcome.result === 'manually_deactivated') {
         return refuseBlocked(res, outcome, context.canOverride);
+      }
+      if (outcome.result === 'leader_invitation_pending') {
+        return refuseLeaderInvitation(res);
       }
 
       const emailSent = await mailIfNeeded(outcome);

@@ -76,7 +76,7 @@ function mockDatabase({ permissions = ['permission_slips.sign'], ownChild = fals
   const statements = [];
   mockQueryImplementation(__mClient, __mPool, (query) => {
     statements.push(query);
-    if (query.includes("p.permission_key = 'activities.view'")) {
+    if (query.includes('HAVING COUNT(DISTINCT p.permission_key)')) {
       return { rows: [
         { id: USER_ID, full_name: 'Akela', email: 'akela@unit.test' },
         { id: LEADER_PARENT_ID, full_name: 'Baloo', email: 'baloo@unit.test' },

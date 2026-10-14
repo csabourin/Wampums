@@ -120,6 +120,26 @@ test('a member already in the unit is reported as linked', async () => {
   expect(app.showMessage).toHaveBeenCalledWith('invite_another_parent_linked', 'success');
 });
 
+test('a child added to an invitation already waiting is not reported as a new email', async () => {
+  inviteAnotherParent.mockResolvedValue({ data: { parent: 'added_to_invitation', email_sent: null } });
+  const root = await renderPage();
+  openDialog(root);
+
+  await submit('papa@example.org');
+
+  expect(app.showMessage).toHaveBeenCalledWith('invite_another_parent_added', 'success');
+});
+
+test('an address waiting on a leader invitation is explained', async () => {
+  inviteAnotherParent.mockRejectedValueOnce(Object.assign(new Error('x'), { status: 409, code: 'leader_invitation_pending' }));
+  const root = await renderPage();
+  openDialog(root);
+
+  await submit('akela@example.org');
+
+  expect(document.getElementById('invite-another-parent-error').textContent).toBe('parent_error_leader_invitation_pending');
+});
+
 test('an email that could not be sent is not reported as sent', async () => {
   inviteAnotherParent.mockResolvedValue({ data: { parent: 'invited', email_sent: false } });
   const root = await renderPage();

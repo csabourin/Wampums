@@ -435,6 +435,26 @@ describe.skipIf(!DATABASE_URL)('Walk-in children', () => {
       expect(await one('SELECT status FROM parent_invitations WHERE email = $1', [`maman@new.${DOMAIN}`])).toBe('pending');
     });
 
+    test('an address waiting on a leader invitation is refused, and the child is not attached to it', async () => {
+      const added = await walkIn(ids.leader.id, { parent_email: ids.parent.email });
+      const childId = added.body.data.participant_id;
+      const leaderInvitation = await one(
+        `INSERT INTO parent_invitations (organization_id, email, token_digest, expires_at, role_ids)
+         VALUES ($1, $2, encode(sha256(gen_random_uuid()::text::bytea), 'hex'), now() + interval '7 days', jsonb_build_array($3::int))
+         RETURNING id`,
+        [ids.unit, `akela@new.${DOMAIN}`, ids.leaderRole]
+      );
+
+      const response = await inviteAnother(ids.admin.id, childId, { parent_email: `akela@new.${DOMAIN}` });
+
+      expect(response.status).toBe(409);
+      expect(response.body.code).toBe('leader_invitation_pending');
+      expect(await one('SELECT count(*) FROM parent_invitation_participants WHERE invitation_id = $1', [leaderInvitation]))
+        .toBe('0');
+      // The walk-in linked an existing parent, and the refusal sent nothing
+      expect(sentEmails).toHaveLength(0);
+    });
+
     test('it takes users.invite as well as participants.edit', async () => {
       const added = await walkIn(ids.leader.id, { parent_email: ids.parent.email });
 

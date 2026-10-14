@@ -54,12 +54,16 @@ async function areUnitLeaders(db, organizationId, userIds) {
   return result.rows[0].found === wanted.length;
 }
 
+/** What following an activity's permission slips takes (GET /permission-slips, its page). */
+const SLIP_FOLLOWER_PERMISSIONS = ['activities.view', 'participants.view'];
+
 /**
  * Leaders who follow the unit's activities, with an address to write to.
  *
- * A leader here also holds `activities.view` through one of their roles, so a
- * staff role with nothing to do with outings (finance, equipment) is not
- * mailed about them.
+ * A leader here also holds, through their whole-unit roles, the permissions
+ * the permission-slip page needs (activities.view and participants.view), so
+ * the link in their copy opens; a staff role with nothing to do with outings
+ * (finance, equipment) is not mailed about them.
  *
  * @param {import('pg').Pool|import('pg').PoolClient} db - Pool or client
  * @param {number} organizationId - Unit
@@ -67,7 +71,7 @@ async function areUnitLeaders(db, organizationId, userIds) {
  */
 async function listActivityLeaderContacts(db, organizationId) {
   const result = await db.query(
-    `SELECT DISTINCT u.id, u.full_name, u.email
+    `SELECT u.id, u.full_name, u.email
        FROM users u
        JOIN user_organizations uo ON uo.user_id = u.id
       CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
@@ -77,11 +81,13 @@ async function listActivityLeaderContacts(db, organizationId) {
       WHERE uo.organization_id = $1
         AND uo.status = 'active'
         AND r.data_scope = 'organization'
-        AND p.permission_key = 'activities.view'
+        AND p.permission_key = ANY($2::text[])
         AND u.email IS NOT NULL
         AND u.email <> ''
+      GROUP BY u.id, u.full_name, u.email
+     HAVING COUNT(DISTINCT p.permission_key) = $3
       ORDER BY u.full_name`,
-    [organizationId]
+    [organizationId, SLIP_FOLLOWER_PERMISSIONS, SLIP_FOLLOWER_PERMISSIONS.length]
   );
   return result.rows;
 }
