@@ -96,9 +96,9 @@ export class PrintableGroupParticipantReport {
 						<table>
 								<thead>
 										<tr>
-												<th>${translate('Tannière')}</th>
-												<th>${translate('')}</th>
-												<th>${translate('')}</th>
+												<th scope="col">${translate('Tannière')}</th>
+												<th scope="col">${translate('name')}</th>
+												<th scope="col">${translate('role')}</th>
 										</tr>
 								</thead>
 								<tbody>

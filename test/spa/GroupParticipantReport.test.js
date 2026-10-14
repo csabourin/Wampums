@@ -60,6 +60,12 @@ describe('Printable den list', () => {
     expect(secondRow.textContent).toContain('second_leader');
   });
 
+  test('every column has a named header', async () => {
+    const root = await renderReport();
+    const headers = [...root.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+    expect(headers).toEqual(['Tannière', 'name', 'role']);
+  });
+
   test('den and youth names are shown as text', async () => {
     const root = await renderReport();
     expect(root.querySelector('img')).toBeNull();
