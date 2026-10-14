@@ -10,15 +10,23 @@ import {
 import { translate } from '../../app.js';
 import { CONFIG } from '../../config.js';
 import { debugLog, debugError } from '../../utils/DebugUtils.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { canViewParticipants } from '../../utils/PermissionUtils.js';
+import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { youthDisplayName } from '../../utils/DisplayNameUtils.js';
+import { updateParticipantNickname } from '../../api/api-participants.js';
+import { canViewParticipants, hasPermission } from '../../utils/PermissionUtils.js';
 import { normalizeParticipantList } from '../../utils/ParticipantRoleUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+/** Longest a nickname may be, matching participants.nickname. */
+const NICKNAME_MAX_LENGTH = 100;
+
 export class ManageParticipants {
   constructor(app) {
     this.app = app;
+    // The nickname route requires participants.edit
+    this.canEdit = hasPermission('participants.edit');
     this.participants = [];
     this.groups = [];
     this.programSections = [];
@@ -115,13 +123,15 @@ export class ManageParticipants {
 
   render() {
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <h1>${translate('manage_participants')}</h1>
+      <p class="participants-nickname-hint" id="participants-nickname-hint">${translate('nickname_youth_hint')}</p>
       <div class="participants-table-container">
         <table class="participants-table">
           <thead>
             <tr>
               <th>${translate('name')}</th>
+              <th>${translate('nickname')}</th>
               <th>${translate('group')}</th>
               <th>${translate('role')}</th>
               <th>${translate('additional_roles')}</th>
@@ -209,17 +219,33 @@ export class ManageParticipants {
   renderParticipantRows() {
     return this.participants
       .map(
-        (participant) => `
+        (participant) => {
+          const legalName = `${participant.first_name || ''} ${participant.last_name || ''}`.trim();
+          const label = (key) => escapeAttribute(`${translate(key)} — ${legalName}`);
+          return `
         <tr>
-          <td>${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}</td>
+          <td>${escapeHTML(youthDisplayName(participant))}${participant.nickname ? `<br><small class="participant-legal-name">${escapeHTML(legalName)}</small>` : ''}</td>
           <td>
-            <select class="group-select" data-participant-id="${participant.id}">
+            <input
+              type="text"
+              class="nickname-input"
+              data-participant-id="${participant.id}"
+              value="${escapeAttribute(participant.nickname || '')}"
+              maxlength="${NICKNAME_MAX_LENGTH}"
+              autocomplete="off"
+              aria-label="${label('nickname')}"
+              aria-describedby="participants-nickname-hint"
+              ${this.canEdit ? '' : 'disabled'}
+            />
+          </td>
+          <td>
+            <select class="group-select" data-participant-id="${participant.id}" aria-label="${label('group')}">
               <option value="none" ${!participant.group_id ? 'selected' : ''}>${translate('no_group')}</option>
               ${this.renderGroupOptions(participant.group_id)}
             </select>
           </td>
           <td>
-            <select class="role-select" data-participant-id="${participant.id}" ${!participant.group_id ? 'disabled' : ''}>
+            <select class="role-select" data-participant-id="${participant.id}" aria-label="${label('role')}" ${!participant.group_id ? 'disabled' : ''}>
               <option value="none" ${!participant.first_leader && !participant.second_leader ? 'selected' : ''}>${translate('none')}</option>
               <option value="leader" ${participant.first_leader ? 'selected' : ''}>${translate('first_leader')}</option>
               <option value="second_leader" ${participant.second_leader ? 'selected' : ''}>${translate('second_leader')}</option>
@@ -230,13 +256,15 @@ export class ManageParticipants {
               type="text"
               class="roles-input"
               data-participant-id="${participant.id}"
-              value="${escapeHTML(participant.roles || '')}"
+              value="${escapeAttribute(participant.roles || '')}"
               placeholder="${translate('additional_roles')}"
+              aria-label="${label('additional_roles')}"
               ${!participant.group_id ? 'disabled' : ''}
             />
           </td>
         </tr>
-      `
+      `;
+        }
       )
       .join('');
   }
@@ -295,6 +323,16 @@ export class ManageParticipants {
 
     document.querySelectorAll('.role-select').forEach((select) => {
       select.addEventListener('change', (event) => this.handleRoleChange(event));
+    });
+
+    document.querySelectorAll('.nickname-input').forEach((input) => {
+      input.dataset.saved = input.value;
+      input.addEventListener('change', (event) => this.handleNicknameChange(event));
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.target.blur();
+        }
+      });
     });
 
     document.querySelectorAll('.roles-input').forEach((input) => {
@@ -360,6 +398,36 @@ export class ManageParticipants {
     }
   }
 
+
+  /**
+   * Save the name a youth goes by; an empty field clears it.
+   * @param {Event} event - change event of a nickname field
+   * @returns {Promise<void>}
+   */
+  async handleNicknameChange(event) {
+    const input = event.target;
+    const participantId = Number(input.getAttribute('data-participant-id'));
+    const nickname = input.value.trim();
+    if (nickname === (input.dataset.saved || '')) {
+      return;
+    }
+    input.disabled = true;
+    try {
+      const result = await updateParticipantNickname(participantId, nickname);
+      input.dataset.saved = nickname;
+      const participant = this.participants.find((item) => item.id === participantId);
+      if (participant) {
+        participant.nickname = nickname || null;
+      }
+      this.app.showMessage(translate(result?.queued ? 'nickname_saved_offline' : 'nickname_saved'), result?.queued ? 'info' : 'success');
+    } catch (error) {
+      debugError('Error saving nickname:', error);
+      input.value = input.dataset.saved || '';
+      this.app.showMessage(apiErrorMessage(error, 'nickname_save_failed'), 'error');
+    } finally {
+      input.disabled = false;
+    }
+  }
 
   async handleRoleChange(event) {
     const participantId = event.target.getAttribute('data-participant-id');
@@ -466,8 +534,9 @@ export class ManageParticipants {
 
   renderError() {
     const errorMessage = `
-      <h1>${translate('error')}</h1>
-      <p>${translate('error_loading_manage_participants')}</p>
+      ${renderBackLink()}
+      <h1>${translate('manage_participants')}</h1>
+      <p class="status-message error" role="alert">${translate('error_loading_manage_participants')}</p>
     `;
     setContent(document.getElementById('app'), errorMessage);
   }

@@ -74,3 +74,13 @@ describe('Printable den list', () => {
     expect(results.violations).toEqual([]);
   });
 });
+
+test('a youth with a nickname is listed by it', async () => {
+  getGroups.mockResolvedValue({ data: [{ id: 1, name: 'Rouge' }] });
+  getParticipants.mockResolvedValue({
+    data: [{ id: 10, first_name: 'Maximilien', last_name: 'Roy', nickname: 'Max', group_id: 1 }],
+  });
+  const root = await renderReport();
+  expect(root.querySelector('tbody').textContent).toContain('Max Roy');
+  expect(root.querySelector('tbody').textContent).not.toContain('Maximilien');
+});

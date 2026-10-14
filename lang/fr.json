@@ -3927,5 +3927,14 @@
   "permission_slip_leader_copy_note": "Cette copie vous est envoyée pour information. Seule la famille d’un enfant peut signer son autorisation.",
   "permission_slip_leader_copy_button": "Suivre les réponses",
   "permission_slip_leader_copies_sent": "Les animateurs ont reçu une copie pour information ({count}).",
-  "permission_slip_sign_own_children_only": "Seule la famille signe. Vous pouvez signer seulement pour vos propres enfants."
+  "permission_slip_sign_own_children_only": "Seule la famille signe. Vous pouvez signer seulement pour vos propres enfants.",
+  "nickname": "Surnom",
+  "nickname_youth_hint": "Le nom qu’on donne au jeune dans l’unité. S’il est rempli, il remplace le prénom à l’affichage; les formulaires et dossiers gardent le nom légal.",
+  "nickname_leader_hint": "Le nom qu’on vous donne dans l’unité, par exemple un nom de totem. S’il est rempli, il remplace votre nom complet à l’affichage.",
+  "nickname_save": "Enregistrer le surnom",
+  "nickname_saved": "Surnom enregistré.",
+  "nickname_saved_offline": "Enregistré hors ligne. Le surnom sera envoyé au retour de la connexion.",
+  "nickname_save_failed": "Le surnom n’a pas pu être enregistré. Réessayez.",
+  "nickname_invalid": "Inscrivez le surnom sous forme de texte.",
+  "nickname_too_long": "Un surnom compte au plus 100 caractères."
 }

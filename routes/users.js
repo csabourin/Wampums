@@ -275,7 +275,7 @@ module.exports = (pool, logger) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
-      `SELECT u.id, u.full_name
+      `SELECT DISTINCT u.id, u.full_name, u.nickname
        FROM users u
        JOIN user_organizations uo ON u.id = uo.user_id
        JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)

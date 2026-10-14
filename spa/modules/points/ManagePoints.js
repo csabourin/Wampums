@@ -25,6 +25,7 @@ import { PointActionBar } from '../../modules/points/PointActionBar.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
 const POINTS_CACHE_KEY = 'manage_points_data';
 
 export class ManagePoints {
@@ -295,7 +296,7 @@ export class ManagePoints {
     const sorted = [...this.participants].sort((a, b) => {
       let comparison = 0;
       if (this.currentSort.key === 'name') {
-        comparison = a.first_name.localeCompare(b.first_name);
+        comparison = youthFirstName(a).localeCompare(youthFirstName(b));
       } else {
         comparison = this.store.getParticipantTotal(a.id) - this.store.getParticipantTotal(b.id);
       }
@@ -344,7 +345,7 @@ export class ManagePoints {
       <button type="button" class="list-item" data-participant-id="${participant.id}"
         data-type="individual" data-group-id="${participant.group_id ?? 'null'}"
         aria-pressed="false">
-        <span class="participant-name">${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}</span>
+        <span class="participant-name">${escapeHTML(youthDisplayName(participant))}</span>
         <span class="participant-points" id="name-points-${participant.id}">${this.store.getParticipantTotal(participant.id)}</span>
       </button>
     `;
@@ -472,7 +473,7 @@ export class ManagePoints {
     if (ids.length === 1) {
       const participant = this.participants.find((item) => String(item.id) === String(ids[0]));
       const name = participant
-        ? `${participant.first_name} ${participant.last_name}`.trim()
+        ? youthDisplayName(participant)
         : ids[0];
       return this.interpolate('points_selection_individual', { name });
     }
@@ -494,7 +495,7 @@ export class ManagePoints {
     }
     const participant = this.participants.find((item) => String(item.id) === String(ids[0]));
     return participant
-      ? `${participant.first_name} ${participant.last_name}`.trim()
+      ? youthDisplayName(participant)
       : ids[0];
   }
 
@@ -956,12 +957,12 @@ export class ManagePoints {
         {return b.first_leader ? 1 : -1;}
         if (a.second_leader !== b.second_leader)
         {return b.second_leader ? 1 : -1;}
-        return a.first_name.localeCompare(b.first_name);
+        return youthFirstName(a).localeCompare(youthFirstName(b));
       });
     });
 
     this.unassignedParticipants.sort((a, b) =>
-      a.first_name.localeCompare(b.first_name),
+      youthFirstName(a).localeCompare(youthFirstName(b)),
     );
   }
 

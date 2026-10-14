@@ -13,7 +13,7 @@
  */
 
 const LEADERS_SQL = `
-  SELECT DISTINCT u.id, u.full_name
+  SELECT DISTINCT u.id, u.full_name, u.nickname
     FROM users u
     JOIN user_organizations uo ON uo.user_id = u.id
    CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
@@ -27,7 +27,7 @@ const LEADERS_SQL = `
  *
  * @param {import('pg').Pool|import('pg').PoolClient} db - Pool or client
  * @param {number} organizationId - Unit
- * @returns {Promise<Array<{id: string, full_name: string}>>} Leaders by name
+ * @returns {Promise<Array<{id: string, full_name: string, nickname: (string|null)}>>} Leaders by name
  */
 async function listUnitLeaders(db, organizationId) {
   const result = await db.query(`${LEADERS_SQL} ORDER BY u.full_name`, [organizationId]);

@@ -16,10 +16,14 @@ import { escapeAttribute, escapeHTML } from '../utils/SecurityUtils.js';
 import { nativeLanguageName } from '../utils/InterfaceLanguageUtils.js';
 import { apiErrorMessage } from '../utils/ApiErrorUtils.js';
 import { holdsFamilyRole, isDemoUser, isParent } from '../utils/PermissionUtils.js';
-import { setContent, loadStylesheet } from '../utils/DOMUtils.js';
+import { setContent, loadStylesheet, withFormBusy } from '../utils/DOMUtils.js';
+import { updateMyNickname } from '../api/api-members.js';
 import { confirm as confirmDialog } from '../utils/DialogUtils.js';
 import { getStorage, setStorage } from '../utils/StorageUtils.js';
 import { CONFIG, getStorageKey } from '../config.js';
+
+/** Longest a nickname may be, matching users.nickname. */
+const NICKNAME_MAX_LENGTH = 100;
 
 /**
  * Settings/Account Information Management Class
@@ -231,6 +235,7 @@ export class AccountInfoModule {
               ${translate('save_profile') || translate('account_info_fullname_button')}
             </button>
           </form>
+          ${isParent() ? '' : this.renderNicknameForm()}
         </section>
 
         <!-- Email Section -->
@@ -498,6 +503,9 @@ export class AccountInfoModule {
    * Attach event listeners to forms and buttons
    */
   attachEventListeners() {
+    document.getElementById('account-nickname-form')
+      ?.addEventListener('submit', (event) => this.handleNicknameUpdate(event));
+
     // Full name form
     const fullnameForm = document.getElementById('fullname-form');
     if (fullnameForm) {
@@ -635,6 +643,50 @@ export class AccountInfoModule {
         submitButton.textContent = translate('guardian_save');
       }
     }
+  }
+
+  /**
+   * The leader's nickname (totem name), shown in place of their full name.
+   * @returns {string} Form markup
+   */
+  renderNicknameForm() {
+    return `
+          <form id="account-nickname-form" class="account-form" novalidate>
+            <div class="form-group">
+              <label for="account-nickname-input">${translate('nickname')}</label>
+              <input
+                type="text"
+                id="account-nickname-input"
+                value="${escapeAttribute(this.userData?.nickname || '')}"
+                maxlength="${NICKNAME_MAX_LENGTH}"
+                autocomplete="nickname"
+                aria-describedby="account-nickname-hint"
+              />
+              <p class="form-help" id="account-nickname-hint">${translate('nickname_leader_hint')}</p>
+            </div>
+            <button type="submit" class="button button--primary">${translate('nickname_save')}</button>
+          </form>`;
+  }
+
+  /**
+   * Save the nickname; an empty field clears it.
+   * @param {SubmitEvent} event - Form submit event
+   * @returns {Promise<void>}
+   */
+  async handleNicknameUpdate(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const input = form.querySelector('#account-nickname-input');
+    await withFormBusy(form, async () => {
+      try {
+        const response = await updateMyNickname(input.value.trim());
+        this.userData.nickname = response?.data?.nickname ?? (input.value.trim() || null);
+        this.app.showMessage(translate(response?.queued ? 'nickname_saved_offline' : 'nickname_saved'), response?.queued ? 'info' : 'success');
+      } catch (error) {
+        debugError('Error updating nickname:', error);
+        this.app.showMessage(apiErrorMessage(error, 'nickname_save_failed'), 'error');
+      }
+    });
   }
 
   /**

@@ -266,6 +266,23 @@ function hasNameMarkup(value) {
   return typeof value === 'string' && NAME_MARKUP_PATTERN.test(value);
 }
 
+/** Longest a nickname may be, matching participants.nickname and users.nickname. */
+const NICKNAME_MAX_LENGTH = 100;
+
+/**
+ * Validate a nickname (youth or leader). Empty or null clears it.
+ */
+const validateNickname = check('nickname')
+  .optional({ nullable: true })
+  .isString()
+  .withMessage('nickname_invalid')
+  .bail()
+  .trim()
+  .isLength({ max: NICKNAME_MAX_LENGTH })
+  .withMessage('nickname_too_long')
+  .not().matches(NAME_MARKUP_PATTERN)
+  .withMessage('name_markup_not_allowed');
+
 /**
  * Validate first name
  */
@@ -367,6 +384,8 @@ const validateAttendanceStatus = check('status')
 // ============================================
 
 module.exports = {
+  validateNickname,
+  NICKNAME_MAX_LENGTH,
   // Middleware
   checkValidation,
 

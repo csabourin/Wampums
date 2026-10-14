@@ -57,6 +57,7 @@ export class DashboardCacheManager {
       const minimalCache = participants.map((p) => ({
         id: p.id,
         first_name: p.first_name,
+        nickname: p.nickname || null,
         last_name: p.last_name,
         group_id: p.group_id,
         group_name: p.group_name,

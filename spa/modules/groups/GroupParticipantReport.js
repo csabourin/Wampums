@@ -5,6 +5,7 @@ import { normalizeParticipantList } from '../../utils/ParticipantRoleUtils.js';
 import { setContent, insertHTML } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
 
 export class PrintableGroupParticipantReport {
   constructor(app) {
@@ -115,13 +116,13 @@ export class PrintableGroupParticipantReport {
         if (b.first_leader) {return 1;}
         if (a.second_leader) {return 1;}
         if (b.second_leader) {return -1;}
-        return a.first_name.localeCompare(b.first_name);
+        return youthFirstName(a).localeCompare(youthFirstName(b));
       });
 
       return groupParticipants.map((participant, index) => `
 								<tr>
 										${index === 0 ? `<td rowspan="${groupParticipants.length}">${escapeHTML(group.name)}</td>` : ''}
-										<td>${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}</td>
+										<td>${escapeHTML(youthDisplayName(participant))}</td>
 										<td>
 												${participant.first_leader ? `<strong>${translate('first_leader')}</strong>` : 
     participant.second_leader ? `<strong>${translate('second_leader')}</strong>` : ''}

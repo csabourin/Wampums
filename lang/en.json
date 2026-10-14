@@ -3927,5 +3927,14 @@
   "permission_slip_leader_copy_note": "This copy is for your information. Only a child's own family can sign their permission slip.",
   "permission_slip_leader_copy_button": "Follow the replies",
   "permission_slip_leader_copies_sent": "The leaders received a copy for information ({count}).",
-  "permission_slip_sign_own_children_only": "Only the family signs. You can sign only for your own children."
+  "permission_slip_sign_own_children_only": "Only the family signs. You can sign only for your own children.",
+  "nickname": "Nickname",
+  "nickname_youth_hint": "The name a youth goes by in the unit. When filled in, it is shown instead of the first name; forms and records keep the legal name.",
+  "nickname_leader_hint": "The name you go by in the unit, such as a totem name. When filled in, it is shown instead of your full name.",
+  "nickname_save": "Save nickname",
+  "nickname_saved": "Nickname saved.",
+  "nickname_saved_offline": "Saved offline. The nickname will be sent when you are back online.",
+  "nickname_save_failed": "The nickname could not be saved. Try again.",
+  "nickname_invalid": "Enter the nickname as text.",
+  "nickname_too_long": "A nickname has at most 100 characters."
 }

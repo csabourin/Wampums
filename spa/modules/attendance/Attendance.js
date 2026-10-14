@@ -23,6 +23,7 @@ import {
 } from '../../utils/DateUtils.js';
 import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
 import { CONFIG } from '../../config.js';
 import { canViewAttendance } from '../../utils/PermissionUtils.js';
 import { normalizeParticipantList } from '../../utils/ParticipantRoleUtils.js';
@@ -221,7 +222,7 @@ export class Attendance {
         if (!a.first_leader && b.first_leader) {return 1;}
         if (a.second_leader && !b.second_leader) {return 1;}
         if (!a.second_leader && b.second_leader) {return -1;}
-        return a.first_name.localeCompare(b.first_name);
+        return youthFirstName(a).localeCompare(youthFirstName(b));
       });
     });
 
@@ -776,7 +777,8 @@ export class Attendance {
       // Filter participants if search term exists
       const filteredParticipants = group.participants.filter(p => {
         if (!term) {return true;}
-        const name = `${p.first_name} ${p.last_name}`.toLowerCase();
+        // Found by the name the unit uses as by the legal one
+        const name = `${p.first_name} ${p.nickname || ''} ${p.last_name}`.toLowerCase();
         return name.includes(term);
       });
 
@@ -809,7 +811,7 @@ export class Attendance {
         setContent(
           participantRow,
           `
-          <span class="participant-name">${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}
+          <span class="participant-name">${escapeHTML(youthDisplayName(participant))}
             ${participant.first_leader ? `<span class="badge leader">${translate('first_leader')}</span>` : ''}
             ${participant.second_leader ? `<span class="badge second-leader">${translate('second_leader')}</span>` : ''}
           </span>

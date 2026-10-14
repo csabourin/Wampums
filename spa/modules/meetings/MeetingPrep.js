@@ -27,6 +27,7 @@ import {
   normalizeMeetingDurationMinutes,
 } from '../../utils/MeetingPlanUtils.js';
 import { getUnitVocabulary } from '../../utils/UnitVocabularyUtils.js';
+import { memberDisplayName } from '../../utils/DisplayNameUtils.js';
 import { deleteCachedData, clearYearlyPlannerCaches } from '../../indexedDB.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { ActivityManager } from '../ActivityManager.js';
@@ -521,7 +522,7 @@ export class MeetingPrep extends BaseModule {
               <label for="animateur-responsable">${translate('animateur_responsable')}:</label>
               <select id="animateur-responsable" required>
                 <option value="">${translate('select_animateur')}</option>
-                ${this.animateurs.map(a => `<option value="${a.id}" ${String(a.id) === String(meeting.animateur_responsable || '') ? 'selected' : ''}>${escapeHTML(a.full_name)}</option>`).join('')}
+                ${this.animateurs.map(a => `<option value="${a.id}" ${String(a.id) === String(meeting.animateur_responsable || '') ? 'selected' : ''}>${escapeHTML(memberDisplayName(a))}</option>`).join('')}
               </select>
             </div>
             <div class="form-group">
