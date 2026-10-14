@@ -12,11 +12,15 @@ const {
   blockDemoRoles,
   getUserDataScope,
 } = require("../middleware/auth");
-const { success, error, asyncHandler } = require("../middleware/response");
+const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const { checkValidation } = require("../middleware/validation");
 const { handleOrganizationResolutionError } = require("../utils/api-helpers");
 const { sendEmail, getUserEmailLanguage, getTranslationsByCode } = require("../utils/index");
-const { buildPermissionSlipEmailContent } = require("../utils/permission-slip-email");
+const {
+  buildPermissionSlipEmailContent,
+  buildPermissionSlipLeaderCopyContent,
+} = require('../utils/permission-slip-email');
+const { listActivityLeaderContacts } = require('../services/unitLeaders');
 const { resolveOrganizationBaseUrl } = require("../utils/public-url");
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { findTestRecipient, markAsTestEmail } = require('../utils/test-email');
@@ -156,7 +160,7 @@ async function expireLapsedReservations(pool, organizationId, logger) {
   }
 }
 
-module.exports = (pool) => {
+module.exports = (pool, logger) => {
   /**
    * Replace an internal or legacy photo reference with a temporary Railway S3
    * URL suitable for direct display in a browser.
@@ -325,6 +329,23 @@ module.exports = (pool) => {
 
     if (isStaff) return true;
 
+    return isOwnChild(req.user.id, organizationId, participantId);
+  }
+
+  /**
+   * Whether the child is linked to this account in this unit.
+   *
+   * Signing or declining a slip records a guardian's consent, so it is open
+   * only to the child's own family. A leader sees every slip and receives a
+   * copy of the email for information, but answers only for their own
+   * children, like any other parent.
+   *
+   * @param {string} userId - Account answering
+   * @param {number} organizationId - Active organization
+   * @param {number} participantId - Permission slip participant
+   * @returns {Promise<boolean>}
+   */
+  async function isOwnChild(userId, organizationId, participantId) {
     const linkCheck = await pool.query(
       `SELECT 1
          FROM user_participants up
@@ -332,9 +353,103 @@ module.exports = (pool) => {
            ON po.participant_id = up.participant_id
           AND po.organization_id = $3
         WHERE up.user_id = $1 AND up.participant_id = $2`,
-      [req.user.id, participantId, organizationId],
+      [userId, participantId, organizationId],
     );
     return linkCheck.rows.length > 0;
+  }
+
+  /**
+   * Send the unit's leaders a copy, for information, of the request the
+   * families just received: once per leader and activity, without a signing
+   * link. A leader who is the parent of an invited child already received the
+   * parent's email, with its link, and gets no copy.
+   *
+   * Each copy is claimed in permission_slip_leader_copies before it is sent,
+   * so the parallel requests of one large send mail each leader once. A copy
+   * the email service refused gives its claim back for the next send.
+   *
+   * @param {number} organizationId - Active organization
+   * @param {object[]} sentSlips - Slips whose email went to at least one family
+   * @param {object} sender - Unit email sender
+   * @returns {Promise<number>} Copies sent
+   */
+  async function sendLeaderCopies(organizationId, sentSlips, sender) {
+    if (sentSlips.length === 0) {
+      return 0;
+    }
+    const leaders = await listActivityLeaderContacts(pool, organizationId);
+    if (leaders.length === 0) {
+      return 0;
+    }
+
+    const groups = new Map();
+    for (const slip of sentSlips) {
+      const groupKey = slip.activity_id
+        ? `activity:${slip.activity_id}`
+        : `meeting:${parseDate(slip.meeting_date)}:${slip.activity_title || ''}`;
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, slip);
+      }
+    }
+    const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
+
+    const sentPerGroup = await Promise.all([...groups].map(async ([groupKey, slip]) => {
+      const parentsResult = slip.activity_id
+        ? await pool.query(
+          `SELECT DISTINCT up.user_id
+             FROM permission_slips ps
+             JOIN user_participants up ON up.participant_id = ps.participant_id
+            WHERE ps.organization_id = $1 AND ps.activity_id = $2 AND ps.status <> 'archived'`,
+          [organizationId, slip.activity_id],
+        )
+        : await pool.query(
+          `SELECT DISTINCT up.user_id
+             FROM permission_slips ps
+             JOIN user_participants up ON up.participant_id = ps.participant_id
+            WHERE ps.organization_id = $1 AND ps.meeting_date = $2
+              AND ps.activity_title IS NOT DISTINCT FROM $3 AND ps.status <> 'archived'`,
+          [organizationId, parseDate(slip.meeting_date), slip.activity_title || null],
+        );
+      const parentIds = new Set(parentsResult.rows.map((row) => String(row.user_id)));
+      const followLink = slip.activity_id
+        ? `${baseUrl}/permission-slips/${slip.activity_id}`
+        : `${baseUrl}/permission-slips`;
+
+      const outcomes = await Promise.all(leaders
+        .filter((leader) => !parentIds.has(String(leader.id)))
+        .map(async (leader) => {
+          const claim = await pool.query(
+            `INSERT INTO permission_slip_leader_copies (organization_id, group_key, user_id)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (organization_id, group_key, user_id) DO NOTHING
+             RETURNING id`,
+            [organizationId, groupKey, leader.id],
+          );
+          if (claim.rows.length === 0) {
+            return false;
+          }
+          const languageCode = await getUserEmailLanguage(pool, leader.email, organizationId);
+          const { subject, textBody, htmlBody } = buildPermissionSlipLeaderCopyContent({
+            activityTitle: slip.activity_title,
+            activityDescription: slip.activity_description,
+            activityDescriptionHtml: slip.activity_description_html,
+            meetingDate: slip.meeting_date,
+            deadlineDate: slip.deadline_date,
+            followLink,
+            languageCode,
+          });
+          const delivered = await sendEmail(leader.email, subject, textBody, htmlBody, sender);
+          if (!delivered) {
+            await pool.query(
+              'DELETE FROM permission_slip_leader_copies WHERE id = $1',
+              [claim.rows[0].id],
+            );
+          }
+          return Boolean(delivered);
+        }));
+      return outcomes.filter(Boolean).length;
+    }));
+    return sentPerGroup.reduce((total, count) => total + count, 0);
   }
 
   async function verifyEquipmentAccess(equipmentId, organizationId) {
@@ -1758,7 +1873,12 @@ module.exports = (pool) => {
                   g.prenom AS guardian_first_name, g.nom AS guardian_last_name,
                   -- A slip's own copy of the activity (title, description) is
                   -- what its parents receive and sign: it is not overwritten.
-                  a.name AS activity_name, a.activity_date
+                  a.name AS activity_name, a.activity_date,
+                  -- Only a child's own family answers its slip, leaders included
+                  EXISTS (
+                    SELECT 1 FROM user_participants up
+                     WHERE up.user_id = $${params.length + 1} AND up.participant_id = ps.participant_id
+                  ) AS is_own_child
            FROM permission_slips ps
            JOIN participants p ON p.id = ps.participant_id
            LEFT JOIN parents_guardians g ON g.id = ps.guardian_id
@@ -1766,7 +1886,7 @@ module.exports = (pool) => {
            WHERE ps.organization_id = $1
              AND ps.status != 'archived' ${filter}
            ORDER BY ps.meeting_date DESC, p.first_name`,
-          params,
+          [...params, req.user.id],
         );
 
         return success(res, { permission_slips: result.rows });
@@ -1906,6 +2026,7 @@ module.exports = (pool) => {
         let emailsSentCount = 0;
         const failedEmails = [];
         const emailDetails = [];
+        const sentSlips = [];
         const sender = await resolveOrganizationEmailSender(pool, organizationId);
 
         for (const slip of slipsResult.rows) {
@@ -2039,7 +2160,16 @@ module.exports = (pool) => {
                WHERE id = $1`,
               [slip.id, JSON.stringify(newGuardiansEmailed)],
             );
+            sentSlips.push(slip);
           }
+        }
+
+        // The families have it: the leaders get a copy, for information.
+        let leaderCopiesSent = 0;
+        try {
+          leaderCopiesSent = await sendLeaderCopies(organizationId, sentSlips, sender);
+        } catch (copyError) {
+          logger?.error?.('Leader copies of permission slip emails failed:', copyError);
         }
 
         return success(
@@ -2049,6 +2179,7 @@ module.exports = (pool) => {
             total: slipsResult.rows.length,
             emails_sent: emailDetails,
             failed: failedEmails,
+            leader_copies_sent: leaderCopiesSent,
           },
           `${emailsSentCount} email(s) sent successfully to guardians/parents`,
         );
@@ -2719,8 +2850,9 @@ module.exports = (pool) => {
         }
 
         const participantId = slipResult.rows[0].participant_id;
-        if (!(await canAccessPermissionSlip(req, organizationId, participantId))) {
-          return error(res, "You can only respond to permission slips for your own children", 403);
+        if (!(await isOwnChild(req.user.id, organizationId, participantId))) {
+          // A translation key: the screen shows it as is
+          return forbidden(res, 'permission_slip_sign_own_children_only', ['permission_slips.sign'], []);
         }
 
         const updateResult = await pool.query(
@@ -2781,14 +2913,9 @@ module.exports = (pool) => {
         if (slipResult.rows[0].status !== "pending") {
           return error(res, "Permission slip has already been answered", 409);
         }
-        if (
-          !(await canAccessPermissionSlip(
-            req,
-            organizationId,
-            slipResult.rows[0].participant_id,
-          ))
-        ) {
-          return error(res, "You can only respond to permission slips for your own children", 403);
+        if (!(await isOwnChild(req.user.id, organizationId, slipResult.rows[0].participant_id))) {
+          // A translation key: the screen shows it as is
+          return forbidden(res, 'permission_slip_sign_own_children_only', ['permission_slips.sign'], []);
         }
 
         const updateResult = await pool.query(

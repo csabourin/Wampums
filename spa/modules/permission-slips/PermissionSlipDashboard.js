@@ -63,6 +63,8 @@ export class PermissionSlipDashboard {
     this.selectedAudience = null;
     this.selectedParticipantIds = [];
     this.showCreateForm = false;
+    // Signing records a guardian's consent: offered only on one's own children's slips
+    this.canSign = hasPermission('permission_slips.sign');
   }
 
   async init() {
@@ -599,8 +601,9 @@ export class PermissionSlipDashboard {
       : '-'}</td>
                     <td>
                       ${[
-    slip.status === 'pending'
-      ? `<button class="btn link sign-slip" data-id="${slip.id}">${escapeHTML(translate('permission_slip_sign'))}</button>`
+    // Only a child's own family answers its slip: a leader signs for their own children only
+    slip.status === 'pending' && slip.is_own_child === true && this.canSign
+      ? `<button type="button" class="button button--secondary button--small sign-slip" data-id="${slip.id}">${escapeHTML(translate('permission_slip_sign'))}</button>`
       : '',
     !slip.email_sent
       ? `<button class="button button--danger delete-slip" data-id="${slip.id}">${escapeHTML(translate('delete'))}</button>`
@@ -787,7 +790,7 @@ export class PermissionSlipDashboard {
             await this.refreshData(true);
           } catch (error) {
             debugError('Error signing permission slip', error);
-            this.app.showMessage(translate('permission_slip_error_loading'), 'error');
+            this.app.showMessage(apiErrorMessage(error, 'permission_slip_error_loading'), 'error');
           }
         });
       });
@@ -1189,7 +1192,11 @@ export class PermissionSlipDashboard {
       // No address to write to, or an address the email service refused
       const missing = new Set(failures.filter((failure) => !failure.email).map((failure) => failure.participant_id));
       const undelivered = failures.filter((failure) => failure.email).length;
+      const leaderCopies = results.reduce((count, result) => count + ((result?.data || result)?.leader_copies_sent || 0), 0);
       const messages = [translate('permission_slip_created_and_sent').replace('{sent}', sent)];
+      if (leaderCopies > 0) {
+        messages.push(translate('permission_slip_leader_copies_sent').replace('{count}', leaderCopies));
+      }
       if (missing.size > 0) {
         messages.push(translate('permission_slip_sent_missing_emails').replace('{count}', missing.size));
       }
@@ -1264,6 +1271,7 @@ export class PermissionSlipDashboard {
       data: {
         sent: datas.reduce((count, data) => count + (data.sent || 0), 0),
         total: datas.reduce((count, data) => count + (data.total || 0), 0),
+        leader_copies_sent: datas.reduce((count, data) => count + (data.leader_copies_sent || 0), 0),
       },
       message: results.map((result) => result?.message || '').join(' '),
     };
@@ -1286,7 +1294,10 @@ export class PermissionSlipDashboard {
           this.app.showMessage(translate('all_permission_slips_emailed'), 'info');
         }
       } else {
-        this.app.showMessage(`${translate('emails_sent_successfully')}: ${data.sent}/${data.total}`, 'success');
+        const leaderNote = data.leader_copies_sent > 0
+          ? ` ${translate('permission_slip_leader_copies_sent').replace('{count}', data.leader_copies_sent)}`
+          : '';
+        this.app.showMessage(`${translate('emails_sent_successfully')}: ${data.sent}/${data.total}${leaderNote}`, 'success');
       }
       await this.clearPermissionSlipCaches();
       await this.refreshData(true);

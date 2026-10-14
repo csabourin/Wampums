@@ -3920,5 +3920,12 @@
   "tile_communication_history_aliases": "historique, archive, envoyé, annonces, nouvelles, messages",
   "communication_history_queued": "Enregistré hors ligne. Il sera appliqué au retour de la connexion.",
   "communication_history_load_more": "Afficher la suite",
-  "communication_history_more_failed": "Impossible de charger la suite pour le moment."
+  "communication_history_more_failed": "Impossible de charger la suite pour le moment.",
+  "permission_slip_leader_copy_subject": "Pour information : autorisation demandée aux familles - {activityTitle}",
+  "permission_slip_leader_copy_heading": "Autorisation demandée aux familles",
+  "permission_slip_leader_copy_intro": "Les familles des jeunes invités ont reçu la demande d’autorisation suivante : {activityTitle}",
+  "permission_slip_leader_copy_note": "Cette copie vous est envoyée pour information. Seule la famille d’un enfant peut signer son autorisation.",
+  "permission_slip_leader_copy_button": "Suivre les réponses",
+  "permission_slip_leader_copies_sent": "Les animateurs ont reçu une copie pour information ({count}).",
+  "permission_slip_sign_own_children_only": "Seule la famille signe. Vous pouvez signer seulement pour vos propres enfants."
 }

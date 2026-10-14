@@ -3920,5 +3920,12 @@
   "tile_communication_history_aliases": "history, archive, sent, announcements, news, messages",
   "communication_history_queued": "Saved offline. It will be applied when you are back online.",
   "communication_history_load_more": "Load more",
-  "communication_history_more_failed": "Unable to load more right now."
+  "communication_history_more_failed": "Unable to load more right now.",
+  "permission_slip_leader_copy_subject": "For your information: permission requested from families - {activityTitle}",
+  "permission_slip_leader_copy_heading": "Permission requested from families",
+  "permission_slip_leader_copy_intro": "The families of the invited youth have received the following permission request: {activityTitle}",
+  "permission_slip_leader_copy_note": "This copy is for your information. Only a child's own family can sign their permission slip.",
+  "permission_slip_leader_copy_button": "Follow the replies",
+  "permission_slip_leader_copies_sent": "The leaders received a copy for information ({count}).",
+  "permission_slip_sign_own_children_only": "Only the family signs. You can sign only for your own children."
 }
