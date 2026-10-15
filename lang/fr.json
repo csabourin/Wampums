@@ -609,6 +609,7 @@
   "at_least_one_field_required": "Au moins un champ à mettre à jour est requis",
   "at_least_one_participant_required": "Au moins un ID de participant valide est requis",
   "attendance": "Présence",
+  "attendance_page_title": "Présences",
   "attendance_marked_successfully": "Présence marquée avec succès",
   "attendance_overview": "Aperçu des présences",
   "attendance_rate": "Taux de présence",

@@ -647,6 +647,7 @@
   "at_least_one_field_required": "At least one field to update is required",
   "at_least_one_participant_required": "At least one valid participant ID is required",
   "attendance": "Attendance",
+  "attendance_page_title": "Attendance",
   "attendance_marked_successfully": "Attendance marked successfully",
   "attendance_overview": "Attendance overview",
   "attendance_rate": "Attendance Rate",

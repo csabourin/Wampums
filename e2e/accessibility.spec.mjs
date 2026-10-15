@@ -264,6 +264,20 @@ test.describe('keyboard', () => {
       await expect(page).toHaveTitle(`${(await heading.innerText()).trim()} - ${APP_NAME}`);
     });
 
+    test('the dashboard and attendance screens each name themselves with one <h1>, where focus lands', async ({ page }) => {
+      await openScreen(page, '/dashboard');
+      await expect(page.locator('#app h1')).toHaveCount(1);
+      await page.locator('#app a[href="/attendance"]').first().focus();
+      await page.keyboard.press('Enter');
+      await page.waitForURL('**/attendance');
+      await settleScreen(page);
+
+      const heading = page.locator('#app h1');
+      await expect(heading).toHaveCount(1);
+      await expect(heading).toBeFocused();
+      await expect(page).toHaveTitle(`${(await heading.innerText()).trim()} - ${APP_NAME}`);
+    });
+
     test('focus is visible and never hidden while tabbing through the dashboard', async ({ page }) => {
       await openScreen(page, '/dashboard');
       expect(await focusProblemsWhileTabbing(page, 15)).toEqual([]);
