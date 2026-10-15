@@ -73,7 +73,7 @@
     "mindee": "^5.10.0",
     "multer": "^2.4.0",
     "nodemailer": "^10.0.12",
-    "openai": "^7.4.0",
+    "openai": "^7.32.0",
     "pg": "^8.23.0",
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
