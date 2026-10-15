@@ -30,15 +30,39 @@ const SCREENS = {
 };
 
 /**
- * Violations that predate this suite, in screens still at the spa/ root.
- * CLAUDE.md §7 moves such a screen into spa/modules/ before changing it; fix
- * the entry then and delete it here. A listed violation that no longer
- * occurs fails the test, so this list only shrinks.
+ * Violations that predate this suite, in screens still at the spa/ root:
+ * each rule lists the exact elements (axe targets) that break it, so a new
+ * element breaking the same rule on the same screen still fails. CLAUDE.md §7
+ * moves such a screen into spa/modules/ before changing it; fix the entry
+ * then and delete it here. A listed element that no longer fails fails the
+ * test, so this list only shrinks. The seeded unit speaks French, hence the
+ * French labels.
  */
 const KNOWN_VIOLATIONS = {
-  '/reports': { 'aria-required-children': 'spa/reports.js: role="menu" groups hold links, not menuitems' },
-  '/district': { 'aria-required-children': 'spa/district_management.js: .dm-filters is a listbox of buttons' },
-  '/inventory': { 'color-contrast': 'spa/inventory.js: .photo-hint styled below 4.5:1 in its own <style>' },
+  '/reports': {
+    'aria-required-children': {
+      why: 'spa/reports.js: role="menu" groups hold links, not menuitems',
+      targets: [
+        'div[aria-label="Santé et médical"]',
+        'div[aria-label="Autorisations et documents"]',
+        'div[aria-label="Présences et participation"]',
+        'div[aria-label="Progression et reconnaissance"]',
+        'div[aria-label="Finances"]',
+      ],
+    },
+  },
+  '/district': {
+    'aria-required-children': {
+      why: 'spa/district_management.js: .dm-filters is a listbox of buttons',
+      targets: ['.dm-filters'],
+    },
+  },
+  '/inventory': {
+    'color-contrast': {
+      why: 'spa/inventory.js: .photo-hint styled below 4.5:1 in its own <style>',
+      targets: ['.photo-hint'],
+    },
+  },
 };
 
 /** Screens that stay marked busy after loading, for the same reason. */
@@ -69,9 +93,16 @@ for (const [who, paths] of Object.entries(SCREENS)) {
 
         const known = KNOWN_VIOLATIONS[target] || {};
         const violations = await axeViolations(page);
-        const unexpected = violations.filter((violation) => !known[violation.id]);
+        const unexpected = violations
+          .map((violation) => ({
+            ...violation,
+            targets: violation.targets.filter((element) => !known[violation.id]?.targets.includes(element)),
+          }))
+          .filter((violation) => violation.targets.length > 0);
         expect(unexpected, 'axe WCAG 2.2 A/AA violations').toEqual([]);
-        const fixed = Object.keys(known).filter((id) => !violations.some((violation) => violation.id === id));
+        const fixed = Object.entries(known).flatMap(([id, entry]) => entry.targets
+          .filter((element) => !violations.some((violation) => violation.id === id && violation.targets.includes(element)))
+          .map((element) => `${id} ${element}`));
         expect(fixed, 'fixed: remove these from KNOWN_VIOLATIONS').toEqual([]);
 
         const busy = await page.locator('#app [aria-busy="true"]').count();
@@ -103,46 +134,65 @@ for (const [who, paths] of Object.entries(SCREENS)) {
 }
 
 /**
- * Where the focused element is, whether its focus indicator shows, and
- * whether something else covers it (WCAG 2.4.7, 2.4.11).
+ * Where the focused element is, whether focus changes how it is drawn, and
+ * whether something else covers it (WCAG 2.4.7, 2.4.11). The indicator is
+ * what differs between the focused and unfocused element, so a shadow the
+ * element always has does not count as a focus ring.
  *
  * @param {import('@playwright/test').Page} page
  */
 function describeFocus(page) {
   return page.evaluate(async () => {
-    // Measure the settled state: no transition on the ring, no scroll moving.
     const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
-    await Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => {})));
-    let previous = -1;
-    while (previous !== window.scrollY) {
-      previous = window.scrollY;
-      // eslint-disable-next-line no-await-in-loop -- waits frame by frame until scrolling stops
+    // Measure settled states: no transition on the ring, no scroll moving.
+    const settle = async () => {
       await frame();
-    }
+      await Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => {})));
+      let previous = -1;
+      while (previous !== window.scrollY) {
+        previous = window.scrollY;
+        // eslint-disable-next-line no-await-in-loop -- waits frame by frame until scrolling stops
+        await frame();
+      }
+    };
+    // The ring may be drawn by a pseudo-element (a stretched link's ::after).
+    const ring = (element) => [null, '::before', '::after'].map((pseudo) => {
+      const box = getComputedStyle(element, pseudo);
+      const outline = box.outlineStyle !== 'none' && parseFloat(box.outlineWidth) > 0
+        ? `${box.outlineStyle} ${box.outlineWidth} ${box.outlineColor} ${box.outlineOffset}` : '';
+      const shadow = box.boxShadow && box.boxShadow !== 'none' ? box.boxShadow : '';
+      return { outline, shadow };
+    });
+
+    await settle();
     const element = document.activeElement;
     if (!element || element === document.body) {
       return null;
     }
-    const style = getComputedStyle(element);
     const rect = element.getBoundingClientRect();
     const points = [
       [rect.left + rect.width / 2, rect.top + rect.height / 2],
       [rect.left + 2, rect.top + 2],
       [rect.right - 2, rect.bottom - 2],
     ].filter(([x, y]) => x >= 0 && y >= 0 && x < innerWidth && y < innerHeight);
-    const visiblePoint = points.some(([x, y]) => {
+    const unobscured = points.some(([x, y]) => {
       const hit = document.elementFromPoint(x, y);
       return hit && (hit === element || element.contains(hit) || hit.contains(element));
     });
-    // The ring may be drawn by a pseudo-element (a stretched link's ::after).
-    const drawsRing = (box) => (box.outlineStyle !== 'none' && parseFloat(box.outlineWidth) > 0)
-      || (box.boxShadow && box.boxShadow !== 'none');
-    const indicator = [style, getComputedStyle(element, '::before'), getComputedStyle(element, '::after')]
-      .some(drawsRing);
+
+    const focused = ring(element);
+    element.blur();
+    await settle();
+    const unfocused = ring(element);
+    element.focus({ preventScroll: true });
+    await settle();
+    const indicator = focused.some((layer, index) => (layer.outline || layer.shadow)
+      && (layer.outline !== unfocused[index].outline || layer.shadow !== unfocused[index].shadow));
+
     return {
       name: `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ''} "${(element.textContent || element.getAttribute('aria-label') || '').trim().slice(0, 40)}"`,
       indicator,
-      unobscured: visiblePoint,
+      unobscured,
     };
   });
 }

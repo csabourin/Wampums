@@ -258,6 +258,7 @@ export class Router {
     // Each route() call, nested redirects included; only the latest one moves focus.
     this.routeSequence = 0;
     this.hasRouted = false;
+    this.routingFirstScreen = false;
   }
 
   /**
@@ -352,21 +353,26 @@ export class Router {
    * place (live sync) keeps focus where the person left it.
    *
    * @param {string} path - Path and query string to show
-   * @param {{ refresh?: boolean }} [options] - `refresh`: the screen on
-   *   display is drawn again with fresh data (see isRefreshingScreen)
+   * @param {{ refresh?: boolean, firstScreen?: boolean }} [options] -
+   *   `refresh`: the screen on display is drawn again with fresh data (see
+   *   isRefreshingScreen); `firstScreen`: a redirect carries on the route
+   *   that started it, page load or not
    * @returns {Promise<void>}
    */
-  async route(path, { refresh = false } = {}) {
+  async route(path, { refresh = false, firstScreen } = {}) {
     const sequence = ++this.routeSequence;
     const previousFocus = document.activeElement;
-    const isFirstScreen = !this.hasRouted;
+    // Settled now, not once drawn: a link followed while the first screen
+    // still loads is a navigation like any other.
+    const isFirstScreen = firstScreen ?? !this.hasRouted;
+    this.hasRouted = true;
+    this.routingFirstScreen = isFirstScreen;
     this.pendingRefresh = refresh;
     const scrollToken = beginScrollNavigation(path);
     try {
       await this.renderRoute(path);
     } finally {
       restoreScrollPosition(scrollToken);
-      this.hasRouted = true;
     }
     if (sequence === this.routeSequence && !refresh && !isFirstScreen) {
       focusPageStart({ previousFocus });
@@ -403,7 +409,8 @@ export class Router {
     if (mergedTarget) {
       debugLog("Redirecting merged route:", path, "->", mergedTarget);
       history.replaceState(null, "", mergedTarget);
-      await this.route(mergedTarget);
+      // Read before any await: it still describes the route() that called us.
+      await this.route(mergedTarget, { firstScreen: this.routingFirstScreen });
       return;
     }
     const [routeName, param] = this.getRouteNameAndParam(path);

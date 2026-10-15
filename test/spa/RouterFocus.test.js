@@ -105,3 +105,40 @@ test('only the latest of two quick navigations moves focus', async () => {
   await slow;
   expect(document.activeElement).toBe(document.querySelector('.skip-link'));
 });
+
+test('a link followed while the first screen is still loading moves focus to the next screen', async () => {
+  const router = new Router({ isLoggedIn: false });
+  let finishFirst;
+  jest.spyOn(router, 'renderRoute').mockImplementation((path) => {
+    document.getElementById('app').innerHTML = SCREENS[path];
+    if (path === '/dashboard') {
+      return new Promise((resolve) => { finishFirst = resolve; });
+    }
+    return Promise.resolve();
+  });
+
+  const first = router.route('/dashboard');
+  document.getElementById('tile').focus();
+  await router.route('/attendance');
+
+  expect(document.activeElement).toBe(document.querySelector('#app h1'));
+  finishFirst();
+  await first;
+});
+
+test('a first page load at an old address that redirects keeps the browser\'s own start', async () => {
+  const router = new Router({ isLoggedIn: false });
+  const renderRoute = router.renderRoute.bind(router);
+  jest.spyOn(router, 'renderRoute').mockImplementation((path) => {
+    if (path === '/badge-tracker') {
+      return renderRoute(path);
+    }
+    document.getElementById('app').innerHTML = '<h1>Progression</h1>';
+    return Promise.resolve();
+  });
+
+  await router.route('/badge-tracker');
+
+  expect(document.querySelector('#app h1').textContent).toBe('Progression');
+  expect(document.activeElement).toBe(document.body);
+});
