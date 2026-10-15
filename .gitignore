@@ -89,3 +89,8 @@ replit*
 # checked-in configuration; `settings.local.json` accumulates one machine's
 # command allowances and should not follow the repo between contributors.
 .claude/settings.local.json
+
+# Playwright accessibility run (e2e/)
+/e2e/.auth/
+/test-results/
+/playwright-report/

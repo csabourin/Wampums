@@ -50,7 +50,8 @@ test wins and the document gets fixed.
 - Every behaviour change comes with a test named as a plain statement of behaviour. SPA tests live in
   `test/spa/` (jsdom, with an `axe-core` check for new screens and dialogs). Integration tests
   (`*.integration.test.js`) need `TEST_DATABASE_URL`.
-- Before a PR: `npm run lint:all`, `npm run build`, `npm run test:quality`, and the integration suites
-  when you touch access, roles, families or scout years.
+- Before a PR: `npm run lint:all`, `npm run build`, `npm run test:quality`, the integration suites
+  when you touch access, roles, families or scout years, and `npm run test:a11y` (real-browser WCAG 2.2
+  AA, against the app started by the `run-wampums` skill) when you touch the UI.
 - To see a change in a browser, use the `run-wampums` skill (`.claude/skills/run-wampums/`).
 - Required env vars: `DATABASE_URL`, `JWT_SECRET_KEY`; see `.env.example` for the rest.

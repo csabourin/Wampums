@@ -15,6 +15,7 @@ import { setContent, clearElement, createElement } from './utils/DOMUtils.js';
 import { applyPalette as applyDashboardPalette } from './utils/DashboardPreferences.js';
 import { checkForStaleClient, installChunkErrorRecovery } from './modules/app-recovery/StaleClientRecovery.js';
 import { localizeStaticChrome } from './utils/StaticChromeUtils.js';
+import { initPageTitleSync, initSkipLink, updateDocumentTitle } from './utils/PageFocusUtils.js';
 import { translateKey } from './utils/TranslationUtils.js';
 import {
   fallbackLanguageFor,
@@ -267,6 +268,11 @@ export const app = {
       } catch (error) {
         debugWarn('Failed to load translations offline:', error);
       }
+
+      // Every screen names the browser tab after its heading, and the skip
+      // link lands on that heading.
+      initPageTitleSync(() => this.translate('app_title'));
+      initSkipLink();
 
       // Initialize router IMMEDIATELY (now that we have org ID and translations)
       debugLog('Initializing router...');
@@ -691,8 +697,7 @@ export const app = {
   },
 
   updatePageTitle() {
-    const title = this.translate('app_title');
-    document.title = `${title} - Wampums`;
+    updateDocumentTitle(this.translate('app_title'));
   },
 
   /**

@@ -25,7 +25,7 @@ const SERVER_FILES = [
 const BROWSER_FILES = ['spa/**/*.js', 'src-sw.js', 'landing/**/*.js'];
 // Shared with the SPA, which imports them as ES modules.
 const SHARED_MODULE_FILES = ['config/meeting_sections.js', 'config/roles.js'];
-const TEST_FILES = ['test/**/*.js', 'tests/**/*.js', '**/*.test.js', '**/*.spec.js', '**/__tests__/**/*.js'];
+const TEST_FILES = ['test/**/*.js', 'tests/**/*.js', 'e2e/**/*.mjs', '**/*.test.js', '**/*.spec.js', '**/__tests__/**/*.js'];
 
 module.exports = [
   {

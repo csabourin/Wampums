@@ -30,7 +30,7 @@
   --gradient-surface: linear-gradient(180deg, #ffffff 0%, #f7fbf9 100%);
 
   /* Semantic Colors */
-  --color-success: #1a8f6b;
+  --color-success: #167a5c; /* 5.3:1 on white, 4.9:1 on --color-background, 4.6:1 on --color-secondary */
   --color-success-light: #20ad83;
   --color-error: #9a3f38;
   --color-error-light: #d45a51;
@@ -216,6 +216,30 @@ body {
   overflow-x: hidden;
   word-wrap: break-word;
   overflow-wrap: break-word;
+}
+
+/* Skip link: first in the Tab order, shown only while it has focus */
+.skip-link {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  z-index: var(--z-toast);
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--touch-target-min);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-primary);
+  color: var(--color-selected-text);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  border-end-end-radius: var(--radius-md);
+  transform: translateY(-100%);
+}
+
+.skip-link:focus {
+  transform: none;
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 /* Main App Container */
@@ -8757,7 +8781,7 @@ details p {
 
 .finance-pill {
   background: #e5f1ff;
-  color: #0d6efd;
+  color: var(--color-link); /* 4.9:1 on this background */
   padding: 0.35rem 0.65rem;
   border-radius: 999px;
   font-weight: 700;
