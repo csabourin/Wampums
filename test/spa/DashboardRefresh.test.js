@@ -79,6 +79,8 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   canAccessParentTools: jest.fn(() => mockIsParent),
   canCreateOrganization: jest.fn(() => false),
   canViewCarpools: jest.fn(() => false),
+  canFollowPermissionSlips: jest.fn(() => !mockIsParent
+    && ['activities.view', 'participants.view', 'groups.view'].every((permission) => mockPermissions.has(permission))),
   isParent: jest.fn(() => mockIsParent),
   holdsFamilyRole: jest.fn(() => mockIsParent),
 }));

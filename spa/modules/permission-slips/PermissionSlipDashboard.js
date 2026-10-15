@@ -36,6 +36,7 @@ import { deleteActivity } from '../../api/api-activities.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { richTextOrPlain } from '../../utils/RichTextUtils.js';
 
 // The server accepts at most this many participant or slip ids per request
@@ -65,6 +66,12 @@ export class PermissionSlipDashboard {
     this.showCreateForm = false;
     // Signing records a guardian's consent: offered only on one's own children's slips
     this.canSign = hasPermission('permission_slips.sign');
+    this.destroyed = false;
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
   }
 
   async init() {
@@ -78,8 +85,29 @@ export class PermissionSlipDashboard {
       this.attachEventHandlers();
     } catch (error) {
       debugError('Error initializing permission slip dashboard:', error);
-      this.app.showMessage(translate('permission_slip_error_loading'), 'error');
+      this.renderLoadError(error);
     }
+  }
+
+  /**
+   * A load that failed says so in the page, as a refusal when it was one,
+   * with a way back and a retry: never an empty screen.
+   *
+   * @param {Error} error - What the load threw
+   */
+  renderLoadError(error) {
+    const container = document.getElementById('app');
+    // #app outlives this screen: a late failure must not draw over the next one.
+    if (!container || this.destroyed) {return;}
+    setContent(container, `
+      ${renderBackLink(this.activityId ? '/permission-slips' : '/dashboard')}
+      <section class="page permission-slip-dashboard">
+        <h1>${escapeHTML(translate('permission_slip_dashboard_title'))}</h1>
+        <p class="status-message error" role="alert">${escapeHTML(apiErrorMessage(error, 'permission_slip_error_loading'))}</p>
+        <button type="button" class="button button--secondary" id="permission-slips-retry">${escapeHTML(translate('retry'))}</button>
+      </section>
+    `);
+    document.getElementById('permission-slips-retry')?.addEventListener('click', () => this.init());
   }
 
   async loadActivity() {
@@ -340,7 +368,7 @@ export class PermissionSlipDashboard {
               ${getActivityStartTime(activity) ? ` • ${escapeHTML(getActivityStartTime(activity))}` : ''}
             </p>
             ${activity.meeting_location_going ? `
-              <p style="margin: 0.25rem 0 0 0; color: #999; font-size: 0.85rem;">
+              <p style="margin: 0.25rem 0 0 0; color: var(--color-text-muted); font-size: 0.85rem;">
                 📍 ${escapeHTML(activity.meeting_location_going)}
               </p>
             ` : ''}
@@ -348,7 +376,7 @@ export class PermissionSlipDashboard {
           <div style="text-align: right;">
             ${totalSlips > 0 ? `
               <div style="margin-bottom: 0.5rem;">
-                <span style="font-size: 1.5rem; font-weight: bold; color: ${pendingCount > 0 ? '#ffc107' : '#28a745'};">
+                <span style="font-size: 1.5rem; font-weight: bold; color: var(--color-text);">
                   ${signedCount}/${totalSlips}
                 </span>
                 <div style="font-size: 0.85rem; color: #666;">
@@ -369,7 +397,7 @@ export class PermissionSlipDashboard {
                   ${translate('permission_slip_status_declined')}
                 </span>
               ` : `
-                <span style="background: #28a745; color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem;">
+                <span style="background: var(--color-success); color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem;">
                   ✓ ${translate('all_signed')}
                 </span>
               `}
