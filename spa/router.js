@@ -14,6 +14,7 @@ import { buildLoginRedirect } from './utils/LoginRedirectUtils.js';
 import { releaseAllScrollLocks } from "./utils/ScrollLockUtils.js";
 import { initScrollMemory, beginScrollNavigation, restoreScrollPosition } from './utils/ScrollMemory.js';
 import { resetPageReads } from "./modules/live-sync/LiveSyncState.js";
+import { focusPageStart } from './utils/PageFocusUtils.js';
 import { TABBED_PAGES, MERGED_ROUTE_REDIRECTS } from "./config/tabbed-pages.js";
 import {
   canApproveBadges,
@@ -254,6 +255,9 @@ export class Router {
     this.navigationId = 0;
     this.pendingRefresh = false;
     this.refreshNavigationId = null;
+    // Each route() call, nested redirects included; only the latest one moves focus.
+    this.routeSequence = 0;
+    this.hasRouted = false;
   }
 
   /**
@@ -341,18 +345,31 @@ export class Router {
 
   /**
    * Show the screen for a path, returning it to where it was last scrolled.
+   *
+   * After a navigation, focus moves to the new screen's heading so a screen
+   * reader announces it and Tab continues from there. The first screen after
+   * a page load keeps the browser's own start, and a screen drawn again in
+   * place (live sync) keeps focus where the person left it.
+   *
    * @param {string} path - Path and query string to show
    * @param {{ refresh?: boolean }} [options] - `refresh`: the screen on
    *   display is drawn again with fresh data (see isRefreshingScreen)
    * @returns {Promise<void>}
    */
   async route(path, { refresh = false } = {}) {
+    const sequence = ++this.routeSequence;
+    const previousFocus = document.activeElement;
+    const isFirstScreen = !this.hasRouted;
     this.pendingRefresh = refresh;
     const scrollToken = beginScrollNavigation(path);
     try {
       await this.renderRoute(path);
     } finally {
       restoreScrollPosition(scrollToken);
+      this.hasRouted = true;
+    }
+    if (sequence === this.routeSequence && !refresh && !isFirstScreen) {
+      focusPageStart({ previousFocus });
     }
   }
 
