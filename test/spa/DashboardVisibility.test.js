@@ -73,6 +73,8 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   canAccessParentTools: jest.fn(() => mockIsParent),
   canCreateOrganization: jest.fn(() => false),
   canViewCarpools: jest.fn(() => false),
+  canFollowPermissionSlips: jest.fn(() => !mockIsParent
+    && ['activities.view', 'participants.view', 'groups.view'].every((permission) => mockPermissions.has(permission))),
   isParent: jest.fn(() => mockIsParent),
   holdsFamilyRole: jest.fn(() => mockIsParent),
 }));
@@ -249,6 +251,11 @@ describe('tiles follow the permissions their page acts on', () => {
     expect(renderAs(['org.view']).has('/unit-settings')).toBe(true);
     expect(renderAs(['communications.send']).has('/unit-settings')).toBe(true);
     expect(renderAs(['org.edit'], { adminPanel: false }).has('/unit-settings')).toBe(false);
+  });
+
+  test('the permission-slip tile needs every read its page makes, not participants.view alone', () => {
+    expect(renderAs(['participants.view']).has('/permission-slips')).toBe(false);
+    expect(renderAs(['activities.view', 'participants.view', 'groups.view']).has('/permission-slips')).toBe(true);
   });
 
   test('unit set-up tiles land in "Administration de l\'unité"', () => {

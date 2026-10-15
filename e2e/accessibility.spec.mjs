@@ -5,14 +5,14 @@
  * unobscured focus, and a dialog driven from the keyboard.
  */
 import { test, expect } from '@playwright/test';
-import { ACCOUNTS, APP_NAME, storageStateFor, openScreen, settleScreen, axeViolations } from './helpers.mjs';
+import { ACCOUNTS, APP_NAME, storageStateFor, openScreen, settleScreen, axeViolations, seededActivityId } from './helpers.mjs';
 
 /** Screens each person reaches from their dashboard. Paths are canonical (no redirects). */
 const SCREENS = {
   public: ['/login', '/register', '/reset-password'],
   parent: [
     '/parent-dashboard', '/parent-finance', '/parent-fundraisers', '/family-access',
-    '/messages', '/account-info', '/parent-program-progress',
+    '/messages', '/account-info', '/parent-program-progress', '/activities',
   ],
   leader: [
     '/dashboard', '/attendance', '/manage-points', '/progression', '/walk-in-children',
@@ -22,6 +22,7 @@ const SCREENS = {
     '/dashboard', '/manage-participants', '/parent-invitations', '/leader-invitations',
     '/unit-settings', '/role-management', '/finance', '/budgets', '/expenses', '/reports',
     '/messages', '/yearly-planner', '/medication-management', '/inventory', '/permission-slips',
+    `/permission-slips/${seededActivityId()}`,
     '/carpool', '/form-builder', '/manage-groups', '/mailing-list', '/communication-history',
     '/incident-reports', '/scout-year', '/participant-duplicates', '/fundraisers', '/resources',
     '/external-revenue', '/revenue-dashboard', '/form-permissions', '/district',
@@ -300,5 +301,31 @@ test.describe('keyboard', () => {
       await openScreen(page, '/parent-dashboard');
       expect(await focusProblemsWhileTabbing(page, 15)).toEqual([]);
     });
+  });
+});
+
+test.describe('permission slips for a parent', () => {
+  signedInAs('parent');
+
+  test('the activities screen offers a parent no way into the unit\'s slip screen', async ({ page }) => {
+    await openScreen(page, '/activities');
+    await expect(page.getByText('Sortie canot').first()).toBeVisible();
+    await expect(page.locator('.view-permission-slips-btn')).toHaveCount(0);
+  });
+
+  for (const target of ['/permission-slips', `/permission-slips/${seededActivityId()}`]) {
+    test(`${target} tells a parent it is not for them, instead of a blank page`, async ({ page }) => {
+      await openScreen(page, target);
+      const heading = page.locator('#app h1');
+      await expect(heading).toHaveCount(1);
+      await expect(heading).not.toBeEmpty();
+      await expect(page.locator('#app a').first()).toBeVisible();
+      expect(await axeViolations(page)).toEqual([]);
+    });
+  }
+
+  test('the parent dashboard still offers the pending slip to sign', async ({ page }) => {
+    await openScreen(page, '/parent-dashboard');
+    await expect(page.locator('.permission-slip-section .permission-slip-sign-btn').first()).toBeVisible();
   });
 });

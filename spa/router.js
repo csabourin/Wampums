@@ -44,6 +44,7 @@ import {
   canViewInventory,
   canViewMedication,
   canViewParticipants,
+  canFollowPermissionSlips,
   canViewReports,
   canViewUsers,
   canViewIncidents,
@@ -623,7 +624,7 @@ export class Router {
           await materialManagement.init();
           break;
         case "permissionSlipDashboard":
-          if (!guard(canViewParticipants())) {
+          if (!guard(canFollowPermissionSlips())) {
             break;
           }
           const PermissionSlipDashboard = await this.loadModule('PermissionSlipDashboard');
@@ -632,7 +633,7 @@ export class Router {
           await permissionSlipDashboard.init();
           break;
         case "permissionSlipDashboardActivity":
-          if (!guard(canViewParticipants())) {
+          if (!guard(canFollowPermissionSlips())) {
             break;
           }
           const PermissionSlipDashboardActivity = await this.loadModule('PermissionSlipDashboard');

@@ -391,3 +391,68 @@ describe('leaders and signing', () => {
     expect(type).toBe('success');
   });
 });
+
+describe('a load that fails', () => {
+  /**
+   * Open the activity's slip page while the groups request is refused.
+   * @param {Object} error - What the API layer throws
+   * @returns {Promise<PermissionSlipDashboard>}
+   */
+  async function openRefused(error) {
+    document.body.innerHTML = '<main id="app"></main>';
+    getActivity.mockResolvedValue(ACTIVITY);
+    endpoints.getPermissionSlips.mockResolvedValue({ data: { permission_slips: [] } });
+    endpoints.getResourceDashboard.mockResolvedValue({ data: { permission_summary: [] } });
+    endpoints.getGroups.mockRejectedValue(error);
+    fetchParticipants.mockResolvedValue(PARTICIPANTS);
+    const dashboard = new PermissionSlipDashboard(app, { activityId: 12 });
+    await dashboard.init();
+    return dashboard;
+  }
+
+  test('says so in the page, as a refusal, with a way back and a retry, instead of a blank screen', async () => {
+    await openRefused(Object.assign(new Error('Insufficient permissions'), { status: 403 }));
+
+    expect(document.querySelector('#app h1').textContent).toBe('permission_slip_dashboard_title');
+    expect(document.querySelector('[role="alert"]').textContent).toBe('api_error_forbidden');
+    expect(document.querySelector('#app a').getAttribute('href')).toBe('/permission-slips');
+    expect(document.body.textContent).not.toContain('Insufficient permissions');
+  });
+
+  test('retry loads the page again', async () => {
+    await openRefused(Object.assign(new Error('offline'), { status: 503 }));
+    endpoints.getGroups.mockResolvedValue({ data: [] });
+
+    document.getElementById('permission-slips-retry').click();
+    await flush();
+    await flush();
+
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+    expect(document.getElementById('toggleCreateFormBtn')).not.toBeNull();
+  });
+
+  test('a failure arriving after the person left draws nothing over the next screen', async () => {
+    document.body.innerHTML = '<main id="app"></main>';
+    let refuse;
+    getActivity.mockResolvedValue(ACTIVITY);
+    endpoints.getPermissionSlips.mockResolvedValue({ data: { permission_slips: [] } });
+    endpoints.getResourceDashboard.mockResolvedValue({ data: { permission_summary: [] } });
+    endpoints.getGroups.mockReturnValue(new Promise((_resolve, reject) => { refuse = reject; }));
+    fetchParticipants.mockResolvedValue(PARTICIPANTS);
+    const dashboard = new PermissionSlipDashboard(app, { activityId: 12 });
+    const loading = dashboard.init();
+
+    dashboard.destroy();
+    document.getElementById('app').innerHTML = '<h1>Next screen</h1>';
+    refuse(Object.assign(new Error('late'), { status: 500 }));
+    await loading;
+
+    expect(document.querySelector('#app h1').textContent).toBe('Next screen');
+  });
+
+  test('the error state has no WCAG A/AA violations', async () => {
+    await openRefused(Object.assign(new Error('Insufficient permissions'), { status: 403 }));
+    const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+});

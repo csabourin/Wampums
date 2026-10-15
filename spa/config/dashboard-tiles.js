@@ -116,7 +116,7 @@ export const DASHBOARD_TILES = [
     aliases: "tile_permission_slips_aliases",
     moment: "week",
     domain: "safety",
-    gate: { permission: "participants.view" },
+    gate: { check: "permissionSlips" },
   },
   {
     featureKey: "carpool",

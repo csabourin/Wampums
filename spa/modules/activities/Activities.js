@@ -4,7 +4,7 @@
 import { translate } from '../../app.js';
 import { getActivities, deleteActivity } from '../../api/api-activities.js';
 import { clearActivityRelatedCaches } from '../../indexedDB.js';
-import { canViewActivities, hasPermission } from '../../utils/PermissionUtils.js';
+import { canFollowPermissionSlips, canViewActivities, hasPermission } from '../../utils/PermissionUtils.js';
 import { skeletonActivityList, setButtonLoading } from '../../utils/SkeletonUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
@@ -226,9 +226,10 @@ export class Activities extends BaseModule {
           <button class="button button--small button--secondary view-carpools-btn" data-activity-id="${activity.id}">
             ${translate('view_carpools')}
           </button>
-          <button class="button button--small button--secondary view-permission-slips-btn" data-activity-id="${activity.id}">
-            ${translate('manage_permission_slips')}
-          </button>
+          ${canFollowPermissionSlips() ? `
+            <button class="button button--small button--secondary view-permission-slips-btn" data-activity-id="${activity.id}">
+              ${translate('manage_permission_slips')}
+            </button>` : ''}
           ${isMultiDay && !isPast ? `
             <button class="button button--small button--secondary prepare-offline-btn"
                     data-activity-id="${activity.id}"

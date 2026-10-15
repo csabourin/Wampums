@@ -29,6 +29,7 @@ import {
   canAccessParentTools,
   canCreateOrganization,
   canViewCarpools,
+  canFollowPermissionSlips,
   isParent,
   holdsFamilyRole,
 } from '../../utils/PermissionUtils.js';
@@ -494,6 +495,8 @@ export class Dashboard extends BaseModule {
         return canAccessParentTools();
       case 'carpool':
         return holdsFamilyRole() || canViewCarpools();
+      case 'permissionSlips':
+        return canFollowPermissionSlips();
       case 'createOrganization':
         return canCreateOrganization();
       case 'member':

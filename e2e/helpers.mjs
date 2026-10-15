@@ -2,6 +2,8 @@
  * Shared pieces of the accessibility specs: the seeded accounts, waiting for a
  * screen to finish drawing, and the axe run.
  */
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import AxeBuilder from '@axe-core/playwright';
@@ -24,6 +26,16 @@ const BUSY_GRACE_MS = 5000;
 
 /** WCAG 2.0, 2.1 and 2.2, levels A and AA, contrast included. */
 export const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
+
+/**
+ * The outing seed.mjs creates, with a slip pending the parent's signature.
+ *
+ * @returns {number} Its activity id
+ */
+export function seededActivityId() {
+  const cache = process.env.WAMPUMS_RUN_CACHE || path.join(homedir(), '.cache', 'wampums-run');
+  return JSON.parse(readFileSync(path.join(cache, 'seed.json'), 'utf8')).activityId;
+}
 
 /**
  * @param {string} account - Seeded email

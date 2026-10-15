@@ -28,7 +28,7 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugError: jest.fn()
 }));
 
-import { canAccessParentTools, holdsFamilyRole, hasOrganizationScope, isParent } from '../../spa/utils/PermissionUtils.js';
+import { canAccessParentTools, canFollowPermissionSlips, holdsFamilyRole, hasOrganizationScope, isParent } from '../../spa/utils/PermissionUtils.js';
 import { roleLabel } from '../../spa/utils/RoleLabelUtils.js';
 
 /**
@@ -87,6 +87,34 @@ describe('canAccessParentTools', () => {
     expect(canAccessParentTools()).toBe(false);
     mockApp.userPermissions = ['participants.view'];
     expect(canAccessParentTools()).toBe(true);
+  });
+});
+
+describe('canFollowPermissionSlips', () => {
+  const SLIP_SCREEN_READS = ['activities.view', 'participants.view', 'groups.view'];
+
+  test('a parent, who sees activities and their own children, does not get the unit\'s slip screen', () => {
+    signIn(['parent'], 'linked');
+    mockApp.userPermissions = ['activities.view', 'participants.view', 'permission_slips.sign'];
+    expect(canFollowPermissionSlips()).toBe(false);
+  });
+
+  test('a leader holding every permission the screen reads follows the unit\'s slips', () => {
+    signIn(['leader'], 'organization');
+    mockApp.userPermissions = SLIP_SCREEN_READS;
+    expect(canFollowPermissionSlips()).toBe(true);
+  });
+
+  test('a parent who is also a leader follows them too', () => {
+    signIn(['leader', 'parent'], 'organization');
+    mockApp.userPermissions = [...SLIP_SCREEN_READS, 'permission_slips.sign'];
+    expect(canFollowPermissionSlips()).toBe(true);
+  });
+
+  test('a whole-unit role missing one of those reads does not, since the screen would fail to load', () => {
+    signIn(['leader'], 'organization');
+    mockApp.userPermissions = ['activities.view', 'participants.view'];
+    expect(canFollowPermissionSlips()).toBe(false);
   });
 });
 
