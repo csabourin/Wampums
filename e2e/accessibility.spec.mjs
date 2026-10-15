@@ -147,7 +147,11 @@ function describeFocus(page) {
     // Measure settled states: no transition on the ring, no scroll moving.
     const settle = async () => {
       await frame();
-      await Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => {})));
+      // An endless animation (an urgent badge's pulse) never finishes: wait
+      // only for those that end, such as the focus ring's transition.
+      const ending = document.getAnimations()
+        .filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime));
+      await Promise.all(ending.map((animation) => animation.finished.catch(() => {})));
       let previous = -1;
       while (previous !== window.scrollY) {
         previous = window.scrollY;
