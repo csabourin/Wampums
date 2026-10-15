@@ -664,8 +664,8 @@ before changing it.
 - ✅ **Integration tests** (`*.integration.test.js`) run against a real PostgreSQL built from the
   schema baseline and every migration. They skip without `TEST_DATABASE_URL`. Anything about access to
   children, roles, family links or scout years needs one. Run them locally with the command under Development Workflow › Migrations.
-- ✅ CI runs `npm run lint:all`, `npm run build`, `npm run test:quality` (the non-integration suites,
-  minus a short ignore list in `package.json`) and the integration job. Run the same before a PR.
+- ✅ CI runs `npm run lint:all`, `npm run build`, `npm run test:quality` (every Jest suite; the
+  integration ones skip without `TEST_DATABASE_URL`) and the integration job. Run the same before a PR.
 - ✅ To see a change in a real browser (phone or desktop size, as admin, leader or parent), use the
   `run-wampums` project skill (`.claude/skills/run-wampums/`).
 
