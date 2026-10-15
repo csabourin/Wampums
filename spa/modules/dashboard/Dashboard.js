@@ -994,7 +994,7 @@ export class Dashboard extends BaseModule {
     const domain = tile.domain || 'neutral';
     const style = `--tile-bg: var(--tile-bg-${domain}); --tile-fg: var(--tile-fg-${domain}); --tile-accent: var(--tile-accent-${domain}); --tile-hover-bg: var(--tile-hover-bg-${domain}); --tile-hover-fg: var(--tile-hover-fg-${domain});`;
     const stat = tile.stat
-      ? `<span class="dashboard-v2__tile-stat${tile.stat.urgent ? ' is-urgent' : ''}" aria-label="${escapeHTML(tile.stat.label || '')}">${escapeHTML(String(tile.stat.value))}${tile.stat.label ? ` <span>${escapeHTML(tile.stat.label)}</span>` : ''}</span>`
+      ? `<span class="dashboard-v2__tile-stat${tile.stat.urgent ? ' is-urgent' : ''}">${escapeHTML(String(tile.stat.value))}${tile.stat.label ? ` <span>${escapeHTML(tile.stat.label)}</span>` : ''}</span>`
       : '';
     const cls = `dashboard-v2__tile${small ? ' dashboard-v2__tile--sm' : ''}`;
     return `

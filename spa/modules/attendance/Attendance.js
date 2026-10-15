@@ -600,7 +600,7 @@ export class Attendance {
       <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <div class="attendance-container skeleton">
         <div class="date-navigation">
-          <select id="skeleton-dateSelect" class="date-select skeleton-text"></select>
+          <div class="date-select skeleton-text" aria-hidden="true"></div>
         </div>
         <div id="skeleton-attendance-list" class="attendance-list">
           ${this.renderSkeletonGroups()}
@@ -671,6 +671,7 @@ export class Attendance {
       <div class="attendance-container">
         ${this.renderCampBanner()}
         <div class="date-navigation">
+          <label for="dateSelect" class="sr-only">${translate('select_date')}</label>
           <select id="dateSelect" class="date-select" data-archive-safe>
             ${this.renderDateOptions()}
           </select>

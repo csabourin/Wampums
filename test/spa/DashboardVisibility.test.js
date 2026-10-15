@@ -310,6 +310,17 @@ describe('tool groups stay accessible', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
   });
 
+  test('a tile count is read with its number, not only its unit', () => {
+    const dashboard = renderAdmin();
+    dashboard.participants = [{ id: 1 }, { id: 2 }];
+    dashboard.render();
+
+    const tile = document.querySelector('a[href="/parent-contact-list"]');
+    const count = tile.querySelector('.dashboard-v2__tile-stat');
+    expect(count.hasAttribute('aria-label')).toBe(false);
+    expect(count.textContent.replace(/\s+/g, ' ').trim()).toBe('2 contacts_short');
+  });
+
   test('the tool section has no WCAG A/AA violations', async () => {
     renderAdmin();
     const results = await axe.run(document.querySelector('#moment-tools').closest('section'), {
