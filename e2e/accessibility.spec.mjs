@@ -1,0 +1,250 @@
+/**
+ * WCAG 2.2 AA in a real browser, for the screens a parent, a leader and an
+ * admin use, at phone and desktop size: axe (contrast included), no sideways
+ * scroll, titles, the skip link, focus after navigation, visible and
+ * unobscured focus, and a dialog driven from the keyboard.
+ */
+import { test, expect } from '@playwright/test';
+import { ACCOUNTS, APP_NAME, storageStateFor, openScreen, settleScreen, axeViolations } from './helpers.mjs';
+
+/** Screens each person reaches from their dashboard. Paths are canonical (no redirects). */
+const SCREENS = {
+  public: ['/login', '/register', '/reset-password'],
+  parent: [
+    '/parent-dashboard', '/parent-finance', '/parent-fundraisers', '/family-access',
+    '/messages', '/account-info', '/parent-program-progress',
+  ],
+  leader: [
+    '/dashboard', '/attendance', '/manage-points', '/progression', '/walk-in-children',
+    '/activities', '/manage-honors', '/reunions',
+  ],
+  admin: [
+    '/dashboard', '/manage-participants', '/parent-invitations', '/leader-invitations',
+    '/unit-settings', '/role-management', '/finance', '/budgets', '/expenses', '/reports',
+    '/messages', '/yearly-planner', '/medication-management', '/inventory', '/permission-slips',
+    '/carpool', '/form-builder', '/manage-groups', '/mailing-list', '/communication-history',
+    '/incident-reports', '/scout-year', '/participant-duplicates', '/fundraisers', '/resources',
+    '/external-revenue', '/revenue-dashboard', '/form-permissions', '/district',
+    '/parent-contact-list', '/view-participant-documents', '/account-info',
+  ],
+};
+
+/**
+ * Violations that predate this suite, in screens still at the spa/ root.
+ * CLAUDE.md §7 moves such a screen into spa/modules/ before changing it; fix
+ * the entry then and delete it here. A listed violation that no longer
+ * occurs fails the test, so this list only shrinks.
+ */
+const KNOWN_VIOLATIONS = {
+  '/reports': { 'aria-required-children': 'spa/reports.js: role="menu" groups hold links, not menuitems' },
+  '/district': { 'aria-required-children': 'spa/district_management.js: .dm-filters is a listbox of buttons' },
+  '/inventory': { 'color-contrast': 'spa/inventory.js: .photo-hint styled below 4.5:1 in its own <style>' },
+};
+
+/** Screens that stay marked busy after loading, for the same reason. */
+const KNOWN_STAYS_BUSY = {
+  '/carpool': 'spa/carpool.js: landing skeleton cards keep aria-busy="true"',
+};
+
+/**
+ * @param {string} who - Key of SCREENS
+ */
+function signedInAs(who) {
+  if (who !== 'public') {
+    test.use({ storageState: storageStateFor(ACCOUNTS[who]) });
+  }
+}
+
+for (const [who, paths] of Object.entries(SCREENS)) {
+  test.describe(`${who} screens`, () => {
+    signedInAs(who);
+
+    for (const target of paths) {
+      test(`${target} meets WCAG 2.2 AA for ${who}`, async ({ page }, testInfo) => {
+        const pageErrors = [];
+        page.on('pageerror', (error) => pageErrors.push(error.message));
+        await openScreen(page, target);
+
+        expect(new URL(page.url()).pathname, 'the screen is reachable, not redirected').toBe(target);
+
+        const known = KNOWN_VIOLATIONS[target] || {};
+        const violations = await axeViolations(page);
+        const unexpected = violations.filter((violation) => !known[violation.id]);
+        expect(unexpected, 'axe WCAG 2.2 A/AA violations').toEqual([]);
+        const fixed = Object.keys(known).filter((id) => !violations.some((violation) => violation.id === id));
+        expect(fixed, 'fixed: remove these from KNOWN_VIOLATIONS').toEqual([]);
+
+        const busy = await page.locator('#app [aria-busy="true"]').count();
+        if (KNOWN_STAYS_BUSY[target]) {
+          expect(busy, 'fixed: remove this screen from KNOWN_STAYS_BUSY').toBeGreaterThan(0);
+        } else {
+          expect(busy, 'nothing is still announced as loading').toBe(0);
+        }
+
+        const heading = page.locator('#app h1').first();
+        if (await heading.count()) {
+          const text = (await heading.innerText()).replace(/\s+/g, ' ').trim();
+          await expect(page).toHaveTitle(`${text} - ${APP_NAME}`);
+        } else {
+          await expect(page).toHaveTitle(new RegExp(` - ${APP_NAME}$|^${APP_NAME}$`));
+        }
+
+        if (testInfo.project.name === 'phone') {
+          const scrollsSideways = await page.evaluate(
+            () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          );
+          expect(scrollsSideways, 'nothing scrolls the page sideways at 390px').toBe(false);
+        }
+
+        expect(pageErrors).toEqual([]);
+      });
+    }
+  });
+}
+
+/**
+ * Where the focused element is, whether its focus indicator shows, and
+ * whether something else covers it (WCAG 2.4.7, 2.4.11).
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+function describeFocus(page) {
+  return page.evaluate(async () => {
+    // Measure the settled state: no transition on the ring, no scroll moving.
+    const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+    await Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => {})));
+    let previous = -1;
+    while (previous !== window.scrollY) {
+      previous = window.scrollY;
+      // eslint-disable-next-line no-await-in-loop -- waits frame by frame until scrolling stops
+      await frame();
+    }
+    const element = document.activeElement;
+    if (!element || element === document.body) {
+      return null;
+    }
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    const points = [
+      [rect.left + rect.width / 2, rect.top + rect.height / 2],
+      [rect.left + 2, rect.top + 2],
+      [rect.right - 2, rect.bottom - 2],
+    ].filter(([x, y]) => x >= 0 && y >= 0 && x < innerWidth && y < innerHeight);
+    const visiblePoint = points.some(([x, y]) => {
+      const hit = document.elementFromPoint(x, y);
+      return hit && (hit === element || element.contains(hit) || hit.contains(element));
+    });
+    // The ring may be drawn by a pseudo-element (a stretched link's ::after).
+    const drawsRing = (box) => (box.outlineStyle !== 'none' && parseFloat(box.outlineWidth) > 0)
+      || (box.boxShadow && box.boxShadow !== 'none');
+    const indicator = [style, getComputedStyle(element, '::before'), getComputedStyle(element, '::after')]
+      .some(drawsRing);
+    return {
+      name: `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ''} "${(element.textContent || element.getAttribute('aria-label') || '').trim().slice(0, 40)}"`,
+      indicator,
+      unobscured: visiblePoint,
+    };
+  });
+}
+
+/**
+ * Press Tab `steps` times from the top of the page, and list every stop whose
+ * focus is not visible or is covered.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {number} steps
+ * @returns {Promise<Array<Object>>} Problems found
+ */
+async function focusProblemsWhileTabbing(page, steps) {
+  await page.locator('body').focus();
+  const problems = [];
+  for (let step = 0; step < steps; step += 1) {
+    // eslint-disable-next-line no-await-in-loop -- each key press moves on from the previous one
+    await page.keyboard.press('Tab');
+    // eslint-disable-next-line no-await-in-loop -- measured where that key press left focus
+    const focus = await describeFocus(page);
+    if (focus && (!focus.indicator || !focus.unobscured)) {
+      problems.push(focus);
+    }
+  }
+  return problems;
+}
+
+test.describe('keyboard', () => {
+  test.describe('signed out', () => {
+    test('focus is visible and never hidden while tabbing through the sign-in screen', async ({ page }) => {
+      await openScreen(page, '/login');
+      expect(await focusProblemsWhileTabbing(page, 8)).toEqual([]);
+    });
+  });
+
+  test.describe('leader', () => {
+    signedInAs('leader');
+
+    test('the first Tab reaches the skip link, which leads to the screen heading', async ({ page }) => {
+      await openScreen(page, '/activities');
+      await page.locator('body').focus();
+      await page.keyboard.press('Tab');
+
+      const skip = page.locator('.skip-link');
+      await expect(skip).toBeFocused();
+      await expect(skip).toBeInViewport();
+      const focus = await describeFocus(page);
+      expect(focus.indicator).toBe(true);
+      expect(focus.unobscured).toBe(true);
+
+      await page.keyboard.press('Enter');
+      await expect(page.locator('#app h1').first()).toBeFocused();
+    });
+
+    test('following a link puts focus on the new screen and names the tab after it', async ({ page }) => {
+      await openScreen(page, '/dashboard');
+      await page.locator('#app a[href="/activities"]').first().focus();
+      await page.keyboard.press('Enter');
+      await page.waitForURL('**/activities');
+      await settleScreen(page);
+
+      const heading = page.locator('#app h1').first();
+      await expect(heading).toBeFocused();
+      await expect(page).toHaveTitle(`${(await heading.innerText()).trim()} - ${APP_NAME}`);
+    });
+
+    test('focus is visible and never hidden while tabbing through the dashboard', async ({ page }) => {
+      await openScreen(page, '/dashboard');
+      expect(await focusProblemsWhileTabbing(page, 15)).toEqual([]);
+    });
+
+    test('the dashboard settings dialog keeps focus inside, closes with Escape, and returns focus', async ({ page }) => {
+      await openScreen(page, '/dashboard');
+      const opener = page.locator('#dashboard-settings-btn');
+      await opener.focus();
+      await page.keyboard.press('Enter');
+
+      const dialog = page.getByRole('dialog');
+      await expect(dialog).toBeVisible();
+      await expect(dialog.locator(':focus')).toHaveCount(1);
+
+      for (let step = 0; step < 25; step += 1) {
+        // eslint-disable-next-line no-await-in-loop -- each key press moves on from the previous one
+        await page.keyboard.press('Tab');
+        // eslint-disable-next-line no-await-in-loop -- checked after every press
+        await expect(dialog.locator(':focus'), 'Tab stays in the dialog').toHaveCount(1);
+      }
+
+      expect(await axeViolations(page)).toEqual([]);
+
+      await page.keyboard.press('Escape');
+      await expect(dialog).toHaveCount(0);
+      await expect(opener).toBeFocused();
+    });
+  });
+
+  test.describe('parent', () => {
+    signedInAs('parent');
+
+    test('focus is visible and never hidden while tabbing through the parent dashboard', async ({ page }) => {
+      await openScreen(page, '/parent-dashboard');
+      expect(await focusProblemsWhileTabbing(page, 15)).toEqual([]);
+    });
+  });
+});

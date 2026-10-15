@@ -116,3 +116,57 @@ jobs:
       - name: Run the integration suites
         run: npx jest --runInBand --testPathPatterns 'integration\.test\.js$'
 
+
+  accessibility:
+    name: Accessibility in a real browser (WCAG 2.2 AA)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    # jsdom cannot compute contrast, layout, focus visibility or what covers
+    # what. This job builds and seeds a database, starts the API and the SPA
+    # with the run-wampums scripts, and runs e2e/ in Chromium at phone and
+    # desktop size, signed out and as a parent, a leader and an admin.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=dev
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      # The runner image ships PostgreSQL, stopped. The run-wampums scripts
+      # reach it over the local socket as the current user.
+      - name: Start PostgreSQL
+        run: |
+          sudo systemctl start postgresql.service
+          until pg_isready -h /var/run/postgresql; do sleep 1; done
+          sudo -u postgres createuser --superuser "$USER"
+
+      - name: Build and seed a disposable database
+        run: |
+          .claude/skills/run-wampums/db.sh
+          node .claude/skills/run-wampums/seed.mjs
+
+      - name: Start the API and the SPA
+        run: .claude/skills/run-wampums/start.sh
+
+      - name: Run the accessibility suite
+        run: npm run test:a11y
+
+      - name: Upload the report and server logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accessibility-report
+          path: |
+            playwright-report/
+            test-results/
+            ~/.cache/wampums-run/logs/

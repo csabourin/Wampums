@@ -664,8 +664,16 @@ before changing it.
 - ✅ **Integration tests** (`*.integration.test.js`) run against a real PostgreSQL built from the
   schema baseline and every migration. They skip without `TEST_DATABASE_URL`. Anything about access to
   children, roles, family links or scout years needs one. Run them locally with the command under Development Workflow › Migrations.
+- ✅ **Accessibility in a real browser** (`e2e/accessibility.spec.mjs`, `npm run test:a11y`): Playwright
+  and axe at phone and desktop size, signed out and as a parent, a leader and an admin. It fails on any
+  WCAG 2.2 A/AA violation (contrast included), sideways scroll at 390px, a screen left `aria-busy`, a
+  title not named after the screen's `<h1>`, and focus that is invisible, hidden, or lost after a
+  navigation or in a dialog. A new screen joins `SCREENS` there. `KNOWN_VIOLATIONS` only shrinks: fix
+  its entries when you move their screen out of the `spa/` root. It needs a running seeded app
+  (`run-wampums` skill: `db.sh`, `seed.mjs`, `start.sh`).
 - ✅ CI runs `npm run lint:all`, `npm run build`, `npm run test:quality` (every Jest suite; the
-  integration ones skip without `TEST_DATABASE_URL`) and the integration job. Run the same before a PR.
+  integration ones skip without `TEST_DATABASE_URL`), the integration job and the accessibility job.
+  Run the same before a PR.
 - ✅ To see a change in a real browser (phone or desktop size, as admin, leader or parent), use the
   `run-wampums` project skill (`.claude/skills/run-wampums/`).
 

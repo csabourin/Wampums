@@ -39,6 +39,7 @@
     "lint:eslint:prune": "eslint . --prune-suppressions",
     "lint:all": "npm run lint:api-version && npm run lint:duplicate-mounts && npm run lint:non-versioned-mounts && npm run lint:spa-files && npm run lint:spa-console && npm run lint:spa-innerhtml && npm run lint:sql-params && npm run lint:i18n-parity && npm run lint:api-contracts && npm run lint:policy && npm run lint:eslint",
     "test:quality": "jest --runInBand",
+    "test:a11y": "playwright test",
     "catalog:load:oas": "node scripts/load-oas-catalog.js",
     "catalog:load": "node scripts/load-oas-catalog.js",
     "db:local:setup": "node scripts/setup-local-database.js",
@@ -95,9 +96,11 @@
     "workbox-strategies": "^7.4.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@babel/core": "^7.29.0",
     "@babel/preset-env": "^7.29.0",
     "@eslint/js": "^9.39.5",
+    "@playwright/test": "1.56.1",
     "axe-core": "^4.13.0",
     "babel-jest": "^30.5.2",
     "eslint": "^9.39.5",
@@ -116,7 +119,8 @@
     ],
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "/mobile/"
+      "/mobile/",
+      "/e2e/"
     ],
     "transform": {
       "^.*/spa/.+\\.js$": [

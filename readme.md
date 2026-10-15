@@ -103,6 +103,7 @@ Re-running is a no-op once the schema is current.
 ```bash
 npm test
 npm run test:quality
+npm run test:a11y   # WCAG 2.2 AA in Chromium; needs the app running (run-wampums skill)
 npm run test:stories
 npm run build
 npm run lint:all   # every guardrail and ESLint, as CI runs them

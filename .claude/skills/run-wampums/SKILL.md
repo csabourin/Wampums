@@ -109,6 +109,10 @@ npm run test:quality
 TEST_DATABASE_URL="postgresql:///wampums_run?host=/var/run/postgresql" npx jest test/parent-invitations.integration.test.js test/parent-onboarding.integration.test.js test/family-links.integration.test.js test/participant-access.integration.test.js test/participant-duplicates.integration.test.js
 ```
 
+With the servers started, `npm run test:a11y` runs the real-browser
+accessibility suite (`e2e/`, Playwright + axe) against them, as the CI job
+"accessibility" does.
+
 The first runs without a database (integration suites skip). The second runs
 the family-access integration suites against the `db.sh` database: 96 tests.
 They confine cleanup to what they create and may run in parallel with the

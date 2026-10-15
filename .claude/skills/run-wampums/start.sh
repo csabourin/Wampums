@@ -19,8 +19,15 @@ mkdir -p "$CACHE/logs"
 # .env also holds live email-provider keys. Blank them so a local run can never
 # mail a real address: sendEmail then reports failure, and invitations show as
 # "not sent" -- which is the truth. Mint tokens directly to test link pages.
+# Stripe likewise gets a placeholder key that can reach nothing (unless one is
+# set in the environment): routes/stripe.js throws at load without any key, as
+# in CI where there is no .env. One local client (the accessibility suite
+# opens a hundred screens) would trip the production rate limits.
 DATABASE_URL="$DB_URL" \
 BREVO_KEY="" BREVO_API_KEY="" BREVO_SMTP_KEY="" \
+STRIPE_SECRET_KEY="${STRIPE_SECRET_KEY:-sk_test_wampums_run_placeholder}" \
+RATE_LIMIT_GENERAL_MAX_REQUESTS="${RATE_LIMIT_GENERAL_MAX_REQUESTS:-100000}" \
+RATE_LIMIT_AUTH_MAX_ATTEMPTS="${RATE_LIMIT_AUTH_MAX_ATTEMPTS:-1000}" \
 JWT_SECRET_KEY="wampums-run-local-secret" \
 ORGANIZATION_ID="$ORG_ID" \
 PORT=5000 NODE_ENV=development \
