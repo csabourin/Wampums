@@ -120,7 +120,7 @@ try {
     );
     return userId;
   };
-  await member('admin@run.test', 'Akela Admin', adminRole);
+  const adminId = await member('admin@run.test', 'Akela Admin', adminRole);
   await member('leader@run.test', 'Baloo Leader', leaderRole);
   const parentId = await member('parent@run.test', 'Marie Parent', parentRole);
 
@@ -145,6 +145,23 @@ try {
     [childId, guardianId]
   );
 
+  // An outing a month away, with a slip waiting for Marie's signature, so the
+  // activity, carpool and permission-slip screens have something to show.
+  const outingDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const activityId = await one(
+    `INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+                             meeting_time_going, departure_time_going, activity_start_date, activity_start_time,
+                             activity_end_date, activity_end_time)
+     VALUES ($1, $2, 'Sortie canot', $3, 'Local scout', '08:30', '09:00', $3, '09:00', $3, '16:00')
+     RETURNING id`,
+    [organizationId, adminId, outingDate]
+  );
+  await pool.query(
+    `INSERT INTO permission_slips (organization_id, participant_id, guardian_id, meeting_date, activity_id, activity_title)
+     VALUES ($1, $2, $3, $4, $5, 'Sortie canot')`,
+    [organizationId, childId, guardianId, outingDate, activityId]
+  );
+
   // The standard forms (health, risk acceptance, registration...) with the
   // per-role rights a new unit receives, so the parent dashboard lists them.
   const { installDefaultFormFormats } = require(path.join(ROOT, 'services/defaultFormFormats.js'));
@@ -159,6 +176,7 @@ try {
     organizationId,
     database: `postgresql:///${DB}?host=/var/run/postgresql`,
     accounts: { admin: 'admin@run.test', leader: 'leader@run.test', parent: 'parent@run.test' },
+    activityId,
     password: PASSWORD,
   };
   mkdirSync(CACHE, { recursive: true });
