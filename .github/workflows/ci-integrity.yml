@@ -6,6 +6,10 @@ on:
     branches:
       - main
 
+# Every job only reads the repository.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-integrity-${{ github.ref }}
   cancel-in-progress: true

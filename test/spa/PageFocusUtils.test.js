@@ -22,10 +22,11 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 /** The body index.html ships, without its scripts. */
 function loadShell() {
-  const body = INDEX_HTML.match(/<body>([\s\S]*)<\/body>/)[1].replace(/<script[\s\S]*?<\/script>/g, '');
+  const shipped = new DOMParser().parseFromString(INDEX_HTML, 'text/html');
+  shipped.querySelectorAll('script').forEach((script) => script.remove());
   document.documentElement.lang = 'en';
   document.title = 'Wampums';
-  document.body.innerHTML = body;
+  document.body.replaceChildren(...Array.from(shipped.body.childNodes, (node) => document.importNode(node, true)));
 }
 
 let utils;
