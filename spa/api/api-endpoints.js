@@ -2901,20 +2901,12 @@ export async function importSISC(csvContent) {
 }
 
 /**
- * Fetch organization JWT token
+ * Fetch the organization JWT of the unit this app is served for. The server
+ * resolves the unit from the domain and the header api-core sends.
  */
-export async function fetchOrganizationJwt(organizationId) {
+export async function fetchOrganizationJwt() {
     try {
-        // Ensure organizationId is a string/number, not an object
-        const orgId = typeof organizationId === 'object' ?
-            organizationId.organizationId || organizationId.id :
-            organizationId;
-
-        if (!orgId) {
-            throw new Error('Organization ID is required');
-        }
-
-        return await API.get('v1/organizations/jwt', { organization_id: orgId });
+        return await API.get('v1/organizations/jwt');
     } catch (error) {
         debugError('Error fetching organization JWT:', error);
         throw error;

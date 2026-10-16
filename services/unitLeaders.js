@@ -58,18 +58,20 @@ async function areUnitLeaders(db, organizationId, userIds) {
 const SLIP_FOLLOWER_PERMISSIONS = ['activities.view', 'participants.view'];
 
 /**
- * Leaders who follow the unit's activities, with an address to write to.
+ * Leaders holding every given permission through their whole-unit roles, with
+ * an address to write to: the people who can act on what they are mailed about.
  *
- * A leader here also holds, through their whole-unit roles, the permissions
- * the permission-slip page needs (activities.view and participants.view), so
- * the link in their copy opens; a staff role with nothing to do with outings
- * (finance, equipment) is not mailed about them.
+ * Only whole-unit roles count, so a permission a family role happens to carry
+ * never makes a parent a recipient. Role names are not consulted: a custom or
+ * renamed staff role holding the permissions counts.
  *
  * @param {import('pg').Pool|import('pg').PoolClient} db - Pool or client
  * @param {number} organizationId - Unit
+ * @param {string[]} permissionKeys - Permissions a recipient must hold, all of them
  * @returns {Promise<Array<{id: string, full_name: string, email: string}>>}
  */
-async function listActivityLeaderContacts(db, organizationId) {
+async function listLeaderContactsWithPermissions(db, organizationId, permissionKeys) {
+  const wanted = [...new Set(permissionKeys)];
   const result = await db.query(
     `SELECT u.id, u.full_name, u.email
        FROM users u
@@ -87,9 +89,30 @@ async function listActivityLeaderContacts(db, organizationId) {
       GROUP BY u.id, u.full_name, u.email
      HAVING COUNT(DISTINCT p.permission_key) = $3
       ORDER BY u.full_name`,
-    [organizationId, SLIP_FOLLOWER_PERMISSIONS, SLIP_FOLLOWER_PERMISSIONS.length]
+    [organizationId, wanted, wanted.length]
   );
   return result.rows;
 }
 
-module.exports = { listUnitLeaders, areUnitLeaders, listActivityLeaderContacts };
+/**
+ * Leaders who follow the unit's activities, with an address to write to.
+ *
+ * A leader here also holds, through their whole-unit roles, the permissions
+ * the permission-slip page needs (activities.view and participants.view), so
+ * the link in their copy opens; a staff role with nothing to do with outings
+ * (finance, equipment) is not mailed about them.
+ *
+ * @param {import('pg').Pool|import('pg').PoolClient} db - Pool or client
+ * @param {number} organizationId - Unit
+ * @returns {Promise<Array<{id: string, full_name: string, email: string}>>}
+ */
+function listActivityLeaderContacts(db, organizationId) {
+  return listLeaderContactsWithPermissions(db, organizationId, SLIP_FOLLOWER_PERMISSIONS);
+}
+
+module.exports = {
+  listUnitLeaders,
+  areUnitLeaders,
+  listLeaderContactsWithPermissions,
+  listActivityLeaderContacts,
+};

@@ -1,8 +1,6 @@
 {
   "catch-shadow": {},
-  "client-org-id": {
-    "routes/organizations.js": 2
-  },
+  "client-org-id": {},
   "eslint-warnings": {
     "api.js": 19,
     "config/app.js": 99,
@@ -107,7 +105,7 @@
     "services/whatsapp-database-auth.js": 4,
     "spa/ajax-functions.js": 247,
     "spa/api/api-core.js": 438,
-    "spa/api/api-endpoints.js": 1348,
+    "spa/api/api-endpoints.js": 1341,
     "spa/api/api-helpers.js": 125,
     "spa/api/api-yearly-planner.js": 11,
     "spa/app.js": 10,
@@ -300,10 +298,6 @@
   },
   "manual-auth": {},
   "role-names": {
-    "mobile/src/screens/CreateOrganizationScreen.js": 1,
-    "routes/organizations.js": 1,
-    "routes/users.js": 2,
-    "services/reactivation.js": 1,
-    "utils/index.js": 1
+    "mobile/src/screens/CreateOrganizationScreen.js": 1
   }
 }

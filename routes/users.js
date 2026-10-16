@@ -231,19 +231,10 @@ module.exports = (pool, logger) => {
    *         description: List of animators
    */
   router.get('/animateurs', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
+    // The unit's leaders by data scope (services/unitLeaders.js), so a custom
+    // or renamed staff role counts.
     const organizationId = await getOrganizationId(req, pool);
-
-    const result = await pool.query(
-      `SELECT DISTINCT u.id, u.full_name, u.nickname
-       FROM users u
-       JOIN user_organizations uo ON u.id = uo.user_id
-       JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
-       WHERE uo.organization_id = $1 AND r.role_name IN ('district', 'unitadmin', 'leader')
-       ORDER BY u.full_name`,
-      [organizationId]
-    );
-
-    return success(res, result.rows);
+    return success(res, await listUnitLeaders(pool, organizationId));
   }));
 
   /**
@@ -278,7 +269,8 @@ module.exports = (pool, logger) => {
        JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
        WHERE uo.organization_id = $1
          AND uo.status = 'active'
-         AND r.role_name IN ('parent', 'demoparent')
+         -- A family role reads only its own children, whatever the unit calls it.
+         AND r.data_scope = 'linked'
        ORDER BY full_name`,
       [organizationId]
     );

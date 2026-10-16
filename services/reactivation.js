@@ -38,6 +38,7 @@ const {
 } = require('../utils/index');
 const { getOrganizationName } = require('./alumni');
 const { resolveOrganizationEmailSender } = require('./emailSender');
+const { listLeaderContactsWithPermissions } = require('./unitLeaders');
 
 /**
  * Token purpose. Distinct from the alumni purposes so that an opt-in link can
@@ -57,6 +58,9 @@ const REACTIVATION_TOKEN_TTL = '7d';
 
 /** The reason the year transition writes when it sweeps a membership out. */
 const ROUTINE_DEACTIVATION_REASON = 'no_enrolled_child';
+
+/** What deciding a reactivation request takes (routes/scoutYears.js, memberships). */
+const REACTIVATION_DECIDER_PERMISSIONS = ['scout_year.manage'];
 
 /**
  * Mint a signed reactivation link token.
@@ -406,23 +410,15 @@ async function notifyAdminsOfReactivationRequest(pool, {
   logger,
 }) {
   try {
-    const adminResult = await pool.query(
-      `SELECT DISTINCT u.email
-         FROM users u
-         JOIN user_organizations uo ON u.id = uo.user_id
-         JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
-        WHERE uo.organization_id = $1
-          AND uo.status = 'active'
-          AND r.role_name IN ('district', 'unitadmin')`,
-      [organizationId]
-    );
+    // The leaders who can decide the request on the scout year screen.
+    const admins = await listLeaderContactsWithPermissions(pool, organizationId, REACTIVATION_DECIDER_PERMISSIONS);
 
-    if (adminResult.rows.length === 0) {
+    if (admins.length === 0) {
       logger?.warn('Reactivation request has no admin to notify', { organizationId });
       return;
     }
 
-    await Promise.all(adminResult.rows.map(async (admin) => {
+    await Promise.all(admins.map(async (admin) => {
       const language = await getUserEmailLanguage(pool, admin.email, organizationId);
       const t = getTranslationsByCode(language);
       const fallback = getTranslationsByCode('en');

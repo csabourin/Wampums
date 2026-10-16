@@ -10,6 +10,10 @@ const winston = require("winston");
 const { getDefaultPointSystemRules } = require('./api-helpers');
 const { verifyJWTToken } = require("./jwt-config");
 const { isAuthenticatedSenderAddress } = require('../services/emailSender');
+const { listLeaderContactsWithPermissions } = require('../services/unitLeaders');
+
+/** What reviewing and approving a new leader's account takes. */
+const ACCOUNT_APPROVER_PERMISSIONS = ['users.view', 'users.edit'];
 
 // Configure logger for utilities
 const logger = winston.createLogger({
@@ -426,17 +430,9 @@ async function sendAdminVerificationEmail(
     const overrideTranslations = translations && Object.keys(translations).length > 0 ? translations : null;
     const englishTranslations = getTranslationsByCode("en");
 
-    // Fetch admin emails for the organization
-    const adminResult = await pool.query(
-      `SELECT DISTINCT u.email
-       FROM users u
-       JOIN user_organizations uo ON u.id = uo.user_id
-       JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
-       WHERE uo.organization_id = $1 AND r.role_name IN ('district', 'unitadmin')`,
-      [organizationId],
-    );
-
-    const adminEmails = adminResult.rows.map((row) => row.email);
+    // The leaders who can review and approve the account (GET /users, POST /users/approve)
+    const admins = await listLeaderContactsWithPermissions(pool, organizationId, ACCOUNT_APPROVER_PERMISSIONS);
+    const adminEmails = admins.map((row) => row.email);
 
     if (adminEmails.length === 0) {
       logger.error(

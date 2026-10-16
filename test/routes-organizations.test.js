@@ -763,6 +763,28 @@ describe('Organization domain mapping', () => {
   });
 });
 
+describe('GET /api/v1/organizations/jwt', () => {
+  test('the public unit token names the unit the site serves, not one asked for in the query', async () => {
+    const { __mClient, __mPool } = require('pg');
+
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes('FROM organization_domains')) {
+        return Promise.resolve({ rows: [{ organization_id: ORG_ID }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .get('/api/v1/organizations/jwt')
+      .query({ organization_id: ORG_ID_2 })
+      .set('Host', 'scout.wampums.app');
+
+    expect(res.status).toBe(200);
+    expect(res.body.organizationId).toBe(ORG_ID);
+    expect(verifyToken(res.body.token).organizationId).toBe(ORG_ID);
+  });
+});
+
 // ============================================
 // MULTI-TENANT ISOLATION TESTS
 // ============================================

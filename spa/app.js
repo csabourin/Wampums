@@ -345,7 +345,7 @@ export const app = {
       if (!token && this.organizationId) {
         try {
           debugLog('Fetching organization JWT...');
-          const data = await fetchOrganizationJwt(this.organizationId);
+          const data = await fetchOrganizationJwt();
           if (data.success && data.token) {
             setStorage('jwtToken', data.token);
             debugLog('Organization JWT obtained');
