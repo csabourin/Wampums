@@ -30,6 +30,7 @@ import { setContent, insertHTML } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { CONFIG } from '../../config.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 const DEFAULT_CURRENCY = CONFIG.DEFAULT_CURRENCY;
 
@@ -259,7 +260,7 @@ export class Finance extends BaseModule {
 
   renderLoading() {
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <section class="finance-page">
         <header class="finance-header">
           <div>
@@ -282,7 +283,7 @@ export class Finance extends BaseModule {
     const canEditDefinitions = canManageFinance();
     const canSeeReports = canViewFinance();
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <section class="finance-page">
         <header class="finance-header">
           <div>
@@ -346,7 +347,7 @@ export class Finance extends BaseModule {
             <p class="finance-meta">${translate('membership_fee_label')}: ${this.formatCurrency(def.membership_fee)}</p>
             <div class="finance-actions">
               <button class="secondary-button" data-action="edit-definition" data-id="${def.id}">${translate('edit')}</button>
-              <button class="btn-danger" data-action="delete-definition" data-id="${def.id}">${translate('delete')}</button>
+              <button class="button--danger" data-action="delete-definition" data-id="${def.id}">${translate('delete')}</button>
             </div>
           </article>
         `;
@@ -763,7 +764,7 @@ export class Finance extends BaseModule {
         </form>
       `,
       footer: `
-        <button type="button" class="btn-danger" id="delete-plan-btn">${translate('delete')}</button>
+        <button type="button" class="button--danger" id="delete-plan-btn">${translate('delete')}</button>
         <button type="submit" class="primary-button" form="plan-form">${translate('save')}</button>
       `,
     };

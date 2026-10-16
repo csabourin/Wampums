@@ -15,6 +15,7 @@ import { hasPermission } from '../../utils/PermissionUtils.js';
 import { roleLabel } from '../../utils/RoleLabelUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 export class FormPermissionsManager {
   constructor(app) {
@@ -179,7 +180,7 @@ export class FormPermissionsManager {
    */
   render() {
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <div class="form-permissions-manager">
         <header class="page-header">
           <h1>${translate('form_permissions_management')}</h1>

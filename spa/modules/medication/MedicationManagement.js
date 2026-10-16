@@ -28,6 +28,7 @@ import {
 import { buildApiCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { offlineManager } from '../OfflineManager.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 /**
  * Medication management module
@@ -926,7 +927,7 @@ export class MedicationManagement {
 
     if (this.offlineNoData) {
       setContent(container, `
-        <a href="/dashboard" class="button button--ghost">← ${escapeHTML(translate('back'))}</a>
+        ${renderBackLink()}
         <section class="page medication-page">
           <div class="card" style="text-align:center; padding:2rem;">
             <h2>${escapeHTML(translate('offline_indicator'))}</h2>
@@ -992,7 +993,7 @@ export class MedicationManagement {
       : '';
 
     setContent(container, `
-      <a href="${backUrl}" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink(backUrl)}
       <section class="page medication-page">
         <div class="card">
           <h1>${escapeHTML(pageTitle)}${participantName}</h1>
@@ -1095,7 +1096,7 @@ export class MedicationManagement {
             <p class="help-text">${escapeHTML(translate('medication_end_date_hint'))}</p>
           </label>
           ${participantSelectorHtml}
-          <button class="btn primary" type="submit">${escapeHTML(translate('medication_save_requirement'))}</button>
+          <button class="button button--primary" type="submit">${escapeHTML(translate('medication_save_requirement'))}</button>
         </form>
       </div>
       <div class="card">
@@ -1198,7 +1199,7 @@ export class MedicationManagement {
 
           ${ta ? `<p style="color:#15803d;font-weight:600;">✅ ${escapeHTML(translate('signed_on'))} ${formatDate(ta.date_signature)}</p>` : ''}
 
-          <button type="submit" class="btn primary" id="saveTreatmentAuth">
+          <button type="submit" class="button button--primary" id="saveTreatmentAuth">
             ${escapeHTML(translate('save'))}
           </button>
         </form>
@@ -1276,7 +1277,7 @@ export class MedicationManagement {
 
           ${aa ? `<p style="color:#15803d;font-weight:600;">✅ ${escapeHTML(translate('signed_on'))} ${formatDate(aa.date_signature)}</p>` : ''}
 
-          <button type="submit" class="btn primary" id="saveAdminAuth">
+          <button type="submit" class="button button--primary" id="saveAdminAuth">
             ${escapeHTML(translate('save'))}
           </button>
         </form>
@@ -1429,7 +1430,7 @@ export class MedicationManagement {
                     ${req.general_notes ? `<div class="medication-notes">${escapeHTML(req.general_notes)}</div>` : ''}
                   </div>
                   <button
-                    class="btn primary btn-give-med"
+                    class="button button--primary btn-give-med"
                     data-participant-id="${participantId}"
                     data-requirement-id="${req.id}"
                     data-medication-name="${escapeHTML(req.medication_name)}"
@@ -1723,7 +1724,7 @@ export class MedicationManagement {
                   ${req.general_notes ? `<div class="medication-notes">${escapeHTML(req.general_notes)}</div>` : ''}
                 </div>
                 <button
-                  class="btn primary btn-give-med"
+                  class="button button--primary btn-give-med"
                   data-participant-id="${participantId}"
                   data-requirement-id="${req.id}"
                   data-medication-name="${escapeHTML(req.medication_name)}"
@@ -1866,8 +1867,8 @@ export class MedicationManagement {
             </ul>
           </div>
           <div class="alert-actions">
-            <button class="btn secondary" data-prefill-slot="${alert.slotKey}" data-requirement-id="${alert.primaryRequirementId}">${escapeHTML(translate('medication_prefill_from_alert'))}</button>
-            <button class="btn primary" data-mark-given-slot="${alert.slotKey}" data-distributions="${alert.distributionIds.join(',')}">${escapeHTML(translate('medication_mark_given'))}</button>
+            <button class="button button--secondary" data-prefill-slot="${alert.slotKey}" data-requirement-id="${alert.primaryRequirementId}">${escapeHTML(translate('medication_prefill_from_alert'))}</button>
+            <button class="button button--primary" data-mark-given-slot="${alert.slotKey}" data-distributions="${alert.distributionIds.join(',')}">${escapeHTML(translate('medication_mark_given'))}</button>
           </div>
         </div>
       `;
@@ -2478,8 +2479,8 @@ export class MedicationManagement {
         </div>
       `,
       footer: `
-        <button type="button" class="btn secondary" data-modal-close>${escapeHTML(translate('cancel'))}</button>
-        <button type="button" class="btn primary" id="quickGiveConfirm">${escapeHTML(translate('medication_confirm_given'))}</button>
+        <button type="button" class="button button--secondary" data-modal-close>${escapeHTML(translate('cancel'))}</button>
+        <button type="button" class="button button--primary" id="quickGiveConfirm">${escapeHTML(translate('medication_confirm_given'))}</button>
       `,
       initialFocus: '#quickGiveWitness',
     });

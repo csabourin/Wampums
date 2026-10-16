@@ -10,6 +10,7 @@ import { setContent } from '../../utils/DOMUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 export class ViewParticipantDocuments extends BaseModule {
   constructor(app) {
     super(app);
@@ -98,7 +99,7 @@ export class ViewParticipantDocuments extends BaseModule {
 
   render() {
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <h1>${translate('view_participant_documents')}</h1>
       <div class="participant-documents">
         ${this.renderParticipantList()}
@@ -202,7 +203,7 @@ export class ViewParticipantDocuments extends BaseModule {
 
   renderError(message) {
     const errorMessage = `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <h1>${translate('error')}</h1>
       <p>${message || translate('error_loading_participant_documents')}</p>
     `;

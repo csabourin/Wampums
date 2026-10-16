@@ -13,6 +13,7 @@ import { LoadingStateManager, retryWithBackoff } from '../../utils/PerformanceUt
 import { setContent } from '../../utils/DOMUtils.js';
 import { getCurrentFiscalYear, getFiscalYearOptions } from '../../utils/FiscalYearUtils.js';
 import { CONFIG } from '../../config.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 const DEFAULT_CURRENCY = CONFIG.DEFAULT_CURRENCY;
 
@@ -198,7 +199,7 @@ export class RevenueDashboard {
     setContent(container, `
       <div class="page-container revenue-dashboard-page">
         <div class="page-header">
-          <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+          ${renderBackLink()}
           <div class="page-header-content">
             <h1>${translate('revenue_dashboard')}</h1>
           </div>
@@ -218,7 +219,7 @@ export class RevenueDashboard {
     setContent(container, `
       <div class="page-container revenue-dashboard-page">
         <div class="page-header">
-          <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+          ${renderBackLink()}
           <div class="page-header-content">
             <h1>${translate('revenue_dashboard')}</h1>
             <div class="fiscal-year-selector">
@@ -283,7 +284,7 @@ export class RevenueDashboard {
 
         <div class="summary-card action-card">
           <div class="card-content">
-            <button class="btn btn-secondary" id="export-dashboard-btn">
+            <button class="button button--secondary" id="export-dashboard-btn">
               ${translate('export_csv')}
             </button>
           </div>

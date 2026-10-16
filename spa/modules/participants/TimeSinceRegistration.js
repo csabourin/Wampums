@@ -8,6 +8,7 @@ import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { formatDateShort } from '../../utils/DateUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 export class TimeSinceRegistration {
   constructor(app) {
@@ -53,7 +54,7 @@ export class TimeSinceRegistration {
 
   render() {
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <h1>${translate('time_since_registration_report')}</h1>
       <div class="controls-container">
         <div class="sort-options">
@@ -206,7 +207,7 @@ export class TimeSinceRegistration {
 
   renderError() {
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <h1>${translate('time_since_registration_report')}</h1>
       <div class="error-message">
         <p>${translate('error_loading_data')}</p>

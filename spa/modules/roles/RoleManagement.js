@@ -26,6 +26,7 @@ import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { API } from '../../api/api-core.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 export class RoleManagement {
   constructor(appInstance) {
     this.app = appInstance;
@@ -111,7 +112,7 @@ export class RoleManagement {
   renderAccessDenied() {
     const appContainer = document.getElementById('app');
     setContent(appContainer, `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <div class="role-management-container">
         <h1>${translate('access_denied') || 'Access Denied'}</h1>
         <p>${translate('no_permission_role_management') || 'You do not have permission to manage roles.'}</p>
@@ -122,7 +123,7 @@ export class RoleManagement {
   renderError(message) {
     const appContainer = document.getElementById('app');
     setContent(appContainer, `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <div class="role-management-container">
         <h1>${translate('error') || 'Error'}</h1>
         <p class="error-message">${message}</p>
@@ -134,7 +135,7 @@ export class RoleManagement {
     const canAssignRoles = hasPermission('users.assign_roles');
 
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <div class="role-management-container">
         <div class="page-header">
           <h1>${translate('role_management') || 'Role & Permission Management'}</h1>
@@ -274,7 +275,7 @@ export class RoleManagement {
             ${roleNames ? `<div class="user-roles-summary">${this.escapeHtml(roleNames)}</div>` : ''}
           </div>
           <div class="user-action">
-            <button class="btn-small btn-manage-roles" data-user-id="${user.id}"${isSelected ? ' aria-current="true"' : ''}>
+            <button class="button--small btn-manage-roles" data-user-id="${user.id}"${isSelected ? ' aria-current="true"' : ''}>
               ${translate('manage_roles') || 'Manage'}
             </button>
           </div>
@@ -362,10 +363,10 @@ export class RoleManagement {
           </div>
 
           <div class="form-actions">
-            <button type="submit" class="btn-primary">
+            <button type="submit" class="button--primary">
               ${translate('save_roles') || 'Save Roles'}
             </button>
-            <button type="button" class="btn-secondary" id="cancel-assignment">
+            <button type="button" class="button--secondary" id="cancel-assignment">
               ${translate('cancel') || 'Cancel'}
             </button>
           </div>
@@ -395,7 +396,7 @@ export class RoleManagement {
       <section class="membership-section" aria-labelledby="membership-heading">
         <h3 id="membership-heading">${translate('member_access_title')}</h3>
         <p>${translate(inactive ? 'member_access_inactive' : 'member_access_active')}</p>
-        <button type="button" id="membership-toggle" class="${inactive ? 'btn-secondary' : 'btn-danger'}">
+        <button type="button" id="membership-toggle" class="${inactive ? 'button--secondary' : 'button--danger'}">
           ${translate(inactive ? 'member_access_reactivate' : 'member_access_deactivate')}
         </button>
         <div id="membership-message" class="status-message" role="status" aria-live="polite"></div>

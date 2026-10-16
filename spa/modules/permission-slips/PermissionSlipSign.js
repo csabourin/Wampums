@@ -149,10 +149,10 @@ export class PermissionSlipSign {
               </div>
 
               <div class="permission-slip-response-actions">
-                <button class="btn btn-success btn-lg" id="sign-btn" disabled>
+                <button class="button button--primary button--large" id="sign-btn" disabled>
                   <i class="fas fa-signature"></i> ${translate('sign_permission_slip')}
                 </button>
-                <button class="btn btn-danger btn-lg" id="decline-btn" disabled>
+                <button class="button button--danger button--large" id="decline-btn" disabled>
                   <i class="fas fa-times-circle"></i> ${translate('permission_slip_decline')}
                 </button>
               </div>

@@ -22,6 +22,7 @@ import { CONFIG } from '../../config.js';
 import { setContent } from '../../utils/DOMUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 /**
  * What a leader can do to a reservation, given where it currently stands.
  *
@@ -181,7 +182,7 @@ export class MaterialManagement {
       .map(
         (action) => `
           <button type="button"
-                  class="btn btn--small btn--${action.variant} js-reservation-action"
+                  class="button button--small button--${action.variant} js-reservation-action"
                   data-reservation-id="${escapeHTML(String(reservation.id))}"
                   data-next-status="${escapeHTML(action.status)}">
             ${escapeHTML(translate(action.labelKey))}
@@ -248,7 +249,7 @@ export class MaterialManagement {
     const dateTo = document.getElementById('reservationDateTo')?.value || getTodayISO();
 
     setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <section class="page material-management-page">
         <div class="card">
           <h1>${escapeHTML(translate('material_management_title'))}</h1>
@@ -287,7 +288,7 @@ export class MaterialManagement {
               <span>${escapeHTML(translate('reservation_notes'))}</span>
               <textarea name="notes" rows="2" maxlength="2000"></textarea>
             </label>
-            <button type="submit" class="btn primary" ${selectedItemsList.length === 0 ? 'disabled' : ''}>${escapeHTML(translate('reserve_selected'))}</button>
+            <button type="submit" class="button button--primary" ${selectedItemsList.length === 0 ? 'disabled' : ''}>${escapeHTML(translate('reserve_selected'))}</button>
           </form>
         </div>
 

@@ -25,6 +25,7 @@ import { roleLabel } from '../../utils/RoleLabelUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderPushRecipients, pushSendResultKey, describePushSendResult } from '../push/pushRecipients.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 export class Admin {
   constructor(app, options = {}) {
     this.app = app;
@@ -167,7 +168,7 @@ export class Admin {
     const showNotifications = this.permissions.canSendCommunications;
     const showUserManagement = this.permissions.canManageUsers || this.permissions.canViewUsers;
     const content = `
-                        ${this.embedded ? '' : `<a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+                        ${this.embedded ? '' : `${renderBackLink()}
                         <h1>${translate('tile_admin_panel')}</h1>`}
                         <div id="message"></div>
 

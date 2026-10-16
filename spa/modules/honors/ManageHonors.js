@@ -11,6 +11,7 @@ import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { offlineManager } from '../OfflineManager.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 export class ManageHonors {
   constructor(app) {
     this.app = app;
@@ -196,7 +197,7 @@ export class ManageHonors {
     ).join('');
 
     const content = `
-        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+        ${renderBackLink()}
         <div class="page-header page-header--compact">
             <h1>${translate('manage_honors')}</h1>
         </div>

@@ -21,6 +21,7 @@ import {
 } from './campaignModel.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 /** Length of the date part of an ISO timestamp (`YYYY-MM-DD`). */
 const ISO_DATE_LENGTH = 10;
 
@@ -118,7 +119,7 @@ export class Fundraisers {
 
   render() {
     const content = `
-			<a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+			${renderBackLink()}
 			<div class="fundraisers-header">
 				<h1>${translate('fundraisers')}</h1>
 			</div>
@@ -191,19 +192,19 @@ export class Fundraisers {
 					</div>
 				</div>
 				<div class="fundraiser-card-footer">
-					<a href="/calendars/${fundraiser.id}" class="btn-link" aria-label="${translate('view_fundraiser_entries_for')} ${escapeHTML(fundraiser.name)}">
+					<a href="/calendars/${fundraiser.id}" class="button--primary" aria-label="${translate('view_fundraiser_entries_for')} ${escapeHTML(fundraiser.name)}">
 						${translate('view_fundraiser_entries')}
 					</a>
 					${canEdit ? `
-						<button class="btn-secondary edit-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('edit')} ${escapeHTML(fundraiser.name)}">
+						<button class="button--secondary edit-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('edit')} ${escapeHTML(fundraiser.name)}">
 							${translate('edit')}
 						</button>
-						<button class="btn-danger archive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('archive')} ${escapeHTML(fundraiser.name)}">
+						<button class="button--danger archive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('archive')} ${escapeHTML(fundraiser.name)}">
 							${translate('archive')}
 						</button>
 					` : ''}
 					${canDelete && this.isCampaignEmpty(fundraiser) ? `
-						<button class="btn-danger delete-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('delete')} ${escapeHTML(fundraiser.name)}">
+						<button class="button--danger delete-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('delete')} ${escapeHTML(fundraiser.name)}">
 							${translate('delete')}
 						</button>
 					` : ''}
@@ -298,11 +299,11 @@ export class Fundraisers {
 					</div>
 				</div>
 				<div class="fundraiser-card-footer">
-					<a href="/calendars/${fundraiser.id}" class="btn-link" aria-label="${translate('view_fundraiser_entries_for')} ${escapeHTML(fundraiser.name)}">
+					<a href="/calendars/${fundraiser.id}" class="button--primary" aria-label="${translate('view_fundraiser_entries_for')} ${escapeHTML(fundraiser.name)}">
 						${translate('view_fundraiser_entries')}
 					</a>
 					${canEdit ? `
-						<button class="btn-secondary unarchive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('unarchive')} ${escapeHTML(fundraiser.name)}">
+						<button class="button--secondary unarchive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('unarchive')} ${escapeHTML(fundraiser.name)}">
 							${translate('unarchive')}
 						</button>
 					` : ''}
@@ -430,7 +431,7 @@ export class Fundraisers {
       title: translate(fundraiser ? 'edit_fundraiser' : 'add_fundraiser'),
       body: this.renderForm(),
       footer: `
-        <button type="button" class="btn-secondary modal-cancel" data-modal-close>${translate('cancel')}</button>
+        <button type="button" class="button--secondary modal-cancel" data-modal-close>${translate('cancel')}</button>
         <button type="submit" class="primary-btn" form="fundraiser-form">${translate('save')}</button>
       `,
       initialFocus: '#fundraiser-name',

@@ -4,6 +4,7 @@ import { debugError, debugLog } from '../../utils/DebugUtils.js';
 import { formatDate, getTodayISO, parseDate } from '../../utils/DateUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { isSameMedication, splitDeclaredMedications } from '../../utils/MedicationTextUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import {
   getActivities,
   getParticipants,
@@ -390,7 +391,7 @@ export class MedicationReception {
     const activityName = selectedActivity ? escapeHTML(selectedActivity.name) : translate('med_reception_select_activity');
 
     setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <section class="page medication-reception-page">
         <div class="card">
           <h1>🏥 ${translate('med_reception_title')}</h1>
@@ -520,13 +521,13 @@ export class MedicationReception {
     });
 
     const unplanned = this.getUnplannedDeclarations(participant.id, medications);
-    const planLink = `<a href="/medication-planning/${participant.id}" class="btn btn-small secondary">
+    const planLink = `<a href="/medication-planning/${participant.id}" class="button button--small button--secondary">
           + ${translate('manage_medications')}
         </a>`;
 
     const headerActions = medications.length > 0
       ? `
-        <button class="btn btn-small secondary mark-all-received" data-participant-id="${participant.id}">
+        <button class="button button--small button--secondary mark-all-received" data-participant-id="${participant.id}">
           ✓ ${translate('med_reception_mark_all_received')}
         </button>
         ${allReceived ? `<span class="pill" style="background: #10b981; color: white;">

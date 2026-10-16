@@ -17,6 +17,7 @@ import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { DEFAULT_LANG, FORM_CONTENT_LANGS, SUPPORTED_LANGS } from '../../config/languages.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import {
   formInfoHtml,
   hasOwnText,
@@ -129,11 +130,11 @@ export class FormBuilder extends BaseModule {
     const container = document.getElementById('app');
     setContent(container, `
             <div class="form-builder">
-                <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+                ${renderBackLink()}
                 <h1>${translate('form_builder_title')}</h1>
                 
                 <div class="form-builder-toolbar">
-                    <button id="create-new-format" class="btn btn-primary">
+                    <button id="create-new-format" class="button button--primary">
                         ${translate('create_new_form_format')}
                     </button>
                 </div>
@@ -169,10 +170,10 @@ export class FormBuilder extends BaseModule {
                             ${translate('fields')}: ${format.form_structure?.fields?.length || 0}
                         </p>
                         <div class="format-actions">
-                            <button class="btn btn-sm edit-format" data-format-id="${format.id}">
+                            <button class="button button--small edit-format" data-format-id="${format.id}">
                                 ${translate('edit')}
                             </button>
-                            <button class="btn btn-sm btn-danger delete-format" data-format-id="${format.id}">
+                            <button class="button button--small button--danger delete-format" data-format-id="${format.id}">
                                 ${translate('delete')}
                             </button>
                         </div>
@@ -194,17 +195,17 @@ export class FormBuilder extends BaseModule {
             <div class="editor-header">
                 <h2>${translate('editing_form')}: ${escapeHTML(this.currentFormat.form_type)}</h2>
                 <div class="editor-actions">
-                    <button id="save-format" class="btn btn-primary">${translate('save')}</button>
-                    <button id="preview-format" class="btn btn-secondary">${translate('preview')}</button>
-                    <button id="copy-format" class="btn btn-secondary">${translate('copy_to_org')}</button>
-                    <button id="close-editor" class="btn btn-secondary">${translate('close')}</button>
+                    <button id="save-format" class="button button--primary">${translate('save')}</button>
+                    <button id="preview-format" class="button button--secondary">${translate('preview')}</button>
+                    <button id="copy-format" class="button button--secondary">${translate('copy_to_org')}</button>
+                    <button id="close-editor" class="button button--secondary">${translate('close')}</button>
                 </div>
             </div>
 
             <div class="editor-body">
                 <div class="fields-list">
                     <h3>${translate('form_fields')}</h3>
-                    <button id="add-field" class="btn btn-sm btn-primary">
+                    <button id="add-field" class="button button--small button--primary">
                         ${translate('add_field')}
                     </button>
                     <div id="fields-container" class="fields-container">
@@ -242,15 +243,15 @@ export class FormBuilder extends BaseModule {
                             ${this.renderMissingTextBadge(field)}
                         </div>
                         <div class="field-actions">
-                            <button class="btn-icon move-up" data-index="${index}" 
+                            <button class="button--icon move-up" data-index="${index}" 
                                     aria-label="${translate('move_up')}"
                                     ${index === 0 ? 'disabled' : ''}>↑</button>
-                            <button class="btn-icon move-down" data-index="${index}" 
+                            <button class="button--icon move-down" data-index="${index}" 
                                     aria-label="${translate('move_down')}"
                                     ${index === this.currentFields.length - 1 ? 'disabled' : ''}>↓</button>
-                            <button class="btn-icon edit-field" data-index="${index}" 
+                            <button class="button--icon edit-field" data-index="${index}" 
                                     aria-label="${translate('edit_field')}">✏️</button>
-                            <button class="btn-icon delete-field" data-index="${index}" 
+                            <button class="button--icon delete-field" data-index="${index}" 
                                     aria-label="${translate('delete_field')}">🗑️</button>
                         </div>
                     </div>
@@ -379,7 +380,7 @@ export class FormBuilder extends BaseModule {
                     <div class="input-with-button">
                         <input type="text" id="field-label" name="label" value="${escapeAttribute(field.label || '')}" 
                                placeholder="field_name_label" required>
-                        <button type="button" id="add-label-translation" class="btn btn-sm">
+                        <button type="button" id="add-label-translation" class="button button--small">
                             ${translate('add_translation')}
                         </button>
                     </div>
@@ -393,7 +394,7 @@ export class FormBuilder extends BaseModule {
                     <div class="input-with-button">
                         <input type="text" id="field-info-text" name="infoText" value="${escapeAttribute(field.infoText || '')}"
                                placeholder="info_text_key" aria-describedby="field-info-text-hint">
-                        <button type="button" id="add-info-translation" class="btn btn-sm">
+                        <button type="button" id="add-info-translation" class="button button--small">
                             ${translate('add_translation')}
                         </button>
                     </div>
@@ -409,7 +410,7 @@ export class FormBuilder extends BaseModule {
                     <div id="options-container" role="group" aria-labelledby="field-options-label">
                         ${this.renderOptionsEditor(field.options || [])}
                     </div>
-                    <button type="button" id="add-option" class="btn btn-sm">${translate('add_option')}</button>
+                    <button type="button" id="add-option" class="button button--small">${translate('add_option')}</button>
                 </div>
 
                 <div class="form-group">
@@ -442,8 +443,8 @@ export class FormBuilder extends BaseModule {
             </form>
             `,
       footer: `
-                <button type="button" data-modal-close class="btn btn-secondary">${translate('cancel')}</button>
-                <button type="submit" form="field-editor-form" class="btn btn-primary">${translate('save_field')}</button>
+                <button type="button" data-modal-close class="button button--secondary">${translate('cancel')}</button>
+                <button type="submit" form="field-editor-form" class="button button--primary">${translate('save_field')}</button>
             `,
     });
     this.updateFieldEditorVisibility(field.type);
@@ -480,7 +481,7 @@ export class FormBuilder extends BaseModule {
                 <input type="text" class="option-value" value="${escapeAttribute(option.value || '')}"
                        placeholder="${translate('value')}"
                        aria-label="${escapeAttribute(`${translate('value')} ${position}`)}">
-                <button type="button" class="btn-icon remove-option" data-index="${index}"
+                <button type="button" class="button--icon remove-option" data-index="${index}"
                         aria-label="${escapeAttribute(`${translate('remove_option')} ${position}`)}"><span aria-hidden="true">🗑️</span></button>
             </div>
         `;
@@ -942,8 +943,8 @@ export class FormBuilder extends BaseModule {
           ${languageRows}
         </form>`,
       footer: `
-        <button type="button" class="btn btn-secondary" data-modal-close>${translate('cancel')}</button>
-        <button type="submit" form="translation-form" class="btn btn-primary">${translate('save')}</button>`,
+        <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="submit" form="translation-form" class="button button--primary">${translate('save')}</button>`,
     });
 
     if (rich) {
@@ -1156,8 +1157,8 @@ export class FormBuilder extends BaseModule {
             </form>
             `,
       footer: `
-                <button type="button" class="btn btn-secondary" data-modal-close>${translate('cancel')}</button>
-                <button type="submit" form="create-format-form" class="btn btn-primary">${translate('create')}</button>
+                <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+                <button type="submit" form="create-format-form" class="button button--primary">${translate('create')}</button>
             `,
     });
 
@@ -1317,8 +1318,8 @@ export class FormBuilder extends BaseModule {
             </form>
             `,
       footer: `
-                <button type="button" class="btn btn-secondary" data-modal-close>${translate('cancel')}</button>
-                <button type="submit" form="copy-format-form" class="btn btn-primary">${translate('copy')}</button>
+                <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+                <button type="submit" form="copy-format-form" class="button button--primary">${translate('copy')}</button>
             `,
     });
 

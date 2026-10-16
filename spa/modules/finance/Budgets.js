@@ -30,6 +30,7 @@ import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { getCurrentFiscalYear, getFiscalYearOptions } from '../../utils/FiscalYearUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 const DEFAULT_CURRENCY = 'CAD';
 
@@ -220,7 +221,7 @@ export class Budgets {
     if (!container) {return;}
 
     setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <div class="page-container budget-page">
         <div class="page-header">
           <div class="page-header-content">
@@ -242,7 +243,7 @@ export class Budgets {
     const tabContent = await this.renderTabContent();
 
     setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <div class="page-container budgets-page">
         <div class="page-header">
           <div class="page-header-content">
@@ -457,7 +458,7 @@ export class Budgets {
       <div class="categories-content">
         <div class="section-header">
           <h2>${translate('budget_categories')}</h2>
-          <button class="btn btn-primary" id="add-category-btn">
+          <button class="button button--primary" id="add-category-btn">
             ${translate('add_category')}
           </button>
         </div>
@@ -476,10 +477,10 @@ export class Budgets {
                 </div>
                 ${cat.description ? `<p class="category-description">${escapeHTML(cat.description)}</p>` : ''}
                 <div class="category-actions">
-                  <button class="btn btn-sm btn-secondary edit-category-btn" data-id="${cat.id}">
+                  <button class="button button--small button--secondary edit-category-btn" data-id="${cat.id}">
                     ${translate('edit')}
                   </button>
-                  <button class="btn btn-sm btn-danger delete-category-btn" data-id="${cat.id}">
+                  <button class="button button--small button--danger delete-category-btn" data-id="${cat.id}">
                     ${translate('delete')}
                   </button>
                 </div>
@@ -498,7 +499,7 @@ export class Budgets {
       <div class="budget-items-content">
         <div class="section-header">
           <h2>${translate('budget_items')}</h2>
-          <button class="btn btn-primary" id="add-budget-item-btn">
+          <button class="button button--primary" id="add-budget-item-btn">
             ${translate('add_budget_item')}
           </button>
         </div>
@@ -525,10 +526,10 @@ export class Budgets {
                     <td>${escapeHTML(item.category_name || translate('uncategorized'))}</td>
                     <td class="item-description">${escapeHTML(item.description || '-')}</td>
                     <td>
-                      <button class="btn btn-sm btn-secondary edit-budget-item-btn" data-id="${item.id}">
+                      <button class="button button--small button--secondary edit-budget-item-btn" data-id="${item.id}">
                         ${translate('edit')}
                       </button>
-                      <button class="btn btn-sm btn-danger delete-budget-item-btn" data-id="${item.id}">
+                      <button class="button button--small button--danger delete-budget-item-btn" data-id="${item.id}">
                         ${translate('delete')}
                       </button>
                     </td>
@@ -549,7 +550,7 @@ export class Budgets {
       <div class="expenses-content">
         <div class="section-header">
           <h2>${translate('expenses')}</h2>
-          <button class="btn btn-primary" id="add-expense-btn">
+          <button class="button button--primary" id="add-expense-btn">
             ${translate('add_expense')}
           </button>
         </div>
@@ -578,10 +579,10 @@ export class Budgets {
                     <td>${escapeHTML(expense.description)}</td>
                     <td class="text-right amount expense">${this.formatCurrency(expense.amount)}</td>
                     <td>
-                      <button class="btn btn-sm btn-secondary edit-expense-btn" data-id="${expense.id}">
+                      <button class="button button--small button--secondary edit-expense-btn" data-id="${expense.id}">
                         ${translate('edit')}
                       </button>
-                      <button class="btn btn-sm btn-danger delete-expense-btn" data-id="${expense.id}">
+                      <button class="button button--small button--danger delete-expense-btn" data-id="${expense.id}">
                         ${translate('delete')}
                       </button>
                     </td>
@@ -603,7 +604,7 @@ export class Budgets {
       <div class="planning-content">
         <div class="section-header">
           <h2>${translate('budget_planning')}</h2>
-          <button class="btn btn-primary" id="add-plan-btn">
+          <button class="button button--primary" id="add-plan-btn">
             ${translate('add_budget_plan')}
           </button>
         </div>
@@ -650,10 +651,10 @@ export class Budgets {
                 <td class="text-right amount expense">${this.formatCurrency(plan.budgeted_expense)}</td>
                 <td class="notes-cell">${escapeHTML(plan.notes || '')}</td>
                 <td>
-                  <button class="btn btn-sm btn-secondary edit-plan-btn" data-id="${plan.id}">
+                  <button class="button button--small button--secondary edit-plan-btn" data-id="${plan.id}">
                     ${translate('edit')}
                   </button>
-                  <button class="btn btn-sm btn-danger delete-plan-btn" data-id="${plan.id}">
+                  <button class="button button--small button--danger delete-plan-btn" data-id="${plan.id}">
                     ${translate('delete')}
                   </button>
                 </td>
@@ -1138,10 +1139,10 @@ export class Budgets {
           </select>
         </div>
         
-        <button class="btn btn-secondary" id="apply-revenue-filters-btn">
+        <button class="button button--secondary" id="apply-revenue-filters-btn">
           ${translate('apply_filters')}
         </button>
-        <button class="btn btn-secondary" id="reset-revenue-filters-btn">
+        <button class="button button--secondary" id="reset-revenue-filters-btn">
           ${translate('reset_filters')}
         </button>
       </div>
@@ -1411,10 +1412,10 @@ export class Budgets {
         </form>
       `,
       footer: `
-        <button type="button" class="btn btn-secondary" data-modal-close>
+        <button type="button" class="button button--secondary" data-modal-close>
           ${translate('cancel')}
         </button>
-        <button type="submit" form="category-form" class="btn btn-primary">
+        <button type="submit" form="category-form" class="button button--primary">
           ${isEdit ? translate('update') : translate('create')}
         </button>
       `,
@@ -1506,10 +1507,10 @@ export class Budgets {
         </form>
       `,
       footer: `
-        <button type="button" class="btn btn-secondary" data-modal-close>
+        <button type="button" class="button button--secondary" data-modal-close>
           ${translate('cancel')}
         </button>
-        <button type="submit" form="budget-item-form" class="btn btn-primary">
+        <button type="submit" form="budget-item-form" class="button button--primary">
           ${isEdit ? translate('update') : translate('create')}
         </button>
       `,
@@ -1615,10 +1616,10 @@ export class Budgets {
         </form>
       `,
       footer: `
-        <button type="button" class="btn btn-secondary" data-modal-close>
+        <button type="button" class="button button--secondary" data-modal-close>
           ${translate('cancel')}
         </button>
-        <button type="submit" form="expense-form" class="btn btn-primary">
+        <button type="submit" form="expense-form" class="button button--primary">
           ${isEdit ? translate('update') : translate('create')}
         </button>
       `,
@@ -1741,10 +1742,10 @@ export class Budgets {
         </form>
       `,
       footer: `
-        <button type="button" class="btn btn-secondary" data-modal-close>
+        <button type="button" class="button button--secondary" data-modal-close>
           ${translate('cancel')}
         </button>
-        <button type="submit" form="plan-form" class="btn btn-primary">
+        <button type="submit" form="plan-form" class="button button--primary">
           ${isEdit ? translate('update') : translate('create')}
         </button>
       `,

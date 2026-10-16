@@ -13,6 +13,7 @@ import {
 import { deleteCachedData } from '../../indexedDB.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 /**
  * Label a reservation status in the reader's language.
  *
@@ -86,7 +87,7 @@ export class ResourceDashboard {
     setContent(
       container,
       `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <section class="page resource-dashboard">
         <div class="card">
           <h1>${escapeHTML(translate('resource_dashboard_title'))}</h1>
@@ -149,7 +150,7 @@ export class ResourceDashboard {
               <span>${escapeHTML(translate('equipment_description'))}</span>
               <textarea name="description" rows="2" maxlength="2000"></textarea>
             </label>
-            <button type="submit" class="btn primary">${escapeHTML(translate('save_equipment'))}</button>
+            <button type="submit" class="button button--primary">${escapeHTML(translate('save_equipment'))}</button>
           </form>
           <div class="table-container">
             <table class="data-table">
@@ -214,7 +215,7 @@ export class ResourceDashboard {
               <span>${escapeHTML(translate('reservation_notes'))}</span>
               <textarea name="notes" rows="2" maxlength="2000"></textarea>
             </label>
-            <button type="submit" class="btn primary">${escapeHTML(translate('reservation_save'))}</button>
+            <button type="submit" class="button button--primary">${escapeHTML(translate('reservation_save'))}</button>
           </form>
           <div class="table-container">
             <table class="data-table">

@@ -7,6 +7,7 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { openPrintWindow, setPrintContent } from '../../utils/PrintUtils.js';
 import { formatDateShort } from '../../utils/DateUtils.js';
 import { formatCurrency } from '../../utils/NumberUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import {
   DEFAULT_CAMPAIGN_TYPE,
   campaignTypeCapabilities,
@@ -90,8 +91,7 @@ export class Calendars {
     const content = `
 			<div class="calendars-header">
 				<div class="header-nav">
-					<a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
-					<a href="/fundraisers" class="button button--ghost">← ${translate('back_to_fundraisers')}</a>
+					${renderBackLink('/fundraisers')}
 				</div>
 				<div class="fundraiser-header-info">
 					<h1>${escapeHTML(this.fundraiser.name)}</h1>

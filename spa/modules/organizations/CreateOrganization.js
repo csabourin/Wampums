@@ -9,6 +9,7 @@ import { canCreateOrganization } from '../../utils/PermissionUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 export class CreateOrganization {
   constructor(app) {
     this.app = app;
@@ -31,7 +32,7 @@ export class CreateOrganization {
 
   async render() {
     const content = `
-						<a href="/district?tab=outils" class="button button--ghost">← ${translate('back')}</a>
+						${renderBackLink('/district?tab=outils')}
 						<h1>${translate('create_new_unit')}</h1>
 						<div id="organization-form-container"></div>
 						<button id="submit-organization">${translate('create_unit')}</button>

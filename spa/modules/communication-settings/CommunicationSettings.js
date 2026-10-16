@@ -8,6 +8,7 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { canSendCommunications, canAccessAdminPanel } from '../../utils/PermissionUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 export class CommunicationSettings extends BaseModule {
   constructor(app) {
     super(app);
@@ -81,7 +82,7 @@ export class CommunicationSettings extends BaseModule {
       container,
       `
       <div class="page communications-page">
-        <a href="/unit-settings" class="button button--ghost">← ${translate('back')}</a>
+        ${renderBackLink('/unit-settings')}
         <h1>${translate('communications_title') || 'Communication settings'}</h1>
         <p class="page-description">${translate('communications_description') || 'Configure WhatsApp and Google Chat to send announcements.'}</p>
 
@@ -139,7 +140,7 @@ export class CommunicationSettings extends BaseModule {
           <label for="google-chat-credentials">${translate('google_chat_credentials_label') || 'Paste service account JSON'}</label>
           <textarea id="google-chat-credentials" name="credentials" rows="6" required placeholder="{\n  \"type\": \"service_account\",\n  ...\n}"></textarea>
           <p class="muted-text">${translate('google_chat_credentials_help') || 'Use the JSON key file from your Google Chat service account.'}</p>
-          <button type="submit" class="btn btn-primary">${translate('save') || 'Save'}</button>
+          <button type="submit" class="button button--primary">${translate('save') || 'Save'}</button>
         </form>
 
         <form id="google-chat-space-form" class="account-form">
@@ -158,7 +159,7 @@ export class CommunicationSettings extends BaseModule {
           <label for="google-chat-space-description">${translate('description') || 'Description'}</label>
           <textarea id="google-chat-space-description" name="description" rows="2"></textarea>
 
-          <button type="submit" class="btn btn-primary">${translate('save') || 'Save'}</button>
+          <button type="submit" class="button button--primary">${translate('save') || 'Save'}</button>
         </form>
 
         <form id="google-chat-test-form" class="account-form">
@@ -172,7 +173,7 @@ export class CommunicationSettings extends BaseModule {
           <label for="google-chat-test-message">${translate('google_chat_test_message_label') || 'Message'}</label>
           <textarea id="google-chat-test-message" name="message" rows="3" required></textarea>
 
-          <button type="submit" class="btn btn-secondary" ${this.googleChatSpaces.length === 0 ? 'disabled' : ''}>
+          <button type="submit" class="button button--secondary" ${this.googleChatSpaces.length === 0 ? 'disabled' : ''}>
             ${translate('google_chat_send_test') || 'Send test'}
           </button>
         </form>

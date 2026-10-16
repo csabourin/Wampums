@@ -26,6 +26,7 @@ import {
 import { canApproveFinance, canManageFinance } from '../../utils/PermissionUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 const DEFAULT_CURRENCY = CONFIG.DEFAULT_CURRENCY;
 
@@ -241,7 +242,7 @@ export class ExternalRevenue {
     setContent(container, `
       <div class="page-container external-revenue-page">
         <div class="page-header">
-          <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+          ${renderBackLink()}
           <div class="page-header-content">
             <h1>${translate('external_revenue')}</h1>
             <div class="fiscal-year-display">
@@ -264,7 +265,7 @@ export class ExternalRevenue {
     setContent(container, `
       <div class="page-container external-revenue-page">
         <div class="page-header">
-          <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+          ${renderBackLink()}
           <div class="page-header-content">
             <h1>${translate('external_revenue')}</h1>
             <div class="fiscal-year-display">
@@ -344,10 +345,10 @@ export class ExternalRevenue {
           </div>
 
           <div class="filter-actions">
-            <button class="btn btn-primary" id="apply-filters-btn">
+            <button class="button button--primary" id="apply-filters-btn">
               ${translate('apply_filters')}
             </button>
-            <button class="btn btn-secondary" id="reset-filters-btn">
+            <button class="button button--secondary" id="reset-filters-btn">
               ${translate('reset')}
             </button>
           </div>
@@ -365,10 +366,10 @@ export class ExternalRevenue {
 
     return `
       <div class="action-buttons">
-        <button class="btn btn-primary" id="add-revenue-btn">
+        <button class="button button--primary" id="add-revenue-btn">
           ${translate('add_external_revenue')}
         </button>
-        <button class="btn btn-secondary" id="export-revenue-btn">
+        <button class="button button--secondary" id="export-revenue-btn">
           ${translate('export_csv')}
         </button>
       </div>
@@ -418,7 +419,7 @@ export class ExternalRevenue {
           ${
   canEdit
     ? `
-            <button class="btn btn-sm btn-secondary edit-revenue-btn" data-id="${revenue.id}">
+            <button class="button button--small button--secondary edit-revenue-btn" data-id="${revenue.id}">
               ${translate('edit')}
             </button>
           `
@@ -427,7 +428,7 @@ export class ExternalRevenue {
           ${
   canDelete
     ? `
-            <button class="btn btn-sm btn-danger delete-revenue-btn" data-id="${revenue.id}">
+            <button class="button button--small button--danger delete-revenue-btn" data-id="${revenue.id}">
               ${translate('delete')}
             </button>
           `
@@ -587,10 +588,10 @@ export class ExternalRevenue {
         </form>
       `,
       footer: `
-        <button type="button" class="btn btn-secondary" data-modal-close>
+        <button type="button" class="button button--secondary" data-modal-close>
           ${translate('cancel')}
         </button>
-        <button type="submit" form="revenue-form" class="btn btn-primary">
+        <button type="submit" form="revenue-form" class="button button--primary">
           ${isEdit ? translate('update') : translate('create')}
         </button>
       `,

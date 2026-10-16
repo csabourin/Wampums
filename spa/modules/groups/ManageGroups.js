@@ -11,6 +11,7 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { canViewGroups } from '../../utils/PermissionUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 export class ManageGroups {
   constructor(app) {
@@ -45,7 +46,7 @@ export class ManageGroups {
 
   render() {
     const content = `
-        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+        ${renderBackLink()}
             <h1>${translate('manage_groups')}</h1>
             <div id="message"></div>
             <form id="add-group-form">

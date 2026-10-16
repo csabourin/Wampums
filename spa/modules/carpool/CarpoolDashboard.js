@@ -30,6 +30,7 @@ import { buildNotFoundMarkup } from '../../utils/NotFoundUtils.js';
 import { parseDate } from '../../utils/DateUtils.js';
 import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { withButtonLoading } from '../../utils/PerformanceUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import {
   formatActivityDateRange,
   getActivityStartDate
@@ -180,7 +181,7 @@ export class CarpoolDashboard {
     if (this.offlineNoData) {
       setContent(container, `
         <section class="page">
-          <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+          ${renderBackLink()}
           <div class="card" style="text-align:center; padding:2rem;">
             <h2>${translate('offline_indicator')}</h2>
             <p>${translate('offline_data_not_prepared')}</p>
@@ -205,7 +206,7 @@ export class CarpoolDashboard {
     const activityDateLabel = formatActivityDateRange(this.activity, this.app.lang || 'fr');
 
     setContent(container, `
-      <button type="button" class="button button--ghost" id="back-btn">← ${translate('back')}</button>
+      ${renderBackLink()}
       <section class="page carpool-page">
         <header class="page__header">
           <div class="page__header-top">
@@ -519,11 +520,6 @@ export class CarpoolDashboard {
   }
 
   attachEventListeners() {
-    // Back button
-    document.getElementById('back-btn')?.addEventListener('click', () => {
-      window.history.back();
-    });
-
     // Offer ride button
     document.getElementById('offer-ride-btn')?.addEventListener('click', () => {
       this.showOfferRideModal();

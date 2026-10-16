@@ -15,6 +15,7 @@ import { LoadingStateManager, retryWithBackoff } from '../../utils/PerformanceUt
 import { isParent } from '../../utils/PermissionUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 export class ParentFinance {
   constructor(app) {
@@ -226,8 +227,8 @@ export class ParentFinance {
 
   renderLoading() {
     const backLink = isParent()
-      ? `<a href="/parent-dashboard" class="button button--ghost">← ${translate('back')}</a>`
-      : `<a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>`;
+      ? `${renderBackLink('/parent-dashboard')}`
+      : `${renderBackLink()}`;
 
     const content = `
       ${backLink}
@@ -249,7 +250,7 @@ export class ParentFinance {
       : `<a href="/dashboard" class="back-link">${translate('back_to_dashboard')}</a>`;
 
     const content = `
-      <a href="/parent-dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink('/parent-dashboard')}
       <section class="parent-finance-page">
         <header class="finance-header">
           <div>
@@ -382,7 +383,7 @@ export class ParentFinance {
             ${hasOutstanding ? `
               <div class="finance-actions">
                 <button
-                  class="btn btn-primary pay-now-btn"
+                  class="button button--primary pay-now-btn"
                   data-fee-id="${fee.id}"
                   data-amount="${fee.outstanding}"
                   data-participant-name="${escapeHTML(fee.participant_name || '')}"
@@ -474,8 +475,8 @@ export class ParentFinance {
         </div>
       `,
       footer: `
-        <button type="button" class="btn btn-secondary" data-modal-close>${translate('cancel')}</button>
-        <button type="button" class="btn btn-primary" id="submit-payment" disabled>
+        <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="button" class="button button--primary" id="submit-payment" disabled>
           <span class="payment-btn-text">${translate('pay')} ${this.formatCurrency(amount)}</span>
           <span class="payment-btn-spinner" style="display: none;">
             <span class="spinner" aria-hidden="true"></span> ${translate('processing')}...

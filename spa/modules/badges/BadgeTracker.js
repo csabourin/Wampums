@@ -34,6 +34,7 @@ import {
   getAttendanceDates,
 } from '../../api/api-endpoints.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 /** Owner key for the badge tracker modal's body scroll lock. */
 const ADD_STAR_MODAL_ID = 'badge-tracker-add-star';
@@ -260,7 +261,7 @@ export class BadgeTracker {
     // The TabbedPage host already draws the back link and the heading.
     const header = this.embedded
       ? ''
-      : `<a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      : `${renderBackLink()}
          <h1>${translate('tile_badge_tracker')}</h1>`;
     setContent(
       app,
@@ -286,7 +287,7 @@ export class BadgeTracker {
   this.canManage
     ? `
           <div class="badge-tracker__actions" style="margin-bottom: 20px; display: flex; gap: 10px; justify-content: flex-end;">
-            <button class="button button--secondary button--sm" data-action="open-retroactive-modal">
+            <button class="button button--secondary button--small" data-action="open-retroactive-modal">
               📅 ${translate('award_group_badge_retroactive') || 'Attribuer badge de groupe (date passée)'}
             </button>
           </div>
@@ -612,7 +613,7 @@ export class BadgeTracker {
           ${
   deliveryItems.length > 0 && this.canApprove
     ? `
-            <button class="button button--primary button--sm" data-action="deliver-all">
+            <button class="button button--primary button--small" data-action="deliver-all">
               ${translate('badge_mark_all_delivered') || 'Tout marquer comme remis'}
             </button>
           `

@@ -22,6 +22,7 @@ import { setContent, insertHTML, withFormBusy } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { setButtonLoading } from '../../utils/SkeletonUtils.js';
 import { aiParseReceipt } from '../AI.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 const DEFAULT_CURRENCY = 'CAD';
 
@@ -292,7 +293,7 @@ export class Expenses {
     setContent(container, `
       <div class="page-container expenses-page">
         <div class="page-header">
-          <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+          ${renderBackLink()}
           <div class="page-header-content">
             <h1>${translate('expense_tracking')}</h1>
             <div class="fiscal-year-display">
@@ -315,7 +316,7 @@ export class Expenses {
     setContent(container, `
       <div class="page-container expenses-page">
         <div class="page-header">
-          <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+          ${renderBackLink()}
           <div class="page-header-content">
             <h1>${translate('expense_tracking')}</h1>
             <div class="fiscal-year-display">
@@ -414,10 +415,10 @@ export class Expenses {
           </div>
 
           <div class="filter-actions">
-            <button class="btn btn-primary" id="apply-filters-btn">
+            <button class="button button--primary" id="apply-filters-btn">
               ${translate('apply_filters')}
             </button>
-            <button class="btn btn-secondary" id="reset-filters-btn">
+            <button class="button button--secondary" id="reset-filters-btn">
               ${translate('reset')}
             </button>
           </div>
@@ -435,13 +436,13 @@ export class Expenses {
 
     return `
       <div class="action-buttons">
-        <button class="btn btn-primary" id="add-expense-btn">
+        <button class="button button--primary" id="add-expense-btn">
           ${translate('add_expense')}
         </button>
-        <button class="btn btn-secondary" id="bulk-add-expense-btn">
+        <button class="button button--secondary" id="bulk-add-expense-btn">
           ${translate('bulk_add_expenses')}
         </button>
-        <button class="btn btn-secondary" id="export-expenses-btn">
+        <button class="button button--secondary" id="export-expenses-btn">
           ${translate('export_csv')}
         </button>
       </div>
@@ -491,12 +492,12 @@ export class Expenses {
         <td class="text-small">${escapeHTML(expense.reference_number || '-')}</td>
         <td class="actions-cell">
           ${canEdit ? `
-            <button class="btn btn-sm btn-secondary edit-expense-btn" data-id="${expense.id}">
+            <button class="button button--small button--secondary edit-expense-btn" data-id="${expense.id}">
               ${translate('edit')}
             </button>
           ` : ''}
           ${canDelete ? `
-            <button class="btn btn-sm btn-danger delete-expense-btn" data-id="${expense.id}">
+            <button class="button button--small button--danger delete-expense-btn" data-id="${expense.id}">
               ${translate('delete')}
             </button>
           ` : ''}
@@ -774,7 +775,7 @@ export class Expenses {
                            placeholder="0.00">
                   </div>
                   <div class="form-group">
-                    <button type="button" class="btn btn-secondary" id="calculate-taxes-btn">
+                    <button type="button" class="button button--secondary" id="calculate-taxes-btn">
                       ${translate('calculate_taxes')}
                     </button>
                   </div>
@@ -824,8 +825,8 @@ export class Expenses {
             </form>
       `,
       footer: `
-        <button type="button" class="btn btn-secondary" data-modal-close>${translate('cancel')}</button>
-        <button type="submit" class="btn btn-primary" form="expense-form">
+        <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="submit" class="button button--primary" form="expense-form">
           ${isEdit ? translate('update') : translate('create')}
         </button>
       `,
@@ -898,14 +899,14 @@ export class Expenses {
           <div id="bulk-expense-rows">
             ${this.renderBulkExpenseRow(0)}
           </div>
-          <button type="button" class="btn btn-secondary" id="add-bulk-row-btn">
+          <button type="button" class="button button--secondary" id="add-bulk-row-btn">
             ${translate('add_row')}
           </button>
         </form>
       `,
       footer: `
-        <button type="button" class="btn btn-secondary" data-modal-close>${translate('cancel')}</button>
-        <button type="submit" class="btn btn-primary" form="bulk-expense-form">${translate('create_all')}</button>
+        <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="submit" class="button button--primary" form="bulk-expense-form">${translate('create_all')}</button>
       `,
     });
 
@@ -947,7 +948,7 @@ export class Expenses {
           <div class="form-group form-group-sm">
             <input type="text" class="bulk-reference" placeholder="${translate('reference')}">
           </div>
-          <button type="button" class="btn btn-sm btn-danger remove-bulk-row-btn" data-row="${index}">✕</button>
+          <button type="button" class="button button--small button--danger remove-bulk-row-btn" data-row="${index}">✕</button>
         </div>
       </div>
     `;

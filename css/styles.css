@@ -495,7 +495,8 @@ a:focus-visible {
 
 button,
 input[type="submit"],
-.btn {
+.btn,
+.button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -518,6 +519,7 @@ input[type="submit"],
 
 /* Button Variants */
 .btn--primary,
+.button--primary,
 button,
 input[type="submit"] {
   background-color: var(--color-primary);
@@ -527,6 +529,7 @@ input[type="submit"] {
 }
 
 .btn--primary:hover:not(:disabled),
+.button--primary:hover:not(:disabled),
 :where(button:hover:not(:disabled), input[type="submit"]:hover:not(:disabled)) {
   /* Zero specificity for the bare-element part: a component that sets its own
      background keeps it on hover. At (0,2,1) this rule used to paint the dark
@@ -554,12 +557,14 @@ input[type="submit"] {
   box-shadow: var(--shadow-md);
 }
 
-.btn--success {
+.btn--success,
+.button--success {
   background-color: var(--color-success);
   color: white;
 }
 
-.btn--success:hover:not(:disabled) {
+.btn--success:hover:not(:disabled),
+.button--success:hover:not(:disabled) {
   background-color: var(--color-success-light);
 }
 
@@ -583,6 +588,7 @@ input[type="submit"] {
 
 button:disabled,
 .btn:disabled,
+.button:disabled,
 [disabled] {
   opacity: 0.5;
   cursor: not-allowed;
@@ -4347,6 +4353,7 @@ tr:hover {
   .status-buttons,
   button,
   .btn,
+  .button,
   .dashboard-button,
   .toast,
   #offline-indicator,
@@ -7791,7 +7798,8 @@ details p {
 }
 
 .btn--danger,
-.dm-modal .btn--danger {
+.dm-modal .btn--danger,
+.dm-modal .button--danger {
   background-color: #b3261e;
   background-image: none;
   color: #fff;
@@ -8075,12 +8083,19 @@ details p {
   text-decoration: none;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  box-shadow: none;
 }
 
 .button--ghost:hover,
 .button--ghost:focus-visible {
   background: var(--color-secondary);
   color: var(--color-text);
+}
+
+/* A smaller label, still a finger-sized target (the base rule keeps 44px). */
+.button--small {
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-sm);
 }
 
 .button-icon {
@@ -8242,7 +8257,8 @@ details p {
   gap: var(--space-sm, 0.5rem);
 }
 
-.permission-slip-response-actions .btn {
+.permission-slip-response-actions .btn,
+.permission-slip-response-actions .button {
   min-height: 44px;
 }
 
@@ -8620,7 +8636,8 @@ details p {
 
   .fundraiser-card-footer .btn-secondary,
   .fundraiser-card-footer .btn-danger,
-  .fundraiser-card-footer .btn-link {
+  .fundraiser-card-footer .btn-link,
+  .fundraiser-card-footer .button {
     width: 100%;
     text-align: center;
   }
@@ -9525,7 +9542,8 @@ details p {
 
   .sort-btn,
   .primary-btn,
-  .btn-secondary {
+  .btn-secondary,
+  .button--secondary {
     border-width: 2px;
   }
 }
@@ -9993,7 +10011,8 @@ details p {
   flex-wrap: wrap;
 }
 
-.action-buttons .btn {
+.action-buttons .btn,
+.action-buttons .button {
   min-height: 44px;
   /* Touch-friendly */
   padding: var(--space-sm) var(--space-lg);
@@ -10309,7 +10328,8 @@ details p {
     flex-direction: column;
   }
 
-  .action-buttons .btn {
+  .action-buttons .btn,
+  .action-buttons .button {
     width: 100%;
   }
 
@@ -10633,7 +10653,8 @@ details p {
   gap: 0.25rem;
 }
 
-.btn-icon {
+.btn-icon,
+.button--icon {
   background: var(--color-surface, #fff);
   /* The global button rule paints white text on a green gradient; without its
      own colour this button showed white arrows on a white background. */
@@ -10651,7 +10672,8 @@ details p {
   min-height: var(--touch-target-min, 44px);
 }
 
-.btn-icon:hover:not(:disabled) {
+.btn-icon:hover:not(:disabled),
+.button--icon:hover:not(:disabled) {
   background: var(--color-secondary, #f0f0f0);
   border-color: var(--color-primary);
   color: var(--color-primary-dark);
@@ -10659,7 +10681,8 @@ details p {
   box-shadow: none;
 }
 
-.btn-icon:disabled {
+.btn-icon:disabled,
+.button--icon:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -10734,7 +10757,8 @@ details p {
   flex: 1;
 }
 
-.input-with-button .btn {
+.input-with-button .btn,
+.input-with-button .button {
   white-space: nowrap;
 }
 
@@ -10867,7 +10891,8 @@ details p {
   min-width: 0;
 }
 
-.option-item .btn-icon {
+.option-item .btn-icon,
+.option-item .button--icon {
   flex-shrink: 0;
 }
 
@@ -10916,7 +10941,8 @@ details p {
     width: 100%;
   }
 
-  .editor-actions .btn {
+  .editor-actions .btn,
+  .editor-actions .button {
     flex: 1;
   }
 
@@ -10939,7 +10965,8 @@ details p {
     flex-direction: column;
   }
 
-  .form-actions .btn {
+  .form-actions .btn,
+  .form-actions .button {
     width: 100%;
   }
 
@@ -10951,7 +10978,8 @@ details p {
     flex-direction: column;
   }
 
-  .input-with-button .btn {
+  .input-with-button .btn,
+  .input-with-button .button {
     width: 100%;
   }
 }
@@ -10962,7 +10990,8 @@ details p {
     border-width: 3px;
   }
 
-  .btn {
+  .btn,
+  .button {
     border: 2px solid currentColor;
   }
 }
@@ -10973,6 +11002,7 @@ details p {
   .field-item,
   .format-card,
   .btn,
+  .button,
   .modal,
   .modal-content {
     transition: none;

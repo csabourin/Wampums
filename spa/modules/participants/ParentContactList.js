@@ -7,6 +7,7 @@ import { setContent } from '../../utils/DOMUtils.js';
 import { createPhoneLink } from '../../utils/PhoneUtils.js';
 import { createEmailLink } from '../../utils/EmailUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 export class ParentContactList {
   constructor(app) {
@@ -97,7 +98,7 @@ export class ParentContactList {
 
   render() {
     const content = `
-            <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+            ${renderBackLink()}
             <h1>${translate('parent_contact_list')}</h1>
             <div class="search-container">
                 <input

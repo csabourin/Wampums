@@ -116,7 +116,7 @@ export class Login {
             <label for="login-password" class="sr-only">${translate('password')}</label>
             <input type="password" id="login-password" name="password" placeholder="${translate('password')}" autocomplete="current-password" required>
           </div>
-          <button type="submit" class="btn-primary">${translate('submit_login')}</button>
+          <button type="submit" class="button--primary">${translate('submit_login')}</button>
         </form>
         <div id="login-message" class="status-message" role="status" aria-live="polite"></div>
         <div id="login-recovery-cta"></div>
@@ -439,7 +439,7 @@ export class Login {
               style="font-size: 24px; letter-spacing: 8px; text-align: center; font-family: monospace;"
               required>
           </div>
-          <button type="submit" class="btn-primary">${translate('verify') || 'Verify'}</button>
+          <button type="submit" class="button--primary">${translate('verify') || 'Verify'}</button>
         </form>
         <div id="verify-message" class="status-message" role="status" aria-live="polite"></div>
         <p style="text-align: center; margin-top: 20px;">

@@ -36,6 +36,7 @@ import { CONFIG } from '../../config.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 const REPORT_CURRENCY = 'CAD';
 
 /** Owner key for the report modal's body scroll lock. */
@@ -91,7 +92,7 @@ export class Reports {
       // Render a minimal container for the report content
       const container = document.getElementById('app');
       setContent(container, `
-				<a href="/parent-dashboard" class="button button--ghost">← ${translate('back')}</a>
+				${renderBackLink('/parent-dashboard')}
 				<div id="report-content"></div>
 			`);
       await this.loadReport('participant-progress');
@@ -112,7 +113,7 @@ export class Reports {
 
   render() {
     const content = `
-                        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+                        ${renderBackLink()}
                         <section class="reports-header">
                                 <p class="reports-kicker">${translate('reports')}</p>
                                 <h1>${translate('reports_title')}</h1>

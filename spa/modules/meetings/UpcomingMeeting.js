@@ -14,6 +14,7 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { canApproveBadges } from '../../utils/PermissionUtils.js';
 import { getUpcomingBirthdays } from '../../utils/BirthdayUtils.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 export class UpcomingMeeting {
   constructor(app, options = {}) {
@@ -32,7 +33,7 @@ export class UpcomingMeeting {
    */
   renderHeader() {
     if (this.embedded) {return '';}
-    return `<a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+    return `${renderBackLink()}
             <h1>${translate('tile_upcoming_meeting')}</h1>`;
   }
 

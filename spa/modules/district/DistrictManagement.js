@@ -36,6 +36,7 @@ import { openModal } from '../../utils/ModalUtils.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 const CACHE_KEY = 'district_management_state';
 const CACHE_DURATION = CONFIG.CACHE_DURATION.SHORT;
 const ADMIN_ROLES = ['district', 'unitadmin', 'demoadmin'];
@@ -357,7 +358,7 @@ export class DistrictManagement {
       <section class="district-management" aria-labelledby="district-management-title">
         <h1 id="district-management-title">${translate('access_denied')}</h1>
         <p>${translate('no_permission_role_management') || translate('no_permission')}</p>
-        <a class="btn btn--primary" href="/dashboard">${translate('back_to_dashboard')}</a>
+        <a class="button button--primary" href="/dashboard">${translate('back_to_dashboard')}</a>
       </section>
     `;
     setContent(getMountPoint(this), content);
@@ -421,7 +422,7 @@ export class DistrictManagement {
       queuedCount > 0
         ? `<div class="dm-queued" role="status">
             <span class="chip chip--primary">${escapeHTML(queuedLabel)}</span>
-            <button id="dm-retry" class="btn btn--secondary" ${this.isOffline ? 'disabled' : ''}>
+            <button id="dm-retry" class="button button--secondary" ${this.isOffline ? 'disabled' : ''}>
               ${translate('district_management_retry_sync')}
             </button>
           </div>`
@@ -438,7 +439,7 @@ export class DistrictManagement {
           </div>
         </div>
         <div class="dm-action-bar__right">
-          <button id="dm-bottom-retry" class="btn btn--secondary" ${this.isOffline ? 'disabled' : ''}>
+          <button id="dm-bottom-retry" class="button button--secondary" ${this.isOffline ? 'disabled' : ''}>
             ${translate('district_management_retry_sync')}
           </button>
         </div>
@@ -449,7 +450,7 @@ export class DistrictManagement {
       <section class="district-management"${this.embedded ? '' : ' aria-labelledby="district-management-title"'}>
         <header class="dm-header">
           <div>
-            ${this.embedded ? '' : `<a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+            ${this.embedded ? '' : `${renderBackLink()}
             <h1 id="district-management-title">${translate('tile_district_management')}</h1>`}
             <p class="dm-subtitle">${translate('district_management_subtitle')}</p>
           </div>
@@ -726,7 +727,7 @@ export class DistrictManagement {
                 <p class="dm-section-title">${translate('district_management_mfa_title')}</p>
                 <p>${translate('district_management_mfa_placeholder')}</p>
                 <div class="dm-mfa-actions">
-                  <button type="button" id="dm-mfa-start" class="btn btn--secondary">${translate('district_management_trigger_mfa')}</button>
+                  <button type="button" id="dm-mfa-start" class="button button--secondary">${translate('district_management_trigger_mfa')}</button>
                   ${incidentUrl ? `<a class="text-link" href="${incidentUrl}" target="_blank" rel="noopener noreferrer">${translate('district_management_incident_link')}</a>` : ''}
                 </div>
                 <label class="dm-checkbox">
@@ -741,10 +742,10 @@ export class DistrictManagement {
             ${statusMessage}
       `,
       footer: `
-            <button type="button" id="dm-queue" class="btn btn--secondary" ${isSaving ? 'disabled' : ''}>
+            <button type="button" id="dm-queue" class="button button--secondary" ${isSaving ? 'disabled' : ''}>
               ${translate('district_management_queue_change')}
             </button>
-            <button type="button" id="dm-save" class="btn btn--primary" ${saveDisabled ? 'disabled' : ''}>
+            <button type="button" id="dm-save" class="button button--primary" ${saveDisabled ? 'disabled' : ''}>
               ${
   this.isOffline
     ? translate('district_management_offline_disabled')
@@ -775,7 +776,7 @@ export class DistrictManagement {
       <section class="dm-modal-section dm-membership" aria-labelledby="dm-membership-title">
         <h3 id="dm-membership-title" class="dm-section-title">${translate('member_access_title')}</h3>
         <p class="dm-helper">${translate(inactive ? 'member_access_inactive' : 'member_access_active')}</p>
-        <button type="button" id="dm-membership-toggle" class="btn ${inactive ? 'btn--secondary' : 'btn--danger'}"
+        <button type="button" id="dm-membership-toggle" class="button ${inactive ? 'button--secondary' : 'button--danger'}"
           ${this.isOffline || this.savingUserId === user.id ? 'disabled' : ''}>
           ${translate(inactive ? 'member_access_reactivate' : 'member_access_deactivate')}
         </button>

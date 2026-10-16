@@ -13,6 +13,7 @@ import { skeletonList } from '../../utils/SkeletonUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 export class OfflinePreparation {
   constructor(app) {
     this.app = app;
@@ -56,7 +57,7 @@ export class OfflinePreparation {
       setContent(container, `
                 <section class="page offline-prep-page">
                     <header class="page__header">
-                        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+                        ${renderBackLink()}
                         <h1>${translate('prepare_for_offline')}</h1>
                     </header>
                     ${skeletonList(3)}
@@ -68,7 +69,7 @@ export class OfflinePreparation {
     setContent(container, `
             <section class="page offline-prep-page">
                 <header class="page__header">
-                    <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+                    ${renderBackLink()}
                     <h1>${translate('prepare_for_offline')}</h1>
                 </header>
 
@@ -395,8 +396,9 @@ export class OfflinePreparation {
     // Add error styling if failed
     if (progress.status === 'error') {
       container.classList.add('preparation-progress--error');
+      // The failure carries the thrown error's English text: never show it.
       if (message) {
-        message.textContent = progress.message || translate('preparation_failed');
+        message.textContent = translate('preparation_failed');
       }
     } else {
       container.classList.remove('preparation-progress--error');
