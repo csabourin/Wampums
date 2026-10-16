@@ -204,8 +204,16 @@ describe.skipIf(!DATABASE_URL)('Calendar subscriptions', () => {
     expect(JSON.stringify(stored.rows)).not.toContain(token);
 
     await request(app).get(path).expect(200);
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const status = await request(app).get('/api/v1/calendar-feed').expect(200);
+    // The feed answers before noting its use, so wait for that write rather
+    // than for a fixed delay a busy runner can outlast.
+    const deadline = Date.now() + 5000;
+    let status = await request(app).get('/api/v1/calendar-feed').expect(200);
+    while (!status.body.data.last_used_at && Date.now() < deadline) {
+      // eslint-disable-next-line no-await-in-loop -- polling is sequential by nature
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      // eslint-disable-next-line no-await-in-loop -- polling is sequential by nature
+      status = await request(app).get('/api/v1/calendar-feed').expect(200);
+    }
     expect(status.body.data.active).toBe(true);
     expect(status.body.data.last_used_at).not.toBeNull();
   });
