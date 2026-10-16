@@ -282,10 +282,19 @@ export class FormulaireInscription {
 
     if (form) {
       form.addEventListener('submit', (e) => this.handleSubmit(e));
-      // A field's error clears as soon as it changes.
+      // A field's error clears as soon as it changes, and the shared message
+      // with it once no field it describes is still flagged.
       form.addEventListener('input', (event) => {
-        if (event.target.getAttribute('aria-invalid') === 'true') {
-          event.target.setAttribute('aria-invalid', 'false');
+        if (event.target.getAttribute('aria-invalid') !== 'true') {
+          return;
+        }
+        event.target.setAttribute('aria-invalid', 'false');
+        event.target.removeAttribute('aria-describedby');
+        if (!form.querySelector('[aria-describedby="inscription-error"][aria-invalid="true"]')) {
+          const error = document.getElementById('inscription-error');
+          if (error) {
+            error.textContent = '';
+          }
         }
       });
     } else {
@@ -515,6 +524,8 @@ export class FormulaireInscription {
       field.setAttribute('aria-invalid', String(invalid));
       if (invalid) {
         field.setAttribute('aria-describedby', 'inscription-error');
+      } else if (field.getAttribute('aria-describedby') === 'inscription-error') {
+        field.removeAttribute('aria-describedby');
       }
     });
     if (error) {

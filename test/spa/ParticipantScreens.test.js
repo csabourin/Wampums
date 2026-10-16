@@ -383,4 +383,27 @@ describe('registration form', () => {
     expect(document.activeElement.id).toBe('p-last_name');
     expect(await violations()).toEqual([]);
   });
+
+  test('the missing-field message goes once the flagged fields are filled in', async () => {
+    const screen = new FormulaireInscription(app());
+    await screen.init();
+    page().querySelector('#inscription-form').dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+
+    const flagged = [...page().querySelectorAll('#participant-form [aria-invalid="true"]')];
+    expect(flagged.length).toBeGreaterThan(1);
+    const [first, ...rest] = flagged;
+
+    first.value = 'x';
+    first.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(first.hasAttribute('aria-describedby')).toBe(false);
+    // Other fields are still missing: the message stays for them.
+    expect(page().querySelector('#inscription-error').textContent).toBe('missing_required_fields');
+
+    rest.forEach((field) => {
+      field.value = '2015-01-01';
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(page().querySelector('#inscription-error').textContent).toBe('');
+  });
 });
