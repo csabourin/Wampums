@@ -1,0 +1,698 @@
+import { translate } from '../../app.js';
+import {
+  debugLog,
+  debugError,
+  debugWarn,
+  debugInfo,
+} from '../../utils/DebugUtils.js';
+import { getReunionDates, getReunionPreparation, saveBadgeProgress, getParticipants, getBadgeSummary, getAttendance } from '../../ajax-functions.js';
+import { markMeetingActivitiesProcessed } from '../../api/api-endpoints.js';
+import { formatDate, isToday, parseDate } from '../../utils/DateUtils.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { openModal, closeModal } from '../../utils/ModalUtils.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { canApproveBadges } from '../../utils/PermissionUtils.js';
+import { getUpcomingBirthdays } from '../../utils/BirthdayUtils.js';
+import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
+
+export class UpcomingMeeting {
+  constructor(app, options = {}) {
+    this.app = app;
+    Object.assign(this, resolveMountOptions(options));
+    this.meetingDates = [];
+    this.closestMeeting = null;
+    this.meetingDetails = null;
+    this.participants = [];
+  }
+
+  /**
+   * Back link + title, omitted when a TabbedPage host already renders them.
+   *
+   * @returns {string} HTML, empty when embedded.
+   */
+  renderHeader() {
+    if (this.embedded) {return '';}
+    return `<a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+            <h1>${translate('tile_upcoming_meeting')}</h1>`;
+  }
+
+  async init() {
+    try {
+      await Promise.all([
+        this.fetchMeetingDates(),
+        this.fetchParticipants(),
+      ]);
+      this.closestMeeting =
+        await this.getClosestMeeting();
+      if (this.closestMeeting) {
+        await this.fetchMeetingDetails(
+          this
+            .closestMeeting,
+        );
+      }
+      await this.render();
+    } catch (error) {
+      debugError(
+        'Error initializing upcoming meeting:',
+        error,
+      );
+      this.renderError();
+      this.app.showMessage(
+        translate(
+          'error_loading_upcoming_meeting',
+        ),
+        'error',
+      );
+    }
+  }
+
+  async fetchMeetingDates() {
+    try {
+      const response = await getReunionDates();
+      // Standard envelope: data = [{ date, is_cancelled, theme, is_prepared }]
+      this.meetingDates = (response?.data || [])
+        .filter((entry) => !entry.is_cancelled)
+        .map((entry) => entry.date);
+    } catch (error) {
+      debugError(
+        'Error fetching meeting dates:',
+        error,
+      );
+    }
+  }
+
+  async fetchParticipants() {
+    try {
+      const response = await getParticipants();
+      this.participants = Array.isArray(response)
+        ? response
+        : response?.data ||
+        response?.participants ||
+        [];
+    } catch (error) {
+      debugError(
+        'Error fetching participants:',
+        error,
+      );
+      this.participants = [];
+    }
+  }
+
+  normalizeDateString(dateStr) {
+    if (!dateStr) {return '';}
+    return dateStr.includes('T')
+      ? dateStr.split('T')[0]
+      : dateStr;
+  }
+
+  getNextMeetingDateAfter(meetingDate) {
+    const normalizedDate = this.normalizeDateString(meetingDate);
+    if (!normalizedDate) {return null;}
+
+    const nextMeeting = this.meetingDates
+      .map((dateStr) => this.normalizeDateString(dateStr))
+      .filter(Boolean)
+      .filter((dateStr) => dateStr > normalizedDate)
+      .sort((a, b) => a.localeCompare(b))
+      .shift();
+
+    return nextMeeting || null;
+  }
+
+  getUpcomingBirthdays(meetingDate) {
+    const startDate = this.normalizeDateString(meetingDate);
+    const endDate = this.getNextMeetingDateAfter(startDate);
+    const result = getUpcomingBirthdays(this.participants, startDate, endDate);
+    result.entries = result.entries.map((entry) => ({
+      ...entry,
+      name: entry.name || translate('unknown'),
+    }));
+    return result;
+  }
+
+  async getAllFutureMeetings() {
+    const now = new Date();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Convert and filter meetings to get today and future meetings
+    const futureMeetings = this.meetingDates
+      .map((dateStr) => {
+        // Handle both ISO format and plain date strings
+        const plainDateStr =
+          dateStr.includes(
+            'T',
+          )
+            ? dateStr.split(
+              'T',
+            )[0]
+            : dateStr;
+        // Use parseDate to avoid timezone issues
+        const meetingDate =
+          parseDate(
+            plainDateStr,
+          );
+        return {
+          date: meetingDate,
+          dateStr: plainDateStr,
+        };
+      })
+      .filter((meeting) => {
+        if (
+          !meeting.date
+        )
+        {return false;}
+        // Include today's and future meetings
+        return (
+          meeting.date >=
+          today
+        );
+      })
+      .sort(
+        (a, b) =>
+          a.date -
+          b.date,
+      );
+
+    // If first meeting is today and has ended, remove it
+    if (futureMeetings.length > 0 && isToday(futureMeetings[0].dateStr)) {
+      const hasEnded = await this.hasMeetingEnded(
+        futureMeetings[0].dateStr,
+        now,
+      );
+      if (hasEnded) {
+        futureMeetings.shift();
+      }
+    }
+
+    return futureMeetings;
+  }
+
+  async getClosestMeeting() {
+    const futureMeetings = await this.getAllFutureMeetings();
+    return futureMeetings.length > 0 ? futureMeetings[0].dateStr : null;
+  }
+
+  async hasMeetingEnded(dateStr, currentTime) {
+    try {
+      // Fetch meeting details to get the actual end time
+      const response =
+        await getReunionPreparation(
+          dateStr,
+        );
+      const meeting = response?.data?.meeting;
+      if (!meeting) {return false;}
+
+      const activities = meeting.activities || [];
+
+      const endTime =
+        this.calculateMeetingEndTime(
+          activities,
+        );
+      if (!endTime) {return false;}
+
+      // Compare current time with meeting end time
+      const currentHours =
+        currentTime.getHours();
+      const currentMinutes =
+        currentTime.getMinutes();
+      const currentTotalMinutes =
+        currentHours *
+        60 +
+        currentMinutes;
+      const endTotalMinutes =
+        endTime.hours *
+        60 +
+        endTime.minutes;
+
+      return (
+        currentTotalMinutes >=
+        endTotalMinutes
+      );
+    } catch (error) {
+      debugError(
+        'Error checking if meeting has ended:',
+        error,
+      );
+      // If we can't determine, assume it hasn't ended yet
+      return false;
+    }
+  }
+
+  async fetchMeetingDetails(date) {
+    try {
+      const response =
+        await getReunionPreparation(
+          date,
+        );
+      const payload = response?.data || {};
+      if (payload.meeting) {
+        this.meetingDetails = payload.meeting;
+        // If activities are empty, use activity templates from meetingSections
+        if (
+          (!this.meetingDetails.activities ||
+            this.meetingDetails.activities.length === 0) &&
+          payload.meetingSections?.sections
+        ) {
+          const defaultSection = payload.meetingSections.defaultSection;
+          const sectionData = payload.meetingSections.sections[defaultSection];
+          if (sectionData?.activityTemplates) {
+            this.meetingDetails.activities = sectionData.activityTemplates.map(template => ({
+              time: template.time,
+              activity: translate(template.activityKey) || template.activityKey,
+              duration: template.duration,
+              type: template.typeKey
+            }));
+          }
+        }
+        // Calculate meeting end time from activities
+        this.meetingDetails.endTime =
+          this.calculateMeetingEndTime(
+            this
+              .meetingDetails
+              .activities,
+          );
+      } else {
+        this.meetingDetails =
+          null;
+      }
+    } catch (error) {
+      debugError(
+        'Error fetching meeting details:',
+        error,
+      );
+      this.meetingDetails = null;
+    }
+  }
+
+  getRelativeTimeText(dateStr) {
+    try {
+      const meetingDate = parseDate(dateStr);
+      if (!meetingDate) {return '';}
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const meeting = new Date(meetingDate);
+      meeting.setHours(0, 0, 0, 0);
+
+      const diffTime = meeting - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 0) {
+        return translate('today');
+      } else if (diffDays === 1) {
+        return translate('tomorrow');
+      } else if (diffDays < 7) {
+        return translate('in_x_days').replace('{x}', diffDays);
+      } else if (diffDays < 28) {
+        const weeks = Math.floor(diffDays / 7);
+        return weeks === 1
+          ? translate('in_1_week')
+          : translate('in_x_weeks').replace('{x}', weeks);
+      } else {
+        const months = Math.floor(diffDays / 30);
+        return months === 1
+          ? translate('in_1_month')
+          : translate('in_x_months').replace('{x}', months);
+      }
+    } catch (error) {
+      debugError('Error calculating relative time:', error);
+      return '';
+    }
+  }
+
+  calculateMeetingEndTime(activities) {
+    if (!activities || activities.length === 0)
+    {return null;}
+
+    // Get the last activity
+    const lastActivity =
+      activities[
+        activities.length -
+      1
+      ];
+    if (
+      !lastActivity.time ||
+      !lastActivity.duration
+    )
+    {return null;}
+
+    try {
+      // Parse time (format: "HH:MM")
+      const [hours, minutes] =
+        lastActivity.time
+          .split(
+            ':',
+          )
+          .map(
+            Number,
+          );
+
+      // Parse duration (format: "HH:MM")
+      const [
+        durationHours,
+        durationMinutes,
+      ] = lastActivity.duration
+        .split(':')
+        .map(Number);
+
+      // Calculate end time in minutes
+      const startMinutes =
+        hours * 60 +
+        minutes;
+      const durationTotalMinutes =
+        durationHours *
+        60 +
+        durationMinutes;
+      const endMinutes =
+        startMinutes +
+        durationTotalMinutes;
+
+      // Convert back to hours and minutes
+      const endHours = Math.floor(
+        endMinutes / 60,
+      );
+      const endMins = endMinutes % 60;
+
+      return {
+        hours: endHours,
+        minutes: endMins,
+      };
+    } catch (error) {
+      debugError(
+        'Error calculating meeting end time:',
+        error,
+      );
+      return null;
+    }
+  }
+
+  async render() {
+    if (!this.closestMeeting) {
+      setContent(
+        getMountPoint(this),
+        `
+                                                                <div class="upcoming-meeting">
+                                                                                ${this.renderHeader()}
+                                                                                <p>${translate('no_upcoming_meeting')}</p>
+                                                                </div>
+                                                `,
+      );
+      return;
+    }
+
+    // Get all future meetings for the dropdown
+    const futureMeetings = await this.getAllFutureMeetings();
+    const meetingOptions = futureMeetings
+      .map((meeting) => {
+        const shortDate = formatDate(meeting.dateStr, this.app.lang, {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        });
+        const relativeTime = this.getRelativeTimeText(meeting.dateStr);
+        const displayText = relativeTime
+          ? `${shortDate} (${relativeTime})`
+          : shortDate;
+        return `<option value="${meeting.dateStr}" ${meeting.dateStr === this.closestMeeting ? 'selected' : ''}>${escapeHTML(displayText)}</option>`;
+      })
+      .join('');
+
+    const meetingDate = formatDate(
+      this.closestMeeting,
+      this.app.lang,
+      {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      },
+    );
+    const location = this.meetingDetails?.endroit
+      ? escapeHTML(this.meetingDetails.endroit)
+      : translate('no_location_specified');
+    const honorValues = Array.isArray(this.meetingDetails?.youth_of_honor)
+      ? this.meetingDetails.youth_of_honor
+      : this.meetingDetails?.youth_of_honor
+        ? [this.meetingDetails.youth_of_honor]
+        : [];
+    const honorsHtml =
+      honorValues.length > 0
+        ? honorValues
+          .map(
+            (honor) =>
+              `<li>${escapeHTML(honor)}</li>`,
+          )
+          .join(
+            '',
+          )
+        : `<li>${translate('no_honors_on_this_date')}</li>`;
+    const activities =
+      this.meetingDetails
+        ?.activities ||
+      [];
+    const activitiesHtml =
+      activities.length > 0
+        ? activities
+          .map(
+            (
+              a,
+            ) =>
+              `<li>${escapeHTML(a.time || '')} - ${escapeHTML(a.activity || '')}</li>`,
+          )
+          .join(
+            '',
+          )
+        : `<li>${translate('no_activities_scheduled')}</li>`;
+    const birthdays = this.getUpcomingBirthdays(this.closestMeeting);
+    const birthdayRangeLabel = birthdays.startDate && birthdays.endDate
+      ? `${translate('birthdays_between')} ${formatDate(birthdays.startDate, this.app.lang, { month: 'long', day: 'numeric' })} - ${formatDate(birthdays.endDate, this.app.lang, { month: 'long', day: 'numeric' })}`
+      : translate('birthdays_range_unavailable');
+    const birthdayItems = birthdays.entries.length > 0
+      ? `<ul class="birthday-list">
+          ${birthdays.entries.map((entry) => `
+            <li>
+              <span>${escapeHTML(entry.name)}</span>
+              <span>${formatDate(entry.date, this.app.lang, { month: 'long', day: 'numeric' })}</span>
+            </li>
+          `).join('')}
+        </ul>`
+      : `<p class="empty-state">${translate('no_upcoming_birthdays')}</p>`;
+
+    const unprocessedAchievements = activities
+      .filter(a => a.badge_template_id && !a.processed);
+    const showAwardButton = canApproveBadges() && unprocessedAchievements.length > 0;
+
+    const content = `
+                                                <div class="upcoming-meeting">
+                                                                ${this.renderHeader()}
+                                                                ${futureMeetings.length > 1 ? `
+                                                                <div class="meeting-selector">
+                                                                                <label for="meeting-select">${translate('select_meeting')}:</label>
+                                                                                <select id="meeting-select" class="meeting-select">
+                                                                                                ${meetingOptions}
+                                                                                </select>
+                                                                </div>
+                                                                ` : ''}
+                                                                <div class="meeting-details">
+                                                                                <h2>${translate('honors')}</h2>
+                                                                                <ul>${honorsHtml}</ul>
+                                                                </div>
+                                                                <div class="meeting-details">
+                                                                                <p>${meetingDate}</p>
+                                                                                <p><strong>${translate('location')}:</strong> ${location}</p>
+                                                                </div>
+                                                                <div class="meeting-details">
+                                                                                <h2>${translate('upcoming_birthdays')}</h2>
+                                                                                <p class="section-description">${birthdayRangeLabel}</p>
+                                                                                ${birthdayItems}
+                                                                </div>
+                                                               <div>
+                                                                               <ul>${activitiesHtml}</ul>
+                                                               </div>
+                                                                <div class="manage-items">
+                                                                                <a href="/preparation-reunions?date=${this.closestMeeting}" aria-label="${translate('preparation_reunions')}">
+                                                                                                <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
+                                                                                                <span>${translate('preparation_reunions')}</span>
+                                                                                </a>
+                                                                                ${showAwardButton ? `
+                                                                                <button id="award-achievements-btn" class="button button--primary" style="margin-left: 10px;">
+                                                                                        <i class="fa-solid fa-star"></i> ${translate('award_planned_achievements') || 'Award Achievements'}
+                                                                                </button>
+                                                                                ` : ''}
+                                                                </div>
+                                                </div>
+                                `;
+
+    setContent(getMountPoint(this), content);
+
+    // Add event listener for meeting selector
+    const selector = document.getElementById('meeting-select');
+    if (selector) {
+      selector.addEventListener('change', async (e) => {
+        const selectedDate = e.target.value;
+        this.closestMeeting = selectedDate;
+        await this.fetchMeetingDetails(selectedDate);
+        await this.render();
+      });
+    }
+
+    const awardBtn = document.getElementById('award-achievements-btn');
+    if (awardBtn) {
+      awardBtn.addEventListener('click', () => this.openAwardModal(unprocessedAchievements));
+    }
+  }
+
+  async openAwardModal(achievements) {
+    // 1. Fetch necessary data
+    const [badgeData, participantsData, attendanceData] = await Promise.all([
+      getBadgeSummary({ forceRefresh: false }),
+      getParticipants(),
+      // Assuming getAttendance returns an array or object for the date
+      // However, getAttendance usually takes a date. Let's check imports.
+      // We need to import getAttendance. I'll add it to imports later or use what's available.
+      // Actually, I can use a simpler approach: Just list the participants validation.
+      // Let's assume we want to fetch attendance to pre-fill.
+      this.fetchAttendanceForDate(this.closestMeeting)
+    ]);
+
+    const templates = badgeData?.templates || [];
+    const participants = Array.isArray(participantsData) ? participantsData : (participantsData?.participants || []);
+    const presentParticipantIds = attendanceData ? Object.keys(attendanceData).filter(id => attendanceData[id] === 'present') : [];
+
+    // 2. Build Modal Content
+    const curreMeetingDate = this.closestMeeting;
+
+    // Helper to get names
+    const getNames = (ids) => ids.map(id => {
+      const p = participants.find(part => String(part.id) === String(id));
+      return p ? `${p.first_name} ${p.last_name}` : 'Unknown';
+    }).join(', ');
+
+    const rows = achievements.map((a, index) => {
+      const template = templates.find(t => String(t.id) === String(a.badge_template_id));
+      const badgeName = template ? template.name : 'Unknown Badge';
+      const typeLabel = a.star_type === 'battue' ? translate('badge_type_battue') : translate('badge_type_proie');
+
+      let targets = [];
+      if (a.star_type === 'battue') {
+        // Default to all present, or all active if none present (fallback)
+        targets = presentParticipantIds.length > 0 ? presentParticipantIds : participants.map(p => p.id);
+      } else {
+        targets = a.participant_ids || [];
+      }
+
+      const targetNames = a.star_type === 'battue'
+        ? (presentParticipantIds.length > 0 ? `${presentParticipantIds.length} ${translate('present_participants')}` : translate('all_participants'))
+        : getNames(targets);
+
+      return `
+                    <div class="award-row" style="margin-bottom: 15px; padding: 10px; background: #f9f9f9; border-left: 4px solid #4CAF50;">
+                            <div style="font-weight: bold;">${badgeName} <span class="badge" style="font-size: 0.8em; background: #ddd; padding: 2px 6px; border-radius: 4px;">${typeLabel}</span></div>
+                            <div style="font-size: 0.9em; color: #666; margin-top: 5px;">${translate('awarding_to')}: ${escapeHTML(targetNames)}</div>
+                            <label style="display: block; margin-top: 5px;">
+                                    <input type="checkbox" checked class="award-confirm-checkbox" data-index="${index}" data-targets='${JSON.stringify(targets)}'>
+                                    ${translate('confirm_award')}
+                            </label>
+                    </div>
+            `;
+    }).join('');
+
+    const { overlay } = openModal({
+      id: 'award-modal',
+      title: translate('award_planned_achievements'),
+      body: `
+        <p>${translate('confirm_award_instructions') || 'Please confirm the achievements to award:'}</p>
+        ${presentParticipantIds.length === 0 ? `<p class="warning-text"><span aria-hidden="true">⚠</span> ${translate('no_attendance_warning') || 'No attendance data found. Defaulting to all participants.'}</p>` : ''}
+        <div class="award-list">${rows}</div>
+      `,
+      footer: `
+        <button type="button" class="button button--ghost" data-modal-close>${translate('cancel')}</button>
+        <button type="button" class="button button--primary" id="confirm-award-btn">${translate('confirm')}</button>
+      `,
+    });
+
+    overlay.querySelector('#confirm-award-btn').addEventListener('click', () => {
+      this.processAwards(achievements, overlay);
+    });
+  }
+
+  async fetchAttendanceForDate(date) {
+    try {
+      const data = await getAttendance(date);
+      return data.success ? (data.data || data.attendance || {}) : {};
+    } catch (e) {
+      debugError('Error fetching attendance for date:', e);
+      return {};
+    }
+  }
+
+  async processAwards(allAchievements, modalContainer) {
+    const checkboxes = modalContainer.querySelectorAll('.award-confirm-checkbox:checked');
+    const updates = [];
+
+    // Disable button
+    const btn = document.getElementById('confirm-award-btn');
+    btn.disabled = true;
+    btn.textContent = `${translate('processing')  }...`;
+
+    for (const cb of checkboxes) {
+      const index = cb.dataset.index;
+      const targets = JSON.parse(cb.dataset.targets);
+      const achievement = allAchievements[index];
+
+      // For each target, award badge
+      const promises = targets.map(participantId => {
+        return saveBadgeProgress({
+          participant_id: participantId,
+          badge_template_id: achievement.badge_template_id,
+          level: 1, // Defaulting to star 1? Or need to determine next star?
+          // Backend determines next star if we don't send 'etoiles'.
+          // We should send star_type.
+          star_type: achievement.star_type,
+          status: 'approved', // Auto-approve
+          date_obtention: this.closestMeeting,
+          comments: `Planned for meeting ${this.closestMeeting}`
+        });
+      });
+
+      updates.push(Promise.all(promises).then(() => {
+        // Mark locally as processed
+        achievement.processed = true;
+      }));
+    }
+
+    try {
+      await Promise.all(updates);
+
+      // Persist 'processed' on the structured meeting activities
+      const processedIds = allAchievements
+        .filter((a) => a.processed && a.id)
+        .map((a) => a.id);
+      if (processedIds.length > 0) {
+        await markMeetingActivitiesProcessed(processedIds);
+      }
+
+      closeModal('award-modal');
+      this.app.showMessage(translate('achievements_awarded_success'), 'success');
+      this.render(); // Re-render to hide button
+    } catch (error) {
+      debugError('Error processing awards:', error);
+      this.app.showMessage(translate('error_processing_awards'), 'error');
+      btn.disabled = false;
+    }
+  }
+
+  renderError() {
+    const content = `
+                                                <div class="upcoming-meeting">
+                                                                ${this.renderHeader()}
+                                                                <div class="error-message">
+                                                                                <p>${translate('error_loading_upcoming_meeting')}</p>
+                                                                                <p><a href="/dashboard">${translate('back_to_dashboard')}</a></p>
+                                                                </div>
+                                                </div>
+                                `;
+    setContent(getMountPoint(this), content);
+  }
+}

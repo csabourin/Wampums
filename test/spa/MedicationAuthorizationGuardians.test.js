@@ -45,7 +45,7 @@ jest.mock('../../spa/utils/OfflineCacheKeys.js', () => ({ buildApiCacheKey: jest
 jest.mock('../../spa/modules/OfflineManager.js', () => ({ offlineManager: {} }));
 
 const endpoints = require('../../spa/api/api-endpoints.js');
-const { MedicationManagement } = require('../../spa/medication_management.js');
+const { MedicationManagement } = require('../../spa/modules/medication/MedicationManagement.js');
 
 const CHILD_ID = 7;
 const GUARDIAN = {

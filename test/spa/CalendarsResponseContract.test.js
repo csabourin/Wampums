@@ -30,7 +30,7 @@ jest.mock('../../spa/config.js', () => ({
   getStorageKey: jest.fn((key) => key),
 }));
 
-import { Calendars } from '../../spa/calendars.js';
+import { Calendars } from '../../spa/modules/fundraising/Calendars.js';
 
 test('reads fundraiser entries from the standardized response data envelope', async () => {
   const entries = [

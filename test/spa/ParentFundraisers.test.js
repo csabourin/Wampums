@@ -460,7 +460,7 @@ describe('accessibility (WCAG 2.2 AA)', () => {
 
 describe('how the page is reached', () => {
   const routerSource = fs.readFileSync(path.join(ROOT, 'spa/router.js'), 'utf8');
-  const dashboardSource = fs.readFileSync(path.join(ROOT, 'spa/parent_dashboard.js'), 'utf8');
+  const dashboardSource = fs.readFileSync(path.join(ROOT, 'spa/modules/dashboard/ParentDashboard.js'), 'utf8');
 
   test('the route exists and opens for the accounts that reach the parent dashboard', () => {
     expect(routerSource).toContain("'/parent-fundraisers': 'parentFundraisers'");

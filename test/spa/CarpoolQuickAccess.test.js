@@ -24,7 +24,7 @@ jest.mock('../../spa/modules/modals/QuickCreateActivityModal.js', () => ({
 }));
 
 const { getActivities } = require('../../spa/api/api-activities.js');
-const { CarpoolLanding } = require('../../spa/carpool.js');
+const { CarpoolLanding } = require('../../spa/modules/carpool/CarpoolLanding.js');
 const { QuickCreateActivityModal } = require('../../spa/modules/modals/QuickCreateActivityModal.js');
 
 const AXE_OPTIONS = {
@@ -182,6 +182,20 @@ describe('carpool quick access dialog accessibility', () => {
     const { dialog } = await openFromLanding();
 
     const results = await axe.run(dialog, AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+});
+
+describe('carpool landing page', () => {
+  test('is not announced as loading: its preview cards are decorative and hidden from assistive technology', async () => {
+    document.body.innerHTML = '<main id="app"></main>';
+    new CarpoolLanding({ lang: 'fr', showMessage: jest.fn() }).render();
+
+    // The preview cards never load, so aria-busy left screen readers waiting forever.
+    expect(document.querySelectorAll('#app [aria-busy="true"]')).toHaveLength(0);
+    expect(document.querySelector('.carpool-landing__skeletons').getAttribute('aria-hidden')).toBe('true');
+    expect(document.getElementById('carpool-open-selector').getAttribute('type')).toBe('button');
+    const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
     expect(results.violations).toEqual([]);
   });
 });

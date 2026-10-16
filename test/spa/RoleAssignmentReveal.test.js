@@ -62,7 +62,7 @@ jest.mock('../../spa/utils/DOMUtils.js', () => {
 import * as endpoints from '../../spa/api/api-endpoints.js';
 import { setUserMembershipStatus } from '../../spa/api/api-members.js';
 import { confirmDestructive } from '../../spa/utils/DialogUtils.js';
-import { RoleManagement } from '../../spa/role_management.js';
+import { RoleManagement } from '../../spa/modules/roles/RoleManagement.js';
 
 const AXE_OPTIONS = {
   runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },

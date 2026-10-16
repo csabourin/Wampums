@@ -68,7 +68,7 @@ jest.mock('../../spa/utils/DialogUtils.js', () => ({
   hasActiveDialog: jest.fn(() => false),
 }));
 
-import { FormBuilder } from '../../spa/formBuilder.js';
+import { FormBuilder } from '../../spa/modules/forms/FormBuilder.js';
 import { JSONFormRenderer } from '../../spa/JSONFormRenderer.js';
 import { API } from '../../spa/api/api-core.js';
 import { closeAllModals } from '../../spa/utils/ModalUtils.js';

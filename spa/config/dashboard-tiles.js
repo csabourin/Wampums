@@ -1,7 +1,7 @@
 /**
  * Dashboard Tiles — single source of truth.
  *
- * Every dashboard tile is declared exactly once, here. `spa/dashboard.js`
+ * Every dashboard tile is declared exactly once, here. `spa/modules/dashboard/Dashboard.js`
  * consumes this list; nothing else may redeclare tiles.
  *
  * Naming rules for `label` (see devdocs/REFONTE_TABLEAU_DE_BORD.md):
@@ -301,7 +301,7 @@ export const DASHBOARD_TILES = [
 
   // ---------------------------------------------------------------
   // ARGENT — the three `?tab=` duplicates of /finance are gone; the
-  // page renders those tabs itself (spa/finance.js:293).
+  // page renders those tabs itself (spa/modules/finance/Finance.js:293).
   // ---------------------------------------------------------------
   {
     featureKey: "finance",

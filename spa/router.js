@@ -78,60 +78,60 @@ class NavigationCancelledError extends Error {
 // Lazy-loaded modules - loaded on demand for better performance
 // These will be dynamically imported when the route is accessed
 const lazyModules = {
-  ParentDashboard: () => import('./parent_dashboard.js').then(m => m.ParentDashboard),
-  ParentFinance: () => import('./parent_finance.js').then(m => m.ParentFinance),
+  ParentDashboard: () => import('./modules/dashboard/ParentDashboard.js').then(m => m.ParentDashboard),
+  ParentFinance: () => import('./modules/finance/ParentFinance.js').then(m => m.ParentFinance),
   ParentFundraisers: () => import('./modules/fundraising/ParentFundraisers.js').then(m => m.ParentFundraisers),
   ParentProgramProgress: () => import('./modules/program-progress/ParentProgramProgress.js').then(m => m.ParentProgramProgress),
-  FormulaireInscription: () => import('./formulaire_inscription.js').then(m => m.FormulaireInscription),
+  FormulaireInscription: () => import('./modules/participants/FormulaireInscription.js').then(m => m.FormulaireInscription),
   ManagePoints: () => import('./modules/points/ManagePoints.js').then(m => m.ManagePoints),
-  TimeSinceRegistration: () => import('./time_since_registration.js').then(m => m.TimeSinceRegistration),
+  TimeSinceRegistration: () => import('./modules/participants/TimeSinceRegistration.js').then(m => m.TimeSinceRegistration),
   Attendance: () => import('./modules/attendance/Attendance.js').then(m => m.Attendance),
-  ManageHonors: () => import('./manage_honors.js').then(m => m.ManageHonors),
+  ManageHonors: () => import('./modules/honors/ManageHonors.js').then(m => m.ManageHonors),
   ManageParticipants: () => import('./modules/participants/ManageParticipants.js').then(m => m.ManageParticipants),
   ManageUsersParticipants: () => import('./modules/participants/ManageUsersParticipants.js').then(m => m.ManageUsersParticipants),
-  ManageGroups: () => import('./manage_groups.js').then(m => m.ManageGroups),
-  GuardianManagement: () => import('./guardian-management.js').then(m => m.initGuardianManagement),
-  ViewParticipantDocuments: () => import('./view_participant_documents.js').then(m => m.ViewParticipantDocuments),
-  ParentContactList: () => import('./parent_contact_list.js').then(m => m.ParentContactList),
-  BadgeTracker: () => import('./badge_tracker.js').then(m => m.BadgeTracker),
+  ManageGroups: () => import('./modules/groups/ManageGroups.js').then(m => m.ManageGroups),
+  GuardianManagement: () => import('./modules/participants/GuardianManagement.js').then(m => m.initGuardianManagement),
+  ViewParticipantDocuments: () => import('./modules/participants/ViewParticipantDocuments.js').then(m => m.ViewParticipantDocuments),
+  ParentContactList: () => import('./modules/participants/ParentContactList.js').then(m => m.ParentContactList),
+  BadgeTracker: () => import('./modules/badges/BadgeTracker.js').then(m => m.BadgeTracker),
   ProgramProgressDashboard: () => import('./modules/program-progress/ProgramProgressDashboard.js').then(m => m.ProgramProgressDashboard),
-  BadgeForm: () => import('./badge_form.js').then(m => m.BadgeForm),
-  Register: () => import('./register.js').then(m => m.Register),
-  Admin: () => import('./admin.js').then(m => m.Admin),
+  BadgeForm: () => import('./modules/badges/BadgeForm.js').then(m => m.BadgeForm),
+  Register: () => import('./modules/session/Register.js').then(m => m.Register),
+  Admin: () => import('./modules/admin/Admin.js').then(m => m.Admin),
   MailingList: () => import('./modules/mailing-list/MailingList.js').then(m => m.MailingList),
   CommunicationHistory: () => import('./modules/communication-history/CommunicationHistory.js').then(m => m.CommunicationHistory),
-  Calendars: () => import('./calendars.js').then(m => m.Calendars),
-  Fundraisers: () => import('./fundraisers.js').then(m => m.Fundraisers),
-  ResetPassword: () => import('./reset_password.js').then(m => m.ResetPassword),
+  Calendars: () => import('./modules/fundraising/Calendars.js').then(m => m.Calendars),
+  Fundraisers: () => import('./modules/fundraising/Fundraisers.js').then(m => m.Fundraisers),
+  ResetPassword: () => import('./modules/session/ResetPassword.js').then(m => m.ResetPassword),
   DynamicFormHandler: () => import('./dynamicFormHandler.js').then(m => m.DynamicFormHandler),
-  Reports: () => import('./reports.js').then(m => m.Reports),
+  Reports: () => import('./modules/reports/Reports.js').then(m => m.Reports),
   MeetingPrep: () => import('./modules/meetings/MeetingPrep.js').then(m => m.MeetingPrep),
-  CreateOrganization: () => import('./create_organization.js').then(m => m.CreateOrganization),
+  CreateOrganization: () => import('./modules/organizations/CreateOrganization.js').then(m => m.CreateOrganization),
   PrintableGroupParticipantReport: () => import('./modules/groups/GroupParticipantReport.js').then(m => m.PrintableGroupParticipantReport),
-  UpcomingMeeting: () => import('./upcoming_meeting.js').then(m => m.UpcomingMeeting),
-  Finance: () => import('./finance.js').then(m => m.Finance),
-  Budgets: () => import('./budgets.js').then(m => m.Budgets),
-  ExternalRevenue: () => import('./external-revenue.js').then(m => m.ExternalRevenue),
-  Expenses: () => import('./expenses.js').then(m => m.Expenses),
-  RevenueDashboard: () => import('./revenue-dashboard.js').then(m => m.RevenueDashboard),
-  ResourceDashboard: () => import('./resource_dashboard.js').then(m => m.ResourceDashboard),
-  Inventory: () => import('./inventory.js').then(m => m.Inventory),
-  MaterialManagement: () => import('./material_management.js').then(m => m.MaterialManagement),
-  MedicationManagement: () => import('./medication_management.js').then(m => m.MedicationManagement),
-  MedicationReception: () => import('./medication_reception.js').then(m => m.MedicationReception),
+  UpcomingMeeting: () => import('./modules/meetings/UpcomingMeeting.js').then(m => m.UpcomingMeeting),
+  Finance: () => import('./modules/finance/Finance.js').then(m => m.Finance),
+  Budgets: () => import('./modules/finance/Budgets.js').then(m => m.Budgets),
+  ExternalRevenue: () => import('./modules/finance/ExternalRevenue.js').then(m => m.ExternalRevenue),
+  Expenses: () => import('./modules/finance/Expenses.js').then(m => m.Expenses),
+  RevenueDashboard: () => import('./modules/finance/RevenueDashboard.js').then(m => m.RevenueDashboard),
+  ResourceDashboard: () => import('./modules/resources/ResourceDashboard.js').then(m => m.ResourceDashboard),
+  Inventory: () => import('./modules/resources/Inventory.js').then(m => m.Inventory),
+  MaterialManagement: () => import('./modules/resources/MaterialManagement.js').then(m => m.MaterialManagement),
+  MedicationManagement: () => import('./modules/medication/MedicationManagement.js').then(m => m.MedicationManagement),
+  MedicationReception: () => import('./modules/medication/MedicationReception.js').then(m => m.MedicationReception),
   PermissionSlipDashboard: () => import('./modules/permission-slips/PermissionSlipDashboard.js').then(m => m.PermissionSlipDashboard),
-  PermissionSlipSign: () => import('./permission_slip_sign.js').then(m => m.PermissionSlipSign),
+  PermissionSlipSign: () => import('./modules/permission-slips/PermissionSlipSign.js').then(m => m.PermissionSlipSign),
   AccountInfoModule: () => import('./modules/account-info.js').then(m => m.AccountInfoModule),
-  FormBuilder: () => import('./formBuilder.js').then(m => m.FormBuilder),
+  FormBuilder: () => import('./modules/forms/FormBuilder.js').then(m => m.FormBuilder),
   Activities: () => import('./modules/activities/Activities.js').then(m => m.Activities),
-  CarpoolLanding: () => import('./carpool.js').then(m => m.CarpoolLanding),
-  CarpoolDashboard: () => import('./carpool_dashboard.js').then(m => m.CarpoolDashboard),
-  RoleManagement: () => import('./role_management.js').then(m => m.RoleManagement),
-  DistrictManagement: () => import('./district_management.js').then(m => m.DistrictManagement),
-  FormPermissions: () => import('./form_permissions.js').then(m => m.initFormPermissions),
-  CommunicationSettings: () => import('./communication-settings.js').then(m => m.CommunicationSettings),
+  CarpoolLanding: () => import('./modules/carpool/CarpoolLanding.js').then(m => m.CarpoolLanding),
+  CarpoolDashboard: () => import('./modules/carpool/CarpoolDashboard.js').then(m => m.CarpoolDashboard),
+  RoleManagement: () => import('./modules/roles/RoleManagement.js').then(m => m.RoleManagement),
+  DistrictManagement: () => import('./modules/district/DistrictManagement.js').then(m => m.DistrictManagement),
+  FormPermissions: () => import('./modules/forms/FormPermissions.js').then(m => m.initFormPermissions),
+  CommunicationSettings: () => import('./modules/communication-settings/CommunicationSettings.js').then(m => m.CommunicationSettings),
   UnitSettings: () => import('./modules/unit-settings/unit-settings.js').then(m => m.UnitSettings),
-  OfflinePreparation: () => import('./offline_preparation.js').then(m => m.OfflinePreparation),
+  OfflinePreparation: () => import('./modules/offline/OfflinePreparation.js').then(m => m.OfflinePreparation),
   IncidentReport: () => import('./modules/incident-report/incident-report.js').then(m => m.IncidentReport),
   YearlyPlanner: () => import('./modules/yearly-planner/YearlyPlanner.js').then(m => m.YearlyPlanner),
   ScoutYearTransition: () => import('./modules/scout-year/ScoutYearTransition.js').then(m => m.ScoutYearTransition),
@@ -1063,7 +1063,7 @@ export class Router {
         activityRoutes.includes(routeName) &&
         !this.activityWidgetInitialized  // Check if the widget is already initialized
       ) {
-        import('./init-activity-widget.js').then(module => {
+        import('./modules/activity-widget/initActivityWidget.js').then(module => {
           module.initActivityWidget(this.app);
         });
         this.activityWidgetInitialized = true;  // Mark the widget as initialized
@@ -1431,7 +1431,7 @@ export class Router {
 
   async handleLogout() {
     try {
-      const { Login } = await import('./login.js');
+      const { Login } = await import('./modules/session/Login.js');
       await Login.logout();
       // Note: Login.logout() always redirects via window.location.href (never throws)
     } catch (error) {
@@ -1442,7 +1442,7 @@ export class Router {
   }
 
   async loadLoginPage() {
-    const { Login } = await import('./login.js');
+    const { Login } = await import('./modules/session/Login.js');
     const login = new Login(this.app);
     this.currentModuleInstance = login;
     login.init();

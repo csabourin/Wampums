@@ -914,22 +914,22 @@ export class OfflineManager {
         const campModules = [
             () => import('./attendance/Attendance.js'),
             () => import('./points/ManagePoints.js'),
-            () => import('../manage_honors.js'),
+            () => import('./honors/ManageHonors.js'),
             () => import('./activities/Activities.js'),
-            () => import('../medication_management.js'),
-            () => import('../medication_reception.js'),
-            () => import('../badge_tracker.js'),
-            () => import('../carpool.js'),
-            () => import('../carpool_dashboard.js'),
+            () => import('./medication/MedicationManagement.js'),
+            () => import('./medication/MedicationReception.js'),
+            () => import('./badges/BadgeTracker.js'),
+            () => import('./carpool/CarpoolLanding.js'),
+            () => import('./carpool/CarpoolDashboard.js'),
             () => import('./participants/ManageParticipants.js'),
-            () => import('../manage_groups.js'),
-            () => import('../upcoming_meeting.js'),
+            () => import('./groups/ManageGroups.js'),
+            () => import('./meetings/UpcomingMeeting.js'),
             // Shell + tabs for the merged destinations reachable offline
             () => import('./TabbedPage.js'),
             () => import('./meetings/MeetingPrep.js'),
             () => import('./program-progress/ProgramProgressDashboard.js'),
-            () => import('../offline_preparation.js'),
-            () => import('../init-activity-widget.js'),
+            () => import('./offline/OfflinePreparation.js'),
+            () => import('./activity-widget/initActivityWidget.js'),
         ];
 
         const results = await Promise.allSettled(campModules.map(loader => loader()));

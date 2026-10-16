@@ -40,7 +40,7 @@ export const TABBED_PAGES = {
         // needs its own gate: without it a participants-only user lands on the
         // tracker's "not authorized" panel instead of the Programme tab.
         gate: () => hasAnyPermission("badges.view", "badges.approve", "badges.manage"),
-        load: () => import("../badge_tracker.js").then((m) => m.BadgeTracker),
+        load: () => import("../modules/badges/BadgeTracker.js").then((m) => m.BadgeTracker),
       },
       {
         key: "programme",
@@ -61,7 +61,7 @@ export const TABBED_PAGES = {
       {
         key: "prochaine",
         labelKey: "tab_meetings_next",
-        load: () => import("../upcoming_meeting.js").then((m) => m.UpcomingMeeting),
+        load: () => import("../modules/meetings/UpcomingMeeting.js").then((m) => m.UpcomingMeeting),
       },
       {
         key: "preparation",
@@ -83,13 +83,13 @@ export const TABBED_PAGES = {
         labelKey: "tab_district_units",
         gate: () => hasPermission("roles.view"),
         load: () =>
-          import("../district_management.js").then((m) => m.DistrictManagement),
+          import("../modules/district/DistrictManagement.js").then((m) => m.DistrictManagement),
       },
       {
         key: "outils",
         labelKey: "tab_district_tools",
         gate: () => canAccessAdminPanel(),
-        load: () => import("../admin.js").then((m) => m.Admin),
+        load: () => import("../modules/admin/Admin.js").then((m) => m.Admin),
       },
     ],
   },
