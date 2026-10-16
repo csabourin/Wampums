@@ -165,7 +165,8 @@ describe('what the bar says', () => {
     expect(bar().getAttribute('aria-label')).toBe('Programme in progress');
     expect(button().textContent.replace(/\s+/g, ' ').trim())
       .toBe('Now Den game 12 min Next · 7:25 p.m. Jungle story · Akela');
-    expect(getDayProgramme).toHaveBeenCalledWith('2026-10-16');
+    // Always asked of the server; the cache is only the offline fallback.
+    expect(getDayProgramme).toHaveBeenCalledWith('2026-10-16', { forceRefresh: true });
   });
 
   test('in the last five minutes the words change too, not only the colour', async () => {
@@ -294,6 +295,8 @@ describe('as the clock turns', () => {
 
     await runClockTo(at(19, 15));
     expect(getDayProgramme).toHaveBeenCalledTimes(2);
+    // A camp's days cached for ten days must not hide edits or a withdrawn access.
+    expect(getDayProgramme).toHaveBeenLastCalledWith('2026-10-16', { forceRefresh: true });
   });
 });
 

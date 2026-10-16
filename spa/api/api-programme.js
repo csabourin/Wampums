@@ -8,8 +8,8 @@ import { CONFIG } from '../config.js';
 
 /**
  * The programme running on a day: a meeting's timeline, or one day of a camp.
- * Cached, and read from the cache when offline, so the bar keeps working at
- * camp.
+ * Kept for a day, as the copy to fall back on when offline, so the bar keeps
+ * working at camp; the bar itself always asks the server first.
  *
  * @param {string} date - The phone's day, YYYY-MM-DD
  * @param {{forceRefresh?: boolean, cacheDuration?: number}} [options]
@@ -17,7 +17,7 @@ import { CONFIG } from '../config.js';
  */
 export function getDayProgramme(date, options = {}) {
   return API.get('v1/meetings/programme', { date }, {
-    cacheDuration: options.cacheDuration ?? CONFIG.CACHE_DURATION.SHORT,
+    cacheDuration: options.cacheDuration ?? CONFIG.CACHE_DURATION.LONG,
     forceRefresh: options.forceRefresh === true,
   });
 }

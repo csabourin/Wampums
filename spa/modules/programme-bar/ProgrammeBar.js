@@ -164,8 +164,10 @@ export class ProgrammeBar extends BaseModule {
   }
 
   /**
-   * Read the day's programme. A failure to reach the server keeps what was
-   * read for the same day (offline, the cache answers first); a refusal (the
+   * Read the day's programme, from the server every time, so an edit or a
+   * withdrawn access shows at the next reading even when a camp's days are
+   * cached for longer. Unreachable, the cached copy answers; a failure with
+   * nothing cached keeps what was read for the same day; a refusal (the
    * leader lost access) drops it at once; another day's plan is never shown.
    *
    * @returns {Promise<void>}
@@ -173,7 +175,7 @@ export class ProgrammeBar extends BaseModule {
   async load() {
     const date = localDateKey(this.now());
     try {
-      const response = await getDayProgramme(date);
+      const response = await getDayProgramme(date, { forceRefresh: true });
       if (this.isDestroyed) {
         return;
       }
