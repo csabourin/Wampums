@@ -15,6 +15,7 @@ import { canApproveBadges } from '../../utils/PermissionUtils.js';
 import { getUpcomingBirthdays } from '../../utils/BirthdayUtils.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 
 export class UpcomingMeeting {
   constructor(app, options = {}) {
@@ -24,6 +25,21 @@ export class UpcomingMeeting {
     this.closestMeeting = null;
     this.meetingDetails = null;
     this.participants = [];
+    this.destroyed = false;
+  }
+
+  /** Called when the person leaves: a late answer draws nothing. */
+  destroy() {
+    this.destroyed = true;
+  }
+
+  /** @returns {Object} Shared page-state options; embedded in a tab, only the state itself */
+  pageOptions() {
+    return {
+      title: translate('tile_upcoming_meeting'),
+      className: 'upcoming-meeting',
+      embedded: Boolean(this.embedded),
+    };
   }
 
   /**
@@ -38,33 +54,41 @@ export class UpcomingMeeting {
   }
 
   async init() {
+    showPageLoading(getMountPoint(this), this.pageOptions());
     try {
+      // Birthdays are extra: fetchParticipants keeps the page usable without them.
       await Promise.all([
         this.fetchMeetingDates(),
         this.fetchParticipants(),
       ]);
-      this.closestMeeting =
-        await this.getClosestMeeting();
+      this.closestMeeting = await this.getClosestMeeting();
       if (this.closestMeeting) {
-        await this.fetchMeetingDetails(
-          this
-            .closestMeeting,
-        );
+        await this.fetchMeetingDetails(this.closestMeeting);
       }
-      await this.render();
     } catch (error) {
-      debugError(
-        'Error initializing upcoming meeting:',
-        error,
-      );
-      this.renderError();
-      this.app.showMessage(
-        translate(
-          'error_loading_upcoming_meeting',
-        ),
-        'error',
-      );
+      debugError('Error initializing upcoming meeting:', error);
+      this.renderError(() => this.init());
+      return;
     }
+    await this.render();
+  }
+
+  /**
+   * Show another of the upcoming meetings.
+   *
+   * @param {string} date - The meeting's date
+   * @returns {Promise<void>}
+   */
+  async showMeeting(date) {
+    this.closestMeeting = date;
+    try {
+      await this.fetchMeetingDetails(date);
+    } catch (error) {
+      debugError('Error loading meeting details:', error);
+      this.renderError(() => this.showMeeting(date));
+      return;
+    }
+    await this.render();
   }
 
   async fetchMeetingDates() {
@@ -79,6 +103,8 @@ export class UpcomingMeeting {
         'Error fetching meeting dates:',
         error,
       );
+      // Without the dates the page cannot tell there is no meeting: the caller shows the error.
+      throw error;
     }
   }
 
@@ -283,6 +309,7 @@ export class UpcomingMeeting {
         error,
       );
       this.meetingDetails = null;
+      throw error;
     }
   }
 
@@ -389,6 +416,9 @@ export class UpcomingMeeting {
   }
 
   async render() {
+    if (this.destroyed) {
+      return;
+    }
     if (!this.closestMeeting) {
       setContent(
         getMountPoint(this),
@@ -530,12 +560,7 @@ export class UpcomingMeeting {
     // Add event listener for meeting selector
     const selector = document.getElementById('meeting-select');
     if (selector) {
-      selector.addEventListener('change', async (e) => {
-        const selectedDate = e.target.value;
-        this.closestMeeting = selectedDate;
-        await this.fetchMeetingDetails(selectedDate);
-        await this.render();
-      });
+      selector.addEventListener('change', (e) => this.showMeeting(e.target.value));
     }
 
     const awardBtn = document.getElementById('award-achievements-btn');
@@ -684,16 +709,20 @@ export class UpcomingMeeting {
     }
   }
 
-  renderError() {
-    const content = `
-                                                <div class="upcoming-meeting">
-                                                                ${this.renderHeader()}
-                                                                <div class="error-message">
-                                                                                <p>${translate('error_loading_upcoming_meeting')}</p>
-                                                                                <p><a href="/dashboard">${translate('back_to_dashboard')}</a></p>
-                                                                </div>
-                                                </div>
-                                `;
-    setContent(getMountPoint(this), content);
+  /**
+   * The meeting could not be loaded: an alert with a retry, never "no meeting".
+   *
+   * @param {Function} onRetry - Loads again what failed
+   * @returns {void}
+   */
+  renderError(onRetry) {
+    if (this.destroyed) {
+      return;
+    }
+    showPageError(getMountPoint(this), {
+      ...this.pageOptions(),
+      message: translate('error_loading_upcoming_meeting'),
+      retryId: 'upcoming-meeting-retry',
+    }, onRetry);
   }
 }

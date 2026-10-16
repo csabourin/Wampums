@@ -177,6 +177,7 @@ try {
     database: `postgresql:///${DB}?host=/var/run/postgresql`,
     accounts: { admin: 'admin@run.test', leader: 'leader@run.test', parent: 'parent@run.test' },
     activityId,
+    participantId: childId,
     password: PASSWORD,
   };
   mkdirSync(CACHE, { recursive: true });

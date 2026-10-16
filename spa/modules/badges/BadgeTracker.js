@@ -35,6 +35,7 @@ import {
 } from '../../api/api-endpoints.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 
 /** Owner key for the badge tracker modal's body scroll lock. */
 const ADD_STAR_MODAL_ID = 'badge-tracker-add-star';
@@ -61,6 +62,13 @@ export class BadgeTracker {
     this.delegationRoot = null;
     this.unprocessedMeetings = [];
     this.attendanceDates = [];
+    this.hasLoaded = false;
+    this.destroyed = false;
+  }
+
+  /** @returns {Object} Shared page-state options; embedded in a tab, only the state itself */
+  pageOptions() {
+    return { title: translate('tile_badge_tracker'), className: 'badge-tracker', embedded: Boolean(this.embedded) };
   }
 
   async init() {
@@ -76,12 +84,27 @@ export class BadgeTracker {
       return;
     }
 
-    this.renderSkeleton();
-    await this.loadData();
+    showPageLoading(getMountPoint(this), this.pageOptions());
+    const loaded = await this.loadData();
+    if (this.destroyed) {
+      return;
+    }
+    // A failed first load is an error with a retry, never an empty tracker.
+    if (!loaded) {
+      showPageError(getMountPoint(this), this.pageOptions(), () => this.init());
+      return;
+    }
     this.render();
     this.attachEventListeners();
   }
 
+  /**
+   * Load the tracker's data. After a write the refreshed data is optional: the
+   * write stands, the current view stays, and a toast says the refresh failed.
+   *
+   * @param {boolean} [forceRefresh=false] - Bypass the cache
+   * @returns {Promise<boolean>} Whether the summary was loaded
+   */
   async loadData(forceRefresh = false) {
     try {
       // Parallelize independent API calls for faster loading. Unprocessed
@@ -97,17 +120,23 @@ export class BadgeTracker {
 
       this.unprocessedMeetings = unprocessedResponse?.data || [];
 
-      if (response?.success && response.data) {
-        this.badges = response.data.badges || [];
-        this.templates = response.data.templates || [];
-        this.participants = response.data.participants || [];
-        this.stats = response.data.stats || {};
+      if (!response?.success || !response.data) {
+        throw new Error('badge_tracker_summary_unavailable');
       }
+      this.badges = response.data.badges || [];
+      this.templates = response.data.templates || [];
+      this.participants = response.data.participants || [];
+      this.stats = response.data.stats || {};
       this.loading = false;
+      this.hasLoaded = true;
+      return true;
     } catch (error) {
       debugError('[BadgeTracker] Error loading data:', error);
       this.loading = false;
-      this.showToast(translate('error_loading_data'), 'error');
+      if (this.hasLoaded && !this.destroyed) {
+        this.showToast(translate('error_loading_data'), 'error');
+      }
+      return false;
     }
   }
 
@@ -235,24 +264,10 @@ export class BadgeTracker {
     );
   }
 
-  renderSkeleton() {
-    const app = getMountPoint(this);
-    setContent(
-      app,
-      `
-      <div class="badge-tracker">
-        <div class="badge-tracker__skeleton">
-          <div class="skeleton skeleton--header"></div>
-          <div class="skeleton skeleton--tabs"></div>
-          <div class="skeleton skeleton--stats"></div>
-          <div class="skeleton skeleton--list"></div>
-        </div>
-      </div>
-    `,
-    );
-  }
-
   render() {
+    if (this.destroyed) {
+      return;
+    }
     const pendingCount = this.getPendingItems().length;
     const deliveryCount = this.getDeliveryItems().length;
     const filteredParticipants = this.getFilteredParticipants();
@@ -863,6 +878,7 @@ export class BadgeTracker {
    * Remove listeners and clean up state. Called by the router on navigation.
    */
   destroy() {
+    this.destroyed = true;
     if (this.delegationRoot && this.boundClickHandler) {
       this.delegationRoot.removeEventListener('click', this.boundClickHandler);
     }
@@ -1619,9 +1635,9 @@ export class BadgeTracker {
       getMountPoint(this),
       `
       <section class="badge-tracker badge-tracker--error">
+        ${this.embedded ? '' : renderBackLink()}
         <h1>${translate('not_authorized')}</h1>
         <p>${translate('badge_no_access')}</p>
-        <p><a href="/dashboard">${translate('back_to_dashboard')}</a></p>
       </section>
     `,
     );

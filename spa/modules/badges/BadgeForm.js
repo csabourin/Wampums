@@ -20,6 +20,8 @@ import {
 } from '../../ajax-functions.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 export class BadgeForm {
   constructor(app) {
     this.app = app;
@@ -33,19 +35,36 @@ export class BadgeForm {
     this.territoires = [];
     this.templates = [];
     this.participantSection = 'general';
+    this.destroyed = false;
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
+  }
+
+  /** @returns {Object} Shared page-state options */
+  pageOptions() {
+    return { title: translate('badge_progress_form'), className: 'badge-form-page' };
   }
 
   async init(participantId) {
+    this.participantId = participantId;
+    showPageLoading(document.getElementById('app'), this.pageOptions());
     try {
       await this.fetchBadgeSystemSettings();
       await this.fetchParticipant(participantId);
       await this.fetchBadgeProgress();
-      this.render();
-      this.attachEventListeners();
     } catch (error) {
       debugError('Error initializing badge form:', error);
       this.renderError();
+      return;
     }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventListeners();
   }
 
   async fetchBadgeSystemSettings() {
@@ -61,8 +80,8 @@ export class BadgeForm {
       }
     } catch (error) {
       debugError('Error fetching badge system settings:', error);
-      this.templates = [];
-      this.territoires = [];
+      // Without the templates there is no badge to choose: the page shows the error.
+      throw error;
     }
   }
 
@@ -140,10 +159,11 @@ export class BadgeForm {
     const templates = this.getTemplatesForSection();
     const hasTemplates = templates.length > 0;
     const content = `
+            ${renderBackLink()}
             <h1>${translate('badge_progress_form')}</h1>
-            <h2>${this.participant ? `${this.participant.first_name} ${this.participant.last_name}` : translate('participant_name')}</h2>
+            <h2>${this.participant ? escapeHTML(`${this.participant.first_name} ${this.participant.last_name}`) : translate('participant_name')}</h2>
             <div id="success-message" class="hidden"></div>
-            <button id="print-view-btn">${translate('print_badge_form')}</button>
+            <button type="button" class="button button--secondary" id="print-view-btn">${translate('print_badge_form')}</button>
             <form id="badge-form">
                 <label for="badge_template_id">${
   translate('badge_select_badge') || translate('badge')
@@ -172,8 +192,10 @@ export class BadgeForm {
                 <label for="description">${translate('description')}:</label>
                 <textarea id="description" name="description" required></textarea>
 
-                <label for="fierte">${translate('fierte')}:</label>
-                <input type="checkbox" id="fierte" name="fierte">
+                <div class="form-group form-group--single-checkbox">
+                  <input type="checkbox" id="fierte" name="fierte">
+                  <label for="fierte">${translate('fierte')}</label>
+                </div>
 
                 <label for="raison">${translate('raison')}:</label>
                 <textarea id="raison" name="raison" required></textarea>
@@ -193,7 +215,6 @@ export class BadgeForm {
                 ${this.renderBadgeGrid()}
             </div>
 
-            <p><a href="/parent-dashboard">${translate('back_to_dashboard')}</a></p>
         `;
 
     setContent(document.getElementById('app'), content);
@@ -525,10 +546,12 @@ export class BadgeForm {
   }
 
   renderError() {
-    const errorMessage = `
-            <h1>${translate('error')}</h1>
-            <p>${escapeHTML(translate('error_loading_badge_form'))}</p>
-        `;
-    setContent(document.getElementById('app'), errorMessage);
+    if (this.destroyed) {
+      return;
+    }
+    showPageError(document.getElementById('app'), {
+      ...this.pageOptions(),
+      message: translate('error_loading_badge_form'),
+    }, () => this.init(this.participantId));
   }
 }

@@ -158,7 +158,6 @@
     "spa/modules/fundraising/Calendars.js": 4,
     "spa/modules/fundraising/campaignModel.js": 32,
     "spa/modules/groups/GroupParticipantReport.js": 3,
-    "spa/modules/groups/ManageGroups.js": 1,
     "spa/modules/honors/ManageHonors.js": 10,
     "spa/modules/incident-report/incident-report.js": 24,
     "spa/modules/mailing-list/MailingList.js": 1,

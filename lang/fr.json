@@ -3971,5 +3971,6 @@
   "parent_contact_list_empty": "Aucun contact à afficher pour l’instant.",
   "parent_contact_list_no_match": "Aucun contact ne correspond à votre recherche.",
   "med_reception_declarations_unavailable": "Les médicaments déclarés dans les fiches santé n’ont pas pu être chargés. Vérifiez les fiches santé avant d’administrer quoi que ce soit.",
-  "medication_receptions_unavailable": "Les médicaments remis par les familles n’ont pas pu être chargés. Vérifiez avant d’administrer quoi que ce soit."
+  "medication_receptions_unavailable": "Les médicaments remis par les familles n’ont pas pu être chargés. Vérifiez avant d’administrer quoi que ce soit.",
+  "report_unknown_type": "Ce rapport n’existe pas."
 }

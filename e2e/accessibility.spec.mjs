@@ -5,7 +5,7 @@
  * unobscured focus, and a dialog driven from the keyboard.
  */
 import { test, expect } from '@playwright/test';
-import { ACCOUNTS, APP_NAME, storageStateFor, openScreen, settleScreen, axeViolations, seededActivityId } from './helpers.mjs';
+import { ACCOUNTS, APP_NAME, storageStateFor, openScreen, settleScreen, axeViolations, seededActivityId, seededParticipantId } from './helpers.mjs';
 
 /** Screens each person reaches from their dashboard. Paths are canonical (no redirects). */
 const SCREENS = {
@@ -31,6 +31,7 @@ const SCREENS = {
     '/material-management',
     '/medication-dispensing', '/medication-reception',
     '/create-organization',
+    `/badge-form/${seededParticipantId()}`,
   ],
 };
 

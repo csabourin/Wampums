@@ -3971,5 +3971,6 @@
   "parent_contact_list_empty": "No contacts to show yet.",
   "parent_contact_list_no_match": "No contact matches your search.",
   "med_reception_declarations_unavailable": "The medications declared on health forms could not be loaded. Check the health forms before giving anything.",
-  "medication_receptions_unavailable": "Which medications were handed in could not be loaded. Check before giving anything."
+  "medication_receptions_unavailable": "Which medications were handed in could not be loaded. Check before giving anything.",
+  "report_unknown_type": "This report does not exist."
 }
