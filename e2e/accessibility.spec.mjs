@@ -32,6 +32,7 @@ const SCREENS = {
     '/medication-dispensing', '/medication-reception',
     '/create-organization',
     `/badge-form/${seededParticipantId()}`,
+    '/prepare-offline', '/communications',
   ],
 };
 

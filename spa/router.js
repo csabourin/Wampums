@@ -644,7 +644,6 @@ export class Router {
           break;
         case "permissionSlipSign":
           // Public route - allow anyone to sign permission slips via email link
-          debugLog('[ROUTER DEBUG] Loading PermissionSlipSign with ID:', param);
           const PermissionSlipSign = await this.loadModule('PermissionSlipSign');
           const permissionSlipSign = new PermissionSlipSign(this.app, param);
           this.currentModuleInstance = permissionSlipSign;

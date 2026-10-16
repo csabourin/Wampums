@@ -3972,5 +3972,8 @@
   "parent_contact_list_no_match": "No contact matches your search.",
   "med_reception_declarations_unavailable": "The medications declared on health forms could not be loaded. Check the health forms before giving anything.",
   "medication_receptions_unavailable": "Which medications were handed in could not be loaded. Check before giving anything.",
-  "report_unknown_type": "This report does not exist."
+  "report_unknown_type": "This report does not exist.",
+  "permission_slip_load_failed": "The permission slip could not be loaded. Check your connection and try again.",
+  "google_chat_spaces_unavailable": "The Google Chat spaces could not be loaded. Reload the page to try again.",
+  "google_chat_credentials_invalid_json": "This is not a valid JSON key. Paste the whole file downloaded from Google Cloud."
 }

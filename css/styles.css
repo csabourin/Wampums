@@ -1157,6 +1157,11 @@ tr:hover {
 }
 
 .participant-card__edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--touch-target-min);
+  min-inline-size: var(--touch-target-min);
   padding: var(--space-sm) var(--space-md);
   background-color: var(--color-primary);
   color: white;

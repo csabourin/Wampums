@@ -138,11 +138,11 @@
 }
 
 .activity-card__arrow {
-  color: #999;
+  color: var(--color-text-muted);
 }
 
 .activity-card__duration {
-  color: #888;
+  color: var(--color-text-muted);
   font-size: 0.85rem;
   margin: 0 0 8px 0;
 }
@@ -265,7 +265,7 @@
 }
 
 .prepared-item__info small {
-  color: #888;
+  color: var(--color-text-muted);
   font-size: 0.8rem;
 }
 
@@ -287,7 +287,7 @@
 /* Empty State */
 .empty-state {
   text-align: center;
-  color: #888;
+  color: var(--color-text-muted);
   padding: 24px;
   font-style: italic;
 }
