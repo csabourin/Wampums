@@ -907,9 +907,7 @@ export class Expenses {
           this.app.showMessage('receipt_parsed_success', 'success');
         } catch (err) {
           debugError('Receipt upload error', err);
-          let msgKey = 'error_parsing_receipt';
-          if (err.error?.code === 'AI_BUDGET_EXCEEDED') {msgKey = 'ai_budget_exceeded';}
-          this.app.showMessage(msgKey, 'error');
+          this.app.showMessage(apiErrorMessage(err, 'error_parsing_receipt'), 'error');
         } finally {
           setButtonLoading(uploadBtn, false);
           fileInput.value = ''; // Reset

@@ -22,6 +22,9 @@ const CODE_MESSAGE_KEYS = Object.freeze({
   online_required: 'family_operation_online_required',
   operation_unconfirmed: 'family_operation_unconfirmed',
   AI_BUDGET_EXCEEDED: 'ai_budget_exceeded',
+  AI_NOT_CONFIGURED: 'ai_unavailable',
+  AI_RATE_LIMITED: 'ai_rate_limited',
+  AI_SERVICE_ERROR: 'ai_service_error',
 });
 
 /** api-core prefixes the server's message when it gives up on a request. */

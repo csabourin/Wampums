@@ -4027,5 +4027,8 @@
   "programme_announcement": "{label} : {name}, {time}",
   "announcement_recipients_required": "Cochez au moins un rôle ou une case parmi les {subgroup_plural}.",
   "announcement_groups_help": "Pour écrire seulement à des familles, cochez uniquement des cases parmi les {subgroup_plural}. Si des rôles sont aussi cochés, seuls les parents des jeunes de la sélection reçoivent le message ; les autres rôles le reçoivent au complet.",
-  "ai_text_empty_result": "L’assistant n’a renvoyé aucun texte. Votre message n’a pas été modifié."
+  "ai_text_empty_result": "L’assistant n’a renvoyé aucun texte. Votre message n’a pas été modifié.",
+  "ai_unavailable": "L’assistant IA n’est pas disponible pour le moment.",
+  "ai_rate_limited": "L’assistant IA est occupé. Réessayez dans une minute.",
+  "ai_service_error": "L’assistant IA n’a pas pu répondre. Réessayez."
 }

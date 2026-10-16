@@ -326,10 +326,7 @@ function showMagicGenerateModal(app, formOverlay) {
       close();
     } catch (err) {
       debugError('Magic generate failed:', err);
-      const msg = err.error?.code === 'AI_BUDGET_EXCEEDED'
-        ? translate('ai_budget_exceeded')
-        : translate('magic_generate_error');
-      app.showMessage(msg, 'error');
+      app.showMessage(apiErrorMessage(err, 'magic_generate_error'), 'error');
     } finally {
       setButtonLoading(btn, false);
     }
