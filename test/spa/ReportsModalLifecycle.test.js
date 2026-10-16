@@ -71,8 +71,15 @@ jest.mock('../../spa/ajax-functions.js', () => ({
   getFinanceReport: jest.fn(),
 }));
 
+import axe from 'axe-core';
 import { Reports } from '../../spa/modules/reports/Reports.js';
 import { isBodyScrollLocked, releaseAllScrollLocks } from '../../spa/utils/ScrollLockUtils.js';
+
+const AXE_OPTIONS = {
+  runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+  // jsdom does no layout, so contrast cannot be computed here.
+  rules: { 'color-contrast': { enabled: false } },
+};
 
 /**
  * Build the DOM the reports screen expects, plus a stub router.
@@ -312,5 +319,23 @@ describe('complete health record report', () => {
     expect(html).not.toContain('<img');
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+  });
+});
+
+describe('Report menu', () => {
+  test('each category is a group of report buttons named after its heading, which axe accepts', async () => {
+    const { reports } = setup();
+    reports.render();
+
+    const groups = [...document.querySelectorAll('.reports-menu-grid')];
+    expect(groups.length).toBeGreaterThan(0);
+    for (const group of groups) {
+      // A role="menu" of plain buttons promised arrow-key navigation it never had.
+      expect(group.getAttribute('role')).toBe('group');
+      expect(group.getAttribute('aria-label')).toBe(group.closest('.report-category').querySelector('h2').textContent);
+      expect(group.querySelectorAll('button.report-btn').length).toBeGreaterThan(0);
+    }
+    const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
   });
 });

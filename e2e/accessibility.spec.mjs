@@ -31,45 +31,17 @@ const SCREENS = {
 };
 
 /**
- * Violations that predate this suite, in screens still at the spa/ root:
- * each rule lists the exact elements (axe targets) that break it, so a new
- * element breaking the same rule on the same screen still fails. CLAUDE.md §7
- * moves such a screen into spa/modules/ before changing it; fix the entry
- * then and delete it here. A listed element that no longer fails fails the
- * test, so this list only shrinks. The seeded unit speaks French, hence the
- * French labels.
+ * Violations that predate this suite: each rule lists the exact elements
+ * (axe targets) that break it, so a new element breaking the same rule on the
+ * same screen still fails. Fix an entry when you touch its screen
+ * (CLAUDE.md §7) and delete it here. A listed element that no longer fails
+ * fails the test, so this list only shrinks; it is empty now. The seeded unit
+ * speaks French, so targets name French labels.
  */
-const KNOWN_VIOLATIONS = {
-  '/reports': {
-    'aria-required-children': {
-      why: 'spa/modules/reports/Reports.js: role="menu" groups hold links, not menuitems',
-      targets: [
-        'div[aria-label="Santé et médical"]',
-        'div[aria-label="Autorisations et documents"]',
-        'div[aria-label="Présences et participation"]',
-        'div[aria-label="Progression et reconnaissance"]',
-        'div[aria-label="Finances"]',
-      ],
-    },
-  },
-  '/district': {
-    'aria-required-children': {
-      why: 'spa/modules/district/DistrictManagement.js: .dm-filters is a listbox of buttons',
-      targets: ['.dm-filters'],
-    },
-  },
-  '/inventory': {
-    'color-contrast': {
-      why: 'spa/modules/resources/Inventory.js: .photo-hint styled below 4.5:1 in its own <style>',
-      targets: ['.photo-hint'],
-    },
-  },
-};
+const KNOWN_VIOLATIONS = {};
 
 /** Screens that stay marked busy after loading, for the same reason. */
-const KNOWN_STAYS_BUSY = {
-  '/carpool': 'spa/modules/carpool/CarpoolLanding.js: landing skeleton cards keep aria-busy="true"',
-};
+const KNOWN_STAYS_BUSY = {};
 
 /**
  * @param {string} who - Key of SCREENS

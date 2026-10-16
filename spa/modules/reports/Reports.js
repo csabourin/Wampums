@@ -122,7 +122,7 @@ export class Reports {
                         <!-- Health & Medical Section -->
                         <section class="report-category">
                                 <h2 class="report-category-title">${translate('health_medical_category')}</h2>
-                                <div class="reports-menu-grid" role="menu" aria-label="${translate('health_medical_category')}">
+                                <div class="reports-menu-grid" role="group" aria-label="${translate('health_medical_category')}">
                                         <button class="report-btn" data-report="health" type="button">
                                                 <span class="report-btn-icon">🏥</span>
                                                 <span class="report-btn-label">${translate('health_report_title')}</span>
@@ -149,7 +149,7 @@ export class Reports {
                         <!-- Permissions & Documents Section -->
                         <section class="report-category">
                                 <h2 class="report-category-title">${translate('permissions_documents_category')}</h2>
-                                <div class="reports-menu-grid" role="menu" aria-label="${translate('permissions_documents_category')}">
+                                <div class="reports-menu-grid" role="group" aria-label="${translate('permissions_documents_category')}">
                                         <button class="report-btn" data-report="leave-alone" type="button">
                                                 <span class="report-btn-icon">🚶</span>
                                                 <span class="report-btn-label">${translate('leave_alone_report_title')}</span>
@@ -171,7 +171,7 @@ export class Reports {
                         <!-- Attendance & Participation Section -->
                         <section class="report-category">
                                 <h2 class="report-category-title">${translate('attendance_participation_category')}</h2>
-                                <div class="reports-menu-grid" role="menu" aria-label="${translate('attendance_participation_category')}">
+                                <div class="reports-menu-grid" role="group" aria-label="${translate('attendance_participation_category')}">
                                         <button class="report-btn" data-report="attendance" type="button">
                                                 <span class="report-btn-icon">✓</span>
                                                 <span class="report-btn-label">${translate('attendance_report_title')}</span>
@@ -193,7 +193,7 @@ export class Reports {
                         <!-- Progression & Recognition Section -->
                         <section class="report-category">
                                 <h2 class="report-category-title">${translate('progression_recognition_category')}</h2>
-                                <div class="reports-menu-grid" role="menu" aria-label="${translate('progression_recognition_category')}">
+                                <div class="reports-menu-grid" role="group" aria-label="${translate('progression_recognition_category')}">
                                         <button class="report-btn report-btn--featured" data-report="participant-progress" type="button">
                                                 <span class="report-btn-icon">📊</span>
                                                 <span class="report-btn-label">${translate('participant_progress_report_title')}</span>
@@ -215,7 +215,7 @@ export class Reports {
                         <!-- Financial Section -->
                         <section class="report-category">
                                 <h2 class="report-category-title">${translate('financial_category')}</h2>
-                                <div class="reports-menu-grid" role="menu" aria-label="${translate('financial_category')}">
+                                <div class="reports-menu-grid" role="group" aria-label="${translate('financial_category')}">
                                         <button class="report-btn" data-report="financial" type="button">
                                                 <span class="report-btn-icon">💰</span>
                                                 <span class="report-btn-label">${translate('financial_report_title')}</span>

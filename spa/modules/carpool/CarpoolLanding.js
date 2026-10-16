@@ -52,7 +52,7 @@ export class CarpoolLanding {
         </header>
 
         <div class="carpool-landing__actions">
-          <button class="button button--primary button--large" id="carpool-open-selector">
+          <button type="button" class="button button--primary button--large" id="carpool-open-selector">
             <svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M3 13h18"></path>
               <path d="M3 6h18"></path>
@@ -75,7 +75,7 @@ export class CarpoolLanding {
           </a>
         </div>
 
-        <div class="carpool-landing__skeletons">
+        <div class="carpool-landing__skeletons" aria-hidden="true">
           ${this.renderSkeletonCard(translate('select_activity_for_carpool'), 3)}
           ${this.renderSkeletonCard(translate('available_rides'), 2)}
           ${this.renderSkeletonCard(translate('current_assignments'), 2)}
@@ -85,8 +85,10 @@ export class CarpoolLanding {
   }
 
   /**
-   * Render a single skeleton card with placeholder lines.
-   * @param {string} title - Section title for accessibility context.
+   * Render a single skeleton card with placeholder lines. The cards preview
+   * the activity page and never load, so they are hidden from assistive
+   * technology rather than announced as busy.
+   * @param {string} title - Section title shown on the preview card.
    * @param {number} lines - Number of placeholder rows to render.
    * @returns {string} HTML string for the skeleton card.
    */
@@ -96,7 +98,7 @@ export class CarpoolLanding {
       .join('');
 
     return `
-      <article class="carpool-landing__card skeleton" aria-busy="true" aria-label="${title}">
+      <article class="carpool-landing__card skeleton">
         <div class="carpool-landing__card-header">
           <h2>${title}</h2>
           <span class="carpool-landing__pill skeleton-text"></span>

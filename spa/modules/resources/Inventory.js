@@ -410,7 +410,6 @@ export class Inventory {
 
         :is(.inventory-page, .inventory-dialog) .photo-hint {
           font-size: 0.8rem;
-          opacity: 0.7;
         }
 
         :is(.inventory-page, .inventory-dialog) .photo-progress {

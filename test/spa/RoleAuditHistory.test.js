@@ -66,7 +66,14 @@ jest.mock('../../spa/utils/PageMount.js', () => ({
   resolveMountOptions: () => ({}),
 }));
 
+import axe from 'axe-core';
 import { DistrictManagement } from '../../spa/modules/district/DistrictManagement.js';
+
+const AXE_OPTIONS = {
+  runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+  // jsdom does no layout, so contrast cannot be computed here.
+  rules: { 'color-contrast': { enabled: false } },
+};
 
 const LEADER = { id: 3, role_name: 'leader', display_name: 'Leader' };
 const PARENT = { id: 4, role_name: 'parent', display_name: 'Parent' };
@@ -123,5 +130,24 @@ describe('role history entry', () => {
     const item = render({ actor_name: 'Akela', summary: 'Animateurs', status: 'error' });
 
     expect(item.querySelector('.dm-audit-summary').textContent).toBe('Animateurs');
+  });
+});
+
+describe('Role filters', () => {
+  test('are a labelled group of toggle buttons, which axe accepts', async () => {
+    document.body.innerHTML = '<main id="app"></main>';
+    const view = new DistrictManagement({ lang: 'fr' });
+    view.roles = [LEADER, PARENT];
+    view.activeRoleFilters = new Set(['leader']);
+    view.render();
+
+    const filters = document.querySelector('.dm-filters');
+    // A listbox holding buttons announced options that were not there.
+    expect(filters.getAttribute('role')).toBe('group');
+    expect(filters.getAttribute('aria-label')).toBe('district_management_filter_label');
+    const pressed = [...filters.querySelectorAll('button[aria-pressed="true"]')].map((button) => button.dataset.roleFilter);
+    expect(pressed).toEqual(['leader']);
+    const results = await axe.run(filters, AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
   });
 });

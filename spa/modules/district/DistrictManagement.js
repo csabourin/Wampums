@@ -469,7 +469,7 @@ export class DistrictManagement {
               value="${escapeHTML(this.searchTerm)}"
             />
           </div>
-          <div class="dm-filters" role="listbox" aria-label="${translate('district_management_filter_label')}">
+          <div class="dm-filters" role="group" aria-label="${translate('district_management_filter_label')}">
             ${this.renderRoleFilters()}
           </div>
         </div>
