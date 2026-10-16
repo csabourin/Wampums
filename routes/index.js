@@ -55,6 +55,7 @@ module.exports = (app, pool) => {
   const parentInvitationsRoutes = require('./parentInvitations')(pool, logger);
   const parentOnboardingRoutes = require('./parentOnboarding')(pool, logger);
   const familyLinksRoutes = require('./familyLinks')(pool, logger);
+  const calendarFeedsRoutes = require('./calendarFeeds')(pool, logger);
   const participantDuplicatesRoutes = require('./participantDuplicates')(pool);
   const walkInChildrenRoutes = require('./walkInChildren')(pool, logger);
   const userProfileRoutes = require('./userProfile')(pool, logger);
@@ -120,6 +121,7 @@ module.exports = (app, pool) => {
   app.use('/api/v1/parent-onboarding', parentOnboardingRoutes);
   // Defines /family-links and /family-link-requests, two resources that belong together.
   app.use('/api/v1', familyLinksRoutes);
+  app.use('/api/v1', calendarFeedsRoutes);
   app.use('/api/v1/participant-duplicates', participantDuplicatesRoutes);
   app.use('/api/v1/walk-in-children', walkInChildrenRoutes);
   // rolesRoutes defines absolute /api/v1/* paths internally (same pattern as authRoutes)

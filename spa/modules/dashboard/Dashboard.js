@@ -804,7 +804,7 @@ export class Dashboard extends BaseModule {
         <div class="dashboard-v2__org">
           <span class="dashboard-v2__org-avatar" aria-hidden="true">${avatarHtml}</span>
           <span class="dashboard-v2__org-text">
-            <strong>${escapeHTML(this.organizationName || '')}</strong>
+            <h1 class="dashboard-v2__org-name">${escapeHTML(this.organizationName || translate('dashboard_title'))}</h1>
             <span>${subtitle}</span>
           </span>
         </div>

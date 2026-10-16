@@ -68,8 +68,15 @@
   line-height: 1.2;
 }
 
-.dashboard-v2__org-text strong {
+/* The unit's name is the page's <h1>, drawn as the compact label it was. */
+.dashboard-v2__org-name {
+  margin: 0;
+  max-width: none;
+  text-align: start;
   font-size: 0.95rem;
+  font-weight: 700;
+  line-height: inherit;
+  color: inherit;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

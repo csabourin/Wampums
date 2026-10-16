@@ -3,8 +3,9 @@ const winston = require('winston');
 const { OrganizationNotFoundError, respondWithOrganizationFallback } = require('../utils/api-helpers');
 const { requireJWTSecret, verifyJWTToken } = require('../utils/jwt-config');
 const { forbidden, error: errorResponse } = require('./response');
-const HTTP_STATUS = { UNAUTHORIZED: 401, INTERNAL_ERROR: 500 };
+const HTTP_STATUS = { UNAUTHORIZED: 401, NOT_FOUND: 404, INTERNAL_ERROR: 500 };
 const scoutYearService = require('../services/scoutYear');
+const calendarFeeds = require('../services/calendarFeeds');
 
 // Configure logger for auth middleware
 const logger = winston.createLogger({
@@ -79,8 +80,47 @@ exports.authenticate = sessionAuthentication();
 exports.optionalAuth = sessionAuthentication(true);
 
 /**
+ * Authenticate a calendar app by the private link it polls, in place of a
+ * bearer token it cannot send. The link only names its holder and unit;
+ * follow it with requirePermission, which reads that account's current
+ * membership and permissions like any other request's.
+ * @param {Object} req - Request whose `params.token` is the feed token
+ * @param {Object} res - Response
+ * @param {Function} next - Next middleware
+ * @returns {Promise<void>}
+ */
+exports.authenticateCalendarFeed = async (req, res, next) => {
+  const pool = req.app?.locals?.pool;
+  if (!pool) {return errorResponse(res, 'Server configuration error', HTTP_STATUS.INTERNAL_ERROR);}
+  try {
+    const feed = await calendarFeeds.findActiveFeed(pool, req.params.token);
+    if (!feed) {
+      return errorResponse(res, 'Calendar feed not found', HTTP_STATUS.NOT_FOUND);
+    }
+    req.user = { id: feed.userId, organizationId: feed.organizationId, roleIds: [], roleNames: [], permissions: [] };
+    req.calendarFeed = { id: feed.id };
+    return next();
+  } catch (err) {
+    // The token is part of the URL: log the failure, never the request path.
+    logger.error('Calendar feed lookup failed:', err);
+    return errorResponse(res, 'Calendar feed check failed', HTTP_STATUS.INTERNAL_ERROR);
+  }
+};
+
+/**
  * Get organization ID from request (header or user context)
  */
+/**
+ * The request path, fit for a log line. A calendar link's token is a
+ * credential carried in the path, so it is never written out.
+ * @param {Object} req - Request
+ * @returns {string} Path with any calendar token replaced
+ */
+function loggablePath(req) {
+  return req.calendarFeed ? `${req.baseUrl || ''}/calendar-feeds/[token]` : req.path;
+}
+exports.loggablePath = loggablePath;
+
 exports.getOrganizationId = async (req, pool) => {
   const parseOrgId = (value) => {
     if (value === undefined || value === null || value === '') {return null;}
@@ -99,17 +139,17 @@ exports.getOrganizationId = async (req, pool) => {
   if (tokenOrgId) {
     if (headerOrgId && headerOrgId !== tokenOrgId) {
       logger.warn(
-        `Ignoring organization header override for authenticated request. Header=${headerOrgId}, Token=${tokenOrgId}, Path=${req.method} ${req.path}, User=${req.user?.id}`,
+        `Ignoring organization header override for authenticated request. Header=${headerOrgId}, Token=${tokenOrgId}, Path=${req.method} ${loggablePath(req)}, User=${req.user?.id}`,
       );
     }
     if (queryOrgId && queryOrgId !== tokenOrgId) {
       logger.warn(
-        `Ignoring organization_id query override for authenticated request. Query=${queryOrgId}, Token=${tokenOrgId}, Path=${req.method} ${req.path}, User=${req.user?.id}`,
+        `Ignoring organization_id query override for authenticated request. Query=${queryOrgId}, Token=${tokenOrgId}, Path=${req.method} ${loggablePath(req)}, User=${req.user?.id}`,
       );
     }
     if (bodyOrgId && bodyOrgId !== tokenOrgId) {
       logger.warn(
-        `Ignoring organization_id body override for authenticated request. Body=${bodyOrgId}, Token=${tokenOrgId}, Path=${req.method} ${req.path}, User=${req.user?.id}`,
+        `Ignoring organization_id body override for authenticated request. Body=${bodyOrgId}, Token=${tokenOrgId}, Path=${req.method} ${loggablePath(req)}, User=${req.user?.id}`,
       );
     }
     return tokenOrgId;
