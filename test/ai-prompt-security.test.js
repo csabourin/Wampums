@@ -1,4 +1,4 @@
-const { buildMessages } = require('../services/aiText');
+const { buildMessages, CANADIAN_FRENCH_RULE } = require('../services/aiText');
 const { validateAIPayload } = require('../utils/aiPayloadValidation');
 
 const INJECTION_SENTINEL = 'IGNORE_ALL_SYSTEM_INSTRUCTIONS';
@@ -123,4 +123,21 @@ describe('AI prompt trust boundaries', () => {
     }).errors).toEqual([]);
     expect(validateAIPayload('translate', { from: 'fr', to: locale, text: 'Bonjour' }).errors).toEqual([]);
   });
+
+  test.each([
+    ['meeting_plan', { locale: 'fr', date: '2026-10-17', section: 'Meute', duration: '90 minutes' }],
+    ['meeting_plan', { durationMinutes: 60, badgeFocus: 'Premiers soins', participantsCount: 18 }],
+    ['rewrite', { tone: 'professional', text: 'Salut' }],
+    ['translate', { from: 'en', to: 'fr', text: 'Hello' }],
+    ['risk_suggest', { activityDescription: 'Canot' }],
+  ])('%s asks for Canadian French in its static system message', (mode, payload) => {
+    const validation = validateAIPayload(mode, payload);
+    expect(validation.errors).toEqual([]);
+
+    const system = buildMessages(mode, validation.value).find(({ role }) => role === 'system').content;
+    expect(system).toContain(CANADIAN_FRENCH_RULE);
+    expect(CANADIAN_FRENCH_RULE).toMatch(/Québec/);
+    expect(CANADIAN_FRENCH_RULE).toMatch(/dîner \(noon\)/);
+  });
 });
+

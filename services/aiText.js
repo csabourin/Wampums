@@ -44,6 +44,20 @@ const PROVIDERS = Object.freeze({
   }),
 });
 
+/**
+ * The units are Canadian: French output is the standard French of Québec,
+ * not European French. Part of every system message.
+ */
+const CANADIAN_FRENCH_RULE = 'Whenever you write French, write standard Canadian French as used in Québec, never European French. '
+  + 'Meals are déjeuner (morning), dîner (noon) and souper (evening). '
+  + 'In Québec, déjeuner means breakfast: never write déjeuner for a lunch. '
+  + 'A packed meal stays "un lunch" (apportez votre lunch), and the noon meal is "le dîner". '
+  + 'Use Québec usage: courriel, fin de semaine, cellulaire, stationnement, magasiner, chandail, espadrilles, '
+  + 'never their European equivalents (week-end, e-mail or mail, portable, parking, faire du shopping, pull, baskets): '
+  + 'English "weekend" is "fin de semaine" (cette fin de semaine), never "week-end"; '
+  + 'and in running text write times as 18 h 45 or 9 h (keep HH:MM wherever a JSON field asks for it). '
+  + 'Keep a correct, friendly register, without slang or joual.';
+
 const MAX_COMPLETION_TOKENS = 4000;
 // Reserved per request before the call, released down to the real cost
 // after it. 1,000 input and 4,000 output tokens cost about $0.0026.
@@ -237,7 +251,9 @@ Return only a JSON object with this structure:
   "overview": "string",
   "timeline": [{ "minuteStart": 0, "minuteEnd": 10, "name": "string", "objective": "string" }],
   "materialsMasterList": ["string"]
-}`,
+}
+
+${CANADIAN_FRENCH_RULE}`,
           },
           {
             role: 'user',
@@ -261,7 +277,9 @@ Use the requested locale and unit vocabulary from the data. Preserve the order, 
     "responsable": "string",
     "materiel": "string"
   }]
-}`,
+}
+
+${CANADIAN_FRENCH_RULE}`,
         },
         {
           role: 'user',
@@ -279,7 +297,9 @@ Return only a JSON object with this structure:
 {
   "risks": ["string"],
   "mitigation": ["string"]
-}`,
+}
+
+${CANADIAN_FRENCH_RULE}`,
         },
         {
           role: 'user',
@@ -291,7 +311,9 @@ Return only a JSON object with this structure:
       return [
         {
           role: 'system',
-          content: `You rewrite communications for a youth-program management platform. ${untrustedDataRule} Keep the language of the original text. Return only JSON: { "text": "rewritten text here" }`,
+          content: `You rewrite communications for a youth-program management platform. ${untrustedDataRule} Keep the language of the original text. Return only JSON: { "text": "rewritten text here" }
+
+${CANADIAN_FRENCH_RULE}`,
         },
         {
           role: 'user',
@@ -303,7 +325,9 @@ Return only a JSON object with this structure:
       return [
         {
           role: 'system',
-          content: `You translate communications for a youth-program management platform. ${untrustedDataRule} Use the source and target locales supplied in the data. Return only JSON: { "text": "translated text here" }`,
+          content: `You translate communications for a youth-program management platform. ${untrustedDataRule} Use the source and target locales supplied in the data. Return only JSON: { "text": "translated text here" }
+
+${CANADIAN_FRENCH_RULE}`,
         },
         {
           role: 'user',
@@ -317,6 +341,7 @@ Return only a JSON object with this structure:
 }
 
 module.exports = {
+  CANADIAN_FRENCH_RULE,
   PROVIDERS,
   buildMessages,
   generateText,
