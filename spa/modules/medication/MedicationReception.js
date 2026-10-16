@@ -38,6 +38,8 @@ export class MedicationReception {
     // The children the chosen activity invites, or null when it invites the
     // whole unit. Only they bring medication to it.
     this.invitedParticipantIds = null;
+    // The children whose guardian declined the chosen activity's permission slip.
+    this.declinedParticipantIds = new Set();
     this.selectedActivityId = options.activityId || null;
     this.showAllParticipants = false;
     this.editingMedications = new Set(); // Track which medications are being edited
@@ -134,6 +136,7 @@ export class MedicationReception {
     if (!this.selectedActivityId) {
       this.receptions = [];
       this.invitedParticipantIds = null;
+      this.declinedParticipantIds = new Set();
       return;
     }
 
@@ -142,6 +145,8 @@ export class MedicationReception {
       this.receptions = response?.data?.receptions || response?.receptions || [];
       const invited = response?.data?.invited_participant_ids;
       this.invitedParticipantIds = Array.isArray(invited) ? new Set(invited.map(Number)) : null;
+      const declined = response?.data?.declined_participant_ids;
+      this.declinedParticipantIds = new Set(Array.isArray(declined) ? declined.map(Number) : []);
       this.receptionsFailed = false;
       debugLog('Loaded receptions for activity', this.selectedActivityId, this.receptions.length);
     } catch (error) {
@@ -478,8 +483,8 @@ export class MedicationReception {
 
           <div class="card">
             <h2>${translate('med_reception_for_activity')}: ${activityName}</h2>
-            ${this.invitedParticipantIds !== null && !this.receptionsFailed ? `
-              <p class="subtitle">${translate('med_reception_invited_only_notice')}</p>
+            ${!this.receptionsFailed && (this.invitedParticipantIds !== null || this.declinedParticipantIds.size > 0) ? `
+              <p class="subtitle">${translate('med_reception_participants_only_notice')}</p>
             ` : ''}
             <div id="participant-reception-list">
               ${this.receptionsFailed ? `
@@ -546,14 +551,16 @@ export class MedicationReception {
   }
 
   /**
-   * The roster's children the chosen activity invites.
+   * The roster's children taking part in the chosen activity: invited, and
+   * whose guardian did not decline its permission slip.
    * @returns {Array<Object>}
    */
   getActivityParticipants() {
-    if (this.invitedParticipantIds === null) {
-      return [...this.participants];
-    }
-    return this.participants.filter((participant) => this.invitedParticipantIds.has(Number(participant.id)));
+    return this.participants.filter((participant) => {
+      const id = Number(participant.id);
+      const invited = this.invitedParticipantIds === null || this.invitedParticipantIds.has(id);
+      return invited && !this.declinedParticipantIds.has(id);
+    });
   }
 
   getParticipantsWithMedications() {

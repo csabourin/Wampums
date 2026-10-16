@@ -650,8 +650,8 @@ describe('POST /api/v1/medication/receptions', () => {
 // ============================================
 
 describe('GET /api/v1/medication/receptions', () => {
-  /** Answer the receptions of an activity that invites the given children (null: everyone). */
-  function mockActivityReceptions(invitesEveryone, invitedIds) {
+  /** Answer the receptions of an activity, who it invites, and whose slip was declined. */
+  function mockActivityReceptions(invitesEveryone, invitedIds, declinedIds = []) {
     const { __mClient, __mPool } = require('pg');
     mockQueryImplementation(__mClient, __mPool, (query) => {
       if (query.includes('permission_key')) {
@@ -669,6 +669,9 @@ describe('GET /api/v1/medication/receptions', () => {
       if (query.includes('FROM activity_invitees')) {
         return Promise.resolve({ rows: [{ invites_everyone: invitesEveryone, participant_ids: invitedIds }] });
       }
+      if (query.includes('FROM permission_slips')) {
+        return Promise.resolve({ rows: declinedIds.map((id) => ({ participant_id: id })) });
+      }
       if (query.includes('FROM medication_receptions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -685,6 +688,17 @@ describe('GET /api/v1/medication/receptions', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data.invited_participant_ids).toEqual([7, 9]);
+  });
+
+  test('a leader learns which children will not come because their slip was declined', async () => {
+    mockActivityReceptions(true, [], [8]);
+
+    const res = await request(app)
+      .get('/api/v1/medication/receptions?activity_id=3')
+      .set('Authorization', `Bearer ${generateToken({ permissions: ['medication.view'] })}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.declined_participant_ids).toEqual([8]);
   });
 
   test('an activity for the whole unit answers no invitee list', async () => {

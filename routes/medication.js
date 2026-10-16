@@ -664,7 +664,9 @@ module.exports = (pool, logger) => {
    * Query params: activity_id (required)
    * With an activity, also answers `invited_participant_ids`: the children it
    * invites (only the caller's own child for a family), or null when it
-   * invites the whole unit. Only they bring medication to that activity.
+   * invites the whole unit, and `declined_participant_ids`: the children whose
+   * guardian declined the activity's permission slip and signed none. Only the
+   * children invited and not declined bring medication to that activity.
    * Permission: participants.view
    */
   router.get('/v1/medication/receptions', authenticate, requirePermission(MEDICATION_LIST_READ_POLICY), asyncHandler(async (req, res) => {
@@ -701,9 +703,20 @@ module.exports = (pool, logger) => {
 
     query += ` ORDER BY p.last_name, p.first_name, mreq.medication_name`;
 
-    const [result, invited] = await Promise.all([
+    const [result, invited, declined] = await Promise.all([
       pool.query(query, params),
-      forActivity ? getInvitedParticipantIds(pool, activityId, organizationId) : null
+      forActivity ? getInvitedParticipantIds(pool, activityId, organizationId) : null,
+      forActivity
+        ? pool.query(
+          `SELECT ps.participant_id
+             FROM permission_slips ps
+            WHERE ps.activity_id = $1 AND ps.organization_id = $2
+              AND ($3::int IS NULL OR ps.participant_id = $3)
+            GROUP BY ps.participant_id
+           HAVING bool_or(ps.status = 'declined') AND NOT bool_or(ps.status = 'signed')`,
+          [activityId, organizationId, onlyParticipantId]
+        )
+        : null
     ]);
 
     if (!forActivity) {
@@ -712,7 +725,11 @@ module.exports = (pool, logger) => {
     const invitedParticipantIds = invited === null || onlyParticipantId === null
       ? invited
       : invited.filter((id) => id === Number(onlyParticipantId));
-    return success(res, { receptions: result.rows, invited_participant_ids: invitedParticipantIds });
+    return success(res, {
+      receptions: result.rows,
+      invited_participant_ids: invitedParticipantIds,
+      declined_participant_ids: declined.rows.map((row) => Number(row.participant_id))
+    });
   }));
 
   /**

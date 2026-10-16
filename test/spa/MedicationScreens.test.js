@@ -282,12 +282,35 @@ describe('medication reception', () => {
 
     const listed = () => [...page().querySelectorAll('.participant-reception-card h3')].map((name) => name.textContent);
     expect(listed()).toEqual(['Maxime Tremblay']);
-    expect(page().textContent).toContain('med_reception_invited_only_notice');
+    expect(page().textContent).toContain('med_reception_participants_only_notice');
 
     // Showing everyone means every invited child, even without medication.
     page().querySelector('#showAllParticipants').click();
     expect(listed()).toEqual(['Maxime Tremblay']);
     expect(await violations()).toEqual([]);
+    screen.destroy();
+  });
+
+  test('a child whose permission slip was declined is not listed', async () => {
+    loadAll();
+    const declined = { id: 6, first_name: 'Maxime', last_name: 'Tremblay' };
+    api.getParticipants.mockResolvedValue({ success: true, data: [PARTICIPANT, declined] });
+    api.getParticipantMedications.mockResolvedValue({
+      success: true,
+      data: { participant_medications: [ASSIGNMENT, { id: 2, medication_requirement_id: 11, participant_id: 6 }] },
+    });
+    api.getMedicationReceptions.mockResolvedValue({
+      success: true,
+      data: { receptions: [], invited_participant_ids: null, declined_participant_ids: [6] },
+    });
+    const screen = new MedicationReception(makeApp(), { activityId: 3 });
+    await screen.init();
+
+    const ids = () => [...page().querySelectorAll('.participant-reception-card')].map((card) => card.dataset.participantId);
+    expect(ids()).toEqual(['5']);
+    expect(page().textContent).toContain('med_reception_participants_only_notice');
+    page().querySelector('#showAllParticipants').click();
+    expect(ids()).toEqual(['5']);
     screen.destroy();
   });
 
@@ -307,7 +330,7 @@ describe('medication reception', () => {
     await screen.init();
 
     expect(page().querySelectorAll('.participant-reception-card')).toHaveLength(2);
-    expect(page().textContent).not.toContain('med_reception_invited_only_notice');
+    expect(page().textContent).not.toContain('med_reception_participants_only_notice');
     screen.destroy();
   });
 

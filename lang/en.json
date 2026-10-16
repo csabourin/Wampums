@@ -1411,7 +1411,7 @@
   "med_reception_select_activity_prompt": "Please select an activity to begin tracking medication reception",
   "med_reception_show_all_participants": "Show all participants (including those without medications)",
   "med_reception_for_activity": "Medication reception for",
-  "med_reception_invited_only_notice": "This activity invites only some participants; only they appear here.",
+  "med_reception_participants_only_notice": "Only the participants taking part in this activity appear here: those it invites, unless their permission slip was declined.",
   "med_reception_no_participants": "No participants found with medication requirements for this activity",
   "med_reception_mark_all_received": "Mark All Received",
   "med_reception_all_received": "All Received",
