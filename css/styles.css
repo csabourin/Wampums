@@ -236,10 +236,37 @@ body {
   transform: translateY(-100%);
 }
 
+/* The global a:hover / a:focus-visible colour is dark blue: unreadable on green. */
+.skip-link:hover,
+.skip-link:focus-visible {
+  color: var(--color-selected-text);
+}
+
 .skip-link:focus {
   transform: none;
   outline: 3px solid var(--color-focus-ring);
   outline-offset: 2px;
+}
+
+/* Error page (ErrorPageUtils): ways forward wrap on a phone */
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-block-start: var(--space-md);
+}
+
+/* The base button rule styles <button> only; the links here take its shape. */
+.error-actions a.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--touch-target-min);
+  padding: var(--space-md) var(--space-xl);
+  border-radius: var(--radius-lg);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+  text-decoration: none;
 }
 
 /* Main App Container */

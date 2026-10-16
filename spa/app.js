@@ -17,6 +17,7 @@ import { checkForStaleClient, installChunkErrorRecovery } from './modules/app-re
 import { localizeStaticChrome } from './utils/StaticChromeUtils.js';
 import { initPageTitleSync, initSkipLink, updateDocumentTitle } from './utils/PageFocusUtils.js';
 import { translateKey } from './utils/TranslationUtils.js';
+import { renderErrorPage, startupLanguage, startupTranslator } from './utils/ErrorPageUtils.js';
 import {
   fallbackLanguageFor,
   getUnitLanguages,
@@ -255,7 +256,7 @@ export const app = {
       const normalizedLang = INTERFACE_LANGS.includes(currentLang) ? currentLang : CONFIG.DEFAULT_LANG;
       this.lang = normalizedLang;
       this.language = normalizedLang;
-      this.fallbackLang = fallbackLanguageFor(normalizedLang, localStorage.getItem(FALLBACK_LANG_STORAGE_KEY));
+      this.fallbackLang = fallbackLanguageFor(normalizedLang, getStorage(FALLBACK_LANG_STORAGE_KEY));
       document.documentElement.lang = normalizedLang;
       debugLog(`Loading translations for ${normalizedLang} before routing...`);
       try {
@@ -296,14 +297,38 @@ export const app = {
 
     } catch (error) {
       debugError('Initialization error:', error);
-      this.renderError(this.translate('error_loading_application'), {
-        titleKey: 'application_error',
-        showReload: true,
-        actions: [
-          { labelKey: 'go_to_homepage', href: CONFIG.UI.HOMEPAGE_URL }
-        ]
-      });
+      this.renderStartupError();
     }
+  },
+
+  /**
+   * The page shown when the app cannot start. The start can fail before the
+   * translations arrive (the unit lookup comes first), so it then speaks
+   * from the texts built into the code, in French or English, and puts the
+   * whole page in that language.
+   */
+  renderStartupError() {
+    // A bundle that failed to download is stored as {}: ask for the words
+    // themselves, not whether a bundle object exists.
+    const translationsLoaded = this.translate('error_loading_application') !== 'error_loading_application';
+    let text = this.translate.bind(this);
+    if (!translationsLoaded) {
+      // Storage may be refused (the reason the start failed): read it safely.
+      const requested = this.lang || getStorage('lang', false, CONFIG.DEFAULT_LANG);
+      const lang = startupLanguage(requested, getStorage(FALLBACK_LANG_STORAGE_KEY));
+      text = startupTranslator(lang);
+      document.documentElement.lang = lang;
+      localizeStaticChrome(text);
+    }
+    this.renderError(text('error_loading_application'), {
+      titleKey: 'application_error',
+      showReload: true,
+      actions: [
+        { labelKey: 'go_to_homepage', href: CONFIG.UI.HOMEPAGE_URL }
+      ],
+      text,
+    });
+    updateDocumentTitle(text('application_error'));
   },
 
   // Background initialization tasks (non-blocking)
@@ -773,11 +798,22 @@ export const app = {
     }
   },
 
+  /**
+   * Show an error page in place of the screen.
+   *
+   * @param {string} message - What went wrong, already translated
+   * @param {Object} [options]
+   * @param {string} [options.titleKey='error'] - Heading key
+   * @param {?Array<{labelKey: string, href: string}>} [options.actions] - Links offered
+   * @param {boolean} [options.showReload=false] - Offer to reload the page
+   * @param {function(string): string} [options.text] - Translate function for the labels
+   */
   renderError(message, options = {}) {
     const {
       titleKey = 'error',
       actions = null,
-      showReload = false
+      showReload = false,
+      text = this.translate.bind(this),
     } = options;
 
     const appContainer = document.getElementById('app');
@@ -786,49 +822,14 @@ export const app = {
       return;
     }
 
-    clearElement(appContainer);
-
-    // Signed in, the way back is the same link every screen opens with.
-    if (this.isLoggedIn) {
-      appContainer.appendChild(createElement('a', {
-        text: `← ${this.translate('back')}`,
-        className: 'button button--ghost',
-        attributes: { href: '/dashboard' }
-      }));
-    }
-
-    const container = createElement('div', { className: 'error-container' });
-    const title = createElement('h1', { text: this.translate(titleKey) });
-    const messageText = createElement('p', { text: message });
-    container.appendChild(title);
-    container.appendChild(messageText);
-
-    const actionItems = actions || (this.isLoggedIn ? [] : [{ labelKey: 'back_to_home', href: '/' }]);
-    if (actionItems.length || showReload) {
-      const actionsWrapper = createElement('div', { className: 'error-actions' });
-
-      if (showReload) {
-        const reloadButton = createElement('button', {
-          text: this.translate('reload'),
-          className: 'btn'
-        });
-        reloadButton.addEventListener('click', () => window.location.reload());
-        actionsWrapper.appendChild(reloadButton);
-      }
-
-      actionItems.forEach(action => {
-        const link = createElement('a', {
-          text: this.translate(action.labelKey),
-          className: 'btn',
-          attributes: { href: action.href }
-        });
-        actionsWrapper.appendChild(link);
-      });
-
-      container.appendChild(actionsWrapper);
-    }
-
-    appContainer.appendChild(container);
+    renderErrorPage(appContainer, {
+      title: text(titleKey),
+      message,
+      text,
+      isLoggedIn: this.isLoggedIn,
+      showReload,
+      actions,
+    });
   },
 
   translate(key) {
