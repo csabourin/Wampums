@@ -382,8 +382,12 @@ describe('buttons the unit hides', () => {
       const app = { organizationSettings: {}, showMessage: jest.fn() };
       const page = await renderWithListeners(app);
 
+      installButton().focus();
       window.dispatchEvent(new Event('appinstalled'));
-      expect(installButton().hidden).toBe(true);
+      // Gone from the page (a [hidden] button would still show: the button
+      // class sets display), and focus is not lost with it.
+      expect(installButton()).toBeNull();
+      expect(document.activeElement.closest('.parent-dashboard__footer')).not.toBeNull();
       expect(app.showMessage).toHaveBeenCalledWith('install_app_installed', 'success');
 
       page.destroy();

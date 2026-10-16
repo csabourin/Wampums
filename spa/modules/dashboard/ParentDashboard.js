@@ -1101,9 +1101,15 @@ export class ParentDashboard {
       if (!installed || this.destroyed) {
         return;
       }
+      // Removed, not hidden: `.dashboard-button { display: flex }` outranks
+      // the browser's [hidden] rule. Focus on it moves to the next action.
       const button = document.getElementById('installPwaButton');
       if (button) {
-        button.hidden = true;
+        const hadFocus = document.activeElement === button;
+        button.remove();
+        if (hadFocus) {
+          document.querySelector('.parent-dashboard__footer a, .parent-dashboard__footer button')?.focus();
+        }
       }
       this.app.showMessage(translate('install_app_installed'), 'success');
     });
