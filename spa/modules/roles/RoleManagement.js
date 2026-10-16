@@ -275,7 +275,7 @@ export class RoleManagement {
             ${roleNames ? `<div class="user-roles-summary">${this.escapeHtml(roleNames)}</div>` : ''}
           </div>
           <div class="user-action">
-            <button class="button--small btn-manage-roles" data-user-id="${user.id}"${isSelected ? ' aria-current="true"' : ''}>
+            <button class="button button--small btn-manage-roles" data-user-id="${user.id}"${isSelected ? ' aria-current="true"' : ''}>
               ${translate('manage_roles') || 'Manage'}
             </button>
           </div>
@@ -363,10 +363,10 @@ export class RoleManagement {
           </div>
 
           <div class="form-actions">
-            <button type="submit" class="button--primary">
+            <button type="submit" class="button button--primary">
               ${translate('save_roles') || 'Save Roles'}
             </button>
-            <button type="button" class="button--secondary" id="cancel-assignment">
+            <button type="button" class="button button--secondary" id="cancel-assignment">
               ${translate('cancel') || 'Cancel'}
             </button>
           </div>

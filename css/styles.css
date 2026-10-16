@@ -652,6 +652,23 @@ textarea {
   transition: all var(--transition-fast);
 }
 
+/* Fields the rule above leaves out kept the browser's 19px height, under the
+   WCAG 2.2 target size. They get the same look and a finger-sized height, but
+   not its full width: number fields sit inside table cells and toolbars. */
+input[type="search"],
+input[type="number"],
+input[type="url"],
+input[type="time"] {
+  min-block-size: var(--touch-target-min);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-base);
+  font-family: inherit;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
 input:focus,
 select:focus,
 textarea:focus {

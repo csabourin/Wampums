@@ -31,6 +31,8 @@ import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { CONFIG } from '../../config.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageError } from '../../utils/PageStateUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 
 const DEFAULT_CURRENCY = CONFIG.DEFAULT_CURRENCY;
 
@@ -74,23 +76,49 @@ export class Finance extends BaseModule {
     this.setActiveTabFromQuery();
 
     try {
-      // Render loading state immediately
       this.renderLoading();
-
-      await this.loadCoreData();
-
-      // Render with data
+      const loaded = await this.loadCoreData();
+      if (this.isDestroyed) {
+        return;
+      }
+      // A failed load is never shown as an empty list of fees.
+      if (loaded === false) {
+        this.renderError();
+        return;
+      }
       this.render();
       this.attachEventListeners();
     } catch (error) {
       debugError('Error loading finance data:', error);
-      // Render error state but allow partial functionality
-      this.render();
-      this.attachEventListeners();
-      this.app.showMessage(translate('error_loading_data'), 'warning');
+      this.renderError();
     } finally {
       this.isInitializing = false;
     }
+  }
+
+  /** The error state, with a retry. */
+  renderError() {
+    if (this.isDestroyed) {
+      return;
+    }
+    showPageError(document.getElementById('app'), {
+      title: translate('finance_center_title'),
+      className: 'finance-page',
+    }, () => this.init());
+  }
+
+  /**
+   * Reload after a write the server accepted. The write stands even if the
+   * reload fails: the page keeps what it showed and says it could not refresh.
+   *
+   * @returns {Promise<boolean>} Whether fresh data arrived
+   */
+  async refreshData() {
+    const loaded = await this.loadCoreData();
+    if (loaded === false && !this.isDestroyed) {
+      this.app.showMessage(translate('error_loading_data'), 'error');
+    }
+    return loaded !== false;
   }
 
   setActiveTabFromQuery() {
@@ -102,49 +130,41 @@ export class Finance extends BaseModule {
     }
   }
 
+  /**
+   * Load fees, definitions, participants and the summary.
+   *
+   * @returns {Promise<boolean|null>} true when all arrived, false when any
+   *   failed (what was shown stays), null when a load was already running
+   */
   async loadCoreData() {
     return this.loadingManager.withLoading('core-data', async () => {
-      // Load data with individual error handling and retry logic
+      let failed = false;
+      const attempt = (load, label) => retryWithBackoff(load, {
+        maxRetries: 2,
+        onRetry: (count, max, delay) => {
+          debugError(`Retrying ${label} (${count}/${max}) in ${delay}ms`);
+        }
+      }).catch((error) => {
+        debugError(`Error loading ${label}:`, error);
+        failed = true;
+        return null;
+      });
+
       const [fees, feeDefs, participants, summary] = await Promise.all([
-        retryWithBackoff(
-          () => getParticipantFees(),
-          {
-            maxRetries: 2,
-            onRetry: (attempt, max, delay) => {
-              debugError(`Retrying participant fees (${attempt}/${max}) in ${delay}ms`);
-            }
-          }
-        ).catch(error => {
-          debugError('Error loading participant fees:', error);
-          return { data: [] };
-        }),
-        retryWithBackoff(
-          () => getFeeDefinitions(),
-          { maxRetries: 2 }
-        ).catch(error => {
-          debugError('Error loading fee definitions:', error);
-          return { data: [] };
-        }),
-        retryWithBackoff(
-          () => getParticipants(),
-          { maxRetries: 2 }
-        ).catch(error => {
-          debugError('Error loading participants:', error);
-          return { data: [] };
-        }),
-        retryWithBackoff(
-          () => getFinanceReport(),
-          { maxRetries: 2 }
-        ).catch(error => {
-          debugError('Error loading finance report:', error);
-          return { data: null };
-        })
+        attempt(() => getParticipantFees(), 'participant fees'),
+        attempt(() => getFeeDefinitions(), 'fee definitions'),
+        attempt(() => getParticipants(), 'participants'),
+        attempt(() => getFinanceReport(), 'finance report'),
       ]);
 
+      if (failed) {
+        return false;
+      }
       this.participantFees = fees?.data || fees?.participant_fees || [];
       this.feeDefinitions = feeDefs?.data || feeDefs?.fee_definitions || [];
       this.participants = participants?.data || participants?.participants || [];
       this.financeSummary = summary?.data || null;
+      return true;
     });
   }
 
@@ -254,8 +274,8 @@ export class Finance extends BaseModule {
     if (!form) {return;}
     const definition = this.feeDefinitions.find((item) => String(item.id) === String(definitionId));
     if (!definition) {return;}
-    form.total_registration_fee.value = definition.registration_fee ?? '';
-    form.total_membership_fee.value = definition.membership_fee ?? '';
+    form.elements.namedItem('total_registration_fee').value = definition.registration_fee ?? '';
+    form.elements.namedItem('total_membership_fee').value = definition.membership_fee ?? '';
   }
 
   renderLoading() {
@@ -269,9 +289,9 @@ export class Finance extends BaseModule {
             <p class="finance-subtitle">${translate('finance_center_subtitle')}</p>
           </div>
         </header>
-        <div class="loading-container">
-          <div class="loading-spinner"></div>
-          <p>${translate('loading')}...</p>
+        <div class="loading-container" aria-busy="true">
+          <div class="loading-spinner" aria-hidden="true"></div>
+          <p role="status">${translate('loading')}</p>
         </div>
       </section>
     `;
@@ -346,8 +366,8 @@ export class Finance extends BaseModule {
             <p class="finance-meta">${translate('registration_fee_label')}: ${this.formatCurrency(def.registration_fee)}</p>
             <p class="finance-meta">${translate('membership_fee_label')}: ${this.formatCurrency(def.membership_fee)}</p>
             <div class="finance-actions">
-              <button class="secondary-button" data-action="edit-definition" data-id="${def.id}">${translate('edit')}</button>
-              <button class="button--danger" data-action="delete-definition" data-id="${def.id}">${translate('delete')}</button>
+              <button class="button button--secondary" data-action="edit-definition" data-id="${def.id}">${translate('edit')}</button>
+              <button class="button button--danger" data-action="delete-definition" data-id="${def.id}">${translate('delete')}</button>
             </div>
           </article>
         `;
@@ -369,8 +389,8 @@ export class Finance extends BaseModule {
             <label for="membership_fee">${translate('membership_fee_label')}</label>
             <input type="number" step="0.01" min="0" name="membership_fee" id="membership_fee" required>
             <div class="finance-actions">
-              <button type="submit" class="primary-button">${translate('save')}</button>
-              <button type="button" class="ghost-button" id="reset-definition-form">${translate('reset')}</button>
+              <button type="submit" class="button button--primary">${translate('save')}</button>
+              <button type="button" class="button button--secondary" id="reset-definition-form">${translate('reset')}</button>
             </div>
           </form>
         </article>
@@ -450,7 +470,7 @@ export class Finance extends BaseModule {
               <label for="inline_plan_notes">${translate('notes')}</label>
               <textarea id="inline_plan_notes" name="plan_notes" rows="2"></textarea>
             </div>
-            <button type="submit" class="primary-button">${translate('save')}</button>
+            <button type="submit" class="button button--primary">${translate('save')}</button>
           </form>
         </details>
       </div>
@@ -544,8 +564,8 @@ export class Finance extends BaseModule {
         <td><strong class="text-${statusClass}">${this.formatCurrency(outstanding)}</strong></td>
         <td><span class="finance-pill finance-pill--${statusClass}">${statusLabel}</span></td>
         <td class="finance-actions">
-          <button class="secondary-button" data-action="open-payment" data-id="${fee.id}">${translate('make_payment')}</button>
-          <button class="ghost-button" data-action="open-plan" data-id="${fee.id}">${translate('manage_installments')}</button>
+          <button class="button button--secondary" data-action="open-payment" data-id="${fee.id}">${translate('make_payment')}</button>
+          <button class="button button--secondary" data-action="open-plan" data-id="${fee.id}">${translate('manage_installments')}</button>
         </td>
       </tr>
     `;
@@ -658,7 +678,7 @@ export class Finance extends BaseModule {
     const participants = summary.participants || [];
 
     if (!participants.length) {
-      this.app.showMessage(translate('no_data_to_export'), 'warning');
+      this.app.showMessage(translate('no_data_to_export'), 'info');
       return;
     }
 
@@ -691,12 +711,12 @@ export class Finance extends BaseModule {
         <form id="payment-form" class="finance-form" novalidate>
           <input type="hidden" id="payment_fee_id" name="participant_fee_id">
           <div id="payment-rows">${this.renderPaymentRow(0)}</div>
-          <button type="button" class="ghost-button" id="add-payment-row">${translate('add_payment_row')}</button>
+          <button type="button" class="button button--secondary" id="add-payment-row">${translate('add_payment_row')}</button>
         </form>
       `,
       footer: `
-        <button type="button" class="ghost-button" data-modal-close>${translate('cancel')}</button>
-        <button type="submit" class="primary-button" form="payment-form">${translate('save_payment')}</button>
+        <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="submit" class="button button--primary" form="payment-form">${translate('save_payment')}</button>
       `,
     };
   }
@@ -764,8 +784,8 @@ export class Finance extends BaseModule {
         </form>
       `,
       footer: `
-        <button type="button" class="button--danger" id="delete-plan-btn">${translate('delete')}</button>
-        <button type="submit" class="primary-button" form="plan-form">${translate('save')}</button>
+        <button type="button" class="button button--danger" id="delete-plan-btn">${translate('delete')}</button>
+        <button type="submit" class="button button--primary" form="plan-form">${translate('save')}</button>
       `,
     };
   }
@@ -847,8 +867,14 @@ export class Finance extends BaseModule {
         const id = trigger.dataset.id;
         if (await confirmDestructive(translate('confirm_delete'))) {
           await withButtonLoading(trigger, async () => {
-            await deleteFeeDefinition(id);
-            await this.loadCoreData();
+            try {
+              await deleteFeeDefinition(id);
+            } catch (error) {
+              debugError('Error deleting fee definition:', error);
+              this.app.showMessage(apiErrorMessage(error, 'error_saving_changes'), 'error');
+              return;
+            }
+            await this.refreshData();
             this.render();
             this.attachEventListeners();
           });
@@ -942,12 +968,12 @@ export class Finance extends BaseModule {
   async handleDefinitionSubmit(event) {
     event.preventDefault();
     const form = event.target;
-    const definitionId = form.definition_id.value;
+    const definitionId = form.elements.namedItem('definition_id').value;
     const payload = {
-      year_start: form.year_start.value,
-      year_end: form.year_end.value,
-      registration_fee: parseFloat(form.registration_fee.value || 0),
-      membership_fee: parseFloat(form.membership_fee.value || 0)
+      year_start: form.elements.namedItem('year_start').value,
+      year_end: form.elements.namedItem('year_end').value,
+      registration_fee: parseFloat(form.elements.namedItem('registration_fee').value || 0),
+      membership_fee: parseFloat(form.elements.namedItem('membership_fee').value || 0)
     };
 
     try {
@@ -957,13 +983,13 @@ export class Finance extends BaseModule {
         await createFeeDefinition(payload);
       }
       await clearFinanceRelatedCaches();
-      await this.loadCoreData();
+      await this.refreshData();
       this.render();
       this.attachEventListeners();
       this.app.showMessage(translate('data_saved'), 'success');
     } catch (error) {
       debugError('Error saving fee definition', error);
-      this.app.showMessage(translate('error_saving_changes'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_saving_changes'), 'error');
     }
   }
 
@@ -971,7 +997,7 @@ export class Finance extends BaseModule {
     const form = document.getElementById('fee-definition-form');
     if (form) {
       form.reset();
-      form.definition_id.value = '';
+      form.elements.namedItem('definition_id').value = '';
     }
   }
 
@@ -980,11 +1006,11 @@ export class Finance extends BaseModule {
     if (!def) {return;}
     const form = document.getElementById('fee-definition-form');
     if (!form) {return;}
-    form.definition_id.value = def.id;
-    form.year_start.value = def.year_start?.split('T')[0] || def.year_start;
-    form.year_end.value = def.year_end?.split('T')[0] || def.year_end;
-    form.registration_fee.value = def.registration_fee;
-    form.membership_fee.value = def.membership_fee;
+    form.elements.namedItem('definition_id').value = def.id;
+    form.elements.namedItem('year_start').value = def.year_start?.split('T')[0] || def.year_start;
+    form.elements.namedItem('year_end').value = def.year_end?.split('T')[0] || def.year_end;
+    form.elements.namedItem('registration_fee').value = def.registration_fee;
+    form.elements.namedItem('membership_fee').value = def.membership_fee;
   }
 
   /**
@@ -1012,8 +1038,8 @@ export class Finance extends BaseModule {
     const form = document.getElementById('participant-fee-form');
     if (!form) {return;}
 
-    const participantId = Number.parseInt(form.participant_id.value, 10);
-    const feeDefinitionId = Number.parseInt(form.fee_definition_id.value, 10);
+    const participantId = Number.parseInt(form.elements.namedItem('participant_id').value, 10);
+    const feeDefinitionId = Number.parseInt(form.elements.namedItem('fee_definition_id').value, 10);
     const normalizedParticipantId = Number.isNaN(participantId) ? null : participantId;
     const normalizedDefinitionId = Number.isNaN(feeDefinitionId) ? null : feeDefinitionId;
     const submitButton = form.querySelector('button[type="submit"]');
@@ -1025,20 +1051,20 @@ export class Finance extends BaseModule {
     if (existingFee) {
       form.dataset.participantFeeId = existingFee.id;
       if (existingFee.fee_definition_id) {
-        form.fee_definition_id.value = existingFee.fee_definition_id;
+        form.elements.namedItem('fee_definition_id').value = existingFee.fee_definition_id;
       }
       if (existingFee.total_registration_fee !== undefined) {
-        form.total_registration_fee.value = existingFee.total_registration_fee;
+        form.elements.namedItem('total_registration_fee').value = existingFee.total_registration_fee;
       }
       if (existingFee.total_membership_fee !== undefined) {
-        form.total_membership_fee.value = existingFee.total_membership_fee;
+        form.elements.namedItem('total_membership_fee').value = existingFee.total_membership_fee;
       }
-      form.notes.value = existingFee.notes || '';
+      form.elements.namedItem('notes').value = existingFee.notes || '';
       submitButton.textContent = translate('modify');
     } else {
       form.dataset.participantFeeId = '';
       submitButton.textContent = translate('save');
-      form.notes.value = '';
+      form.elements.namedItem('notes').value = '';
       if (normalizedDefinitionId) {
         this.populateFeesFromDefinition(normalizedDefinitionId);
       }
@@ -1069,8 +1095,8 @@ export class Finance extends BaseModule {
       return registration + membership;
     }
 
-    const registration = Number.parseFloat(form.total_registration_fee.value || 0) || 0;
-    const membership = Number.parseFloat(form.total_membership_fee.value || 0) || 0;
+    const registration = Number.parseFloat(form.elements.namedItem('total_registration_fee').value || 0) || 0;
+    const membership = Number.parseFloat(form.elements.namedItem('total_membership_fee').value || 0) || 0;
     return registration + membership;
   }
 
@@ -1079,13 +1105,13 @@ export class Finance extends BaseModule {
    */
   updateInlinePlanAmount() {
     const form = document.getElementById('participant-fee-form');
-    if (!form || !form.enable_plan?.checked) {return;}
+    if (!form || !form.elements.namedItem('enable_plan')?.checked) {return;}
 
-    const paymentsCount = Number.parseInt(form.plan_number_of_payments.value, 10);
+    const paymentsCount = Number.parseInt(form.elements.namedItem('plan_number_of_payments').value, 10);
     if (!paymentsCount || paymentsCount <= 0) {return;}
 
-    const participantId = Number.parseInt(form.participant_id.value, 10);
-    const feeDefinitionId = Number.parseInt(form.fee_definition_id.value, 10);
+    const participantId = Number.parseInt(form.elements.namedItem('participant_id').value, 10);
+    const feeDefinitionId = Number.parseInt(form.elements.namedItem('fee_definition_id').value, 10);
     const normalizedParticipantId = Number.isNaN(participantId) ? null : participantId;
     const normalizedDefinitionId = Number.isNaN(feeDefinitionId) ? null : feeDefinitionId;
     const existingFee = this.findExistingParticipantFee(normalizedParticipantId, normalizedDefinitionId);
@@ -1094,25 +1120,25 @@ export class Finance extends BaseModule {
     if (baseAmount <= 0) {return;}
 
     const amountPerPayment = baseAmount / paymentsCount;
-    form.plan_amount_per_payment.value = amountPerPayment.toFixed(2);
+    form.elements.namedItem('plan_amount_per_payment').value = amountPerPayment.toFixed(2);
   }
 
   async handleParticipantFeeSubmit(event) {
     event.preventDefault();
     const form = event.target;
-    const planEnabled = form.enable_plan?.checked;
+    const planEnabled = form.elements.namedItem('enable_plan')?.checked;
     const existingFeeId = form.dataset.participantFeeId;
     const payload = {
-      participant_id: parseInt(form.participant_id.value, 10),
-      fee_definition_id: parseInt(form.fee_definition_id.value, 10),
-      total_registration_fee: parseFloat(form.total_registration_fee.value || 0),
-      total_membership_fee: parseFloat(form.total_membership_fee.value || 0),
-      notes: form.notes.value || ''
+      participant_id: parseInt(form.elements.namedItem('participant_id').value, 10),
+      fee_definition_id: parseInt(form.elements.namedItem('fee_definition_id').value, 10),
+      total_registration_fee: parseFloat(form.elements.namedItem('total_registration_fee').value || 0),
+      total_membership_fee: parseFloat(form.elements.namedItem('total_membership_fee').value || 0),
+      notes: form.elements.namedItem('notes').value || ''
     };
 
     if (
       planEnabled &&
-      (!form.plan_number_of_payments.value || !form.plan_amount_per_payment.value || !form.plan_start_date.value)
+      (!form.elements.namedItem('plan_number_of_payments').value || !form.elements.namedItem('plan_amount_per_payment').value || !form.elements.namedItem('plan_start_date').value)
     ) {
       this.app.showMessage(translate('plan_fields_required'), 'error');
       return;
@@ -1129,8 +1155,8 @@ export class Finance extends BaseModule {
       }
 
       if (planEnabled && targetFeeId) {
-        const paymentsCount = parseInt(form.plan_number_of_payments.value || 0, 10);
-        const amountPerPayment = parseFloat(form.plan_amount_per_payment.value || 0);
+        const paymentsCount = parseInt(form.elements.namedItem('plan_number_of_payments').value || 0, 10);
+        const amountPerPayment = parseFloat(form.elements.namedItem('plan_amount_per_payment').value || 0);
         if (!paymentsCount || !amountPerPayment) {
           this.app.showMessage(translate('plan_fields_required'), 'error');
           return;
@@ -1138,9 +1164,9 @@ export class Finance extends BaseModule {
         const planPayload = {
           number_of_payments: paymentsCount,
           amount_per_payment: amountPerPayment,
-          start_date: form.plan_start_date.value,
-          frequency: form.plan_frequency.value,
-          notes: form.plan_notes.value
+          start_date: form.elements.namedItem('plan_start_date').value,
+          frequency: form.elements.namedItem('plan_frequency').value,
+          notes: form.elements.namedItem('plan_notes').value
         };
 
         if (existingFeeId) {
@@ -1161,13 +1187,13 @@ export class Finance extends BaseModule {
       // Clear all finance caches
       await clearFinanceRelatedCaches(targetFeeId);
 
-      await this.loadCoreData();
+      await this.refreshData();
       this.render();
       this.attachEventListeners();
       this.app.showMessage(translate('data_saved'), 'success');
     } catch (error) {
       debugError('Error saving participant fee', error);
-      this.app.showMessage(translate('error_saving_changes'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_saving_changes'), 'error');
     }
   }
 
@@ -1275,7 +1301,7 @@ export class Finance extends BaseModule {
   async handlePaymentSubmit(event) {
     event.preventDefault();
     const form = event.target;
-    const feeId = form.participant_fee_id.value;
+    const feeId = form.elements.namedItem('participant_fee_id').value;
     const rows = Array.from(document.querySelectorAll('#payment-rows .payment-row'));
 
     // Validate and collect payments with improved validation
@@ -1344,14 +1370,14 @@ export class Finance extends BaseModule {
       this.resetPaymentRows();
       this.paymentsCache.delete(feeId);
       await this.renderPaymentHistory(feeId);
-      await this.loadCoreData();
+      await this.refreshData();
       closeModal('payment-modal');
       this.render();
       this.attachEventListeners();
       this.app.showMessage(translate('payment_saved'), 'success');
     } catch (error) {
       debugError('Error saving payment', error);
-      this.app.showMessage(translate('error_saving_changes'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_saving_changes'), 'error');
     }
   }
 
@@ -1402,11 +1428,11 @@ export class Finance extends BaseModule {
       const form = document.getElementById('plan-form');
       if (form) {
         if (plan) {
-          form.plan_count.value = plan.number_of_payments;
-          form.plan_amount.value = plan.amount_per_payment;
-          form.plan_start.value = plan.start_date?.split('T')[0] || plan.start_date;
-          form.plan_frequency.value = plan.frequency;
-          form.plan_notes.value = plan.notes || '';
+          form.elements.namedItem('plan_count').value = plan.number_of_payments;
+          form.elements.namedItem('plan_amount').value = plan.amount_per_payment;
+          form.elements.namedItem('plan_start').value = plan.start_date?.split('T')[0] || plan.start_date;
+          form.elements.namedItem('plan_frequency').value = plan.frequency;
+          form.elements.namedItem('plan_notes').value = plan.notes || '';
           form.dataset.planId = plan.id;
         } else {
           form.reset();
@@ -1422,14 +1448,14 @@ export class Finance extends BaseModule {
   async handlePlanSubmit(event) {
     event.preventDefault();
     const form = event.target;
-    const feeId = form.participant_fee_id.value;
+    const feeId = form.elements.namedItem('participant_fee_id').value;
     const planId = form.dataset.planId;
     const payload = {
-      number_of_payments: parseInt(form.number_of_payments.value, 10),
-      amount_per_payment: parseFloat(form.amount_per_payment.value || 0),
-      start_date: form.start_date.value,
-      frequency: form.frequency.value,
-      notes: form.notes.value
+      number_of_payments: parseInt(form.elements.namedItem('number_of_payments').value, 10),
+      amount_per_payment: parseFloat(form.elements.namedItem('amount_per_payment').value || 0),
+      start_date: form.elements.namedItem('start_date').value,
+      frequency: form.elements.namedItem('frequency').value,
+      notes: form.elements.namedItem('notes').value
     };
 
     try {
@@ -1444,14 +1470,14 @@ export class Finance extends BaseModule {
 
       this.paymentPlanCache.delete(feeId);
       await this.renderPlanDetails(feeId);
-      await this.loadCoreData();
+      await this.refreshData();
       closeModal('plan-modal');
       this.render();
       this.attachEventListeners();
       this.app.showMessage(translate('data_saved'), 'success');
     } catch (error) {
       debugError('Error saving payment plan', error);
-      this.app.showMessage(translate('error_saving_changes'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_saving_changes'), 'error');
     }
   }
 
@@ -1469,14 +1495,14 @@ export class Finance extends BaseModule {
 
       this.paymentPlanCache.delete(feeId);
       await this.renderPlanDetails(feeId);
-      await this.loadCoreData();
+      await this.refreshData();
       closeModal('plan-modal');
       this.render();
       this.attachEventListeners();
       this.app.showMessage(translate('data_saved'), 'success');
     } catch (error) {
       debugError('Error deleting payment plan', error);
-      this.app.showMessage(translate('error_saving_changes'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_saving_changes'), 'error');
     }
   }
 

@@ -151,7 +151,7 @@
     "spa/modules/finance/Expenses.js": 10,
     "spa/modules/finance/ExternalRevenue.js": 8,
     "spa/modules/finance/Finance.js": 14,
-    "spa/modules/finance/ParentFinance.js": 4,
+    "spa/modules/finance/ParentFinance.js": 3,
     "spa/modules/finance/RevenueDashboard.js": 11,
     "spa/modules/forms/FormBuilder.js": 2,
     "spa/modules/forms/FormPermissions.js": 1,

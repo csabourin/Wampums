@@ -204,10 +204,10 @@ ${showNotifications ? `
         <p>${this.app.translate('import_sisc_description')}</p>
         <div class="file-upload-area">
                 <input type="file" id="sisc-file-input" accept=".csv" class="hidden">
-                <button type="button" id="select-file-btn" class="secondary-button">${this.app.translate('select_csv_file')}</button>
+                <button type="button" id="select-file-btn" class="button button--secondary">${this.app.translate('select_csv_file')}</button>
                 <span id="selected-file-name"></span>
         </div>
-        <button type="button" id="import-sisc-btn" class="primary-button" disabled>${this.app.translate('import_data')}</button>
+        <button type="button" id="import-sisc-btn" class="button button--primary" disabled>${this.app.translate('import_data')}</button>
         <div id="import-progress" class="hidden">
                 <div class="progress-bar"><div class="progress-fill"></div></div>
                 <p id="import-status">${this.app.translate('importing')}</p>
@@ -311,7 +311,7 @@ ${showNotifications ? `
           : `<span class="role-badge role-badge--empty">${escapeHTML(translate('no_role'))}</span>`;
 
         const manageBtn = canModifyUsers
-          ? `<button class="manage-roles-btn secondary-button" data-user-id="${user.id}">${translate('manage_roles')}</button>`
+          ? `<button class="button manage-roles-btn button--secondary" data-user-id="${user.id}">${translate('manage_roles')}</button>`
           : '';
 
         return `
@@ -456,8 +456,8 @@ ${showNotifications ? `
       title: `${translate('manage_roles')} — ${safeName}`,
       body: `<div class="role-modal-checkboxes">${checkboxes}</div>`,
       footer: `
-                                <button type="button" class="secondary-button" data-modal-close>${translate('cancel')}</button>
-                                <button type="button" class="primary-button" id="role-modal-save">${translate('save')}</button>`,
+                                <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+                                <button type="button" class="button button--primary" id="role-modal-save">${translate('save')}</button>`,
     });
 
     document.getElementById('role-modal-save')?.addEventListener('click', async () => {

@@ -31,6 +31,8 @@ import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { getCurrentFiscalYear, getFiscalYearOptions } from '../../utils/FiscalYearUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageError } from '../../utils/PageStateUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 
 const DEFAULT_CURRENCY = 'CAD';
 
@@ -62,6 +64,7 @@ export class Budgets {
 
     // MEMORY LEAK FIX: AbortController for automatic event listener cleanup
     this.abortController = new AbortController();
+    this.destroyed = false;
   }
 
   /**
@@ -70,6 +73,7 @@ export class Budgets {
    */
   destroy() {
     debugLog('[Budgets] Cleaning up resources and event listeners');
+    this.destroyed = true;
     // Abort all event listeners attached with this controller's signal
     this.abortController.abort();
     // Clean up any other resources
@@ -114,25 +118,39 @@ export class Budgets {
     this.setActiveTabFromQuery();
 
     try {
-      // Render loading state immediately
       this.renderLoading();
 
       // Initialize fiscal year from organization settings
       await this.app.waitForOrganizationSettings();
       this.initializeFiscalYear();
 
-      await this.loadCoreData();
-
-      // Render with data
+      const loaded = await this.loadCoreData();
+      if (this.destroyed) {
+        return;
+      }
+      // A failed load is never shown as an empty budget.
+      if (loaded === false) {
+        this.renderError();
+        return;
+      }
       await this.renderAndBind();
     } catch (error) {
       debugError('Error loading budgets data:', error);
-      // Render error state but allow partial functionality
-      await this.renderAndBind();
-      this.app.showMessage(translate('error_loading_data'), 'warning');
+      this.renderError();
     } finally {
       this.isInitializing = false;
     }
+  }
+
+  /** The error state, with a retry. */
+  renderError() {
+    if (this.destroyed) {
+      return;
+    }
+    showPageError(document.getElementById('app'), {
+      title: translate('budget_management'),
+      className: 'budgets-page',
+    }, () => this.init());
   }
 
   setActiveTabFromQuery() {
@@ -144,57 +162,40 @@ export class Budgets {
     }
   }
 
+  /**
+   * Load the selected fiscal year's categories, items, expenses, summary and plans.
+   *
+   * @param {boolean} [forceRefresh=false] - Bypass the cache
+   * @returns {Promise<boolean|null>} true when all arrived, false when any
+   *   failed (what was shown stays), null when a load was already running
+   */
   async loadCoreData(forceRefresh = false) {
     return this.loadingManager.withLoading('core-data', async () => {
       debugLog('Loading budget data...');
-      // Load data with individual error handling and retry logic
       const fy = this.getCurrentFiscalYearData();
+      let failed = false;
+      const attempt = (load, label) => retryWithBackoff(load, {
+        maxRetries: 2,
+        onRetry: (count, max, delay) => {
+          debugLog(`Retrying ${label} (${count}/${max}) in ${delay}ms`);
+        }
+      }).catch((error) => {
+        debugError(`Error loading ${label}:`, error);
+        failed = true;
+        return null;
+      });
+
       const [categories, items, expenses, summary, plans] = await Promise.all([
-        retryWithBackoff(
-          () => getBudgetCategories({}, { forceRefresh }),
-          {
-            maxRetries: 2,
-            onRetry: (attempt, max, delay) => {
-              debugLog(`Retrying budget categories (${attempt}/${max}) in ${delay}ms`);
-            }
-          }
-        ).catch(error => {
-          debugError('Error loading budget categories:', error);
-          return { data: [] };
-        }),
-        retryWithBackoff(
-          () => getBudgetItems(null, { forceRefresh }),
-          { maxRetries: 2 }
-        ).catch(error => {
-          debugError('Error loading budget items:', error);
-          return { data: [] };
-        }),
-        retryWithBackoff(
-          () => getBudgetExpenses({
-            start_date: fy.start,
-            end_date: fy.end,
-          }, { forceRefresh }),
-          { maxRetries: 2 }
-        ).catch(error => {
-          debugError('Error loading budget expenses:', error);
-          return { data: [] };
-        }),
-        retryWithBackoff(
-          () => getBudgetSummaryReport(fy.start, fy.end, { forceRefresh }),
-          { maxRetries: 2 }
-        ).catch(error => {
-          debugError('Error loading budget summary:', error);
-          return { data: null };
-        }),
-        retryWithBackoff(
-          () => getBudgetPlans(fy.start, fy.end, { forceRefresh }),
-          { maxRetries: 2 }
-        ).catch(error => {
-          debugError('Error loading budget plans:', error);
-          return { data: [] };
-        }),
+        attempt(() => getBudgetCategories({}, { forceRefresh }), 'budget categories'),
+        attempt(() => getBudgetItems(null, { forceRefresh }), 'budget items'),
+        attempt(() => getBudgetExpenses({ start_date: fy.start, end_date: fy.end }, { forceRefresh }), 'budget expenses'),
+        attempt(() => getBudgetSummaryReport(fy.start, fy.end, { forceRefresh }), 'budget summary'),
+        attempt(() => getBudgetPlans(fy.start, fy.end, { forceRefresh }), 'budget plans'),
       ]);
 
+      if (failed) {
+        return false;
+      }
       this.categories = categories?.data || [];
       this.items = items?.data || [];
       this.expenses = expenses?.data || [];
@@ -204,6 +205,7 @@ export class Budgets {
       debugLog(
         `Loaded ${this.categories.length} categories, ${this.expenses.length} expenses, ${this.budgetPlans.length} plans`,
       );
+      return true;
     });
   }
 
@@ -228,9 +230,9 @@ export class Budgets {
             <h1>${translate('budget_management')}</h1>
           </div>
         </div>
-        <div class="loading-container">
-          <div class="loading-spinner"></div>
-          <p>${translate('loading')}...</p>
+        <div class="loading-container" aria-busy="true">
+          <div class="loading-spinner" aria-hidden="true"></div>
+          <p role="status">${translate('loading')}</p>
         </div>
       </div>
     `);
@@ -260,28 +262,28 @@ export class Budgets {
         ${this.renderSummaryCards()}
 
         <div class="tab-navigation">
-          <button class="tab-btn ${this.activeTab === 'overview' ? 'active' : ''}"
-                  data-tab="overview">
+          <button type="button" class="tab-btn ${this.activeTab === 'overview' ? 'active' : ''}"
+                  data-tab="overview" aria-pressed="${this.activeTab === 'overview'}">
             ${translate('overview')}
           </button>
-          <button class="tab-btn ${this.activeTab === 'categories' ? 'active' : ''}"
-                  data-tab="categories">
+          <button type="button" class="tab-btn ${this.activeTab === 'categories' ? 'active' : ''}"
+                  data-tab="categories" aria-pressed="${this.activeTab === 'categories'}">
             ${translate('categories')}
           </button>
-          <button class="tab-btn ${this.activeTab === 'items' ? 'active' : ''}"
-                  data-tab="items">
+          <button type="button" class="tab-btn ${this.activeTab === 'items' ? 'active' : ''}"
+                  data-tab="items" aria-pressed="${this.activeTab === 'items'}">
             ${translate('budget_items')}
           </button>
-          <button class="tab-btn ${this.activeTab === 'expenses' ? 'active' : ''}"
-                  data-tab="expenses">
+          <button type="button" class="tab-btn ${this.activeTab === 'expenses' ? 'active' : ''}"
+                  data-tab="expenses" aria-pressed="${this.activeTab === 'expenses'}">
             ${translate('expenses')}
           </button>
-          <button class="tab-btn ${this.activeTab === 'planning' ? 'active' : ''}"
-                  data-tab="planning">
+          <button type="button" class="tab-btn ${this.activeTab === 'planning' ? 'active' : ''}"
+                  data-tab="planning" aria-pressed="${this.activeTab === 'planning'}">
             ${translate('planning')}
           </button>
-          <button class="tab-btn ${this.activeTab === 'reports' ? 'active' : ''}"
-                  data-tab="reports">
+          <button type="button" class="tab-btn ${this.activeTab === 'reports' ? 'active' : ''}"
+                  data-tab="reports" aria-pressed="${this.activeTab === 'reports'}">
             ${translate('reports')}
           </button>
         </div>
@@ -301,8 +303,21 @@ export class Budgets {
     this.attachEventListeners();
   }
 
+  /**
+   * Reload after a write the server accepted. The write stands even if the
+   * reload fails: the page keeps what it showed and says it could not refresh.
+   *
+   * @param {boolean} [forceRefresh=false] - Bypass the cache
+   * @returns {Promise<void>}
+   */
   async refreshBudgetData(forceRefresh = false) {
-    await this.loadCoreData(forceRefresh);
+    const loaded = await this.loadCoreData(forceRefresh);
+    if (this.destroyed) {
+      return;
+    }
+    if (loaded === false) {
+      this.app.showMessage(translate('error_loading_data'), 'error');
+    }
     await this.renderAndBind();
   }
 
@@ -1157,13 +1172,21 @@ export class Budgets {
     const fySelect = document.getElementById('fiscal-year-select');
     if (fySelect) {
       fySelect.addEventListener('change', async (e) => {
+        const previousYear = this.selectedFiscalYear;
         try {
-          this.selectedFiscalYear = parseInt(e.target.value);
-          await this.loadCoreData(false);
+          this.selectedFiscalYear = Number(e.target.value);
+          const loaded = await this.loadCoreData(false);
+          if (loaded === false) {
+            // The figures shown are still the previous year's: the selector says so too.
+            this.selectedFiscalYear = previousYear;
+            e.target.value = String(previousYear);
+            this.app.showMessage(translate('error_loading_data'), 'error');
+            return;
+          }
           await this.renderAndBind();
         } catch (error) {
           debugError('Error changing fiscal year:', error);
-          this.app.showMessage(translate('error_loading_data'), 'error');
+          this.app.showMessage(apiErrorMessage(error, 'error_loading_data'), 'error');
         }
       }, { signal });
     }
@@ -1178,7 +1201,7 @@ export class Budgets {
           await this.renderAndBind();
         } catch (error) {
           debugError('Error switching budget tabs', error);
-          this.app.showMessage(translate('error_loading_data'), 'error');
+          this.app.showMessage(apiErrorMessage(error, 'error_loading_data'), 'error');
         }
       }, { signal });
     });
@@ -1456,7 +1479,7 @@ export class Budgets {
       await this.refreshBudgetData(true);
     } catch (error) {
       debugError('Error saving category', error);
-      this.app.showMessage(translate('error_saving_category'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_saving_category'), 'error');
     }
   }
 
@@ -1469,7 +1492,7 @@ export class Budgets {
       await this.refreshBudgetData(true);
     } catch (error) {
       debugError('Error deleting category', error);
-      this.app.showMessage(translate('error_deleting_category'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_deleting_category'), 'error');
     }
   }
 
@@ -1555,7 +1578,7 @@ export class Budgets {
       await this.refreshBudgetData(true);
     } catch (error) {
       debugError('Error saving budget item', error);
-      this.app.showMessage(translate('error_saving_budget_item'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_saving_budget_item'), 'error');
     }
   }
 
@@ -1568,7 +1591,7 @@ export class Budgets {
       await this.refreshBudgetData(true);
     } catch (error) {
       debugError('Error deleting budget item', error);
-      this.app.showMessage(translate('error_deleting_budget_item'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_deleting_budget_item'), 'error');
     }
   }
 
@@ -1671,7 +1694,7 @@ export class Budgets {
       await this.refreshBudgetData(true);
     } catch (error) {
       debugError('Error saving expense', error);
-      this.app.showMessage(translate('error_saving_expense'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_saving_expense'), 'error');
     }
   }
 
@@ -1684,7 +1707,7 @@ export class Budgets {
       await this.refreshBudgetData(true);
     } catch (error) {
       debugError('Error deleting expense', error);
-      this.app.showMessage(translate('error_deleting_expense'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_deleting_expense'), 'error');
     }
   }
 
@@ -1798,7 +1821,7 @@ export class Budgets {
       await this.refreshBudgetData(true);
     } catch (error) {
       debugError('Error saving budget plan', error);
-      this.app.showMessage(translate('error_saving_budget_plan'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_saving_budget_plan'), 'error');
     }
   }
 
@@ -1811,7 +1834,7 @@ export class Budgets {
       await this.refreshBudgetData(true);
     } catch (error) {
       debugError('Error deleting budget plan', error);
-      this.app.showMessage(translate('error_deleting_budget_plan'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_deleting_budget_plan'), 'error');
     }
   }
 }

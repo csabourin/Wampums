@@ -23,6 +23,8 @@ import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { setButtonLoading } from '../../utils/SkeletonUtils.js';
 import { aiParseReceipt } from '../AI.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageError } from '../../utils/PageStateUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 
 const DEFAULT_CURRENCY = 'CAD';
 
@@ -53,6 +55,8 @@ export class Expenses {
     // Loading state management
     this.loadingManager = new LoadingStateManager();
     this.isInitializing = false;
+    this.loadFailed = false;
+    this.destroyed = false;
 
     // Debounced filter application (300ms delay)
     this.debouncedApplyFilters = debounce(this.applyFilters.bind(this), 300);
@@ -98,23 +102,26 @@ export class Expenses {
       // Render loading state immediately
       this.renderLoading();
 
-      await Promise.all([
-        this.loadCategories(),
-        this.loadItems(),
-        this.loadExpenses(),
-        this.loadSummary(),
-        this.loadMonthlyData()
-      ]);
-
-      // Render with data
+      const loaded = await this.runLoads(
+        () => this.loadCategories(),
+        () => this.loadItems(),
+        () => this.loadExpenses(),
+        () => this.loadSummary(),
+        () => this.loadMonthlyData(),
+      );
+      if (this.destroyed) {
+        return;
+      }
+      // A failed load is never shown as an empty list of expenses.
+      if (!loaded) {
+        this.renderError();
+        return;
+      }
       this.render();
       this.attachEventListeners();
     } catch (error) {
       debugError('Unable to initialize expenses page', error);
-      // Render error state but allow partial functionality
-      this.render();
-      this.attachEventListeners();
-      this.app.showMessage(translate('error_loading_data'), 'error');
+      this.renderError();
     } finally {
       this.isInitializing = false;
     }
@@ -131,7 +138,7 @@ export class Expenses {
         debugLog(`Loaded ${this.categories.length} categories`);
       } catch (error) {
         debugError('Error loading categories', error);
-        this.categories = [];
+        this.loadFailed = true;
       }
     });
   }
@@ -147,7 +154,7 @@ export class Expenses {
         debugLog(`Loaded ${this.items.length} budget items`);
       } catch (error) {
         debugError('Error loading budget items', error);
-        this.items = [];
+        this.loadFailed = true;
       }
     });
   }
@@ -167,8 +174,7 @@ export class Expenses {
       debugLog(`Loaded ${this.expenses.length} expenses`);
     } catch (error) {
       debugError('Error loading expenses', error);
-      this.expenses = [];
-      // Don't throw - allow page to render with empty data
+      this.loadFailed = true;
     }
   }
 
@@ -183,7 +189,7 @@ export class Expenses {
       debugLog('Loaded expense summary', this.summary);
     } catch (error) {
       debugError('Error loading summary', error);
-      this.summary = null;
+      this.loadFailed = true;
     }
   }
 
@@ -198,7 +204,7 @@ export class Expenses {
       debugLog('Loaded monthly expense data', this.monthlyData);
     } catch (error) {
       debugError('Error loading monthly data', error);
-      this.monthlyData = [];
+      this.loadFailed = true;
     }
   }
 
@@ -253,13 +259,58 @@ export class Expenses {
    */
   async refreshExpenseData() {
     await this.clearExpenseCaches();
-    await Promise.all([
-      this.loadExpenses(),
-      this.loadSummary(),
-      this.loadMonthlyData()
-    ]);
+    this.showRefreshed(await this.runLoads(
+      () => this.loadExpenses(),
+      () => this.loadSummary(),
+      () => this.loadMonthlyData(),
+    ));
+  }
+
+  /**
+   * Run loaders together; each records its own failure in `loadFailed` and
+   * keeps what it had, so a failed refresh never blanks the page.
+   *
+   * @param {...Function} loads - Loader calls
+   * @returns {Promise<boolean>} Whether every one succeeded
+   */
+  async runLoads(...loads) {
+    this.loadFailed = false;
+    await Promise.all(loads.map((load) => load()));
+    return !this.loadFailed;
+  }
+
+  /**
+   * After a filter change or a write the server accepted: say so when fresh
+   * data did not arrive, then draw what there is.
+   *
+   * @param {boolean} loaded - What runLoads answered
+   * @returns {void}
+   */
+  showRefreshed(loaded) {
+    if (this.destroyed) {
+      return;
+    }
+    if (!loaded) {
+      this.app.showMessage(translate('error_loading_data'), 'error');
+    }
     this.render();
     this.attachEventListeners();
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
+  }
+
+  /** The error state, with a retry. */
+  renderError() {
+    if (this.destroyed) {
+      return;
+    }
+    showPageError(document.getElementById('app'), {
+      title: translate('expense_tracking'),
+      className: 'expenses-page',
+    }, () => this.init());
   }
 
   formatCurrency(amount) {
@@ -301,9 +352,9 @@ export class Expenses {
             </div>
           </div>
         </div>
-        <div class="loading-container">
-          <div class="loading-spinner"></div>
-          <p>${translate('loading')}...</p>
+        <div class="loading-container" aria-busy="true">
+          <div class="loading-spinner" aria-hidden="true"></div>
+          <p role="status">${translate('loading')}</p>
         </div>
       </div>
     `);
@@ -688,13 +739,11 @@ export class Expenses {
     this.filters.end_date = document.getElementById('filter-end-date').value;
     this.filters.category_id = document.getElementById('filter-category').value;
 
-    await Promise.all([
-      this.loadExpenses(),
-      this.loadSummary(),
-      this.loadMonthlyData()
-    ]);
-    this.render();
-    this.attachEventListeners();
+    this.showRefreshed(await this.runLoads(
+      () => this.loadExpenses(),
+      () => this.loadSummary(),
+      () => this.loadMonthlyData(),
+    ));
   }
 
   async resetFilters() {
@@ -704,13 +753,11 @@ export class Expenses {
       category_id: 'all'
     };
 
-    await Promise.all([
-      this.loadExpenses(),
-      this.loadSummary(),
-      this.loadMonthlyData()
-    ]);
-    this.render();
-    this.attachEventListeners();
+    this.showRefreshed(await this.runLoads(
+      () => this.loadExpenses(),
+      () => this.loadSummary(),
+      () => this.loadMonthlyData(),
+    ));
   }
 
   showExpenseModal(expense = null) {
@@ -1001,7 +1048,7 @@ export class Expenses {
       await this.refreshExpenseData();
     } catch (error) {
       debugError('Error saving expense', error);
-      this.app.showMessage(translate('error_saving_expense'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_saving_expense'), 'error');
     }
   }
 
@@ -1035,7 +1082,7 @@ export class Expenses {
     });
 
     if (expenses.length === 0) {
-      this.app.showMessage(translate('no_expenses_to_create'), 'warning');
+      this.app.showMessage(translate('no_expenses_to_create'), 'info');
       return;
     }
 
@@ -1047,7 +1094,7 @@ export class Expenses {
       await this.refreshExpenseData();
     } catch (error) {
       debugError('Error creating bulk expenses', error);
-      this.app.showMessage(translate('error_creating_bulk_expenses'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_creating_bulk_expenses'), 'error');
     }
   }
 
@@ -1059,13 +1106,13 @@ export class Expenses {
       await this.refreshExpenseData();
     } catch (error) {
       debugError('Error deleting expense', error);
-      this.app.showMessage(translate('error_deleting_expense'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_deleting_expense'), 'error');
     }
   }
 
   exportToCSV() {
     if (this.expenses.length === 0) {
-      this.app.showMessage(translate('no_data_to_export'), 'warning');
+      this.app.showMessage(translate('no_data_to_export'), 'info');
       return;
     }
 

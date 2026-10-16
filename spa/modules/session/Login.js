@@ -118,7 +118,7 @@ export class Login {
             <label for="login-password" class="sr-only">${translate('password')}</label>
             <input type="password" id="login-password" name="password" placeholder="${translate('password')}" autocomplete="current-password" required>
           </div>
-          <button type="submit" class="button--primary">${translate('submit_login')}</button>
+          <button type="submit" class="button button--primary">${translate('submit_login')}</button>
         </form>
         ${this.renderMessageRegions('login')}
         <div id="login-recovery-cta"></div>

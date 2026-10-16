@@ -12,10 +12,10 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { formatDateShort } from '../../utils/DateUtils.js';
 import { LoadingStateManager, retryWithBackoff } from '../../utils/PerformanceUtils.js';
-import { isParent } from '../../utils/PermissionUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageError } from '../../utils/PageStateUtils.js';
 
 export class ParentFinance {
   constructor(app) {
@@ -38,6 +38,12 @@ export class ParentFinance {
     this.paymentElement = null;
     this.currentPaymentIntentId = null;
     this.currentFeeId = null;
+    this.destroyed = false;
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
   }
 
   async init() {
@@ -48,51 +54,47 @@ export class ParentFinance {
     }
 
     this.isInitializing = true;
-    let hasErrors = false;
+    this.renderLoading();
 
     try {
-      // Initialize Stripe
       await this.initializeStripe();
-
-      // Render loading state immediately
-      this.renderLoading();
-
-      try {
-        await this.fetchParticipants();
-      } catch (error) {
-        debugError('Error fetching participants:', error);
-        hasErrors = true;
-        // Continue with empty participants array
-      }
-
-      try {
-        await this.fetchAllStatements();
-      } catch (error) {
-        debugError('Error fetching statements:', error);
-        hasErrors = true;
-        // Continue with empty statements
-      }
-
-      this.calculateConsolidatedTotals();
-
-      // Render with data
-      this.render();
-      this.attachEventListeners();
-
-      if (hasErrors) {
-        this.app.showMessage(translate('error_loading_data'), 'warning');
-      }
+      await this.fetchParticipants();
+      await this.fetchAllStatements();
     } catch (error) {
-      debugError('Error rendering parent finance page:', error);
-      this.render();
-      this.attachEventListeners();
-      this.app.showMessage(translate('error_loading_data'), 'error');
+      // A statement that did not arrive is never shown as nothing owed.
+      debugError('Error loading parent finance:', error);
+      this.renderError();
+      return;
     } finally {
       this.isInitializing = false;
     }
+
+    if (this.destroyed) {
+      return;
+    }
+    this.calculateConsolidatedTotals();
+    this.render();
+    this.attachEventListeners();
+  }
+
+  /** The error state, with a retry. */
+  renderError() {
+    if (this.destroyed) {
+      return;
+    }
+    showPageError(document.getElementById('app'), {
+      title: translate('my_finances'),
+      className: 'parent-finance-page',
+    }, () => this.init());
   }
 
   async initializeStripe() {
+    // Without a key there is no online payment: Stripe's script is not loaded at all.
+    const publishableKey = CONFIG.PAYMENTS?.STRIPE_PUBLISHABLE_KEY;
+    if (!publishableKey) {
+      debugLog('Online payment is not configured');
+      return;
+    }
     try {
       // Load Stripe.js dynamically
       if (!window.Stripe) {
@@ -105,12 +107,6 @@ export class ParentFinance {
           script.onload = resolve;
           script.onerror = reject;
         });
-      }
-
-      const publishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-      if (!publishableKey) {
-        debugError('Stripe publishable key not found in environment');
-        return;
       }
 
       this.stripe = window.Stripe(publishableKey);
@@ -167,16 +163,11 @@ export class ParentFinance {
             participantId: participant.id,
             statement: response?.data || response
           }))
-          .catch(error => {
-            debugError(`Error fetching statement for participant ${participant.id}:`, error);
-            return {
-              participantId: participant.id,
-              statement: null
-            };
-          })
       );
 
+      // Every child's statement or none: totals without one child would be wrong.
       const statements = await Promise.all(statementPromises);
+      this.participantStatements = new Map();
       statements.forEach(({ participantId, statement }) => {
         if (statement) {
           this.participantStatements.set(participantId, statement);
@@ -186,7 +177,6 @@ export class ParentFinance {
       debugLog('Fetched all statements:', this.participantStatements);
     } catch (error) {
       debugError('Error fetching participant statements:', error);
-      // Don't throw - let init continue with empty statements
       throw error;
     }
   }
@@ -226,32 +216,25 @@ export class ParentFinance {
   }
 
   renderLoading() {
-    const backLink = isParent()
-      ? `${renderBackLink('/parent-dashboard')}`
-      : `${renderBackLink()}`;
-
     const content = `
-      ${backLink}
-      <div class="parent-finance-page">
-        <h1>${translate('participant_finance_statements')}</h1>
+      <section class="page parent-finance-page" aria-busy="true">
+        ${renderBackLink()}
+        <h1>${translate('my_finances')}</h1>
         <div class="loading-container">
-          <div class="loading-spinner"></div>
-          <p>${translate('loading')}...</p>
+          <div class="loading-spinner" aria-hidden="true"></div>
+          <p role="status">${translate('loading')}</p>
         </div>
-      </div>
+      </section>
     `;
 
     setContent(document.getElementById('app'), content);
   }
 
   render() {
-    const backLink = isParent()
-      ? `<a href="/parent-dashboard" class="back-link">${translate('back_to_dashboard')}</a>`
-      : `<a href="/dashboard" class="back-link">${translate('back_to_dashboard')}</a>`;
-
+    // /dashboard sends a parent to the parent dashboard and staff to theirs.
     const content = `
-      ${renderBackLink('/parent-dashboard')}
-      <section class="parent-finance-page">
+      <section class="page parent-finance-page">
+        ${renderBackLink()}
         <header class="finance-header">
           <div>
             <h1>${translate('my_finances')}</h1>

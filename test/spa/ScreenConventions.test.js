@@ -38,11 +38,21 @@ const OLD_BUTTON_CLASSES = [
   'spa/modules/whatsapp-connection.js',
 ];
 
+/** Screens that still give a button a variant without its `button` base class. */
+const VARIANTS_WITHOUT_BASE = [
+  'spa/modules/mailing-list/MailingList.js',
+  'spa/modules/participants/ManageUsersParticipants.js',
+];
+
 const HAND_WRITTEN_BACK_LINK = /button--ghost[^>]*>\s*←/;
 // A `btn` token inside a class attribute; hook classes such as `edit-offer-btn` are not styling.
 const OLD_BUTTON_CLASS = /class="[^"]*(?<![\w-])btn(?:-(?:primary|secondary|danger|sm|small|lg|link|icon|success)|--[\w$]+)?(?![\w-])/;
 // Unprefixed modifiers (`button primary`) style nothing; the variants are `button--*`.
 const UNPREFIXED_MODIFIER = /class="button(?:\s+[^"\s]+)*\s+(?:primary|secondary|danger|small)(?=[\s"])/;
+// The `*-button` family (`primary-button`, `ghost-button`) predates the `button` classes.
+const OLDER_BUTTON_FAMILY = /class="[^"]*(?<![\w-])(?:primary|secondary|ghost|danger)-button(?![\w-])/;
+// A variant without its base class: the base rule is what styles a link as a button.
+const VARIANT_WITHOUT_BASE = /class="(?![^"]*(?<![\w-])button(?![\w-]))[^"$]*(?<![\w-])button--/;
 
 /**
  * @param {string} dir - Directory relative to the repository root
@@ -73,6 +83,14 @@ test.each(SCREENS.filter((file) => !OLD_BUTTON_CLASSES.includes(file)))(
   (file) => {
     expect(source(file)).not.toMatch(OLD_BUTTON_CLASS);
     expect(source(file)).not.toMatch(UNPREFIXED_MODIFIER);
+    expect(source(file)).not.toMatch(OLDER_BUTTON_FAMILY);
+  },
+);
+
+test.each(SCREENS.filter((file) => !VARIANTS_WITHOUT_BASE.includes(file)))(
+  '%s gives every button variant its base class',
+  (file) => {
+    expect(source(file)).not.toMatch(VARIANT_WITHOUT_BASE);
   },
 );
 
@@ -82,6 +100,7 @@ test('the lists of older screens only shrink: a screen brought into line leaves 
 
   expect(stillHandWritten).toEqual(HAND_WRITTEN_BACK_LINKS);
   expect(stillOldButtons).toEqual(OLD_BUTTON_CLASSES);
+  expect(VARIANTS_WITHOUT_BASE.filter((file) => VARIANT_WITHOUT_BASE.test(source(file)))).toEqual(VARIANTS_WITHOUT_BASE);
 });
 
 test('every button variant a screen uses has a rule in the shared stylesheet', () => {

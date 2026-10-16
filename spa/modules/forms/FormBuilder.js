@@ -243,15 +243,15 @@ export class FormBuilder extends BaseModule {
                             ${this.renderMissingTextBadge(field)}
                         </div>
                         <div class="field-actions">
-                            <button class="button--icon move-up" data-index="${index}" 
+                            <button class="button button--icon move-up" data-index="${index}" 
                                     aria-label="${translate('move_up')}"
                                     ${index === 0 ? 'disabled' : ''}>↑</button>
-                            <button class="button--icon move-down" data-index="${index}" 
+                            <button class="button button--icon move-down" data-index="${index}" 
                                     aria-label="${translate('move_down')}"
                                     ${index === this.currentFields.length - 1 ? 'disabled' : ''}>↓</button>
-                            <button class="button--icon edit-field" data-index="${index}" 
+                            <button class="button button--icon edit-field" data-index="${index}" 
                                     aria-label="${translate('edit_field')}">✏️</button>
-                            <button class="button--icon delete-field" data-index="${index}" 
+                            <button class="button button--icon delete-field" data-index="${index}" 
                                     aria-label="${translate('delete_field')}">🗑️</button>
                         </div>
                     </div>
@@ -481,7 +481,7 @@ export class FormBuilder extends BaseModule {
                 <input type="text" class="option-value" value="${escapeAttribute(option.value || '')}"
                        placeholder="${translate('value')}"
                        aria-label="${escapeAttribute(`${translate('value')} ${position}`)}">
-                <button type="button" class="button--icon remove-option" data-index="${index}"
+                <button type="button" class="button button--icon remove-option" data-index="${index}"
                         aria-label="${escapeAttribute(`${translate('remove_option')} ${position}`)}"><span aria-hidden="true">🗑️</span></button>
             </div>
         `;

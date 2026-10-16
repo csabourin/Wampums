@@ -431,7 +431,7 @@ export class DistrictManagement {
     const actionBar = `
       <div class="dm-action-bar" role="region" aria-label="${translate('district_management_actions')}">
         <div class="dm-action-bar__left">
-          <button id="dm-refresh" class="ghost-button" aria-label="${translate('district_management_refresh')}">
+          <button id="dm-refresh" class="button button--secondary" aria-label="${translate('district_management_refresh')}">
             🔄 ${translate('district_management_refresh')}
           </button>
           <div class="dm-sync" id="dm-sync-status" aria-live="polite">

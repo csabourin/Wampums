@@ -90,7 +90,7 @@ export class ManageGroups {
                 <td>${escapeHTML(group.name || '')}</td>
                 <td class="${memberCount > 0 ? 'group-members group-members--occupied' : 'group-members'}">${formattedCount}</td>
                 <td>
-                    <button class="remove-group button--danger"
+                    <button class="button remove-group button--danger"
                             data-group-id="${group.id}"
                             data-member-count="${memberCount}">
                         ${translate('remove_group')}

@@ -192,19 +192,19 @@ export class Fundraisers {
 					</div>
 				</div>
 				<div class="fundraiser-card-footer">
-					<a href="/calendars/${fundraiser.id}" class="button--primary" aria-label="${translate('view_fundraiser_entries_for')} ${escapeHTML(fundraiser.name)}">
+					<a href="/calendars/${fundraiser.id}" class="button button--primary" aria-label="${translate('view_fundraiser_entries_for')} ${escapeHTML(fundraiser.name)}">
 						${translate('view_fundraiser_entries')}
 					</a>
 					${canEdit ? `
-						<button class="button--secondary edit-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('edit')} ${escapeHTML(fundraiser.name)}">
+						<button class="button button--secondary edit-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('edit')} ${escapeHTML(fundraiser.name)}">
 							${translate('edit')}
 						</button>
-						<button class="button--danger archive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('archive')} ${escapeHTML(fundraiser.name)}">
+						<button class="button button--danger archive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('archive')} ${escapeHTML(fundraiser.name)}">
 							${translate('archive')}
 						</button>
 					` : ''}
 					${canDelete && this.isCampaignEmpty(fundraiser) ? `
-						<button class="button--danger delete-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('delete')} ${escapeHTML(fundraiser.name)}">
+						<button class="button button--danger delete-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('delete')} ${escapeHTML(fundraiser.name)}">
 							${translate('delete')}
 						</button>
 					` : ''}
@@ -299,11 +299,11 @@ export class Fundraisers {
 					</div>
 				</div>
 				<div class="fundraiser-card-footer">
-					<a href="/calendars/${fundraiser.id}" class="button--primary" aria-label="${translate('view_fundraiser_entries_for')} ${escapeHTML(fundraiser.name)}">
+					<a href="/calendars/${fundraiser.id}" class="button button--primary" aria-label="${translate('view_fundraiser_entries_for')} ${escapeHTML(fundraiser.name)}">
 						${translate('view_fundraiser_entries')}
 					</a>
 					${canEdit ? `
-						<button class="button--secondary unarchive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('unarchive')} ${escapeHTML(fundraiser.name)}">
+						<button class="button button--secondary unarchive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('unarchive')} ${escapeHTML(fundraiser.name)}">
 							${translate('unarchive')}
 						</button>
 					` : ''}
@@ -431,7 +431,7 @@ export class Fundraisers {
       title: translate(fundraiser ? 'edit_fundraiser' : 'add_fundraiser'),
       body: this.renderForm(),
       footer: `
-        <button type="button" class="button--secondary modal-cancel" data-modal-close>${translate('cancel')}</button>
+        <button type="button" class="button button--secondary modal-cancel" data-modal-close>${translate('cancel')}</button>
         <button type="submit" class="primary-btn" form="fundraiser-form">${translate('save')}</button>
       `,
       initialFocus: '#fundraiser-name',
