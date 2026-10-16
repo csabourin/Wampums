@@ -244,6 +244,25 @@ describe('when it shows', () => {
   });
 });
 
+describe('when the programme cannot be read again', () => {
+  test('offline, the day already read keeps showing', async () => {
+    await startAt(at(19, 0), MEETING);
+    getDayProgramme.mockRejectedValue(Object.assign(new Error('offline'), { isNetworkError: true }));
+
+    await runClockTo(at(19, 15));
+    expect(bar().hidden).toBe(false);
+    expect(button().textContent).toContain('Den game');
+  });
+
+  test.each([401, 403])('a refusal (%i), such as a leader who lost access, stops showing it', async (status) => {
+    await startAt(at(19, 0), MEETING);
+    getDayProgramme.mockRejectedValue(Object.assign(new Error('refused'), { status }));
+
+    await runClockTo(at(19, 15));
+    expect(bar().hidden).toBe(true);
+  });
+});
+
 describe('as the clock turns', () => {
   test('it moves on to the next activity at its time, and says the change once', async () => {
     await startAt(at(19, 24, 30), MEETING);
@@ -351,6 +370,22 @@ describe('the rest of the day', () => {
 
     await runClockTo(at(19, 45));
     expect(bar().hidden).toBe(true);
+    expect(sentinel.release).toHaveBeenCalled();
+  });
+
+  test('a lock the browser grants after the box was unticked is let go at once', async () => {
+    const sentinel = { release: jest.fn().mockResolvedValue(), addEventListener: jest.fn() };
+    let grant;
+    const wakeLock = { request: jest.fn(() => new Promise((resolve) => { grant = resolve; })) };
+    await startAt(at(19, 13), MEETING, { wakeLock });
+    button().click();
+    const checkbox = document.getElementById('programme-wake-lock');
+
+    checkbox.click();
+    checkbox.click();
+    grant(sentinel);
+    await settle();
+
     expect(sentinel.release).toHaveBeenCalled();
   });
 

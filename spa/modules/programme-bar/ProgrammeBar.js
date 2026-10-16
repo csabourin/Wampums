@@ -34,6 +34,10 @@ const WAKE_LOCK_ID = 'programme-wake-lock';
 const ACTIVE_CLASS = 'has-programme-bar';
 const SPACE_PROPERTY = '--programme-bar-space';
 const MINUTES_PER_HOUR = 60;
+const HTTP_UNAUTHORIZED = 401;
+const HTTP_FORBIDDEN = 403;
+// Answers that mean "not yours to see", as opposed to "not reachable now".
+const REFUSED_STATUSES = new Set([HTTP_UNAUTHORIZED, HTTP_FORBIDDEN]);
 const MS_PER_MINUTE = 60000;
 const MINUTE_DIGITS = 2;
 // Any day will do: only the time of day is formatted.
@@ -102,6 +106,7 @@ export class ProgrammeBar extends BaseModule {
     this.tickTimer = null;
     this.wakeLockWanted = false;
     this.wakeLockSentinel = null;
+    this.wakeLockPending = false;
   }
 
   /**
@@ -159,8 +164,9 @@ export class ProgrammeBar extends BaseModule {
   }
 
   /**
-   * Read the day's programme. A failure keeps what was read for the same day
-   * (offline, the cache answers first); another day's plan is never shown.
+   * Read the day's programme. A failure to reach the server keeps what was
+   * read for the same day (offline, the cache answers first); a refusal (the
+   * leader lost access) drops it at once; another day's plan is never shown.
    *
    * @returns {Promise<void>}
    */
@@ -179,7 +185,7 @@ export class ProgrammeBar extends BaseModule {
       if (this.isDestroyed) {
         return;
       }
-      if (this.loadedDate !== date) {
+      if (this.loadedDate !== date || REFUSED_STATUSES.has(error?.status)) {
         this.programme = null;
         this.loadedDate = date;
       }
@@ -507,11 +513,18 @@ export class ProgrammeBar extends BaseModule {
 
   /** @returns {Promise<void>} */
   async requestWakeLock() {
-    if (!this.wakeLockApi || this.wakeLockSentinel) {
+    if (!this.wakeLockApi || this.wakeLockSentinel || this.wakeLockPending) {
       return;
     }
+    this.wakeLockPending = true;
     try {
       const sentinel = await this.wakeLockApi.request('screen');
+      this.wakeLockPending = false;
+      // Unticked, ended or left while the browser was answering: let it go.
+      if (!this.wakeLockWanted || this.isDestroyed) {
+        await sentinel.release();
+        return;
+      }
       this.wakeLockSentinel = sentinel;
       sentinel.addEventListener?.('release', () => {
         if (this.wakeLockSentinel === sentinel) {
@@ -519,7 +532,11 @@ export class ProgrammeBar extends BaseModule {
         }
       });
     } catch (error) {
+      this.wakeLockPending = false;
       debugError('Programme bar: the screen could not be kept on', error);
+      if (this.isDestroyed) {
+        return;
+      }
       this.wakeLockWanted = false;
       const checkbox = document.getElementById(WAKE_LOCK_ID);
       if (checkbox) {
