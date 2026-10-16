@@ -7,7 +7,7 @@ import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { isoToDateString, formatDate } from '../../utils/DateUtils.js';
-import { formatHonorText } from '../../utils/HonorUtils.js';
+import { formatHonorText, honorForMeetingPlan } from '../../utils/HonorUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
@@ -1083,11 +1083,7 @@ export class MeetingPrep extends BaseModule {
           activity: translate(t.activityKey) || t.activityKey,
           type: translate(t.typeKey) || t.typeKey
         })),
-        recentHonor: mostRecentHonor ? {
-          name: mostRecentHonor.participant_name,
-          honor: mostRecentHonor.honor_name,
-          date: mostRecentHonor.date_awarded
-        } : null,
+        recentHonor: honorForMeetingPlan(mostRecentHonor, vocabulary.honor_singular),
         glossary,
         meetingDefaults: {
           mandatoryAgenda: [

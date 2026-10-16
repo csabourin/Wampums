@@ -4024,5 +4024,8 @@
   "programme_no_time": "Sans heure fixe",
   "programme_keep_screen_on": "Garder l’écran allumé pendant le programme",
   "programme_keep_screen_on_failed": "L’écran n’a pas pu rester allumé. Il s’éteindra comme d’habitude.",
-  "programme_announcement": "{label} : {name}, {time}"
+  "programme_announcement": "{label} : {name}, {time}",
+  "announcement_recipients_required": "Cochez au moins un rôle ou une case parmi les {subgroup_plural}.",
+  "announcement_groups_help": "Pour écrire seulement à des familles, cochez uniquement des cases parmi les {subgroup_plural}. Si des rôles sont aussi cochés, seuls les parents des jeunes de la sélection reçoivent le message ; les autres rôles le reçoivent au complet.",
+  "ai_text_empty_result": "L’assistant n’a renvoyé aucun texte. Votre message n’a pas été modifié."
 }

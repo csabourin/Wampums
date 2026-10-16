@@ -1,7 +1,9 @@
 const { AI_LIMITS } = require('../config/constants');
+const interfaceLanguages = require('../config/interface_languages.json');
 
 const AI_MODES = new Set(['meeting_plan', 'rewrite', 'translate', 'risk_suggest']);
-const SUPPORTED_LOCALES = new Set(['en', 'fr', 'it', 'uk']);
+// Every language a unit may turn on, so its leaders can use the assistant too.
+const SUPPORTED_LOCALES = new Set([...interfaceLanguages.core, ...interfaceLanguages.optional]);
 const REWRITE_TONES = new Set(['professional', 'friendly', 'concise', 'clear']);
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 const TIME_PATTERN = /^\d{1,3}:\d{2}$/u;
@@ -135,10 +137,17 @@ function normalizeMeetingPlan(payload, errors) {
     if (!isPlainObject(payload.recentHonor)) {
       addError(errors, 'payload.recentHonor', 'Recent recognition must be an object');
     } else {
+      // An honour need not carry a reason, and its date is context only.
       recentHonor = {
         name: normalizeText(payload.recentHonor.name, 'payload.recentHonor.name', errors, { maxLength: 120 }),
-        honor: normalizeText(payload.recentHonor.honor, 'payload.recentHonor.honor', errors, { maxLength: 120 }),
-        date: normalizeText(payload.recentHonor.date, 'payload.recentHonor.date', errors, { maxLength: 10 }),
+        honor: normalizeText(payload.recentHonor.honor, 'payload.recentHonor.honor', errors, {
+          required: false,
+          maxLength: 120,
+        }),
+        date: normalizeText(payload.recentHonor.date, 'payload.recentHonor.date', errors, {
+          required: false,
+          maxLength: 10,
+        }),
       };
       if (recentHonor.date && !DATE_PATTERN.test(recentHonor.date)) {
         addError(errors, 'payload.recentHonor.date', 'Date must use YYYY-MM-DD');

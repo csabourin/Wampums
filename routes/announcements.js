@@ -57,6 +57,16 @@ const pg = require('pg');
 const { Client } = pg;
 
 /**
+ * Whether a request names at least one den to write to.
+ *
+ * @param {Object} body - Request body
+ * @returns {boolean}
+ */
+function hasRecipientGroups(body) {
+  return Array.isArray(body?.recipient_group_ids) && body.recipient_group_ids.length > 0;
+}
+
+/**
  * Normalize and sanitize announcement payload
  * @param {Object} body
  * @returns {Object}
@@ -219,11 +229,17 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
   }
 
   const roleFilter = roles || [];
-  const includeParents = roleFilter.includes('parent');
-  const groupFilterClause = groupIds.length ? 'AND pgroups.group_id = ANY($2::int[])' : '';
+  // Dens chosen without any role: the message is for those dens' families.
+  const familiesOnly = !roleFilter.length && groupIds.length > 0;
+  const includeParents = familiesOnly || roleFilter.includes('parent');
+  const groupFilterClause = groupIds.length
+    ? 'AND pgroups.group_id = ANY($2::int[]) AND pgroups.organization_id = $1'
+    : '';
   const groupParams = groupIds.length ? [organizationId, groupIds] : [organizationId];
 
-  // User roles (admins/animation/parents as users) - get email and WhatsApp
+  // Members reached through their role. A den filter narrows family accounts
+  // (roles that see only their own children) to those linked to a youth of
+  // the den; leaders belong to no den and stay reached as their role was chosen.
   const userRoleQuery = `
     SELECT DISTINCT LOWER(u.email) AS email, u.id AS user_id, u.whatsapp_phone_number
     FROM user_organizations uo
@@ -231,10 +247,21 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
     JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
     WHERE uo.organization_id = $1
       AND uo.status = 'active'
-      AND r.role_name = ANY($${groupParams.length + 1}::text[])
-      AND u.email IS NOT NULL AND u.email <> ''
+      AND (r.role_name = ANY($3::text[]) OR ($4::boolean AND r.data_scope = 'linked'))
+      AND (
+        cardinality($2::int[]) = 0
+        OR r.data_scope IS DISTINCT FROM 'linked'
+        OR EXISTS (
+          SELECT 1
+          FROM user_participants up
+          JOIN participant_groups pgroups ON pgroups.participant_id = up.participant_id
+          WHERE up.user_id = u.id
+            AND pgroups.organization_id = $1
+            AND pgroups.group_id = ANY($2::int[])
+        )
+      )
   `;
-  const userRoleResult = await pool.query(userRoleQuery, [...groupParams, roleFilter]);
+  const userRoleResult = await pool.query(userRoleQuery, [organizationId, groupIds, roleFilter, familiesOnly]);
 
   // Guardian emails per participant (optional group filter)
   const guardianEmails = [];
@@ -285,18 +312,15 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
   const allEmails = [...roleEmails, ...guardianEmails, ...participantEmails].filter(Boolean);
   const uniqueEmails = [...new Set(allEmails)];
 
-  // Push subscribers limited to requested roles
+  // Push goes to the same members as above, den filter included.
+  const memberIds = [...new Set(userRoleResult.rows.map((row) => row.user_id))];
   const subscriberQuery = `
     SELECT DISTINCT s.endpoint, s.p256dh, s.auth, s.user_id
     FROM subscribers s
-    JOIN user_organizations uo ON uo.user_id = s.user_id
-    JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
     WHERE s.organization_id = $1
-      AND uo.organization_id = $1
-      AND uo.status = 'active'
-      AND r.role_name = ANY($2::text[])
+      AND s.user_id = ANY($2::uuid[])
   `;
-  const subscribersResult = await pool.query(subscriberQuery, [organizationId, roleFilter]);
+  const subscribersResult = await pool.query(subscriberQuery, [organizationId, memberIds]);
 
   return {
     emails: uniqueEmails,
@@ -864,11 +888,12 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
       check('subject').trim().notEmpty().withMessage('Subject is required'),
       check('message').trim().notEmpty().withMessage('Message is required'),
       check('audience').optional().isIn(ALLOWED_AUDIENCES).withMessage(`audience must be one of ${ALLOWED_AUDIENCES.join(', ')}`),
-      // An alumni mailing has no roles to pick from, so the requirement only
-      // applies to the unit's own audience.
+      // An alumni mailing has no roles to pick from, and a send to dens alone
+      // reaches their families: either way no role is required.
       check('recipient_roles')
-        .if((_value, { req }) => req.body?.audience !== ALUMNI_AUDIENCE)
-        .isArray({ min: 1 }).withMessage('recipient_roles must include at least one role'),
+        .if((_value, { req }) => req.body?.audience !== ALUMNI_AUDIENCE && !hasRecipientGroups(req.body))
+        .isArray({ min: 1 }).withMessage('announcement_recipients_required'),
+      check('recipient_roles').optional().isArray().withMessage('recipient_roles must be an array'),
       check('recipient_group_ids').optional().isArray().withMessage('recipient_group_ids must be an array'),
       check('scheduled_at').optional({ values: 'falsy' }).isISO8601().withMessage('scheduled_at must be a valid date'),
       check('save_as_draft').optional().isBoolean(),
@@ -880,10 +905,16 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
 
         const organizationId = await getOrganizationId(req, pool);
         const normalized = normalizeAnnouncementPayload(req.body);
+        const requestedRoleCount = normalized.roles.length;
         normalized.roles = await filterRolesInUnit(pool, normalized.roles, organizationId);
 
-        if (normalized.audience !== ALUMNI_AUDIENCE && !normalized.roles.length) {
-          return res.status(400).json({ success: false, message: 'No valid roles provided' });
+        if (normalized.audience !== ALUMNI_AUDIENCE) {
+          if (requestedRoleCount && !normalized.roles.length) {
+            return res.status(400).json({ success: false, message: 'No valid roles provided' });
+          }
+          if (!normalized.roles.length && !normalized.groups.length) {
+            return errorResponse(res, 'announcement_recipients_required', HTTP_BAD_REQUEST);
+          }
         }
 
         const shouldSendNow = normalized.sendNow || !normalized.scheduledAt || normalized.scheduledAt <= new Date();

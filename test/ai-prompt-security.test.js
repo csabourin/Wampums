@@ -91,5 +91,36 @@ describe('AI prompt trust boundaries', () => {
     });
     expect(buildMessages('meeting_plan', validation.value)[0].content).not.toContain(INJECTION_SENTINEL);
   });
-});
 
+  test('a meeting plan accepts an honour given without a reason', () => {
+    const validation = validateAIPayload('meeting_plan', {
+      locale: 'fr',
+      date: '2026-10-17',
+      section: 'Meute',
+      duration: '90 minutes',
+      recentHonor: { name: 'Léa Tremblay', honor: '', date: '2026-10-10' },
+    });
+
+    expect(validation.errors).toEqual([]);
+    expect(validation.value.recentHonor).toEqual({ name: 'Léa Tremblay', honor: '', date: '2026-10-10' });
+  });
+
+  test('a meeting plan still needs the name of the youth honoured', () => {
+    const validation = validateAIPayload('meeting_plan', {
+      locale: 'fr',
+      date: '2026-10-17',
+      section: 'Meute',
+      duration: '90 minutes',
+      recentHonor: {},
+    });
+
+    expect(validation.errors).toEqual([expect.objectContaining({ field: 'payload.recentHonor.name' })]);
+  });
+
+  test.each(['uk', 'it', 'id'])('the assistant works in the optional language %s a unit can turn on', (locale) => {
+    expect(validateAIPayload('meeting_plan', {
+      locale, date: '2026-10-17', section: 'Meute', duration: '90 minutes',
+    }).errors).toEqual([]);
+    expect(validateAIPayload('translate', { from: 'fr', to: locale, text: 'Bonjour' }).errors).toEqual([]);
+  });
+});
