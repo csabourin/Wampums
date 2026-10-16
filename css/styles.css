@@ -6139,6 +6139,192 @@ body.online .pending-update {
 }
 
 /* ----------------------------------------------------------------------------
+   11.6 PROGRAMME BAR — the leaders' "now / next" bar, pinned to the bottom
+   ---------------------------------------------------------------------------- */
+
+html.has-programme-bar {
+  /* A default; the bar sets the room it actually takes when it draws. */
+  --programme-bar-space: calc(8.5rem + env(safe-area-inset-bottom, 0px));
+  /* A focused field scrolled into view is never left under the bar (WCAG 2.4.11). */
+  scroll-padding-block-end: var(--programme-bar-space);
+}
+
+html.has-programme-bar body {
+  padding-block-end: var(--programme-bar-space);
+}
+
+.programme-bar {
+  position: fixed;
+  inset-inline: var(--space-sm);
+  inset-block-end: calc(var(--space-sm) + env(safe-area-inset-bottom, 0px));
+  z-index: var(--z-fixed);
+  max-inline-size: 40rem;
+  margin-inline: auto;
+}
+
+.programme-bar[hidden] {
+  display: none;
+}
+
+.programme-bar__button {
+  inline-size: 100%;
+  min-block-size: 5.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.875rem 1rem;
+  border: 2px solid transparent;
+  border-radius: 1.125rem;
+  background: var(--color-primary-dark);
+  color: #ffffff;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgb(10 40 30 / 28%);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.programme-bar__button:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 3px;
+}
+
+/* The last minutes: another colour, and the label says so too. */
+.programme-bar__button--soon {
+  background: var(--color-warning);
+  color: #17211d;
+  border-color: #17211d;
+  border-width: 3px;
+}
+
+.programme-bar__button--upcoming {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-primary-dark);
+}
+
+.programme-bar__button--upcoming .programme-bar__label {
+  color: var(--color-primary-dark);
+}
+
+.programme-bar__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  inline-size: 100%;
+}
+
+.programme-bar__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-inline-size: 0;
+}
+
+.programme-bar__label {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.programme-bar__name {
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.programme-bar__length {
+  font-size: 1.6rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.programme-bar__detail {
+  align-items: center;
+  font-size: 1rem;
+}
+
+.programme-bar__chevron {
+  flex: none;
+}
+
+.programme-sheet__when {
+  margin: 0 0 var(--space-md);
+  color: var(--color-text-muted);
+}
+
+.programme-sheet__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.programme-sheet__item {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding-block: 0.75rem;
+  border-block-start: 1px solid var(--color-border);
+}
+
+.programme-sheet__item--done {
+  color: var(--color-text-muted);
+}
+
+.programme-sheet__item--now {
+  margin-inline: -0.75rem;
+  padding-inline: 0.75rem;
+  border-radius: 0.75rem;
+  border-block-start-color: transparent;
+  background: var(--color-border-light);
+}
+
+.programme-sheet__time,
+.programme-sheet__name {
+  font-weight: 700;
+}
+
+.programme-sheet__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-inline-size: 0;
+}
+
+.programme-sheet__tag {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.programme-sheet__tag--now {
+  align-self: flex-start;
+  padding: 0.125rem 0.625rem;
+  border-radius: 999px;
+  background: var(--color-primary-dark);
+  color: #ffffff;
+}
+
+.programme-sheet__wake {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-block-size: var(--touch-target-min);
+  margin-block-start: var(--space-md);
+}
+
+.programme-sheet__wake input[type="checkbox"] {
+  flex: none;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  margin: 0;
+  accent-color: var(--color-primary-dark);
+}
+
+/* ----------------------------------------------------------------------------
    11.7 UPCOMING MEETING
    ---------------------------------------------------------------------------- */
 

@@ -52,5 +52,6 @@
   { "method": "GET", "path": "/api/v1/calendar-feed", "routerVariable": "calendarFeedsRoutes", "routeFile": "routes/calendarFeeds.js", "clientFile": "spa/api/api-calendar-feed.js", "routePath": "/calendar-feed", "clientEndpoint": "'v1/calendar-feed'" },
   { "method": "POST", "path": "/api/v1/calendar-feed", "routerVariable": "calendarFeedsRoutes", "routeFile": "routes/calendarFeeds.js", "clientFile": "spa/api/api-calendar-feed.js", "routePath": "/calendar-feed", "clientEndpoint": "'v1/calendar-feed'" },
   { "method": "DELETE", "path": "/api/v1/calendar-feed", "routerVariable": "calendarFeedsRoutes", "routeFile": "routes/calendarFeeds.js", "clientFile": "spa/api/api-calendar-feed.js", "routePath": "/calendar-feed", "clientEndpoint": "'v1/calendar-feed'" },
-  { "method": "GET", "path": "/api/v1/calendar-feeds/:token", "routerVariable": "calendarFeedsRoutes", "routeFile": "routes/calendarFeeds.js", "routePath": "/calendar-feeds/:token" }
+  { "method": "GET", "path": "/api/v1/calendar-feeds/:token", "routerVariable": "calendarFeedsRoutes", "routeFile": "routes/calendarFeeds.js", "routePath": "/calendar-feeds/:token" },
+  { "method": "GET", "path": "/api/v1/meetings/programme", "routerVariable": "meetingsRoutes", "routeFile": "routes/meetings.js", "routePath": "/programme", "clientFile": "spa/api/api-programme.js", "clientEndpoint": "v1/meetings/programme" }
 ]

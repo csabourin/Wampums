@@ -1052,6 +1052,11 @@ export class Router {
           this.loadNotFoundPage();
       }
 
+      // The leaders' "now / next" bar lives outside #app: start it for a
+      // leader, stop it after signing out. Loaded only once it is needed.
+      import('./modules/programme-bar/ProgrammeBar.js')
+        .then((module) => module.syncProgrammeBar(this.app))
+        .catch((error) => debugError('[Router] Programme bar unavailable:', error));
     } catch (error) {
       if (error instanceof NavigationCancelledError || navigationId !== this.navigationId) {
         debugLog('[Router] Ignoring superseded navigation');
