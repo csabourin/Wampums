@@ -264,6 +264,17 @@ describe('when the programme cannot be read again', () => {
     expect(bar().hidden).toBe(true);
   });
 
+  test('a refusal also clears the last change said aloud, so no activity is left to be found', async () => {
+    await startAt(at(19, 24, 30), MEETING);
+    await runClockTo(at(19, 25));
+    expect(announcer().textContent).toBe('Now: Jungle story, 20 min');
+    getDayProgramme.mockRejectedValue(Object.assign(new Error('refused'), { status: 403 }));
+
+    await runClockTo(at(19, 40));
+    expect(bar().hidden).toBe(true);
+    expect(announcer().textContent).toBe('');
+  });
+
   test('a refusal closes the open programme, so its activities and leaders no longer show', async () => {
     await startAt(at(19, 0), MEETING);
     button().click();
@@ -489,10 +500,19 @@ describe('the rest of the day', () => {
     await startAt(at(19, 44), MEETING, { wakeLock });
     button().focus();
     button().click();
+    document.getElementById('programme-wake-lock').focus();
     document.getElementById('programme-wake-lock').click();
     await settle();
+    // As in a browser, nothing inside a hidden element can take focus.
+    const nativeFocus = HTMLElement.prototype.focus;
+    const browserFocus = jest.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function focusUnlessHidden(options) {
+      if (!this.closest('[hidden]')) {
+        nativeFocus.call(this, options);
+      }
+    });
 
     await runClockTo(at(19, 45));
+    browserFocus.mockRestore();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(document.getElementById('programme-wake-lock')).toBeNull();
     expect(sentinel.release).toHaveBeenCalled();

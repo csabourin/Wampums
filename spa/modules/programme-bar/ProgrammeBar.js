@@ -423,11 +423,11 @@ export class ProgrammeBar extends BaseModule {
   render() {
     const moment = this.programme ? this.moment() : null;
     const visible = Boolean(moment) && moment.state !== 'hidden';
-    this.root.hidden = !visible;
     document.documentElement.classList.toggle(ACTIVE_CLASS, visible);
 
     const view = visible ? this.describe(moment) : null;
     if (view) {
+      this.root.hidden = false;
       const markup = this.barMarkup(view);
       if (markup !== this.lastMarkup) {
         const hadFocus = this.root.contains(document.activeElement);
@@ -440,14 +440,17 @@ export class ProgrammeBar extends BaseModule {
       this.keepRoomForBar();
       this.syncSheet(moment);
     } else {
+      // Focus on the bar or in its sheet would be lost with them: noted before
+      // either goes, and moved to the start of the page once both have.
+      const active = document.activeElement;
+      const hadFocus = this.root.contains(active) || Boolean(document.getElementById(SHEET_ID)?.contains(active));
       this.syncSheet(null);
       if (this.lastMarkup) {
-        // Focus on the bar (or returned to it by the sheet) would be lost with it.
-        const hadFocus = this.root.contains(document.activeElement);
         setContent(this.root, '');
-        if (hadFocus) {
-          focusPageStart({ follow: false });
-        }
+      }
+      this.root.hidden = true;
+      if (hadFocus) {
+        focusPageStart({ follow: false });
       }
       this.lastMarkup = '';
       document.documentElement.style.removeProperty(SPACE_PROPERTY);
@@ -483,7 +486,10 @@ export class ProgrammeBar extends BaseModule {
    */
   announce(view) {
     const key = view ? `${view.variant}|${view.name}` : null;
-    if (this.rendered && key && key !== this.lastAnnounced) {
+    if (!key) {
+      // Nothing showing: no activity name or countdown is left to be found.
+      this.announcer.textContent = '';
+    } else if (this.rendered && key !== this.lastAnnounced) {
       this.announcer.textContent = translate('programme_announcement')
         .replace('{label}', view.label)
         .replace('{name}', view.name)
