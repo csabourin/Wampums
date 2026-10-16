@@ -8,8 +8,8 @@ import { getOnboardingContext } from '../../api/api-family.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { nativeLanguageName } from '../../utils/InterfaceLanguageUtils.js';
-
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 export class Login {
   constructor(app) {
     this.app = app;
@@ -71,8 +71,10 @@ export class Login {
           <div class="login-container">
             <h1>${translate('login')}</h1>
             <div class="status-message error" role="alert">${translate('error_loading_application')}</div>
+            <button type="button" class="button button--primary" id="login-retry">${translate('retry')}</button>
           </div>
         `);
+        document.getElementById('login-retry')?.addEventListener('click', () => this.init());
       }
       return;
     }
@@ -105,7 +107,7 @@ export class Login {
     const content = `
       <div class="login-container">
         <h1>${translate('login')}</h1>
-        <h2>${organizationName}</h2>
+        <h2>${escapeHTML(organizationName)}</h2>
         ${this.renderLanguagePicker()}
         <form id="login-form">
           <div class="form-group">
@@ -116,9 +118,9 @@ export class Login {
             <label for="login-password" class="sr-only">${translate('password')}</label>
             <input type="password" id="login-password" name="password" placeholder="${translate('password')}" autocomplete="current-password" required>
           </div>
-          <button type="submit" class="btn-primary">${translate('submit_login')}</button>
+          <button type="submit" class="button button--primary">${translate('submit_login')}</button>
         </form>
-        <div id="login-message" class="status-message" role="status" aria-live="polite"></div>
+        ${this.renderMessageRegions('login')}
         <div id="login-recovery-cta"></div>
         <p><a href="/register">${translate('create_account')}</a></p>
         <p><a href="/reset-password">${translate('forgot_password')}</a></p>
@@ -173,14 +175,9 @@ export class Login {
     }
 
     debugLog('Attaching login form listener');
-    const statusElement = document.getElementById('login-message');
 
     const setStatus = (message, type = 'info') => {
-      if (!statusElement) {
-        return;
-      }
-      statusElement.textContent = message;
-      statusElement.className = `status-message ${type}`;
+      this.showMessage('login', message, type);
       // Any new attempt clears the reactivation offer; it only belongs under the
       // one refusal it answers.
       this.setRecoveryCta(false);
@@ -269,25 +266,19 @@ export class Login {
     const userDataScope = result.user_data_scope || (result.data && result.data.user_data_scope) || null;
     const organizationId = result.organization_id || (result.data && result.data.organization_id);
 
-    // Try to find the appropriate status element (could be login-message or verify-message)
-    const statusElement = document.getElementById('verify-message') || document.getElementById('login-message');
+    // The answer arrives on the sign-in or the verification step.
+    const step = document.getElementById('verify-error') ? 'verify' : 'login';
 
     // Validate required fields
     if (!token) {
       debugError('ERROR: No JWT token received in login response');
-      if (statusElement) {
-        statusElement.textContent = translate('login_error_no_token') || 'Login error: No authentication token received';
-        statusElement.className = 'status-message error';
-      }
+      this.showMessage(step, translate('login_error_no_token'), 'error');
       return;
     }
 
     if (!userId) {
       debugError('ERROR: No user ID received in login response');
-      if (statusElement) {
-        statusElement.textContent = translate('login_error_no_user_id') || 'Login error: No user ID received';
-        statusElement.className = 'status-message error';
-      }
+      this.showMessage(step, translate('login_error_no_user_id'), 'error');
       return;
     }
 
@@ -421,17 +412,20 @@ export class Login {
 
     const content = `
       <div class="login-container">
-        <h1>${translate('two_factor_verification') || 'Verify Your Identity'}</h1>
-        <h2>${organizationName}</h2>
-        <p style="margin: 20px 0; text-align: center;">
-          ${translate('two_factor_message') || "We've sent a 6-digit verification code to your email. Please enter it below."}
+        ${renderBackLink('/login')}
+        <h1>${translate('two_factor_verification')}</h1>
+        <h2>${escapeHTML(organizationName)}</h2>
+        <p id="verify-code-hint" style="margin: 20px 0; text-align: center;">
+          ${translate('two_factor_message')}
         </p>
         <form id="verify-2fa-form">
           <div class="form-group">
+            <label for="verify-code">${translate('verification_code')}</label>
             <input
               type="text"
+              id="verify-code"
               name="code"
-              placeholder="${translate('verification_code') || 'Verification Code'}"
+              aria-describedby="verify-code-hint verify-error"
               autocomplete="one-time-code"
               maxlength="6"
               pattern="[0-9]{6}"
@@ -439,12 +433,9 @@ export class Login {
               style="font-size: 24px; letter-spacing: 8px; text-align: center; font-family: monospace;"
               required>
           </div>
-          <button type="submit" class="btn-primary">${translate('verify') || 'Verify'}</button>
+          <button type="submit" class="button button--primary">${translate('verify')}</button>
         </form>
-        <div id="verify-message" class="status-message" role="status" aria-live="polite"></div>
-        <p style="text-align: center; margin-top: 20px;">
-          <a href="#" id="back-to-login">${translate('back_to_login') || 'Back to Login'}</a>
-        </p>
+        ${this.renderMessageRegions('verify')}
       </div>
     `;
 
@@ -458,30 +449,23 @@ export class Login {
    */
   attach2FAFormListener(email) {
     const form = document.getElementById('verify-2fa-form');
-    const statusElement = document.getElementById('verify-message');
-    const backToLogin = document.getElementById('back-to-login');
+    // The page address is still /login: going back is showing the sign-in form again.
+    const backToLogin = document.querySelector('.login-container > a[href="/login"]');
 
     if (!form) {
       debugError('2FA form not found in DOM');
       return;
     }
 
-    const setStatus = (message, type = 'info') => {
-      if (!statusElement) {return;}
-      statusElement.textContent = message;
-      statusElement.className = `status-message ${type}`;
-    };
+    const setStatus = (message, type = 'info') => this.showMessage('verify', message, type);
 
     // Show success message
-    setStatus(translate('verification_code_sent') || 'A verification code has been sent to your email.', 'success');
+    setStatus(translate('verification_code_sent'), 'success');
 
-    // Handle back to login
-    if (backToLogin) {
-      backToLogin.addEventListener('click', (e) => {
-        e.preventDefault();
-        this.render();
-      });
-    }
+    backToLogin?.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.render();
+    });
 
     // Handle form submission
     form.addEventListener('submit', async (e) => {
@@ -492,7 +476,7 @@ export class Login {
       const code = formData.get('code');
 
       if (!code || code.length !== 6) {
-        setStatus(translate('invalid_code_format') || 'Please enter a valid 6-digit code.', 'error');
+        setStatus(translate('invalid_code_format'), 'error');
         return;
       }
 
@@ -511,7 +495,7 @@ export class Login {
 
         if (result.success) {
           debugLog('2FA verification successful, handling login success...');
-          setStatus(translate('verification_successful') || 'Verification successful! Logging you in...', 'success');
+          setStatus(translate('verification_successful'), 'success');
 
           // Store device token if returned
           if (result.device_token) {
@@ -551,13 +535,51 @@ export class Login {
   translate2FAMessage(message) {
     const messageKey = message || 'invalid_2fa_code';
     const messageMap = {
-      invalid_2fa_code: translate('invalid_verification_code') || 'Invalid verification code.',
-      invalid_or_expired_2fa_code: translate('invalid_or_expired_code') || 'Invalid or expired verification code. Please try logging in again.',
-      too_many_attempts: translate('too_many_attempts') || 'Too many attempts. Please try logging in again.',
-      internal_server_error: translate('internal_server_error') || 'An error occurred. Please try again.'
+      invalid_2fa_code: translate('invalid_verification_code'),
+      invalid_or_expired_2fa_code: translate('invalid_or_expired_code'),
+      too_many_attempts: translate('too_many_attempts'),
+      internal_server_error: translate('internal_server_error')
     };
 
-    return messageMap[messageKey] || translate('verification_error') || 'Verification failed. Please try again.';
+    return messageMap[messageKey] || translate('verification_error');
+  }
+
+  /**
+   * A polite region for progress and an assertive one for errors, so a refusal
+   * is announced at once and never waits behind other speech.
+   *
+   * @param {string} step - 'login' or 'verify'
+   * @returns {string} HTML
+   */
+  renderMessageRegions(step) {
+    return `
+        <div id="${step}-message" class="status-message" role="status" aria-live="polite"></div>
+        <div id="${step}-error" class="status-message error" role="alert"></div>`;
+  }
+
+  /**
+   * Show a message for the sign-in or verification step, clearing the other region.
+   *
+   * @param {string} step - 'login' or 'verify'
+   * @param {string} message - Text to show (set as text, never markup)
+   * @param {string} [type='info'] - 'info', 'success' or 'error'
+   * @returns {void}
+   */
+  showMessage(step, message, type = 'info') {
+    const status = document.getElementById(`${step}-message`);
+    const error = document.getElementById(`${step}-error`);
+    const isError = type === 'error';
+    if (status) {
+      status.textContent = isError ? '' : message;
+      status.className = `status-message ${isError ? '' : type}`.trim();
+    }
+    if (error) {
+      error.textContent = isError ? message : '';
+    }
+    const codeInput = document.getElementById('verify-code');
+    if (step === 'verify' && codeInput) {
+      codeInput.setAttribute('aria-invalid', String(isError && Boolean(message)));
+    }
   }
 
   /**

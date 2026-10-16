@@ -4,6 +4,7 @@ import { debugError } from '../../utils/DebugUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { CarpoolQuickAccessModal } from '../modals/CarpoolQuickAccessModal.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 /**
  * Landing view for the /carpool route.
@@ -42,7 +43,7 @@ export class CarpoolLanding {
     }
 
     setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <section class="page carpool-page carpool-landing">
         <header class="page__header">
           <div class="page__header-top">

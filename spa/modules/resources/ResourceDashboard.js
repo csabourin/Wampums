@@ -13,6 +13,8 @@ import {
 import { deleteCachedData } from '../../indexedDB.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 /**
  * Label a reservation status in the reader's language.
  *
@@ -37,6 +39,7 @@ function reservationStatusLabel(status) {
 export class ResourceDashboard {
   constructor(app) {
     this.app = app;
+    this.destroyed = false;
     this.meetingDate = getTodayISO();
     this.equipment = [];
     this.reservations = [];
@@ -44,18 +47,56 @@ export class ResourceDashboard {
   }
 
   async init() {
+    showPageLoading(document.getElementById('app'), this.pageOptions());
     try {
       await this.refreshData();
-      this.render();
-      this.attachEventHandlers();
     } catch (error) {
+      // A list that did not load is never shown as an empty one.
       debugError('Error initializing resource dashboard:', error);
-      this.app.showMessage(
-        translate('resource_dashboard_error_loading'),
-        'error',
-      );
+      if (!this.destroyed) {
+        showPageError(document.getElementById('app'), this.pageOptions(), () => this.init());
+      }
+      return;
     }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventHandlers();
   }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
+  }
+
+  /** @returns {Object} Shared page-state options */
+  pageOptions() {
+    return { title: translate('resource_dashboard_title'), className: 'resource-dashboard-page' };
+  }
+
+  /**
+   * Reload after a write the server accepted. The write stands even if the
+   * reload fails: the page keeps what it showed and says it could not refresh.
+   *
+   * @returns {Promise<void>}
+   */
+  async reload() {
+    try {
+      await this.refreshData();
+    } catch (error) {
+      debugError('Error refreshing resource dashboard:', error);
+      if (!this.destroyed) {
+        this.app.showMessage(translate('error_loading_data'), 'error');
+      }
+    }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventHandlers();
+  }
+
 
   async refreshData() {
     const [equipmentResponse, reservationResponse, summaryResponse] =
@@ -86,7 +127,7 @@ export class ResourceDashboard {
     setContent(
       container,
       `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <section class="page resource-dashboard">
         <div class="card">
           <h1>${escapeHTML(translate('resource_dashboard_title'))}</h1>
@@ -149,7 +190,7 @@ export class ResourceDashboard {
               <span>${escapeHTML(translate('equipment_description'))}</span>
               <textarea name="description" rows="2" maxlength="2000"></textarea>
             </label>
-            <button type="submit" class="btn primary">${escapeHTML(translate('save_equipment'))}</button>
+            <button type="submit" class="button button--primary">${escapeHTML(translate('save_equipment'))}</button>
           </form>
           <div class="table-container">
             <table class="data-table">
@@ -214,7 +255,7 @@ export class ResourceDashboard {
               <span>${escapeHTML(translate('reservation_notes'))}</span>
               <textarea name="notes" rows="2" maxlength="2000"></textarea>
             </label>
-            <button type="submit" class="btn primary">${escapeHTML(translate('reservation_save'))}</button>
+            <button type="submit" class="button button--primary">${escapeHTML(translate('reservation_save'))}</button>
           </form>
           <div class="table-container">
             <table class="data-table">
@@ -261,9 +302,7 @@ export class ResourceDashboard {
     if (meetingDateInput) {
       meetingDateInput.addEventListener('change', async (event) => {
         this.meetingDate = event.target.value || getTodayISO();
-        await this.refreshData();
-        this.render();
-        this.attachEventHandlers();
+        await this.reload();
       });
     }
 
@@ -292,9 +331,7 @@ export class ResourceDashboard {
           // Invalidate cache to ensure fresh data
           await deleteCachedData('v1/resources/equipment');
 
-          await this.refreshData();
-          this.render();
-          this.attachEventHandlers();
+          await this.reload();
         } catch (error) {
           debugError('Error saving equipment', error);
           this.app.showMessage(
@@ -359,9 +396,7 @@ export class ResourceDashboard {
           await deleteCachedData('v1/resources/status/dashboard');
 
           // Refresh from server to get actual IDs and updated quantities
-          await this.refreshData();
-          this.render();
-          this.attachEventHandlers();
+          await this.reload();
         } catch (error) {
           debugError('Error saving reservation', error);
           this.app.showMessage(
@@ -370,9 +405,7 @@ export class ResourceDashboard {
           );
 
           // Revert optimistic update on error
-          await this.refreshData();
-          this.render();
-          this.attachEventHandlers();
+          await this.reload();
         }
       });
     }

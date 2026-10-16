@@ -33,8 +33,22 @@ export const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'
  * @returns {number} Its activity id
  */
 export function seededActivityId() {
+  return readSeed().activityId;
+}
+
+/**
+ * The child seed.mjs creates, whose parent is parent@run.test.
+ *
+ * @returns {number} Its participant id
+ */
+export function seededParticipantId() {
+  return readSeed().participantId;
+}
+
+/** @returns {Object} What seed.mjs recorded in seed.json */
+function readSeed() {
   const cache = process.env.WAMPUMS_RUN_CACHE || path.join(homedir(), '.cache', 'wampums-run');
-  return JSON.parse(readFileSync(path.join(cache, 'seed.json'), 'utf8')).activityId;
+  return JSON.parse(readFileSync(path.join(cache, 'seed.json'), 'utf8'));
 }
 
 /**

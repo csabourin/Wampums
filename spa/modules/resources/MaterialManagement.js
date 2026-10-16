@@ -22,6 +22,8 @@ import { CONFIG } from '../../config.js';
 import { setContent } from '../../utils/DOMUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 /**
  * What a leader can do to a reservation, given where it currently stands.
  *
@@ -77,6 +79,7 @@ function reservationStatusLabel(status) {
 export class MaterialManagement {
   constructor(app) {
     this.app = app;
+    this.destroyed = false;
     this.equipment = [];
     this.reservations = [];
     this.activities = [];
@@ -89,15 +92,56 @@ export class MaterialManagement {
   }
 
   async init() {
+    showPageLoading(document.getElementById('app'), this.pageOptions());
     try {
       await this.refreshData();
-      this.render();
-      this.attachEventHandlers();
     } catch (error) {
+      // A list that did not load is never shown as an empty one.
       debugError('Error initializing material management:', error);
-      this.app.showMessage(translate('resource_dashboard_error_loading'), 'error');
+      if (!this.destroyed) {
+        showPageError(document.getElementById('app'), this.pageOptions(), () => this.init());
+      }
+      return;
     }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventHandlers();
   }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
+  }
+
+  /** @returns {Object} Shared page-state options */
+  pageOptions() {
+    return { title: translate('material_management_title'), className: 'material-management-page' };
+  }
+
+  /**
+   * Reload after a write the server accepted. The write stands even if the
+   * reload fails: the page keeps what it showed and says it could not refresh.
+   *
+   * @returns {Promise<void>}
+   */
+  async reload() {
+    try {
+      await this.refreshData();
+    } catch (error) {
+      debugError('Error refreshing material management:', error);
+      if (!this.destroyed) {
+        this.app.showMessage(translate('error_loading_data'), 'error');
+      }
+    }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventHandlers();
+  }
+
 
   async refreshData() {
     const [equipmentResponse, reservationResponse, activitiesResponse] = await Promise.all([
@@ -181,7 +225,7 @@ export class MaterialManagement {
       .map(
         (action) => `
           <button type="button"
-                  class="btn btn--small btn--${action.variant} js-reservation-action"
+                  class="button button--small button--${action.variant} js-reservation-action"
                   data-reservation-id="${escapeHTML(String(reservation.id))}"
                   data-next-status="${escapeHTML(action.status)}">
             ${escapeHTML(translate(action.labelKey))}
@@ -213,21 +257,21 @@ export class MaterialManagement {
 
     try {
       await updateEquipmentReservation(reservationId, { status: nextStatus });
-      // The equipment listing reports availability, and this just changed it.
-      await deleteCachedData('v1/resources/equipment');
-      await deleteCachedData('v1/resources/equipment/reservations');
-      await this.refreshData();
-      this.app.showMessage(translate('reservation_status_updated'), 'success');
     } catch (error) {
       debugError('Failed to update reservation status:', error);
       this.app.showMessage(
         apiErrorMessage(error, 'reservation_status_update_failed'),
         'error'
       );
+      return;
     }
 
-    this.render();
-    this.attachEventHandlers();
+    // The status changed on the server: nothing below reports otherwise.
+    this.app.showMessage(translate('reservation_status_updated'), 'success');
+    // The equipment listing reports availability, and this just changed it.
+    await deleteCachedData('v1/resources/equipment');
+    await deleteCachedData('v1/resources/equipment/reservations');
+    await this.reload();
   }
 
   render() {
@@ -248,7 +292,7 @@ export class MaterialManagement {
     const dateTo = document.getElementById('reservationDateTo')?.value || getTodayISO();
 
     setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <section class="page material-management-page">
         <div class="card">
           <h1>${escapeHTML(translate('material_management_title'))}</h1>
@@ -287,7 +331,7 @@ export class MaterialManagement {
               <span>${escapeHTML(translate('reservation_notes'))}</span>
               <textarea name="notes" rows="2" maxlength="2000"></textarea>
             </label>
-            <button type="submit" class="btn primary" ${selectedItemsList.length === 0 ? 'disabled' : ''}>${escapeHTML(translate('reserve_selected'))}</button>
+            <button type="submit" class="button button--primary" ${selectedItemsList.length === 0 ? 'disabled' : ''}>${escapeHTML(translate('reserve_selected'))}</button>
           </form>
         </div>
 
@@ -327,7 +371,7 @@ export class MaterialManagement {
                       </label>
                       ${conflicts.length > 0 ? `
                         <div class="conflict-warning" style="color: #d97706; font-size: 0.9em; margin-top: 0.5rem; padding: 0.5rem; background: #fef3c7; border-radius: 4px;">
-                          ⚠️ <strong>${escapeHTML(translate('existing_reservations') || 'Existing reservations')}:</strong>
+                          ⚠️ <strong>${escapeHTML(translate('existing_reservations'))}:</strong>
                           <ul style="margin: 0.25rem 0 0 1.5rem; padding: 0;">
                             ${conflicts.map(conflict => {
     const conflictDateRange = conflict.date_from && conflict.date_to
@@ -497,7 +541,7 @@ export class MaterialManagement {
         const dateTo = document.getElementById('reservationDateTo')?.value;
 
         if (!dateFrom || !dateTo) {
-          this.app.showMessage(translate('date_required') || 'Please select reservation dates', 'error');
+          this.app.showMessage(translate('date_required'), 'error');
           return;
         }
 
@@ -562,9 +606,7 @@ export class MaterialManagement {
             await deleteCachedData('v1/resources/equipment/reservations');
 
             // Refresh from server to get actual IDs and updated quantities
-            await this.refreshData();
-            this.render();
-            this.attachEventHandlers();
+            await this.reload();
           } else {
             throw new Error(response.message || 'Failed to save reservations');
           }
@@ -573,9 +615,7 @@ export class MaterialManagement {
           this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
 
           // Revert optimistic update on error
-          await this.refreshData();
-          this.render();
-          this.attachEventHandlers();
+          await this.reload();
         }
       });
     }

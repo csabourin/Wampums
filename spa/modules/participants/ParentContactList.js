@@ -6,18 +6,33 @@ import { debounce } from '../../utils/PerformanceUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { createPhoneLink } from '../../utils/PhoneUtils.js';
 import { createEmailLink } from '../../utils/EmailUtils.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
+
+/** How long typing pauses before the list filters. */
+const SEARCH_DEBOUNCE_MS = 300;
 
 export class ParentContactList {
   constructor(app) {
     this.app = app;
     this.children = [];
     this.searchFilter = '';
-    // Create debounced search handler (300ms delay)
+    this.destroyed = false;
     this.debouncedSearch = debounce((value) => {
       this.searchFilter = value;
       this.updateContactList();
-    }, 300);
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
+  }
+
+  /** @returns {{title: string, className: string}} Shared page-state options */
+  pageOptions() {
+    return { title: translate('parent_contact_list'), className: 'parent-contact-list' };
   }
 
   async init() {
@@ -26,13 +41,16 @@ export class ParentContactList {
       return;
     }
 
+    showPageLoading(document.getElementById('app'), this.pageOptions());
     try {
       await this.fetchData();
-      this.render();
-      this.attachEventListeners();
     } catch (error) {
       debugError('Error initializing parent contact list:', error);
       this.renderError();
+      return;
+    }
+    if (!this.destroyed) {
+      this.render();
     }
   }
 
@@ -40,7 +58,7 @@ export class ParentContactList {
     try {
       const response = await getParentContactList();
       // Extract contacts from response - API returns {success: true, contacts: [...]}
-      const rows = response.contacts || response;
+      const rows = Array.isArray(response?.contacts) ? response.contacts : (Array.isArray(response) ? response : []);
 
       // Transform flat SQL rows into nested structure
       const childrenMap = {};
@@ -97,20 +115,24 @@ export class ParentContactList {
 
   render() {
     const content = `
-            <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+          <section class="page parent-contact-list">
+            ${renderBackLink()}
             <h1>${translate('parent_contact_list')}</h1>
             <div class="search-container">
+                <label for="contact-search" class="sr-only">${translate('search_participants')}</label>
                 <input
                     type="text"
                     id="contact-search"
                     class="search-input"
-                    placeholder="${translate('search_participants')}..."
-                    value="${this.searchFilter}"
+                    placeholder="${escapeAttribute(translate('search_participants'))}..."
+                    value="${escapeAttribute(this.searchFilter)}"
+                    aria-controls="contact-list"
                 />
             </div>
             <div id="contact-list">
                 ${this.renderChildrenByFirstName()}
             </div>
+          </section>
         `;
     setContent(document.getElementById('app'), content);
     this.attachEventListeners();
@@ -141,57 +163,13 @@ export class ParentContactList {
       });
     }
 
-    // Group by first letter of first name
-    const groupedByLetter = {};
-    for (const child of sortedChildren) {
-      const firstLetter = child.name[0].toUpperCase();
-      if (!groupedByLetter[firstLetter]) {
-        groupedByLetter[firstLetter] = [];
-      }
-      groupedByLetter[firstLetter].push(child);
+    if (sortedChildren.length === 0) {
+      const key = this.searchFilter ? 'parent_contact_list_no_match' : 'parent_contact_list_empty';
+      return `<p class="no-data">${translate(key)}</p>`;
     }
 
-    // Render grouped and collapsed by default
-    let html = '';
-    for (const [letter, children] of Object.entries(groupedByLetter).sort()) {
-      html += `
-
-
-        `;
-      for (const child of children) {
-        html += this.renderChildCard(child.id, child);
-      }
-      html += ``;
-    }
-
-    return html;
-  }
-
-  renderGroupsAndChildren() {
-    // Extract unique groups from the children list
-    const allGroups = new Set();
-    for (const child of Object.values(this.children)) {
-      child.groups.forEach((group) => allGroups.add(group));
-    }
-    const sortedGroups = Array.from(allGroups).sort(); // Sort groups alphabetically
-
-    let html = '';
-    for (const group of sortedGroups) {
-      html += `
-              <div class="group">
-                  <div class="group-header" data-group="${group}">${group}</div>
-                  <div class="group-content">
-          `;
-      // Render all children belonging to this group
-      for (const [childId, child] of Object.entries(this.children)) {
-        if (child.groups.includes(group)) {
-          html += this.renderChildCard(childId, child);
-        }
-      }
-      html += `</div></div>`;
-    }
-
-    return html;
+    // Collapsed by default: each child opens to show their contacts.
+    return sortedChildren.map((child) => this.renderChildCard(child.id, child)).join('');
   }
 
   renderChildCard(childId, child) {
@@ -255,11 +233,7 @@ export class ParentContactList {
   }
 
   attachEventListeners() {
-    document.querySelectorAll('.group-header').forEach((header) => {
-      header.addEventListener('click', (e) => this.toggleGroup(e.target));
-    });
-
-    // Add search input listener with debouncing
+    // The markup was just replaced, so this listener never stacks.
     const searchInput = document.getElementById('contact-search');
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
@@ -271,22 +245,18 @@ export class ParentContactList {
 
   updateContactList() {
     const contactList = document.getElementById('contact-list');
-    if (contactList) {
+    if (contactList && !this.destroyed) {
       setContent(contactList, this.renderChildrenByFirstName());
     }
   }
 
-  toggleGroup(header) {
-    const content = header.nextElementSibling;
-    header.classList.toggle('collapsed');
-    content.classList.toggle('collapsed');
-  }
-
   renderError() {
-    const errorMessage = `
-            <h1>${translate('error')}</h1>
-            <p>${translate('error_loading_parent_contact_list')}</p>
-        `;
-    setContent(document.getElementById('app'), errorMessage);
+    if (this.destroyed) {
+      return;
+    }
+    showPageError(document.getElementById('app'), {
+      ...this.pageOptions(),
+      message: translate('error_loading_parent_contact_list'),
+    }, () => this.init());
   }
 }

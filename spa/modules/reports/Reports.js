@@ -30,12 +30,14 @@ import { badgeLabel } from '../../utils/BadgeLabelUtils.js';
 import { openPrintWindow, setPrintContent } from '../../utils/PrintUtils.js';
 import { formatDateShort, isoToDateString } from '../../utils/DateUtils.js';
 import { canViewReports, isParent } from '../../utils/PermissionUtils.js';
-import { setContent } from '../../utils/DOMUtils.js';
+import { setContent, setText } from '../../utils/DOMUtils.js';
 import { exportToCSV } from '../../utils/ExportUtils.js';
 import { CONFIG } from '../../config.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { formTypeLabel } from '../../utils/FormLabelUtils.js';
 const REPORT_CURRENCY = 'CAD';
 
 /** Owner key for the report modal's body scroll lock. */
@@ -58,6 +60,7 @@ export class Reports {
 	 * otherwise the destination page cannot be scrolled.
 	 */
   destroy() {
+    this.destroyed = true;
     this.closeReportModal();
   }
 
@@ -91,8 +94,11 @@ export class Reports {
       // Render a minimal container for the report content
       const container = document.getElementById('app');
       setContent(container, `
-				<a href="/parent-dashboard" class="button button--ghost">← ${translate('back')}</a>
-				<div id="report-content"></div>
+				<section class="page reports-progress-page">
+					${renderBackLink('/parent-dashboard')}
+					<h1>${translate('participant_progress_report_title')}</h1>
+					<div id="report-content"></div>
+				</section>
 			`);
       await this.loadReport('participant-progress');
       return;
@@ -112,7 +118,7 @@ export class Reports {
 
   render() {
     const content = `
-                        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+                        ${renderBackLink()}
                         <section class="reports-header">
                                 <p class="reports-kicker">${translate('reports')}</p>
                                 <h1>${translate('reports_title')}</h1>
@@ -239,6 +245,7 @@ export class Reports {
                                                                 <option value="">${translate('select_form_type')}</option>
                                                         </select>
                                                         <small class="form-help">${translate('missing_fields_form_selector_help')}</small>
+                                                        <p class="status-message error" role="alert" id="form-type-error"></p>
                                                 </div>
                                         </div>
                                 </details>
@@ -267,7 +274,7 @@ export class Reports {
       title: escapeHTML(title),
       size: 'large',
       className: 'report-modal-dialog',
-      body: '<div class="report-modal-content" id="report-content" aria-live="polite"></div>',
+      body: '<div class="report-modal-content" id="report-content"></div>',
       footer: `
 				<button id="print-report" class="button button--secondary" type="button">
 					<span class="button-icon" aria-hidden="true">🖨️</span>
@@ -306,7 +313,7 @@ export class Reports {
       response.data.forEach((formType) => {
         const option = document.createElement('option');
         option.value = formType;
-        option.textContent = formType; // You may use a translated or user-friendly name here
+        option.textContent = formTypeLabel(formType);
         selectElement.appendChild(option);
       });
 
@@ -319,11 +326,25 @@ export class Reports {
       });
     } catch (error) {
       debugError('Error loading form types:', error);
-      setContent(document.getElementById('form-type-container'), `<p>${translate('error_loading_form_types')}</p>`);
+      // The selector stays, with only its placeholder; the alert says why it is empty.
+      setText(document.getElementById('form-type-error'), translate('error_loading_form_types'));
     }
   }
 
-  async loadReport(reportType, formType = null) {
+  /**
+   * Open a report and draw it, with a loading status while it is fetched and,
+   * when it fails, an alert with a retry in its place.
+   *
+   * @param {string} reportType - The report's key
+   * @param {string|null} [formType=null] - The form a missing-fields report covers
+   * @param {{retrying?: boolean}} [options] - A retry draws into the dialog already open
+   * @returns {Promise<void>}
+   */
+  async loadReport(reportType, formType = null, { retrying = false } = {}) {
+    // Only the latest report may draw: an earlier one answering late is dropped.
+    this.reportRequest = (this.reportRequest || 0) + 1;
+    const request = this.reportRequest;
+    const isCurrent = () => !this.destroyed && request === this.reportRequest;
     try {
       // Get report title for modal
       const reportTitles = {
@@ -354,12 +375,16 @@ export class Reports {
 
       // Open modal with report title, unless the page shows the report
       // itself (a parent viewing their child's progress)
-      if (!document.querySelector('#app #report-content')) {
+      if (!retrying && !document.querySelector('#app #report-content')) {
         this.openReportModal(reportTitles[reportType] || translate('report'));
       }
 
       this.currentReportType = reportType;
       this.currentReportData = null; // Reset previous data
+      // What the report on screen loaded: the export reads it, and an earlier
+      // report answering late must not replace it.
+      this.shownReportData = null;
+      setContent(document.getElementById('report-content'), `<p role="status">${translate('loading_report')}</p>`);
 
       let reportData;
       let reportContent;
@@ -438,19 +463,41 @@ export class Reports {
           reportContent = await this.fetchAndRenderParticipantProgress();
           break;
         default:
-          reportContent = '<p>Invalid report type</p>';
+          reportContent = `<p>${translate('report_unknown_type')}</p>`;
       }
 
+      if (!isCurrent()) {
+        this.currentReportData = this.shownReportData;
+        return;
+      }
+      this.shownReportData = this.currentReportData;
       setContent(document.getElementById('report-content'), reportContent);
       if (reportType === 'participant-progress') {
         this.attachParticipantProgressListeners();
       }
     } catch (error) {
       debugError(`Error loading ${reportType} report:`, error);
-      setContent(document.getElementById('report-content'), `
-				<p class="error-message">${escapeHTML(apiErrorMessage(error, 'error_loading_report'))}</p>
-			`);
+      if (!isCurrent()) {
+        this.currentReportData = this.shownReportData;
+        return;
+      }
+      this.renderReportError(error, () => this.loadReport(reportType, formType, { retrying: true }));
     }
+  }
+
+  /**
+   * Show in the report's place why it could not be loaded, with a retry.
+   *
+   * @param {*} error - The failure
+   * @param {Function} onRetry - Loads the report again
+   * @returns {void}
+   */
+  renderReportError(error, onRetry) {
+    const container = setContent(document.getElementById('report-content'), `
+      <p class="status-message error" role="alert">${escapeHTML(apiErrorMessage(error, 'error_loading_report'))}</p>
+      <button type="button" class="button button--primary" id="report-retry">${translate('retry')}</button>
+    `);
+    container?.querySelector('#report-retry')?.addEventListener('click', () => onRetry());
   }
 
   /**
@@ -489,7 +536,7 @@ export class Reports {
       return this.renderHealthReport(sortedParticipants);
     } catch (error) {
       debugError('Error fetching and rendering health report:', error);
-      return `<p class="error-message">${escapeHTML(apiErrorMessage(error, 'error_loading_report'))}</p>`;
+      throw error;
     }
   }
 
@@ -652,7 +699,7 @@ export class Reports {
       return missingFieldsReport;
     } catch (error) {
       debugError('Error fetching or rendering missing fields report:', error);
-      return `<p>${escapeHTML(apiErrorMessage(error, 'error_loading_report'))}</p>`;
+      throw error;
     }
   }
 
@@ -1707,11 +1754,9 @@ export class Reports {
   attachParticipantProgressListeners() {
     const select = document.getElementById('participant-progress-select');
     if (select) {
-      select.addEventListener('change', async (event) => {
+      select.addEventListener('change', (event) => {
         this.selectedParticipantId = event.target.value || null;
-        const content = await this.fetchAndRenderParticipantProgress();
-        setContent(document.getElementById('report-content'), content);
-        this.attachParticipantProgressListeners();
+        this.loadReport('participant-progress', null, { retrying: true });
       });
     }
   }
@@ -1751,7 +1796,7 @@ export class Reports {
           return this.renderParticipantProgressReport(cached.progress, true);
         }
       }
-      return `<p class="error-message">${escapeHTML(apiErrorMessage(error, 'error_loading_report'))}</p>`;
+      throw error;
     }
   }
 

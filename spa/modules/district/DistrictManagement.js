@@ -36,6 +36,7 @@ import { openModal } from '../../utils/ModalUtils.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 const CACHE_KEY = 'district_management_state';
 const CACHE_DURATION = CONFIG.CACHE_DURATION.SHORT;
 const ADMIN_ROLES = ['district', 'unitadmin', 'demoadmin'];
@@ -102,6 +103,11 @@ export class DistrictManagement {
 
     await this.hydrateFromCache();
     await this.fetchOrganizations();
+    if (this.destroyed) {
+      return;
+    }
+    // Nothing cached yet: the list says it is loading, not that nobody matches.
+    this.syncing = !this.lastSyncedAt;
     this.renderAndBind();
     this.setupOfflineListeners();
     await this.refreshData();
@@ -195,6 +201,7 @@ export class DistrictManagement {
    * Called by the router before navigating away.
    */
   destroy() {
+    this.destroyed = true;
     if (this.offlineStatusChangedHandler) {
       window.removeEventListener('offlineStatusChanged', this.offlineStatusChangedHandler);
       this.offlineStatusChangedHandler = null;
@@ -215,6 +222,7 @@ export class DistrictManagement {
    */
   async refreshData(forceRefresh = false) {
     this.syncing = true;
+    this.loadFailed = false;
     this.renderSyncBadge();
 
     try {
@@ -247,17 +255,26 @@ export class DistrictManagement {
         this.filteredUsers = this.getFilteredUsers();
         this.lastSyncedAt = Date.now();
         this.userMeta = this.buildUserMeta();
+      } else {
+        this.loadFailed = true;
       }
 
       await this.persistCache();
-      this.renderAndBind();
     } catch (error) {
       debugError('district_management: failed to refresh data', error);
-      this.app.showMessage('district_management_load_error', 'error');
+      this.loadFailed = true;
     } finally {
       this.syncing = false;
-      this.renderSyncBadge();
     }
+    if (this.destroyed) {
+      return;
+    }
+    // With members cached, they stay shown under "last synced"; without, the
+    // list is an error with a retry instead of "no results".
+    if (this.loadFailed) {
+      this.app.showMessage('district_management_load_error', 'error');
+    }
+    this.renderAndBind();
   }
 
   async hydrateRoleBundles(roleCatalog = [], forceRefresh = false) {
@@ -357,7 +374,7 @@ export class DistrictManagement {
       <section class="district-management" aria-labelledby="district-management-title">
         <h1 id="district-management-title">${translate('access_denied')}</h1>
         <p>${translate('no_permission_role_management') || translate('no_permission')}</p>
-        <a class="btn btn--primary" href="/dashboard">${translate('back_to_dashboard')}</a>
+        <a class="button button--primary" href="/dashboard">${translate('back_to_dashboard')}</a>
       </section>
     `;
     setContent(getMountPoint(this), content);
@@ -421,7 +438,7 @@ export class DistrictManagement {
       queuedCount > 0
         ? `<div class="dm-queued" role="status">
             <span class="chip chip--primary">${escapeHTML(queuedLabel)}</span>
-            <button id="dm-retry" class="btn btn--secondary" ${this.isOffline ? 'disabled' : ''}>
+            <button id="dm-retry" class="button button--secondary" ${this.isOffline ? 'disabled' : ''}>
               ${translate('district_management_retry_sync')}
             </button>
           </div>`
@@ -430,7 +447,7 @@ export class DistrictManagement {
     const actionBar = `
       <div class="dm-action-bar" role="region" aria-label="${translate('district_management_actions')}">
         <div class="dm-action-bar__left">
-          <button id="dm-refresh" class="ghost-button" aria-label="${translate('district_management_refresh')}">
+          <button id="dm-refresh" class="button button--secondary" aria-label="${translate('district_management_refresh')}">
             🔄 ${translate('district_management_refresh')}
           </button>
           <div class="dm-sync" id="dm-sync-status" aria-live="polite">
@@ -438,7 +455,7 @@ export class DistrictManagement {
           </div>
         </div>
         <div class="dm-action-bar__right">
-          <button id="dm-bottom-retry" class="btn btn--secondary" ${this.isOffline ? 'disabled' : ''}>
+          <button id="dm-bottom-retry" class="button button--secondary" ${this.isOffline ? 'disabled' : ''}>
             ${translate('district_management_retry_sync')}
           </button>
         </div>
@@ -449,7 +466,7 @@ export class DistrictManagement {
       <section class="district-management"${this.embedded ? '' : ' aria-labelledby="district-management-title"'}>
         <header class="dm-header">
           <div>
-            ${this.embedded ? '' : `<a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+            ${this.embedded ? '' : `${renderBackLink()}
             <h1 id="district-management-title">${translate('tile_district_management')}</h1>`}
             <p class="dm-subtitle">${translate('district_management_subtitle')}</p>
           </div>
@@ -584,6 +601,14 @@ export class DistrictManagement {
   }
 
   renderUserCards() {
+    if (!this.lastSyncedAt && this.syncing) {
+      return `<p role="status">${translate('loading')}</p>`;
+    }
+    if (!this.lastSyncedAt && this.loadFailed) {
+      return `
+        <p class="status-message error" role="alert">${translate('district_management_load_error')}</p>
+        <button type="button" class="button button--primary" id="dm-load-retry">${translate('retry')}</button>`;
+    }
     if (!this.filteredUsers.length) {
       return `<p class="muted-text">${translate('district_management_no_results')}</p>`;
     }
@@ -726,7 +751,7 @@ export class DistrictManagement {
                 <p class="dm-section-title">${translate('district_management_mfa_title')}</p>
                 <p>${translate('district_management_mfa_placeholder')}</p>
                 <div class="dm-mfa-actions">
-                  <button type="button" id="dm-mfa-start" class="btn btn--secondary">${translate('district_management_trigger_mfa')}</button>
+                  <button type="button" id="dm-mfa-start" class="button button--secondary">${translate('district_management_trigger_mfa')}</button>
                   ${incidentUrl ? `<a class="text-link" href="${incidentUrl}" target="_blank" rel="noopener noreferrer">${translate('district_management_incident_link')}</a>` : ''}
                 </div>
                 <label class="dm-checkbox">
@@ -741,10 +766,10 @@ export class DistrictManagement {
             ${statusMessage}
       `,
       footer: `
-            <button type="button" id="dm-queue" class="btn btn--secondary" ${isSaving ? 'disabled' : ''}>
+            <button type="button" id="dm-queue" class="button button--secondary" ${isSaving ? 'disabled' : ''}>
               ${translate('district_management_queue_change')}
             </button>
-            <button type="button" id="dm-save" class="btn btn--primary" ${saveDisabled ? 'disabled' : ''}>
+            <button type="button" id="dm-save" class="button button--primary" ${saveDisabled ? 'disabled' : ''}>
               ${
   this.isOffline
     ? translate('district_management_offline_disabled')
@@ -775,7 +800,7 @@ export class DistrictManagement {
       <section class="dm-modal-section dm-membership" aria-labelledby="dm-membership-title">
         <h3 id="dm-membership-title" class="dm-section-title">${translate('member_access_title')}</h3>
         <p class="dm-helper">${translate(inactive ? 'member_access_inactive' : 'member_access_active')}</p>
-        <button type="button" id="dm-membership-toggle" class="btn ${inactive ? 'btn--secondary' : 'btn--danger'}"
+        <button type="button" id="dm-membership-toggle" class="button ${inactive ? 'button--secondary' : 'button--danger'}"
           ${this.isOffline || this.savingUserId === user.id ? 'disabled' : ''}>
           ${translate(inactive ? 'member_access_reactivate' : 'member_access_deactivate')}
         </button>
@@ -927,6 +952,8 @@ export class DistrictManagement {
   }
 
   attachEventListeners() {
+    document.getElementById('dm-load-retry')?.addEventListener('click', () => this.refreshData(true));
+
     const searchInput = document.getElementById('dm-search-input');
     if (searchInput) {
       searchInput.removeEventListener('input', this.debouncedSearch);
@@ -1181,8 +1208,7 @@ export class DistrictManagement {
     const conflictResult = detectRoleConflicts(selectedRoleNames, this.roleBundleIndex);
     if (conflictResult.hasConflict) {
       const messageTemplate =
-        translate('district_management_conflict_roles') ||
-        'The selected roles cannot be combined: {roles}';
+        translate('district_management_conflict_roles');
       return {
         blocking: messageTemplate.replace('{roles}', conflictResult.conflicts.join(', ')),
         warnings: [],
@@ -1197,8 +1223,7 @@ export class DistrictManagement {
 
     if (permissionGaps.missing.length) {
       const template =
-        translate('district_management_permission_gap') ||
-        'You cannot assign roles that include permissions you do not have: {permissions}';
+        translate('district_management_permission_gap');
       const missingList = permissionGaps.missing.join(', ');
       return { blocking: template.replace('{permissions}', missingList), warnings: [] };
     }
@@ -1207,8 +1232,7 @@ export class DistrictManagement {
     const localGroupRoles = getLocalGroupEligibleRoles(selectedRoleNames, this.roleBundleIndex);
     if (localGroupRoles.length) {
       const template =
-        translate('district_management_local_group_notice') ||
-        'Inventory bundles can extend to organizations within your local group.';
+        translate('district_management_local_group_notice');
       const bundleLabels = localGroupRoles
         .map((roleName) => roleLabel(this.getRoleByName(roleName) || roleName))
         .filter(Boolean)

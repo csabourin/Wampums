@@ -34,6 +34,7 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { apiErrorMessage, apiErrorMessageKey } from '../../utils/ApiErrorUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { CarpoolQuickAccessModal } from '../modals/CarpoolQuickAccessModal.js';
 import { isParent, hasPermission, canViewBadges, canApproveBadges, canViewReports, canViewActivities, canViewCarpools } from '../../utils/PermissionUtils.js';
 import { formatDateShort, parseDate } from '../../utils/DateUtils.js';
@@ -50,16 +51,32 @@ export class ParentDashboard {
     this.app = app;
     this.participants = [];
     this.formStructures = {};
+    this.formFormats = {};
     this.participantStatements = new Map();
     this.permissionSlips = new Map();
     this.permissionSlipHandlerBound = false;
     this.formsToReview = [];
     this.authorizationsToSign = [];
     this.hiddenButtons = new Set();
+    this.participantsFailed = false;
+    this.destroyed = false;
+  }
+
+  /** Before anything is loaded: the welcome heading and a polite "loading". */
+  renderLoading() {
+    setContent(document.getElementById('app'), `
+      <section class="page parent-dashboard" aria-busy="true">
+        ${isParent() ? '' : renderBackLink('/dashboard')}
+        <h1 class="parent-dashboard__title">${translate('bienvenue')}</h1>
+        <p role="status">${translate('loading')}</p>
+      </section>
+    `);
   }
 
   async init() {
+    this.renderLoading();
     let hasErrors = false;
+    this.participantsFailed = false;
     // Run one step; a failure (thrown or rejected) is logged and the page
     // still renders with what the other steps loaded.
     const attempt = (step, message) => Promise.resolve()
@@ -73,8 +90,15 @@ export class ParentDashboard {
     // other request starts at once instead of one after another.
     const loadStatements = () => attempt(() => this.fetchParticipantStatements(), 'Error fetching participant statements:');
     const loadPermissionSlips = () => attempt(() => this.fetchPermissionSlips(), 'Error fetching permission slips:');
-    const perChildReady = attempt(() => this.fetchParticipants(), 'Error fetching participants:')
-      .then(() => Promise.all([loadStatements(), loadPermissionSlips()]));
+    // Children that did not load must not read as "no children": that list
+    // says so with a retry, and its statements and slips are not asked for.
+    const perChildReady = Promise.resolve()
+      .then(() => this.fetchParticipants())
+      .then(() => Promise.all([loadStatements(), loadPermissionSlips()]))
+      .catch((error) => {
+        debugError('Error fetching participants:', error);
+        this.participantsFailed = true;
+      });
     const formFormatsReady = attempt(() => this.fetchFormFormats(), 'Error fetching form formats:');
     const hiddenButtonsReady = loadHiddenParentDashboardButtons(this.app?.organizationSettings, getPublicOrganizationSettings);
 
@@ -113,6 +137,10 @@ export class ParentDashboard {
     if (this.formsToReview.length || this.authorizationsToSign.length) {
       await loadStylesheet(formReviewStylesheetUrl);
     }
+    // #app outlives this screen: a late answer must not draw over the next one.
+    if (this.destroyed) {
+      return;
+    }
 
     // Always render the page, even with partial data
     try {
@@ -123,14 +151,12 @@ export class ParentDashboard {
       if (hasErrors) {
         this.app.showMessage(
           translate('error_loading_data'),
-          'warning',
+          'error',
         );
       }
     } catch (error) {
       debugError('Error rendering parent dashboard:', error);
-      this.app.renderError(
-        translate('error_loading_parent_dashboard'),
-      );
+      this.renderError();
     }
   }
 
@@ -364,6 +390,8 @@ export class ParentDashboard {
           'Invalid form formats response:',
           response,
         );
+        // The children still show, with the buttons that need no form.
+        this.formFormats = {};
       }
     } catch (error) {
       debugError('Error fetching form formats:', error);
@@ -451,9 +479,7 @@ export class ParentDashboard {
                 `;
 
     // Only show staff back link when accessed outside the parent context
-    const backLink = isParent()
-      ? ``
-      : `<a href="/dashboard" class="back-link">${translate('back_to_dashboard')}</a>`;
+    const backLink = isParent() ? '' : renderBackLink('/dashboard');
 
     // Parents who can register their own children go through the
     // short step that links the child to their family, then on to
@@ -476,10 +502,10 @@ export class ParentDashboard {
                         '';
     const content = `
                         <div class="parent-dashboard">
+                                ${backLink}
                                 <header class="parent-dashboard__header">
-                                        <h1 class="parent-dashboard__title">${translate('bienvenue')}${userName ? ` ${userName}` : ''}</h1>
-                                        <p class="parent-dashboard__subtitle">${organizationName}</p>
-                                        ${backLink}
+                                        <h1 class="parent-dashboard__title">${translate('bienvenue')}${userName ? ` ${escapeHTML(userName)}` : ''}</h1>
+                                        <p class="parent-dashboard__subtitle">${escapeHTML(organizationName)}</p>
                                 </header>
 
                                 ${this.renderAuthorizationsToSign()}
@@ -758,6 +784,12 @@ export class ParentDashboard {
   }
 
   renderParticipantsList() {
+    if (this.participantsFailed) {
+      return `
+        <p class="status-message error" role="alert">${translate('error_loading_parent_dashboard')}</p>
+        <button type="button" class="button button--secondary" id="parent-dashboard-retry">${translate('retry')}</button>
+      `;
+    }
     if (
       !Array.isArray(this.participants) ||
                         this.participants.length === 0
@@ -983,7 +1015,7 @@ export class ParentDashboard {
 
   getPermissionSlipStatusLabel(status) {
     if (!status) {
-      return translate('unknown') || '-';
+      return translate('unknown');
     }
 
     const localized = translate(`permission_slip_status_${status}`);
@@ -1015,6 +1047,8 @@ export class ParentDashboard {
   }
 
   attachEventListeners() {
+    document.getElementById('parent-dashboard-retry')?.addEventListener('click', () => this.init());
+
     const notificationButton = document.getElementById(
       'enableNotifications',
     );
@@ -1119,6 +1153,7 @@ export class ParentDashboard {
          * Called by the router before navigating away.
          */
   destroy() {
+    this.destroyed = true;
     if (this.beforeInstallPromptHandler) {
       window.removeEventListener('beforeinstallprompt', this.beforeInstallPromptHandler);
       this.beforeInstallPromptHandler = null;
@@ -1439,10 +1474,13 @@ export class ParentDashboard {
   }
 
   renderError() {
-    const errorMessage = `
-                                <h1>${translate('error')}</h1>
-                                <p>${translate('error_loading_parent_dashboard')}</p>
-                        `;
-    setContent(document.getElementById('app'), errorMessage);
+    setContent(document.getElementById('app'), `
+      <section class="page parent-dashboard">
+        <h1>${translate('error')}</h1>
+        <p class="status-message error" role="alert">${translate('error_loading_parent_dashboard')}</p>
+        <button type="button" class="button button--primary" id="parent-dashboard-retry">${translate('retry')}</button>
+      </section>
+    `);
+    document.getElementById('parent-dashboard-retry')?.addEventListener('click', () => this.init());
   }
 }

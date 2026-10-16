@@ -260,6 +260,14 @@ export const CONFIG = {
             "BPsOyoPVxNCN6BqsLdHwc5aaNPERFO2yq-xF3vqHJ7CdMlHRn5EBPnxcoOKGkeIO1_9zHnF5CRyD6RvLlOKPcTE",
     },
 
+  /**
+   * Online payments (Stripe). Without a publishable key, statements still
+   * show and online payment is not offered.
+   */
+  PAYMENTS: {
+    STRIPE_PUBLISHABLE_KEY: import.meta.env?.VITE_STRIPE_PUBLISHABLE_KEY || '',
+  },
+
     /**
      * Feature Flags
      * Enable/disable features based on environment or rollout strategy

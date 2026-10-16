@@ -21,6 +21,8 @@ import {
 } from './campaignModel.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 /** Length of the date part of an ISO timestamp (`YYYY-MM-DD`). */
 const ISO_DATE_LENGTH = 10;
 
@@ -84,6 +86,17 @@ export class Fundraisers {
     this.showArchived = false;
     this.editingFundraiser = null;
     this.fundraiserActionHandler = null;
+    this.destroyed = false;
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
+  }
+
+  /** @returns {Object} Shared page-state options */
+  pageOptions() {
+    return { title: translate('fundraisers'), className: 'fundraisers-page' };
   }
 
   async init() {
@@ -93,32 +106,68 @@ export class Fundraisers {
       return;
     }
 
-    await this.fetchFundraisers();
+    showPageLoading(document.getElementById('app'), this.pageOptions());
+    try {
+      await this.fetchFundraisers();
+    } catch (error) {
+      // A list that did not load is never shown as "no fundraisers".
+      debugError('Error fetching fundraisers:', error);
+      if (!this.destroyed) {
+        showPageError(document.getElementById('app'), {
+          ...this.pageOptions(),
+          message: translate('error_fetching_fundraisers'),
+        }, () => this.init());
+      }
+      return;
+    }
+    if (this.destroyed) {
+      return;
+    }
     this.render();
     this.initEventListeners();
   }
 
+  /**
+   * Load every campaign, archived ones included. Throws when they did not
+   * arrive, keeping what was loaded before.
+   *
+   * @returns {Promise<void>}
+   */
   async fetchFundraisers() {
-    try {
-      const response = await getFundraisers(true); // Get all including archived
-      const fundraisers = response.data?.fundraisers || [];
-      if (response.success) {
-        this.fundraisers = fundraisers.filter(f => !f.archived);
-        this.archivedFundraisers = fundraisers.filter(f => f.archived);
-
-        // Sort by start_date descending (most recent first)
-        this.fundraisers.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
-        this.archivedFundraisers.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
-      }
-    } catch (error) {
-      debugError('Error fetching fundraisers:', error);
-      this.app.showMessage('error_fetching_fundraisers', 'error');
+    const response = await getFundraisers(true);
+    if (!response?.success) {
+      throw Object.assign(new Error('fundraisers_not_loaded'), { status: response?.status });
     }
+    const fundraisers = response.data?.fundraisers || [];
+    const byStartDescending = (a, b) => new Date(b.start_date) - new Date(a.start_date);
+    this.fundraisers = fundraisers.filter(f => !f.archived).sort(byStartDescending);
+    this.archivedFundraisers = fundraisers.filter(f => f.archived).sort(byStartDescending);
+  }
+
+  /**
+   * Reload after a write the server accepted. The write stands even if the
+   * reload fails: the page keeps its list and says it could not refresh.
+   *
+   * @returns {Promise<void>}
+   */
+  async refresh() {
+    try {
+      await this.fetchFundraisers();
+    } catch (error) {
+      debugError('Error refreshing fundraisers:', error);
+      this.app.showMessage(translate('error_loading_data'), 'error');
+    }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.initEventListeners();
   }
 
   render() {
     const content = `
-			<a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+		<section class="page fundraisers-page">
+			${renderBackLink()}
 			<div class="fundraisers-header">
 				<h1>${translate('fundraisers')}</h1>
 			</div>
@@ -129,7 +178,7 @@ export class Fundraisers {
 				${this.renderFundraisers()}
 				${this.renderArchivedSection()}
 			</div>
-
+		</section>
 		`;
     setContent(document.getElementById('app'), content);
   }
@@ -137,7 +186,7 @@ export class Fundraisers {
   renderAddButton() {
     if (canCreateFundraisers()) {
       return `
-				<button id="add-fundraiser-btn" class="primary-btn" aria-label="${translate('add_fundraiser')}">
+				<button id="add-fundraiser-btn" class="button button--primary" aria-label="${translate('add_fundraiser')}">
 					${translate('add_fundraiser')}
 				</button>
 			`;
@@ -191,19 +240,19 @@ export class Fundraisers {
 					</div>
 				</div>
 				<div class="fundraiser-card-footer">
-					<a href="/calendars/${fundraiser.id}" class="btn-link" aria-label="${translate('view_fundraiser_entries_for')} ${escapeHTML(fundraiser.name)}">
+					<a href="/calendars/${fundraiser.id}" class="button button--primary" aria-label="${translate('view_fundraiser_entries_for')} ${escapeHTML(fundraiser.name)}">
 						${translate('view_fundraiser_entries')}
 					</a>
 					${canEdit ? `
-						<button class="btn-secondary edit-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('edit')} ${escapeHTML(fundraiser.name)}">
+						<button class="button button--secondary edit-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('edit')} ${escapeHTML(fundraiser.name)}">
 							${translate('edit')}
 						</button>
-						<button class="btn-danger archive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('archive')} ${escapeHTML(fundraiser.name)}">
+						<button class="button button--danger archive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('archive')} ${escapeHTML(fundraiser.name)}">
 							${translate('archive')}
 						</button>
 					` : ''}
 					${canDelete && this.isCampaignEmpty(fundraiser) ? `
-						<button class="btn-danger delete-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('delete')} ${escapeHTML(fundraiser.name)}">
+						<button class="button button--danger delete-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('delete')} ${escapeHTML(fundraiser.name)}">
 							${translate('delete')}
 						</button>
 					` : ''}
@@ -298,11 +347,11 @@ export class Fundraisers {
 					</div>
 				</div>
 				<div class="fundraiser-card-footer">
-					<a href="/calendars/${fundraiser.id}" class="btn-link" aria-label="${translate('view_fundraiser_entries_for')} ${escapeHTML(fundraiser.name)}">
+					<a href="/calendars/${fundraiser.id}" class="button button--primary" aria-label="${translate('view_fundraiser_entries_for')} ${escapeHTML(fundraiser.name)}">
 						${translate('view_fundraiser_entries')}
 					</a>
 					${canEdit ? `
-						<button class="btn-secondary unarchive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('unarchive')} ${escapeHTML(fundraiser.name)}">
+						<button class="button button--secondary unarchive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate('unarchive')} ${escapeHTML(fundraiser.name)}">
 							${translate('unarchive')}
 						</button>
 					` : ''}
@@ -430,8 +479,8 @@ export class Fundraisers {
       title: translate(fundraiser ? 'edit_fundraiser' : 'add_fundraiser'),
       body: this.renderForm(),
       footer: `
-        <button type="button" class="btn-secondary modal-cancel" data-modal-close>${translate('cancel')}</button>
-        <button type="submit" class="primary-btn" form="fundraiser-form">${translate('save')}</button>
+        <button type="button" class="button button--secondary modal-cancel" data-modal-close>${translate('cancel')}</button>
+        <button type="submit" class="button button--primary" form="fundraiser-form">${translate('save')}</button>
       `,
       initialFocus: '#fundraiser-name',
       onClose: () => { this.editingFundraiser = null; },
@@ -681,9 +730,7 @@ export class Fundraisers {
       this.hideModal();
       // Invalidate cache before refetching
       await clearFundraiserRelatedCaches();
-      await this.fetchFundraisers();
-      this.render();
-      this.initEventListeners();
+      await this.refresh();
     } catch (error) {
       debugError('Error saving fundraiser:', error);
       this.showFormErrors(
@@ -733,15 +780,13 @@ export class Fundraisers {
         this.app.showMessage('fundraiser_archived', 'success');
         // Invalidate cache before refetching
         await clearFundraiserRelatedCaches();
-        await this.fetchFundraisers();
-        this.render();
-        this.initEventListeners();
+        await this.refresh();
       } else {
         this.app.showMessage('error_archiving_fundraiser', 'error');
       }
     } catch (error) {
       debugError('Error archiving fundraiser:', error);
-      this.app.showMessage('error_archiving_fundraiser', 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_archiving_fundraiser'), 'error');
     }
   }
 
@@ -762,9 +807,7 @@ export class Fundraisers {
 
       this.app.showMessage('fundraiser_deleted', 'success');
       await clearFundraiserRelatedCaches(fundraiserId);
-      await this.fetchFundraisers();
-      this.render();
-      this.initEventListeners();
+      await this.refresh();
     } catch (error) {
       debugError('Error deleting fundraiser:', error);
       this.app.showMessage(
@@ -781,15 +824,13 @@ export class Fundraisers {
         this.app.showMessage('fundraiser_unarchived', 'success');
         // Invalidate cache before refetching
         await clearFundraiserRelatedCaches();
-        await this.fetchFundraisers();
-        this.render();
-        this.initEventListeners();
+        await this.refresh();
       } else {
         this.app.showMessage('error_unarchiving_fundraiser', 'error');
       }
     } catch (error) {
       debugError('Error unarchiving fundraiser:', error);
-      this.app.showMessage('error_unarchiving_fundraiser', 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_unarchiving_fundraiser'), 'error');
     }
   }
 

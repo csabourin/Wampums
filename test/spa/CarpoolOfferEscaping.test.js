@@ -21,7 +21,7 @@ jest.mock('../../spa/utils/OptimisticUpdateManager.js', () => ({
   generateOptimisticId: jest.fn(),
 }));
 jest.mock('../../spa/utils/SkeletonUtils.js', () => ({
-  skeletonCarpoolDashboard: jest.fn(),
+  skeletonCards: jest.fn(() => ''),
   setButtonLoading: jest.fn(),
 }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn() }));

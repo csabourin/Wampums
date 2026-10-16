@@ -4,6 +4,9 @@ import { debugError, debugLog } from '../../utils/DebugUtils.js';
 import { formatDate, getTodayISO, parseDate } from '../../utils/DateUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { isSameMedication, splitDeclaredMedications } from '../../utils/MedicationTextUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import {
   getActivities,
   getParticipants,
@@ -15,6 +18,9 @@ import {
   updateMedicationReception,
   saveMedicationRequirement
 } from '../../api/api-endpoints.js';
+
+/** How long typing in a quantity or a note pauses before it is saved. */
+const QUANTITY_SAVE_DELAY_MS = 1000;
 
 /**
  * Medication Reception module
@@ -32,18 +38,46 @@ export class MedicationReception {
     this.selectedActivityId = options.activityId || null;
     this.showAllParticipants = false;
     this.editingMedications = new Set(); // Track which medications are being edited
+    // Set when the receptions of the chosen activity did not load: the list is
+    // then an error, never every medication shown as not received.
+    this.receptionsFailed = false;
+    // Set when the health-form declarations did not load, which the page says.
+    this.declarationsFailed = false;
+    this.destroyed = false;
+    this.saveTimeout = null;
+    this.delegation = null;
+  }
+
+  /** Called by the router: releases the listeners on #app, which outlives this screen. */
+  destroy() {
+    this.destroyed = true;
+    clearTimeout(this.saveTimeout);
+    this.delegation?.abort();
+    this.delegation = null;
+  }
+
+  /** @returns {Object} Shared page-state options */
+  pageOptions() {
+    return { title: translate('med_reception_title'), className: 'medication-reception-page' };
   }
 
   async init() {
+    this.injectStyles();
+    showPageLoading(document.getElementById('app'), this.pageOptions());
     try {
-      this.injectStyles();
       await this.loadData();
-      this.render();
-      this.attachEventListeners();
     } catch (error) {
       debugError('Error initializing medication reception', error);
-      this.app.showMessage(translate('error_loading_data'), 'error');
+      if (!this.destroyed) {
+        showPageError(document.getElementById('app'), this.pageOptions(), () => this.init());
+      }
+      return;
     }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventListeners();
   }
 
   async loadData() {
@@ -56,6 +90,7 @@ export class MedicationReception {
         getParticipantMedications(),
         getFicheMedicationDeclarations().catch((error) => {
           debugError('Error loading health form medications', error);
+          this.declarationsFailed = true;
           return null;
         })
       ]);
@@ -75,6 +110,9 @@ export class MedicationReception {
       // Load receptions for selected activity
       if (this.selectedActivityId) {
         await this.loadReceptions();
+        if (this.receptionsFailed) {
+          throw new Error('receptions_not_loaded');
+        }
       }
 
       debugLog('Medication reception data loaded', {
@@ -98,10 +136,11 @@ export class MedicationReception {
     try {
       const response = await getMedicationReceptions({ activity_id: this.selectedActivityId });
       this.receptions = response?.data?.receptions || response?.receptions || [];
+      this.receptionsFailed = false;
       debugLog('Loaded receptions for activity', this.selectedActivityId, this.receptions.length);
     } catch (error) {
       debugError('Error loading receptions', error);
-      this.receptions = [];
+      this.receptionsFailed = true;
     }
   }
 
@@ -144,6 +183,7 @@ export class MedicationReception {
       }
 
       .activity-selector select {
+        min-height: var(--touch-target-min, 44px);
         padding: 0.5rem;
         border: 1px solid #d1d5db;
         border-radius: 8px;
@@ -284,6 +324,16 @@ export class MedicationReception {
         display: flex;
         flex-direction: column;
         gap: 0.5rem;
+        border: 0;
+        margin: 0;
+        padding: 0;
+        min-inline-size: 0;
+      }
+
+      .reception-status-group legend {
+        font-weight: 700;
+        padding: 0;
+        margin-block-end: 0.5rem;
       }
 
       .status-option {
@@ -390,12 +440,15 @@ export class MedicationReception {
     const activityName = selectedActivity ? escapeHTML(selectedActivity.name) : translate('med_reception_select_activity');
 
     setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <section class="page medication-reception-page">
+        ${renderBackLink()}
         <div class="card">
-          <h1>🏥 ${translate('med_reception_title')}</h1>
+          <h1><span aria-hidden="true">🏥</span> ${translate('med_reception_title')}</h1>
           <p class="subtitle">${translate('med_reception_description')}</p>
         </div>
+        ${this.declarationsFailed ? `
+          <p class="status-message error" role="alert">${translate('med_reception_declarations_unavailable')}</p>
+        ` : ''}
 
         <div class="card">
           <div class="activity-selector">
@@ -420,7 +473,10 @@ export class MedicationReception {
           <div class="card">
             <h2>${translate('med_reception_for_activity')}: ${activityName}</h2>
             <div id="participant-reception-list">
-              ${this.renderParticipantReceptionCards()}
+              ${this.receptionsFailed ? `
+                <p class="status-message error" role="alert">${translate('error_loading_data')}</p>
+                <button type="button" class="button button--primary" id="med-reception-retry">${translate('retry')}</button>
+              ` : this.renderParticipantReceptionCards()}
             </div>
           </div>
         ` : `
@@ -520,13 +576,13 @@ export class MedicationReception {
     });
 
     const unplanned = this.getUnplannedDeclarations(participant.id, medications);
-    const planLink = `<a href="/medication-planning/${participant.id}" class="btn btn-small secondary">
+    const planLink = `<a href="/medication-planning/${participant.id}" class="button button--small button--secondary">
           + ${translate('manage_medications')}
         </a>`;
 
     const headerActions = medications.length > 0
       ? `
-        <button class="btn btn-small secondary mark-all-received" data-participant-id="${participant.id}">
+        <button class="button button--small button--secondary mark-all-received" data-participant-id="${participant.id}">
           ✓ ${translate('med_reception_mark_all_received')}
         </button>
         ${allReceived ? `<span class="pill" style="background: #10b981; color: white;">
@@ -633,7 +689,8 @@ export class MedicationReception {
               ${escapeHTML(req.general_notes)}
             </div>` : ''}
           </div>
-          <button class="edit-toggle-btn" data-participant-id="${participant.id}" data-requirement-id="${req.id}">
+          <button type="button" class="edit-toggle-btn" data-participant-id="${participant.id}" data-requirement-id="${req.id}"
+                  aria-expanded="${isEditing}" aria-controls="edit-fields-${participant.id}-${req.id}">
             ${isEditing ? translate('med_reception_done_editing') : translate('med_reception_edit')}
           </button>
         </div>
@@ -654,31 +711,28 @@ export class MedicationReception {
         </div>
 
         <div class="med-item-reception">
-          <div class="reception-status-group">
-            <strong>${translate('med_reception_status_label')}</strong>
-            <div class="status-option ${status === 'received' ? 'selected' : ''}"
-                 data-status="received">
+          <fieldset class="reception-status-group">
+            <legend>${translate('med_reception_status_label')}</legend>
+            <label class="status-option ${status === 'received' ? 'selected' : ''}">
               <input type="radio" name="status-${participant.id}-${req.id}" value="received"
                      ${status === 'received' ? 'checked' : ''} />
-              <span>✓ ${translate('med_reception_status_received')}</span>
-            </div>
-            <div class="status-option ${status === 'partial' ? 'selected' : ''}"
-                 data-status="partial">
+              <span><span aria-hidden="true">✓</span> ${translate('med_reception_status_received')}</span>
+            </label>
+            <label class="status-option ${status === 'partial' ? 'selected' : ''}">
               <input type="radio" name="status-${participant.id}-${req.id}" value="partial"
                      ${status === 'partial' ? 'checked' : ''} />
-              <span>⚠️ ${translate('med_reception_status_partial')}</span>
-            </div>
-            <div class="status-option ${status === 'not_received' ? 'selected' : ''}"
-                 data-status="not_received">
+              <span><span aria-hidden="true">⚠️</span> ${translate('med_reception_status_partial')}</span>
+            </label>
+            <label class="status-option ${status === 'not_received' ? 'selected' : ''}">
               <input type="radio" name="status-${participant.id}-${req.id}" value="not_received"
                      ${status === 'not_received' ? 'checked' : ''} />
-              <span>✗ ${translate('med_reception_status_not_received')}</span>
-            </div>
-          </div>
+              <span><span aria-hidden="true">✗</span> ${translate('med_reception_status_not_received')}</span>
+            </label>
+          </fieldset>
 
           <div class="reception-quantity">
-            <label>${translate('med_reception_quantity_label')}</label>
-            <input type="text"
+            <label for="rec-quantity-${participant.id}-${req.id}">${translate('med_reception_quantity_label')}</label>
+            <input type="text" id="rec-quantity-${participant.id}-${req.id}"
                    placeholder="${translate('med_reception_quantity_placeholder')}"
                    data-participant-id="${participant.id}"
                    data-requirement-id="${req.id}"
@@ -687,8 +741,8 @@ export class MedicationReception {
           </div>
 
           <div class="reception-notes">
-            <label>${translate('med_reception_notes_label')}</label>
-            <textarea
+            <label for="rec-notes-${participant.id}-${req.id}">${translate('med_reception_notes_label')}</label>
+            <textarea id="rec-notes-${participant.id}-${req.id}"
               placeholder="${translate('med_reception_notes_placeholder')}"
               data-participant-id="${participant.id}"
               data-requirement-id="${req.id}"
@@ -701,27 +755,54 @@ export class MedicationReception {
     `;
   }
 
+  /** Draw again after a change; the controls are new, the delegated listeners stay. */
+  redraw() {
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventListeners();
+  }
+
   attachEventListeners() {
     const activitySelect = document.getElementById('activitySelect');
     const showAllCheckbox = document.getElementById('showAllParticipants');
-    const appContainer = document.getElementById('app');
 
     // Activity selection
     activitySelect?.addEventListener('change', async (e) => {
-      this.selectedActivityId = e.target.value ? parseInt(e.target.value) : null;
+      this.selectedActivityId = e.target.value ? Number(e.target.value) : null;
       if (this.selectedActivityId) {
         await this.loadReceptions();
       }
-      this.render();
-      this.attachEventListeners();
+      this.redraw();
     });
 
     // Show all participants toggle
     showAllCheckbox?.addEventListener('change', (e) => {
       this.showAllParticipants = e.target.checked;
-      this.render();
-      this.attachEventListeners();
+      this.redraw();
     });
+
+    document.getElementById('med-reception-retry')?.addEventListener('click', async () => {
+      await this.loadReceptions();
+      this.redraw();
+    });
+
+    this.attachDelegatedListeners();
+  }
+
+  /**
+   * Listen on #app once. #app outlives every screen: listeners added there on
+   * each render stacked up, saving a reception once per render, and stayed
+   * after the person left. destroy() aborts them.
+   */
+  attachDelegatedListeners() {
+    if (this.delegation) {
+      return;
+    }
+    this.delegation = new AbortController();
+    const { signal } = this.delegation;
+    const appContainer = document.getElementById('app');
 
     // Edit toggle buttons
     appContainer?.addEventListener('click', (e) => {
@@ -739,17 +820,8 @@ export class MedicationReception {
         this.markAllReceived(participantId);
       }
 
-      // Status option selection
-      const statusOption = e.target.closest('.status-option');
-      if (statusOption) {
-        const status = statusOption.dataset.status;
-        const radio = statusOption.querySelector('input[type="radio"]');
-        if (radio) {
-          radio.checked = true;
-          this.handleStatusChange(radio);
-        }
-      }
-    });
+      // Status options are labels: choosing one fires the radio's change event, saved below.
+    }, { signal });
 
     // Status changes
     appContainer?.addEventListener('change', (e) => {
@@ -764,9 +836,9 @@ export class MedicationReception {
           const participantId = parseInt(e.target.dataset.participantId);
           const requirementId = parseInt(e.target.dataset.requirementId);
           this.saveReception(participantId, requirementId);
-        }, 1000);
+        }, QUANTITY_SAVE_DELAY_MS);
       }
-    });
+    }, { signal });
 
     // Save editable fields on blur
     appContainer?.addEventListener('blur', (e) => {
@@ -780,7 +852,7 @@ export class MedicationReception {
           this.saveRequirementEdits(requirementId, item);
         }
       }
-    }, true);
+    }, { capture: true, signal });
   }
 
   toggleEdit(participantId, requirementId) {
@@ -810,14 +882,22 @@ export class MedicationReception {
   async markAllReceived(participantId) {
     const medications = this.getParticipantMedications(participantId);
 
+    let failures = 0;
     for (const med of medications) {
-      await this.saveReception(participantId, med.requirement.id, 'received');
+      // One at a time: each save reloads the receptions the next one reads.
+      // eslint-disable-next-line no-await-in-loop -- sequential by design
+      const saved = await this.saveReception(participantId, med.requirement.id, 'received');
+      if (!saved) {
+        failures += 1;
+      }
     }
 
-    this.app.showMessage(translate('med_reception_all_marked_received'), 'success');
+    // Success only when every medication was saved; a failed one was already reported.
+    if (failures === 0) {
+      this.app.showMessage(translate('med_reception_all_marked_received'), 'success');
+    }
     await this.loadReceptions();
-    this.render();
-    this.attachEventListeners();
+    this.redraw();
   }
 
   async handleStatusChange(radio) {
@@ -830,13 +910,18 @@ export class MedicationReception {
     await this.saveReception(participantId, requirementId, status);
   }
 
+  /**
+   * Save one medication's reception.
+   *
+   * @returns {Promise<boolean>} Whether the server saved it
+   */
   async saveReception(participantId, requirementId, statusOverride = null) {
     try {
       const item = document.querySelector(
-        `.medication-reception-item[data-participant-id="${participantId}"][data-requirement-id="${requirementId}"]`
+        `.medication-reception-item[data-participant-id="${Number(participantId)}"][data-requirement-id="${Number(requirementId)}"]`
       );
 
-      if (!item) {return;}
+      if (!item) {return false;}
 
       const statusRadios = item.querySelectorAll('input[type="radio"]');
       let status = statusOverride;
@@ -859,18 +944,20 @@ export class MedicationReception {
       };
 
       const result = await saveMedicationReception(payload);
-
-      if (result?.success) {
-        this.showSaveStatus(participantId, requirementId, 'success');
-        await this.loadReceptions();
-      } else {
-        throw new Error(result?.message || 'Save failed');
+      if (!result?.success) {
+        throw Object.assign(new Error('reception_not_saved'), { status: result?.status });
       }
     } catch (error) {
       debugError('Error saving reception', error);
       this.showSaveStatus(participantId, requirementId, 'error');
-      this.app.showMessage(translate('error_saving'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
+      return false;
     }
+
+    // Saved on the server: a reload that fails afterwards does not undo that.
+    this.showSaveStatus(participantId, requirementId, 'success');
+    await this.loadReceptions();
+    return true;
   }
 
   async saveRequirementEdits(requirementId, item) {
@@ -913,11 +1000,11 @@ export class MedicationReception {
           general_notes: notes
         });
       } else {
-        throw new Error(result?.message || 'Update failed');
+        throw Object.assign(new Error('requirement_not_saved'), { status: result?.status });
       }
     } catch (error) {
       debugError('Error updating requirement', error);
-      this.app.showMessage(translate('error_saving'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
     }
   }
 

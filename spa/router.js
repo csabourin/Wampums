@@ -644,7 +644,6 @@ export class Router {
           break;
         case "permissionSlipSign":
           // Public route - allow anyone to sign permission slips via email link
-          debugLog('[ROUTER DEBUG] Loading PermissionSlipSign with ID:', param);
           const PermissionSlipSign = await this.loadModule('PermissionSlipSign');
           const permissionSlipSign = new PermissionSlipSign(this.app, param);
           this.currentModuleInstance = permissionSlipSign;
@@ -894,7 +893,7 @@ export class Router {
             break;
           }
           const GuardianManagement = await this.loadModule('GuardianManagement');
-          await GuardianManagement(this.app);
+          this.currentModuleInstance = await GuardianManagement(this.app);
           break;
         case "viewParticipantDocuments":
           if (!guard(canViewParticipants())) {
@@ -1031,12 +1030,12 @@ export class Router {
           await districtManagement.init();
           break;
         case "formPermissions":
-          // Only accessible by district and unitadmin
+          // Whoever may open the admin panel.
           if (!guard(canAccessAdminPanel())) {
             break;
           }
           const initFormPermissions = await this.loadModule('FormPermissions');
-          await initFormPermissions(this.app);
+          this.currentModuleInstance = await initFormPermissions(this.app);
           break;
         case "register":
           if (this.app.isLoggedIn) {

@@ -5,17 +5,20 @@ import {
 } from '../../ajax-functions.js';
 import { translate } from '../../app.js';
 import { CONFIG } from '../../config.js';
-import { clearGroupRelatedCaches } from '../../indexedDB.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { canViewGroups } from '../../utils/PermissionUtils.js';
-import { setContent } from '../../utils/DOMUtils.js';
+import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 
 export class ManageGroups {
   constructor(app) {
     this.app = app;
     this.groups = [];
+    this.destroyed = false;
   }
 
   async init() {
@@ -25,49 +28,73 @@ export class ManageGroups {
       return;
     }
 
+    showPageLoading(document.getElementById('app'), this.pageOptions());
     try {
       await this.fetchGroups();
-      this.render();
-      this.attachEventListeners();
     } catch (error) {
       debugError('Error initializing manage groups:', error);
       this.renderError();
+      return;
     }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventListeners();
+  }
+
+  /** @returns {Object} Shared page-state options */
+  pageOptions() {
+    return { title: translate('manage_groups'), className: 'manage-groups-page' };
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
   }
 
   async fetchGroups() {
     const fetchedGroup = await getGroups();
-    if (fetchedGroup.success) {
-      this.groups = fetchedGroup.data || fetchedGroup.groups || [];
+    // A refused or failed answer is an error, never an empty list of groups.
+    if (!fetchedGroup?.success) {
+      throw new Error('groups_unavailable');
     }
+    this.groups = fetchedGroup.data || fetchedGroup.groups || [];
   }
 
 
   render() {
+    if (this.destroyed) {
+      return;
+    }
     const content = `
-        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
-            <h1>${translate('manage_groups')}</h1>
-            <div id="message"></div>
-            <form id="add-group-form">
-                <h2>${translate('add_group')}</h2>
-                <label for="group_name">${translate('group_name')}:</label>
-                <input type="text" id="group_name" name="group_name" required>
-                <button type="submit">${translate('add_group')}</button>
-            </form>
-            <h2>${translate('existing_groups')}</h2>
-            <table>
-                <thead>
-                  <tr>
-                      <th>${translate('group_name')}</th>
-                      <th>${translate('group_member_count')}</th>
-                      <th>${translate('action')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${this.renderGroupRows()}
-                </tbody>
-            </table>
-        `;
+      <section class="page manage-groups-page">
+        ${renderBackLink()}
+        <h1>${translate('manage_groups')}</h1>
+        <form id="add-group-form" novalidate>
+          <h2>${translate('add_group')}</h2>
+          <label for="group_name">${translate('group_name')}</label>
+          <input type="text" id="group_name" name="group_name" required aria-describedby="group-name-error">
+          <p class="status-message error" role="alert" id="group-name-error"></p>
+          <button type="submit" class="button button--primary">${translate('add_group')}</button>
+        </form>
+        <h2>${translate('existing_groups')}</h2>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">${translate('group_name')}</th>
+                <th scope="col">${translate('group_member_count')}</th>
+                <th scope="col">${translate('action')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${this.renderGroupRows()}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    `;
     setContent(document.getElementById('app'), content);
   }
 
@@ -85,12 +112,12 @@ export class ManageGroups {
         const memberCount = Number(group.member_count) || 0;
         const formattedCount = new Intl.NumberFormat(this.app.lang || CONFIG.DEFAULT_LANG).format(memberCount);
         return `
-            <tr data-group-row="${group.id}">
+            <tr data-group-row="${Number(group.id)}">
                 <td>${escapeHTML(group.name || '')}</td>
                 <td class="${memberCount > 0 ? 'group-members group-members--occupied' : 'group-members'}">${formattedCount}</td>
                 <td>
-                    <button class="remove-group button--danger"
-                            data-group-id="${group.id}"
+                    <button type="button" class="button button--small button--danger remove-group"
+                            data-group-id="${Number(group.id)}"
                             data-member-count="${memberCount}">
                         ${translate('remove_group')}
                     </button>
@@ -103,9 +130,13 @@ export class ManageGroups {
 
   attachEventListeners() {
     const addGroupForm = document.getElementById('add-group-form');
-
     if (addGroupForm) {
-      addGroupForm.addEventListener('submit', (e) => this.handleAddGroup(e));
+      addGroupForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        withFormBusy(addGroupForm, () => this.handleAddGroup());
+      });
+      // The message goes as soon as the name changes.
+      addGroupForm.elements.namedItem('group_name')?.addEventListener('input', () => this.setNameError(''));
     }
 
     document.querySelectorAll('.remove-group').forEach((button) => {
@@ -113,34 +144,49 @@ export class ManageGroups {
     });
   }
 
-  async handleAddGroup(e) {
-    e.preventDefault();
+  /**
+   * Show (or clear) the error tied to the name field.
+   *
+   * @param {string} message - Translated message; empty clears it
+   * @returns {void}
+   */
+  setNameError(message) {
+    const input = document.getElementById('group_name');
+    const errorElement = document.getElementById('group-name-error');
+    if (errorElement) {
+      errorElement.textContent = message;
+    }
+    if (input) {
+      if (message) {
+        input.setAttribute('aria-invalid', 'true');
+      } else {
+        input.removeAttribute('aria-invalid');
+      }
+    }
+  }
+
+  async handleAddGroup() {
     const groupName = document.getElementById('group_name').value.trim();
 
     if (!groupName) {
-      this.showMessage(translate('group_name_required'));
+      this.setNameError(translate('group_name_required'));
+      document.getElementById('group_name')?.focus();
       return;
     }
 
+    let result;
     try {
-      const result = await addGroup(groupName);
-      if (result.success) {
-        // Clear all group-related caches
-        await clearGroupRelatedCaches();
-        await this.fetchGroups();
-        this.render();
-        this.attachEventListeners();
-        // Show translated success message
-        this.showMessage(translate('group_added_successfully'));
-        // Clear the input field
-        document.getElementById('group_name').value = '';
-      } else {
-        this.showMessage(translate('error_adding_group'));
+      result = await addGroup(groupName);
+      if (!result?.success && !result?.queued) {
+        throw Object.assign(new Error('group_not_added'), { status: result?.status });
       }
     } catch (error) {
-      debugError('Error:', error);
-      this.showMessage(translate('error_adding_group'));
+      debugError('Error adding group:', error);
+      this.app.showMessage(apiErrorMessage(error, 'error_adding_group'), 'error');
+      return;
     }
+    this.app.showMessage(result.queued ? 'offline.savedLocally' : 'group_added_successfully', result.queued ? 'info' : 'success');
+    await this.reloadAfterWrite();
   }
 
   async handleRemoveGroup(e) {
@@ -157,40 +203,49 @@ export class ManageGroups {
       ? ` ${translate('group_has_members_warning').replace('{{count}}', formattedCount)}`
       : '';
 
-    if (await confirmDestructive(`${translate('confirm_delete_group')}${warning}`)) {
-      try {
-        const result = await removeGroup(groupId);
-        if (result.success) {
-          // Clear all group-related caches
-          await clearGroupRelatedCaches();
-          await this.fetchGroups();
-          this.render();
-          this.attachEventListeners();
-          this.showMessage(translate('group_removed_successfully'));
-        } else {
-          this.showMessage(translate('error_removing_group'));
-        }
-      } catch (error) {
-        debugError('Error:', error);
-        this.showMessage(translate('error_removing_group'));
-      }
+    if (!await confirmDestructive(`${translate('confirm_delete_group')}${warning}`)) {
+      return;
     }
+    let result;
+    try {
+      result = await removeGroup(groupId);
+      if (!result?.success && !result?.queued) {
+        throw Object.assign(new Error('group_not_removed'), { status: result?.status });
+      }
+    } catch (error) {
+      debugError('Error removing group:', error);
+      this.app.showMessage(apiErrorMessage(error, 'error_removing_group'), 'error');
+      return;
+    }
+    this.app.showMessage(result.queued ? 'offline.savedLocally' : 'group_removed_successfully', result.queued ? 'info' : 'success');
+    await this.reloadAfterWrite();
   }
 
-  showMessage(message) {
-    const messageElement = document.getElementById('message');
-    messageElement.textContent = message;
-    messageElement.style.display = 'block';
-    setTimeout(() => {
-      messageElement.style.display = 'none';
-    }, 3000);
+  /**
+   * Redraw the list after a write. The write stands even if the reload fails:
+   * the page then shows the error state with its retry, not "not saved".
+   *
+   * @returns {Promise<void>}
+   */
+  async reloadAfterWrite() {
+    try {
+      await this.fetchGroups();
+    } catch (error) {
+      debugError('Error reloading groups:', error);
+      this.renderError();
+      return;
+    }
+    this.render();
+    this.attachEventListeners();
   }
 
   renderError() {
-    const errorMessage = `
-            <h1>${translate('error')}</h1>
-            <p>${translate('error_loading_manage_groups')}</p>
-        `;
-    setContent(document.getElementById('app'), errorMessage);
+    if (this.destroyed) {
+      return;
+    }
+    showPageError(document.getElementById('app'), {
+      ...this.pageOptions(),
+      message: translate('error_loading_manage_groups'),
+    }, () => this.init());
   }
 }

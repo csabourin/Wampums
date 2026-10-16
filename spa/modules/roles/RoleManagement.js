@@ -26,6 +26,8 @@ import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { API } from '../../api/api-core.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 export class RoleManagement {
   constructor(appInstance) {
     this.app = appInstance;
@@ -49,6 +51,10 @@ export class RoleManagement {
       return;
     }
 
+    showPageLoading(document.getElementById('app'), {
+      title: translate('role_management'),
+      className: 'role-management-container',
+    });
     try {
       // Fetch roles first
       await this.fetchRoles();
@@ -58,7 +64,9 @@ export class RoleManagement {
         await this.fetchUsers();
       }
 
-      this.render();
+      if (!this.destroyed) {
+        this.render();
+      }
     } catch (error) {
       debugError('Error initializing role management:', error);
       this.renderError(apiErrorMessage(error, 'error_loading_data'));
@@ -111,33 +119,38 @@ export class RoleManagement {
   renderAccessDenied() {
     const appContainer = document.getElementById('app');
     setContent(appContainer, `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <div class="role-management-container">
-        <h1>${translate('access_denied') || 'Access Denied'}</h1>
-        <p>${translate('no_permission_role_management') || 'You do not have permission to manage roles.'}</p>
+        <h1>${translate('access_denied')}</h1>
+        <p>${translate('no_permission_role_management')}</p>
       </div>
     `);
   }
 
   renderError(message) {
-    const appContainer = document.getElementById('app');
-    setContent(appContainer, `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
-      <div class="role-management-container">
-        <h1>${translate('error') || 'Error'}</h1>
-        <p class="error-message">${message}</p>
-      </div>
-    `);
+    if (this.destroyed) {
+      return;
+    }
+    showPageError(document.getElementById('app'), {
+      title: translate('role_management'),
+      className: 'role-management-container',
+      message,
+    }, () => this.init());
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
   }
 
   render() {
     const canAssignRoles = hasPermission('users.assign_roles');
 
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <div class="role-management-container">
         <div class="page-header">
-          <h1>${translate('role_management') || 'Role & Permission Management'}</h1>
+          <h1>${translate('role_management')}</h1>
         </div>
 
         <!-- Tab Navigation -->
@@ -146,14 +159,14 @@ export class RoleManagement {
             class="tab-button ${this.activeTab === 'roles' ? 'active' : ''}"
             data-tab="roles"
           >
-            ${translate('roles_and_permissions') || 'Roles & Permissions'}
+            ${translate('roles_and_permissions')}
           </button>
           <button
             class="tab-button ${this.activeTab === 'users' ? 'active' : ''}"
             data-tab="users"
             ${!canAssignRoles ? 'disabled' : ''}
           >
-            ${translate('assign_roles_to_users') || 'Assign Roles to Users'}
+            ${translate('assign_roles_to_users')}
           </button>
         </div>
 
@@ -174,7 +187,7 @@ export class RoleManagement {
     return `
       <div class="roles-tab">
         <div class="tab-description">
-          <p>${translate('roles_tab_description') || 'View all available roles and their associated permissions. Each role grants specific access rights within the organization.'}</p>
+          <p>${translate('roles_tab_description')}</p>
         </div>
 
         <div class="roles-grid">
@@ -195,7 +208,7 @@ export class RoleManagement {
           </div>
           <button class="toggle-permissions-btn" data-role-id="${role.id}">
             <span class="icon">${isExpanded ? '▼' : '▶'}</span>
-            ${translate('view_permissions') || 'View Permissions'}
+            ${translate('view_permissions')}
           </button>
         </div>
 
@@ -213,7 +226,7 @@ export class RoleManagement {
       return `
         <div class="users-tab">
           <div class="access-denied-message">
-            <p>${translate('no_permission_assign_roles') || 'You do not have permission to assign roles to users.'}</p>
+            <p>${translate('no_permission_assign_roles')}</p>
           </div>
         </div>
       `;
@@ -222,19 +235,19 @@ export class RoleManagement {
     return `
       <div class="users-tab">
         <div class="tab-description">
-          <p>${translate('users_tab_description') || 'Assign one or more roles to users in your organization. Users inherit all permissions from their assigned roles.'}</p>
+          <p>${translate('users_tab_description')}</p>
         </div>
 
         <div class="users-layout">
           <!-- User List -->
           <div class="user-list-panel">
             <div class="panel-header">
-              <h2>${translate('users') || 'Users'}</h2>
+              <h2>${translate('users')}</h2>
               <div class="user-search">
                 <input
                   type="text"
                   id="user-search-input"
-                  placeholder="${translate('search_users') || 'Search users...'}"
+                  placeholder="${translate('search_users')}"
                 />
               </div>
             </div>
@@ -256,7 +269,7 @@ export class RoleManagement {
 
   renderUserList() {
     if (this.users.length === 0) {
-      return `<p class="empty-state">${translate('no_users_found') || 'No users found'}</p>`;
+      return `<p class="empty-state">${translate('no_users_found')}</p>`;
     }
 
     return this.users.map(user => {
@@ -274,8 +287,8 @@ export class RoleManagement {
             ${roleNames ? `<div class="user-roles-summary">${this.escapeHtml(roleNames)}</div>` : ''}
           </div>
           <div class="user-action">
-            <button class="btn-small btn-manage-roles" data-user-id="${user.id}"${isSelected ? ' aria-current="true"' : ''}>
-              ${translate('manage_roles') || 'Manage'}
+            <button class="button button--small btn-manage-roles" data-user-id="${user.id}"${isSelected ? ' aria-current="true"' : ''}>
+              ${translate('manage_roles')}
             </button>
           </div>
         </div>
@@ -287,7 +300,7 @@ export class RoleManagement {
     return `
       <div class="placeholder-state">
         <div class="placeholder-icon">👤</div>
-        <p>${translate('select_user_to_manage_roles') || 'Select a user from the list to manage their roles'}</p>
+        <p>${translate('select_user_to_manage_roles')}</p>
       </div>
     `;
   }
@@ -302,7 +315,7 @@ export class RoleManagement {
     return `
       <div class="user-assignment">
         <div class="assignment-header">
-          <h2 id="user-assignment-heading" tabindex="-1">${translate('manage_roles_for') || 'Manage Roles for'}:</h2>
+          <h2 id="user-assignment-heading" tabindex="-1">${translate('manage_roles_for')}:</h2>
           <div class="user-details">
             <div class="user-name-large">${this.escapeHtml(user.full_name || user.email)}</div>
             <div class="user-email-small">${this.escapeHtml(user.email)}</div>
@@ -313,7 +326,7 @@ export class RoleManagement {
           <input type="hidden" id="selected-user-id" value="${userId}" />
 
           <div class="current-roles-section">
-            <h3>${translate('current_roles') || 'Current Roles'}</h3>
+            <h3>${translate('current_roles')}</h3>
             <div class="role-badges">
               ${userRoles.length > 0
     ? userRoles.map(role => `
@@ -321,14 +334,14 @@ export class RoleManagement {
                       ${this.escapeHtml(roleLabel(role))}
                     </span>
                   `).join('')
-    : `<span class="empty-badge">${translate('no_roles_assigned') || 'No roles assigned'}</span>`
+    : `<span class="empty-badge">${translate('no_roles_assigned')}</span>`
 }
             </div>
           </div>
 
           <div class="available-roles-section">
-            <h3>${translate('available_roles') || 'Available Roles'}</h3>
-            <p class="help-text">${translate('select_roles_help') || 'Select one or more roles to assign to this user. Users will have all permissions from their assigned roles.'}</p>
+            <h3>${translate('available_roles')}</h3>
+            <p class="help-text">${translate('select_roles_help')}</p>
 
             <div class="role-checkboxes">
               ${this.roles.map(role => {
@@ -362,11 +375,11 @@ export class RoleManagement {
           </div>
 
           <div class="form-actions">
-            <button type="submit" class="btn-primary">
-              ${translate('save_roles') || 'Save Roles'}
+            <button type="submit" class="button button--primary">
+              ${translate('save_roles')}
             </button>
-            <button type="button" class="btn-secondary" id="cancel-assignment">
-              ${translate('cancel') || 'Cancel'}
+            <button type="button" class="button button--secondary" id="cancel-assignment">
+              ${translate('cancel')}
             </button>
           </div>
 
@@ -395,7 +408,7 @@ export class RoleManagement {
       <section class="membership-section" aria-labelledby="membership-heading">
         <h3 id="membership-heading">${translate('member_access_title')}</h3>
         <p>${translate(inactive ? 'member_access_inactive' : 'member_access_active')}</p>
-        <button type="button" id="membership-toggle" class="${inactive ? 'btn-secondary' : 'btn-danger'}">
+        <button type="button" id="membership-toggle" class="${inactive ? 'button--secondary' : 'button--danger'}">
           ${translate(inactive ? 'member_access_reactivate' : 'member_access_deactivate')}
         </button>
         <div id="membership-message" class="status-message" role="status" aria-live="polite"></div>
@@ -598,7 +611,7 @@ export class RoleManagement {
 
   renderPermissionsList(permissions) {
     if (permissions.length === 0) {
-      return `<p class="no-permissions">${translate('no_permissions') || 'No permissions assigned to this role'}</p>`;
+      return `<p class="no-permissions">${translate('no_permissions')}</p>`;
     }
 
     // Group permissions by category
@@ -669,13 +682,13 @@ export class RoleManagement {
       const roleIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
 
       if (roleIds.length === 0) {
-        this.showAssignmentMessage(translate('select_at_least_one_role') || 'Please select at least one role', 'error');
+        this.showAssignmentMessage(translate('select_at_least_one_role'), 'error');
         return;
       }
 
       try {
         await this.updateUserRoles(userId, roleIds);
-        this.showAssignmentMessage(translate('roles_updated_successfully') || 'Roles updated successfully!', 'success');
+        this.showAssignmentMessage(translate('roles_updated_successfully'), 'success');
 
         // Refresh user list
         await this.fetchUsers();

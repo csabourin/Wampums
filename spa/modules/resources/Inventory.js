@@ -19,6 +19,8 @@ import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 
 // Maximum photo file size (original, before client-side optimization)
 const MAX_PHOTO_SIZE = CONFIG.PHOTO_UPLOAD.MAX_ORIGINAL_SIZE_BYTES;
@@ -111,6 +113,7 @@ function isHeicPhotoFile(file) {
 export class Inventory {
   constructor(app) {
     this.app = app;
+    this.destroyed = false;
     this.equipment = [];
     this.viewMode = 'gallery'; // 'gallery' or 'table'
     this.editingEquipment = null;
@@ -131,15 +134,56 @@ export class Inventory {
       return;
     }
 
+    showPageLoading(document.getElementById('app'), this.pageOptions());
     try {
       await this.refreshData();
-      this.render();
-      this.attachEventHandlers();
     } catch (error) {
+      // A list that did not load is never shown as an empty one.
       debugError('Error initializing inventory:', error);
-      this.app.showMessage(translate('resource_dashboard_error_loading'), 'error');
+      if (!this.destroyed) {
+        showPageError(document.getElementById('app'), this.pageOptions(), () => this.init());
+      }
+      return;
     }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventHandlers();
   }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
+  }
+
+  /** @returns {Object} Shared page-state options */
+  pageOptions() {
+    return { title: translate('inventory_title'), className: 'inventory-page' };
+  }
+
+  /**
+   * Reload after a write the server accepted. The write stands even if the
+   * reload fails: the page keeps what it showed and says it could not refresh.
+   *
+   * @returns {Promise<void>}
+   */
+  async reload() {
+    try {
+      await this.refreshData();
+    } catch (error) {
+      debugError('Error refreshing inventory:', error);
+      if (!this.destroyed) {
+        this.app.showMessage(translate('error_loading_data'), 'error');
+      }
+    }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventHandlers();
+  }
+
 
   async refreshData() {
     // Force refresh to bypass cache - ensures we get the latest data including updated photos
@@ -197,7 +241,7 @@ export class Inventory {
     }
 
     setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
       <section class="page inventory-page">
         <div class="card">
           <h1>${escapeHTML(translate('inventory_title'))}</h1>
@@ -302,7 +346,7 @@ export class Inventory {
             </div>
 
             <div class="form-actions">
-              <button type="submit" class="btn primary">${escapeHTML(translate('save_equipment'))}</button>
+              <button type="submit" class="button button--primary">${escapeHTML(translate('save_equipment'))}</button>
             </div>
           </form>
         </div>
@@ -610,7 +654,7 @@ export class Inventory {
           gap: 0.5rem;
         }
 
-        :is(.inventory-page, .inventory-dialog) .equipment-card-actions .btn {
+        :is(.inventory-page, .inventory-dialog) .equipment-card-actions .button {
           flex: 1;
           padding: 0.5rem;
           font-size: 0.85rem;
@@ -691,16 +735,6 @@ export class Inventory {
           border-radius: 10px;
         }
 
-        .btn.danger {
-          background: #dc3545;
-          color: white;
-          border: none;
-        }
-
-        .btn.danger:hover {
-          background: #c82333;
-        }
-
         /* Mobile adjustments */
         @media (max-width: 640px) {
           :is(.inventory-page, .inventory-dialog) .equipment-gallery {
@@ -767,8 +801,8 @@ export class Inventory {
               </div>
             </div>
             <div class="equipment-card-actions">
-              <button type="button" class="btn secondary edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
-              <button type="button" class="btn danger delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate('delete'))}</button>
+              <button type="button" class="button button--secondary edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
+              <button type="button" class="button button--danger delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate('delete'))}</button>
             </div>
           </div>
         `).join('')}
@@ -830,8 +864,8 @@ export class Inventory {
                 <td>${escapeHTML(this.formatCurrency(item.item_value))}</td>
                 <td>
                   <div class="table-actions">
-                    <button type="button" class="btn secondary small edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
-                    <button type="button" class="btn danger small delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate('delete'))}</button>
+                    <button type="button" class="button button--secondary button--small edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
+                    <button type="button" class="button button--danger button--small delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate('delete'))}</button>
                   </div>
                 </td>
               </tr>
@@ -1274,7 +1308,7 @@ export class Inventory {
         this.showPreviewUnavailableState(photoPreviewImg, photoPlaceholder);
         removePhotoBtn.classList.remove('hidden');
         if (normalization?.error || optimized?.error) {
-          this.app.showMessage(translate('equipment_photo_preview_unavailable'), 'warning');
+          this.app.showMessage(translate('equipment_photo_preview_unavailable'), 'info');
         }
       }
 
@@ -1676,8 +1710,8 @@ export class Inventory {
       className: 'inventory-dialog',
       body: this.renderEditEquipmentForm(),
       footer: `
-        <button type="button" class="btn secondary" data-modal-close>${escapeHTML(translate('cancel'))}</button>
-        <button type="submit" class="btn primary" form="editEquipmentForm">${escapeHTML(translate('save_changes'))}</button>
+        <button type="button" class="button button--secondary" data-modal-close>${escapeHTML(translate('cancel'))}</button>
+        <button type="submit" class="button button--primary" form="editEquipmentForm">${escapeHTML(translate('save_changes'))}</button>
       `,
       onClose: () => {
         this.editingEquipment = null;
@@ -1788,7 +1822,7 @@ export class Inventory {
           await uploadEquipmentPhoto(savedEquipment.id, this.selectedPhotoFile);
         } catch (photoError) {
           debugError('Error uploading photo:', photoError);
-          this.app.showMessage(translate('equipment_photo_upload_error'), 'warning');
+          this.app.showMessage(translate('equipment_photo_upload_error'), 'info');
         }
       }
 
@@ -1799,9 +1833,7 @@ export class Inventory {
       // Invalidate cache to ensure fresh data
       await deleteCachedData('v1/resources/equipment');
 
-      await this.refreshData();
-      this.render();
-      this.attachEventHandlers();
+      await this.reload();
     } catch (error) {
       debugError('Error saving equipment', error);
       this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
@@ -1853,7 +1885,7 @@ export class Inventory {
           await uploadEquipmentPhoto(equipmentId, this.modalSelectedPhotoFile);
         } catch (photoError) {
           debugError('Error uploading photo:', photoError);
-          this.app.showMessage(translate('equipment_photo_upload_error'), 'warning');
+          this.app.showMessage(translate('equipment_photo_upload_error'), 'info');
         }
       }
 
@@ -1863,9 +1895,7 @@ export class Inventory {
       // Invalidate cache to ensure fresh data
       await deleteCachedData('v1/resources/equipment');
 
-      await this.refreshData();
-      this.render();
-      this.attachEventHandlers();
+      await this.reload();
     } catch (error) {
       debugError('Error updating equipment', error);
       this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
@@ -1883,9 +1913,7 @@ export class Inventory {
       // Invalidate cache to ensure fresh data
       await deleteCachedData('v1/resources/equipment');
 
-      await this.refreshData();
-      this.render();
-      this.attachEventHandlers();
+      await this.reload();
     } catch (error) {
       debugError('Error deleting equipment', error);
       this.app.showMessage(apiErrorMessage(error, 'error_occurred'), 'error');

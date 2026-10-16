@@ -26,6 +26,9 @@ import {
 import { canApproveFinance, canManageFinance } from '../../utils/PermissionUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageError } from '../../utils/PageStateUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 
 const DEFAULT_CURRENCY = CONFIG.DEFAULT_CURRENCY;
 
@@ -50,6 +53,8 @@ export class ExternalRevenue {
     // Loading state management
     this.loadingManager = new LoadingStateManager();
     this.isInitializing = false;
+    this.loadFailed = false;
+    this.destroyed = false;
 
     // Debounced filter application
     this.debouncedApplyFilters = debounce(this.applyFilters.bind(this), 300);
@@ -98,20 +103,24 @@ export class ExternalRevenue {
       // Render loading state immediately
       this.renderLoading();
 
-      // Load data - each function handles its own errors
-      await this.loadCategories();
-      await this.loadRevenues();
-      await this.loadSummary();
-
-      // Render with data
+      const loaded = await this.runLoads(
+        () => this.loadCategories(),
+        () => this.loadRevenues(),
+        () => this.loadSummary(),
+      );
+      if (this.destroyed) {
+        return;
+      }
+      // A failed load is never shown as an empty list of revenues.
+      if (!loaded) {
+        this.renderError();
+        return;
+      }
       this.render();
       this.attachEventListeners();
     } catch (error) {
       debugError('Unable to initialize external revenue page', error);
-      // Render error state but allow partial functionality
-      this.render();
-      this.attachEventListeners();
-      this.app.showMessage(translate('error_loading_data'), 'error');
+      this.renderError();
     } finally {
       this.isInitializing = false;
     }
@@ -127,7 +136,7 @@ export class ExternalRevenue {
         debugLog(`Loaded ${this.categories.length} categories`);
       } catch (error) {
         debugError('Error loading categories', error);
-        this.categories = [];
+        this.loadFailed = true;
       }
     });
   }
@@ -144,8 +153,7 @@ export class ExternalRevenue {
         debugLog(`Loaded ${this.revenues.length} external revenue entries`);
       } catch (error) {
         debugError('Error loading external revenues', error);
-        this.revenues = [];
-        // Don't throw - allow page to render with empty data
+        this.loadFailed = true;
       }
     });
   }
@@ -162,7 +170,7 @@ export class ExternalRevenue {
       debugLog('Loaded external revenue summary', this.summary);
     } catch (error) {
       debugError('Error loading summary', error);
-      this.summary = null;
+      this.loadFailed = true;
     }
   }
 
@@ -171,12 +179,10 @@ export class ExternalRevenue {
    * @param {boolean} forceRefresh - When true, bypass cached data.
    */
   async reloadRevenuesAndSummary(forceRefresh = false) {
-    await Promise.all([
-      this.loadRevenues(forceRefresh),
-      this.loadSummary(forceRefresh),
-    ]);
-    this.render();
-    this.attachEventListeners();
+    this.showRefreshed(await this.runLoads(
+      () => this.loadRevenues(forceRefresh),
+      () => this.loadSummary(forceRefresh),
+    ));
   }
 
   getCategoryName(categoryId) {
@@ -215,6 +221,53 @@ export class ExternalRevenue {
     await this.reloadRevenuesAndSummary(true);
   }
 
+  /**
+   * Run loaders together; each records its own failure in `loadFailed` and
+   * keeps what it had, so a failed refresh never blanks the page.
+   *
+   * @param {...Function} loads - Loader calls
+   * @returns {Promise<boolean>} Whether every one succeeded
+   */
+  async runLoads(...loads) {
+    this.loadFailed = false;
+    await Promise.all(loads.map((load) => load()));
+    return !this.loadFailed;
+  }
+
+  /**
+   * After a filter change or a write the server accepted: say so when fresh
+   * data did not arrive, then draw what there is.
+   *
+   * @param {boolean} loaded - What runLoads answered
+   * @returns {void}
+   */
+  showRefreshed(loaded) {
+    if (this.destroyed) {
+      return;
+    }
+    if (!loaded) {
+      this.app.showMessage(translate('error_loading_data'), 'error');
+    }
+    this.render();
+    this.attachEventListeners();
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
+  }
+
+  /** The error state, with a retry. */
+  renderError() {
+    if (this.destroyed) {
+      return;
+    }
+    showPageError(document.getElementById('app'), {
+      title: translate('external_revenue'),
+      className: 'external-revenue-page',
+    }, () => this.init());
+  }
+
   formatCurrency(amount) {
     const value = Number(amount) || 0;
     return new Intl.NumberFormat(this.app.lang || 'en', {
@@ -241,7 +294,7 @@ export class ExternalRevenue {
     setContent(container, `
       <div class="page-container external-revenue-page">
         <div class="page-header">
-          <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+          ${renderBackLink()}
           <div class="page-header-content">
             <h1>${translate('external_revenue')}</h1>
             <div class="fiscal-year-display">
@@ -249,9 +302,9 @@ export class ExternalRevenue {
             </div>
           </div>
         </div>
-        <div class="loading-container">
-          <div class="loading-spinner"></div>
-          <p>${translate('loading')}...</p>
+        <div class="loading-container" aria-busy="true">
+          <div class="loading-spinner" aria-hidden="true"></div>
+          <p role="status">${translate('loading')}</p>
         </div>
       </div>
     `);
@@ -264,7 +317,7 @@ export class ExternalRevenue {
     setContent(container, `
       <div class="page-container external-revenue-page">
         <div class="page-header">
-          <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+          ${renderBackLink()}
           <div class="page-header-content">
             <h1>${translate('external_revenue')}</h1>
             <div class="fiscal-year-display">
@@ -344,10 +397,10 @@ export class ExternalRevenue {
           </div>
 
           <div class="filter-actions">
-            <button class="btn btn-primary" id="apply-filters-btn">
+            <button class="button button--primary" id="apply-filters-btn">
               ${translate('apply_filters')}
             </button>
-            <button class="btn btn-secondary" id="reset-filters-btn">
+            <button class="button button--secondary" id="reset-filters-btn">
               ${translate('reset')}
             </button>
           </div>
@@ -365,10 +418,10 @@ export class ExternalRevenue {
 
     return `
       <div class="action-buttons">
-        <button class="btn btn-primary" id="add-revenue-btn">
+        <button class="button button--primary" id="add-revenue-btn">
           ${translate('add_external_revenue')}
         </button>
-        <button class="btn btn-secondary" id="export-revenue-btn">
+        <button class="button button--secondary" id="export-revenue-btn">
           ${translate('export_csv')}
         </button>
       </div>
@@ -418,7 +471,7 @@ export class ExternalRevenue {
           ${
   canEdit
     ? `
-            <button class="btn btn-sm btn-secondary edit-revenue-btn" data-id="${revenue.id}">
+            <button class="button button--small button--secondary edit-revenue-btn" data-id="${revenue.id}">
               ${translate('edit')}
             </button>
           `
@@ -427,7 +480,7 @@ export class ExternalRevenue {
           ${
   canDelete
     ? `
-            <button class="btn btn-sm btn-danger delete-revenue-btn" data-id="${revenue.id}">
+            <button class="button button--small button--danger delete-revenue-btn" data-id="${revenue.id}">
               ${translate('delete')}
             </button>
           `
@@ -587,10 +640,10 @@ export class ExternalRevenue {
         </form>
       `,
       footer: `
-        <button type="button" class="btn btn-secondary" data-modal-close>
+        <button type="button" class="button button--secondary" data-modal-close>
           ${translate('cancel')}
         </button>
-        <button type="submit" form="revenue-form" class="btn btn-primary">
+        <button type="submit" form="revenue-form" class="button button--primary">
           ${isEdit ? translate('update') : translate('create')}
         </button>
       `,
@@ -618,78 +671,75 @@ export class ExternalRevenue {
     const receiptUrl = document.getElementById('revenue-receipt-url').value;
     const notes = document.getElementById('revenue-notes').value;
 
-    const previousRevenues = [...this.revenues];
-    try {
-      const payload = {
-        revenue_type: revenueType,
-        revenue_date: revenueDate,
-        description,
-        amount,
-        budget_category_id: categoryId,
-        reference_number: referenceNumber,
-        payment_method: paymentMethod,
-        receipt_url: receiptUrl,
-        notes,
-      };
+    const payload = {
+      revenue_type: revenueType,
+      revenue_date: revenueDate,
+      description,
+      amount,
+      budget_category_id: categoryId,
+      reference_number: referenceNumber,
+      payment_method: paymentMethod,
+      receipt_url: receiptUrl,
+      notes,
+    };
 
-      const response = revenueId
+    let response;
+    try {
+      response = revenueId
         ? await updateExternalRevenue(revenueId, payload)
         : await createExternalRevenue(payload);
-      const successKey = revenueId
-        ? 'external_revenue_updated'
-        : 'external_revenue_created';
-
-      const normalizedRevenue = this.buildRevenueWithCategory({
-        ...payload,
-        ...response?.data,
-      });
-
-      if (normalizedRevenue) {
-        if (revenueId) {
-          this.revenues = this.revenues.map((revenue) =>
-            revenue.id === revenueId ? { ...revenue, ...normalizedRevenue } : revenue,
-          );
-        } else {
-          this.revenues = [normalizedRevenue, ...this.revenues];
-        }
-      } else {
-        debugWarn('No revenue data returned from API; falling back to refetch');
-      }
-
-      closeModal('revenue-modal');
-      this.render();
-      this.attachEventListeners();
-      this.app.showMessage(translate(successKey), 'success');
-      await this.clearRevenueCachesAndRefresh();
     } catch (error) {
-      this.revenues = previousRevenues;
       debugError('Error saving external revenue', error);
-      this.app.showMessage(translate('error_saving_external_revenue'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_saving_external_revenue'), 'error');
+      return;
     }
+
+    // The server has the revenue from here on: nothing below undoes it.
+    const successKey = revenueId
+      ? 'external_revenue_updated'
+      : 'external_revenue_created';
+    const normalizedRevenue = this.buildRevenueWithCategory({
+      ...payload,
+      ...response?.data,
+    });
+
+    if (normalizedRevenue) {
+      if (revenueId) {
+        this.revenues = this.revenues.map((revenue) =>
+          revenue.id === revenueId ? { ...revenue, ...normalizedRevenue } : revenue,
+        );
+      } else {
+        this.revenues = [normalizedRevenue, ...this.revenues];
+      }
+    } else {
+      debugWarn('No revenue data returned from API; falling back to refetch');
+    }
+
+    closeModal('revenue-modal');
+    this.render();
+    this.attachEventListeners();
+    this.app.showMessage(translate(successKey), 'success');
+    await this.clearRevenueCachesAndRefresh();
   }
 
   async deleteRevenue(revenueId) {
-    const previousRevenues = [...this.revenues];
     try {
       await deleteExternalRevenue(revenueId);
-      this.revenues = this.revenues.filter((revenue) => revenue.id !== revenueId);
-      this.render();
-      this.attachEventListeners();
-      this.app.showMessage(translate('external_revenue_deleted'), 'success');
-      await this.clearRevenueCachesAndRefresh();
     } catch (error) {
-      this.revenues = previousRevenues;
       debugError('Error deleting external revenue', error);
-      this.app.showMessage(
-        translate('error_deleting_external_revenue'),
-        'error',
-      );
+      this.app.showMessage(apiErrorMessage(error, 'error_deleting_external_revenue'), 'error');
+      return;
     }
+    this.revenues = this.revenues.filter((revenue) => revenue.id !== revenueId);
+    this.render();
+    this.attachEventListeners();
+    this.app.showMessage(translate('external_revenue_deleted'), 'success');
+    await this.clearRevenueCachesAndRefresh();
   }
 
   exportToCSV() {
     if (this.revenues.length === 0) {
-      this.app.showMessage(translate('no_data_to_export'), 'warning');
+      this.app.showMessage(translate('no_data_to_export'), 'info');
       return;
     }
 

@@ -13,6 +13,9 @@ import { LoadingStateManager, retryWithBackoff } from '../../utils/PerformanceUt
 import { setContent } from '../../utils/DOMUtils.js';
 import { getCurrentFiscalYear, getFiscalYearOptions } from '../../utils/FiscalYearUtils.js';
 import { CONFIG } from '../../config.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageError } from '../../utils/PageStateUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 
 const DEFAULT_CURRENCY = CONFIG.DEFAULT_CURRENCY;
 
@@ -35,6 +38,8 @@ export class RevenueDashboard {
     // Loading state management
     this.loadingManager = new LoadingStateManager();
     this.isInitializing = false;
+    this.loadFailed = false;
+    this.destroyed = false;
   }
 
   /**
@@ -70,18 +75,20 @@ export class RevenueDashboard {
       await this.app.waitForOrganizationSettings();
       this.initializeFiscalYear();
 
-      await this.loadCategories();
-      await this.loadAllData();
-
-      // Render with data
+      const loaded = await this.runLoads(() => this.loadCategories(), () => this.loadAllData());
+      if (this.destroyed) {
+        return;
+      }
+      // A failed load is never shown as zero revenue.
+      if (!loaded) {
+        this.renderError();
+        return;
+      }
       this.render();
       this.attachEventListeners();
     } catch (error) {
       debugError('Error loading revenue data:', error);
-      // Render error state but allow partial functionality
-      this.render();
-      this.attachEventListeners();
-      this.app.showMessage(translate('error_loading_data'), 'warning');
+      this.renderError();
     } finally {
       this.isInitializing = false;
     }
@@ -98,7 +105,7 @@ export class RevenueDashboard {
         debugLog(`Loaded ${this.categories.length} categories`);
       } catch (error) {
         debugError('Error loading categories', error);
-        this.categories = [];
+        this.loadFailed = true;
       }
     });
   }
@@ -128,7 +135,7 @@ export class RevenueDashboard {
       debugLog('Loaded dashboard data', this.dashboardData);
     } catch (error) {
       debugError('Error loading dashboard data', error);
-      this.dashboardData = null;
+      this.loadFailed = true;
     }
   }
 
@@ -140,7 +147,7 @@ export class RevenueDashboard {
       debugLog('Loaded by source data', this.bySourceData);
     } catch (error) {
       debugError('Error loading by source data', error);
-      this.bySourceData = [];
+      this.loadFailed = true;
     }
   }
 
@@ -152,7 +159,7 @@ export class RevenueDashboard {
       debugLog('Loaded by category data', this.byCategoryData);
     } catch (error) {
       debugError('Error loading by category data', error);
-      this.byCategoryData = [];
+      this.loadFailed = true;
     }
   }
 
@@ -164,8 +171,55 @@ export class RevenueDashboard {
       debugLog('Loaded comparison data', this.comparisonData);
     } catch (error) {
       debugError('Error loading comparison data', error);
-      this.comparisonData = null;
+      this.loadFailed = true;
     }
+  }
+
+  /**
+   * Run loaders together; each records its own failure in `loadFailed` and
+   * keeps what it had, so a failed refresh never blanks the page.
+   *
+   * @param {...Function} loads - Loader calls
+   * @returns {Promise<boolean>} Whether every one succeeded
+   */
+  async runLoads(...loads) {
+    this.loadFailed = false;
+    await Promise.all(loads.map((load) => load()));
+    return !this.loadFailed;
+  }
+
+  /**
+   * After a filter change or a write the server accepted: say so when fresh
+   * data did not arrive, then draw what there is.
+   *
+   * @param {boolean} loaded - What runLoads answered
+   * @returns {void}
+   */
+  showRefreshed(loaded) {
+    if (this.destroyed) {
+      return;
+    }
+    if (!loaded) {
+      this.app.showMessage(translate('error_loading_data'), 'error');
+    }
+    this.render();
+    this.attachEventListeners();
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
+  }
+
+  /** The error state, with a retry. */
+  renderError() {
+    if (this.destroyed) {
+      return;
+    }
+    showPageError(document.getElementById('app'), {
+      title: translate('revenue_dashboard'),
+      className: 'revenue-dashboard-page',
+    }, () => this.init());
   }
 
   formatCurrency(amount) {
@@ -198,14 +252,14 @@ export class RevenueDashboard {
     setContent(container, `
       <div class="page-container revenue-dashboard-page">
         <div class="page-header">
-          <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+          ${renderBackLink()}
           <div class="page-header-content">
             <h1>${translate('revenue_dashboard')}</h1>
           </div>
         </div>
-        <div class="loading-container">
-          <div class="loading-spinner"></div>
-          <p>${translate('loading')}...</p>
+        <div class="loading-container" aria-busy="true">
+          <div class="loading-spinner" aria-hidden="true"></div>
+          <p role="status">${translate('loading')}</p>
         </div>
       </div>
     `);
@@ -218,7 +272,7 @@ export class RevenueDashboard {
     setContent(container, `
       <div class="page-container revenue-dashboard-page">
         <div class="page-header">
-          <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+          ${renderBackLink()}
           <div class="page-header-content">
             <h1>${translate('revenue_dashboard')}</h1>
             <div class="fiscal-year-selector">
@@ -283,7 +337,7 @@ export class RevenueDashboard {
 
         <div class="summary-card action-card">
           <div class="card-content">
-            <button class="btn btn-secondary" id="export-dashboard-btn">
+            <button class="button button--secondary" id="export-dashboard-btn">
               ${translate('export_csv')}
             </button>
           </div>
@@ -576,14 +630,28 @@ export class RevenueDashboard {
     const fySelect = document.getElementById('fiscal-year-select');
     if (fySelect) {
       fySelect.addEventListener('change', async (e) => {
+        const previousYear = this.selectedFiscalYear;
+        // The loaders store their answers one by one: a partial failure must
+        // not leave the new year's figures under the previous year's label.
+        const previousData = {
+          dashboardData: this.dashboardData,
+          bySourceData: this.bySourceData,
+          byCategoryData: this.byCategoryData,
+          comparisonData: this.comparisonData,
+        };
         try {
-          this.selectedFiscalYear = parseInt(e.target.value);
-          await this.loadAllData();
-          this.render();
-          this.attachEventListeners();
+          this.selectedFiscalYear = Number(e.target.value);
+          const loaded = await this.runLoads(() => this.loadAllData());
+          if (!loaded) {
+            // Keep showing the previous year, figures and selector alike.
+            Object.assign(this, previousData);
+            this.selectedFiscalYear = previousYear;
+            e.target.value = String(previousYear);
+          }
+          this.showRefreshed(loaded);
         } catch (error) {
           debugError('Error changing fiscal year:', error);
-          this.app.showMessage(translate('error_loading_data'), 'error');
+          this.app.showMessage(apiErrorMessage(error, 'error_loading_data'), 'error');
         }
       });
     }
@@ -606,7 +674,7 @@ export class RevenueDashboard {
 
   exportDashboard() {
     if (!this.dashboardData || !this.dashboardData.breakdown) {
-      this.app.showMessage(translate('no_data_to_export'), 'warning');
+      this.app.showMessage(translate('no_data_to_export'), 'info');
       return;
     }
 

@@ -11,6 +11,8 @@ import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { offlineManager } from '../OfflineManager.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 export class ManageHonors {
   constructor(app) {
     this.app = app;
@@ -25,18 +27,29 @@ export class ManageHonors {
     this.recentlyAwardedHonors = []; // Track recently awarded honors for undo window
     this.UNDO_WINDOW_MS = 10 * 60 * 1000; // 10 minutes undo window
     this.documentClickHandler = null; // Store reference to document click handler to prevent memory leaks
+    this.destroyed = false;
+  }
+
+  /** @returns {Object} Shared page-state options */
+  pageOptions() {
+    return { title: translate('manage_honors'), className: 'manage-honors-page' };
   }
 
   async init() {
+    showPageLoading(document.getElementById('app'), this.pageOptions());
     try {
       await this.fetchData();
-      this.processHonors();
-      this.render();
-      this.attachEventListeners();
     } catch (error) {
       debugError('Error initializing manage honors:', error);
       this.renderError();
+      return;
     }
+    if (this.destroyed) {
+      return;
+    }
+    this.processHonors();
+    this.render();
+    this.attachEventListeners();
   }
 
   async fetchData() {
@@ -196,7 +209,7 @@ export class ManageHonors {
     ).join('');
 
     const content = `
-        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+        ${renderBackLink()}
         <div class="page-header page-header--compact">
             <h1>${translate('manage_honors')}</h1>
         </div>
@@ -429,6 +442,7 @@ export class ManageHonors {
    * Called by the router before navigating away.
    */
   destroy() {
+    this.destroyed = true;
     if (this.documentClickHandler) {
       document.removeEventListener('click', this.documentClickHandler);
       this.documentClickHandler = null;
@@ -743,11 +757,13 @@ export class ManageHonors {
   }
 
   renderError() {
-    const errorMessage = `
-      <h1>${translate('error')}</h1>
-      <p>${translate('error_loading_honors')}</p>
-    `;
-    setContent(document.getElementById('app'), errorMessage);
+    if (this.destroyed) {
+      return;
+    }
+    showPageError(document.getElementById('app'), {
+      ...this.pageOptions(),
+      message: translate('error_loading_honors'),
+    }, () => this.init());
   }
 
   /**
