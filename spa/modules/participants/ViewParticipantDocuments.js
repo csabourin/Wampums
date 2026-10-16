@@ -11,6 +11,8 @@ import { BaseModule } from '../../utils/BaseModule.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
+
 export class ViewParticipantDocuments extends BaseModule {
   constructor(app) {
     super(app);
@@ -21,21 +23,32 @@ export class ViewParticipantDocuments extends BaseModule {
     this.activeModal = null;
   }
 
+  /** @returns {{title: string, className: string}} Shared page-state options */
+  pageOptions() {
+    return { title: translate('view_participant_documents'), className: 'participant-documents-page' };
+  }
+
   async init() {
     if (!canViewParticipants()) {
       this.app.router.navigate('/');
       return;
     }
 
+    showPageLoading(document.getElementById('app'), this.pageOptions());
     try {
-      await this.fetchOrganizationData(); // Use the renamed and updated function
+      this.formRenderers = {};
+      await this.fetchOrganizationData();
       await this.fetchData();
-      this.render();
-      this.attachEventListeners();
     } catch (error) {
       debugError('Error initializing view participant documents:', error);
       this.renderError(apiErrorMessage(error, 'error_loading_participant_documents'));
+      return;
     }
+    if (this.isDestroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventListeners();
   }
 
   async fetchOrganizationData() {
@@ -99,11 +112,13 @@ export class ViewParticipantDocuments extends BaseModule {
 
   render() {
     const content = `
-      ${renderBackLink()}
-      <h1>${translate('view_participant_documents')}</h1>
-      <div class="participant-documents">
-        ${this.renderParticipantList()}
-      </div>
+      <section class="page participant-documents-page">
+        ${renderBackLink()}
+        <h1>${translate('view_participant_documents')}</h1>
+        <div class="participant-documents">
+          ${this.participants.length ? this.renderParticipantList() : `<p class="no-data">${translate('no_participants_found')}</p>`}
+        </div>
+      </section>
     `;
     setContent(document.getElementById('app'), content);
   }
@@ -118,21 +133,26 @@ export class ViewParticipantDocuments extends BaseModule {
   }
 
   renderFormStatuses(participant) {
-    // Render dynamically based on available form structures
-    const formTypes = Object.keys(this.formRenderers); // Dynamically use the fetched form types
-    return formTypes.map(formType => `
+    const formTypes = Object.keys(this.formRenderers);
+    const name = `${participant.first_name || ''} ${participant.last_name || ''}`.trim();
+    return formTypes.map((formType) => {
+      const label = formTypeLabel(formType, this.formMeta[formType]?.display_name);
+      const filled = Boolean(participant[`has_${formType}`]);
+      // The mark is decoration; the state is said in words, never by the emoji or its colour alone.
+      return `
       <div class="form-status">
-        <span>${escapeHTML(formTypeLabel(formType, this.formMeta[formType]?.display_name))}: </span>
-        <span class="${participant[`has_${formType}`] ? 'filled' : 'missing'}">
-          ${participant[`has_${formType}`] ? '✅' : '❌'}
+        <span>${escapeHTML(label)}: </span>
+        <span class="${filled ? 'filled' : 'missing'}">
+          <span aria-hidden="true">${filled ? '✅' : '❌'}</span>
+          ${translate(filled ? 'participant_documents_submitted' : 'participant_documents_missing')}
         </span>
-        ${participant[`has_${formType}`] ? `
-          <button class="view-form" data-participant-id="${participant.id}" data-form-type="${formType}">
-            ${translate('view')}
+        ${filled ? `
+          <button type="button" class="button button--small button--secondary view-form" data-participant-id="${Number(participant.id)}" data-form-type="${escapeHTML(formType)}">
+            ${translate('view')}<span class="sr-only"> ${escapeHTML(label)} — ${escapeHTML(name)}</span>
           </button>
         ` : ''}
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
   }
 
   attachEventListeners() {
@@ -202,11 +222,12 @@ export class ViewParticipantDocuments extends BaseModule {
   }
 
   renderError(message) {
-    const errorMessage = `
-      ${renderBackLink()}
-      <h1>${translate('error')}</h1>
-      <p>${message || translate('error_loading_participant_documents')}</p>
-    `;
-    setContent(document.getElementById('app'), errorMessage);
+    if (this.isDestroyed) {
+      return;
+    }
+    showPageError(document.getElementById('app'), {
+      ...this.pageOptions(),
+      message: message || translate('error_loading_participant_documents'),
+    }, () => this.init());
   }
 }

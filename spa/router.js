@@ -894,7 +894,7 @@ export class Router {
             break;
           }
           const GuardianManagement = await this.loadModule('GuardianManagement');
-          await GuardianManagement(this.app);
+          this.currentModuleInstance = await GuardianManagement(this.app);
           break;
         case "viewParticipantDocuments":
           if (!guard(canViewParticipants())) {

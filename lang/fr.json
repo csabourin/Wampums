@@ -3965,5 +3965,9 @@
   "invite_another_parent_failed": "L’invitation n’a pas pu être envoyée. Réessayez.",
   "parent_error_leader_invitation_pending": "Cette adresse attend une invitation d’animateur. Une fois l’invitation acceptée, liez l’enfant à ce compte.",
   "invite_another_parent_added": "L’enfant a été ajouté à l’invitation qui attend déjà cette adresse. Le lien avec l’enfant se fera dès son acceptation.",
-  "complete_registration_done_pending_leader": "Votre retour dans l’unité attend l’approbation d’un administrateur. Une fois approuvé, ouvrez de nouveau ce lien d’invitation pour recevoir votre rôle."
+  "complete_registration_done_pending_leader": "Votre retour dans l’unité attend l’approbation d’un administrateur. Une fois approuvé, ouvrez de nouveau ce lien d’invitation pour recevoir votre rôle.",
+  "participant_documents_submitted": "Remis",
+  "participant_documents_missing": "Manquant",
+  "parent_contact_list_empty": "Aucun contact à afficher pour l’instant.",
+  "parent_contact_list_no_match": "Aucun contact ne correspond à votre recherche."
 }

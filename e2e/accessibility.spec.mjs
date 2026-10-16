@@ -27,6 +27,7 @@ const SCREENS = {
     '/incident-reports', '/scout-year', '/participant-duplicates', '/fundraisers', '/resources',
     '/external-revenue', '/revenue-dashboard', '/form-permissions', '/district',
     '/parent-contact-list', '/view-participant-documents', '/account-info',
+    '/time-since-registration', '/formulaire-inscription',
   ],
 };
 

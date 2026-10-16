@@ -10,6 +10,8 @@ import { setContent } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { getTodayISO, isoToDateString } from '../../utils/DateUtils.js';
 import { CONFIG } from '../../config.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 import {
   fetchParticipant,
   saveFormSubmission,
@@ -17,6 +19,9 @@ import {
   getGuardiansForParticipant,
   saveGuardian
 } from '../../ajax-functions.js';
+
+/** The participant fields a registration cannot be saved without. */
+const REQUIRED_PARTICIPANT_FIELDS = ['first_name', 'last_name', 'date_naissance'];
 
 /** The parent_guardian form's own columns; anything else is a unit's custom field. */
 const CORE_GUARDIAN_FIELDS = [
@@ -47,6 +52,22 @@ export class FormulaireInscription {
     this.formStructures = {};
     this.participantFormHandler = null;
     this.guardianFormHandlers = [];
+    this.destroyed = false;
+    this.redirectTimer = null;
+  }
+
+  /** Called by the router when the person leaves: nothing draws or redirects after that. */
+  destroy() {
+    this.destroyed = true;
+    clearTimeout(this.redirectTimer);
+  }
+
+  /** @returns {Object} Shared page-state options */
+  pageOptions() {
+    return {
+      title: translate(this.participantId ? 'edit_participant' : 'add_participant'),
+      className: 'inscription-page',
+    };
   }
 
   render() {
@@ -67,6 +88,7 @@ export class FormulaireInscription {
   async init(participantId = null) {
     debugLog('Initializing FormulaireInscription with ID:', participantId);
     this.participantId = participantId;
+    showPageLoading(document.getElementById('app'), this.pageOptions());
     try {
       // Check if participant ID exists and fetch participant data accordingly
       if (this.participantId) {
@@ -78,6 +100,9 @@ export class FormulaireInscription {
         this.formData = { guardians: [] }; // Initialize empty form data
       }
 
+      if (this.destroyed) {
+        return;
+      }
       // Create the form structure and initialize the form handlers
       this.createInitialStructure();
 
@@ -90,7 +115,12 @@ export class FormulaireInscription {
       this.attachEventListeners();
     } catch (error) {
       debugError('Error initializing form:', error);
-      this.showError(translate('error_loading_form'));
+      if (!this.destroyed) {
+        showPageError(document.getElementById('app'), {
+          ...this.pageOptions(),
+          message: translate('error_loading_form'),
+        }, () => this.init(participantId));
+      }
     }
   }
 
@@ -147,9 +177,10 @@ export class FormulaireInscription {
     const inscriptionDate = isoToDateString(this.formData.inscription_date) || getTodayISO();
 
     const content = `
-         <button type="button" id="go-to-dashboard">${translate('go_to_dashboard')}</button>
+        <section class="page inscription-page">
+          ${renderBackLink()}
           <h1>${this.participantId ? translate('edit_participant') : translate('add_participant')}</h1>
-          <form id="inscription-form">
+          <form id="inscription-form" novalidate>
             <fieldset id="participant-form"></fieldset>  <!-- Changed to a fieldset -->
 
             <div class="form-group">
@@ -159,12 +190,12 @@ export class FormulaireInscription {
             </div>
 
             <h2>${translate('informations_parents')}</h2>
-            <button type="button" id="add-guardian">${translate('add_parent_guardian')}</button>
+            <button type="button" class="button button--secondary" id="add-guardian">${translate('add_parent_guardian')}</button>
             <div id="guardians-container"></div>
-            <button type="submit" id="submit-form">${translate('save')}</button>
+            <p id="inscription-error" class="status-message error" role="alert"></p>
+            <button type="submit" class="button button--primary" id="submit-form">${translate('save')}</button>
           </form>
-          <div id="error-message" class="error hidden"></div>
-            <div id="success-message" class="success hidden"></div>
+        </section>
         `;
     setContent(document.getElementById('app'), content);
   }
@@ -248,18 +279,15 @@ export class FormulaireInscription {
     debugLog('Attaching event listeners');
     const form = document.getElementById('inscription-form');
     const addGuardianButton = document.getElementById('add-guardian');
-    const dashboardButton = document.getElementById('go-to-dashboard');
-
-    if (dashboardButton) {
-      dashboardButton.addEventListener('click', () => {
-        this.app.router.navigate('/parent-dashboard');
-      });
-    } else {
-      debugError('Go to dashboard button not found');
-    }
 
     if (form) {
       form.addEventListener('submit', (e) => this.handleSubmit(e));
+      // A field's error clears as soon as it changes.
+      form.addEventListener('input', (event) => {
+        if (event.target.getAttribute('aria-invalid') === 'true') {
+          event.target.setAttribute('aria-invalid', 'false');
+        }
+      });
     } else {
       debugError('Inscription form not found');
     }
@@ -304,7 +332,7 @@ export class FormulaireInscription {
         const response = await removeGuardian(this.participantId, guardian.guardian_id);
         this.showMessage(translate(response?.data?.access_remaining
           ? 'family_guardian_removed_access_remains' : 'family_guardian_removed'),
-        response?.data?.access_remaining ? 'warning' : 'success');
+        response?.data?.access_remaining ? 'info' : 'success');
       } catch (err) {
         debugError('Failed to unlink guardian:', err);
         this.showError(translate('error_saving_data'));
@@ -339,10 +367,9 @@ export class FormulaireInscription {
     };
 
     // Step 2: Validate participant core data before submission
-    if (!participantCoreData.first_name || !participantCoreData.last_name || !participantCoreData.date_naissance) {
+    if (!this.markMissingFields(participantCoreData)) {
       debugError('Missing required participant core fields.');
-      this.showError(translate('missing_required_fields'));
-      return; // Stop submission if core data is missing
+      return;
     }
 
     // Step 3: Get guardian data separately, ensuring each handler has the correct formIndex
@@ -364,7 +391,7 @@ export class FormulaireInscription {
       await this.saveParticipantAndGuardians(participantCoreData, formSubmissionData);
       this.showMessage(translate('form_saved_successfully'), 'success');
 
-      setTimeout(() => {
+      this.redirectTimer = setTimeout(() => {
         this.app.router.navigate('/parent-dashboard');
       }, CONFIG.UI.SUCCESS_REDIRECT_DELAY);
 
@@ -469,6 +496,35 @@ export class FormulaireInscription {
     }
   }
 
+
+  /**
+   * Mark each missing required field and say so under the form; focus the first.
+   *
+   * @param {Object} participantCoreData - The values about to be saved
+   * @returns {boolean} Whether every required field is filled
+   */
+  markMissingFields(participantCoreData) {
+    const error = document.getElementById('inscription-error');
+    const missing = REQUIRED_PARTICIPANT_FIELDS.filter((name) => !participantCoreData[name]);
+    REQUIRED_PARTICIPANT_FIELDS.forEach((name) => {
+      const field = document.querySelector(`#participant-form [name="${name}"]`);
+      if (!field) {
+        return;
+      }
+      const invalid = missing.includes(name);
+      field.setAttribute('aria-invalid', String(invalid));
+      if (invalid) {
+        field.setAttribute('aria-describedby', 'inscription-error');
+      }
+    });
+    if (error) {
+      error.textContent = missing.length ? translate('missing_required_fields') : '';
+    }
+    if (missing.length) {
+      document.querySelector(`#participant-form [name="${missing[0]}"]`)?.focus();
+    }
+    return missing.length === 0;
+  }
 
   showMessage(message, type = 'success') {
     app.showMessage(message, type);

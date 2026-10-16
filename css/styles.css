@@ -11987,3 +11987,11 @@ body.modal-open {
 .delivery-log__what {
   font-weight: var(--font-weight-semibold);
 }
+
+/* Time since registration: each row is headed by the youth's name, which reads
+   as a name, not as a column header. */
+.time-since-registration tbody th {
+  background: none;
+  text-align: start;
+  font-weight: var(--font-weight-semibold, 600);
+}
