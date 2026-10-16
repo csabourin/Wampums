@@ -258,6 +258,84 @@ describe('medication reception', () => {
     expect(api.saveMedicationReception).not.toHaveBeenCalled();
   });
 
+  test('only the children the chosen activity invites are listed', async () => {
+    loadAll();
+    const invited = { id: 6, first_name: 'Maxime', last_name: 'Tremblay' };
+    const notInvited = { id: 8, first_name: 'Vincent', last_name: 'Gagnon' };
+    api.getParticipants.mockResolvedValue({ success: true, data: [PARTICIPANT, invited, notInvited] });
+    api.getParticipantMedications.mockResolvedValue({
+      success: true,
+      data: {
+        participant_medications: [
+          ASSIGNMENT,
+          { id: 2, medication_requirement_id: 11, participant_id: 6 },
+          { id: 3, medication_requirement_id: 11, participant_id: 8 },
+        ],
+      },
+    });
+    api.getMedicationReceptions.mockResolvedValue({
+      success: true,
+      data: { receptions: [], invited_participant_ids: [6] },
+    });
+    const screen = new MedicationReception(makeApp(), { activityId: 3 });
+    await screen.init();
+
+    const listed = () => [...page().querySelectorAll('.participant-reception-card h3')].map((name) => name.textContent);
+    expect(listed()).toEqual(['Maxime Tremblay']);
+    expect(page().textContent).toContain('med_reception_participants_only_notice');
+    // Invitations and slips change elsewhere: the server is asked, the cache is only the offline copy.
+    expect(api.getMedicationReceptions).toHaveBeenCalledWith({ activity_id: 3 }, { forceRefresh: true });
+
+    // Showing everyone means every invited child, even without medication.
+    page().querySelector('#showAllParticipants').click();
+    expect(listed()).toEqual(['Maxime Tremblay']);
+    expect(await violations()).toEqual([]);
+    screen.destroy();
+  });
+
+  test('a child whose permission slip was declined is not listed', async () => {
+    loadAll();
+    const declined = { id: 6, first_name: 'Maxime', last_name: 'Tremblay' };
+    api.getParticipants.mockResolvedValue({ success: true, data: [PARTICIPANT, declined] });
+    api.getParticipantMedications.mockResolvedValue({
+      success: true,
+      data: { participant_medications: [ASSIGNMENT, { id: 2, medication_requirement_id: 11, participant_id: 6 }] },
+    });
+    api.getMedicationReceptions.mockResolvedValue({
+      success: true,
+      data: { receptions: [], invited_participant_ids: null, declined_participant_ids: [6] },
+    });
+    const screen = new MedicationReception(makeApp(), { activityId: 3 });
+    await screen.init();
+
+    const ids = () => [...page().querySelectorAll('.participant-reception-card')].map((card) => card.dataset.participantId);
+    expect(ids()).toEqual(['5']);
+    expect(page().textContent).toContain('med_reception_participants_only_notice');
+    page().querySelector('#showAllParticipants').click();
+    expect(ids()).toEqual(['5']);
+    screen.destroy();
+  });
+
+  test('an activity for the whole unit lists every child with medication', async () => {
+    loadAll();
+    const other = { id: 6, first_name: 'Maxime', last_name: 'Tremblay' };
+    api.getParticipants.mockResolvedValue({ success: true, data: [PARTICIPANT, other] });
+    api.getParticipantMedications.mockResolvedValue({
+      success: true,
+      data: { participant_medications: [ASSIGNMENT, { id: 2, medication_requirement_id: 11, participant_id: 6 }] },
+    });
+    api.getMedicationReceptions.mockResolvedValue({
+      success: true,
+      data: { receptions: [], invited_participant_ids: null },
+    });
+    const screen = new MedicationReception(makeApp(), { activityId: 3 });
+    await screen.init();
+
+    expect(page().querySelectorAll('.participant-reception-card')).toHaveLength(2);
+    expect(page().textContent).not.toContain('med_reception_participants_only_notice');
+    screen.destroy();
+  });
+
   test('marking everything received is not reported as done when a save failed', async () => {
     loadAll();
     const app = makeApp();

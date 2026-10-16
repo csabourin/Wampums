@@ -25,11 +25,16 @@ import {
 /**
  * Cache duration constants (in milliseconds)
  */
+const HOUR_MS = 3600000;
+const DAY_MS = 86400000;
+const CRITICAL_DAYS = 7;
+const CAMP_MODE_DAYS = 15; // covers max 14-day camp + 1 day buffer
+const VOLATILE_HOURS = 2;
 const CACHE_DURATION = {
-    CRITICAL: 7 * 24 * 60 * 60 * 1000,   // 7 days
-    CAMP_MODE: 15 * 24 * 60 * 60 * 1000, // 15 days (covers max 14-day camp + 1 day buffer)
-    STANDARD: 24 * 60 * 60 * 1000,       // 24 hours
-    VOLATILE: 2 * 60 * 60 * 1000         // 2 hours
+    CRITICAL: CRITICAL_DAYS * DAY_MS,
+    CAMP_MODE: CAMP_MODE_DAYS * DAY_MS,
+    STANDARD: DAY_MS,
+    VOLATILE: VOLATILE_HOURS * HOUR_MS
 };
 
 /**
@@ -263,7 +268,7 @@ export class OfflineManager {
             const safeHeaders = {};
             for (const headerName of ['Accept', 'Content-Type']) {
                 const value = sourceHeaders.get(headerName);
-                if (value) safeHeaders[headerName] = value;
+                if (value) { safeHeaders[headerName] = value; }
             }
             const idempotencyKey = typeof globalThis.crypto?.randomUUID === 'function'
                 ? globalThis.crypto.randomUUID()
@@ -812,8 +817,10 @@ export class OfflineManager {
             // Cache medication receptions
             if (bulkData.medications.receptions && activityId) {
                 const receptionsPayload = { success: true, data: { receptions: bulkData.medications.receptions } };
-                await this.cacheData(`medication_receptions?activity_id=${activityId}`, receptionsPayload, CACHE_DURATION.CAMP_MODE);
-                await this.cacheData(buildApiCacheKey('v1/medication/receptions', { activity_id: activityId }), receptionsPayload, CACHE_DURATION.CAMP_MODE);
+                const activityReceptionsPayload = { success: true, data: { ...receptionsPayload.data, ...bulkData.medications.participation } };
+                await this.cacheData(`medication_receptions?activity_id=${activityId}`, activityReceptionsPayload, CACHE_DURATION.CAMP_MODE);
+                await this.cacheData(buildApiCacheKey('v1/medication/receptions', { activity_id: activityId }), activityReceptionsPayload, CACHE_DURATION.CAMP_MODE);
+                await this.cacheData(buildApiCacheKey('medication_receptions', { activity_id: activityId }), activityReceptionsPayload, CACHE_DURATION.CAMP_MODE);
                 // Also cache without activity_id filter for dispensing view
                 await this.cacheData('medication_receptions', receptionsPayload, CACHE_DURATION.CAMP_MODE);
                 await this.cacheData(buildApiCacheKey('v1/medication/receptions'), receptionsPayload, CACHE_DURATION.CAMP_MODE);

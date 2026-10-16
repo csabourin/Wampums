@@ -35,6 +35,11 @@ export class MedicationReception {
     this.participantMedications = [];
     this.ficheDeclarations = new Map();
     this.receptions = [];
+    // The children the chosen activity invites, or null when it invites the
+    // whole unit. Only they bring medication to it.
+    this.invitedParticipantIds = null;
+    // The children whose guardian declined the chosen activity's permission slip.
+    this.declinedParticipantIds = new Set();
     this.selectedActivityId = options.activityId || null;
     this.showAllParticipants = false;
     this.editingMedications = new Set(); // Track which medications are being edited
@@ -130,12 +135,20 @@ export class MedicationReception {
   async loadReceptions() {
     if (!this.selectedActivityId) {
       this.receptions = [];
+      this.invitedParticipantIds = null;
+      this.declinedParticipantIds = new Set();
       return;
     }
 
     try {
-      const response = await getMedicationReceptions({ activity_id: this.selectedActivityId });
+      // Who takes part changes with invitations and slips other people answer:
+      // ask the server, and use the cached copy only offline.
+      const response = await getMedicationReceptions({ activity_id: this.selectedActivityId }, { forceRefresh: true });
       this.receptions = response?.data?.receptions || response?.receptions || [];
+      const invited = response?.data?.invited_participant_ids;
+      this.invitedParticipantIds = Array.isArray(invited) ? new Set(invited.map(Number)) : null;
+      const declined = response?.data?.declined_participant_ids;
+      this.declinedParticipantIds = new Set(Array.isArray(declined) ? declined.map(Number) : []);
       this.receptionsFailed = false;
       debugLog('Loaded receptions for activity', this.selectedActivityId, this.receptions.length);
     } catch (error) {
@@ -472,6 +485,9 @@ export class MedicationReception {
 
           <div class="card">
             <h2>${translate('med_reception_for_activity')}: ${activityName}</h2>
+            ${!this.receptionsFailed && (this.invitedParticipantIds !== null || this.declinedParticipantIds.size > 0) ? `
+              <p class="subtitle">${translate('med_reception_participants_only_notice')}</p>
+            ` : ''}
             <div id="participant-reception-list">
               ${this.receptionsFailed ? `
                 <p class="status-message error" role="alert">${translate('error_loading_data')}</p>
@@ -536,19 +552,30 @@ export class MedicationReception {
     }).join('');
   }
 
-  getParticipantsWithMedications() {
-    let filteredParticipants;
+  /**
+   * The roster's children taking part in the chosen activity: invited, and
+   * whose guardian did not decline its permission slip.
+   * @returns {Array<Object>}
+   */
+  getActivityParticipants() {
+    return this.participants.filter((participant) => {
+      const id = Number(participant.id);
+      const invited = this.invitedParticipantIds === null || this.invitedParticipantIds.has(id);
+      return invited && !this.declinedParticipantIds.has(id);
+    });
+  }
 
-    if (this.showAllParticipants) {
-      filteredParticipants = [...this.participants];
-    } else {
+  getParticipantsWithMedications() {
+    let filteredParticipants = this.getActivityParticipants();
+
+    if (!this.showAllParticipants) {
       // Show participants with planned medications, and those whose health
       // form declares one that has not been planned yet
       const participantIdsWithMeds = new Set([
         ...this.participantMedications.map(pm => pm.participant_id),
         ...this.ficheDeclarations.keys()
       ]);
-      filteredParticipants = this.participants.filter(p =>
+      filteredParticipants = filteredParticipants.filter(p =>
         participantIdsWithMeds.has(p.id)
       );
     }
