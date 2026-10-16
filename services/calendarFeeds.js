@@ -54,13 +54,15 @@ async function getFeedStatus(pool, { organizationId, userId }) {
 /**
  * Make a new link, revoking the person's previous one in the same transaction.
  * The raw token leaves this function once, inside the URL, and is never
- * stored or logged.
+ * stored or logged. The unit's address is resolved first: a link stored but
+ * never shown would have replaced a working one for nothing.
  *
  * @param {import('pg').Pool} pool - Database pool
  * @param {{organizationId: number, userId: string}} owner - Unit and account
  * @returns {Promise<{url: string, webcal_url: string, created_at: string}>}
  */
 async function createFeed(pool, { organizationId, userId }) {
+  const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
   const { token, digest } = generateInvitationToken();
   const client = await pool.connect();
   let createdAt;
@@ -84,7 +86,6 @@ async function createFeed(pool, { organizationId, userId }) {
   } finally {
     client.release();
   }
-  const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
   return { ...feedUrls(baseUrl, token), created_at: createdAt };
 }
 

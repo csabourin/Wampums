@@ -16,7 +16,9 @@ function token() {
 }
 
 /** What the pool answers; each test describes its scenario here. */
-const DEFAULTS = { permissions: ['activities.view'], demo: false, feedExists: true, failFeedLookup: false };
+const DEFAULTS = {
+  permissions: ['activities.view'], demo: false, feedExists: true, failFeedLookup: false, failDomainLookup: false,
+};
 let scenario;
 
 const pool = {
@@ -29,7 +31,10 @@ const pool = {
 };
 
 function answer(query) {
-  const { permissions, demo, feedExists, failFeedLookup } = scenario;
+  const { permissions, demo, feedExists, failFeedLookup, failDomainLookup } = scenario;
+  if (query.includes('FROM organization_domains') && failDomainLookup) {
+    return Promise.reject(new Error('organization_domains unavailable'));
+  }
   if (query.includes('FROM calendar_feed_tokens') && query.includes('token_digest = $1')) {
     if (failFeedLookup) {
       return Promise.reject(new Error('connection to /var/run/postgresql lost'));
@@ -101,6 +106,23 @@ describe('managing one\'s calendar link', () => {
     const response = await request(app)[method]('/api/v1/calendar-feed').set('Authorization', `Bearer ${token()}`);
     expect(response.status).toBe(403);
     expect(response.body.isDemo).toBe(true);
+  });
+
+  test('when the unit\'s address cannot be read, the current link is left untouched', async () => {
+    scenario.failDomainLookup = true;
+    const previous = process.env.PUBLIC_BASE_URL;
+    delete process.env.PUBLIC_BASE_URL;
+    delete process.env.APP_URL;
+    pool.connect.mockClear();
+    try {
+      const response = await request(app).post('/api/v1/calendar-feed').set('Authorization', `Bearer ${token()}`);
+      expect(response.status).toBe(500);
+      expect(pool.connect).not.toHaveBeenCalled();
+    } finally {
+      if (previous !== undefined) {
+        process.env.PUBLIC_BASE_URL = previous;
+      }
+    }
   });
 
   test('a new link is returned once, under the unit\'s address, in both forms', async () => {
