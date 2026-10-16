@@ -24,12 +24,17 @@ import {
   resolveInterfaceLanguage,
 } from './utils/InterfaceLanguageUtils.js';
 import { FALLBACK_LANG_STORAGE_KEY, INTERFACE_LANGS } from './config/languages.js';
+import { startInstallPromptCapture } from './utils/InstallPromptUtils.js';
 
 const debugMode = isDebugMode();
 
 // Recover from a stale cached app shell (e.g. after the app moves hosts) before
 // anything tries to lazy-load a chunk that no longer exists.
 installChunkErrorRecovery();
+
+// The browser offers its install prompt once, early: catch it before any
+// screen loads, so the parent dashboard can offer it later.
+startInstallPromptCapture();
 
 // Service worker registration: vite-plugin-pwa injects registration at build time,
 // with a fallback in registerServiceWorker() if the injection is missing.

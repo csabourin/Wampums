@@ -34,6 +34,8 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { apiErrorMessage, apiErrorMessageKey } from '../../utils/ApiErrorUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
+import { isAppInstalled, onInstallAvailabilityChange } from '../../utils/InstallPromptUtils.js';
+import { offerAppInstall } from '../install/InstallAppDialog.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { CarpoolQuickAccessModal } from '../modals/CarpoolQuickAccessModal.js';
 import { isParent, hasPermission, canViewBadges, canApproveBadges, canViewReports, canViewActivities, canViewCarpools } from '../../utils/PermissionUtils.js';
@@ -468,9 +470,13 @@ export class ParentDashboard {
                                         </button>`
       : ''; // Only render the button if needed
 
-    const installButton = `<button id="installPwaButton" class="hidden dashboard-button dashboard-button--secondary">
+    // Offered until the app is installed: the browser's prompt when it has
+    // one, else the steps for this browser, so a dismissed prompt is not final.
+    const installButton = isAppInstalled()
+      ? ''
+      : `<button id="installPwaButton" type="button" class="dashboard-button dashboard-button--secondary">
                                                 ${translate('install_app')}
-                                        </button>`; // Initially hidden
+                                        </button>`;
 
     const calendarDownloadAction = `
                         <div class="parent-dashboard__calendar-download" style="margin-top: 1rem;">
@@ -1084,69 +1090,23 @@ export class ParentDashboard {
       );
     }
 
-    // Install PWA button logic
-    const installButton =
-                        document.getElementById('installPwaButton');
-    let deferredPrompt;
+    document.getElementById('installPwaButton')?.addEventListener('click', async () => {
+      const outcome = await offerAppInstall();
+      debugLog('Install offer:', outcome);
+    });
 
-    // Keep references so destroy() can remove them; otherwise each
-    // visit stacks window listeners referencing detached buttons.
-    if (this.beforeInstallPromptHandler) {
-      window.removeEventListener('beforeinstallprompt', this.beforeInstallPromptHandler);
-    }
-    if (this.appInstalledHandler) {
-      window.removeEventListener('appinstalled', this.appInstalledHandler);
-    }
-
-    this.beforeInstallPromptHandler = (e) => {
-      debugLog('beforeinstallprompt event fired');
-      // Prevent the default prompt
-      e.preventDefault();
-      deferredPrompt = e;
-
-      if (!installButton) {
+    // One subscription per screen: re-rendering replaces it, never stacks it.
+    this.stopInstallWatch?.();
+    this.stopInstallWatch = onInstallAvailabilityChange(({ installed }) => {
+      if (!installed || this.destroyed) {
         return;
       }
-
-      // Show the install button
-      installButton.style.display = 'block';
-
-      // Add click event to the install button
-      installButton.addEventListener('click', async () => {
-        if (deferredPrompt) {
-          // Show the install prompt
-          deferredPrompt.prompt();
-
-          // Check the user's response
-          const choiceResult =
-                                                await deferredPrompt.userChoice;
-          if (
-            choiceResult.outcome ===
-                                                'accepted'
-          ) {
-            debugLog(
-              'User accepted the install prompt',
-            );
-          } else {
-            debugLog(
-              'User dismissed the install prompt',
-            );
-          }
-
-          // Clear the deferredPrompt so it can’t be reused
-          deferredPrompt = null;
-
-          // Hide the install button after interaction
-          installButton.style.display = 'none';
-        }
-      });
-    };
-    window.addEventListener('beforeinstallprompt', this.beforeInstallPromptHandler);
-
-    this.appInstalledHandler = () => {
-      debugLog('App has been installed');
-    };
-    window.addEventListener('appinstalled', this.appInstalledHandler);
+      const button = document.getElementById('installPwaButton');
+      if (button) {
+        button.hidden = true;
+      }
+      this.app.showMessage(translate('install_app_installed'), 'success');
+    });
   }
 
   /**
@@ -1154,14 +1114,8 @@ export class ParentDashboard {
          */
   destroy() {
     this.destroyed = true;
-    if (this.beforeInstallPromptHandler) {
-      window.removeEventListener('beforeinstallprompt', this.beforeInstallPromptHandler);
-      this.beforeInstallPromptHandler = null;
-    }
-    if (this.appInstalledHandler) {
-      window.removeEventListener('appinstalled', this.appInstalledHandler);
-      this.appInstalledHandler = null;
-    }
+    this.stopInstallWatch?.();
+    this.stopInstallWatch = null;
   }
 
   async handleCalendarDownload() {
