@@ -386,6 +386,28 @@ describe('revenue dashboard', () => {
 
     expectErrorState('revenue_dashboard');
   });
+
+  test('a fiscal year that only partly loaded leaves the previous year\'s figures, not a mix', async () => {
+    loaded();
+    const screen = new RevenueDashboard(makeApp());
+    await screen.init();
+    const select = page().querySelector('#fiscal-year-select');
+    const shown = select.value;
+    const other = [...select.options].find((option) => option.value !== shown).value;
+    const before = { dashboard: screen.dashboardData, bySource: screen.bySourceData };
+    // The new year's totals arrive; its sources do not.
+    answer(api.getRevenueDashboard, { totals: { total_revenue: 999 } });
+    api.getRevenueBySource.mockRejectedValueOnce(new Error('offline'));
+
+    select.value = other;
+    select.dispatchEvent(new Event('change'));
+    await flush();
+
+    expect(select.value).toBe(shown);
+    expect(String(screen.selectedFiscalYear)).toBe(shown);
+    expect(screen.dashboardData).toBe(before.dashboard);
+    expect(screen.bySourceData).toBe(before.bySource);
+  });
 });
 
 describe('a parent\'s finances', () => {

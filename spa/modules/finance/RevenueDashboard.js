@@ -631,11 +631,20 @@ export class RevenueDashboard {
     if (fySelect) {
       fySelect.addEventListener('change', async (e) => {
         const previousYear = this.selectedFiscalYear;
+        // The loaders store their answers one by one: a partial failure must
+        // not leave the new year's figures under the previous year's label.
+        const previousData = {
+          dashboardData: this.dashboardData,
+          bySourceData: this.bySourceData,
+          byCategoryData: this.byCategoryData,
+          comparisonData: this.comparisonData,
+        };
         try {
           this.selectedFiscalYear = Number(e.target.value);
           const loaded = await this.runLoads(() => this.loadAllData());
           if (!loaded) {
-            // The figures shown are still the previous year's: the selector says so too.
+            // Keep showing the previous year, figures and selector alike.
+            Object.assign(this, previousData);
             this.selectedFiscalYear = previousYear;
             e.target.value = String(previousYear);
           }
