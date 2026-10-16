@@ -1,6 +1,6 @@
 import { getMailingList, getAnnouncements, createAnnouncement, getGroups } from '../../ajax-functions.js';
 import { sendAnnouncementTest } from '../../api/api-endpoints.js';
-import { aiGenerateText } from '../AI.js';
+import { aiGenerateText } from '../../api/api-ai.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { translate } from '../../app.js';
 import { escapeHTML, sanitizeHTML } from '../../utils/SecurityUtils.js';
@@ -19,6 +19,20 @@ import {
   setRichTextValue,
 } from '../rich-text/RichTextEditor.js';
 import { plainTextToRichText, richTextToPlainText } from '../../utils/RichTextUtils.js';
+import { getUnitVocabulary } from '../../utils/UnitVocabularyUtils.js';
+
+/**
+ * The text the writing assistant answered with. The API wraps the model's
+ * answer: `{ success, data: { data: { text }, usage, budget } }`.
+ *
+ * @param {Object} response - aiGenerateText response
+ * @returns {string} The text, or '' when the answer holds none
+ */
+function aiTextResult(response) {
+  const text = response?.data?.data?.text;
+  return typeof text === 'string' ? text.trim() : '';
+}
+
 export class MailingList {
   constructor(app) {
     this.app = app;
@@ -182,21 +196,22 @@ export class MailingList {
     }
 
     return `
-                        <div class="input-group">
-                                <span>${translate('select_groups')}</span>
+                        <fieldset class="input-group" aria-describedby="announcement-groups-help">
+                                <legend>${translate('select_groups')}</legend>
+                                <p class="text-muted" id="announcement-groups-help">${translate('announcement_groups_help')}</p>
                                 <div class="group-options">
                                         ${this.groups
     .map(
       (group) => `
                                                                 <label>
-                                                                        <input type="checkbox" name="recipient-group" value="${group.id}" />
+                                                                        <input type="checkbox" name="recipient-group" value="${Number(group.id)}" />
                                                                         ${escapeHTML(group.name)}
                                                                 </label>
                                                         `
     )
     .join('')}
                                 </div>
-                        </div>
+                        </fieldset>
                 `;
   }
 
@@ -379,7 +394,12 @@ export class MailingList {
         setButtonLoading(rewriteBtn, true);
         try {
           const res = await aiGenerateText('rewrite', { text, tone: 'professional' });
-          setRichTextValue(msgArea, plainTextToRichText(res.data.text));
+          const result = aiTextResult(res);
+          if (!result) {
+            this.showFeedback(translate('ai_text_empty_result'), 'error');
+            return;
+          }
+          setRichTextValue(msgArea, plainTextToRichText(result));
           this.showFeedback(translate('rewrite_success'), 'success');
         } catch (err) {
           this.showFeedback(apiErrorMessage(err, 'error_occurred'), 'error');
@@ -403,8 +423,22 @@ export class MailingList {
 
         setButtonLoading(translateBtn, true);
         try {
-          const res = await aiGenerateText('translate', { text, from, to });
-          setRichTextValue(msgArea, plainTextToRichText(res.data.text));
+          // The unit's own words in each language, so "Louveteaux" becomes
+          // the unit's English term rather than a literal translation.
+          const settings = (await this.app.waitForOrganizationSettings?.()) || {};
+          const res = await aiGenerateText('translate', {
+            text,
+            from,
+            to,
+            sourceVocabulary: getUnitVocabulary(settings, from),
+            targetVocabulary: getUnitVocabulary(settings, to),
+          });
+          const result = aiTextResult(res);
+          if (!result) {
+            this.showFeedback(translate('ai_text_empty_result'), 'error');
+            return;
+          }
+          setRichTextValue(msgArea, plainTextToRichText(result));
           this.showFeedback(translate('translate_success'), 'success');
         } catch (err) {
           this.showFeedback(apiErrorMessage(err, 'error_occurred'), 'error');
@@ -505,6 +539,11 @@ export class MailingList {
 
     if (!subject) {
       this.showFeedback(translate('error_loading_mailing_list'), 'error');
+      return;
+    }
+    if (!isAlumni && !recipientRoles.length && !recipientGroupIds.length) {
+      this.showFeedback(translate('announcement_recipients_required'), 'error');
+      document.querySelector('input[name="recipient-role"]')?.focus();
       return;
     }
 

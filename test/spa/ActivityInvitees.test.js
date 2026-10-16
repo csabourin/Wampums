@@ -58,7 +58,7 @@ jest.mock('../../spa/indexedDB.js', () => ({
   clearActivityRelatedCaches: jest.fn(),
   clearActivityPermissionSlipCaches: jest.fn(),
 }));
-jest.mock('../../spa/modules/AI.js', () => ({ aiGenerateText: jest.fn() }));
+jest.mock('../../spa/api/api-ai.js', () => ({ aiGenerateText: jest.fn() }));
 
 const { fetchParticipants } = require('../../spa/ajax-functions.js');
 const { getGroups } = require('../../spa/api/api-endpoints.js');

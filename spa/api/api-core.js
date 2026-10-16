@@ -132,7 +132,7 @@ export async function handleResponse(response) {
             if (contentType && contentType.includes("application/json")) {
                 const errorData = await response.json();
                 errorMessage = errorData.message || errorMessage;
-                errorCode = errorData.code || null;
+                errorCode = errorData.code || errorData.errors?.code || null; // AI routes: errors.code
                 errorDetails = errorData.data || null;
                 // Log detailed validation errors if present
                 if (errorData.errors && Array.isArray(errorData.errors)) {

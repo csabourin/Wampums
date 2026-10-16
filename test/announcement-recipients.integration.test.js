@@ -1,0 +1,316 @@
+/**
+ * Writing to a den — integration suite
+ *
+ * A leader may write to the families of one den alone, without picking a
+ * role, and a den chosen with roles narrows the families reached to that den
+ * while leaders stay reached as their role was chosen. Who receives a message
+ * is a property of the recipient queries, so it is tested against a real
+ * PostgreSQL rather than a mocked pool.
+ *
+ * Skipped unless SCOUT_YEAR_TEST_DATABASE_URL (or TEST_DATABASE_URL) points at
+ * a disposable database holding the project schema and migrations.
+ *
+ * @module test/announcement-recipients.integration
+ */
+
+const express = require('express');
+const request = require('supertest');
+const { Pool } = require('pg');
+
+require('./jest-conditional-helpers');
+
+const DATABASE_URL = process.env.SCOUT_YEAR_TEST_DATABASE_URL || process.env.TEST_DATABASE_URL;
+
+process.env.JWT_SECRET_KEY = process.env.JWT_SECRET_KEY || 'announcement-recipients-integration-secret';
+
+const mockContext = { userId: null, organizationId: null };
+
+jest.mock('../utils/index', () => {
+  const actual = jest.requireActual('../utils/index');
+  return {
+    ...actual,
+    sendEmail: jest.fn(() => Promise.resolve(true)),
+    getUserEmailLanguage: jest.fn(() => Promise.resolve('fr')),
+  };
+});
+
+jest.mock('../middleware/auth', () => {
+  const actual = jest.requireActual('../middleware/auth');
+  return {
+    ...actual,
+    authenticate: (req, _res, next) => {
+      req.user = { id: mockContext.userId, organizationId: mockContext.organizationId, permissions: [] };
+      next();
+    },
+    requirePermission: () => (_req, _res, next) => next(),
+    blockDemoRoles: (_req, _res, next) => next(),
+    getOrganizationId: () => Promise.resolve(mockContext.organizationId),
+  };
+});
+
+const { sendEmail } = require('../utils/index');
+const { buildRecipientsForTests } = require('../routes/announcements');
+const { grantParticipantAccess, ACCESS_SOURCE } = require('../services/participantAccess');
+
+describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
+  let pool;
+  let app;
+  const ids = {};
+  const emails = {};
+
+  async function one(sql, params = []) {
+    const result = await pool.query(sql, params);
+    return result.rows[0] ? Object.values(result.rows[0])[0] : undefined;
+  }
+
+  async function makeUser(label) {
+    const email = `${label}-${Date.now()}-${Math.random().toString(36).slice(2)}@example.test`;
+    const userId = await one(
+      "INSERT INTO users (email, password, full_name) VALUES ($1, 'x', $2) RETURNING id",
+      [email, label]
+    );
+    emails[label] = email;
+    return userId;
+  }
+
+  async function addMember(userId, roleIds) {
+    await pool.query(
+      `INSERT INTO user_organizations (user_id, organization_id, role_ids, status)
+       VALUES ($1, $2, to_jsonb($3::text[]), 'active')`,
+      [userId, ids.unit, roleIds.map(String)]
+    );
+  }
+
+  async function makeYouth(firstName, groupId, guardianLabel) {
+    const participantId = await one(
+      "INSERT INTO participants (first_name, last_name) VALUES ($1, 'Test') RETURNING id",
+      [firstName]
+    );
+    await pool.query(
+      'INSERT INTO participant_organizations (participant_id, organization_id) VALUES ($1, $2)',
+      [participantId, ids.unit]
+    );
+    await pool.query(
+      'INSERT INTO participant_groups (participant_id, group_id, organization_id) VALUES ($1, $2, $3)',
+      [participantId, groupId, ids.unit]
+    );
+    const guardianEmail = `${guardianLabel}-${Date.now()}@example.test`;
+    emails[guardianLabel] = guardianEmail;
+    const guardianId = await one(
+      "INSERT INTO parents_guardians (nom, prenom, courriel) VALUES ('Test', $1, $2) RETURNING id",
+      [guardianLabel, guardianEmail]
+    );
+    await pool.query(
+      'INSERT INTO participant_guardians (guardian_id, participant_id) VALUES ($1, $2)',
+      [guardianId, participantId]
+    );
+    return { participantId, guardianId };
+  }
+
+  async function seed() {
+    // A unit needs its program section in the same transaction (deferred key).
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const created = await client.query("INSERT INTO organizations (name) VALUES ('Den Mail Unit') RETURNING id");
+      ids.unit = created.rows[0].id;
+      await client.query(
+        `INSERT INTO organization_program_sections (organization_id, section_key, display_name)
+         VALUES ($1, 'general', 'General')`,
+        [ids.unit]
+      );
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+    mockContext.organizationId = ids.unit;
+    await pool.query(
+      `INSERT INTO scout_years (organization_id, label, start_date, end_date, status)
+       VALUES ($1, '2026-2027', '2026-09-01', '2027-08-31', 'active')`,
+      [ids.unit]
+    );
+
+    ids.familyRoleId = await one(
+      `INSERT INTO roles (role_name, display_name, organization_id, data_scope)
+       VALUES ('u' || $1 || '_famille', 'Famille', $1::int, 'linked') RETURNING id`,
+      [ids.unit]
+    );
+    ids.leaderRoleId = await one(
+      `INSERT INTO roles (role_name, display_name, organization_id, data_scope)
+       VALUES ('u' || $1 || '_animation', 'Animation', $1::int, 'organization') RETURNING id`,
+      [ids.unit]
+    );
+    ids.familyRole = `u${ids.unit}_famille`;
+    ids.leaderRole = `u${ids.unit}_animation`;
+
+    ids.red = await one("INSERT INTO groups (name, organization_id) VALUES ('Rouge', $1) RETURNING id", [ids.unit]);
+    ids.blue = await one("INSERT INTO groups (name, organization_id) VALUES ('Bleue', $1) RETURNING id", [ids.unit]);
+
+    ids.redYouth = await makeYouth('Rouge', ids.red, 'guardian-red');
+    ids.blueYouth = await makeYouth('Bleu', ids.blue, 'guardian-blue');
+
+    ids.leader = await makeUser('leader');
+    await addMember(ids.leader, [ids.leaderRoleId]);
+    mockContext.userId = ids.leader;
+
+    ids.redParent = await makeUser('parent-red');
+    await addMember(ids.redParent, [ids.familyRoleId]);
+    await grantParticipantAccess(pool, {
+      participantId: ids.redYouth.participantId, userId: ids.redParent, sourceType: ACCESS_SOURCE.ADMIN,
+    });
+
+    ids.blueParent = await makeUser('parent-blue');
+    await addMember(ids.blueParent, [ids.familyRoleId]);
+    await grantParticipantAccess(pool, {
+      participantId: ids.blueYouth.participantId, userId: ids.blueParent, sourceType: ACCESS_SOURCE.ADMIN,
+    });
+
+    // Push reaches the accounts the email reaches, den filter included.
+    for (const [userId, label] of [[ids.redParent, 'red'], [ids.blueParent, 'blue'], [ids.leader, 'leader']]) {
+      // eslint-disable-next-line no-await-in-loop
+      await pool.query(
+        `INSERT INTO subscribers (endpoint, p256dh, auth, organization_id, user_id)
+         VALUES ($1, 'k', 'a', $2, $3)`,
+        [`https://push.example.test/${ids.unit}/${label}`, ids.unit, userId]
+      );
+    }
+  }
+
+  async function cleanup() {
+    if (!ids.unit) {
+      return;
+    }
+    const client = await pool.connect();
+    const youth = [ids.redYouth, ids.blueYouth].filter(Boolean);
+    const participantIds = youth.map((entry) => entry.participantId);
+    const guardianIds = youth.map((entry) => entry.guardianId);
+    const userIds = [ids.leader, ids.redParent, ids.blueParent].filter(Boolean);
+    try {
+      await client.query('BEGIN');
+      await client.query("SET LOCAL session_replication_role = 'replica'");
+      await client.query(
+        'DELETE FROM announcement_logs WHERE announcement_id IN (SELECT id FROM announcements WHERE organization_id = $1)',
+        [ids.unit]
+      );
+      for (const table of [
+        'announcements', 'subscribers', 'participant_groups', 'groups',
+        'participant_organizations', 'user_organizations', 'user_messages', 'roles',
+        'scout_years', 'organization_program_sections',
+      ]) {
+        // Table names come from this literal list, never from a request.
+        // eslint-disable-next-line no-await-in-loop
+        await client.query(`DELETE FROM ${table} WHERE organization_id = $1`, [ids.unit]);
+      }
+      await client.query('DELETE FROM participant_access_grants WHERE participant_id = ANY($1::int[])', [participantIds]);
+      await client.query('DELETE FROM user_participants WHERE participant_id = ANY($1::int[])', [participantIds]);
+      await client.query('DELETE FROM participant_guardians WHERE participant_id = ANY($1::int[])', [participantIds]);
+      await client.query('DELETE FROM parents_guardians WHERE id = ANY($1::int[])', [guardianIds]);
+      await client.query('DELETE FROM participants WHERE id = ANY($1::int[])', [participantIds]);
+      await client.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [userIds]);
+      await client.query('DELETE FROM organizations WHERE id = $1', [ids.unit]);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+    Object.keys(ids).forEach((key) => delete ids[key]);
+  }
+
+  const pushedTo = (recipients) => recipients.subscribers.map((row) => row.user_id).sort();
+
+  beforeAll(() => {
+    pool = new Pool({ connectionString: DATABASE_URL });
+    const quiet = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+    app = express();
+    app.use(express.json());
+    app.use('/api', require('../routes/announcements')(pool, quiet));
+  });
+
+  afterAll(async () => {
+    await cleanup();
+    await pool.end();
+  });
+
+  beforeEach(async () => {
+    await cleanup();
+    await seed();
+    sendEmail.mockClear();
+  });
+
+  test('a den chosen alone reaches its families, and only them', async () => {
+    const recipients = await buildRecipientsForTests(pool, ids.unit, [], [ids.red], 'members');
+
+    expect(recipients.emails.sort()).toEqual([emails['guardian-red'], emails['parent-red']].sort());
+    expect(pushedTo(recipients)).toEqual([ids.redParent]);
+  });
+
+  test('a den chosen with roles narrows families to the den and keeps the leaders', async () => {
+    const recipients = await buildRecipientsForTests(
+      pool, ids.unit, ['parent', ids.familyRole, ids.leaderRole], [ids.red], 'members'
+    );
+
+    expect(recipients.emails.sort()).toEqual(
+      [emails['guardian-red'], emails['parent-red'], emails.leader].sort()
+    );
+    expect(pushedTo(recipients)).toEqual([ids.leader, ids.redParent].sort());
+  });
+
+  test('without a den, a role reaches every family of the unit', async () => {
+    const recipients = await buildRecipientsForTests(pool, ids.unit, ['parent', ids.familyRole], [], 'members');
+
+    expect(recipients.emails.sort()).toEqual([
+      emails['guardian-blue'], emails['guardian-red'], emails['parent-blue'], emails['parent-red'],
+    ].sort());
+  });
+
+  test('a leader can send a message to one den without ticking a role', async () => {
+    const response = await request(app).post('/api/v1/announcements').send({
+      subject: 'Sortie',
+      message: 'Bonjour la tanière rouge',
+      recipient_roles: [],
+      recipient_group_ids: [ids.red],
+      send_now: true,
+    });
+
+    expect(response.status).toBe(200);
+    const sentTo = sendEmail.mock.calls.map(([to]) => to).sort();
+    expect(sentTo).toEqual([emails['guardian-red'], emails['parent-red']].sort());
+  });
+
+  test('a message to a den that no longer exists, or another unit\'s, is refused and sends nothing', async () => {
+    const otherUnitDen = await one(
+      "INSERT INTO groups (name, organization_id) VALUES ('Ailleurs', NULL) RETURNING id"
+    );
+    try {
+      for (const groupIds of [[otherUnitDen], [2147483000]]) {
+        // eslint-disable-next-line no-await-in-loop
+        const response = await request(app).post('/api/v1/announcements').send({
+          subject: 'Sortie', message: 'Bonjour', recipient_roles: [], recipient_group_ids: groupIds, send_now: true,
+        });
+        expect(response.status).toBe(400);
+        expect(response.body.message).toBe('announcement_groups_not_found');
+      }
+      expect(sendEmail).not.toHaveBeenCalled();
+    } finally {
+      await pool.query('DELETE FROM groups WHERE id = $1', [otherUnitDen]);
+    }
+  });
+
+  test('a message with neither role nor den is refused, naming what is missing', async () => {
+    const response = await request(app).post('/api/v1/announcements').send({
+      subject: 'Sortie',
+      message: 'Bonjour',
+      recipient_roles: [],
+      recipient_group_ids: [],
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toMatch(/announcement_recipients_required/);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+});

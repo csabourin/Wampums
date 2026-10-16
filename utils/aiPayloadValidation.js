@@ -1,7 +1,9 @@
 const { AI_LIMITS } = require('../config/constants');
+const interfaceLanguages = require('../config/interface_languages.json');
 
 const AI_MODES = new Set(['meeting_plan', 'rewrite', 'translate', 'risk_suggest']);
-const SUPPORTED_LOCALES = new Set(['en', 'fr', 'it', 'uk']);
+// Every language a unit may turn on, so its leaders can use the assistant too.
+const SUPPORTED_LOCALES = new Set([...interfaceLanguages.core, ...interfaceLanguages.optional]);
 const REWRITE_TONES = new Set(['professional', 'friendly', 'concise', 'clear']);
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 const TIME_PATTERN = /^\d{1,3}:\d{2}$/u;
@@ -52,6 +54,37 @@ function normalizeInteger(value, field, errors, minimum, maximum, defaultValue) 
     return defaultValue;
   }
   return normalized;
+}
+
+/**
+ * The unit's vocabulary (term key -> the unit's word), bounded and shape-checked.
+ *
+ * @param {*} value - Client value
+ * @param {string} field - Field path for errors
+ * @param {Array} errors - Collected errors
+ * @returns {Object<string, string>} Normalized terms
+ */
+function normalizeVocabulary(value, field, errors) {
+  const vocabulary = {};
+  if (value === undefined || value === null) {
+    return vocabulary;
+  }
+  if (!isPlainObject(value)) {
+    addError(errors, field, 'Vocabulary must be an object');
+    return vocabulary;
+  }
+  const entries = Object.entries(value);
+  if (entries.length > AI_LIMITS.MAX_VOCABULARY_TERMS) {
+    addError(errors, field, 'Too many vocabulary terms');
+  }
+  entries.slice(0, AI_LIMITS.MAX_VOCABULARY_TERMS).forEach(([key, term]) => {
+    if (!TERM_KEY_PATTERN.test(key)) {
+      addError(errors, `${field}.${key}`, 'Invalid vocabulary key');
+      return;
+    }
+    vocabulary[key] = normalizeText(term, `${field}.${key}`, errors, { maxLength: 80 });
+  });
+  return vocabulary;
 }
 
 function normalizeMeetingPlan(payload, errors) {
@@ -113,32 +146,24 @@ function normalizeMeetingPlan(payload, errors) {
     addError(errors, 'payload.activityTemplates', 'Too many activity templates');
   }
 
-  const vocabulary = {};
-  if (payload.vocabulary !== undefined && !isPlainObject(payload.vocabulary)) {
-    addError(errors, 'payload.vocabulary', 'Vocabulary must be an object');
-  } else {
-    const entries = Object.entries(payload.vocabulary || {});
-    if (entries.length > AI_LIMITS.MAX_VOCABULARY_TERMS) {
-      addError(errors, 'payload.vocabulary', 'Too many vocabulary terms');
-    }
-    entries.slice(0, AI_LIMITS.MAX_VOCABULARY_TERMS).forEach(([key, value]) => {
-      if (!TERM_KEY_PATTERN.test(key)) {
-        addError(errors, `payload.vocabulary.${key}`, 'Invalid vocabulary key');
-        return;
-      }
-      vocabulary[key] = normalizeText(value, `payload.vocabulary.${key}`, errors, { maxLength: 80 });
-    });
-  }
+  const vocabulary = normalizeVocabulary(payload.vocabulary, 'payload.vocabulary', errors);
 
   let recentHonor = null;
   if (payload.recentHonor !== undefined && payload.recentHonor !== null) {
     if (!isPlainObject(payload.recentHonor)) {
       addError(errors, 'payload.recentHonor', 'Recent recognition must be an object');
     } else {
+      // An honour need not carry a reason, and its date is context only.
       recentHonor = {
         name: normalizeText(payload.recentHonor.name, 'payload.recentHonor.name', errors, { maxLength: 120 }),
-        honor: normalizeText(payload.recentHonor.honor, 'payload.recentHonor.honor', errors, { maxLength: 120 }),
-        date: normalizeText(payload.recentHonor.date, 'payload.recentHonor.date', errors, { maxLength: 10 }),
+        honor: normalizeText(payload.recentHonor.honor, 'payload.recentHonor.honor', errors, {
+          required: false,
+          maxLength: 120,
+        }),
+        date: normalizeText(payload.recentHonor.date, 'payload.recentHonor.date', errors, {
+          required: false,
+          maxLength: 10,
+        }),
       };
       if (recentHonor.date && !DATE_PATTERN.test(recentHonor.date)) {
         addError(errors, 'payload.recentHonor.date', 'Date must use YYYY-MM-DD');
@@ -199,6 +224,9 @@ function validateAIPayload(mode, input) {
       from: SUPPORTED_LOCALES.has(from) ? from : 'fr',
       to: SUPPORTED_LOCALES.has(to) ? to : 'en',
       text: normalizeText(input.text, 'payload.text', errors, { maxLength: AI_LIMITS.MAX_TEXT_LENGTH }),
+      // The unit's own words in each language (Louveteaux / Cubs, Tanière / Den).
+      sourceVocabulary: normalizeVocabulary(input.sourceVocabulary, 'payload.sourceVocabulary', errors),
+      targetVocabulary: normalizeVocabulary(input.targetVocabulary, 'payload.targetVocabulary', errors),
     };
   } else {
     value = {

@@ -4024,5 +4024,12 @@
   "programme_no_time": "Any time",
   "programme_keep_screen_on": "Keep the screen on during the programme",
   "programme_keep_screen_on_failed": "The screen could not be kept on. It may turn off as usual.",
-  "programme_announcement": "{label}: {name}, {time}"
+  "programme_announcement": "{label}: {name}, {time}",
+  "announcement_recipients_required": "Tick at least one role or one of the {subgroup_plural}.",
+  "announcement_groups_help": "To write to families only, tick only some of the {subgroup_plural}. If roles are ticked too, only the parents of youth in the selection receive it; the other roles receive it in full.",
+  "ai_text_empty_result": "The assistant returned no text. Your message has not been changed.",
+  "ai_unavailable": "The AI assistant is not available right now.",
+  "ai_rate_limited": "The AI assistant is busy. Try again in a minute.",
+  "ai_service_error": "The AI assistant could not answer. Try again.",
+  "announcement_groups_not_found": "The selected {subgroup_plural} no longer exist. Reload the page and choose again."
 }
