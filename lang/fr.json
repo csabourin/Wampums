@@ -1392,6 +1392,7 @@
   "med_reception_select_activity_prompt": "Veuillez sélectionner une activité pour commencer le suivi de la réception des médicaments",
   "med_reception_show_all_participants": "Afficher tous les participants (y compris ceux sans médicaments)",
   "med_reception_for_activity": "Réception des médicaments pour",
+  "med_reception_invited_only_notice": "Cette activité n’invite que certains participants; eux seuls apparaissent ici.",
   "med_reception_no_participants": "Aucun participant trouvé avec des besoins en médicaments pour cette activité",
   "med_reception_mark_all_received": "Tout marquer comme reçu",
   "med_reception_all_received": "Tout reçu",

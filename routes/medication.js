@@ -10,6 +10,7 @@ const {
   listParticipantFilter
 } = require('../middleware/medicationAuthorizationPolicy');
 const { areUnitLeaders } = require('../services/unitLeaders');
+const { getInvitedParticipantIds } = require('../services/activityInvitations');
 const { declaresMedication, medicationText } = require('../utils/health-form');
 
 const MEDICATION_READ_PERMISSIONS = ['medication.view'];
@@ -661,6 +662,9 @@ module.exports = (pool, logger) => {
    * GET /v1/medication/receptions
    * List medication receptions for an activity
    * Query params: activity_id (required)
+   * With an activity, also answers `invited_participant_ids`: the children it
+   * invites (only the caller's own child for a family), or null when it
+   * invites the whole unit. Only they bring medication to that activity.
    * Permission: participants.view
    */
   router.get('/v1/medication/receptions', authenticate, requirePermission(MEDICATION_LIST_READ_POLICY), asyncHandler(async (req, res) => {
@@ -686,18 +690,29 @@ module.exports = (pool, logger) => {
         AND ($2::int IS NULL OR mr.participant_id = $2)
     `;
 
-    const params = [organizationId, listParticipantFilter(req)];
+    const onlyParticipantId = listParticipantFilter(req);
+    const params = [organizationId, onlyParticipantId];
+    const forActivity = Boolean(activityId && Number.isInteger(activityId));
 
-    if (activityId && Number.isInteger(activityId)) {
+    if (forActivity) {
       query += ' AND mr.activity_id = $3';
       params.push(activityId);
     }
 
     query += ` ORDER BY p.last_name, p.first_name, mreq.medication_name`;
 
-    const result = await pool.query(query, params);
+    const [result, invited] = await Promise.all([
+      pool.query(query, params),
+      forActivity ? getInvitedParticipantIds(pool, activityId, organizationId) : null
+    ]);
 
-    return success(res, { receptions: result.rows });
+    if (!forActivity) {
+      return success(res, { receptions: result.rows });
+    }
+    const invitedParticipantIds = invited === null || onlyParticipantId === null
+      ? invited
+      : invited.filter((id) => id === Number(onlyParticipantId));
+    return success(res, { receptions: result.rows, invited_participant_ids: invitedParticipantIds });
   }));
 
   /**

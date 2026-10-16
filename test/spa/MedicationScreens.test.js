@@ -258,6 +258,59 @@ describe('medication reception', () => {
     expect(api.saveMedicationReception).not.toHaveBeenCalled();
   });
 
+  test('only the children the chosen activity invites are listed', async () => {
+    loadAll();
+    const invited = { id: 6, first_name: 'Maxime', last_name: 'Tremblay' };
+    const notInvited = { id: 8, first_name: 'Vincent', last_name: 'Gagnon' };
+    api.getParticipants.mockResolvedValue({ success: true, data: [PARTICIPANT, invited, notInvited] });
+    api.getParticipantMedications.mockResolvedValue({
+      success: true,
+      data: {
+        participant_medications: [
+          ASSIGNMENT,
+          { id: 2, medication_requirement_id: 11, participant_id: 6 },
+          { id: 3, medication_requirement_id: 11, participant_id: 8 },
+        ],
+      },
+    });
+    api.getMedicationReceptions.mockResolvedValue({
+      success: true,
+      data: { receptions: [], invited_participant_ids: [6] },
+    });
+    const screen = new MedicationReception(makeApp(), { activityId: 3 });
+    await screen.init();
+
+    const listed = () => [...page().querySelectorAll('.participant-reception-card h3')].map((name) => name.textContent);
+    expect(listed()).toEqual(['Maxime Tremblay']);
+    expect(page().textContent).toContain('med_reception_invited_only_notice');
+
+    // Showing everyone means every invited child, even without medication.
+    page().querySelector('#showAllParticipants').click();
+    expect(listed()).toEqual(['Maxime Tremblay']);
+    expect(await violations()).toEqual([]);
+    screen.destroy();
+  });
+
+  test('an activity for the whole unit lists every child with medication', async () => {
+    loadAll();
+    const other = { id: 6, first_name: 'Maxime', last_name: 'Tremblay' };
+    api.getParticipants.mockResolvedValue({ success: true, data: [PARTICIPANT, other] });
+    api.getParticipantMedications.mockResolvedValue({
+      success: true,
+      data: { participant_medications: [ASSIGNMENT, { id: 2, medication_requirement_id: 11, participant_id: 6 }] },
+    });
+    api.getMedicationReceptions.mockResolvedValue({
+      success: true,
+      data: { receptions: [], invited_participant_ids: null },
+    });
+    const screen = new MedicationReception(makeApp(), { activityId: 3 });
+    await screen.init();
+
+    expect(page().querySelectorAll('.participant-reception-card')).toHaveLength(2);
+    expect(page().textContent).not.toContain('med_reception_invited_only_notice');
+    screen.destroy();
+  });
+
   test('marking everything received is not reported as done when a save failed', async () => {
     loadAll();
     const app = makeApp();

@@ -35,6 +35,9 @@ export class MedicationReception {
     this.participantMedications = [];
     this.ficheDeclarations = new Map();
     this.receptions = [];
+    // The children the chosen activity invites, or null when it invites the
+    // whole unit. Only they bring medication to it.
+    this.invitedParticipantIds = null;
     this.selectedActivityId = options.activityId || null;
     this.showAllParticipants = false;
     this.editingMedications = new Set(); // Track which medications are being edited
@@ -130,12 +133,15 @@ export class MedicationReception {
   async loadReceptions() {
     if (!this.selectedActivityId) {
       this.receptions = [];
+      this.invitedParticipantIds = null;
       return;
     }
 
     try {
       const response = await getMedicationReceptions({ activity_id: this.selectedActivityId });
       this.receptions = response?.data?.receptions || response?.receptions || [];
+      const invited = response?.data?.invited_participant_ids;
+      this.invitedParticipantIds = Array.isArray(invited) ? new Set(invited.map(Number)) : null;
       this.receptionsFailed = false;
       debugLog('Loaded receptions for activity', this.selectedActivityId, this.receptions.length);
     } catch (error) {
@@ -472,6 +478,9 @@ export class MedicationReception {
 
           <div class="card">
             <h2>${translate('med_reception_for_activity')}: ${activityName}</h2>
+            ${this.invitedParticipantIds !== null && !this.receptionsFailed ? `
+              <p class="subtitle">${translate('med_reception_invited_only_notice')}</p>
+            ` : ''}
             <div id="participant-reception-list">
               ${this.receptionsFailed ? `
                 <p class="status-message error" role="alert">${translate('error_loading_data')}</p>
@@ -536,19 +545,28 @@ export class MedicationReception {
     }).join('');
   }
 
-  getParticipantsWithMedications() {
-    let filteredParticipants;
+  /**
+   * The roster's children the chosen activity invites.
+   * @returns {Array<Object>}
+   */
+  getActivityParticipants() {
+    if (this.invitedParticipantIds === null) {
+      return [...this.participants];
+    }
+    return this.participants.filter((participant) => this.invitedParticipantIds.has(Number(participant.id)));
+  }
 
-    if (this.showAllParticipants) {
-      filteredParticipants = [...this.participants];
-    } else {
+  getParticipantsWithMedications() {
+    let filteredParticipants = this.getActivityParticipants();
+
+    if (!this.showAllParticipants) {
       // Show participants with planned medications, and those whose health
       // form declares one that has not been planned yet
       const participantIdsWithMeds = new Set([
         ...this.participantMedications.map(pm => pm.participant_id),
         ...this.ficheDeclarations.keys()
       ]);
-      filteredParticipants = this.participants.filter(p =>
+      filteredParticipants = filteredParticipants.filter(p =>
         participantIdsWithMeds.has(p.id)
       );
     }

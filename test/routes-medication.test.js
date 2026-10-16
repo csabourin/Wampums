@@ -649,6 +649,56 @@ describe('POST /api/v1/medication/receptions', () => {
 // MEDICATION READ PERMISSION TESTS
 // ============================================
 
+describe('GET /api/v1/medication/receptions', () => {
+  /** Answer the receptions of an activity that invites the given children (null: everyone). */
+  function mockActivityReceptions(invitesEveryone, invitedIds) {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes('permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'medication.view' }] });
+      }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('JOIN roles r')) {
+        return Promise.resolve({ rows: [{ role_name: 'district', data_scope: 'organization' }] });
+      }
+      if (query.includes('FROM user_organizations')) {
+        return Promise.resolve({ rows: [{ role_ids: [1], organization_id: ORG_ID }] });
+      }
+      if (query.includes('FROM activity_invitees')) {
+        return Promise.resolve({ rows: [{ invites_everyone: invitesEveryone, participant_ids: invitedIds }] });
+      }
+      if (query.includes('FROM medication_receptions')) {
+        return Promise.resolve({ rows: [] });
+      }
+      return undefined;
+    });
+  }
+
+  test('a leader learns which children an activity invites, to list only them', async () => {
+    mockActivityReceptions(false, [7, 9]);
+
+    const res = await request(app)
+      .get('/api/v1/medication/receptions?activity_id=3')
+      .set('Authorization', `Bearer ${generateToken({ permissions: ['medication.view'] })}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.invited_participant_ids).toEqual([7, 9]);
+  });
+
+  test('an activity for the whole unit answers no invitee list', async () => {
+    mockActivityReceptions(true, []);
+
+    const res = await request(app)
+      .get('/api/v1/medication/receptions?activity_id=3')
+      .set('Authorization', `Bearer ${generateToken({ permissions: ['medication.view'] })}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.invited_participant_ids).toBeNull();
+  });
+});
+
 describe('GET /api/v1/medication/requirements', () => {
   test('lists medication requirements for organization with view permission', async () => {
     const { __mClient, __mPool } = require('pg');
