@@ -8,10 +8,9 @@ const { sendActivityUpdateNotifications } = require('../utils/carpool-notificati
 const { carpoolRosterRestriction } = require('../services/carpoolAccess');
 const { mayReadInviteeList, readInvitation, saveInvitation } = require('../services/activityInvitations');
 const { readRichTextField } = require('../utils/richText');
+const { buildActivitiesCalendar, buildICalFilename } = require('../utils/activityCalendar');
 
 module.exports = (pool) => {
-  const ICAL_PROD_ID = '-//Wampums//Activities Calendar//EN';
-  const ICAL_MAX_LINE_OCTETS = 75;
   const AUTHORIZATION_TEXT_MAX_LENGTH = 10000;
   const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
   const TIME_PATTERN = /^(\d{2}):(\d{2})(?::(\d{2}))?$/;
@@ -46,124 +45,6 @@ module.exports = (pool) => {
     'meeting_time_going',
     'departure_time_going'
   ];
-
-  /**
-   * Escape iCalendar text values according to RFC 5545.
-   * @param {string} value
-   * @returns {string}
-   */
-  const escapeICalText = (value = '') => String(value)
-    .replace(/\\/g, '\\\\')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '')
-    .replace(/,/g, '\\,')
-    .replace(/;/g, '\\;');
-
-  /**
-   * Format local date and time values to a floating iCalendar date-time value.
-   *
-   * We intentionally do not append a timezone suffix (e.g., "Z") because
-   * activities currently do not store timezone context. Floating values preserve
-   * the originally entered local wall time for calendar clients.
-   *
-   * @param {string} dateValue
-   * @param {string} timeValue
-   * @returns {string|null}
-   */
-  const formatICalUtcDateTimeFromParts = (dateValue, timeValue) => {
-    if (!dateValue || !timeValue) {
-      return null;
-    }
-
-    const dateMatch = String(dateValue).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    const timeMatch = String(timeValue).trim().match(/^(\d{2}):(\d{2})(?::(\d{2}))?/);
-
-    if (!dateMatch || !timeMatch) {
-      return null;
-    }
-
-    const [, year, month, day] = dateMatch;
-    const [, hours, minutes, seconds = '00'] = timeMatch;
-
-    return `${year}${month}${day}T${hours}${minutes}${seconds}`;
-  };
-
-  /**
-   * Fold iCalendar content lines at RFC 5545 recommended 75-octet boundaries.
-   * @param {string} line
-   * @returns {string[]}
-   */
-  const foldICalLine = (line) => {
-    if (!line) {
-      return [''];
-    }
-
-    const foldedLines = [];
-    let remaining = String(line);
-    let isFirstLine = true;
-
-    while (Buffer.byteLength(remaining, 'utf8') > (isFirstLine ? ICAL_MAX_LINE_OCTETS : ICAL_MAX_LINE_OCTETS - 1)) {
-      const maxOctets = isFirstLine ? ICAL_MAX_LINE_OCTETS : ICAL_MAX_LINE_OCTETS - 1;
-      let splitIndex = 0;
-      let currentOctets = 0;
-
-      for (const char of remaining) {
-        const charOctets = Buffer.byteLength(char, 'utf8');
-        if ((currentOctets + charOctets) > maxOctets) {
-          break;
-        }
-        currentOctets += charOctets;
-        splitIndex += char.length;
-      }
-
-      const segment = remaining.slice(0, splitIndex);
-      foldedLines.push(isFirstLine ? segment : ` ${segment}`);
-      remaining = remaining.slice(splitIndex);
-      isFirstLine = false;
-    }
-
-    foldedLines.push(isFirstLine ? remaining : ` ${remaining}`);
-    return foldedLines;
-  };
-
-  /**
-   * Format a Date object into UTC iCalendar date-time format.
-   * @param {Date} value
-   * @returns {string}
-   */
-  const formatICalUtcDateTime = (value) => {
-    const year = String(value.getUTCFullYear());
-    const month = String(value.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(value.getUTCDate()).padStart(2, '0');
-    const hours = String(value.getUTCHours()).padStart(2, '0');
-    const minutes = String(value.getUTCMinutes()).padStart(2, '0');
-    const seconds = String(value.getUTCSeconds()).padStart(2, '0');
-
-    return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
-  };
-
-  /**
-   * Build a safe iCalendar filename for Content-Disposition.
-   * @param {string} organizationName
-   * @returns {string}
-   */
-  const buildICalFilename = (organizationName = '') => {
-    const normalizedOrganization = String(organizationName)
-      .toLowerCase()
-      .normalize('NFKD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .replace(/-{2,}/g, '-');
-
-    const datePart = new Date().toISOString().slice(0, 10);
-
-    if (!normalizedOrganization) {
-      return `activities-calendar-${datePart}.ics`;
-    }
-
-    return `${normalizedOrganization}-activities-${datePart}.ics`;
-  };
 
   /**
    * Get all activities for the organization
@@ -208,89 +89,12 @@ module.exports = (pool) => {
    */
   router.get('/calendar.ics', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const organizationResult = await pool.query(
-      'SELECT name FROM organizations WHERE id = $1',
-      [organizationId]
-    );
-
-    const result = await pool.query(
-      `SELECT
-        id,
-        name,
-        description,
-        activity_date::text as activity_date,
-        activity_start_date::text as activity_start_date,
-        activity_start_time::text as activity_start_time,
-        activity_end_date::text as activity_end_date,
-        activity_end_time::text as activity_end_time,
-        meeting_location_going,
-        meeting_time_going::text as meeting_time_going,
-        departure_time_going::text as departure_time_going,
-        departure_time_return::text as departure_time_return,
-        created_at,
-        updated_at
-       FROM activities
-       WHERE organization_id = $1 AND is_active = TRUE
-       ORDER BY COALESCE(activity_start_date, activity_date) ASC, activity_start_time ASC, departure_time_going ASC`,
-      [organizationId]
-    );
-
-    const nowStamp = formatICalUtcDateTime(new Date());
-    const events = result.rows
-      .map((activity) => {
-        const normalizedStartDate = activity.activity_start_date || activity.activity_date;
-        const normalizedStartTime = activity.activity_start_time || activity.meeting_time_going;
-        const normalizedEndDate = activity.activity_end_date || normalizedStartDate;
-        const normalizedEndTime = activity.activity_end_time
-          || activity.departure_time_return
-          || activity.departure_time_going
-          || normalizedStartTime;
-
-        const dtStart = formatICalUtcDateTimeFromParts(normalizedStartDate, normalizedStartTime);
-        const dtEnd = formatICalUtcDateTimeFromParts(normalizedEndDate, normalizedEndTime);
-
-        if (!dtStart || !dtEnd) {
-          return null;
-        }
-
-        const sourceStamp = activity.updated_at || activity.created_at;
-        const dtStamp = sourceStamp
-          ? formatICalUtcDateTime(new Date(sourceStamp))
-          : nowStamp;
-
-        return [
-          'BEGIN:VEVENT',
-          `UID:activity-${activity.id}-${organizationId}@wampums.local`,
-          `DTSTAMP:${dtStamp}`,
-          `SUMMARY:${escapeICalText(activity.name || 'Activity')}`,
-          `DESCRIPTION:${escapeICalText(activity.description || '')}`,
-          `LOCATION:${escapeICalText(activity.meeting_location_going || '')}`,
-          `DTSTART:${dtStart}`,
-          `DTEND:${dtEnd}`,
-          'END:VEVENT'
-        ];
-      })
-      .filter(Boolean)
-      .flat();
-
-    const icalPayload = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      `PRODID:${ICAL_PROD_ID}`,
-      'CALSCALE:GREGORIAN',
-      ...events,
-      'END:VCALENDAR',
-      ''
-    ]
-      .flatMap(foldICalLine)
-      .join('\r\n');
-
-    const organizationName = organizationResult.rows[0]?.name || '';
+    const { body, organizationName } = await buildActivitiesCalendar(pool, organizationId);
     const calendarFilename = buildICalFilename(organizationName);
 
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${calendarFilename}"; filename*=UTF-8''${encodeURIComponent(calendarFilename)}`);
-    return res.status(200).send(icalPayload);
+    return res.status(200).send(body);
   }));
 
   /**

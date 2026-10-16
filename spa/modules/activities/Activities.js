@@ -111,6 +111,12 @@ export class Activities extends BaseModule {
             ` : ''}
           </div>
 
+          <p class="activities-page__subscribe">
+            <a href="/account-info#calendar-feed" class="button button--secondary button--small">
+              ${translate('calendar_feed_subscribe_link')}
+            </a>
+          </p>
+
           <div class="search-container">
             <input type="search" id="activities-search" class="search-input"
               placeholder="${translate('search')}..." value="${escapeHTML(this.searchTerm)}">

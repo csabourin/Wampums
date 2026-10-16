@@ -22,6 +22,7 @@ jest.mock('../../spa/modules/push/PushSubscription.js', () => ({
   enablePushNotifications: jest.fn(), disablePushNotifications: jest.fn(), PushSetupError: class extends Error {},
 }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
+  canViewActivities: jest.fn(() => false),
   holdsFamilyRole: jest.fn(() => false),
   isParent: jest.fn(() => false),
   isDemoUser: jest.fn(() => false),

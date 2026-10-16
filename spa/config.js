@@ -49,7 +49,7 @@ export const CONFIG = {
   /** These workflows need a confirmed server result, never an offline replay. */
   ONLINE_REQUIRED_MUTATION_RESOURCES: [
     'parent-invitations', 'parent-onboarding', 'walk-in-children',
-    'family-links', 'family-link-requests',
+    'family-links', 'family-link-requests', 'calendar-feed',
   ],
     /**
      * Cache Duration Settings

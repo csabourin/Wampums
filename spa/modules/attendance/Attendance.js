@@ -32,6 +32,7 @@ import { setContent } from '../../utils/DOMUtils.js';
 import { withButtonLoading, debounce } from '../../utils/PerformanceUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 export class Attendance {
   constructor(app) {
     this.app = app;
@@ -597,8 +598,9 @@ export class Attendance {
 
   renderSkeleton() {
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
-      <div class="attendance-container skeleton">
+      ${renderBackLink()}
+      <h1 class="attendance-title">${translate('attendance_page_title')}</h1>
+      <div class="attendance-container skeleton" aria-busy="true">
         <div class="date-navigation">
           <div class="date-select skeleton-text" aria-hidden="true"></div>
         </div>
@@ -667,7 +669,8 @@ export class Attendance {
       return;
     }
     this.freshContent = `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink()}
+      <h1 class="attendance-title">${translate('attendance_page_title')}</h1>
       <div class="attendance-container">
         ${this.renderCampBanner()}
         <div class="date-navigation">
@@ -1297,11 +1300,13 @@ export class Attendance {
   }
 
   renderError() {
-    const errorMessage = `
-      <h1>${translate('error')}</h1>
-      <p>${translate('error_loading_attendance')}</p>
-    `;
-    setContent(document.getElementById('app'), errorMessage);
+    setContent(document.getElementById('app'), `
+      ${renderBackLink()}
+      <h1 class="attendance-title">${translate('attendance_page_title')}</h1>
+      <p class="status-message error" role="alert">${translate('error_loading_attendance')}</p>
+      <button type="button" class="button button--secondary" id="attendance-retry">${translate('retry')}</button>
+    `);
+    document.getElementById('attendance-retry')?.addEventListener('click', () => this.init());
   }
 
   async addGuest() {

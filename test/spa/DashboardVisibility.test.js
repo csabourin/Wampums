@@ -328,6 +328,25 @@ describe('tool groups stay accessible', () => {
     expect(count.textContent.replace(/\s+/g, ' ').trim()).toBe('2 contacts_short');
   });
 
+  test('the page is titled by the unit\'s name, as its only <h1>', () => {
+    const dashboard = renderAdmin();
+    dashboard.organizationName = '6e Meute <img src=x onerror=alert(1)>';
+    dashboard.render();
+
+    const headings = document.querySelectorAll('#app h1');
+    expect(headings).toHaveLength(1);
+    expect(headings[0].textContent).toBe('6e Meute <img src=x onerror=alert(1)>');
+    expect(document.querySelector('#app img[src="x"]')).toBeNull();
+  });
+
+  test('a unit without a name still gets a page title', () => {
+    const dashboard = renderAdmin();
+    dashboard.organizationName = '';
+    dashboard.render();
+
+    expect(document.querySelector('#app h1').textContent).toBe('dashboard_title');
+  });
+
   test('the tool section has no WCAG A/AA violations', async () => {
     renderAdmin();
     const results = await axe.run(document.querySelector('#moment-tools').closest('section'), {
