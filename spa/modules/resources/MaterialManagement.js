@@ -23,6 +23,7 @@ import { setContent } from '../../utils/DOMUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 /**
  * What a leader can do to a reservation, given where it currently stands.
  *
@@ -78,6 +79,7 @@ function reservationStatusLabel(status) {
 export class MaterialManagement {
   constructor(app) {
     this.app = app;
+    this.destroyed = false;
     this.equipment = [];
     this.reservations = [];
     this.activities = [];
@@ -90,15 +92,56 @@ export class MaterialManagement {
   }
 
   async init() {
+    showPageLoading(document.getElementById('app'), this.pageOptions());
     try {
       await this.refreshData();
-      this.render();
-      this.attachEventHandlers();
     } catch (error) {
+      // A list that did not load is never shown as an empty one.
       debugError('Error initializing material management:', error);
-      this.app.showMessage(translate('resource_dashboard_error_loading'), 'error');
+      if (!this.destroyed) {
+        showPageError(document.getElementById('app'), this.pageOptions(), () => this.init());
+      }
+      return;
     }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventHandlers();
   }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
+  }
+
+  /** @returns {Object} Shared page-state options */
+  pageOptions() {
+    return { title: translate('material_management_title'), className: 'material-management-page' };
+  }
+
+  /**
+   * Reload after a write the server accepted. The write stands even if the
+   * reload fails: the page keeps what it showed and says it could not refresh.
+   *
+   * @returns {Promise<void>}
+   */
+  async reload() {
+    try {
+      await this.refreshData();
+    } catch (error) {
+      debugError('Error refreshing material management:', error);
+      if (!this.destroyed) {
+        this.app.showMessage(translate('error_loading_data'), 'error');
+      }
+    }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventHandlers();
+  }
+
 
   async refreshData() {
     const [equipmentResponse, reservationResponse, activitiesResponse] = await Promise.all([
@@ -214,21 +257,21 @@ export class MaterialManagement {
 
     try {
       await updateEquipmentReservation(reservationId, { status: nextStatus });
-      // The equipment listing reports availability, and this just changed it.
-      await deleteCachedData('v1/resources/equipment');
-      await deleteCachedData('v1/resources/equipment/reservations');
-      await this.refreshData();
-      this.app.showMessage(translate('reservation_status_updated'), 'success');
     } catch (error) {
       debugError('Failed to update reservation status:', error);
       this.app.showMessage(
         apiErrorMessage(error, 'reservation_status_update_failed'),
         'error'
       );
+      return;
     }
 
-    this.render();
-    this.attachEventHandlers();
+    // The status changed on the server: nothing below reports otherwise.
+    this.app.showMessage(translate('reservation_status_updated'), 'success');
+    // The equipment listing reports availability, and this just changed it.
+    await deleteCachedData('v1/resources/equipment');
+    await deleteCachedData('v1/resources/equipment/reservations');
+    await this.reload();
   }
 
   render() {
@@ -563,9 +606,7 @@ export class MaterialManagement {
             await deleteCachedData('v1/resources/equipment/reservations');
 
             // Refresh from server to get actual IDs and updated quantities
-            await this.refreshData();
-            this.render();
-            this.attachEventHandlers();
+            await this.reload();
           } else {
             throw new Error(response.message || 'Failed to save reservations');
           }
@@ -574,9 +615,7 @@ export class MaterialManagement {
           this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
 
           // Revert optimistic update on error
-          await this.refreshData();
-          this.render();
-          this.attachEventHandlers();
+          await this.reload();
         }
       });
     }

@@ -20,6 +20,7 @@ import { confirmDestructive } from '../../utils/DialogUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 
 // Maximum photo file size (original, before client-side optimization)
 const MAX_PHOTO_SIZE = CONFIG.PHOTO_UPLOAD.MAX_ORIGINAL_SIZE_BYTES;
@@ -112,6 +113,7 @@ function isHeicPhotoFile(file) {
 export class Inventory {
   constructor(app) {
     this.app = app;
+    this.destroyed = false;
     this.equipment = [];
     this.viewMode = 'gallery'; // 'gallery' or 'table'
     this.editingEquipment = null;
@@ -132,15 +134,56 @@ export class Inventory {
       return;
     }
 
+    showPageLoading(document.getElementById('app'), this.pageOptions());
     try {
       await this.refreshData();
-      this.render();
-      this.attachEventHandlers();
     } catch (error) {
+      // A list that did not load is never shown as an empty one.
       debugError('Error initializing inventory:', error);
-      this.app.showMessage(translate('resource_dashboard_error_loading'), 'error');
+      if (!this.destroyed) {
+        showPageError(document.getElementById('app'), this.pageOptions(), () => this.init());
+      }
+      return;
     }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventHandlers();
   }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
+  }
+
+  /** @returns {Object} Shared page-state options */
+  pageOptions() {
+    return { title: translate('inventory_title'), className: 'inventory-page' };
+  }
+
+  /**
+   * Reload after a write the server accepted. The write stands even if the
+   * reload fails: the page keeps what it showed and says it could not refresh.
+   *
+   * @returns {Promise<void>}
+   */
+  async reload() {
+    try {
+      await this.refreshData();
+    } catch (error) {
+      debugError('Error refreshing inventory:', error);
+      if (!this.destroyed) {
+        this.app.showMessage(translate('error_loading_data'), 'error');
+      }
+    }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventHandlers();
+  }
+
 
   async refreshData() {
     // Force refresh to bypass cache - ensures we get the latest data including updated photos
@@ -1265,7 +1308,7 @@ export class Inventory {
         this.showPreviewUnavailableState(photoPreviewImg, photoPlaceholder);
         removePhotoBtn.classList.remove('hidden');
         if (normalization?.error || optimized?.error) {
-          this.app.showMessage(translate('equipment_photo_preview_unavailable'), 'warning');
+          this.app.showMessage(translate('equipment_photo_preview_unavailable'), 'info');
         }
       }
 
@@ -1779,7 +1822,7 @@ export class Inventory {
           await uploadEquipmentPhoto(savedEquipment.id, this.selectedPhotoFile);
         } catch (photoError) {
           debugError('Error uploading photo:', photoError);
-          this.app.showMessage(translate('equipment_photo_upload_error'), 'warning');
+          this.app.showMessage(translate('equipment_photo_upload_error'), 'info');
         }
       }
 
@@ -1790,9 +1833,7 @@ export class Inventory {
       // Invalidate cache to ensure fresh data
       await deleteCachedData('v1/resources/equipment');
 
-      await this.refreshData();
-      this.render();
-      this.attachEventHandlers();
+      await this.reload();
     } catch (error) {
       debugError('Error saving equipment', error);
       this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
@@ -1844,7 +1885,7 @@ export class Inventory {
           await uploadEquipmentPhoto(equipmentId, this.modalSelectedPhotoFile);
         } catch (photoError) {
           debugError('Error uploading photo:', photoError);
-          this.app.showMessage(translate('equipment_photo_upload_error'), 'warning');
+          this.app.showMessage(translate('equipment_photo_upload_error'), 'info');
         }
       }
 
@@ -1854,9 +1895,7 @@ export class Inventory {
       // Invalidate cache to ensure fresh data
       await deleteCachedData('v1/resources/equipment');
 
-      await this.refreshData();
-      this.render();
-      this.attachEventHandlers();
+      await this.reload();
     } catch (error) {
       debugError('Error updating equipment', error);
       this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
@@ -1874,9 +1913,7 @@ export class Inventory {
       // Invalidate cache to ensure fresh data
       await deleteCachedData('v1/resources/equipment');
 
-      await this.refreshData();
-      this.render();
-      this.attachEventHandlers();
+      await this.reload();
     } catch (error) {
       debugError('Error deleting equipment', error);
       this.app.showMessage(apiErrorMessage(error, 'error_occurred'), 'error');
