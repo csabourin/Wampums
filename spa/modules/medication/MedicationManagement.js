@@ -29,6 +29,7 @@ import { buildApiCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { offlineManager } from '../OfflineManager.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 
 /**
  * Medication management module
@@ -65,25 +66,78 @@ export class MedicationManagement {
     this.adminAuth = null;
     this.authGuardians = [];
     this.authLeaders = [];
+    // Set when health-form declarations, or receptions on the dispensing view,
+    // did not load: the page says so instead of showing none.
+    this.declarationsFailed = false;
+    this.receptionsFailed = false;
+    this.destroyed = false;
+  }
+
+  /** @returns {string} The page title for this view */
+  pageTitle() {
+    if (this.view === 'dispensing') {
+      return translate('medication_dispensing_title');
+    }
+    return translate(this.view === 'authorizations' ? 'medication_authorizations_title' : 'medication_planning_title');
+  }
+
+  /** @returns {string} Where the back link leads */
+  backHref() {
+    return this.returnUrl || (this.participantId ? '/parent-dashboard' : '/dashboard');
+  }
+
+  /** @returns {Object} Shared page-state options */
+  pageOptions() {
+    return { title: this.pageTitle(), className: 'medication-page', backHref: this.backHref() };
   }
 
   async init() {
+    this.injectStyles();
+    showPageLoading(document.getElementById('app'), this.pageOptions());
     try {
-      this.injectStyles();
       await this.refreshData();
-      this.render();
-      this.attachEventListeners();
-      this.registerOfflineListener();
-      if (this.view === 'authorizations') {
-        this.loadAuthorizationData();
-      }
-      if (this.enableAlerts) {
-        this.startAlertTicker();
-      }
     } catch (error) {
       debugError('Error initializing medication management', error);
+      if (!this.destroyed) {
+        showPageError(document.getElementById('app'), this.pageOptions(), () => this.init());
+      }
+      return;
+    }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventListeners();
+    this.registerOfflineListener();
+    if (this.view === 'authorizations') {
+      this.loadAuthorizationData();
+    }
+    if (this.enableAlerts) {
+      this.startAlertTicker();
+    }
+  }
+
+  /**
+   * After a write the server accepted: say so, then reload. A reload that fails
+   * keeps what is shown (the write stands) and says it could not refresh.
+   *
+   * @param {string} successKey - Translation key of the success message
+   * @returns {Promise<void>}
+   */
+  async reloadAfterWrite(successKey) {
+    this.app.showMessage(translate(successKey), 'success');
+    try {
+      await this.invalidateCaches();
+      await this.refreshData(true);
+    } catch (error) {
+      debugError('Error refreshing medication data', error);
       this.app.showMessage(translate('error_loading_data'), 'error');
     }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventListeners();
   }
 
   /**
@@ -150,8 +204,10 @@ export class MedicationManagement {
     const cacheOptions = forceRefresh ? { forceRefresh: true } : {};
     // One child's page asks only for that child, which is all a parent may read.
     const scope = this.participantId ? { participant_id: this.participantId } : {};
-    const optional = (label, request) => request.catch((error) => {
+    this.declarationsFailed = false;
+    const optional = (label, request, onFailure = () => {}) => request.catch((error) => {
       debugError(`Failed to load ${label}`, error);
+      onFailure();
       return null;
     });
     const [participantsResponse, requirementsResponse, assignmentsResponse, distributionsResponse, ficheMedicationsResponse, declarationsResponse] = await Promise.all([
@@ -165,7 +221,9 @@ export class MedicationManagement {
         ? optional('health form medication suggestions', getFicheMedications(cacheOptions))
         : null,
       this.view === 'planning'
-        ? optional('health form medications', getFicheMedicationDeclarations(cacheOptions, scope))
+        ? optional('health form medications', getFicheMedicationDeclarations(cacheOptions, scope), () => {
+          this.declarationsFailed = true;
+        })
         : null
     ]);
 
@@ -188,9 +246,11 @@ export class MedicationManagement {
         const receptionsResponse = await getMedicationReceptions({}, cacheOptions);
         const rawRecs = receptionsResponse?.data?.receptions || receptionsResponse?.receptions || receptionsResponse?.data || [];
         this.receptions = Array.isArray(rawRecs) ? rawRecs : [];
+        this.receptionsFailed = false;
       } catch (error) {
+        // Doses still show; which medications were handed in is said to be unknown.
         debugError('Failed to load medication receptions', error);
-        this.receptions = [];
+        this.receptionsFailed = true;
       }
     }
   }
@@ -234,6 +294,7 @@ export class MedicationManagement {
    * running against a page that no longer exists.
    */
   destroy() {
+    this.destroyed = true;
     if (this.alertInterval) {
       clearInterval(this.alertInterval);
       this.alertInterval = null;
@@ -448,6 +509,11 @@ export class MedicationManagement {
         color: #0b3c5d;
         font-weight: 600;
         font-size: 0.85rem;
+      }
+
+      a.pill {
+        min-height: 44px;
+        text-decoration: none;
       }
 
       .declared-medications {
@@ -961,11 +1027,7 @@ export class MedicationManagement {
       .map((medication) => `<option value="${escapeHTML(medication)}"></option>`)
       .join('');
 
-    const pageTitle = this.view === 'dispensing'
-      ? translate('medication_dispensing_title')
-      : this.view === 'authorizations'
-        ? translate('medication_authorizations_title')
-        : translate('medication_planning_title');
+    const pageTitle = this.pageTitle();
     const pageDescription = this.view === 'dispensing'
       ? translate('medication_dispensing_description')
       : this.view === 'authorizations'
@@ -987,7 +1049,7 @@ export class MedicationManagement {
     }
 
     // Back button goes to returnUrl (set by router based on role), or dashboard
-    const backUrl = this.returnUrl || (this.participantId ? '/parent-dashboard' : '/dashboard');
+    const backUrl = this.backHref();
     const participantName = this.participantId && this.participants.length > 0
       ? ` - ${escapeHTML(this.participants[0].first_name)} ${escapeHTML(this.participants[0].last_name)}`
       : '';
@@ -998,6 +1060,8 @@ export class MedicationManagement {
         <div class="card">
           <h1>${escapeHTML(pageTitle)}${participantName}</h1>
           <p class="subtitle">${escapeHTML(pageDescription)}</p>
+          ${this.declarationsFailed ? `<p class="status-message error" role="alert">${escapeHTML(translate('med_reception_declarations_unavailable'))}</p>` : ''}
+          ${this.view === 'dispensing' && this.receptionsFailed ? `<p class="status-message error" role="alert">${escapeHTML(translate('medication_receptions_unavailable'))}</p>` : ''}
           ${this.view === 'dispensing' ? `<div class="pill">${escapeHTML(translate('medication_management_alert_window_hint'))}</div>` : ''}
           ${switchLink}
         </div>
@@ -2111,7 +2175,7 @@ export class MedicationManagement {
     const frequencyConfig = this.buildFrequencyConfigFromForm(formData);
 
     if (!formData.get('medication_name') || !participantId) {
-      this.app.showMessage(translate('medication_requirement_fields_missing'), 'warning');
+      this.app.showMessage(translate('medication_requirement_fields_missing'), 'error');
       return;
     }
 
@@ -2162,13 +2226,8 @@ export class MedicationManagement {
       }
 
       if (!response?.success) {
-        throw new Error(response?.message || translate('error_saving'));
+        throw Object.assign(new Error('requirement_not_saved'), { status: response?.status });
       }
-      await this.invalidateCaches();
-      await this.refreshData(true);
-      this.render();
-      this.attachEventListeners();
-      this.app.showMessage(translate('medication_requirement_saved'), 'success');
     } catch (error) {
       debugError('Error saving medication requirement', error);
       this.requirements = previousRequirements;
@@ -2176,7 +2235,10 @@ export class MedicationManagement {
       this.render();
       this.attachEventListeners();
       this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
+      return;
     }
+    // Saved on the server: nothing below rolls it back.
+    await this.reloadAfterWrite('medication_requirement_saved');
   }
 
   async handleScheduleSubmit(event) {
@@ -2190,7 +2252,7 @@ export class MedicationManagement {
     const frequencyConfig = this.getRequirementFrequencyConfig(requirement);
 
     if (!formData.get('medication_requirement_id') || !formData.get('scheduled_date') || !formData.get('scheduled_time') || participantIds.length === 0) {
-      this.app.showMessage(translate('medication_distribution_fields_missing'), 'warning');
+      this.app.showMessage(translate('medication_distribution_fields_missing'), 'error');
       return;
     }
 
@@ -2246,13 +2308,8 @@ export class MedicationManagement {
 
       const allSuccessful = responses.every((response) => response?.success !== false);
       if (!allSuccessful) {
-        throw new Error(translate('error_saving'));
+        throw new Error('distribution_not_saved');
       }
-      await this.invalidateCaches();
-      await this.refreshData(true);
-      this.render();
-      this.attachEventListeners();
-      this.app.showMessage(translate('medication_distribution_saved'), 'success');
     } catch (error) {
       debugError('Error saving medication distribution', error);
       this.distributions = previousDistributions;
@@ -2260,7 +2317,10 @@ export class MedicationManagement {
       this.updateUpcomingTable();
       this.updateSplitCards();
       this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
+      return;
     }
+    // Saved on the server: nothing below rolls it back.
+    await this.reloadAfterWrite('medication_distribution_saved');
   }
 
   async handleMarkGiven(distributionIds, slotKey) {
@@ -2338,7 +2398,7 @@ export class MedicationManagement {
 
         const isDuplicate = err?.message?.includes('already been given');
         if (isDuplicate) {
-          this.app.showMessage(translate('medication_dose_already_given'), 'warning');
+          this.app.showMessage(translate('medication_dose_already_given'), 'info');
         } else {
           this.app.showMessage(apiErrorMessage(err, 'error_saving'), 'error');
         }
@@ -2346,6 +2406,11 @@ export class MedicationManagement {
 
       onError: (err) => {
         debugError('Error marking medication as given', err);
+      },
+
+      // The dose is recorded on the server; only the refresh after it failed.
+      onCommitError: () => {
+        this.app.showMessage(translate('error_loading_data'), 'error');
       }
     });
   }
@@ -2604,7 +2669,7 @@ export class MedicationManagement {
         // Handle duplicate dose (409 Conflict)
         const isDuplicate = err?.message?.includes('already been given');
         if (isDuplicate) {
-          this.app.showMessage(translate('medication_dose_already_given'), 'warning');
+          this.app.showMessage(translate('medication_dose_already_given'), 'info');
           // Refresh to get actual state from server (if online). If the refresh
           // itself fails (e.g. offline), the user already saw the warning toast,
           // so we only need to log the failure for diagnostics.
@@ -2631,6 +2696,11 @@ export class MedicationManagement {
 
       onError: (err) => {
         debugError('Error giving medication', err);
+      },
+
+      // The dose is recorded on the server; only the refresh after it failed.
+      onCommitError: () => {
+        this.app.showMessage(translate('error_loading_data'), 'error');
       }
     });
   }

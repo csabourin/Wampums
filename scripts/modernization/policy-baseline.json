@@ -163,7 +163,7 @@
     "spa/modules/incident-report/incident-report.js": 24,
     "spa/modules/mailing-list/MailingList.js": 1,
     "spa/modules/medication/MedicationManagement.js": 37,
-    "spa/modules/medication/MedicationReception.js": 6,
+    "spa/modules/medication/MedicationReception.js": 3,
     "spa/modules/meetings/MeetingAutosave.js": 14,
     "spa/modules/meetings/MeetingPrep.js": 5,
     "spa/modules/meetings/UpcomingMeeting.js": 18,
