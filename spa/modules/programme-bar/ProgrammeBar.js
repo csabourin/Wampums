@@ -210,7 +210,8 @@ export class ProgrammeBar extends BaseModule {
   }
 
   /**
-   * Opened after midnight with nothing on today yet: an activity begun the
+   * Opened after midnight with nothing running today yet (an activity about
+   * to start does not count, what is on comes first): an activity begun the
    * evening before may still be running. Looked for once per day, only in the
    * small hours, and not when the bar already followed the day before past
    * midnight; the day before is kept only if something of it is on.
@@ -223,7 +224,7 @@ export class ProgrammeBar extends BaseModule {
     const today = localDateKey(now);
     const dayBefore = previousDateKey(now);
     if (this.loadedDate !== today || heldDate === dayBefore || this.checkedDayBefore === today
-      || now.getHours() >= CONFIG.PROGRAMME_BAR.CARRY_OVER_UNTIL_HOUR || this.moment().state !== 'hidden') {
+      || now.getHours() >= CONFIG.PROGRAMME_BAR.CARRY_OVER_UNTIL_HOUR || this.moment().state === 'now') {
       return;
     }
     this.checkedDayBefore = today;

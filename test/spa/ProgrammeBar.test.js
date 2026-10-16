@@ -326,6 +326,17 @@ describe('past midnight', () => {
     expect(button().textContent).toContain('30 min');
   });
 
+  test('opened after midnight, the evening activity still on comes before one of today about to start', async () => {
+    const early = { ...MEETING, date: '2026-10-17', activities: [{ id: 31, time: '00:40', duration_minutes: 20, name: 'Stargazing', leader: '', material: '' }] };
+    getDayProgramme.mockImplementation((date) => Promise.resolve({ success: true, data: date === '2026-10-16' ? NIGHT : early }));
+    clock = nextDay(0, 30);
+    const instance = new ProgrammeBar({ lang: 'en', showMessage: jest.fn() }, { now: () => new Date(clock), wakeLock: null });
+    bars.push(instance);
+    await instance.start();
+
+    expect(button().textContent).toContain('Night game');
+  });
+
   test('opened later in the morning, it does not look at the day before', async () => {
     getDayProgramme.mockResolvedValue({ success: true, data: null });
     clock = nextDay(9, 0);
