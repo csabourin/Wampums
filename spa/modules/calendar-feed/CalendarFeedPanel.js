@@ -21,6 +21,7 @@ import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { confirm, confirmDestructive } from '../../utils/DialogUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { isDemoUser } from '../../utils/PermissionUtils.js';
+import { getOrganizationIdFromJWT, getUserInfoFromJWT } from '../../jwt-helper.js';
 import {
   createCalendarFeed,
   getCalendarFeedStatus,
@@ -32,6 +33,29 @@ export const CALENDAR_FEED_ANCHOR = 'calendar-feed';
 
 const STATE = Object.freeze({ IDLE: 'idle', LOADING: 'loading', READY: 'ready', ERROR: 'error' });
 
+/**
+ * A link made while its panel was already gone (the person left the page
+ * before the answer came). It is shown only once and replaced the previous
+ * link, so the next panel for the same account and unit shows it. Kept in
+ * memory only: signing out reloads the page and drops it.
+ */
+let unclaimedLink = null;
+
+/** @returns {string} Who a link belongs to: account and unit of the session */
+function linkOwner() {
+  return `${getUserInfoFromJWT()?.userId || ''}:${getOrganizationIdFromJWT() || ''}`;
+}
+
+/** @returns {?Object} The unclaimed link of this account and unit, handed over once */
+function claimUnclaimedLink() {
+  if (!unclaimedLink || unclaimedLink.owner !== linkOwner()) {
+    return null;
+  }
+  const { link } = unclaimedLink;
+  unclaimedLink = null;
+  return link;
+}
+
 export class CalendarFeedPanel {
   /** @param {Object} app - Application instance */
   constructor(app) {
@@ -39,7 +63,7 @@ export class CalendarFeedPanel {
     this.state = STATE.IDLE;
     this.status = { active: false, created_at: null, last_used_at: null };
     // The link just made, shown until the person leaves the page.
-    this.freshLink = null;
+    this.freshLink = claimUnclaimedLink();
     this.busy = false;
     this.container = null;
     this.destroyed = false;
@@ -235,6 +259,9 @@ export class CalendarFeedPanel {
       }
       this.freshLink = link;
       this.status = { active: true, created_at: link.created_at, last_used_at: null };
+      if (this.destroyed) {
+        unclaimedLink = { owner: linkOwner(), link };
+      }
       this.app.showMessage(translate('calendar_feed_created'), 'success');
     } catch (error) {
       debugError('Failed to create calendar link:', error);

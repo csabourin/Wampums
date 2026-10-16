@@ -110,6 +110,17 @@ exports.authenticateCalendarFeed = async (req, res, next) => {
 /**
  * Get organization ID from request (header or user context)
  */
+/**
+ * The request path, fit for a log line. A calendar link's token is a
+ * credential carried in the path, so it is never written out.
+ * @param {Object} req - Request
+ * @returns {string} Path with any calendar token replaced
+ */
+function loggablePath(req) {
+  return req.calendarFeed ? `${req.baseUrl || ''}/calendar-feeds/[token]` : req.path;
+}
+exports.loggablePath = loggablePath;
+
 exports.getOrganizationId = async (req, pool) => {
   const parseOrgId = (value) => {
     if (value === undefined || value === null || value === '') {return null;}
@@ -128,17 +139,17 @@ exports.getOrganizationId = async (req, pool) => {
   if (tokenOrgId) {
     if (headerOrgId && headerOrgId !== tokenOrgId) {
       logger.warn(
-        `Ignoring organization header override for authenticated request. Header=${headerOrgId}, Token=${tokenOrgId}, Path=${req.method} ${req.path}, User=${req.user?.id}`,
+        `Ignoring organization header override for authenticated request. Header=${headerOrgId}, Token=${tokenOrgId}, Path=${req.method} ${loggablePath(req)}, User=${req.user?.id}`,
       );
     }
     if (queryOrgId && queryOrgId !== tokenOrgId) {
       logger.warn(
-        `Ignoring organization_id query override for authenticated request. Query=${queryOrgId}, Token=${tokenOrgId}, Path=${req.method} ${req.path}, User=${req.user?.id}`,
+        `Ignoring organization_id query override for authenticated request. Query=${queryOrgId}, Token=${tokenOrgId}, Path=${req.method} ${loggablePath(req)}, User=${req.user?.id}`,
       );
     }
     if (bodyOrgId && bodyOrgId !== tokenOrgId) {
       logger.warn(
-        `Ignoring organization_id body override for authenticated request. Body=${bodyOrgId}, Token=${tokenOrgId}, Path=${req.method} ${req.path}, User=${req.user?.id}`,
+        `Ignoring organization_id body override for authenticated request. Body=${bodyOrgId}, Token=${tokenOrgId}, Path=${req.method} ${loggablePath(req)}, User=${req.user?.id}`,
       );
     }
     return tokenOrgId;

@@ -25,6 +25,11 @@ jest.mock('../../spa/utils/DialogUtils.js', () => ({
   confirmDestructive: jest.fn(() => Promise.resolve(true)),
 }));
 let mockDemo = false;
+const mockSession = { userId: 'user-1', organizationId: 3 };
+jest.mock('../../spa/jwt-helper.js', () => ({
+  getUserInfoFromJWT: () => ({ userId: mockSession.userId }),
+  getOrganizationIdFromJWT: () => mockSession.organizationId,
+}));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({ isDemoUser: () => mockDemo }));
 
 const api = require('../../spa/api/api-calendar-feed.js');
@@ -70,6 +75,8 @@ function button(action) {
 beforeEach(() => {
   jest.clearAllMocks();
   mockDemo = false;
+  mockSession.userId = 'user-1';
+  mockSession.organizationId = 3;
   confirm.mockResolvedValue(true);
   confirmDestructive.mockResolvedValue(true);
   app = { lang: 'fr', showMessage: jest.fn() };
@@ -211,6 +218,34 @@ test('the account page redrawing itself keeps the link on display', async () => 
 
   expect(document.getElementById('calendar-feed-url').value).toBe(LINK.url);
   expect(api.getCalendarFeedStatus).toHaveBeenCalledTimes(1);
+});
+
+test('a link made after the person left the page is shown when they come back, and only to them', async () => {
+  const panel = await mountWith({ active: false });
+  let answer;
+  api.createCalendarFeed.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+  button('create').click();
+  await flush();
+
+  panel.destroy();
+  answer({ data: LINK });
+  await flush();
+
+  // Someone else signed in on this tab does not get it.
+  mockSession.userId = 'user-2';
+  const stranger = await mountWith({ active: false });
+  expect(document.getElementById('calendar-feed-url')).toBeNull();
+  stranger.destroy();
+
+  mockSession.userId = 'user-1';
+  document.body.innerHTML = '<main id="app"><section id="calendar-feed"></section></main>';
+  await mountWith({ active: true, created_at: LINK.created_at });
+  expect(document.getElementById('calendar-feed-url').value).toBe(LINK.url);
+
+  // Shown once: a later visit summarises it like any earlier link.
+  document.body.innerHTML = '<main id="app"><section id="calendar-feed"></section></main>';
+  await mountWith({ active: true, created_at: LINK.created_at });
+  expect(document.getElementById('calendar-feed-url')).toBeNull();
 });
 
 test('a link with markup characters stays a value, not markup', async () => {

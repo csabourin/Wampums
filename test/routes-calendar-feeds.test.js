@@ -1,3 +1,23 @@
+// Every line the auth middleware logs, to check a calendar token never appears.
+const mockLogLines = [];
+jest.mock('winston', () => {
+  const actual = jest.requireActual('winston');
+  return {
+    ...actual,
+    createLogger: (...args) => {
+      const logger = actual.createLogger(...args);
+      ['info', 'warn', 'error'].forEach((level) => {
+        const original = logger[level].bind(logger);
+        logger[level] = (...parts) => {
+          mockLogLines.push(parts.map(String).join(' '));
+          return original(...parts);
+        };
+      });
+      return logger;
+    },
+  };
+});
+
 const { adaptAuthorizationMock } = require('./mock-helpers');
 const express = require('express');
 const request = require('supertest');
@@ -142,6 +162,19 @@ describe('the feed a calendar app fetches', () => {
     expect(response.text).toContain('X-WR-CALNAME:6e Meute');
     expect(response.text).toContain('SUMMARY:Sortie canot');
     expect(response.text).toContain('REFRESH-INTERVAL;VALUE=DURATION:PT6H');
+  });
+
+  test('a fetch carrying another unit\'s id is logged without the link\'s token', async () => {
+    mockLogLines.length = 0;
+    const response = await request(app)
+      .get(`/api/v1/calendar-feeds/${FEED_TOKEN}.ics`)
+      .set('x-organization-id', '99')
+      .query({ organization_id: 98 });
+
+    expect(response.status).toBe(200);
+    expect(mockLogLines.some((line) => line.includes('Ignoring organization header override'))).toBe(true);
+    expect(mockLogLines.some((line) => line.includes('/calendar-feeds/[token]'))).toBe(true);
+    expect(mockLogLines.join('\n')).not.toContain(FEED_TOKEN);
   });
 
   test('answers an unknown or revoked link with 404', async () => {
