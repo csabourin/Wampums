@@ -75,6 +75,14 @@ export function localDateKey(date) {
 }
 
 /**
+ * @param {Date} date - A moment
+ * @returns {string} The day before, in the phone's own calendar, YYYY-MM-DD
+ */
+export function previousDateKey(date) {
+  return localDateKey(new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1));
+}
+
+/**
  * Lay the timed activities on the day. An activity without a duration lasts
  * until the next one starts; the last one, `defaultLastMinutes`.
  *
@@ -115,11 +123,16 @@ function layOut(activities, defaultLastMinutes) {
  * @param {number} options.leadMinutes - How early the bar appears
  * @param {number} options.endingSoonMinutes - When "ending soon" starts
  * @param {number} options.defaultLastMinutes - Length of a last activity with no duration
+ * @param {number} [options.carriedOverMinutes=0] - Added to the clock: a whole
+ *   day when reading the day before's programme after midnight, so an activity
+ *   that started late in the evening is still on until it ends
  * @returns {ProgrammeMoment}
  */
-export function programmeMoment(activities, now, { leadMinutes, endingSoonMinutes, defaultLastMinutes }) {
+export function programmeMoment(activities, now, {
+  leadMinutes, endingSoonMinutes, defaultLastMinutes, carriedOverMinutes = 0,
+}) {
   const laidOut = layOut(activities, defaultLastMinutes);
-  const at = exactMinutesOfDay(now);
+  const at = exactMinutesOfDay(now) + carriedOverMinutes;
 
   // When activities overlap, the one that started last is "now".
   const current = [...laidOut].reverse().find((entry) => entry.start <= at && at < entry.end) || null;

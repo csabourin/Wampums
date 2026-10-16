@@ -275,6 +275,42 @@ describe('when the programme cannot be read again', () => {
   });
 });
 
+describe('past midnight', () => {
+  const NIGHT = {
+    ...CAMP,
+    activities: [
+      { id: 21, time: '21:00', duration_minutes: 60, name: 'Campfire', leader: 'Akela', material: '' },
+      { id: 22, time: '23:30', duration_minutes: 90, name: 'Night game', leader: 'Baloo', material: 'Torches' },
+    ],
+  };
+  const nextDay = (hours, minutes) => new Date(2026, 9, 17, hours, minutes).getTime();
+
+  test('an activity begun before midnight stays on until it ends, then the new day is read', async () => {
+    await startAt(at(23, 50), NIGHT);
+    expect(button().textContent).toContain('Night game');
+    getDayProgramme.mockClear();
+
+    await runClockTo(nextDay(0, 30));
+    expect(bar().hidden).toBe(false);
+    expect(button().textContent).toContain('Night game');
+    expect(button().textContent).toContain('30 min');
+    expect(getDayProgramme).not.toHaveBeenCalledWith('2026-10-17', expect.anything());
+
+    getDayProgramme.mockResolvedValue({ success: true, data: null });
+    await runClockTo(nextDay(1, 0));
+    expect(getDayProgramme).toHaveBeenLastCalledWith('2026-10-17', { forceRefresh: true });
+    expect(bar().hidden).toBe(true);
+  });
+
+  test('a day that ended before midnight gives way to the new day at midnight', async () => {
+    await startAt(at(23, 50), { ...NIGHT, activities: [{ ...NIGHT.activities[1], time: '23:30', duration_minutes: 25 }] });
+    getDayProgramme.mockResolvedValue({ success: true, data: null });
+
+    await runClockTo(nextDay(0, 0));
+    expect(getDayProgramme).toHaveBeenLastCalledWith('2026-10-17', { forceRefresh: true });
+  });
+});
+
 describe('as the clock turns', () => {
   test('it moves on to the next activity at its time, and says the change once', async () => {
     await startAt(at(19, 24, 30), MEETING);
@@ -414,11 +450,6 @@ describe('the rest of the day', () => {
   test('when the programme ends with the sheet open, the sheet closes, the screen lock goes and focus stays on the page', async () => {
     const sentinel = { release: jest.fn().mockResolvedValue(), addEventListener: jest.fn() };
     const wakeLock = { request: jest.fn().mockResolvedValue(sentinel) };
-    document.getElementById('app')?.remove();
-    const app = document.createElement('main');
-    app.id = 'app';
-    app.innerHTML = '<h1>Dashboard</h1>';
-    document.body.prepend(app);
     await startAt(at(19, 44), MEETING, { wakeLock });
     button().focus();
     button().click();
@@ -429,8 +460,7 @@ describe('the rest of the day', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(document.getElementById('programme-wake-lock')).toBeNull();
     expect(sentinel.release).toHaveBeenCalled();
-    expect(document.activeElement).toBe(app.querySelector('h1'));
-    app.remove();
+    expect(document.activeElement).toBe(document.querySelector('#app h1'));
   });
 
   test('a lock the browser grants after the box was unticked is let go at once', async () => {
@@ -481,6 +511,21 @@ describe('who sees it', () => {
 
     expect(bar().getAttribute('aria-label')).toBe('Programme en cours');
     expect(button().textContent).toContain('Maintenant');
+    expect(announcer().textContent).toBe('');
+  });
+
+  test('after switching language, the last change said in the other language is not left behind', async () => {
+    jest.setSystemTime(at(19, 24, 30));
+    getDayProgramme.mockResolvedValue({ success: true, data: MEETING });
+    syncProgrammeBar({ isLoggedIn: true, lang: 'en' });
+    await settle();
+    jest.advanceTimersByTime(30000);
+    await settle();
+    expect(announcer().textContent).toBe('Now: Jungle story, 20 min');
+
+    globalThis.programmeTestLang = 'fr';
+    syncProgrammeBar({ isLoggedIn: true, lang: 'fr' });
+
     expect(announcer().textContent).toBe('');
   });
 

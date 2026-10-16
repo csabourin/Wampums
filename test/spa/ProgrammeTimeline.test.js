@@ -5,7 +5,7 @@
  * @module test/spa/ProgrammeTimeline
  */
 
-import { programmeMoment, localDateKey, msUntilNextMinute, minutesOfDay } from '../../spa/utils/ProgrammeTimeline.js';
+import { programmeMoment, localDateKey, previousDateKey, msUntilNextMinute, minutesOfDay } from '../../spa/utils/ProgrammeTimeline.js';
 
 const OPTIONS = { leadMinutes: 15, endingSoonMinutes: 5, defaultLastMinutes: 15 };
 const MEETING = [
@@ -88,6 +88,16 @@ describe('where the programme stands', () => {
     expect(now.entries.map((entry) => entry.activity.id)).toEqual([1, 2, 3]);
   });
 
+  test('read the morning after, an evening activity running past midnight is still on until it ends', () => {
+    const evening = [{ id: 1, time: '23:30', duration_minutes: 90, name: 'Jeu de nuit' }];
+    const afterMidnight = (hours, minutes) => programmeMoment(
+      evening, new Date(2026, 9, 17, hours, minutes), { ...OPTIONS, carriedOverMinutes: 24 * 60 },
+    );
+    expect(afterMidnight(0, 30).state).toBe('now');
+    expect(afterMidnight(0, 30).minutesLeft).toBe(30);
+    expect(afterMidnight(1, 0).state).toBe('hidden');
+  });
+
   test('a day with no timed activity shows nothing', () => {
     expect(moment(at(19, 0), [{ id: 1, time: null, name: 'Libre' }]).state).toBe('hidden');
     expect(moment(at(19, 0), []).state).toBe('hidden');
@@ -97,6 +107,10 @@ describe('where the programme stands', () => {
 describe('clock helpers', () => {
   test('the day is the phone\'s own, not UTC\'s', () => {
     expect(localDateKey(new Date(2026, 9, 16, 23, 59))).toBe('2026-10-16');
+  });
+
+  test('the day before is the phone\'s own, across a month', () => {
+    expect(previousDateKey(new Date(2026, 10, 1, 0, 30))).toBe('2026-10-31');
   });
 
   test('the next redraw lands on the next whole minute', () => {

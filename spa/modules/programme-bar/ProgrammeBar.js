@@ -26,7 +26,9 @@ import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { getDayProgramme } from '../../api/api-programme.js';
 import { offlineManager } from '../OfflineManager.js';
-import { programmeMoment, localDateKey, msUntilNextMinute, minutesOfDay } from '../../utils/ProgrammeTimeline.js';
+import {
+  programmeMoment, localDateKey, previousDateKey, msUntilNextMinute, minutesOfDay,
+} from '../../utils/ProgrammeTimeline.js';
 
 const BAR_ID = 'programme-bar';
 const ANNOUNCER_ID = 'programme-bar-announcer';
@@ -35,6 +37,8 @@ const WAKE_LOCK_ID = 'programme-wake-lock';
 const ACTIVE_CLASS = 'has-programme-bar';
 const SPACE_PROPERTY = '--programme-bar-space';
 const MINUTES_PER_HOUR = 60;
+const HOURS_PER_DAY = 24;
+const MINUTES_PER_DAY = HOURS_PER_DAY * MINUTES_PER_HOUR;
 const HTTP_UNAUTHORIZED = 401;
 const HTTP_FORBIDDEN = 403;
 // Answers that mean "not yours to see", as opposed to "not reachable now".
@@ -175,7 +179,7 @@ export class ProgrammeBar extends BaseModule {
    * @returns {Promise<void>}
    */
   async load() {
-    const date = localDateKey(this.now());
+    const date = this.programmeDate();
     try {
       const response = await getDayProgramme(date, { forceRefresh: true });
       if (this.isDestroyed) {
@@ -209,6 +213,8 @@ export class ProgrammeBar extends BaseModule {
       return;
     }
     this.root.setAttribute('aria-label', label);
+    // What was said in the other language is not left for a screen reader to find.
+    this.announcer.textContent = '';
     this.lastMarkup = '';
     this.render();
   }
@@ -225,11 +231,29 @@ export class ProgrammeBar extends BaseModule {
     this.tickTimer = this.setTimeout(() => this.tick(), msUntilNextMinute(this.now()));
   }
 
+  /**
+   * The day whose programme the bar follows: today's, except after midnight
+   * while an activity of the day before (a campfire, a night game) is still on.
+   *
+   * @returns {string} YYYY-MM-DD
+   */
+  programmeDate() {
+    if (this.programme && this.carriedOverMinutes() > 0 && this.moment().state !== 'hidden') {
+      return this.loadedDate;
+    }
+    return localDateKey(this.now());
+  }
+
+  /** @returns {number} A whole day when the programme held is the day before's */
+  carriedOverMinutes() {
+    return this.loadedDate === previousDateKey(this.now()) ? MINUTES_PER_DAY : 0;
+  }
+
   /** Each minute: a new day or an old reading means reading again; otherwise redraw. */
   tick() {
     const now = this.now();
     const stale = now.getTime() - this.loadedAt >= CONFIG.PROGRAMME_BAR.REFRESH_AFTER_MINUTES * MS_PER_MINUTE;
-    if (localDateKey(now) !== this.loadedDate || stale) {
+    if (this.programmeDate() !== this.loadedDate || stale) {
       this.load();
       return;
     }
@@ -253,6 +277,7 @@ export class ProgrammeBar extends BaseModule {
       leadMinutes: CONFIG.PROGRAMME_BAR.LEAD_MINUTES,
       endingSoonMinutes: CONFIG.PROGRAMME_BAR.ENDING_SOON_MINUTES,
       defaultLastMinutes: CONFIG.PROGRAMME_BAR.DEFAULT_LAST_ACTIVITY_MINUTES,
+      carriedOverMinutes: this.carriedOverMinutes(),
     });
   }
 
