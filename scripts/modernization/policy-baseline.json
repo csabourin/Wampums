@@ -284,7 +284,6 @@
     "test/user-stories/offline.stories.test.js": 2,
     "test/user-stories/points-store.stories.test.js": 5,
     "test/walk-in-children.integration.test.js": 1,
-    "tests/manual_budget_test.js": 70,
     "utils/aiPayloadValidation.js": 13,
     "utils/api-helpers.js": 4,
     "utils/carpool-notifications.js": 1,
