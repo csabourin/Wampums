@@ -21,7 +21,6 @@ import {
   // ... (imports continue)
   canCreateOrganization,
   canManageActivities,
-  canManageAttendance,
   canManageBudget,
   canManageFinance,
   canManageFundraisers,
@@ -430,6 +429,13 @@ export class Router {
     } else {
       this.app.removeSettingsIcon();
     }
+
+    // The leaders' "now / next" bar lives outside #app: start it for a
+    // leader, stop it once signed out. Synced before any early return (a
+    // session that expired sends to login), and loaded only once needed.
+    import('./modules/programme-bar/ProgrammeBar.js')
+      .then((module) => module.syncProgrammeBar(this.app))
+      .catch((error) => debugError('[Router] Programme bar unavailable:', error));
 
     try {
       const guard = (condition) => {
@@ -1051,21 +1057,6 @@ export class Router {
         // ... other cases ...
         default:
           this.loadNotFoundPage();
-      }
-
-      // Load activity widget only on dashboard/activity-related routes for better performance
-      const activityRoutes = ['dashboard', 'activities', 'carpool', 'carpoolLanding'];
-      const canShowActivityWidget = (canViewActivities() || canManageActivities() || canManageAttendance()) && !isParent();
-      if (
-        this.app.isLoggedIn &&
-        canShowActivityWidget &&
-        activityRoutes.includes(routeName) &&
-        !this.activityWidgetInitialized  // Check if the widget is already initialized
-      ) {
-        import('./modules/activity-widget/initActivityWidget.js').then(module => {
-          module.initActivityWidget(this.app);
-        });
-        this.activityWidgetInitialized = true;  // Mark the widget as initialized
       }
     } catch (error) {
       if (error instanceof NavigationCancelledError || navigationId !== this.navigationId) {

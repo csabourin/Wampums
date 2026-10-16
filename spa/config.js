@@ -268,6 +268,23 @@ export const CONFIG = {
     STRIPE_PUBLISHABLE_KEY: import.meta.env?.VITE_STRIPE_PUBLISHABLE_KEY || '',
   },
 
+  /**
+   * The leaders' "now / next" bar during a planned meeting or camp day.
+   */
+  PROGRAMME_BAR: {
+    // Shown this long before the first activity starts.
+    LEAD_MINUTES: 15,
+    // The bar says so, and changes colour, this close to an activity's end.
+    ENDING_SOON_MINUTES: 5,
+    // A last activity planned without a duration is taken to last this long.
+    DEFAULT_LAST_ACTIVITY_MINUTES: 15,
+    // Opened after midnight but before this hour, the bar also looks for an
+    // activity of the evening before that is still on (a night game at camp).
+    CARRY_OVER_UNTIL_HOUR: 6,
+    // A programme read longer ago than this is read again when the app returns.
+    REFRESH_AFTER_MINUTES: 15,
+  },
+
     /**
      * Feature Flags
      * Enable/disable features based on environment or rollout strategy

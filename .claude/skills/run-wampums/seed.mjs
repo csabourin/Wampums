@@ -81,7 +81,7 @@ try {
      SELECT $1, id FROM permissions
       WHERE permission_key IN ('participants.view', 'participants.create', 'participants.edit', 'participants.walk_in',
                                'attendance.view', 'attendance.manage', 'points.view', 'points.manage', 'activities.view',
-                               'groups.view', 'badges.view', 'badges.manage')
+                               'groups.view', 'badges.view', 'badges.manage', 'meetings.view')
      ON CONFLICT DO NOTHING`,
     [leaderRole]
   );
@@ -162,6 +162,25 @@ try {
     [organizationId, childId, guardianId, outingDate, activityId]
   );
 
+  // Tomorrow's meeting, with a timed programme, for the leaders' "now / next"
+  // bar: a browser check sets the page clock inside it. Tomorrow, so the bar
+  // never shows in checks that run on the real clock today.
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const programmeDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+  const meetingId = await one(
+    `INSERT INTO year_plan_meetings (organization_id, meeting_date, meeting_kind, theme)
+     VALUES ($1, $2, 'regular', 'La jungle') RETURNING id`,
+    [organizationId, programmeDate]
+  );
+  await pool.query(
+    `INSERT INTO year_plan_meeting_activities
+       (organization_id, meeting_id, name, start_time, duration_minutes, responsable, material, sort_order)
+     VALUES ($1, $2, 'Accueil et grand hurlement', '18:45', 15, 'Bagheera', NULL, 1),
+            ($1, $2, 'Jeu de la tanière', '19:00', 25, 'Baloo', 'Foulards, 4 cônes', 2),
+            ($1, $2, 'Histoire de la jungle', '19:25', 20, 'Akela', 'Livre', 3)`,
+    [organizationId, meetingId]
+  );
+
   // The standard forms (health, risk acceptance, registration...) with the
   // per-role rights a new unit receives, so the parent dashboard lists them.
   const { installDefaultFormFormats } = require(path.join(ROOT, 'services/defaultFormFormats.js'));
@@ -178,6 +197,7 @@ try {
     accounts: { admin: 'admin@run.test', leader: 'leader@run.test', parent: 'parent@run.test' },
     activityId,
     participantId: childId,
+    programmeDate,
     password: PASSWORD,
   };
   mkdirSync(CACHE, { recursive: true });

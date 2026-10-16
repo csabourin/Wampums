@@ -5,7 +5,7 @@
  * unobscured focus, and a dialog driven from the keyboard.
  */
 import { test, expect } from '@playwright/test';
-import { ACCOUNTS, APP_NAME, storageStateFor, openScreen, settleScreen, axeViolations, seededActivityId, seededParticipantId } from './helpers.mjs';
+import { ACCOUNTS, APP_NAME, storageStateFor, openScreen, settleScreen, axeViolations, seededActivityId, seededParticipantId, seededProgrammeDate } from './helpers.mjs';
 
 /** Screens each person reaches from their dashboard. Paths are canonical (no redirects). */
 const SCREENS = {
@@ -386,5 +386,52 @@ test.describe('calendar subscription', () => {
     await expect(section.locator('[data-calendar-feed="create"]')).toBeVisible();
     expect((await page.request.get(feedPath)).status()).toBe(404);
     await context.close();
+  });
+});
+
+test.describe('the leaders\' programme bar', () => {
+  test.use({ storageState: storageStateFor(ACCOUNTS.leader) });
+
+  test('during a planned meeting it says what is on and what is next, never hides a focused control, and opens the day', async ({ page }) => {
+    // seed.mjs plans tomorrow's meeting from 18:45; the page's clock is set inside it.
+    const [year, month, day] = seededProgrammeDate().split('-').map(Number);
+    await page.clock.install({ time: new Date(year, month - 1, day, 19, 13) });
+    await openScreen(page, '/dashboard');
+
+    const bar = page.getByRole('complementary', { name: 'Programme en cours' });
+    await expect(bar).toContainText('Jeu de la tanière');
+    await expect(bar).toContainText('12 min');
+    await expect(bar).toContainText('Histoire de la jungle · Akela');
+    expect(await axeViolations(page)).toEqual([]);
+
+    // At the very end of the page, its last control, focused, sits above the
+    // bar: the page keeps room for it (WCAG 2.4.11).
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+    const last = page.locator('#app a[href]:visible, #app button:visible').last();
+    await last.focus();
+    const barTop = (await bar.boundingBox()).y;
+    await expect.poll(async () => {
+      const box = await last.boundingBox();
+      return box.y + box.height;
+    }).toBeLessThanOrEqual(barTop);
+
+    const open = bar.getByRole('button');
+    await open.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('Programme de la réunion');
+    await expect(dialog).toContainText('Matériel : Foulards, 4 cônes');
+    // Contrast is measured once the dialog has finished fading in.
+    await page.evaluate(() => Promise.all(document.getAnimations()
+      .filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime))
+      .map((animation) => animation.finished.catch(() => {}))));
+    expect(await axeViolations(page)).toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(open).toBeFocused();
+
+    // At 19:25 the bar moves on by itself.
+    await page.clock.runFor(12 * 60 * 1000);
+    await expect(bar).toContainText('Histoire de la jungle');
+    await expect(bar).toContainText('20 min');
   });
 });

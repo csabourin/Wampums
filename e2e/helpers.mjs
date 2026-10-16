@@ -45,6 +45,15 @@ export function seededParticipantId() {
   return readSeed().participantId;
 }
 
+/**
+ * The day seed.mjs planned a timed meeting on (tomorrow, at seeding time).
+ *
+ * @returns {string} YYYY-MM-DD
+ */
+export function seededProgrammeDate() {
+  return readSeed().programmeDate;
+}
+
 /** @returns {Object} What seed.mjs recorded in seed.json */
 function readSeed() {
   const cache = process.env.WAMPUMS_RUN_CACHE || path.join(homedir(), '.cache', 'wampums-run');
