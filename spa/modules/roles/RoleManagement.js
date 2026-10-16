@@ -12,7 +12,7 @@ import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { roleDescription, roleLabel } from '../../utils/RoleLabelUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { setContent, loadStylesheet } from "../../utils/DOMUtils.js";
+import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { deleteCachedData } from '../../indexedDB.js';
 import {
   getUsers,
@@ -294,7 +294,7 @@ export class RoleManagement {
 
   async renderUserAssignment(userId) {
     const user = this.users.find(u => u.id === userId);
-    if (!user) return '';
+    if (!user) {return '';}
 
     const userRoles = await this.fetchUserRoles(userId);
     const userRoleIds = userRoles.map(r => r.id);
@@ -316,13 +316,13 @@ export class RoleManagement {
             <h3>${translate('current_roles') || 'Current Roles'}</h3>
             <div class="role-badges">
               ${userRoles.length > 0
-                ? userRoles.map(role => `
+    ? userRoles.map(role => `
                     <span class="role-badge role-badge-${role.role_name}">
                       ${this.escapeHtml(roleLabel(role))}
                     </span>
                   `).join('')
-                : `<span class="empty-badge">${translate('no_roles_assigned') || 'No roles assigned'}</span>`
-              }
+    : `<span class="empty-badge">${translate('no_roles_assigned') || 'No roles assigned'}</span>`
+}
             </div>
           </div>
 
@@ -332,12 +332,12 @@ export class RoleManagement {
 
             <div class="role-checkboxes">
               ${this.roles.map(role => {
-                // Roles carrying permissions the viewer does not hold cannot be
-                // granted or removed by them; they stay visible, keeping their
-                // state, so saving sends them back unchanged.
-                const locked = role.assignable === false;
-                const noteId = `role-locked-note-${role.id}`;
-                return `
+    // Roles carrying permissions the viewer does not hold cannot be
+    // granted or removed by them; they stay visible, keeping their
+    // state, so saving sends them back unchanged.
+    const locked = role.assignable === false;
+    const noteId = `role-locked-note-${role.id}`;
+    return `
                 <div class="role-checkbox-option">
                   <label class="role-checkbox-item${locked ? ' role-checkbox-item--locked' : ''}">
                     <input
@@ -357,7 +357,7 @@ export class RoleManagement {
                   ${locked ? `<small class="role-locked-note" id="${noteId}">${translate('role_not_assignable')}</small>` : ''}
                 </div>
               `;
-              }).join('')}
+  }).join('')}
             </div>
           </div>
 
@@ -644,7 +644,7 @@ export class RoleManagement {
 
   attachAssignmentFormListeners() {
     const form = document.getElementById('user-role-assignment-form');
-    if (!form) return;
+    if (!form) {return;}
 
     document.getElementById('membership-toggle')?.addEventListener('click', () => {
       this.toggleMembership(document.getElementById('selected-user-id').value);

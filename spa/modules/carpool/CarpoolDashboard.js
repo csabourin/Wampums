@@ -24,9 +24,9 @@ import { CONFIG } from '../../config.js';
 import { offlineManager } from '../OfflineManager.js';
 import { getCachedData, setCachedData } from '../../indexedDB.js';
 import { confirm as confirmDialog, confirmDestructive, prompt as promptDialog } from '../../utils/DialogUtils.js';
-import { setContent, loadStylesheet } from "../../utils/DOMUtils.js";
+import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
-import { buildNotFoundMarkup } from "../../utils/NotFoundUtils.js";
+import { buildNotFoundMarkup } from '../../utils/NotFoundUtils.js';
 import { parseDate } from '../../utils/DateUtils.js';
 import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { withButtonLoading } from '../../utils/PerformanceUtils.js';
@@ -56,7 +56,7 @@ export class CarpoolDashboard {
     await loadStylesheet(carpoolStylesheetUrl);
 
     if (!this.hasCarpoolAccess) {
-      this.app.router.navigate("/dashboard");
+      this.app.router.navigate('/dashboard');
       return;
     }
 
@@ -193,9 +193,9 @@ export class CarpoolDashboard {
     if (!this.activity) {
       setContent(container, `
         ${buildNotFoundMarkup({
-          messageKey: 'activity_not_found',
-          resourceLabel: translate('activity')
-        })}
+    messageKey: 'activity_not_found',
+    resourceLabel: translate('activity')
+  })}
       `);
       return;
     }
@@ -433,7 +433,7 @@ export class CarpoolDashboard {
                 <div class="unassigned-item__status">
                   ${!p.has_ride_going ? `<span class="badge badge--warning">${translate('needs_ride_going')}</span>` : ''}
                   ${!p.has_ride_return && this.activity.meeting_location_return ?
-        `<span class="badge badge--warning">${translate('needs_ride_return')}</span>` : ''}
+    `<span class="badge badge--warning">${translate('needs_ride_return')}</span>` : ''}
                 </div>
               </div>
               <button class="button button--small button--primary quick-assign-btn"
@@ -480,11 +480,11 @@ export class CarpoolDashboard {
     return `
       <div class="assignments-list">
         ${Object.entries(groupedByParticipant).map(([participantId, assignments]) => {
-      const firstAssignment = assignments[0];
-      const userId = localStorage.getItem('userId');
-      const canRemove = this.isStaff || firstAssignment.assigned_by === userId;
+    const firstAssignment = assignments[0];
+    const userId = localStorage.getItem('userId');
+    const canRemove = this.isStaff || firstAssignment.assigned_by === userId;
 
-      return `
+    return `
             <div class="assignment-card">
               <div class="assignment-card__header">
                 <strong>${escapeHTML(firstAssignment.participant_name)}</strong>
@@ -513,7 +513,7 @@ export class CarpoolDashboard {
               `).join('')}
             </div>
           `;
-    }).join('')}
+  }).join('')}
       </div>
     `;
   }
@@ -708,24 +708,24 @@ export class CarpoolDashboard {
 
               <div class="child-selection-list">
                 ${userChildren.map(child => {
-          const assignments = child.carpool_assignments || [];
-          const hasBothDirections = assignments.some(a => a.trip_direction === 'both');
-          const hasGoing = hasBothDirections || assignments.some(a => a.trip_direction === 'to_activity');
-          const hasReturn = hasBothDirections || assignments.some(a => a.trip_direction === 'from_activity');
+    const assignments = child.carpool_assignments || [];
+    const hasBothDirections = assignments.some(a => a.trip_direction === 'both');
+    const hasGoing = hasBothDirections || assignments.some(a => a.trip_direction === 'to_activity');
+    const hasReturn = hasBothDirections || assignments.some(a => a.trip_direction === 'from_activity');
 
-          return `
+    return `
                     <div class="child-selection-card">
                       <div class="child-selection-card__info">
                         <strong>${escapeHTML(child.first_name)} ${escapeHTML(child.last_name)}</strong>
                         <div class="child-selection-card__status">
                           ${hasGoing ?
-              `<span class="badge badge--success"><span aria-hidden="true">✓</span> ${translate('has_ride_going')}</span>` :
-              `<span class="badge badge--warning">${translate('needs_ride_going')}</span>`
-            }
+    `<span class="badge badge--success"><span aria-hidden="true">✓</span> ${translate('has_ride_going')}</span>` :
+    `<span class="badge badge--warning">${translate('needs_ride_going')}</span>`
+}
                           ${this.activity.meeting_location_return ? (hasReturn ?
-              `<span class="badge badge--success"><span aria-hidden="true">✓</span> ${translate('has_ride_return')}</span>` :
-              `<span class="badge badge--warning">${translate('needs_ride_return')}</span>`
-            ) : ''}
+    `<span class="badge badge--success"><span aria-hidden="true">✓</span> ${translate('has_ride_return')}</span>` :
+    `<span class="badge badge--warning">${translate('needs_ride_return')}</span>`
+  ) : ''}
                         </div>
                       </div>
                       <button class="button button--primary select-child-btn"
@@ -734,7 +734,7 @@ export class CarpoolDashboard {
                       </button>
                     </div>
                   `;
-        }).join('')}
+  }).join('')}
               </div>
       `,
     });
@@ -932,10 +932,10 @@ export class CarpoolDashboard {
               input.disabled = false;
             } else if (offer.trip_direction === 'to_activity') {
               input.disabled = input.value === 'from_activity';
-              if (input.value === 'to_activity') input.checked = true;
+              if (input.value === 'to_activity') {input.checked = true;}
             } else if (offer.trip_direction === 'from_activity') {
               input.disabled = input.value === 'to_activity';
-              if (input.value === 'from_activity') input.checked = true;
+              if (input.value === 'from_activity') {input.checked = true;}
             }
           });
         }
@@ -957,7 +957,7 @@ export class CarpoolDashboard {
       confirmed = await confirmDestructive(translate('confirm_cancel_ride'));
     }
 
-    if (!confirmed) return;
+    if (!confirmed) {return;}
 
     await this.optimisticManager.execute(`cancel-offer-${offerId}`, {
       optimisticFn: () => {

@@ -1,18 +1,18 @@
-import { getParentContactList } from "../../ajax-functions.js";
-import { debugLog, debugError, debugWarn, debugInfo } from "../../utils/DebugUtils.js";
-import { translate } from "../../app.js";
-import { canSendCommunications, canViewParticipants } from "../../utils/PermissionUtils.js";
-import { debounce } from "../../utils/PerformanceUtils.js";
-import { setContent } from "../../utils/DOMUtils.js";
-import { createPhoneLink } from "../../utils/PhoneUtils.js";
-import { createEmailLink } from "../../utils/EmailUtils.js";
-import { escapeHTML } from "../../utils/SecurityUtils.js";
+import { getParentContactList } from '../../ajax-functions.js';
+import { debugLog, debugError, debugWarn, debugInfo } from '../../utils/DebugUtils.js';
+import { translate } from '../../app.js';
+import { canSendCommunications, canViewParticipants } from '../../utils/PermissionUtils.js';
+import { debounce } from '../../utils/PerformanceUtils.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { createPhoneLink } from '../../utils/PhoneUtils.js';
+import { createEmailLink } from '../../utils/EmailUtils.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
 
 export class ParentContactList {
   constructor(app) {
     this.app = app;
     this.children = [];
-    this.searchFilter = "";
+    this.searchFilter = '';
     // Create debounced search handler (300ms delay)
     this.debouncedSearch = debounce((value) => {
       this.searchFilter = value;
@@ -22,7 +22,7 @@ export class ParentContactList {
 
   async init() {
     if (!canSendCommunications() && !canViewParticipants()) {
-      this.app.router.navigate("/");
+      this.app.router.navigate('/');
       return;
     }
 
@@ -31,7 +31,7 @@ export class ParentContactList {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Error initializing parent contact list:", error);
+      debugError('Error initializing parent contact list:', error);
       this.renderError();
     }
   }
@@ -90,21 +90,21 @@ export class ParentContactList {
 
       this.children = childrenMap;
     } catch (error) {
-      debugError("Error fetching parent contact list:", error);
+      debugError('Error fetching parent contact list:', error);
       throw error;
     }
   }
 
   render() {
     const content = `
-            <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-            <h1>${translate("parent_contact_list")}</h1>
+            <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+            <h1>${translate('parent_contact_list')}</h1>
             <div class="search-container">
                 <input
                     type="text"
                     id="contact-search"
                     class="search-input"
-                    placeholder="${translate("search_participants")}..."
+                    placeholder="${translate('search_participants')}..."
                     value="${this.searchFilter}"
                 />
             </div>
@@ -112,7 +112,7 @@ export class ParentContactList {
                 ${this.renderChildrenByFirstName()}
             </div>
         `;
-    setContent(document.getElementById("app"), content);
+    setContent(document.getElementById('app'), content);
     this.attachEventListeners();
   }
 
@@ -121,8 +121,8 @@ export class ParentContactList {
     let sortedChildren = Object.entries(this.children)
       .map(([id, child]) => ({ id, ...child }))
       .sort((a, b) => {
-        const aFirstName = a.name.split(" ")[0];
-        const bFirstName = b.name.split(" ")[0];
+        const aFirstName = a.name.split(' ')[0];
+        const bFirstName = b.name.split(' ')[0];
         return aFirstName.localeCompare(bFirstName);
       });
 
@@ -152,7 +152,7 @@ export class ParentContactList {
     }
 
     // Render grouped and collapsed by default
-    let html = "";
+    let html = '';
     for (const [letter, children] of Object.entries(groupedByLetter).sort()) {
       html += `
 
@@ -175,7 +175,7 @@ export class ParentContactList {
     }
     const sortedGroups = Array.from(allGroups).sort(); // Sort groups alphabetically
 
-    let html = "";
+    let html = '';
     for (const group of sortedGroups) {
       html += `
               <div class="group">
@@ -214,55 +214,55 @@ export class ParentContactList {
             <div class="contact-info">
                 <strong>${escapeHTML(contact.name)}</strong>
                 ${
-                  contact.is_emergency
-                    ? `<span class="emergency-contact">${translate(
-                        "is_emergency_contact",
-                      )}</span>`
-                    : ""
-                }
+  contact.is_emergency
+    ? `<span class="emergency-contact">${translate(
+      'is_emergency_contact',
+    )}</span>`
+    : ''
+}
                 ${
-                  contact.email
-                    ? `<span class="contact-email">${translate("email")}: ${createEmailLink(
-                        contact.email
-                      )}</span>`
-                    : ""
-                }
+  contact.email
+    ? `<span class="contact-email">${translate('email')}: ${createEmailLink(
+      contact.email
+    )}</span>`
+    : ''
+}
                 ${
-                  contact.phone_home
-                    ? `<span class="phone-number">${translate("phone_home")}: ${createPhoneLink(
-                        contact.phone_home
-                      )}</span>`
-                    : ""
-                }
+  contact.phone_home
+    ? `<span class="phone-number">${translate('phone_home')}: ${createPhoneLink(
+      contact.phone_home
+    )}</span>`
+    : ''
+}
                 ${
-                  contact.phone_cell
-                    ? `<span class="phone-number">${translate("phone_cell")}: ${createPhoneLink(
-                        contact.phone_cell
-                      )}</span>`
-                    : ""
-                }
+  contact.phone_cell
+    ? `<span class="phone-number">${translate('phone_cell')}: ${createPhoneLink(
+      contact.phone_cell
+    )}</span>`
+    : ''
+}
                 ${
-                  contact.phone_work
-                    ? `<span class="phone-number">${translate("phone_work")}: ${createPhoneLink(
-                        contact.phone_work
-                      )}</span>`
-                    : ""
-                }
+  contact.phone_work
+    ? `<span class="phone-number">${translate('phone_work')}: ${createPhoneLink(
+      contact.phone_work
+    )}</span>`
+    : ''
+}
             </div>
         `,
       )
-      .join("");
+      .join('');
   }
 
   attachEventListeners() {
-    document.querySelectorAll(".group-header").forEach((header) => {
-      header.addEventListener("click", (e) => this.toggleGroup(e.target));
+    document.querySelectorAll('.group-header').forEach((header) => {
+      header.addEventListener('click', (e) => this.toggleGroup(e.target));
     });
 
     // Add search input listener with debouncing
-    const searchInput = document.getElementById("contact-search");
+    const searchInput = document.getElementById('contact-search');
     if (searchInput) {
-      searchInput.addEventListener("input", (e) => {
+      searchInput.addEventListener('input', (e) => {
         // Use debounced search to avoid excessive filtering
         this.debouncedSearch(e.target.value);
       });
@@ -270,7 +270,7 @@ export class ParentContactList {
   }
 
   updateContactList() {
-    const contactList = document.getElementById("contact-list");
+    const contactList = document.getElementById('contact-list');
     if (contactList) {
       setContent(contactList, this.renderChildrenByFirstName());
     }
@@ -278,15 +278,15 @@ export class ParentContactList {
 
   toggleGroup(header) {
     const content = header.nextElementSibling;
-    header.classList.toggle("collapsed");
-    content.classList.toggle("collapsed");
+    header.classList.toggle('collapsed');
+    content.classList.toggle('collapsed');
   }
 
   renderError() {
     const errorMessage = `
-            <h1>${translate("error")}</h1>
-            <p>${translate("error_loading_parent_contact_list")}</p>
+            <h1>${translate('error')}</h1>
+            <p>${translate('error_loading_parent_contact_list')}</p>
         `;
-    setContent(document.getElementById("app"), errorMessage);
+    setContent(document.getElementById('app'), errorMessage);
   }
 }

@@ -2,15 +2,15 @@ import {
   getGroups,
   addGroup,
   removeGroup,
-} from "../../ajax-functions.js";
-import { translate } from "../../app.js";
-import { CONFIG } from "../../config.js";
-import { clearGroupRelatedCaches } from "../../indexedDB.js";
-import { debugError } from "../../utils/DebugUtils.js";
-import { escapeHTML } from "../../utils/SecurityUtils.js";
-import { canViewGroups } from "../../utils/PermissionUtils.js";
-import { setContent } from "../../utils/DOMUtils.js";
-import { confirmDestructive } from "../../utils/DialogUtils.js";
+} from '../../ajax-functions.js';
+import { translate } from '../../app.js';
+import { CONFIG } from '../../config.js';
+import { clearGroupRelatedCaches } from '../../indexedDB.js';
+import { debugError } from '../../utils/DebugUtils.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { canViewGroups } from '../../utils/PermissionUtils.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { confirmDestructive } from '../../utils/DialogUtils.js';
 
 export class ManageGroups {
   constructor(app) {
@@ -21,7 +21,7 @@ export class ManageGroups {
   async init() {
     // Check permission
     if (!canViewGroups()) {
-      this.app.router.navigate("/dashboard");
+      this.app.router.navigate('/dashboard');
       return;
     }
 
@@ -30,7 +30,7 @@ export class ManageGroups {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Error initializing manage groups:", error);
+      debugError('Error initializing manage groups:', error);
       this.renderError();
     }
   }
@@ -45,22 +45,22 @@ export class ManageGroups {
 
   render() {
     const content = `
-        <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-            <h1>${translate("manage_groups")}</h1>
+        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+            <h1>${translate('manage_groups')}</h1>
             <div id="message"></div>
             <form id="add-group-form">
-                <h2>${translate("add_group")}</h2>
-                <label for="group_name">${translate("group_name")}:</label>
+                <h2>${translate('add_group')}</h2>
+                <label for="group_name">${translate('group_name')}:</label>
                 <input type="text" id="group_name" name="group_name" required>
-                <button type="submit">${translate("add_group")}</button>
+                <button type="submit">${translate('add_group')}</button>
             </form>
-            <h2>${translate("existing_groups")}</h2>
+            <h2>${translate('existing_groups')}</h2>
             <table>
                 <thead>
                   <tr>
-                      <th>${translate("group_name")}</th>
-                      <th>${translate("group_member_count")}</th>
-                      <th>${translate("action")}</th>
+                      <th>${translate('group_name')}</th>
+                      <th>${translate('group_member_count')}</th>
+                      <th>${translate('action')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -68,14 +68,14 @@ export class ManageGroups {
                 </tbody>
             </table>
         `;
-    setContent(document.getElementById("app"), content);
+    setContent(document.getElementById('app'), content);
   }
 
   renderGroupRows() {
     if (this.groups.length === 0) {
       return `
             <tr>
-                <td colspan="3">${translate("no_groups_found")}</td>
+                <td colspan="3">${translate('no_groups_found')}</td>
             </tr>
         `;
     }
@@ -86,39 +86,39 @@ export class ManageGroups {
         const formattedCount = new Intl.NumberFormat(this.app.lang || CONFIG.DEFAULT_LANG).format(memberCount);
         return `
             <tr data-group-row="${group.id}">
-                <td>${escapeHTML(group.name || "")}</td>
-                <td class="${memberCount > 0 ? "group-members group-members--occupied" : "group-members"}">${formattedCount}</td>
+                <td>${escapeHTML(group.name || '')}</td>
+                <td class="${memberCount > 0 ? 'group-members group-members--occupied' : 'group-members'}">${formattedCount}</td>
                 <td>
                     <button class="remove-group button--danger"
                             data-group-id="${group.id}"
                             data-member-count="${memberCount}">
-                        ${translate("remove_group")}
+                        ${translate('remove_group')}
                     </button>
                 </td>
             </tr>
         `;
       })
-      .join("");
+      .join('');
   }
 
   attachEventListeners() {
-    const addGroupForm = document.getElementById("add-group-form");
+    const addGroupForm = document.getElementById('add-group-form');
 
     if (addGroupForm) {
-      addGroupForm.addEventListener("submit", (e) => this.handleAddGroup(e));
+      addGroupForm.addEventListener('submit', (e) => this.handleAddGroup(e));
     }
 
-    document.querySelectorAll(".remove-group").forEach((button) => {
-      button.addEventListener("click", (e) => this.handleRemoveGroup(e));
+    document.querySelectorAll('.remove-group').forEach((button) => {
+      button.addEventListener('click', (e) => this.handleRemoveGroup(e));
     });
   }
 
   async handleAddGroup(e) {
     e.preventDefault();
-    const groupName = document.getElementById("group_name").value.trim();
+    const groupName = document.getElementById('group_name').value.trim();
 
     if (!groupName) {
-      this.showMessage(translate("group_name_required"));
+      this.showMessage(translate('group_name_required'));
       return;
     }
 
@@ -131,22 +131,22 @@ export class ManageGroups {
         this.render();
         this.attachEventListeners();
         // Show translated success message
-        this.showMessage(translate("group_added_successfully"));
+        this.showMessage(translate('group_added_successfully'));
         // Clear the input field
-        document.getElementById("group_name").value = "";
+        document.getElementById('group_name').value = '';
       } else {
         this.showMessage(translate('error_adding_group'));
       }
     } catch (error) {
-      debugError("Error:", error);
-      this.showMessage(translate("error_adding_group"));
+      debugError('Error:', error);
+      this.showMessage(translate('error_adding_group'));
     }
   }
 
   async handleRemoveGroup(e) {
     const button = e.currentTarget;
-    const groupId = button.getAttribute("data-group-id");
-    const memberCount = Number(button.getAttribute("data-member-count")) || 0;
+    const groupId = button.getAttribute('data-group-id');
+    const memberCount = Number(button.getAttribute('data-member-count')) || 0;
     const formattedCount = new Intl.NumberFormat(this.app.lang || CONFIG.DEFAULT_LANG).format(memberCount);
 
     // Say how many youth are in it before deleting. The issue asked for the
@@ -154,10 +154,10 @@ export class ManageGroups {
     // mistake; the assignments are for the selected year, and removing the row
     // strands every year's assignments, not just this one.
     const warning = memberCount > 0
-      ? ` ${translate("group_has_members_warning").replace("{{count}}", formattedCount)}`
-      : "";
+      ? ` ${translate('group_has_members_warning').replace('{{count}}', formattedCount)}`
+      : '';
 
-    if (await confirmDestructive(`${translate("confirm_delete_group")}${warning}`)) {
+    if (await confirmDestructive(`${translate('confirm_delete_group')}${warning}`)) {
       try {
         const result = await removeGroup(groupId);
         if (result.success) {
@@ -166,31 +166,31 @@ export class ManageGroups {
           await this.fetchGroups();
           this.render();
           this.attachEventListeners();
-          this.showMessage(translate("group_removed_successfully"));
+          this.showMessage(translate('group_removed_successfully'));
         } else {
           this.showMessage(translate('error_removing_group'));
         }
       } catch (error) {
-        debugError("Error:", error);
-        this.showMessage(translate("error_removing_group"));
+        debugError('Error:', error);
+        this.showMessage(translate('error_removing_group'));
       }
     }
   }
 
   showMessage(message) {
-    const messageElement = document.getElementById("message");
+    const messageElement = document.getElementById('message');
     messageElement.textContent = message;
-    messageElement.style.display = "block";
+    messageElement.style.display = 'block';
     setTimeout(() => {
-      messageElement.style.display = "none";
+      messageElement.style.display = 'none';
     }, 3000);
   }
 
   renderError() {
     const errorMessage = `
-            <h1>${translate("error")}</h1>
-            <p>${translate("error_loading_manage_groups")}</p>
+            <h1>${translate('error')}</h1>
+            <p>${translate('error_loading_manage_groups')}</p>
         `;
-    setContent(document.getElementById("app"), errorMessage);
+    setContent(document.getElementById('app'), errorMessage);
   }
 }

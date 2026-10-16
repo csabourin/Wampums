@@ -2,19 +2,19 @@ import {
   getCurrentOrganizationId,
   fetchParticipants,
   getParticipantStatement
-} from "../../ajax-functions.js";
-import { createStripePaymentIntent, getStripePaymentStatus } from "../../api/api-endpoints.js";
-import { clearFinanceRelatedCaches } from "../../indexedDB.js";
-import { debugLog, debugError } from "../../utils/DebugUtils.js";
-import { translate } from "../../app.js";
+} from '../../ajax-functions.js';
+import { createStripePaymentIntent, getStripePaymentStatus } from '../../api/api-endpoints.js';
+import { clearFinanceRelatedCaches } from '../../indexedDB.js';
+import { debugLog, debugError } from '../../utils/DebugUtils.js';
+import { translate } from '../../app.js';
 import { CONFIG } from '../../config.js';
-import { escapeHTML } from "../../utils/SecurityUtils.js";
+import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
-import { formatDateShort } from "../../utils/DateUtils.js";
-import { LoadingStateManager, retryWithBackoff } from "../../utils/PerformanceUtils.js";
-import { isParent } from "../../utils/PermissionUtils.js";
-import { setContent } from "../../utils/DOMUtils.js";
-import { openModal, closeModal } from "../../utils/ModalUtils.js";
+import { formatDateShort } from '../../utils/DateUtils.js';
+import { LoadingStateManager, retryWithBackoff } from '../../utils/PerformanceUtils.js';
+import { isParent } from '../../utils/PermissionUtils.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { openModal, closeModal } from '../../utils/ModalUtils.js';
 
 export class ParentFinance {
   constructor(app) {
@@ -42,7 +42,7 @@ export class ParentFinance {
   async init() {
     // Prevent race conditions - only one init at a time
     if (this.isInitializing) {
-      debugError("ParentFinance init already in progress, skipping duplicate call");
+      debugError('ParentFinance init already in progress, skipping duplicate call');
       return;
     }
 
@@ -59,7 +59,7 @@ export class ParentFinance {
       try {
         await this.fetchParticipants();
       } catch (error) {
-        debugError("Error fetching participants:", error);
+        debugError('Error fetching participants:', error);
         hasErrors = true;
         // Continue with empty participants array
       }
@@ -67,7 +67,7 @@ export class ParentFinance {
       try {
         await this.fetchAllStatements();
       } catch (error) {
-        debugError("Error fetching statements:", error);
+        debugError('Error fetching statements:', error);
         hasErrors = true;
         // Continue with empty statements
       }
@@ -79,13 +79,13 @@ export class ParentFinance {
       this.attachEventListeners();
 
       if (hasErrors) {
-        this.app.showMessage(translate("error_loading_data"), "warning");
+        this.app.showMessage(translate('error_loading_data'), 'warning');
       }
     } catch (error) {
-      debugError("Error rendering parent finance page:", error);
+      debugError('Error rendering parent finance page:', error);
       this.render();
       this.attachEventListeners();
-      this.app.showMessage(translate("error_loading_data"), "error");
+      this.app.showMessage(translate('error_loading_data'), 'error');
     } finally {
       this.isInitializing = false;
     }
@@ -108,14 +108,14 @@ export class ParentFinance {
 
       const publishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
       if (!publishableKey) {
-        debugError("Stripe publishable key not found in environment");
+        debugError('Stripe publishable key not found in environment');
         return;
       }
 
       this.stripe = window.Stripe(publishableKey);
-      debugLog("Stripe initialized successfully");
+      debugLog('Stripe initialized successfully');
     } catch (error) {
-      debugError("Error initializing Stripe:", error);
+      debugError('Error initializing Stripe:', error);
     }
   }
 
@@ -143,9 +143,9 @@ export class ParentFinance {
         }
 
         this.participants = Array.from(uniqueParticipants.values());
-        debugLog("Fetched participants for finance:", this.participants);
+        debugLog('Fetched participants for finance:', this.participants);
       } catch (error) {
-        debugError("Error fetching participants:", error);
+        debugError('Error fetching participants:', error);
         this.participants = [];
         throw error;
       }
@@ -156,7 +156,7 @@ export class ParentFinance {
     try {
       // If there are no participants, skip fetching statements
       if (!this.participants || this.participants.length === 0) {
-        debugLog("No participants to fetch statements for");
+        debugLog('No participants to fetch statements for');
         return;
       }
 
@@ -182,9 +182,9 @@ export class ParentFinance {
         }
       });
 
-      debugLog("Fetched all statements:", this.participantStatements);
+      debugLog('Fetched all statements:', this.participantStatements);
     } catch (error) {
-      debugError("Error fetching participant statements:", error);
+      debugError('Error fetching participant statements:', error);
       // Don't throw - let init continue with empty statements
       throw error;
     }
@@ -204,7 +204,7 @@ export class ParentFinance {
       this.consolidatedTotals.total_outstanding += Number(totals.total_outstanding) || 0;
     });
 
-    debugLog("Consolidated totals:", this.consolidatedTotals);
+    debugLog('Consolidated totals:', this.consolidatedTotals);
   }
 
   formatCurrency(amount = 0) {
@@ -226,69 +226,69 @@ export class ParentFinance {
 
   renderLoading() {
     const backLink = isParent()
-      ? `<a href="/parent-dashboard" class="button button--ghost">← ${translate("back")}</a>`
-      : `<a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>`;
+      ? `<a href="/parent-dashboard" class="button button--ghost">← ${translate('back')}</a>`
+      : `<a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>`;
 
     const content = `
       ${backLink}
       <div class="parent-finance-page">
-        <h1>${translate("participant_finance_statements")}</h1>
+        <h1>${translate('participant_finance_statements')}</h1>
         <div class="loading-container">
           <div class="loading-spinner"></div>
-          <p>${translate("loading")}...</p>
+          <p>${translate('loading')}...</p>
         </div>
       </div>
     `;
 
-    setContent(document.getElementById("app"), content);
+    setContent(document.getElementById('app'), content);
   }
 
   render() {
     const backLink = isParent()
-      ? `<a href="/parent-dashboard" class="back-link">${translate("back_to_dashboard")}</a>`
-      : `<a href="/dashboard" class="back-link">${translate("back_to_dashboard")}</a>`;
+      ? `<a href="/parent-dashboard" class="back-link">${translate('back_to_dashboard')}</a>`
+      : `<a href="/dashboard" class="back-link">${translate('back_to_dashboard')}</a>`;
 
     const content = `
-      <a href="/parent-dashboard" class="button button--ghost">← ${translate("back")}</a>
+      <a href="/parent-dashboard" class="button button--ghost">← ${translate('back')}</a>
       <section class="parent-finance-page">
         <header class="finance-header">
           <div>
-            <h1>${translate("my_finances")}</h1>
-            <p class="finance-subtitle">${translate("view_your_financial_summary")}</p>
+            <h1>${translate('my_finances')}</h1>
+            <p class="finance-subtitle">${translate('view_your_financial_summary')}</p>
           </div>
         </header>
 
         ${this.renderConsolidatedSummary()}
 
         <div class="finance-section">
-          <h2>${translate("by_participant")}</h2>
+          <h2>${translate('by_participant')}</h2>
           ${this.renderParticipantStatements()}
         </div>
       </section>
     `;
 
-    setContent(document.getElementById("app"), content);
+    setContent(document.getElementById('app'), content);
   }
 
   renderConsolidatedSummary() {
     if (this.participants.length === 0) {
-      return `<p class="finance-helper">${translate("no_participants")}</p>`;
+      return `<p class="finance-helper">${translate('no_participants')}</p>`;
     }
 
     return `
       <article class="finance-card finance-card--highlight">
-        <h2>${translate("consolidated_balance")}</h2>
+        <h2>${translate('consolidated_balance')}</h2>
         <div class="finance-stats">
           <div>
-            <p class="finance-stat__label">${translate("total_billed")}</p>
+            <p class="finance-stat__label">${translate('total_billed')}</p>
             <p class="finance-stat__value">${this.formatCurrency(this.consolidatedTotals.total_billed)}</p>
           </div>
           <div>
-            <p class="finance-stat__label">${translate("total_paid")}</p>
+            <p class="finance-stat__label">${translate('total_paid')}</p>
             <p class="finance-stat__value">${this.formatCurrency(this.consolidatedTotals.total_paid)}</p>
           </div>
           <div>
-            <p class="finance-stat__label">${translate("outstanding_balance")}</p>
+            <p class="finance-stat__label">${translate('outstanding_balance')}</p>
             <p class="finance-stat__value finance-stat__value--alert">${this.formatCurrency(this.consolidatedTotals.total_outstanding)}</p>
           </div>
         </div>
@@ -298,7 +298,7 @@ export class ParentFinance {
 
   renderParticipantStatements() {
     if (this.participants.length === 0) {
-      return `<p class="finance-helper">${translate("no_participants")}</p>`;
+      return `<p class="finance-helper">${translate('no_participants')}</p>`;
     }
 
     return this.participants
@@ -318,29 +318,29 @@ export class ParentFinance {
             <div class="finance-card__header">
               <h3>${participantName}</h3>
               ${totals.total_outstanding > 0
-                ? `<span class="finance-pill finance-pill--warning">${translate("amount_due")}</span>`
-                : `<span class="finance-pill finance-pill--success">${translate("paid")}</span>`
-              }
+    ? `<span class="finance-pill finance-pill--warning">${translate('amount_due')}</span>`
+    : `<span class="finance-pill finance-pill--success">${translate('paid')}</span>`
+}
             </div>
 
             <div class="finance-amounts">
               <div>
-                <p class="finance-stat__label">${translate("total_billed")}</p>
+                <p class="finance-stat__label">${translate('total_billed')}</p>
                 <p class="finance-stat__value">${this.formatCurrency(totals.total_billed)}</p>
               </div>
               <div>
-                <p class="finance-stat__label">${translate("total_paid")}</p>
+                <p class="finance-stat__label">${translate('total_paid')}</p>
                 <p class="finance-stat__value">${this.formatCurrency(totals.total_paid)}</p>
               </div>
               <div>
-                <p class="finance-stat__label">${translate("outstanding_balance")}</p>
+                <p class="finance-stat__label">${translate('outstanding_balance')}</p>
                 <p class="finance-stat__value finance-stat__value--alert">${this.formatCurrency(totals.total_outstanding)}</p>
               </div>
             </div>
 
             ${fees.length > 0 ? `
               <details class="finance-details">
-                <summary class="finance-details__summary">${translate("view_details")}</summary>
+                <summary class="finance-details__summary">${translate('view_details')}</summary>
                 <div class="finance-details__content">
                   ${this.renderFeeDetails(fees)}
                 </div>
@@ -349,7 +349,7 @@ export class ParentFinance {
           </article>
         `;
       })
-      .join("");
+      .join('');
   }
 
   renderFeeDetails(fees) {
@@ -363,19 +363,19 @@ export class ParentFinance {
           <div class="finance-list__row" data-fee-id="${fee.id}">
             <div>
               <p class="finance-meta"><strong>${yearRange}</strong></p>
-              <p class="finance-meta">${translate("status")}: ${statusLabel}</p>
+              <p class="finance-meta">${translate('status')}: ${statusLabel}</p>
             </div>
             <div class="finance-row-values">
               <div>
-                <p class="finance-meta">${translate("total_billed")}</p>
+                <p class="finance-meta">${translate('total_billed')}</p>
                 <span>${this.formatCurrency(fee.total_amount)}</span>
               </div>
               <div>
-                <p class="finance-meta">${translate("total_paid")}</p>
+                <p class="finance-meta">${translate('total_paid')}</p>
                 <span>${this.formatCurrency(fee.total_paid)}</span>
               </div>
               <div>
-                <p class="finance-meta">${translate("outstanding_balance")}</p>
+                <p class="finance-meta">${translate('outstanding_balance')}</p>
                 <span class="finance-stat__value--alert">${this.formatCurrency(fee.outstanding)}</span>
               </div>
             </div>
@@ -387,14 +387,14 @@ export class ParentFinance {
                   data-amount="${fee.outstanding}"
                   data-participant-name="${escapeHTML(fee.participant_name || '')}"
                 >
-                  💳 ${translate("pay_now")} (${this.formatCurrency(fee.outstanding)})
+                  💳 ${translate('pay_now')} (${this.formatCurrency(fee.outstanding)})
                 </button>
               </div>
             ` : ''}
           </div>
         `;
       })
-      .join("");
+      .join('');
   }
 
   formatYearRange(start, end) {
@@ -409,11 +409,11 @@ export class ParentFinance {
     if (startYear || endYear) {
       return String(startYear || endYear);
     }
-    return translate("unknown");
+    return translate('unknown');
   }
 
   extractYear(dateValue) {
-    if (!dateValue) return null;
+    if (!dateValue) {return null;}
     const parsedDate = new Date(dateValue);
     if (!Number.isNaN(parsedDate.getTime())) {
       return parsedDate.getFullYear();
@@ -435,12 +435,12 @@ export class ParentFinance {
       });
     });
 
-    debugLog("Parent finance event listeners attached");
+    debugLog('Parent finance event listeners attached');
   }
 
   openPaymentModal(feeId, amount, participantName) {
     if (!this.stripe) {
-      this.app.showMessage(translate("payment_system_unavailable"), "error");
+      this.app.showMessage(translate('payment_system_unavailable'), 'error');
       return;
     }
 
@@ -533,12 +533,12 @@ export class ParentFinance {
       submitBtn.addEventListener('click', () => this.handlePaymentSubmit(submitBtn));
 
     } catch (error) {
-      debugError("Error initializing payment:", error);
+      debugError('Error initializing payment:', error);
       const errorDiv = document.getElementById('payment-error-message');
       if (errorDiv) {
         errorDiv.textContent = apiErrorMessage(error, 'payment_initialization_failed');
       }
-      this.app.showMessage(translate("payment_initialization_failed"), "error");
+      this.app.showMessage(translate('payment_initialization_failed'), 'error');
     }
   }
 
@@ -559,7 +559,7 @@ export class ParentFinance {
       const { error, paymentIntent } = await this.stripe.confirmPayment({
         elements: this.elements,
         confirmParams: {
-          return_url: window.location.origin + '/parent-finance',
+          return_url: `${window.location.origin  }/parent-finance`,
         },
         redirect: 'if_required'
       });
@@ -571,12 +571,12 @@ export class ParentFinance {
         btnSpinner.style.display = 'none';
         submitBtn.disabled = false;
         this.paymentProcessing = false;
-        this.app.showMessage(error.message, "error");
-        debugError("Payment error:", error);
+        this.app.showMessage(error.message, 'error');
+        debugError('Payment error:', error);
       } else if (paymentIntent && paymentIntent.status === 'succeeded') {
         // Payment succeeded
-        debugLog("Payment succeeded:", paymentIntent);
-        this.app.showMessage(translate("payment_successful"), "success");
+        debugLog('Payment succeeded:', paymentIntent);
+        this.app.showMessage(translate('payment_successful'), 'success');
 
         // CRITICAL: Invalidate finance caches immediately
         await clearFinanceRelatedCaches(this.currentFeeId);
@@ -590,13 +590,13 @@ export class ParentFinance {
         this.attachEventListeners();
       }
     } catch (err) {
-      debugError("Payment submission error:", err);
-      errorDiv.textContent = translate("payment_failed");
+      debugError('Payment submission error:', err);
+      errorDiv.textContent = translate('payment_failed');
       btnText.style.display = 'inline-block';
       btnSpinner.style.display = 'none';
       submitBtn.disabled = false;
       this.paymentProcessing = false;
-      this.app.showMessage(translate("payment_failed"), "error");
+      this.app.showMessage(translate('payment_failed'), 'error');
     }
   }
 }

@@ -10,36 +10,36 @@ import {
   getUserRoleAssignments,
   updateUserRoleBundles,
   updateUserRolesV1,
-} from "../../ajax-functions.js";
+} from '../../ajax-functions.js';
 import { setUserMembershipStatus } from '../../api/api-members.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
-import { translate } from "../../app.js";
-import { getCachedData, setCachedData } from "../../indexedDB.js";
-import { debounce } from "../../utils/PerformanceUtils.js";
-import { debugError } from "../../utils/DebugUtils.js";
-import { canAssignRoles, canViewRoles, hasPermission } from "../../utils/PermissionUtils.js";
+import { translate } from '../../app.js';
+import { getCachedData, setCachedData } from '../../indexedDB.js';
+import { debounce } from '../../utils/PerformanceUtils.js';
+import { debugError } from '../../utils/DebugUtils.js';
+import { canAssignRoles, canViewRoles, hasPermission } from '../../utils/PermissionUtils.js';
 import { roleDescription, roleLabel } from '../../utils/RoleLabelUtils.js';
 import {
   escapeHTML,
   sanitizeHTML,
   sanitizeURL,
-} from "../../utils/SecurityUtils.js";
+} from '../../utils/SecurityUtils.js';
 import {
   buildRoleBundleIndex,
   calculatePermissionGaps,
   detectRoleConflicts,
   getLocalGroupEligibleRoles,
-} from "../../utils/RoleValidationUtils.js";
-import { setStorageMultiple } from "../../utils/StorageUtils.js";
-import { setContent } from "../../utils/DOMUtils.js";
-import { openModal } from "../../utils/ModalUtils.js";
-import { getMountPoint, resolveMountOptions } from "../../utils/PageMount.js";
+} from '../../utils/RoleValidationUtils.js';
+import { setStorageMultiple } from '../../utils/StorageUtils.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { openModal } from '../../utils/ModalUtils.js';
+import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
-const CACHE_KEY = "district_management_state";
+const CACHE_KEY = 'district_management_state';
 const CACHE_DURATION = CONFIG.CACHE_DURATION.SHORT;
-const ADMIN_ROLES = ["district", "unitadmin", "demoadmin"];
-const HIGH_RISK_ROLES = ["district", "unitadmin"];
+const ADMIN_ROLES = ['district', 'unitadmin', 'demoadmin'];
+const HIGH_RISK_ROLES = ['district', 'unitadmin'];
 const ROLE_LEVELS = {
   district: 3,
   unitadmin: 2,
@@ -51,7 +51,7 @@ const ROLE_LEVELS = {
   parent: 0,
   demoparent: 0,
 };
-const INCIDENT_REPORT_URL = "mailto:security@wampums.app?subject=Role%20change%20review";
+const INCIDENT_REPORT_URL = 'mailto:security@wampums.app?subject=Role%20change%20review';
 
 /**
  * DistrictManagement view
@@ -65,11 +65,11 @@ export class DistrictManagement {
     this.users = [];
     this.roles = [];
     this.filteredUsers = [];
-    this.searchTerm = "";
+    this.searchTerm = '';
     this.activeRoleFilters = new Set();
     this.selectedUserId = null;
     this.selectedRoleIds = new Set();
-    this.auditNote = "";
+    this.auditNote = '';
     this.lastSyncedAt = null;
     this.queuedChanges = [];
     this.isOffline = !navigator.onLine;
@@ -81,12 +81,12 @@ export class DistrictManagement {
     this.rolePermissions = {};
     this.roleBundleIndex = { list: [], byId: new Map(), byName: new Map() };
     this.auditLogByUser = {};
-    this.auditPanelError = "";
+    this.auditPanelError = '';
     this.loadingAuditUserId = null;
     this.savingUserId = null;
-    this.formStatus = { type: "", message: "" };
+    this.formStatus = { type: '', message: '' };
     this.debouncedSearch = debounce((event) => {
-      this.searchTerm = event.target.value || "";
+      this.searchTerm = event.target.value || '';
       this.renderAndBind();
     }, 250);
   }
@@ -127,7 +127,7 @@ export class DistrictManagement {
         this.auditLogByUser = cached.auditLogByUser || {};
       }
     } catch (error) {
-      debugError("district_management: failed to hydrate cache", error);
+      debugError('district_management: failed to hydrate cache', error);
     }
   }
 
@@ -152,7 +152,7 @@ export class DistrictManagement {
         CACHE_DURATION,
       );
     } catch (error) {
-      debugError("district_management: failed to persist cache", error);
+      debugError('district_management: failed to persist cache', error);
     }
   }
 
@@ -166,7 +166,7 @@ export class DistrictManagement {
         }
       }
     } catch (error) {
-      debugError("district_management: failed to load organizations", error);
+      debugError('district_management: failed to load organizations', error);
     }
   }
 
@@ -186,9 +186,9 @@ export class DistrictManagement {
       this.renderAndBind();
     };
 
-    window.addEventListener("offlineStatusChanged", this.offlineStatusChangedHandler);
-    window.addEventListener("online", this.onlineHandler);
-    window.addEventListener("offline", this.offlineHandler);
+    window.addEventListener('offlineStatusChanged', this.offlineStatusChangedHandler);
+    window.addEventListener('online', this.onlineHandler);
+    window.addEventListener('offline', this.offlineHandler);
   }
 
   /**
@@ -196,15 +196,15 @@ export class DistrictManagement {
    */
   destroy() {
     if (this.offlineStatusChangedHandler) {
-      window.removeEventListener("offlineStatusChanged", this.offlineStatusChangedHandler);
+      window.removeEventListener('offlineStatusChanged', this.offlineStatusChangedHandler);
       this.offlineStatusChangedHandler = null;
     }
     if (this.onlineHandler) {
-      window.removeEventListener("online", this.onlineHandler);
+      window.removeEventListener('online', this.onlineHandler);
       this.onlineHandler = null;
     }
     if (this.offlineHandler) {
-      window.removeEventListener("offline", this.offlineHandler);
+      window.removeEventListener('offline', this.offlineHandler);
       this.offlineHandler = null;
     }
   }
@@ -228,7 +228,7 @@ export class DistrictManagement {
         this.organizationId = organizationId;
       }
       if (!organizationId) {
-        this.app.showMessage("district_management_load_error", "error");
+        this.app.showMessage('district_management_load_error', 'error');
         return;
       }
 
@@ -252,8 +252,8 @@ export class DistrictManagement {
       await this.persistCache();
       this.renderAndBind();
     } catch (error) {
-      debugError("district_management: failed to refresh data", error);
-      this.app.showMessage("district_management_load_error", "error");
+      debugError('district_management: failed to refresh data', error);
+      this.app.showMessage('district_management_load_error', 'error');
     } finally {
       this.syncing = false;
       this.renderSyncBadge();
@@ -279,7 +279,7 @@ export class DistrictManagement {
           permissions[role.id] =
             (response?.data || []).map((permission) => permission.permission_key) || [];
         } catch (error) {
-          debugError("district_management: failed to hydrate permissions", error);
+          debugError('district_management: failed to hydrate permissions', error);
           permissions[role.id] = role.permissions || [];
         }
       }),
@@ -302,12 +302,12 @@ export class DistrictManagement {
         Array.isArray(user.roles) && user.roles.length
           ? user.roles
           : parsedRoleIds
-              .map((id) => roleLookup.get(id))
-              .filter(Boolean)
-              .map((role) => ({
-                ...role,
-                display_name: roleLabel(role),
-              }));
+            .map((id) => roleLookup.get(id))
+            .filter(Boolean)
+            .map((role) => ({
+              ...role,
+              display_name: roleLabel(role),
+            }));
 
       return {
         ...user,
@@ -318,13 +318,13 @@ export class DistrictManagement {
   }
 
   parseRoleIds(roleIds) {
-    if (!roleIds) return [];
+    if (!roleIds) {return [];}
     if (Array.isArray(roleIds)) {
       return roleIds
         .map((value) => parseInt(value, 10))
         .filter((value) => Number.isFinite(value));
     }
-    if (typeof roleIds === "string") {
+    if (typeof roleIds === 'string') {
       try {
         const parsed = JSON.parse(roleIds);
         if (Array.isArray(parsed)) {
@@ -334,7 +334,7 @@ export class DistrictManagement {
         }
         return [];
       } catch (error) {
-        debugError("district_management: unable to parse role_ids", error);
+        debugError('district_management: unable to parse role_ids', error);
         return [];
       }
     }
@@ -355,9 +355,9 @@ export class DistrictManagement {
   renderAccessDenied() {
     const content = `
       <section class="district-management" aria-labelledby="district-management-title">
-        <h1 id="district-management-title">${translate("access_denied")}</h1>
-        <p>${translate("no_permission_role_management") || translate("no_permission")}</p>
-        <a class="btn btn--primary" href="/dashboard">${translate("back_to_dashboard")}</a>
+        <h1 id="district-management-title">${translate('access_denied')}</h1>
+        <p>${translate('no_permission_role_management') || translate('no_permission')}</p>
+        <a class="btn btn--primary" href="/dashboard">${translate('back_to_dashboard')}</a>
       </section>
     `;
     setContent(getMountPoint(this), content);
@@ -388,7 +388,7 @@ export class DistrictManagement {
   }
 
   async handleOrganizationChange(newOrgId) {
-    if (!newOrgId || String(newOrgId) === String(this.organizationId || "")) {
+    if (!newOrgId || String(newOrgId) === String(this.organizationId || '')) {
       return;
     }
 
@@ -408,68 +408,68 @@ export class DistrictManagement {
   render() {
     const lastSyncedLabel = this.formatTimestamp(this.lastSyncedAt);
     const queuedCount = this.queuedChanges.length;
-    const queuedLabel = `${translate("district_management_queued_label")} (${queuedCount})`;
+    const queuedLabel = `${translate('district_management_queued_label')} (${queuedCount})`;
     const offlineBanner = this.isOffline
       ? `<div class="dm-offline-banner" role="status" aria-live="polite">
             <span aria-hidden="true">📡</span>
-            <span>${translate("district_management_offline_banner")}</span>
+            <span>${translate('district_management_offline_banner')}</span>
          </div>`
-      : "";
+      : '';
     const organizationSelector = this.renderOrganizationSelector();
 
     const queuedBadge =
       queuedCount > 0
         ? `<div class="dm-queued" role="status">
             <span class="chip chip--primary">${escapeHTML(queuedLabel)}</span>
-            <button id="dm-retry" class="btn btn--secondary" ${this.isOffline ? "disabled" : ""}>
-              ${translate("district_management_retry_sync")}
+            <button id="dm-retry" class="btn btn--secondary" ${this.isOffline ? 'disabled' : ''}>
+              ${translate('district_management_retry_sync')}
             </button>
           </div>`
-        : "";
+        : '';
 
     const actionBar = `
-      <div class="dm-action-bar" role="region" aria-label="${translate("district_management_actions")}">
+      <div class="dm-action-bar" role="region" aria-label="${translate('district_management_actions')}">
         <div class="dm-action-bar__left">
-          <button id="dm-refresh" class="ghost-button" aria-label="${translate("district_management_refresh")}">
-            🔄 ${translate("district_management_refresh")}
+          <button id="dm-refresh" class="ghost-button" aria-label="${translate('district_management_refresh')}">
+            🔄 ${translate('district_management_refresh')}
           </button>
           <div class="dm-sync" id="dm-sync-status" aria-live="polite">
-            ${translate("district_management_last_synced")}: <strong>${escapeHTML(lastSyncedLabel)}</strong>
+            ${translate('district_management_last_synced')}: <strong>${escapeHTML(lastSyncedLabel)}</strong>
           </div>
         </div>
         <div class="dm-action-bar__right">
-          <button id="dm-bottom-retry" class="btn btn--secondary" ${this.isOffline ? "disabled" : ""}>
-            ${translate("district_management_retry_sync")}
+          <button id="dm-bottom-retry" class="btn btn--secondary" ${this.isOffline ? 'disabled' : ''}>
+            ${translate('district_management_retry_sync')}
           </button>
         </div>
       </div>
     `;
 
     const content = `
-      <section class="district-management"${this.embedded ? "" : ' aria-labelledby="district-management-title"'}>
+      <section class="district-management"${this.embedded ? '' : ' aria-labelledby="district-management-title"'}>
         <header class="dm-header">
           <div>
-            ${this.embedded ? "" : `<a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-            <h1 id="district-management-title">${translate("tile_district_management")}</h1>`}
-            <p class="dm-subtitle">${translate("district_management_subtitle")}</p>
+            ${this.embedded ? '' : `<a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+            <h1 id="district-management-title">${translate('tile_district_management')}</h1>`}
+            <p class="dm-subtitle">${translate('district_management_subtitle')}</p>
           </div>
           ${offlineBanner}
         </header>
 
         <div class="dm-controls">
           <div class="dm-search">
-            <label class="sr-only" for="dm-search-input">${translate("district_management_search_label")}</label>
+            <label class="sr-only" for="dm-search-input">${translate('district_management_search_label')}</label>
             <input
               id="dm-search-input"
               type="search"
               inputmode="search"
               autocomplete="off"
-              aria-label="${translate("district_management_search_label")}"
-              placeholder="${translate("district_management_search_placeholder")}"
+              aria-label="${translate('district_management_search_label')}"
+              placeholder="${translate('district_management_search_placeholder')}"
               value="${escapeHTML(this.searchTerm)}"
             />
           </div>
-          <div class="dm-filters" role="listbox" aria-label="${translate("district_management_filter_label")}">
+          <div class="dm-filters" role="listbox" aria-label="${translate('district_management_filter_label')}">
             ${this.renderRoleFilters()}
           </div>
         </div>
@@ -503,11 +503,11 @@ export class DistrictManagement {
     }
     if (!this.assignmentModal?.overlay.isConnected) {
       this.assignmentModal = openModal({
-        id: "dm-modal",
+        id: 'dm-modal',
         title: parts.title,
         body: parts.body,
         footer: parts.footer,
-        className: "dm-modal",
+        className: 'dm-modal',
         onClose: () => {
           // Closed by Escape, the backdrop, the close button or by leaving
           // the page: nothing else on the page depends on the selection.
@@ -520,34 +520,34 @@ export class DistrictManagement {
       return;
     }
     const { dialog, body } = this.assignmentModal;
-    setContent(dialog.querySelector(".modal-header h2"), parts.title);
+    setContent(dialog.querySelector('.modal-header h2'), parts.title);
     setContent(body, parts.body);
-    setContent(dialog.querySelector(".modal-footer"), parts.footer);
+    setContent(dialog.querySelector('.modal-footer'), parts.footer);
   }
 
   getActiveOrganizationName() {
-    const currentId = String(this.organizationId || getCurrentOrganizationId() || "");
+    const currentId = String(this.organizationId || getCurrentOrganizationId() || '');
     const organization = this.organizations.find(
       (org) => String(org.id) === currentId || String(org.organization_id) === currentId,
     );
-    return organization?.name || organization?.organization_name || currentId || "";
+    return organization?.name || organization?.organization_name || currentId || '';
   }
 
   renderOrganizationSelector() {
-    if (!this.organizations.length) return "";
-    const currentId = String(this.organizationId || getCurrentOrganizationId() || "");
+    if (!this.organizations.length) {return '';}
+    const currentId = String(this.organizationId || getCurrentOrganizationId() || '');
     const hasMultiple = this.organizations.length > 1;
     const options = this.organizations
       .map((org) => {
         const orgId = String(org.id || org.organization_id);
         const name = escapeHTML(org.name || org.organization_name || orgId);
         const isSelected = orgId === currentId;
-        return `<option value="${escapeHTML(orgId)}" ${isSelected ? "selected" : ""}>${name}</option>`;
+        return `<option value="${escapeHTML(orgId)}" ${isSelected ? 'selected' : ''}>${name}</option>`;
       })
-      .join("");
+      .join('');
 
-    const label = translate("district_management_org_scope_label");
-    const helper = translate("district_management_org_scope_help");
+    const label = translate('district_management_org_scope_label');
+    const helper = translate('district_management_org_scope_help');
     const activeName = escapeHTML(this.getActiveOrganizationName());
 
     const selector = hasMultiple
@@ -568,7 +568,7 @@ export class DistrictManagement {
       const roleName = escapeHTML(roleLabel(role));
       const isActive = this.activeRoleFilters.has(role.role_name);
       return `
-        <button class="chip ${isActive ? "chip--primary" : ""}" data-role-filter="${escapeHTML(role.role_name)}" aria-pressed="${isActive}">
+        <button class="chip ${isActive ? 'chip--primary' : ''}" data-role-filter="${escapeHTML(role.role_name)}" aria-pressed="${isActive}">
           ${roleName}
         </button>
       `;
@@ -576,16 +576,16 @@ export class DistrictManagement {
 
     const clearFilter = `
       <button class="chip" data-role-filter="__clear" aria-pressed="${this.activeRoleFilters.size === 0}">
-        ${translate("district_management_clear_filters")}
+        ${translate('district_management_clear_filters')}
       </button>
     `;
 
-    return clearFilter + chips.join("");
+    return clearFilter + chips.join('');
   }
 
   renderUserCards() {
     if (!this.filteredUsers.length) {
-      return `<p class="muted-text">${translate("district_management_no_results")}</p>`;
+      return `<p class="muted-text">${translate('district_management_no_results')}</p>`;
     }
 
     return this.filteredUsers
@@ -594,15 +594,15 @@ export class DistrictManagement {
         const roleBadges =
           roles.length > 0
             ? roles
-                .map(
-                  (role) => `
+              .map(
+                (role) => `
                     <span class="chip dm-role-chip" role="listitem">
                       ${escapeHTML(roleLabel(role))}
                     </span>
                   `,
-                )
-                .join("")
-            : `<span class="chip">${translate("no_roles_assigned")}</span>`;
+              )
+              .join('')
+            : `<span class="chip">${translate('no_roles_assigned')}</span>`;
 
         const inactive = user.status === 'inactive';
         const inactiveLabel = inactive
@@ -614,25 +614,25 @@ export class DistrictManagement {
 
         const queued = this.queuedChanges.find((item) => item.userId === user.id);
         const queuedLabel = queued
-          ? `<span class="status-pill status-pill--pending">${translate("district_management_pending_sync")}</span>`
-          : "";
+          ? `<span class="status-pill status-pill--pending">${translate('district_management_pending_sync')}</span>`
+          : '';
 
         return `
           <button class="dm-user-card${inactive ? ' dm-user-card--inactive' : ''}" data-user-id="${user.id}" aria-label="${escapeHTML(cardName)}">
             <div class="dm-card-header">
               <div>
                 <p class="dm-user-name">${escapeHTML(user.full_name || user.email)}</p>
-                <p class="dm-user-email">${escapeHTML(user.email || "")}</p>
+                <p class="dm-user-email">${escapeHTML(user.email || '')}</p>
               </div>
               ${inactiveLabel}${queuedLabel}
             </div>
-            <div class="dm-role-stack" role="list" aria-label="${translate("district_management_assigned_roles")}">
+            <div class="dm-role-stack" role="list" aria-label="${translate('district_management_assigned_roles')}">
               ${roleBadges}
             </div>
           </button>
         `;
       })
-      .join("");
+      .join('');
   }
 
   /**
@@ -640,9 +640,9 @@ export class DistrictManagement {
    * @returns {{ title: string, body: string, footer: string }|null} Null when nobody is selected
    */
   renderAssignmentModal() {
-    if (!this.selectedUserId) return null;
+    if (!this.selectedUserId) {return null;}
     const user = this.users.find((u) => u.id === this.selectedUserId);
-    if (!user) return null;
+    if (!user) {return null;}
 
     const bundles = this.getRoleBundles();
     const mfaRequired = this.isHighRiskChange(user);
@@ -650,17 +650,17 @@ export class DistrictManagement {
     const validationState = this.getValidationState(user);
     const isSaving = this.savingUserId === user.id;
     const statusMessage = this.formStatus?.message
-      ? `<div class="dm-status dm-status--${escapeHTML(this.formStatus.type || "info")}" role="status" aria-live="polite">
+      ? `<div class="dm-status dm-status--${escapeHTML(this.formStatus.type || 'info')}" role="status" aria-live="polite">
           ${escapeHTML(this.formStatus.message)}
         </div>`
-      : "";
+      : '';
 
     const bundleList = bundles
       .map((bundle) => {
         const isChecked = this.selectedRoleIds.has(bundle.id);
-        const localGroupBadge = (bundle.crossOrgEligibleFor || []).includes("local_group")
-          ? `<span class="chip dm-bundle-chip">${translate("district_management_local_group_badge")}</span>`
-          : "";
+        const localGroupBadge = (bundle.crossOrgEligibleFor || []).includes('local_group')
+          ? `<span class="chip dm-bundle-chip">${translate('district_management_local_group_badge')}</span>`
+          : '';
         return `
           <label class="dm-bundle" data-role-name="${escapeHTML(bundle.role_name)}">
             <div class="dm-bundle-header">
@@ -669,8 +669,8 @@ export class DistrictManagement {
                 class="dm-bundle-checkbox"
                 data-role-id="${bundle.id}"
                 data-role-name="${escapeHTML(bundle.role_name)}"
-                ${isChecked ? "checked" : ""}
-                ${this.isBlockedByRoleLevel(bundle.role_name) ? "disabled" : ""}
+                ${isChecked ? 'checked' : ''}
+                ${this.isBlockedByRoleLevel(bundle.role_name) ? 'disabled' : ''}
               />
               <div>
                 <p class="dm-bundle-title">${escapeHTML(roleLabel(bundle))}</p>
@@ -678,14 +678,14 @@ export class DistrictManagement {
               </div>
             </div>
             <p class="dm-bundle-description">
-              ${sanitizeHTML(roleDescription(bundle) || translate("district_management_generic_bundle_description"), {
-                stripAll: true,
-              })}
+              ${sanitizeHTML(roleDescription(bundle) || translate('district_management_generic_bundle_description'), {
+    stripAll: true,
+  })}
             </p>
           </label>
         `;
       })
-      .join("");
+      .join('');
 
     const blockingMessage = validationState.blocking;
     const saveDisabled =
@@ -693,28 +693,28 @@ export class DistrictManagement {
     const warningContent =
       validationState.warnings && validationState.warnings.length
         ? `<div class="dm-warning" role="status" aria-live="polite">
-            ${validationState.warnings.map((warning) => `<p class="dm-helper">${escapeHTML(warning)}</p>`).join("")}
+            ${validationState.warnings.map((warning) => `<p class="dm-helper">${escapeHTML(warning)}</p>`).join('')}
           </div>`
-        : "";
+        : '';
     const auditPanel = this.renderAuditPanel(user);
 
     return {
-      title: `${translate("district_management_assignment_for")} ${escapeHTML(user.full_name || user.email)}`,
+      title: `${translate('district_management_assignment_for')} ${escapeHTML(user.full_name || user.email)}`,
       body: `
-            <p class="dm-modal-subtitle">${translate("district_management_role_instruction")}</p>
-            ${isSaving ? `<p class="dm-helper" role="status" aria-live="polite">${translate("district_management_saving")}</p>` : ""}
+            <p class="dm-modal-subtitle">${translate('district_management_role_instruction')}</p>
+            ${isSaving ? `<p class="dm-helper" role="status" aria-live="polite">${translate('district_management_saving')}</p>` : ''}
             <div class="dm-modal-section">
-              <p class="dm-section-title">${translate("district_management_bundles_title")}</p>
+              <p class="dm-section-title">${translate('district_management_bundles_title')}</p>
               <div class="dm-bundle-list">${bundleList}</div>
             </div>
 
             <div class="dm-modal-section">
               <label for="dm-audit-note" class="dm-section-title">
-                ${translate("district_management_audit_label")}
-                <span class="dm-optional">${translate("optional")}</span>
+                ${translate('district_management_audit_label')}
+                <span class="dm-optional">${translate('optional')}</span>
               </label>
-              <textarea id="dm-audit-note" rows="3" placeholder="${translate("district_management_audit_placeholder")}">${escapeHTML(this.auditNote)}</textarea>
-              <p class="dm-helper">${translate("district_management_audit_helper")}</p>
+              <textarea id="dm-audit-note" rows="3" placeholder="${translate('district_management_audit_placeholder')}">${escapeHTML(this.auditNote)}</textarea>
+              <p class="dm-helper">${translate('district_management_audit_helper')}</p>
             </div>
 
             ${auditPanel}
@@ -723,35 +723,35 @@ export class DistrictManagement {
 
             ${mfaRequired ? `
               <div class="dm-modal-section dm-high-risk" role="alert">
-                <p class="dm-section-title">${translate("district_management_mfa_title")}</p>
-                <p>${translate("district_management_mfa_placeholder")}</p>
+                <p class="dm-section-title">${translate('district_management_mfa_title')}</p>
+                <p>${translate('district_management_mfa_placeholder')}</p>
                 <div class="dm-mfa-actions">
-                  <button type="button" id="dm-mfa-start" class="btn btn--secondary">${translate("district_management_trigger_mfa")}</button>
-                  ${incidentUrl ? `<a class="text-link" href="${incidentUrl}" target="_blank" rel="noopener noreferrer">${translate("district_management_incident_link")}</a>` : ""}
+                  <button type="button" id="dm-mfa-start" class="btn btn--secondary">${translate('district_management_trigger_mfa')}</button>
+                  ${incidentUrl ? `<a class="text-link" href="${incidentUrl}" target="_blank" rel="noopener noreferrer">${translate('district_management_incident_link')}</a>` : ''}
                 </div>
                 <label class="dm-checkbox">
-                  <input type="checkbox" id="dm-mfa-confirm" ${this.mfaAcknowledged ? "checked" : ""}/>
-                  <span>${translate("district_management_mfa_confirm")}</span>
+                  <input type="checkbox" id="dm-mfa-confirm" ${this.mfaAcknowledged ? 'checked' : ''}/>
+                  <span>${translate('district_management_mfa_confirm')}</span>
                 </label>
               </div>
-            ` : ""}
+            ` : ''}
 
             ${warningContent}
-            ${blockingMessage ? `<p class="error-text" role="alert">${escapeHTML(blockingMessage)}</p>` : ""}
+            ${blockingMessage ? `<p class="error-text" role="alert">${escapeHTML(blockingMessage)}</p>` : ''}
             ${statusMessage}
       `,
       footer: `
-            <button type="button" id="dm-queue" class="btn btn--secondary" ${isSaving ? "disabled" : ""}>
-              ${translate("district_management_queue_change")}
+            <button type="button" id="dm-queue" class="btn btn--secondary" ${isSaving ? 'disabled' : ''}>
+              ${translate('district_management_queue_change')}
             </button>
-            <button type="button" id="dm-save" class="btn btn--primary" ${saveDisabled ? "disabled" : ""}>
+            <button type="button" id="dm-save" class="btn btn--primary" ${saveDisabled ? 'disabled' : ''}>
               ${
-                this.isOffline
-                  ? translate("district_management_offline_disabled")
-                  : isSaving
-                    ? translate("district_management_saving")
-                    : translate("district_management_save")
-              }
+  this.isOffline
+    ? translate('district_management_offline_disabled')
+    : isSaving
+      ? translate('district_management_saving')
+      : translate('district_management_save')
+}
             </button>
       `,
     };
@@ -832,25 +832,25 @@ export class DistrictManagement {
     const incidentUrl = sanitizeURL(INCIDENT_REPORT_URL);
     const incidentCta = incidentUrl
       ? `<a class="text-link" href="${incidentUrl}" target="_blank" rel="noopener noreferrer">
-          ${translate("district_management_incident_report_cta")}
+          ${translate('district_management_incident_report_cta')}
         </a>`
-      : "";
+      : '';
 
-    let content = "";
+    let content = '';
     if (this.auditPanelError) {
       content = `<p class="error-text" role="alert">${escapeHTML(this.auditPanelError)}</p>`;
     } else if (isLoading) {
-      content = `<p class="dm-helper">${translate("district_management_audit_loading")}</p>`;
+      content = `<p class="dm-helper">${translate('district_management_audit_loading')}</p>`;
     } else if (!entries.length) {
-      content = `<p class="dm-helper">${translate("district_management_audit_empty")}</p>`;
+      content = `<p class="dm-helper">${translate('district_management_audit_empty')}</p>`;
     } else {
-      content = `<ul class="dm-audit-list">${entries.map((entry) => this.renderAuditEntry(entry)).join("")}</ul>`;
+      content = `<ul class="dm-audit-list">${entries.map((entry) => this.renderAuditEntry(entry)).join('')}</ul>`;
     }
 
     return `
       <div class="dm-modal-section">
         <div class="dm-section-header">
-          <p class="dm-section-title">${translate("district_management_audit_panel_title")}</p>
+          <p class="dm-section-title">${translate('district_management_audit_panel_title')}</p>
           ${incidentCta}
         </div>
         ${content}
@@ -897,7 +897,7 @@ export class DistrictManagement {
     const createdAt = this.formatAuditTimestamp(entry.created_at || entry.timestamp);
     const statusBadge =
       entry.status === 'error'
-        ? `<span class="status-pill status-pill--warning">${translate("district_management_audit_status_error")}</span>`
+        ? `<span class="status-pill status-pill--warning">${translate('district_management_audit_status_error')}</span>`
         : '';
 
     return `
@@ -913,38 +913,38 @@ export class DistrictManagement {
   }
 
   formatAuditTimestamp(value) {
-    if (!value) return translate("district_management_audit_time_unknown");
+    if (!value) {return translate('district_management_audit_time_unknown');}
     try {
-      const lang = this.app?.lang || "en";
+      const lang = this.app?.lang || 'en';
       return new Date(value).toLocaleString(lang, {
-        dateStyle: "medium",
-        timeStyle: "short",
+        dateStyle: 'medium',
+        timeStyle: 'short',
       });
     } catch (error) {
-      debugError("district_management: failed to format audit timestamp", error);
+      debugError('district_management: failed to format audit timestamp', error);
       return escapeHTML(String(value));
     }
   }
 
   attachEventListeners() {
-    const searchInput = document.getElementById("dm-search-input");
+    const searchInput = document.getElementById('dm-search-input');
     if (searchInput) {
-      searchInput.removeEventListener("input", this.debouncedSearch);
-      searchInput.addEventListener("input", this.debouncedSearch);
+      searchInput.removeEventListener('input', this.debouncedSearch);
+      searchInput.addEventListener('input', this.debouncedSearch);
     }
 
-    const organizationSelect = document.getElementById("dm-org-select");
+    const organizationSelect = document.getElementById('dm-org-select');
     if (organizationSelect) {
-      organizationSelect.addEventListener("change", async (event) => {
+      organizationSelect.addEventListener('change', async (event) => {
         const newOrgId = event.target.value;
         await this.handleOrganizationChange(newOrgId);
       });
     }
 
-    document.querySelectorAll("[data-role-filter]").forEach((chip) => {
-      chip.addEventListener("click", () => {
-        const role = chip.getAttribute("data-role-filter");
-        if (role === "__clear") {
+    document.querySelectorAll('[data-role-filter]').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const role = chip.getAttribute('data-role-filter');
+        if (role === '__clear') {
           this.activeRoleFilters.clear();
         } else if (this.activeRoleFilters.has(role)) {
           this.activeRoleFilters.delete(role);
@@ -956,25 +956,25 @@ export class DistrictManagement {
       });
     });
 
-    document.querySelectorAll(".dm-user-card").forEach((card) => {
-      card.addEventListener("click", () => {
-        const userId = card.getAttribute("data-user-id");
+    document.querySelectorAll('.dm-user-card').forEach((card) => {
+      card.addEventListener('click', () => {
+        const userId = card.getAttribute('data-user-id');
         this.openModal(userId);
       });
     });
 
-    const refreshButton = document.getElementById("dm-refresh");
-    refreshButton?.addEventListener("click", () => this.refreshData(true));
+    const refreshButton = document.getElementById('dm-refresh');
+    refreshButton?.addEventListener('click', () => this.refreshData(true));
 
-    const bottomRetry = document.getElementById("dm-bottom-retry");
-    bottomRetry?.addEventListener("click", () => this.retryQueuedChanges());
+    const bottomRetry = document.getElementById('dm-bottom-retry');
+    bottomRetry?.addEventListener('click', () => this.retryQueuedChanges());
 
-    const retryButton = document.getElementById("dm-retry");
-    retryButton?.addEventListener("click", () => this.retryQueuedChanges());
+    const retryButton = document.getElementById('dm-retry');
+    retryButton?.addEventListener('click', () => this.retryQueuedChanges());
 
-    document.querySelectorAll(".dm-bundle-checkbox").forEach((checkbox) => {
-      checkbox.addEventListener("change", (event) => {
-        const roleId = parseInt(event.target.getAttribute("data-role-id"), 10);
+    document.querySelectorAll('.dm-bundle-checkbox').forEach((checkbox) => {
+      checkbox.addEventListener('change', (event) => {
+        const roleId = parseInt(event.target.getAttribute('data-role-id'), 10);
         if (event.target.checked) {
           this.selectedRoleIds.add(roleId);
         } else {
@@ -984,47 +984,47 @@ export class DistrictManagement {
       });
     });
 
-    const saveButton = document.getElementById("dm-save");
-    saveButton?.addEventListener("click", () => this.handleSaveRoles());
+    const saveButton = document.getElementById('dm-save');
+    saveButton?.addEventListener('click', () => this.handleSaveRoles());
 
     document.getElementById('dm-membership-toggle')?.addEventListener('click', () => this.toggleMembership());
 
-    const queueButton = document.getElementById("dm-queue");
-    queueButton?.addEventListener("click", () => this.queuePendingChange());
+    const queueButton = document.getElementById('dm-queue');
+    queueButton?.addEventListener('click', () => this.queuePendingChange());
 
-    const auditInput = document.getElementById("dm-audit-note");
+    const auditInput = document.getElementById('dm-audit-note');
     if (auditInput) {
-      auditInput.addEventListener("input", (event) => {
-        this.auditNote = event.target.value || "";
+      auditInput.addEventListener('input', (event) => {
+        this.auditNote = event.target.value || '';
       });
     }
 
-    const mfaCheckbox = document.getElementById("dm-mfa-confirm");
-    mfaCheckbox?.addEventListener("change", (event) => {
+    const mfaCheckbox = document.getElementById('dm-mfa-confirm');
+    mfaCheckbox?.addEventListener('change', (event) => {
       this.mfaAcknowledged = event.target.checked;
       this.renderAndBind();
     });
 
-    const mfaButton = document.getElementById("dm-mfa-start");
-    mfaButton?.addEventListener("click", () => {
-      this.app.showMessage("district_management_mfa_placeholder", "info");
+    const mfaButton = document.getElementById('dm-mfa-start');
+    mfaButton?.addEventListener('click', () => {
+      this.app.showMessage('district_management_mfa_placeholder', 'info');
     });
   }
 
   renderSyncBadge() {
-    const node = document.getElementById("dm-sync-status");
-    if (!node) return;
+    const node = document.getElementById('dm-sync-status');
+    if (!node) {return;}
     node.textContent = this.syncing
-      ? translate("district_management_refreshing")
-      : `${translate("district_management_last_synced")}: ${this.formatTimestamp(this.lastSyncedAt)}`;
+      ? translate('district_management_refreshing')
+      : `${translate('district_management_last_synced')}: ${this.formatTimestamp(this.lastSyncedAt)}`;
   }
 
   formatTimestamp(timestamp) {
-    if (!timestamp) return translate("district_management_not_synced");
-    const lang = this.app?.lang || "en";
+    if (!timestamp) {return translate('district_management_not_synced');}
+    const lang = this.app?.lang || 'en';
     return new Date(timestamp).toLocaleString(lang, {
-      dateStyle: "medium",
-      timeStyle: "short",
+      dateStyle: 'medium',
+      timeStyle: 'short',
     });
   }
 
@@ -1033,8 +1033,8 @@ export class DistrictManagement {
     return this.users.filter((user) => {
       const matchesSearch =
         !term ||
-        (user.full_name || "").toLowerCase().includes(term) ||
-        (user.email || "").toLowerCase().includes(term);
+        (user.full_name || '').toLowerCase().includes(term) ||
+        (user.email || '').toLowerCase().includes(term);
 
       const matchesFilter =
         this.activeRoleFilters.size === 0 ||
@@ -1046,7 +1046,7 @@ export class DistrictManagement {
   }
 
   getUserRoles(user) {
-    if (!Array.isArray(user.roles) || !user.roles.length) return [];
+    if (!Array.isArray(user.roles) || !user.roles.length) {return [];}
     return user.roles.map((role) => ({
       ...role,
       display_name: roleLabel(role),
@@ -1069,7 +1069,7 @@ export class DistrictManagement {
 
   async loadAuditLog(userId, forceRefresh = false) {
     this.loadingAuditUserId = userId;
-    this.auditPanelError = "";
+    this.auditPanelError = '';
     this.renderAndBind();
 
     try {
@@ -1085,7 +1085,7 @@ export class DistrictManagement {
         this.auditLogByUser[userId] = [];
       }
     } catch (error) {
-      debugError("district_management: failed to load audit log", error);
+      debugError('district_management: failed to load audit log', error);
       this.auditPanelError = apiErrorMessage(error, 'district_management_audit_error');
     } finally {
       this.loadingAuditUserId = null;
@@ -1098,10 +1098,10 @@ export class DistrictManagement {
     const user = this.users.find((u) => u.id === userId);
     const roleIds = (user?.roles || []).map((role) => role.id || role.role_id || role.role_name);
     this.selectedRoleIds = new Set(roleIds);
-    this.auditNote = "";
+    this.auditNote = '';
     this.mfaAcknowledged = false;
-    this.formStatus = { type: "", message: "" };
-    this.auditPanelError = "";
+    this.formStatus = { type: '', message: '' };
+    this.auditPanelError = '';
     this.renderAndBind();
     this.loadAuditLog(userId, true);
   }
@@ -1115,11 +1115,11 @@ export class DistrictManagement {
   clearSelection() {
     this.selectedUserId = null;
     this.selectedRoleIds = new Set();
-    this.auditNote = "";
+    this.auditNote = '';
     this.mfaAcknowledged = false;
     this.loadingAuditUserId = null;
-    this.auditPanelError = "";
-    this.formStatus = { type: "", message: "" };
+    this.auditPanelError = '';
+    this.formStatus = { type: '', message: '' };
   }
 
   getRoleBundles() {
@@ -1129,7 +1129,7 @@ export class DistrictManagement {
       description:
         role.description ||
         translate(`district_management_bundle_${role.role_name}`) ||
-        translate("district_management_generic_bundle_description"),
+        translate('district_management_generic_bundle_description'),
     }));
   }
 
@@ -1156,7 +1156,7 @@ export class DistrictManagement {
     });
 
     if (hasAdminRole && !selectedHasAdmin) {
-      return translate("district_management_admin_safeguard");
+      return translate('district_management_admin_safeguard');
     }
 
     const selectedHighLevel = Array.from(this.selectedRoleIds).some((id) => {
@@ -1165,10 +1165,10 @@ export class DistrictManagement {
     });
 
     if (selectedHighLevel) {
-      return translate("district_management_level_block");
+      return translate('district_management_level_block');
     }
 
-    return "";
+    return '';
   }
 
   getValidationState(user) {
@@ -1181,10 +1181,10 @@ export class DistrictManagement {
     const conflictResult = detectRoleConflicts(selectedRoleNames, this.roleBundleIndex);
     if (conflictResult.hasConflict) {
       const messageTemplate =
-        translate("district_management_conflict_roles") ||
-        "The selected roles cannot be combined: {roles}";
+        translate('district_management_conflict_roles') ||
+        'The selected roles cannot be combined: {roles}';
       return {
-        blocking: messageTemplate.replace("{roles}", conflictResult.conflicts.join(", ")),
+        blocking: messageTemplate.replace('{roles}', conflictResult.conflicts.join(', ')),
         warnings: [],
       };
     }
@@ -1197,26 +1197,26 @@ export class DistrictManagement {
 
     if (permissionGaps.missing.length) {
       const template =
-        translate("district_management_permission_gap") ||
-        "You cannot assign roles that include permissions you do not have: {permissions}";
-      const missingList = permissionGaps.missing.join(", ");
-      return { blocking: template.replace("{permissions}", missingList), warnings: [] };
+        translate('district_management_permission_gap') ||
+        'You cannot assign roles that include permissions you do not have: {permissions}';
+      const missingList = permissionGaps.missing.join(', ');
+      return { blocking: template.replace('{permissions}', missingList), warnings: [] };
     }
 
     const warnings = [];
     const localGroupRoles = getLocalGroupEligibleRoles(selectedRoleNames, this.roleBundleIndex);
     if (localGroupRoles.length) {
       const template =
-        translate("district_management_local_group_notice") ||
-        "Inventory bundles can extend to organizations within your local group.";
+        translate('district_management_local_group_notice') ||
+        'Inventory bundles can extend to organizations within your local group.';
       const bundleLabels = localGroupRoles
         .map((roleName) => roleLabel(this.getRoleByName(roleName) || roleName))
         .filter(Boolean)
-        .join(", ");
+        .join(', ');
       warnings.push(bundleLabels ? `${template} (${bundleLabels})` : template);
     }
 
-    return { blocking: "", warnings };
+    return { blocking: '', warnings };
   }
 
   /**
@@ -1260,7 +1260,7 @@ export class DistrictManagement {
 
   async reconcileUserRoles(userId) {
     const user = this.users.find((u) => u.id === userId);
-    if (!user) return;
+    if (!user) {return;}
 
     try {
       const response = await getUserRoleAssignments(userId, {
@@ -1275,7 +1275,7 @@ export class DistrictManagement {
         this.filteredUsers = this.getFilteredUsers();
       }
     } catch (error) {
-      debugError("district_management: failed to reconcile user roles", error);
+      debugError('district_management: failed to reconcile user roles', error);
     }
   }
 
@@ -1285,21 +1285,21 @@ export class DistrictManagement {
    */
   async handleSaveRoles() {
     const user = this.users.find((u) => u.id === this.selectedUserId);
-    if (!user) return;
+    if (!user) {return;}
 
     const validation = this.getValidationState(user);
     if (validation.blocking) {
-      this.app.showMessage(validation.blocking, "error");
+      this.app.showMessage(validation.blocking, 'error');
       return;
     }
 
     if (this.isOffline) {
-      this.app.showMessage("district_management_offline_disabled", "info");
+      this.app.showMessage('district_management_offline_disabled', 'info');
       return;
     }
 
     if (!canAssignRoles()) {
-      this.app.showMessage("no_permission", "error");
+      this.app.showMessage('no_permission', 'error');
       return;
     }
 
@@ -1308,7 +1308,7 @@ export class DistrictManagement {
     this.applyOptimisticRoles(user, selectedRoleIds);
     this.filteredUsers = this.getFilteredUsers();
     this.savingUserId = user.id;
-    this.formStatus = { type: "info", message: translate("district_management_saving") };
+    this.formStatus = { type: 'info', message: translate('district_management_saving') };
     this.renderAndBind();
 
     try {
@@ -1332,20 +1332,20 @@ export class DistrictManagement {
       this.userMeta[user.id] = { lastSyncedAt: Date.now(), roleCount: selectedRoleIds.length };
       this.lastSyncedAt = Date.now();
       await clearUserCaches(this.organizationId);
-      this.formStatus = { type: "success", message: translate("district_management_assignment_saved") };
-      this.app.showMessage("district_management_assignment_saved", "success");
+      this.formStatus = { type: 'success', message: translate('district_management_assignment_saved') };
+      this.app.showMessage('district_management_assignment_saved', 'success');
       this.closeModal();
     } catch (error) {
-      debugError("district_management: save failed", error);
+      debugError('district_management: save failed', error);
       this.rollbackRoles(user, previousRoleIds);
       this.queueChange(user.id, selectedRoleIds, error?.message);
       this.formStatus = { type: 'error', message: apiErrorMessage(error, 'district_management_assignment_failed') };
-      this.recordLocalAuditEntry(user.id, selectedRoleIds, "error");
+      this.recordLocalAuditEntry(user.id, selectedRoleIds, 'error');
       this.userMeta[user.id] = {
         lastSyncedAt: this.userMeta[user.id]?.lastSyncedAt || Date.now(),
         roleCount: previousRoleIds.length,
       };
-      this.app.showMessage("district_management_assignment_failed", "error");
+      this.app.showMessage('district_management_assignment_failed', 'error');
       this.renderAndBind();
     } finally {
       this.savingUserId = null;
@@ -1360,10 +1360,10 @@ export class DistrictManagement {
    */
   async queuePendingChange() {
     const user = this.users.find((u) => u.id === this.selectedUserId);
-    if (!user) return;
+    if (!user) {return;}
     const validation = this.getValidationState(user);
     if (validation.blocking) {
-      this.app.showMessage(validation.blocking, "error");
+      this.app.showMessage(validation.blocking, 'error');
       return;
     }
     const selectedRoleIds = Array.from(this.selectedRoleIds);
@@ -1371,7 +1371,7 @@ export class DistrictManagement {
     this.applyOptimisticRoles(user, selectedRoleIds);
     this.filteredUsers = this.getFilteredUsers();
     await this.persistCache();
-    this.app.showMessage("district_management_assignment_queued", "info");
+    this.app.showMessage('district_management_assignment_queued', 'info');
     this.closeModal();
   }
 
@@ -1401,12 +1401,12 @@ export class DistrictManagement {
       .map((role) => roleLabel(role));
   }
 
-  recordLocalAuditEntry(userId, roleIds, status = "success") {
+  recordLocalAuditEntry(userId, roleIds, status = 'success') {
     const actorName =
       this.app?.userFullName ||
-      localStorage.getItem("userFullName") ||
-      translate("district_management_unknown_actor");
-    const summary = this.describeSelectedBundles(roleIds).join(", ");
+      localStorage.getItem('userFullName') ||
+      translate('district_management_unknown_actor');
+    const summary = this.describeSelectedBundles(roleIds).join(', ');
     const entry = {
       actor_name: actorName,
       summary,
@@ -1423,12 +1423,12 @@ export class DistrictManagement {
    */
   async retryQueuedChanges() {
     if (!this.queuedChanges.length) {
-      this.app.showMessage("district_management_no_queue", "info");
+      this.app.showMessage('district_management_no_queue', 'info');
       return;
     }
 
     if (this.isOffline) {
-      this.app.showMessage("district_management_offline_disabled", "info");
+      this.app.showMessage('district_management_offline_disabled', 'info');
       return;
     }
 
@@ -1439,7 +1439,7 @@ export class DistrictManagement {
 
     for (const change of this.queuedChanges) {
       if (change.organizationId && String(change.organizationId) !== String(this.organizationId)) {
-        remaining.push({ ...change, reason: "organization_mismatch" });
+        remaining.push({ ...change, reason: 'organization_mismatch' });
         continue;
       }
 
@@ -1450,7 +1450,7 @@ export class DistrictManagement {
 
       const lastSynced = this.userMeta[user.id]?.lastSyncedAt || 0;
       if (lastSynced > change.createdAt) {
-        remaining.push({ ...change, reason: "stale" });
+        remaining.push({ ...change, reason: 'stale' });
         staleCount += 1;
         continue;
       }
@@ -1463,10 +1463,10 @@ export class DistrictManagement {
         });
         this.applyOptimisticRoles(user, change.roleIds);
         this.userMeta[user.id] = { lastSyncedAt: Date.now(), roleCount: change.roleIds.length };
-        this.app.showMessage("district_management_assignment_saved", "success");
+        this.app.showMessage('district_management_assignment_saved', 'success');
       } catch (error) {
-        debugError("district_management: queued change failed", error);
-        remaining.push({ ...change, reason: error?.message || "error" });
+        debugError('district_management: queued change failed', error);
+        remaining.push({ ...change, reason: error?.message || 'error' });
         errorCount += 1;
       }
     }
@@ -1477,10 +1477,10 @@ export class DistrictManagement {
     this.renderAndBind();
 
     if (staleCount > 0) {
-      this.app.showMessage("district_management_stale_queue", "info");
+      this.app.showMessage('district_management_stale_queue', 'info');
     }
     if (errorCount > 0) {
-      this.app.showMessage("district_management_assignment_failed", "error");
+      this.app.showMessage('district_management_assignment_failed', 'error');
     }
   }
 }

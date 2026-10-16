@@ -1,9 +1,9 @@
-import { translate } from "../../app.js";
-import { debugError, debugLog, debugWarn } from "../../utils/DebugUtils.js";
-import { escapeHTML } from "../../utils/SecurityUtils.js";
+import { translate } from '../../app.js';
+import { debugError, debugLog, debugWarn } from '../../utils/DebugUtils.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
-import { setContent } from "../../utils/DOMUtils.js";
-import { CONFIG } from "../../config.js";
+import { setContent } from '../../utils/DOMUtils.js';
+import { CONFIG } from '../../config.js';
 import {
   getEquipmentInventory,
   getEquipmentPhotoUrl,
@@ -12,11 +12,11 @@ import {
   uploadEquipmentPhoto,
   deleteEquipmentPhoto,
   deleteEquipmentItem
-} from "../../api/api-endpoints.js";
-import { deleteCachedData } from "../../indexedDB.js";
-import { canViewInventory } from "../../utils/PermissionUtils.js";
-import { openModal, closeModal } from "../../utils/ModalUtils.js";
-import { confirmDestructive } from "../../utils/DialogUtils.js";
+} from '../../api/api-endpoints.js';
+import { deleteCachedData } from '../../indexedDB.js';
+import { canViewInventory } from '../../utils/PermissionUtils.js';
+import { openModal, closeModal } from '../../utils/ModalUtils.js';
+import { confirmDestructive } from '../../utils/DialogUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 
@@ -127,7 +127,7 @@ export class Inventory {
   async init() {
     // Check permission
     if (!canViewInventory()) {
-      this.app.router.navigate("/dashboard");
+      this.app.router.navigate('/dashboard');
       return;
     }
 
@@ -136,8 +136,8 @@ export class Inventory {
       this.render();
       this.attachEventHandlers();
     } catch (error) {
-      debugError("Error initializing inventory:", error);
-      this.app.showMessage(translate("resource_dashboard_error_loading"), "error");
+      debugError('Error initializing inventory:', error);
+      this.app.showMessage(translate('resource_dashboard_error_loading'), 'error');
     }
   }
 
@@ -153,7 +153,7 @@ export class Inventory {
   }
 
   formatDate(dateString) {
-    if (!dateString) return '-';
+    if (!dateString) {return '-';}
     try {
       const date = new Date(dateString);
       return date.toLocaleDateString(this.getLocale());
@@ -163,9 +163,9 @@ export class Inventory {
   }
 
   formatCurrency(value) {
-    if (value === null || value === undefined || value === '') return '-';
+    if (value === null || value === undefined || value === '') {return '-';}
     const numValue = parseFloat(value);
-    if (isNaN(numValue)) return '-';
+    if (isNaN(numValue)) {return '-';}
     return new Intl.NumberFormat(this.getLocale(), {
       style: 'currency',
       currency: 'CAD'
@@ -191,110 +191,110 @@ export class Inventory {
   }
 
   render() {
-    const container = document.getElementById("app");
+    const container = document.getElementById('app');
     if (!container) {
       return;
     }
 
     setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <section class="page inventory-page">
         <div class="card">
-          <h1>${escapeHTML(translate("inventory_title"))}</h1>
-          <p class="subtitle">${escapeHTML(translate("inventory_description"))}</p>
+          <h1>${escapeHTML(translate('inventory_title'))}</h1>
+          <p class="subtitle">${escapeHTML(translate('inventory_description'))}</p>
         </div>
 
         <!-- Equipment Form for Adding New -->
         <div class="card">
-          <h2>${escapeHTML(translate("equipment_add_new"))}</h2>
+          <h2>${escapeHTML(translate('equipment_add_new'))}</h2>
           <form id="equipmentForm" class="stacked">
             <div class="grid grid-2">
               <label class="stacked">
-                <span>${escapeHTML(translate("equipment_name"))} *</span>
+                <span>${escapeHTML(translate('equipment_name'))} *</span>
                 <input type="text" name="equipment_name" id="equipment_name" minlength="2" maxlength="150" required />
               </label>
               <label class="stacked">
-                <span>${escapeHTML(translate("equipment_category"))}</span>
+                <span>${escapeHTML(translate('equipment_category'))}</span>
                 <input type="text" name="category" id="equipment_category" maxlength="100" />
               </label>
             </div>
 
             <div class="grid grid-2">
               <label class="stacked">
-                <span>${escapeHTML(translate("equipment_quantity_total"))}</span>
+                <span>${escapeHTML(translate('equipment_quantity_total'))}</span>
                 <input type="number" name="quantity_total" id="equipment_quantity_total" min="0" value="1" />
               </label>
               <label class="stacked">
-                <span>${escapeHTML(translate("equipment_available"))}</span>
+                <span>${escapeHTML(translate('equipment_available'))}</span>
                 <input type="number" name="quantity_available" id="equipment_quantity_available" min="0" />
               </label>
             </div>
 
             <div class="grid grid-2">
               <label class="stacked">
-                <span>${escapeHTML(translate("equipment_item_value"))}</span>
+                <span>${escapeHTML(translate('equipment_item_value'))}</span>
                 <input type="number" name="item_value" id="equipment_item_value" min="0" step="0.01" placeholder="0.00" />
               </label>
               <label class="stacked">
-                <span>${escapeHTML(translate("equipment_acquisition_date"))}</span>
+                <span>${escapeHTML(translate('equipment_acquisition_date'))}</span>
                 <input type="date" name="acquisition_date" id="equipment_acquisition_date" />
               </label>
             </div>
 
             <div class="grid grid-2">
               <label class="stacked">
-                <span>${escapeHTML(translate("equipment_location_type"))}</span>
+                <span>${escapeHTML(translate('equipment_location_type'))}</span>
                 <select name="location_type" id="equipment_location_type">
                   ${LOCATION_TYPES.map((type) => `<option value="${type.value}">${escapeHTML(translate(type.labelKey))}</option>`).join('')}
                 </select>
               </label>
               <label class="stacked">
-                <span>${escapeHTML(translate("equipment_location_details"))}</span>
-                <input type="text" name="location_details" id="equipment_location_details" maxlength="500" placeholder="${escapeHTML(translate("equipment_location_details_placeholder"))}" />
+                <span>${escapeHTML(translate('equipment_location_details'))}</span>
+                <input type="text" name="location_details" id="equipment_location_details" maxlength="500" placeholder="${escapeHTML(translate('equipment_location_details_placeholder'))}" />
               </label>
             </div>
 
             <fieldset class="stacked equipment-visibility">
-              <legend>${escapeHTML(translate("equipment_visibility_label"))}</legend>
+              <legend>${escapeHTML(translate('equipment_visibility_label'))}</legend>
               <label class="radio-option">
                 <input type="radio" name="equipment_visibility" value="shared" checked />
-                <span>${escapeHTML(translate("equipment_visibility_shared"))}</span>
+                <span>${escapeHTML(translate('equipment_visibility_shared'))}</span>
               </label>
               <label class="radio-option">
                 <input type="radio" name="equipment_visibility" value="unit" />
-                <span>${escapeHTML(translate("equipment_visibility_unit"))}</span>
+                <span>${escapeHTML(translate('equipment_visibility_unit'))}</span>
               </label>
             </fieldset>
 
             <label class="stacked">
-              <span>${escapeHTML(translate("equipment_condition"))}</span>
+              <span>${escapeHTML(translate('equipment_condition'))}</span>
               <input type="text" name="condition_note" id="equipment_condition_note" maxlength="500" />
             </label>
 
             <label class="stacked">
-              <span>${escapeHTML(translate("equipment_description"))}</span>
+              <span>${escapeHTML(translate('equipment_description'))}</span>
               <textarea name="description" id="equipment_description" rows="2" maxlength="2000"></textarea>
             </label>
 
             <!-- Photo Upload Section -->
             <div class="photo-upload-section">
               <div class="stacked">
-                <span id="photo-label-main">${escapeHTML(translate("equipment_photo"))}</span>
+                <span id="photo-label-main">${escapeHTML(translate('equipment_photo'))}</span>
                 <div class="photo-upload-container" id="photo-upload-container">
                     <div class="photo-preview" id="photo-preview">
                       <div class="photo-placeholder" id="photo-placeholder">
                         <span class="photo-icon">📷</span>
-                        <span class="photo-text">${escapeHTML(translate("equipment_photo_click_to_upload"))}</span>
-                        <span class="photo-hint">${escapeHTML(translate("equipment_photo_max_size"))}</span>
+                        <span class="photo-text">${escapeHTML(translate('equipment_photo_click_to_upload'))}</span>
+                        <span class="photo-hint">${escapeHTML(translate('equipment_photo_max_size'))}</span>
                       </div>
                       <div class="photo-progress hidden" id="photo-progress-main" role="status" aria-live="polite">
                         <div class="progress-bar">
                           <span class="progress-fill" id="photo-progress-main-bar"></span>
                         </div>
-                        <div class="progress-text" id="photo-progress-main-text">${escapeHTML(translate("equipment_photo_processing"))}</div>
+                        <div class="progress-text" id="photo-progress-main-text">${escapeHTML(translate('equipment_photo_processing'))}</div>
                       </div>
                       <img id="photo-preview-img" class="hidden" alt="" />
-                      <button type="button" id="remove-photo-btn" class="remove-photo-btn hidden" aria-label="${escapeHTML(translate("equipment_photo_remove"))}">×</button>
+                      <button type="button" id="remove-photo-btn" class="remove-photo-btn hidden" aria-label="${escapeHTML(translate('equipment_photo_remove'))}">×</button>
                     </div>
                     <input type="file" id="photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif" class="sr-only" aria-labelledby="photo-label-main" />
                   </div>
@@ -302,7 +302,7 @@ export class Inventory {
             </div>
 
             <div class="form-actions">
-              <button type="submit" class="btn primary">${escapeHTML(translate("save_equipment"))}</button>
+              <button type="submit" class="btn primary">${escapeHTML(translate('save_equipment'))}</button>
             </div>
           </form>
         </div>
@@ -310,12 +310,12 @@ export class Inventory {
         <!-- View Toggle and Equipment Display -->
         <div class="card">
           <div class="inventory-header">
-            <h2>${escapeHTML(translate("equipment_inventory_title"))}</h2>
+            <h2>${escapeHTML(translate('equipment_inventory_title'))}</h2>
             <div class="view-toggle">
-              <button type="button" class="view-toggle-btn ${this.viewMode === 'gallery' ? 'active' : ''}" id="gallery-view-btn" aria-label="${escapeHTML(translate("equipment_gallery_view"))}">
+              <button type="button" class="view-toggle-btn ${this.viewMode === 'gallery' ? 'active' : ''}" id="gallery-view-btn" aria-label="${escapeHTML(translate('equipment_gallery_view'))}">
                 <span class="view-icon">▦</span>
               </button>
-              <button type="button" class="view-toggle-btn ${this.viewMode === 'table' ? 'active' : ''}" id="table-view-btn" aria-label="${escapeHTML(translate("equipment_table_view"))}">
+              <button type="button" class="view-toggle-btn ${this.viewMode === 'table' ? 'active' : ''}" id="table-view-btn" aria-label="${escapeHTML(translate('equipment_table_view'))}">
                 <span class="view-icon">☰</span>
               </button>
             </div>
@@ -726,7 +726,7 @@ export class Inventory {
     if (this.equipment.length === 0) {
       return `
         <div class="empty-state">
-          <p>${escapeHTML(translate("no_data_available"))}</p>
+          <p>${escapeHTML(translate('no_data_available'))}</p>
         </div>
       `;
     }
@@ -737,39 +737,39 @@ export class Inventory {
           <div class="equipment-card" data-equipment-id="${item.id}">
             <div class="equipment-card-image">
               ${item.photo_url
-                ? `<img src="${escapeHTML(item.photo_url)}" alt="${escapeHTML(item.name)}" loading="lazy" class="previewable-image" role="button" tabindex="0" data-equipment-id="${escapeHTML(String(item.id))}" data-photo-url="${escapeHTML(item.photo_url)}" data-photo-alt="${escapeHTML(item.name)}" />`
-                : `<span class="no-photo">📦</span>`
-              }
+    ? `<img src="${escapeHTML(item.photo_url)}" alt="${escapeHTML(item.name)}" loading="lazy" class="previewable-image" role="button" tabindex="0" data-equipment-id="${escapeHTML(String(item.id))}" data-photo-url="${escapeHTML(item.photo_url)}" data-photo-alt="${escapeHTML(item.name)}" />`
+    : `<span class="no-photo">📦</span>`
+}
             </div>
             <div class="equipment-card-content">
               <h3 class="equipment-card-title">${escapeHTML(item.name)}</h3>
               ${item.category ? `<div class="equipment-card-category">${escapeHTML(item.category)}</div>` : ''}
               <div class="equipment-card-details">
                 <div class="equipment-card-detail">
-                  <span class="equipment-card-detail-label">${escapeHTML(translate("equipment_quantity_total"))}</span>
+                  <span class="equipment-card-detail-label">${escapeHTML(translate('equipment_quantity_total'))}</span>
                   <span class="equipment-card-detail-value">${escapeHTML(String(item.quantity_total ?? 0))}</span>
                 </div>
                 <div class="equipment-card-detail">
-                  <span class="equipment-card-detail-label">${escapeHTML(translate("equipment_reserved"))}</span>
+                  <span class="equipment-card-detail-label">${escapeHTML(translate('equipment_reserved'))}</span>
                   <span class="equipment-card-detail-value">${escapeHTML(String(item.reserved_quantity ?? 0))}</span>
                 </div>
                 <div class="equipment-card-detail">
-                  <span class="equipment-card-detail-label">${escapeHTML(translate("equipment_item_value"))}</span>
+                  <span class="equipment-card-detail-label">${escapeHTML(translate('equipment_item_value'))}</span>
                   <span class="equipment-card-detail-value">${escapeHTML(this.formatCurrency(item.item_value))}</span>
                 </div>
                 <div class="equipment-card-detail">
-                  <span class="equipment-card-detail-label">${escapeHTML(translate("equipment_acquisition_date"))}</span>
+                  <span class="equipment-card-detail-label">${escapeHTML(translate('equipment_acquisition_date'))}</span>
                   <span class="equipment-card-detail-value">${escapeHTML(this.formatDate(item.acquisition_date))}</span>
                 </div>
                 <div class="equipment-card-detail">
-                  <span class="equipment-card-detail-label">${escapeHTML(translate("equipment_location"))}</span>
+                  <span class="equipment-card-detail-label">${escapeHTML(translate('equipment_location'))}</span>
                   <span class="equipment-card-detail-value">${escapeHTML(this.formatLocation(item))}</span>
                 </div>
               </div>
             </div>
             <div class="equipment-card-actions">
-              <button type="button" class="btn secondary edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate("edit"))}</button>
-              <button type="button" class="btn danger delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate("delete"))}</button>
+              <button type="button" class="btn secondary edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
+              <button type="button" class="btn danger delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate('delete'))}</button>
             </div>
           </div>
         `).join('')}
@@ -784,17 +784,17 @@ export class Inventory {
           <table class="data-table">
             <thead>
               <tr>
-              <th>${escapeHTML(translate("equipment_photo"))}</th>
-              <th>${escapeHTML(translate("equipment_name"))}</th>
-              <th>${escapeHTML(translate("equipment_category"))}</th>
-              <th>${escapeHTML(translate("equipment_location"))}</th>
-              <th>${escapeHTML(translate("equipment_quantity_total"))}</th>
-              <th>${escapeHTML(translate("equipment_item_value"))}</th>
-              <th>${escapeHTML(translate("actions"))}</th>
+              <th>${escapeHTML(translate('equipment_photo'))}</th>
+              <th>${escapeHTML(translate('equipment_name'))}</th>
+              <th>${escapeHTML(translate('equipment_category'))}</th>
+              <th>${escapeHTML(translate('equipment_location'))}</th>
+              <th>${escapeHTML(translate('equipment_quantity_total'))}</th>
+              <th>${escapeHTML(translate('equipment_item_value'))}</th>
+              <th>${escapeHTML(translate('actions'))}</th>
             </tr>
           </thead>
           <tbody>
-              <tr><td colspan="7">${escapeHTML(translate("no_data_available"))}</td></tr>
+              <tr><td colspan="7">${escapeHTML(translate('no_data_available'))}</td></tr>
           </tbody>
         </table>
       </div>
@@ -806,13 +806,13 @@ export class Inventory {
         <table class="data-table">
           <thead>
             <tr>
-              <th>${escapeHTML(translate("equipment_photo"))}</th>
-              <th>${escapeHTML(translate("equipment_name"))}</th>
-              <th>${escapeHTML(translate("equipment_category"))}</th>
-              <th>${escapeHTML(translate("equipment_location"))}</th>
-              <th>${escapeHTML(translate("equipment_quantity_total"))}</th>
-              <th>${escapeHTML(translate("equipment_item_value"))}</th>
-              <th>${escapeHTML(translate("actions"))}</th>
+              <th>${escapeHTML(translate('equipment_photo'))}</th>
+              <th>${escapeHTML(translate('equipment_name'))}</th>
+              <th>${escapeHTML(translate('equipment_category'))}</th>
+              <th>${escapeHTML(translate('equipment_location'))}</th>
+              <th>${escapeHTML(translate('equipment_quantity_total'))}</th>
+              <th>${escapeHTML(translate('equipment_item_value'))}</th>
+              <th>${escapeHTML(translate('actions'))}</th>
             </tr>
           </thead>
           <tbody>
@@ -820,9 +820,9 @@ export class Inventory {
               <tr>
                 <td>
                   ${item.photo_url
-                    ? `<img src="${escapeHTML(item.photo_url)}" alt="${escapeHTML(item.name)}" class="table-photo previewable-image" loading="lazy" role="button" tabindex="0" data-equipment-id="${escapeHTML(String(item.id))}" data-photo-url="${escapeHTML(item.photo_url)}" data-photo-alt="${escapeHTML(item.name)}" />`
-                    : `<div class="table-no-photo">📦</div>`
-                  }
+    ? `<img src="${escapeHTML(item.photo_url)}" alt="${escapeHTML(item.name)}" class="table-photo previewable-image" loading="lazy" role="button" tabindex="0" data-equipment-id="${escapeHTML(String(item.id))}" data-photo-url="${escapeHTML(item.photo_url)}" data-photo-alt="${escapeHTML(item.name)}" />`
+    : `<div class="table-no-photo">📦</div>`
+}
                 </td>
                 <td>${escapeHTML(item.name)}</td>
                 <td>${escapeHTML(item.category || '-')}</td>
@@ -831,8 +831,8 @@ export class Inventory {
                 <td>${escapeHTML(this.formatCurrency(item.item_value))}</td>
                 <td>
                   <div class="table-actions">
-                    <button type="button" class="btn secondary small edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate("edit"))}</button>
-                    <button type="button" class="btn danger small delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate("delete"))}</button>
+                    <button type="button" class="btn secondary small edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
+                    <button type="button" class="btn danger small delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate('delete'))}</button>
                   </div>
                 </td>
               </tr>
@@ -845,11 +845,11 @@ export class Inventory {
 
   attachEventHandlers() {
     // View toggle handlers
-    const galleryBtn = document.getElementById("gallery-view-btn");
-    const tableBtn = document.getElementById("table-view-btn");
+    const galleryBtn = document.getElementById('gallery-view-btn');
+    const tableBtn = document.getElementById('table-view-btn');
 
     if (galleryBtn) {
-      galleryBtn.addEventListener("click", () => {
+      galleryBtn.addEventListener('click', () => {
         this.viewMode = 'gallery';
         this.render();
         this.attachEventHandlers();
@@ -857,7 +857,7 @@ export class Inventory {
     }
 
     if (tableBtn) {
-      tableBtn.addEventListener("click", () => {
+      tableBtn.addEventListener('click', () => {
         this.viewMode = 'table';
         this.render();
         this.attachEventHandlers();
@@ -868,25 +868,25 @@ export class Inventory {
     this.setupPhotoUpload('photo-upload-container', 'photo-input', 'photo-preview-img', 'photo-placeholder', 'remove-photo-btn', false);
 
     // Equipment form handler for creating new
-    const equipmentForm = document.getElementById("equipmentForm");
+    const equipmentForm = document.getElementById('equipmentForm');
     if (equipmentForm) {
-      equipmentForm.addEventListener("submit", async (event) => {
+      equipmentForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         await this.handleCreateSubmit();
       });
     }
 
     // Edit equipment handlers
-    document.querySelectorAll(".edit-equipment-btn").forEach((btn) => {
-      btn.addEventListener("click", (event) => {
+    document.querySelectorAll('.edit-equipment-btn').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
         const equipmentId = parseInt(event.target.dataset.id, 10);
         this.openEditModal(equipmentId);
       });
     });
 
     // Delete equipment handlers
-    document.querySelectorAll(".delete-equipment-btn").forEach((btn) => {
-      btn.addEventListener("click", (event) => {
+    document.querySelectorAll('.delete-equipment-btn').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
         const equipmentId = parseInt(event.target.dataset.id, 10);
         const equipmentName = event.target.dataset.name;
         this.openDeleteConfirmation(equipmentId, equipmentName);
@@ -907,14 +907,14 @@ export class Inventory {
     const removePhotoBtn = document.getElementById(removeBtnId);
 
     if (photoUploadContainer && photoInput) {
-      photoUploadContainer.addEventListener("click", (e) => {
+      photoUploadContainer.addEventListener('click', (e) => {
         // The input's own click (keyboard activation) already opens the picker
         if (e.target !== photoInput && e.target !== removePhotoBtn && !removePhotoBtn.contains(e.target)) {
           photoInput.click();
         }
       });
 
-      photoInput.addEventListener("change", async (event) => {
+      photoInput.addEventListener('change', async (event) => {
         const file = event.target.files[0];
         if (file) {
           await this.handlePhotoSelection({
@@ -930,7 +930,7 @@ export class Inventory {
     }
 
     if (removePhotoBtn) {
-      removePhotoBtn.addEventListener("click", (event) => {
+      removePhotoBtn.addEventListener('click', (event) => {
         event.stopPropagation();
         if (isModal) {
           this.clearModalPhotoPreview();
@@ -948,24 +948,24 @@ export class Inventory {
    */
   validatePhotoFile(file) {
     if (!file) {
-      return { isValid: false, errorKey: "equipment_photo_invalid_type" };
+      return { isValid: false, errorKey: 'equipment_photo_invalid_type' };
     }
 
     if (file.size > MAX_PHOTO_SIZE) {
-      return { isValid: false, errorKey: "equipment_photo_too_large" };
+      return { isValid: false, errorKey: 'equipment_photo_too_large' };
     }
 
     if (!isAllowedPhotoFile(file)) {
-      return { isValid: false, errorKey: "equipment_photo_invalid_type" };
+      return { isValid: false, errorKey: 'equipment_photo_invalid_type' };
     }
 
     return { isValid: true };
   }
 
   getPhotoProgressElements(isModal) {
-    const container = document.getElementById(isModal ? "photo-progress-modal" : "photo-progress-main");
-    const bar = document.getElementById(isModal ? "photo-progress-modal-bar" : "photo-progress-main-bar");
-    const text = document.getElementById(isModal ? "photo-progress-modal-text" : "photo-progress-main-text");
+    const container = document.getElementById(isModal ? 'photo-progress-modal' : 'photo-progress-main');
+    const bar = document.getElementById(isModal ? 'photo-progress-modal-bar' : 'photo-progress-main-bar');
+    const text = document.getElementById(isModal ? 'photo-progress-modal-text' : 'photo-progress-main-text');
     return { container, bar, text };
   }
 
@@ -984,21 +984,21 @@ export class Inventory {
     }
 
     if (visible) {
-      container.classList.remove("hidden");
+      container.classList.remove('hidden');
     } else {
-      container.classList.add("hidden");
+      container.classList.add('hidden');
     }
 
     const safePercent = Math.min(100, Math.max(0, percent));
     bar.style.width = `${safePercent}%`;
 
     if (messageKey) {
-      text.textContent = translate(messageKey).replace("{percent}", Math.round(safePercent));
+      text.textContent = translate(messageKey).replace('{percent}', Math.round(safePercent));
     }
   }
 
   resetPhotoProgress(isModal) {
-    this.updatePhotoProgress({ visible: false, percent: 0, messageKey: "equipment_photo_processing", isModal });
+    this.updatePhotoProgress({ visible: false, percent: 0, messageKey: 'equipment_photo_processing', isModal });
   }
 
   /**
@@ -1009,9 +1009,9 @@ export class Inventory {
    * @returns {Promise<Blob>}
    */
   async streamFileToBlob(file, isModal) {
-    if (typeof file.stream !== "function") {
+    if (typeof file.stream !== 'function') {
       const buffer = await file.arrayBuffer();
-      return new Blob([buffer], { type: file.type || "application/octet-stream" });
+      return new Blob([buffer], { type: file.type || 'application/octet-stream' });
     }
 
     const reader = file.stream().getReader();
@@ -1021,12 +1021,12 @@ export class Inventory {
 
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {break;}
       if (value) {
         chunks.push(value);
         received += value.length;
         if (received > MAX_PHOTO_SIZE) {
-          throw new Error("file-too-large");
+          throw new Error('file-too-large');
         }
         if (received - lastProgressEmit >= STREAM_CHUNK_SIZE && file.size) {
           const basePercent = 5;
@@ -1034,7 +1034,7 @@ export class Inventory {
           this.updatePhotoProgress({
             visible: true,
             percent: basePercent + streamPercent,
-            messageKey: "equipment_photo_processing",
+            messageKey: 'equipment_photo_processing',
             isModal,
           });
           lastProgressEmit = received;
@@ -1042,7 +1042,7 @@ export class Inventory {
       }
     }
 
-    return new Blob(chunks, { type: file.type || "application/octet-stream" });
+    return new Blob(chunks, { type: file.type || 'application/octet-stream' });
   }
 
   /**
@@ -1051,7 +1051,7 @@ export class Inventory {
    * @returns {Worker|null}
    */
   createImageProcessingWorker() {
-    if (typeof Worker === "undefined") {
+    if (typeof Worker === 'undefined') {
       return null;
     }
 
@@ -1113,7 +1113,7 @@ export class Inventory {
       };
     `;
 
-    const blob = new Blob([workerScript], { type: "application/javascript" });
+    const blob = new Blob([workerScript], { type: 'application/javascript' });
     const url = URL.createObjectURL(blob);
     const worker = new Worker(url);
     worker._wampumsUrl = url;
@@ -1136,7 +1136,7 @@ export class Inventory {
     const worker = this.createImageProcessingWorker();
 
     if (!worker) {
-      debugWarn("Image worker not available; skipping client-side resize");
+      debugWarn('Image worker not available; skipping client-side resize');
       return { processedFile: file, previewFile: file, skipped: true };
     }
 
@@ -1149,43 +1149,43 @@ export class Inventory {
 
     const sourceBlob = await this.streamFileToBlob(file, isModal);
     const buffer = await sourceBlob.arrayBuffer();
-    const fileName = file.name || "photo.webp";
+    const fileName = file.name || 'photo.webp';
 
     return new Promise((resolve) => {
-      let timeoutId = setTimeout(() => {
-        debugError("Worker timed out while processing photo");
+      const timeoutId = setTimeout(() => {
+        debugError('Worker timed out while processing photo');
         teardown();
-        resolve({ processedFile: file, previewFile: file, skipped: true, error: new Error("timeout") });
+        resolve({ processedFile: file, previewFile: file, skipped: true, error: new Error('timeout') });
       }, WORKER_TIMEOUT_MS);
 
       worker.onmessage = (event) => {
         const { type, percent, message, buffer: resultBuffer, mimeType, size } = event.data || {};
-        if (type === "progress") {
+        if (type === 'progress') {
           this.updatePhotoProgress({
             visible: true,
             percent: percent || 0,
-            messageKey: "equipment_photo_processing",
+            messageKey: 'equipment_photo_processing',
             isModal,
           });
           return;
         }
 
-        if (type === "result" && resultBuffer) {
+        if (type === 'result' && resultBuffer) {
           clearTimeout(timeoutId);
           teardown();
-          const optimizedFile = new File([resultBuffer], fileName, { type: mimeType || "image/webp" });
+          const optimizedFile = new File([resultBuffer], fileName, { type: mimeType || 'image/webp' });
           this.updatePhotoProgress({
             visible: true,
             percent: 100,
-            messageKey: "equipment_photo_processing_done",
+            messageKey: 'equipment_photo_processing_done',
             isModal,
           });
           resolve({ processedFile: optimizedFile, previewFile: optimizedFile, size });
           return;
         }
 
-        if (type === "error") {
-          debugError("Worker error during photo processing:", message);
+        if (type === 'error') {
+          debugError('Worker error during photo processing:', message);
           clearTimeout(timeoutId);
           teardown();
           resolve({ processedFile: file, previewFile: file, error: new Error(message) });
@@ -1193,7 +1193,7 @@ export class Inventory {
       };
 
       worker.onerror = (err) => {
-        debugError("Worker failed during photo processing:", err);
+        debugError('Worker failed during photo processing:', err);
         clearTimeout(timeoutId);
         teardown();
         resolve({ processedFile: file, previewFile: file, error: err });
@@ -1220,19 +1220,19 @@ export class Inventory {
   async handlePhotoSelection({ file, isModal, photoPreviewImg, photoPlaceholder, removePhotoBtn, photoInput }) {
     const validation = this.validatePhotoFile(file);
     if (!validation.isValid) {
-      this.app.showMessage(translate(validation.errorKey), "error");
+      this.app.showMessage(translate(validation.errorKey), 'error');
       if (photoInput) {
-        photoInput.value = "";
+        photoInput.value = '';
       }
       return;
     }
 
     try {
-      this.updatePhotoProgress({ visible: true, percent: 5, messageKey: "equipment_photo_processing", isModal });
+      this.updatePhotoProgress({ visible: true, percent: 5, messageKey: 'equipment_photo_processing', isModal });
 
       // Normalize HEIC first (main thread because the helper library lives there)
       const normalization = await this.normalizePhotoFile(file);
-      this.updatePhotoProgress({ visible: true, percent: 15, messageKey: "equipment_photo_processing", isModal });
+      this.updatePhotoProgress({ visible: true, percent: 15, messageKey: 'equipment_photo_processing', isModal });
 
       // Resize + re-encode in worker
       const optimized = await this.optimizePhotoFile(normalization.processedFile, isModal);
@@ -1248,9 +1248,9 @@ export class Inventory {
       if (previewFile) {
         const previewUrl = URL.createObjectURL(previewFile);
         photoPreviewImg.src = previewUrl;
-        photoPreviewImg.classList.remove("hidden");
-        photoPlaceholder.classList.add("hidden");
-        removePhotoBtn.classList.remove("hidden");
+        photoPreviewImg.classList.remove('hidden');
+        photoPlaceholder.classList.add('hidden');
+        removePhotoBtn.classList.remove('hidden');
 
         if (isModal) {
           if (this.modalPhotoPreviewUrl) {
@@ -1273,19 +1273,19 @@ export class Inventory {
           this.photoPreviewUrl = null;
         }
         this.showPreviewUnavailableState(photoPreviewImg, photoPlaceholder);
-        removePhotoBtn.classList.remove("hidden");
+        removePhotoBtn.classList.remove('hidden');
         if (normalization?.error || optimized?.error) {
-          this.app.showMessage(translate("equipment_photo_preview_unavailable"), "warning");
+          this.app.showMessage(translate('equipment_photo_preview_unavailable'), 'warning');
         }
       }
 
-      this.updatePhotoProgress({ visible: true, percent: 100, messageKey: "equipment_photo_processing_done", isModal });
+      this.updatePhotoProgress({ visible: true, percent: 100, messageKey: 'equipment_photo_processing_done', isModal });
       setTimeout(() => this.resetPhotoProgress(isModal), 500);
     } catch (processingError) {
-      debugError("Error handling photo selection:", processingError);
-      this.app.showMessage(translate("equipment_photo_processing_error"), "error");
+      debugError('Error handling photo selection:', processingError);
+      this.app.showMessage(translate('equipment_photo_processing_error'), 'error');
       if (photoInput) {
-        photoInput.value = "";
+        photoInput.value = '';
       }
       this.resetPhotoProgress(isModal);
     }
@@ -1313,10 +1313,10 @@ export class Inventory {
       const textEl = photoPlaceholder.querySelector('.photo-text');
       const hintEl = photoPlaceholder.querySelector('.photo-hint');
       if (textEl) {
-        textEl.textContent = translate("equipment_photo_preview_unavailable");
+        textEl.textContent = translate('equipment_photo_preview_unavailable');
       }
       if (hintEl) {
-        hintEl.textContent = translate("equipment_photo_click_to_upload");
+        hintEl.textContent = translate('equipment_photo_click_to_upload');
       }
       photoPlaceholder.classList.remove('hidden');
     }
@@ -1344,7 +1344,7 @@ export class Inventory {
       const convertedFile = new File([convertedBlob], normalizedName, { type: 'image/webp' });
       return { processedFile: convertedFile, previewFile: convertedFile };
     } catch (conversionError) {
-      debugError("Error converting HEIC for preview:", conversionError);
+      debugError('Error converting HEIC for preview:', conversionError);
       this.heicConverterPromise = null;
       return { processedFile: file, previewFile: null, error: conversionError };
     }
@@ -1371,79 +1371,79 @@ export class Inventory {
 
         <div class="grid grid-2">
           <label class="stacked">
-            <span>${escapeHTML(translate("equipment_name"))} *</span>
+            <span>${escapeHTML(translate('equipment_name'))} *</span>
             <input type="text" name="equipment_name" id="modal_equipment_name" minlength="2" maxlength="150" required />
           </label>
           <label class="stacked">
-            <span>${escapeHTML(translate("equipment_category"))}</span>
+            <span>${escapeHTML(translate('equipment_category'))}</span>
             <input type="text" name="category" id="modal_equipment_category" maxlength="100" />
           </label>
         </div>
 
         <div class="grid grid-2">
           <label class="stacked">
-            <span>${escapeHTML(translate("equipment_quantity_total"))}</span>
+            <span>${escapeHTML(translate('equipment_quantity_total'))}</span>
             <input type="number" name="quantity_total" id="modal_equipment_quantity_total" min="0" value="1" />
           </label>
           <label class="stacked">
-            <span>${escapeHTML(translate("equipment_available"))}</span>
+            <span>${escapeHTML(translate('equipment_available'))}</span>
             <input type="number" name="quantity_available" id="modal_equipment_quantity_available" min="0" />
           </label>
         </div>
 
         <div class="grid grid-2">
           <label class="stacked">
-            <span>${escapeHTML(translate("equipment_item_value"))}</span>
+            <span>${escapeHTML(translate('equipment_item_value'))}</span>
             <input type="number" name="item_value" id="modal_equipment_item_value" min="0" step="0.01" placeholder="0.00" />
           </label>
           <label class="stacked">
-            <span>${escapeHTML(translate("equipment_acquisition_date"))}</span>
+            <span>${escapeHTML(translate('equipment_acquisition_date'))}</span>
             <input type="date" name="acquisition_date" id="modal_equipment_acquisition_date" />
           </label>
         </div>
 
         <div class="grid grid-2">
           <label class="stacked">
-            <span>${escapeHTML(translate("equipment_location_type"))}</span>
+            <span>${escapeHTML(translate('equipment_location_type'))}</span>
             <select name="location_type" id="modal_equipment_location_type">
               ${LOCATION_TYPES.map((type) => `<option value="${type.value}">${escapeHTML(translate(type.labelKey))}</option>`).join('')}
             </select>
           </label>
           <label class="stacked">
-            <span>${escapeHTML(translate("equipment_location_details"))}</span>
-            <input type="text" name="location_details" id="modal_equipment_location_details" maxlength="500" placeholder="${escapeHTML(translate("equipment_location_details_placeholder"))}" />
+            <span>${escapeHTML(translate('equipment_location_details'))}</span>
+            <input type="text" name="location_details" id="modal_equipment_location_details" maxlength="500" placeholder="${escapeHTML(translate('equipment_location_details_placeholder'))}" />
           </label>
         </div>
 
         <label class="stacked">
-          <span>${escapeHTML(translate("equipment_condition"))}</span>
+          <span>${escapeHTML(translate('equipment_condition'))}</span>
           <input type="text" name="condition_note" id="modal_equipment_condition_note" maxlength="500" />
         </label>
 
         <label class="stacked">
-          <span>${escapeHTML(translate("equipment_description"))}</span>
+          <span>${escapeHTML(translate('equipment_description'))}</span>
           <textarea name="description" id="modal_equipment_description" rows="2" maxlength="2000"></textarea>
         </label>
 
         <!-- Photo Upload Section in Modal -->
         <div class="photo-upload-section">
           <div class="stacked">
-            <span id="photo-label-modal">${escapeHTML(translate("equipment_photo"))}</span>
+            <span id="photo-label-modal">${escapeHTML(translate('equipment_photo'))}</span>
             <div class="photo-upload-container" id="modal-photo-upload-container">
               <div class="photo-preview" id="modal-photo-preview">
                 <div class="photo-placeholder" id="modal-photo-placeholder">
                   <span class="photo-icon" aria-hidden="true">📷</span>
-                  <span class="photo-text">${escapeHTML(translate("equipment_photo_click_to_upload"))}</span>
-                  <span class="photo-hint">${escapeHTML(translate("equipment_photo_max_size"))}</span>
+                  <span class="photo-text">${escapeHTML(translate('equipment_photo_click_to_upload'))}</span>
+                  <span class="photo-hint">${escapeHTML(translate('equipment_photo_max_size'))}</span>
                 </div>
                 <div class="photo-progress hidden" id="photo-progress-modal" role="status" aria-live="polite">
                   <div class="progress-bar">
                     <span class="progress-fill" id="photo-progress-modal-bar"></span>
                   </div>
-                  <div class="progress-text" id="photo-progress-modal-text">${escapeHTML(translate("equipment_photo_processing"))}</div>
+                  <div class="progress-text" id="photo-progress-modal-text">${escapeHTML(translate('equipment_photo_processing'))}</div>
                 </div>
                 <img id="modal-photo-preview-img" class="hidden" alt="" />
-                <button type="button" id="modal-remove-photo-btn" class="remove-photo-btn hidden" aria-label="${escapeHTML(translate("equipment_photo_remove"))}">×</button>
+                <button type="button" id="modal-remove-photo-btn" class="remove-photo-btn hidden" aria-label="${escapeHTML(translate('equipment_photo_remove'))}">×</button>
               </div>
               <input type="file" id="modal-photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif" class="sr-only" aria-labelledby="photo-label-modal" />
             </div>
@@ -1492,12 +1492,12 @@ export class Inventory {
         return null;
       }
       if (image) {
-        image.setAttribute("src", refreshedUrl);
-        image.setAttribute("data-photo-url", refreshedUrl);
+        image.setAttribute('src', refreshedUrl);
+        image.setAttribute('data-photo-url', refreshedUrl);
       }
       return refreshedUrl;
     } catch (refreshError) {
-      debugWarn("Unable to renew equipment photo URL", refreshError);
+      debugWarn('Unable to renew equipment photo URL', refreshError);
       return null;
     } finally {
       if (this.photoRenewals.get(parsedEquipmentId) === renewal) {
@@ -1511,17 +1511,17 @@ export class Inventory {
    * @param {HTMLImageElement} image
    */
   async handleEquipmentPhotoError(image) {
-    const equipmentId = image?.getAttribute("data-equipment-id");
-    const failedUrl = image?.getAttribute("src") || "";
+    const equipmentId = image?.getAttribute('data-equipment-id');
+    const failedUrl = image?.getAttribute('src') || '';
     if (
       !equipmentId ||
-      image.dataset.photoRefreshPending === "true" ||
+      image.dataset.photoRefreshPending === 'true' ||
       image.dataset.photoRefreshAttempted === failedUrl
     ) {
       return;
     }
 
-    image.dataset.photoRefreshPending = "true";
+    image.dataset.photoRefreshPending = 'true';
     image.dataset.photoRefreshAttempted = failedUrl;
     try {
       await this.renewEquipmentPhoto(equipmentId, image);
@@ -1531,13 +1531,13 @@ export class Inventory {
   }
 
   setupImagePreviewHandlers() {
-    const previewableImages = document.querySelectorAll(".previewable-image");
+    const previewableImages = document.querySelectorAll('.previewable-image');
 
     previewableImages.forEach((img) => {
       const openHandler = async () => {
-        const equipmentId = img.getAttribute("data-equipment-id");
-        const photoUrl = img.getAttribute("data-photo-url");
-        const altText = img.getAttribute("data-photo-alt") || "";
+        const equipmentId = img.getAttribute('data-equipment-id');
+        const photoUrl = img.getAttribute('data-photo-url');
+        const altText = img.getAttribute('data-photo-alt') || '';
         const refreshedUrl = await this.renewEquipmentPhoto(equipmentId, img);
         this.openImagePreview(
           refreshedUrl || photoUrl,
@@ -1546,10 +1546,10 @@ export class Inventory {
         );
       };
 
-      img.addEventListener("click", openHandler);
-      img.addEventListener("error", () => this.handleEquipmentPhotoError(img));
-      img.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
+      img.addEventListener('click', openHandler);
+      img.addEventListener('error', () => this.handleEquipmentPhotoError(img));
+      img.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           openHandler();
         }
@@ -1558,32 +1558,32 @@ export class Inventory {
 
   }
 
-  openImagePreview(imageUrl, altText = "", equipmentId = null) {
+  openImagePreview(imageUrl, altText = '', equipmentId = null) {
     const safeSrc = this.getSafeImageSrc(imageUrl);
     if (!safeSrc) {
       return;
     }
 
     const { overlay } = openModal({
-      id: "image-preview-modal",
-      title: escapeHTML(translate("inventory_image_preview_title")),
-      size: "large",
-      className: "modal-image-preview",
+      id: 'image-preview-modal',
+      title: escapeHTML(translate('inventory_image_preview_title')),
+      size: 'large',
+      className: 'modal-image-preview',
       body: '<div class="image-preview-body"><img id="image-preview-img" alt="" /></div>',
-      initialFocus: ".modal-close",
+      initialFocus: '.modal-close',
     });
-    const image = overlay.querySelector("#image-preview-img");
-    image.addEventListener("error", () => this.handleEquipmentPhotoError(image));
-    image.setAttribute("src", safeSrc);
-    image.setAttribute("alt", altText || translate("inventory_image_preview_alt_fallback"));
-    image.setAttribute("data-photo-url", safeSrc);
+    const image = overlay.querySelector('#image-preview-img');
+    image.addEventListener('error', () => this.handleEquipmentPhotoError(image));
+    image.setAttribute('src', safeSrc);
+    image.setAttribute('alt', altText || translate('inventory_image_preview_alt_fallback'));
+    image.setAttribute('data-photo-url', safeSrc);
     if (equipmentId !== null) {
-      image.setAttribute("data-equipment-id", String(equipmentId));
+      image.setAttribute('data-equipment-id', String(equipmentId));
     }
   }
 
   getSafeImageSrc(imageUrl) {
-    if (typeof imageUrl !== "string") {
+    if (typeof imageUrl !== 'string') {
       return null;
     }
 
@@ -1591,20 +1591,20 @@ export class Inventory {
     const lowered = trimmed.toLowerCase();
 
     // eslint-disable-next-line no-script-url -- rejects javascript: image URLs
-    if (lowered.startsWith("javascript:") || lowered.startsWith("vbscript:")) {
-      debugError("Blocked unsafe image src", imageUrl);
+    if (lowered.startsWith('javascript:') || lowered.startsWith('vbscript:')) {
+      debugError('Blocked unsafe image src', imageUrl);
       return null;
     }
 
-    if (lowered.startsWith("data:")) {
-      return lowered.startsWith("data:image/") ? trimmed : null;
+    if (lowered.startsWith('data:')) {
+      return lowered.startsWith('data:image/') ? trimmed : null;
     }
 
-    if (lowered.startsWith("blob:") ||
-        lowered.startsWith("http://") ||
-        lowered.startsWith("https://") ||
-        lowered.startsWith("//") ||
-        lowered.startsWith("/")) {
+    if (lowered.startsWith('blob:') ||
+        lowered.startsWith('http://') ||
+        lowered.startsWith('https://') ||
+        lowered.startsWith('//') ||
+        lowered.startsWith('/')) {
       return trimmed;
     }
 
@@ -1612,18 +1612,18 @@ export class Inventory {
   }
 
   clearPhotoPreview() {
-    const photoInput = document.getElementById("photo-input");
-    const photoPreviewImg = document.getElementById("photo-preview-img");
-    const photoPlaceholder = document.getElementById("photo-placeholder");
-    const removePhotoBtn = document.getElementById("remove-photo-btn");
+    const photoInput = document.getElementById('photo-input');
+    const photoPreviewImg = document.getElementById('photo-preview-img');
+    const photoPlaceholder = document.getElementById('photo-placeholder');
+    const removePhotoBtn = document.getElementById('remove-photo-btn');
 
-    if (photoInput) photoInput.value = '';
+    if (photoInput) {photoInput.value = '';}
     if (photoPreviewImg) {
       photoPreviewImg.src = '';
       photoPreviewImg.classList.add('hidden');
     }
-    if (photoPlaceholder) photoPlaceholder.classList.remove('hidden');
-    if (removePhotoBtn) removePhotoBtn.classList.add('hidden');
+    if (photoPlaceholder) {photoPlaceholder.classList.remove('hidden');}
+    if (removePhotoBtn) {removePhotoBtn.classList.add('hidden');}
 
     this.resetPhotoProgress(false);
 
@@ -1637,18 +1637,18 @@ export class Inventory {
   }
 
   clearModalPhotoPreview() {
-    const photoInput = document.getElementById("modal-photo-input");
-    const photoPreviewImg = document.getElementById("modal-photo-preview-img");
-    const photoPlaceholder = document.getElementById("modal-photo-placeholder");
-    const removePhotoBtn = document.getElementById("modal-remove-photo-btn");
+    const photoInput = document.getElementById('modal-photo-input');
+    const photoPreviewImg = document.getElementById('modal-photo-preview-img');
+    const photoPlaceholder = document.getElementById('modal-photo-placeholder');
+    const removePhotoBtn = document.getElementById('modal-remove-photo-btn');
 
-    if (photoInput) photoInput.value = '';
+    if (photoInput) {photoInput.value = '';}
     if (photoPreviewImg) {
       photoPreviewImg.src = '';
       photoPreviewImg.classList.add('hidden');
     }
-    if (photoPlaceholder) photoPlaceholder.classList.remove('hidden');
-    if (removePhotoBtn) removePhotoBtn.classList.add('hidden');
+    if (photoPlaceholder) {photoPlaceholder.classList.remove('hidden');}
+    if (removePhotoBtn) {removePhotoBtn.classList.add('hidden');}
 
     this.resetPhotoProgress(true);
 
@@ -1663,7 +1663,7 @@ export class Inventory {
 
   async openEditModal(equipmentId) {
     const equipment = this.equipment.find(e => e.id === equipmentId);
-    if (!equipment) return;
+    if (!equipment) {return;}
 
     if (equipment.photo_url) {
       await this.renewEquipmentPhoto(equipment.id);
@@ -1672,50 +1672,50 @@ export class Inventory {
     this.editingEquipment = equipment;
 
     openModal({
-      id: "edit-equipment-modal",
-      title: escapeHTML(translate("equipment_edit")),
-      className: "inventory-dialog",
+      id: 'edit-equipment-modal',
+      title: escapeHTML(translate('equipment_edit')),
+      className: 'inventory-dialog',
       body: this.renderEditEquipmentForm(),
       footer: `
-        <button type="button" class="btn secondary" data-modal-close>${escapeHTML(translate("cancel"))}</button>
-        <button type="submit" class="btn primary" form="editEquipmentForm">${escapeHTML(translate("save_changes"))}</button>
+        <button type="button" class="btn secondary" data-modal-close>${escapeHTML(translate('cancel'))}</button>
+        <button type="submit" class="btn primary" form="editEquipmentForm">${escapeHTML(translate('save_changes'))}</button>
       `,
       onClose: () => {
         this.editingEquipment = null;
         this.clearModalPhotoPreview();
       },
     });
-    document.getElementById("editEquipmentForm").addEventListener("submit", async (e) => {
+    document.getElementById('editEquipmentForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       await this.handleEditSubmit();
     });
     this.setupPhotoUpload('modal-photo-upload-container', 'modal-photo-input', 'modal-photo-preview-img', 'modal-photo-placeholder', 'modal-remove-photo-btn', true);
 
     // Populate modal form
-    document.getElementById("modal_equipment_id").value = equipment.id;
-    document.getElementById("modal_equipment_name").value = equipment.name || '';
-    document.getElementById("modal_equipment_category").value = equipment.category || '';
-    document.getElementById("modal_equipment_quantity_total").value = equipment.quantity_total || 1;
-    document.getElementById("modal_equipment_quantity_available").value = equipment.quantity_available || '';
-    document.getElementById("modal_equipment_item_value").value = equipment.item_value || '';
-    document.getElementById("modal_equipment_acquisition_date").value = equipment.acquisition_date ? equipment.acquisition_date.slice(0, 10) : '';
-    document.getElementById("modal_equipment_condition_note").value = equipment.condition_note || '';
-    document.getElementById("modal_equipment_description").value = equipment.description || '';
-    document.getElementById("modal_equipment_location_type").value = equipment.location_type || LOCATION_TYPES[0].value;
-    document.getElementById("modal_equipment_location_details").value = equipment.location_details || '';
+    document.getElementById('modal_equipment_id').value = equipment.id;
+    document.getElementById('modal_equipment_name').value = equipment.name || '';
+    document.getElementById('modal_equipment_category').value = equipment.category || '';
+    document.getElementById('modal_equipment_quantity_total').value = equipment.quantity_total || 1;
+    document.getElementById('modal_equipment_quantity_available').value = equipment.quantity_available || '';
+    document.getElementById('modal_equipment_item_value').value = equipment.item_value || '';
+    document.getElementById('modal_equipment_acquisition_date').value = equipment.acquisition_date ? equipment.acquisition_date.slice(0, 10) : '';
+    document.getElementById('modal_equipment_condition_note').value = equipment.condition_note || '';
+    document.getElementById('modal_equipment_description').value = equipment.description || '';
+    document.getElementById('modal_equipment_location_type').value = equipment.location_type || LOCATION_TYPES[0].value;
+    document.getElementById('modal_equipment_location_details').value = equipment.location_details || '';
 
     // Show existing photo if available
     if (equipment.photo_url) {
-      const photoPreviewImg = document.getElementById("modal-photo-preview-img");
-      const photoPlaceholder = document.getElementById("modal-photo-placeholder");
-      const removePhotoBtn = document.getElementById("modal-remove-photo-btn");
+      const photoPreviewImg = document.getElementById('modal-photo-preview-img');
+      const photoPlaceholder = document.getElementById('modal-photo-placeholder');
+      const removePhotoBtn = document.getElementById('modal-remove-photo-btn');
 
       if (photoPreviewImg) {
         photoPreviewImg.src = equipment.photo_url;
         photoPreviewImg.classList.remove('hidden');
       }
-      if (photoPlaceholder) photoPlaceholder.classList.add('hidden');
-      if (removePhotoBtn) removePhotoBtn.classList.remove('hidden');
+      if (photoPlaceholder) {photoPlaceholder.classList.add('hidden');}
+      if (removePhotoBtn) {removePhotoBtn.classList.remove('hidden');}
 
       this.modalPhotoPreview = equipment.photo_url;
     } else {
@@ -1725,7 +1725,7 @@ export class Inventory {
   }
 
   closeEditModal() {
-    closeModal("edit-equipment-modal");
+    closeModal('edit-equipment-modal');
   }
 
   /**
@@ -1735,9 +1735,9 @@ export class Inventory {
    */
   async openDeleteConfirmation(equipmentId, equipmentName) {
     const confirmed = await confirmDestructive({
-      title: translate("equipment_delete_confirm_title"),
-      message: translate("equipment_delete_confirm_message").replace("{name}", equipmentName),
-      confirmLabel: translate("delete"),
+      title: translate('equipment_delete_confirm_title'),
+      message: translate('equipment_delete_confirm_message').replace('{name}', equipmentName),
+      confirmLabel: translate('delete'),
     });
     if (!confirmed) {
       return;
@@ -1747,7 +1747,7 @@ export class Inventory {
   }
 
   async handleCreateSubmit() {
-    const form = document.getElementById("equipmentForm");
+    const form = document.getElementById('equipmentForm');
     const formData = new FormData(form);
 
     const payload = {
@@ -1788,12 +1788,12 @@ export class Inventory {
         try {
           await uploadEquipmentPhoto(savedEquipment.id, this.selectedPhotoFile);
         } catch (photoError) {
-          debugError("Error uploading photo:", photoError);
-          this.app.showMessage(translate("equipment_photo_upload_error"), "warning");
+          debugError('Error uploading photo:', photoError);
+          this.app.showMessage(translate('equipment_photo_upload_error'), 'warning');
         }
       }
 
-      this.app.showMessage(translate("inventory_saved"), "success");
+      this.app.showMessage(translate('inventory_saved'), 'success');
       form.reset();
       this.clearPhotoPreview();
 
@@ -1804,13 +1804,13 @@ export class Inventory {
       this.render();
       this.attachEventHandlers();
     } catch (error) {
-      debugError("Error saving equipment", error);
+      debugError('Error saving equipment', error);
       this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
     }
   }
 
   async handleEditSubmit() {
-    const form = document.getElementById("editEquipmentForm");
+    const form = document.getElementById('editEquipmentForm');
     const formData = new FormData(form);
     const equipmentId = formData.get('equipment_id');
 
@@ -1853,12 +1853,12 @@ export class Inventory {
         try {
           await uploadEquipmentPhoto(equipmentId, this.modalSelectedPhotoFile);
         } catch (photoError) {
-          debugError("Error uploading photo:", photoError);
-          this.app.showMessage(translate("equipment_photo_upload_error"), "warning");
+          debugError('Error uploading photo:', photoError);
+          this.app.showMessage(translate('equipment_photo_upload_error'), 'warning');
         }
       }
 
-      this.app.showMessage(translate("equipment_updated"), "success");
+      this.app.showMessage(translate('equipment_updated'), 'success');
       this.closeEditModal();
 
       // Invalidate cache to ensure fresh data
@@ -1868,17 +1868,17 @@ export class Inventory {
       this.render();
       this.attachEventHandlers();
     } catch (error) {
-      debugError("Error updating equipment", error);
+      debugError('Error updating equipment', error);
       this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
     }
   }
 
   async handleDelete() {
-    if (!this.deletingEquipmentId) return;
+    if (!this.deletingEquipmentId) {return;}
 
     try {
       await deleteEquipmentItem(this.deletingEquipmentId);
-      this.app.showMessage(translate("equipment_deleted"), "success");
+      this.app.showMessage(translate('equipment_deleted'), 'success');
       this.deletingEquipmentId = null;
 
       // Invalidate cache to ensure fresh data
@@ -1888,7 +1888,7 @@ export class Inventory {
       this.render();
       this.attachEventHandlers();
     } catch (error) {
-      debugError("Error deleting equipment", error);
+      debugError('Error deleting equipment', error);
       this.app.showMessage(apiErrorMessage(error, 'error_occurred'), 'error');
       this.deletingEquipmentId = null;
     }

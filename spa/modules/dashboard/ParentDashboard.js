@@ -1,32 +1,32 @@
 import formReviewStylesheetUrl from '../../../css/form-review.css?url';
 import {
-        getCurrentOrganizationId,
-        getAuthHeader,
-        fetchParticipants,
-        getOrganizationFormFormats,
-        getOrganizationSettings,
-        getPublicOrganizationSettings,
-        getParticipantStatement,
-        linkUserParticipants,
-        getCurrentUser,
+  getCurrentOrganizationId,
+  getAuthHeader,
+  fetchParticipants,
+  getOrganizationFormFormats,
+  getOrganizationSettings,
+  getPublicOrganizationSettings,
+  getParticipantStatement,
+  linkUserParticipants,
+  getCurrentUser,
 } from '../../ajax-functions.js';
 import {
-        declinePermissionSlip,
-        getPermissionSlips,
-        signPermissionSlip,
+  declinePermissionSlip,
+  getPermissionSlips,
+  signPermissionSlip,
 } from '../../api/api-endpoints.js';
 import { formTypeLabel } from '../../utils/FormLabelUtils.js';
 import { loadHiddenParentDashboardButtons } from '../../config/parent-dashboard-buttons.js';
 import {
-        getFormsNeedingReview,
-        confirmFormReview,
-        getAuthorizationsPendingSignature,
+  getFormsNeedingReview,
+  confirmFormReview,
+  getAuthorizationsPendingSignature,
 } from '../../api/api-scout-years.js';
 import { buildApiUrl } from '../../api/api-core.js';
 import {
-        debugLog,
-        debugError,
-        debugWarn,
+  debugLog,
+  debugError,
+  debugWarn,
 } from '../../utils/DebugUtils.js';
 import { translate, registerPushSubscription } from '../../app.js';
 import { CONFIG } from '../../config.js';
@@ -38,443 +38,443 @@ import { CarpoolQuickAccessModal } from '../modals/CarpoolQuickAccessModal.js';
 import { isParent, hasPermission, canViewBadges, canApproveBadges, canViewReports, canViewActivities, canViewCarpools } from '../../utils/PermissionUtils.js';
 import { formatDateShort, parseDate } from '../../utils/DateUtils.js';
 import {
-        confirm as confirmDialog,
-        prompt as promptDialog,
+  confirm as confirmDialog,
+  prompt as promptDialog,
 } from '../../utils/DialogUtils.js';
 
 // Safari cancels a download whose object URL is revoked in the same task as the click.
 const CALENDAR_URL_REVOKE_DELAY_MS = 1000;
 
 export class ParentDashboard {
-        constructor(app) {
-                this.app = app;
-                this.participants = [];
-                this.formStructures = {};
-                this.participantStatements = new Map();
-                this.permissionSlips = new Map();
-                this.permissionSlipHandlerBound = false;
-                this.formsToReview = [];
-                this.authorizationsToSign = [];
-                this.hiddenButtons = new Set();
-        }
+  constructor(app) {
+    this.app = app;
+    this.participants = [];
+    this.formStructures = {};
+    this.participantStatements = new Map();
+    this.permissionSlips = new Map();
+    this.permissionSlipHandlerBound = false;
+    this.formsToReview = [];
+    this.authorizationsToSign = [];
+    this.hiddenButtons = new Set();
+  }
 
-        async init() {
-                let hasErrors = false;
-                // Run one step; a failure (thrown or rejected) is logged and the page
-                // still renders with what the other steps loaded.
-                const attempt = (step, message) => Promise.resolve()
-                        .then(step)
-                        .catch((error) => {
-                                debugError(message, error);
-                                hasErrors = true;
-                        });
+  async init() {
+    let hasErrors = false;
+    // Run one step; a failure (thrown or rejected) is logged and the page
+    // still renders with what the other steps loaded.
+    const attempt = (step, message) => Promise.resolve()
+      .then(step)
+      .catch((error) => {
+        debugError(message, error);
+        hasErrors = true;
+      });
 
-                // Only the statements and permission slips need the children; every
-                // other request starts at once instead of one after another.
-                const loadStatements = () => attempt(() => this.fetchParticipantStatements(), 'Error fetching participant statements:');
-                const loadPermissionSlips = () => attempt(() => this.fetchPermissionSlips(), 'Error fetching permission slips:');
-                const perChildReady = attempt(() => this.fetchParticipants(), 'Error fetching participants:')
-                        .then(() => Promise.all([loadStatements(), loadPermissionSlips()]));
-                const formFormatsReady = attempt(() => this.fetchFormFormats(), 'Error fetching form formats:');
-                const hiddenButtonsReady = loadHiddenParentDashboardButtons(this.app?.organizationSettings, getPublicOrganizationSettings);
+    // Only the statements and permission slips need the children; every
+    // other request starts at once instead of one after another.
+    const loadStatements = () => attempt(() => this.fetchParticipantStatements(), 'Error fetching participant statements:');
+    const loadPermissionSlips = () => attempt(() => this.fetchPermissionSlips(), 'Error fetching permission slips:');
+    const perChildReady = attempt(() => this.fetchParticipants(), 'Error fetching participants:')
+      .then(() => Promise.all([loadStatements(), loadPermissionSlips()]));
+    const formFormatsReady = attempt(() => this.fetchFormFormats(), 'Error fetching form formats:');
+    const hiddenButtonsReady = loadHiddenParentDashboardButtons(this.app?.organizationSettings, getPublicOrganizationSettings);
 
-                // The two reminder lists are independent: one failing must not hide
-                // the other, and neither may hide the dashboard.
-                const remindersReady = Promise.allSettled([
-                        getFormsNeedingReview(),
-                        getAuthorizationsPendingSignature(),
-                ]);
+    // The two reminder lists are independent: one failing must not hide
+    // the other, and neither may hide the dashboard.
+    const remindersReady = Promise.allSettled([
+      getFormsNeedingReview(),
+      getAuthorizationsPendingSignature(),
+    ]);
 
-                const [, , hiddenButtons, [reviewResult, signatureResult]] = await Promise.all([
-                        perChildReady,
-                        formFormatsReady,
-                        hiddenButtonsReady,
-                        remindersReady,
-                ]);
-                this.hiddenButtons = hiddenButtons;
+    const [, , hiddenButtons, [reviewResult, signatureResult]] = await Promise.all([
+      perChildReady,
+      formFormatsReady,
+      hiddenButtonsReady,
+      remindersReady,
+    ]);
+    this.hiddenButtons = hiddenButtons;
 
-                if (reviewResult.status === 'fulfilled') {
-                        this.formsToReview = reviewResult.value;
-                } else {
-                        debugError('Error fetching forms to review:', reviewResult.reason);
-                        this.formsToReview = [];
-                }
+    if (reviewResult.status === 'fulfilled') {
+      this.formsToReview = reviewResult.value;
+    } else {
+      debugError('Error fetching forms to review:', reviewResult.reason);
+      this.formsToReview = [];
+    }
 
-                if (signatureResult.status === 'fulfilled') {
-                        this.authorizationsToSign = signatureResult.value;
-                } else {
-                        debugError(
-                                'Error fetching authorizations to sign:',
-                                signatureResult.reason,
-                        );
-                        this.authorizationsToSign = [];
-                }
+    if (signatureResult.status === 'fulfilled') {
+      this.authorizationsToSign = signatureResult.value;
+    } else {
+      debugError(
+        'Error fetching authorizations to sign:',
+        signatureResult.reason,
+      );
+      this.authorizationsToSign = [];
+    }
 
-                if (this.formsToReview.length || this.authorizationsToSign.length) {
-                        await loadStylesheet(formReviewStylesheetUrl);
-                }
+    if (this.formsToReview.length || this.authorizationsToSign.length) {
+      await loadStylesheet(formReviewStylesheetUrl);
+    }
 
-                // Always render the page, even with partial data
-                try {
-                        this.render();
-                        this.attachEventListeners();
-                        this.checkAndShowLinkParticipantsDialog();
+    // Always render the page, even with partial data
+    try {
+      this.render();
+      this.attachEventListeners();
+      this.checkAndShowLinkParticipantsDialog();
 
-                        if (hasErrors) {
-                                this.app.showMessage(
-                                        translate('error_loading_data'),
-                                        'warning',
-                                );
-                        }
-                } catch (error) {
-                        debugError('Error rendering parent dashboard:', error);
-                        this.app.renderError(
-                                translate('error_loading_parent_dashboard'),
-                        );
-                }
-        }
+      if (hasErrors) {
+        this.app.showMessage(
+          translate('error_loading_data'),
+          'warning',
+        );
+      }
+    } catch (error) {
+      debugError('Error rendering parent dashboard:', error);
+      this.app.renderError(
+        translate('error_loading_parent_dashboard'),
+      );
+    }
+  }
 
-        checkAndShowLinkParticipantsDialog() {
-                const guardianParticipants = JSON.parse(
-                        localStorage.getItem('guardianParticipants'),
-                );
-                if (guardianParticipants && guardianParticipants.length > 0) {
-                        this.showLinkParticipantsDialog(guardianParticipants);
-                        localStorage.removeItem('guardianParticipants'); // Clear after showing
-                }
-        }
+  checkAndShowLinkParticipantsDialog() {
+    const guardianParticipants = JSON.parse(
+      localStorage.getItem('guardianParticipants'),
+    );
+    if (guardianParticipants && guardianParticipants.length > 0) {
+      this.showLinkParticipantsDialog(guardianParticipants);
+      localStorage.removeItem('guardianParticipants'); // Clear after showing
+    }
+  }
 
-        showLinkParticipantsDialog(guardianParticipants) {
-                const dialogContent = `
+  showLinkParticipantsDialog(guardianParticipants) {
+    const dialogContent = `
                                         <h2>${translate('link_existing_participants')}</h2>
                                         <p>${translate('existing_participants_found')}</p>
                                         <form id="link-participants-form">
                                                         ${guardianParticipants
-                                                                .map(
-                                                                        (
-                                                                                participant,
-                                                                        ) => `
+    .map(
+      (
+        participant,
+      ) => `
                                                                         <label>
                                                                                         <input type="checkbox" name="link_participants" value="${participant.participant_id}">
                                                                                         ${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}
                                                                         </label>
                                                         `,
-                                                                )
-                                                                .join('')}
+    )
+    .join('')}
                                                         <button type="submit">${translate('link_selected_participants')}</button>                                                       <button id="cancel" type="button">${translate('cancel')}</button>
                                         </form>
                         `;
 
-                const dialog = document.createElement('div');
-                setContent(dialog, dialogContent);
-                dialog.style.cssText =
+    const dialog = document.createElement('div');
+    setContent(dialog, dialogContent);
+    dialog.style.cssText =
                         'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border: 1px solid black; z-index: 1000;';
-                document.body.appendChild(dialog);
+    document.body.appendChild(dialog);
 
-                document.querySelector('#cancel').addEventListener(
-                        'click',
-                        () => {
-                                dialog.remove();
-                        },
-                );
+    document.querySelector('#cancel').addEventListener(
+      'click',
+      () => {
+        dialog.remove();
+      },
+    );
 
-                document.getElementById(
-                        'link-participants-form',
-                ).addEventListener('submit', async (e) => {
-                        e.preventDefault();
-                        const formData = new FormData(e.target);
-                        const selectedParticipants =
+    document.getElementById(
+      'link-participants-form',
+    ).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const selectedParticipants =
                                 formData.getAll('link_participants');
 
-                        try {
-                                const result = await linkUserParticipants({
-                                        participant_ids: selectedParticipants,
-                                });
-                                if (result.success) {
-                                        this.app.showMessage(
-                                                translate(
-                                                        'participants_linked_successfully',
-                                                ),
-                                        );
-                                        await this.fetchParticipants(); // Refresh the participants list
-                                        this.render(); // Re-render the dashboard
-                                } else {
-                                        this.app.showMessage(
-                                                translate(
-                                                        'error_linking_participants',
-                                                ),
-                                                'error',
-                                        );
-                                }
-                        } catch (error) {
-                                debugError(
-                                        'Error linking participants:',
-                                        error,
-                                );
-                                this.app.showMessage(
-                                        translate('error_linking_participants'),
-                                        'error',
-                                );
-                        }
-
-                        document.body.removeChild(dialog);
-                });
+      try {
+        const result = await linkUserParticipants({
+          participant_ids: selectedParticipants,
+        });
+        if (result.success) {
+          this.app.showMessage(
+            translate(
+              'participants_linked_successfully',
+            ),
+          );
+          await this.fetchParticipants(); // Refresh the participants list
+          this.render(); // Re-render the dashboard
+        } else {
+          this.app.showMessage(
+            translate(
+              'error_linking_participants',
+            ),
+            'error',
+          );
         }
+      } catch (error) {
+        debugError(
+          'Error linking participants:',
+          error,
+        );
+        this.app.showMessage(
+          translate('error_linking_participants'),
+          'error',
+        );
+      }
 
-        async fetchParticipants() {
-                try {
-                        const response = await fetchParticipants(
-                                getCurrentOrganizationId(), { includeMedication: true },
-                        );
+      document.body.removeChild(dialog);
+    });
+  }
 
-                        // Use a Map to store unique participants
-                        const uniqueParticipants = new Map();
+  async fetchParticipants() {
+    try {
+      const response = await fetchParticipants(
+        getCurrentOrganizationId(), { includeMedication: true },
+      );
 
-                        // Validate response is an array before processing
-                        if (Array.isArray(response)) {
-                                response.forEach((participant) => {
-                                        // If this participant isn't in our Map yet, add them
-                                        if (
-                                                !uniqueParticipants.has(
-                                                        participant.id,
-                                                )
-                                        ) {
-                                                uniqueParticipants.set(
-                                                        participant.id,
-                                                        participant,
-                                                );
-                                        }
-                                });
-                        }
+      // Use a Map to store unique participants
+      const uniqueParticipants = new Map();
 
-                        // Convert the Map values back to an array
-                        this.participants = Array.from(
-                                uniqueParticipants.values(),
-                        );
+      // Validate response is an array before processing
+      if (Array.isArray(response)) {
+        response.forEach((participant) => {
+          // If this participant isn't in our Map yet, add them
+          if (
+            !uniqueParticipants.has(
+              participant.id,
+            )
+          ) {
+            uniqueParticipants.set(
+              participant.id,
+              participant,
+            );
+          }
+        });
+      }
 
-                        debugLog('Fetched participants:', this.participants);
-                } catch (error) {
-                        debugError('Error fetching participants:', error);
-                        this.participants = [];
-                        throw error;
-                }
-        }
+      // Convert the Map values back to an array
+      this.participants = Array.from(
+        uniqueParticipants.values(),
+      );
 
-        async fetchParticipantStatements() {
-                if (
-                        !Array.isArray(this.participants) ||
+      debugLog('Fetched participants:', this.participants);
+    } catch (error) {
+      debugError('Error fetching participants:', error);
+      this.participants = [];
+      throw error;
+    }
+  }
+
+  async fetchParticipantStatements() {
+    if (
+      !Array.isArray(this.participants) ||
                         this.participants.length === 0
-                ) {
-                        return;
-                }
+    ) {
+      return;
+    }
 
-                await Promise.all(
-                        this.participants.map(async (participant) =>
-                                this.loadSingleStatement(participant.id),
-                        ),
-                );
-        }
+    await Promise.all(
+      this.participants.map(async (participant) =>
+        this.loadSingleStatement(participant.id),
+      ),
+    );
+  }
 
-        async loadSingleStatement(participantId) {
-                try {
-                        const response =
+  async loadSingleStatement(participantId) {
+    try {
+      const response =
                                 await getParticipantStatement(participantId);
-                        const payload = response?.data || response;
-                        const statementData = payload?.data || payload;
+      const payload = response?.data || response;
+      const statementData = payload?.data || payload;
 
-                        if (statementData?.participant?.id) {
-                                this.participantStatements.set(
-                                        statementData.participant.id,
-                                        statementData,
-                                );
-                                return statementData;
-                        }
-                } catch (error) {
-                        debugWarn(
-                                'Unable to load participant statement',
-                                error,
-                        );
-                }
+      if (statementData?.participant?.id) {
+        this.participantStatements.set(
+          statementData.participant.id,
+          statementData,
+        );
+        return statementData;
+      }
+    } catch (error) {
+      debugWarn(
+        'Unable to load participant statement',
+        error,
+      );
+    }
 
-                return null;
-        }
+    return null;
+  }
 
-        async fetchPermissionSlips() {
-                if (
-                        !Array.isArray(this.participants) ||
+  async fetchPermissionSlips() {
+    if (
+      !Array.isArray(this.participants) ||
                         this.participants.length === 0
-                ) {
-                        return;
-                }
+    ) {
+      return;
+    }
 
-                await Promise.all(
-                        this.participants.map(async (participant) =>
-                                this.loadPermissionSlips(participant.id),
-                        ),
-                );
-        }
+    await Promise.all(
+      this.participants.map(async (participant) =>
+        this.loadPermissionSlips(participant.id),
+      ),
+    );
+  }
 
-        async loadPermissionSlips(participantId, forceRefresh = false) {
-                try {
-                        const response = await getPermissionSlips(
-                                { participant_id: participantId },
-                                { forceRefresh },
-                        );
-                        const slips =
+  async loadPermissionSlips(participantId, forceRefresh = false) {
+    try {
+      const response = await getPermissionSlips(
+        { participant_id: participantId },
+        { forceRefresh },
+      );
+      const slips =
                                 response?.data?.permission_slips ||
                                 response?.permission_slips ||
                                 [];
-                        this.permissionSlips.set(participantId, slips);
-                        return slips;
-                } catch (error) {
-                        debugError('Error loading permission slips', error);
-                        this.permissionSlips.set(participantId, []);
-                        return [];
-                }
-        }
+      this.permissionSlips.set(participantId, slips);
+      return slips;
+    } catch (error) {
+      debugError('Error loading permission slips', error);
+      this.permissionSlips.set(participantId, []);
+      return [];
+    }
+  }
 
-        async fetchFormFormats() {
-                try {
-                        // Request only participant-context forms (excludes organization_info, etc.)
-                        const result = await getOrganizationFormFormats(
-                                null,
-                                'participant',
-                                { includeMeta: true },
-                        );
-                        const response = result?.formats || null;
-                        this.formMeta = result?.meta || {};
-                        debugLog('Form formats response:', response);
-                        debugLog(
-                                'Form formats response type:',
-                                typeof response,
-                        );
-                        debugLog(
-                                'Form formats response keys:',
-                                response ? Object.keys(response) : 'null',
-                        );
+  async fetchFormFormats() {
+    try {
+      // Request only participant-context forms (excludes organization_info, etc.)
+      const result = await getOrganizationFormFormats(
+        null,
+        'participant',
+        { includeMeta: true },
+      );
+      const response = result?.formats || null;
+      this.formMeta = result?.meta || {};
+      debugLog('Form formats response:', response);
+      debugLog(
+        'Form formats response type:',
+        typeof response,
+      );
+      debugLog(
+        'Form formats response keys:',
+        response ? Object.keys(response) : 'null',
+      );
 
-                        if (response && typeof response === 'object') {
-                                this.formFormats = response;
-                                debugLog(
-                                        'Stored form formats:',
-                                        this.formFormats,
-                                );
-                        } else {
-                                debugError(
-                                        'Invalid form formats response:',
-                                        response,
-                                );
-                        }
-                } catch (error) {
-                        debugError('Error fetching form formats:', error);
-                        this.formFormats = {};
-                        throw error;
-                }
-        }
+      if (response && typeof response === 'object') {
+        this.formFormats = response;
+        debugLog(
+          'Stored form formats:',
+          this.formFormats,
+        );
+      } else {
+        debugError(
+          'Invalid form formats response:',
+          response,
+        );
+      }
+    } catch (error) {
+      debugError('Error fetching form formats:', error);
+      this.formFormats = {};
+      throw error;
+    }
+  }
 
-        async fetchOrganizationInfo() {
-                try {
-                        // Fetch all organization settings
-                        const response = await getOrganizationSettings();
+  async fetchOrganizationInfo() {
+    try {
+      // Fetch all organization settings
+      const response = await getOrganizationSettings();
 
-                        // Check if the response is successful and contains settings
-                        if (response && response.success && response.settings) {
-                                // Get the organization_info setting
-                                const organizationInfo =
+      // Check if the response is successful and contains settings
+      if (response && response.success && response.settings) {
+        // Get the organization_info setting
+        const organizationInfo =
                                         response.settings.organization_info;
 
-                                // If the setting exists, extract the name, otherwise set a default
-                                if (organizationInfo && organizationInfo.name) {
-                                        this.organizationName =
+        // If the setting exists, extract the name, otherwise set a default
+        if (organizationInfo && organizationInfo.name) {
+          this.organizationName =
                                                 organizationInfo.name;
-                                } else {
-                                        this.organizationName = translate(
-                                                'organization_name_default',
-                                        );
-                                }
-                        } else {
-                                debugError(
-                                        'Invalid organization info response:',
-                                        response,
-                                );
-                        }
-                } catch (error) {
-                        debugError('Error fetching organization info:', error);
-                }
+        } else {
+          this.organizationName = translate(
+            'organization_name_default',
+          );
         }
+      } else {
+        debugError(
+          'Invalid organization info response:',
+          response,
+        );
+      }
+    } catch (error) {
+      debugError('Error fetching organization info:', error);
+    }
+  }
 
-        async fetchUserFullName() {
-                // If userFullName is not set, fetch it from the server
-                if (!this.app.userFullName) {
-                        try {
-                                const result = await getCurrentUser();
-                                const fullName =
+  async fetchUserFullName() {
+    // If userFullName is not set, fetch it from the server
+    if (!this.app.userFullName) {
+      try {
+        const result = await getCurrentUser();
+        const fullName =
                                         result?.data?.full_name ||
                                         result?.full_name ||
                                         result?.data?.fullName ||
                                         result?.fullName;
-                                if (fullName) {
-                                        this.app.userFullName = fullName;
-                                } else {
-                                        debugError(
-                                                'Failed to fetch user full name: missing full name',
-                                                result,
-                                        );
-                                }
-                        } catch (error) {
-                                debugError(
-                                        'Error fetching user full name:',
-                                        error,
-                                );
-                        }
-                }
+        if (fullName) {
+          this.app.userFullName = fullName;
+        } else {
+          debugError(
+            'Failed to fetch user full name: missing full name',
+            result,
+          );
         }
+      } catch (error) {
+        debugError(
+          'Error fetching user full name:',
+          error,
+        );
+      }
+    }
+  }
 
-        render() {
-                const organizationName =
+  render() {
+    const organizationName =
                         this.app.organizationSettings?.organization_info
-                                ?.name || 'Scouts';
-                const notificationButton = this.shouldShowNotificationButton()
-                        ? `<button id="enableNotifications" class="dashboard-button dashboard-button--secondary">
+                          ?.name || 'Scouts';
+    const notificationButton = this.shouldShowNotificationButton()
+      ? `<button id="enableNotifications" class="dashboard-button dashboard-button--secondary">
                                                 ${translate('enable_notifications')}
                                         </button>`
-                        : ''; // Only render the button if needed
+      : ''; // Only render the button if needed
 
-                const installButton = `<button id="installPwaButton" class="hidden dashboard-button dashboard-button--secondary">
+    const installButton = `<button id="installPwaButton" class="hidden dashboard-button dashboard-button--secondary">
                                                 ${translate('install_app')}
                                         </button>`; // Initially hidden
 
-                const calendarDownloadAction = `
+    const calendarDownloadAction = `
                         <div class="parent-dashboard__calendar-download" style="margin-top: 1rem;">
                                 <p class="muted-text" style="margin-top: 0.5rem;">${translate('calendar_download_description')}</p>
                         </div>
                 `;
 
-                // Only show staff back link when accessed outside the parent context
-                const backLink = isParent()
-                        ? ``
-                        : `<a href="/dashboard" class="back-link">${translate('back_to_dashboard')}</a>`;
+    // Only show staff back link when accessed outside the parent context
+    const backLink = isParent()
+      ? ``
+      : `<a href="/dashboard" class="back-link">${translate('back_to_dashboard')}</a>`;
 
-                // Parents who can register their own children go through the
-                // short step that links the child to their family, then on to
-                // the paperwork. It is the only path that guarantees the link.
-                const managesOwnFamily = hasPermission('participants.create_own');
-                const addChildHref = managesOwnFamily ? '/parent-onboarding' : '/formulaire-inscription';
-                const familySharingLink = managesOwnFamily && !this.hiddenButtons.has('family_access')
-                        ? `<a href="/family-access" class="dashboard-button dashboard-button--secondary">${translate('family_access_title')}</a>`
-                        : '';
-                // Where the family's children stand in the campaigns under way.
-                // The unit-wide campaign screens stay behind fundraisers.view.
-                const fundraisersLink = this.hiddenButtons.has('fundraisers')
-                        ? ''
-                        : `<a href="/parent-fundraisers" class="dashboard-button dashboard-button--secondary">${translate('parent_fundraisers_title')}</a>`;
+    // Parents who can register their own children go through the
+    // short step that links the child to their family, then on to
+    // the paperwork. It is the only path that guarantees the link.
+    const managesOwnFamily = hasPermission('participants.create_own');
+    const addChildHref = managesOwnFamily ? '/parent-onboarding' : '/formulaire-inscription';
+    const familySharingLink = managesOwnFamily && !this.hiddenButtons.has('family_access')
+      ? `<a href="/family-access" class="dashboard-button dashboard-button--secondary">${translate('family_access_title')}</a>`
+      : '';
+    // Where the family's children stand in the campaigns under way.
+    // The unit-wide campaign screens stay behind fundraisers.view.
+    const fundraisersLink = this.hiddenButtons.has('fundraisers')
+      ? ''
+      : `<a href="/parent-fundraisers" class="dashboard-button dashboard-button--secondary">${translate('parent_fundraisers_title')}</a>`;
 
-                // Dynamically replace the title with the organization name
-                const userName =
+    // Dynamically replace the title with the organization name
+    const userName =
                         this.app.userFullName ||
                         localStorage.getItem('userFullName') ||
                         '';
-                const content = `
+    const content = `
                         <div class="parent-dashboard">
                                 <header class="parent-dashboard__header">
                                         <h1 class="parent-dashboard__title">${translate('bienvenue')}${userName ? ` ${userName}` : ''}</h1>
@@ -528,13 +528,13 @@ export class ParentDashboard {
                                 </footer>
                         </div>
                 `;
-                setContent(document.getElementById('app'), content);
-                this.bindStatementHandlers();
-                this.bindPermissionSlipHandlers();
-                this.bindFormReviewHandlers();
-        }
+    setContent(document.getElementById('app'), content);
+    this.bindStatementHandlers();
+    this.bindPermissionSlipHandlers();
+    this.bindFormReviewHandlers();
+  }
 
-        /**
+  /**
          * Banner listing the medication authorizations awaiting a new signature.
          *
          * Deliberately separate from the "forms to review" banner, and
@@ -545,25 +545,25 @@ export class ParentDashboard {
          *
          * @returns {string} Banner markup, or an empty string when nothing is due
          */
-        renderAuthorizationsToSign() {
-                if (!this.authorizationsToSign.length) {
-                        return '';
-                }
+  renderAuthorizationsToSign() {
+    if (!this.authorizationsToSign.length) {
+      return '';
+    }
 
-                const items = this.authorizationsToSign
-                        .map((authorization) => {
-                                const child = escapeHTML(
-                                        `${authorization.first_name} ${authorization.last_name}`,
-                                );
-                                const kind =
+    const items = this.authorizationsToSign
+      .map((authorization) => {
+        const child = escapeHTML(
+          `${authorization.first_name} ${authorization.last_name}`,
+        );
+        const kind =
                                         authorization.kind === 'treatment'
-                                                ? translate(
-                                                                'authorization_kind_treatment',
-                                                        )
-                                                : translate(
-                                                                'authorization_kind_administration',
-                                                        );
-                                return `
+                                          ? translate(
+                                            'authorization_kind_treatment',
+                                          )
+                                          : translate(
+                                            'authorization_kind_administration',
+                                          );
+        return `
                                         <li class="form-review__item">
                                                 <div class="form-review__text">
                                                         <strong>${escapeHTML(kind)}</strong>
@@ -576,18 +576,18 @@ export class ParentDashboard {
                                                         </a>
                                                 </div>
                                         </li>`;
-                        })
-                        .join('');
+      })
+      .join('');
 
-                return `
+    return `
                         <section class="parent-dashboard__form-review form-review form-review--signature" aria-live="polite">
                                 <h2 class="form-review__title">${translate('authorization_signature_title')}</h2>
                                 <p class="form-review__description">${translate('authorization_signature_description')}</p>
                                 <ul class="form-review__list">${items}</ul>
                         </section>`;
-        }
+  }
 
-        /**
+  /**
          * Banner listing the required forms waiting for a parent to re-read them.
          *
          * The content of those forms was kept across the year transition; what is
@@ -597,23 +597,23 @@ export class ParentDashboard {
          *
          * @returns {string} Banner markup, or an empty string when nothing is due
          */
-        renderFormsToReview() {
-                if (!this.formsToReview.length) {
-                        return '';
-                }
+  renderFormsToReview() {
+    if (!this.formsToReview.length) {
+      return '';
+    }
 
-                const items = this.formsToReview
-                        .map((form) => {
-                                const child = escapeHTML(
-                                        `${form.first_name} ${form.last_name}`,
-                                );
-                                const label = escapeHTML(
-                                        formTypeLabel(
-                                                form.form_type,
-                                                form.display_name,
-                                        ),
-                                );
-                                return `
+    const items = this.formsToReview
+      .map((form) => {
+        const child = escapeHTML(
+          `${form.first_name} ${form.last_name}`,
+        );
+        const label = escapeHTML(
+          formTypeLabel(
+            form.form_type,
+            form.display_name,
+          ),
+        );
+        return `
                                         <li class="form-review__item" data-submission-id="${form.id}">
                                                 <div class="form-review__text">
                                                         <strong>${label}</strong>
@@ -631,69 +631,69 @@ export class ParentDashboard {
                                                         </a>
                                                 </div>
                                         </li>`;
-                        })
-                        .join('');
+      })
+      .join('');
 
-                return `
+    return `
                         <section class="parent-dashboard__form-review form-review" aria-live="polite">
                                 <h2 class="form-review__title">${translate('form_review_title')}</h2>
                                 <p class="form-review__description">${translate('form_review_description')}</p>
                                 <ul class="form-review__list">${items}</ul>
                         </section>`;
-        }
+  }
 
-        bindFormReviewHandlers() {
-                document
-                        .querySelectorAll('.js-confirm-review')
-                        .forEach((button) => {
-                                button.addEventListener('click', () =>
-                                        this.handleConfirmReview(button),
-                                );
-                        });
-        }
+  bindFormReviewHandlers() {
+    document
+      .querySelectorAll('.js-confirm-review')
+      .forEach((button) => {
+        button.addEventListener('click', () =>
+          this.handleConfirmReview(button),
+        );
+      });
+  }
 
-        /**
+  /**
          * Record that a form was re-read and found still accurate.
          *
          * @param {HTMLElement} button - The button that was pressed
          * @returns {Promise<void>}
          */
-        async handleConfirmReview(button) {
-                const submissionId = parseInt(button.dataset.submissionId, 10);
-                if (Number.isNaN(submissionId)) {
-                        return;
-                }
+  async handleConfirmReview(button) {
+    const submissionId = parseInt(button.dataset.submissionId, 10);
+    if (Number.isNaN(submissionId)) {
+      return;
+    }
 
-                button.disabled = true;
+    button.disabled = true;
 
-                try {
-                        await confirmFormReview(submissionId);
-                        this.formsToReview = this.formsToReview.filter(
-                                (form) => form.id !== submissionId,
-                        );
-                        this.app.showMessage(
-                                translate('form_review_confirmed'),
-                                'success',
-                        );
-                        this.render();
-                        this.attachEventListeners();
-                } catch (error) {
-                        debugError('Failed to confirm form review:', error);
-                        button.disabled = false;
-                        this.app.showMessage(
-                                translate('form_review_failed'),
-                                'error',
-                        );
-                }
-        }
+    try {
+      await confirmFormReview(submissionId);
+      this.formsToReview = this.formsToReview.filter(
+        (form) => form.id !== submissionId,
+      );
+      this.app.showMessage(
+        translate('form_review_confirmed'),
+        'success',
+      );
+      this.render();
+      this.attachEventListeners();
+    } catch (error) {
+      debugError('Failed to confirm form review:', error);
+      button.disabled = false;
+      this.app.showMessage(
+        translate('form_review_failed'),
+        'error',
+      );
+    }
+  }
 
-        renderCarpoolButton() {
-                // Show a carpooling link for parents to coordinate rides; it
-                // lists the unit's activities, then opens their carpools.
-                if (!canViewActivities() || !canViewCarpools() || this.hiddenButtons.has('carpool')) {
-                        return '';
-                }
-                return `
+  renderCarpoolButton() {
+    // Show a carpooling link for parents to coordinate rides; it
+    // lists the unit's activities, then opens their carpools.
+    if (!canViewActivities() || !canViewCarpools() || this.hiddenButtons.has('carpool')) {
+      return '';
+    }
+    return `
                         <div class="parent-dashboard__carpool-section" style="margin-top: 1.5rem;">
                                 <a href="#" id="view-carpool-activities" class="dashboard-button dashboard-button--secondary" style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
                                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -706,37 +706,37 @@ export class ParentDashboard {
                                 </a>
                         </div>
                 `;
-        }
+  }
 
-        formatCurrency(amount = 0) {
-                const numericValue = Number.parseFloat(amount);
-                if (!Number.isFinite(numericValue)) {
-                        return this.formatCurrency(0);
-                }
+  formatCurrency(amount = 0) {
+    const numericValue = Number.parseFloat(amount);
+    if (!Number.isFinite(numericValue)) {
+      return this.formatCurrency(0);
+    }
 
-                const locale =
+    const locale =
                         this.app?.language || CONFIG.DEFAULT_LANG || 'en';
-                const currency = CONFIG.DEFAULT_CURRENCY || 'USD';
+    const currency = CONFIG.DEFAULT_CURRENCY || 'USD';
 
-                return new Intl.NumberFormat(locale, {
-                        style: 'currency',
-                        currency,
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                }).format(numericValue);
-        }
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(numericValue);
+  }
 
-        renderStatementLink(participant) {
-                const statement = this.participantStatements.get(
-                        participant.id,
-                );
-                const outstanding = statement?.totals?.total_outstanding ?? 0;
+  renderStatementLink(participant) {
+    const statement = this.participantStatements.get(
+      participant.id,
+    );
+    const outstanding = statement?.totals?.total_outstanding ?? 0;
 
-                if (!statement || outstanding <= 0) {
-                        return '';
-                }
+    if (!statement || outstanding <= 0) {
+      return '';
+    }
 
-                return `
+    return `
                         <button type="button" class="participant-card__statement" data-participant-id="${participant.id}">
                                 <span class="participant-card__statement-label">${translate('view_statement')}</span>
                                 <span class="participant-card__statement-amount">
@@ -744,36 +744,36 @@ export class ParentDashboard {
                                 </span>
                         </button>
                 `;
-        }
+  }
 
-        // Check notification permission and decide whether to show the button
-        shouldShowNotificationButton() {
-                if ('Notification' in window) {
-                        return (
-                                Notification.permission === 'default' ||
+  // Check notification permission and decide whether to show the button
+  shouldShowNotificationButton() {
+    if ('Notification' in window) {
+      return (
+        Notification.permission === 'default' ||
                                 Notification.permission === 'denied'
-                        );
-                }
-                return false;
-        }
+      );
+    }
+    return false;
+  }
 
-        renderParticipantsList() {
-                if (
-                        !Array.isArray(this.participants) ||
+  renderParticipantsList() {
+    if (
+      !Array.isArray(this.participants) ||
                         this.participants.length === 0
-                ) {
-                        return `<p class="parent-dashboard__empty">${translate('no_participants')}</p>`;
-                }
+    ) {
+      return `<p class="parent-dashboard__empty">${translate('no_participants')}</p>`;
+    }
 
-                return this.participants
-                        .map((participant) => {
-                                const participantName = escapeHTML(
-                                        `${participant.first_name} ${participant.last_name}`,
-                                );
-                                const statementLink =
+    return this.participants
+      .map((participant) => {
+        const participantName = escapeHTML(
+          `${participant.first_name} ${participant.last_name}`,
+        );
+        const statementLink =
                                         this.renderStatementLink(participant);
 
-                                return `
+        return `
                         <article class="participant-card">
                                 <header class="participant-card__header">
                                         <h3 class="participant-card__name">${participantName}</h3>
@@ -788,93 +788,93 @@ export class ParentDashboard {
                                 ${this.renderPermissionSlipSection(participant)}
                         </article>
                 `;
-                        })
-                        .join('');
-        }
+      })
+      .join('');
+  }
 
-        renderFormButtons(participant) {
-                debugLog(
-                        'renderFormButtons called for participant:',
-                        participant.id,
-                );
-                debugLog('this.formFormats:', this.formFormats);
-                debugLog('Form format keys:', Object.keys(this.formFormats));
+  renderFormButtons(participant) {
+    debugLog(
+      'renderFormButtons called for participant:',
+      participant.id,
+    );
+    debugLog('this.formFormats:', this.formFormats);
+    debugLog('Form format keys:', Object.keys(this.formFormats));
 
-                // The backend now filters forms based on user permissions
-                // We no longer need to hardcode exclusions here
-                const formButtons = Object.keys(this.formFormats)
-                        .map((formType) => {
-                                const formLabel = formTypeLabel(
-                                        formType,
-                                        this.formMeta?.[formType]?.display_name
-                                );
-                                const isCompleted =
+    // The backend now filters forms based on user permissions
+    // We no longer need to hardcode exclusions here
+    const formButtons = Object.keys(this.formFormats)
+      .map((formType) => {
+        const formLabel = formTypeLabel(
+          formType,
+          this.formMeta?.[formType]?.display_name
+        );
+        const isCompleted =
                                         participant[`has_${formType}`] === 1 ||
                                         participant[`has_${formType}`] === true;
-                                const statusClass = isCompleted
-                                        ? 'form-btn--completed'
-                                        : 'form-btn--incomplete';
-                                const statusIcon = isCompleted ? '✅' : '❌';
+        const statusClass = isCompleted
+          ? 'form-btn--completed'
+          : 'form-btn--incomplete';
+        const statusIcon = isCompleted ? '✅' : '❌';
 
-                                debugLog(
-                                        `Rendering form button for: ${formType}, label: ${formLabel}`,
-                                );
+        debugLog(
+          `Rendering form button for: ${formType}, label: ${formLabel}`,
+        );
 
-                                return `
+        return `
                 <a href="/dynamic-form/${formType}/${participant.id}" class="form-btn ${statusClass}">
                     <span class="form-btn__icon">${statusIcon}</span>
                     <span class="form-btn__label">${formLabel}</span>
                 </a>
             `;
-                        })
-                        .join('');
+      })
+      .join('');
 
-                // Badges and reports are unit-wide pages: offering them to an
-                // account that cannot open them only leads to a refusal.
-                const badgeButton = (canViewBadges() || canApproveBadges()) && !this.hiddenButtons.has('request_badge') ? `
+    // Badges and reports are unit-wide pages: offering them to an
+    // account that cannot open them only leads to a refusal.
+    const badgeButton = (canViewBadges() || canApproveBadges()) && !this.hiddenButtons.has('request_badge') ? `
                 <a href="/badge-form/${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">🏅</span>
                         <span class="form-btn__label">${translate('manage_badge_progress')}</span>
                 </a>
         ` : '';
 
-                const progressReportButton = canViewReports() && !this.hiddenButtons.has('progress_report') ? `
+    const progressReportButton = canViewReports() && !this.hiddenButtons.has('progress_report') ? `
                 <a href="/reports?participantId=${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">📊</span>
                         <span class="form-btn__label">${translate('view_progress_report')}</span>
                 </a>
         ` : '';
 
-                const programProgressButton = !this.hiddenButtons.has('program_progress') ? `
+    const programProgressButton = !this.hiddenButtons.has('program_progress') ? `
                 <a href="/parent-program-progress" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">🧭</span>
                         <span class="form-btn__label">${translate('program_progress_parent_link')}</span>
                 </a>
         ` : '';
 
-                // Offered when the health form declares a medication, or a plan is already under way.
-                const medicationButton = (participant.declares_medication === true || participant.has_planned_medication === true) && !this.hiddenButtons.has('medications') ? `
+    // Offered when the health form declares a medication, or a plan is already under way.
+    const medicationButton = (participant.declares_medication === true || participant.has_planned_medication === true) && !this.hiddenButtons.has('medications') ? `
                 <a href="/medication-planning/${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">💊</span>
                         <span class="form-btn__label">${translate('manage_medications')}</span>
                 </a>
         ` : '';
 
-                debugLog(
-                        `Total form buttons HTML length: ${formButtons.length}, with badge, progress, and medications: ${(formButtons + badgeButton + progressReportButton + programProgressButton + medicationButton).length}`,
-                );
+    debugLog(
+      `Total form buttons HTML length: ${formButtons.length}, with badge, progress, and medications: ${(formButtons + badgeButton + progressReportButton + programProgressButton + medicationButton).length}`,
+    );
 
-                return (
-                        formButtons +
+    return (
+      formButtons +
                         badgeButton +
                         progressReportButton +
                         programProgressButton +
                         medicationButton
-                );
-        }
+    );
+  }
 
-        renderPermissionSlipSection(participant) {
-                return `
+  renderPermissionSlipSection(participant) {
+    return `
                         <div class="participant-card__section">
                                 <div class="participant-card__section-header">
                                         <h4>${translate('permission_slip_section_title')}</h4>
@@ -885,73 +885,73 @@ export class ParentDashboard {
                                 </div>
                         </div>
                 `;
-        }
+  }
 
-        renderPermissionSlipItems(participantId) {
-                const slips = this.permissionSlips.get(participantId) || [];
+  renderPermissionSlipItems(participantId) {
+    const slips = this.permissionSlips.get(participantId) || [];
 
-                if (!Array.isArray(slips) || slips.length === 0) {
-                        return `<p class="muted-text">${translate('no_permission_slips')}</p>`;
-                }
+    if (!Array.isArray(slips) || slips.length === 0) {
+      return `<p class="muted-text">${translate('no_permission_slips')}</p>`;
+    }
 
-                return `
+    return `
                         <ul class="permission-slip-list">
                                 ${slips
-                                        .map((slip) => {
-                                                const statusLabel = escapeHTML(
-                                                        this.getPermissionSlipStatusLabel(
-                                                                slip.status,
-                                                        ),
-                                                );
-                                                const meetingLabel = escapeHTML(
-                                                        this.formatDateSafe(
-                                                                slip.meeting_date,
-                                                        ),
-                                                );
-                                                const signedDate =
+    .map((slip) => {
+      const statusLabel = escapeHTML(
+        this.getPermissionSlipStatusLabel(
+          slip.status,
+        ),
+      );
+      const meetingLabel = escapeHTML(
+        this.formatDateSafe(
+          slip.meeting_date,
+        ),
+      );
+      const signedDate =
                                                         slip.signed_at
-                                                                ? escapeHTML(
-                                                                          this.formatDateSafe(
-                                                                                  slip.signed_at,
-                                                                          ),
-                                                                  )
-                                                                : '';
-                                                const signer = slip.signed_by
-                                                        ? escapeHTML(
-                                                                  slip.signed_by,
+                                                          ? escapeHTML(
+                                                            this.formatDateSafe(
+                                                              slip.signed_at,
+                                                            ),
                                                           )
-                                                        : '';
-                                                const declinedDate =
+                                                          : '';
+      const signer = slip.signed_by
+        ? escapeHTML(
+          slip.signed_by,
+        )
+        : '';
+      const declinedDate =
                                                         slip.declined_at
-                                                                ? escapeHTML(
-                                                                          this.formatDateSafe(
-                                                                                  slip.declined_at,
-                                                                          ),
-                                                                  )
-                                                                : '';
-                                                const declinedBy =
+                                                          ? escapeHTML(
+                                                            this.formatDateSafe(
+                                                              slip.declined_at,
+                                                            ),
+                                                          )
+                                                          : '';
+      const declinedBy =
                                                         slip.declined_by
-                                                                ? escapeHTML(
-                                                                          slip.declined_by,
-                                                                  )
-                                                                : '';
-                                                const canSign =
+                                                          ? escapeHTML(
+                                                            slip.declined_by,
+                                                          )
+                                                          : '';
+      const canSign =
                                                         slip.status ===
                                                         'pending';
 
-                                                const signedMeta =
+      const signedMeta =
                                                         signedDate || signer
-                                                                ? `<p class="muted-text">${[signedDate ? `${translate('permission_slip_signed_at')}: ${signedDate}` : '', signer ? `${translate('permission_slip_signer')}: ${signer}` : ''].filter(Boolean).join(' · ')}</p>`
-                                                                : declinedDate || declinedBy
-                                                                  ? `<p class="muted-text">${[declinedDate ? `${translate('permission_slip_declined_at')}: ${declinedDate}` : '', declinedBy ? `${translate('permission_slip_declined_by')}: ${declinedBy}` : ''].filter(Boolean).join(' · ')}</p>`
-                                                                  : '';
+                                                          ? `<p class="muted-text">${[signedDate ? `${translate('permission_slip_signed_at')}: ${signedDate}` : '', signer ? `${translate('permission_slip_signer')}: ${signer}` : ''].filter(Boolean).join(' · ')}</p>`
+                                                          : declinedDate || declinedBy
+                                                            ? `<p class="muted-text">${[declinedDate ? `${translate('permission_slip_declined_at')}: ${declinedDate}` : '', declinedBy ? `${translate('permission_slip_declined_by')}: ${declinedBy}` : ''].filter(Boolean).join(' · ')}</p>`
+                                                            : '';
 
-                                                const actionArea = canSign
-                                                        ? `<button type="button" class="dashboard-button dashboard-button--secondary permission-slip-sign-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate('permission_slip_sign')}</button>
+      const actionArea = canSign
+        ? `<button type="button" class="dashboard-button dashboard-button--secondary permission-slip-sign-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate('permission_slip_sign')}</button>
                                                            <button type="button" class="dashboard-button dashboard-button--danger permission-slip-decline-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate('permission_slip_decline')}</button>`
-                                                        : `<span class="status-badge status-${escapeHTML(slip.status)}">${statusLabel}</span>`;
+        : `<span class="status-badge status-${escapeHTML(slip.status)}">${statusLabel}</span>`;
 
-                                                return `
+      return `
                                                 <li class="permission-slip-item">
                                                         <div>
                                                                 <p class="permission-slip-meeting">${translate('meeting_date_label')}: ${meetingLabel}</p>
@@ -961,410 +961,410 @@ export class ParentDashboard {
                                                         <div class="permission-slip-actions">${actionArea}</div>
                                                 </li>
                                         `;
-                                        })
-                                        .join('')}
+    })
+    .join('')}
                         </ul>
                 `;
-        }
+  }
 
-        refreshPermissionSlipSection(participantId) {
-                const container = document.querySelector(
-                        `[data-permission-slips-for="${participantId}"]`,
-                );
-                if (!container) {
-                        return;
-                }
+  refreshPermissionSlipSection(participantId) {
+    const container = document.querySelector(
+      `[data-permission-slips-for="${participantId}"]`,
+    );
+    if (!container) {
+      return;
+    }
 
-                setContent(
-                        container,
-                        this.renderPermissionSlipItems(participantId),
-                );
-        }
+    setContent(
+      container,
+      this.renderPermissionSlipItems(participantId),
+    );
+  }
 
-        getPermissionSlipStatusLabel(status) {
-                if (!status) {
-                        return translate('unknown') || '-';
-                }
+  getPermissionSlipStatusLabel(status) {
+    if (!status) {
+      return translate('unknown') || '-';
+    }
 
-                const localized = translate(`permission_slip_status_${status}`);
-                return localized === `permission_slip_status_${status}`
-                        ? status
-                        : localized;
-        }
+    const localized = translate(`permission_slip_status_${status}`);
+    return localized === `permission_slip_status_${status}`
+      ? status
+      : localized;
+  }
 
-        formatDateSafe(dateString) {
-                if (!dateString) {
-                        return translate('meeting_date_label');
-                }
+  formatDateSafe(dateString) {
+    if (!dateString) {
+      return translate('meeting_date_label');
+    }
 
-                const parsed = parseDate(dateString);
-                if (!parsed || Number.isNaN(parsed.getTime())) {
-                        return translate('meeting_date_label');
-                }
+    const parsed = parseDate(dateString);
+    if (!parsed || Number.isNaN(parsed.getTime())) {
+      return translate('meeting_date_label');
+    }
 
-                const locale =
+    const locale =
                         this.app?.currentLanguage ||
                         this.app?.language ||
                         CONFIG.DEFAULT_LANG ||
                         'en';
-                return new Intl.DateTimeFormat(locale, {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                }).format(parsed);
-        }
+    return new Intl.DateTimeFormat(locale, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    }).format(parsed);
+  }
 
-        attachEventListeners() {
-                const notificationButton = document.getElementById(
-                        'enableNotifications',
-                );
-                if (notificationButton) {
-                        notificationButton.addEventListener(
-                                'click',
-                                async () => {
-                                        await this.requestNotificationPermission();
-                                },
-                        );
-                }
+  attachEventListeners() {
+    const notificationButton = document.getElementById(
+      'enableNotifications',
+    );
+    if (notificationButton) {
+      notificationButton.addEventListener(
+        'click',
+        async () => {
+          await this.requestNotificationPermission();
+        },
+      );
+    }
 
-                // Carpool activities button
-                const carpoolButton = document.getElementById(
-                        'view-carpool-activities',
-                );
-                if (carpoolButton) {
-                        carpoolButton.addEventListener('click', async (e) => {
-                                e.preventDefault();
-                                await this.showCarpoolActivitiesModal();
-                        });
-                }
+    // Carpool activities button
+    const carpoolButton = document.getElementById(
+      'view-carpool-activities',
+    );
+    if (carpoolButton) {
+      carpoolButton.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await this.showCarpoolActivitiesModal();
+      });
+    }
 
-                const downloadCalendarButton = document.getElementById(
-                        'downloadCalendarButton',
-                );
-                if (downloadCalendarButton) {
-                        downloadCalendarButton.addEventListener(
-                                'click',
-                                async () => {
-                                        await this.handleCalendarDownload();
-                                },
-                        );
-                }
+    const downloadCalendarButton = document.getElementById(
+      'downloadCalendarButton',
+    );
+    if (downloadCalendarButton) {
+      downloadCalendarButton.addEventListener(
+        'click',
+        async () => {
+          await this.handleCalendarDownload();
+        },
+      );
+    }
 
-                // Install PWA button logic
-                const installButton =
+    // Install PWA button logic
+    const installButton =
                         document.getElementById('installPwaButton');
-                let deferredPrompt;
+    let deferredPrompt;
 
-                // Keep references so destroy() can remove them; otherwise each
-                // visit stacks window listeners referencing detached buttons.
-                if (this.beforeInstallPromptHandler) {
-                        window.removeEventListener('beforeinstallprompt', this.beforeInstallPromptHandler);
-                }
-                if (this.appInstalledHandler) {
-                        window.removeEventListener('appinstalled', this.appInstalledHandler);
-                }
+    // Keep references so destroy() can remove them; otherwise each
+    // visit stacks window listeners referencing detached buttons.
+    if (this.beforeInstallPromptHandler) {
+      window.removeEventListener('beforeinstallprompt', this.beforeInstallPromptHandler);
+    }
+    if (this.appInstalledHandler) {
+      window.removeEventListener('appinstalled', this.appInstalledHandler);
+    }
 
-                this.beforeInstallPromptHandler = (e) => {
-                        debugLog('beforeinstallprompt event fired');
-                        // Prevent the default prompt
-                        e.preventDefault();
-                        deferredPrompt = e;
+    this.beforeInstallPromptHandler = (e) => {
+      debugLog('beforeinstallprompt event fired');
+      // Prevent the default prompt
+      e.preventDefault();
+      deferredPrompt = e;
 
-                        if (!installButton) {
-                                return;
-                        }
+      if (!installButton) {
+        return;
+      }
 
-                        // Show the install button
-                        installButton.style.display = 'block';
+      // Show the install button
+      installButton.style.display = 'block';
 
-                        // Add click event to the install button
-                        installButton.addEventListener('click', async () => {
-                                if (deferredPrompt) {
-                                        // Show the install prompt
-                                        deferredPrompt.prompt();
+      // Add click event to the install button
+      installButton.addEventListener('click', async () => {
+        if (deferredPrompt) {
+          // Show the install prompt
+          deferredPrompt.prompt();
 
-                                        // Check the user's response
-                                        const choiceResult =
+          // Check the user's response
+          const choiceResult =
                                                 await deferredPrompt.userChoice;
-                                        if (
-                                                choiceResult.outcome ===
+          if (
+            choiceResult.outcome ===
                                                 'accepted'
-                                        ) {
-                                                debugLog(
-                                                        'User accepted the install prompt',
-                                                );
-                                        } else {
-                                                debugLog(
-                                                        'User dismissed the install prompt',
-                                                );
-                                        }
+          ) {
+            debugLog(
+              'User accepted the install prompt',
+            );
+          } else {
+            debugLog(
+              'User dismissed the install prompt',
+            );
+          }
 
-                                        // Clear the deferredPrompt so it can’t be reused
-                                        deferredPrompt = null;
+          // Clear the deferredPrompt so it can’t be reused
+          deferredPrompt = null;
 
-                                        // Hide the install button after interaction
-                                        installButton.style.display = 'none';
-                                }
-                        });
-                };
-                window.addEventListener('beforeinstallprompt', this.beforeInstallPromptHandler);
-
-                this.appInstalledHandler = () => {
-                        debugLog('App has been installed');
-                };
-                window.addEventListener('appinstalled', this.appInstalledHandler);
+          // Hide the install button after interaction
+          installButton.style.display = 'none';
         }
+      });
+    };
+    window.addEventListener('beforeinstallprompt', this.beforeInstallPromptHandler);
 
-        /**
+    this.appInstalledHandler = () => {
+      debugLog('App has been installed');
+    };
+    window.addEventListener('appinstalled', this.appInstalledHandler);
+  }
+
+  /**
          * Called by the router before navigating away.
          */
-        destroy() {
-                if (this.beforeInstallPromptHandler) {
-                        window.removeEventListener('beforeinstallprompt', this.beforeInstallPromptHandler);
-                        this.beforeInstallPromptHandler = null;
-                }
-                if (this.appInstalledHandler) {
-                        window.removeEventListener('appinstalled', this.appInstalledHandler);
-                        this.appInstalledHandler = null;
-                }
-        }
+  destroy() {
+    if (this.beforeInstallPromptHandler) {
+      window.removeEventListener('beforeinstallprompt', this.beforeInstallPromptHandler);
+      this.beforeInstallPromptHandler = null;
+    }
+    if (this.appInstalledHandler) {
+      window.removeEventListener('appinstalled', this.appInstalledHandler);
+      this.appInstalledHandler = null;
+    }
+  }
 
-        async handleCalendarDownload() {
-                this.app.showMessage(
-                        translate('calendar_download_loading'),
-                        'info',
-                );
+  async handleCalendarDownload() {
+    this.app.showMessage(
+      translate('calendar_download_loading'),
+      'info',
+    );
 
-                try {
-                        const response = await fetch(
-                                buildApiUrl('v1/activities/calendar.ics'),
-                                {
-                                        method: 'GET',
-                                        headers: {
-                                                ...getAuthHeader(),
-                                                Accept: 'text/calendar',
-                                        },
-                                },
-                        );
+    try {
+      const response = await fetch(
+        buildApiUrl('v1/activities/calendar.ics'),
+        {
+          method: 'GET',
+          headers: {
+            ...getAuthHeader(),
+            Accept: 'text/calendar',
+          },
+        },
+      );
 
-                        if (!response.ok) {
-                                throw new Error(
-                                        `Calendar download failed with status ${response.status}`,
-                                );
-                        }
+      if (!response.ok) {
+        throw new Error(
+          `Calendar download failed with status ${response.status}`,
+        );
+      }
 
-                        const calendarText = await response.text();
-                        const calendarBlob = new Blob([calendarText], {
-                                type: 'text/calendar;charset=utf-8',
-                        });
-                        const downloadUrl = URL.createObjectURL(calendarBlob);
-                        const downloadLink = document.createElement('a');
+      const calendarText = await response.text();
+      const calendarBlob = new Blob([calendarText], {
+        type: 'text/calendar;charset=utf-8',
+      });
+      const downloadUrl = URL.createObjectURL(calendarBlob);
+      const downloadLink = document.createElement('a');
 
-                        downloadLink.href = downloadUrl;
-                        downloadLink.download = 'activities-calendar.ics';
-                        downloadLink.style.display = 'none';
+      downloadLink.href = downloadUrl;
+      downloadLink.download = 'activities-calendar.ics';
+      downloadLink.style.display = 'none';
 
-                        document.body.appendChild(downloadLink);
-                        downloadLink.click();
-                        document.body.removeChild(downloadLink);
-                        setTimeout(() => URL.revokeObjectURL(downloadUrl), CALENDAR_URL_REVOKE_DELAY_MS);
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), CALENDAR_URL_REVOKE_DELAY_MS);
 
-                        debugLog(
-                                'Parent dashboard calendar downloaded successfully',
-                        );
-                        this.app.showMessage(
-                                translate('calendar_download_success'),
-                                'success',
-                        );
-                } catch (error) {
-                        debugError(
-                                'Error downloading parent dashboard calendar:',
-                                error,
-                        );
-                        this.app.showMessage(
-                                translate('calendar_download_error'),
-                                'error',
-                        );
-                }
-        }
+      debugLog(
+        'Parent dashboard calendar downloaded successfully',
+      );
+      this.app.showMessage(
+        translate('calendar_download_success'),
+        'success',
+      );
+    } catch (error) {
+      debugError(
+        'Error downloading parent dashboard calendar:',
+        error,
+      );
+      this.app.showMessage(
+        translate('calendar_download_error'),
+        'error',
+      );
+    }
+  }
 
-        bindStatementHandlers() {
-                const statementButtons = document.querySelectorAll(
-                        '.participant-card__statement',
-                );
+  bindStatementHandlers() {
+    const statementButtons = document.querySelectorAll(
+      '.participant-card__statement',
+    );
 
-                statementButtons.forEach((button) => {
-                        button.addEventListener('click', async (event) => {
-                                const participantId =
+    statementButtons.forEach((button) => {
+      button.addEventListener('click', async (event) => {
+        const participantId =
                                         event.currentTarget?.dataset
-                                                ?.participantId;
-                                await this.showStatementModal(participantId);
-                        });
-                });
-        }
+                                          ?.participantId;
+        await this.showStatementModal(participantId);
+      });
+    });
+  }
 
-        bindPermissionSlipHandlers() {
-                if (this.permissionSlipHandlerBound) {
-                        return;
-                }
+  bindPermissionSlipHandlers() {
+    if (this.permissionSlipHandlerBound) {
+      return;
+    }
 
-                const appContainer = document.getElementById('app');
-                if (!appContainer) {
-                        return;
-                }
+    const appContainer = document.getElementById('app');
+    if (!appContainer) {
+      return;
+    }
 
-                appContainer.addEventListener('click', async (event) => {
-                        const button = event.target.closest(
-                                '.permission-slip-sign-btn, .permission-slip-decline-btn',
-                        );
-                        if (!button) {
-                                return;
-                        }
+    appContainer.addEventListener('click', async (event) => {
+      const button = event.target.closest(
+        '.permission-slip-sign-btn, .permission-slip-decline-btn',
+      );
+      if (!button) {
+        return;
+      }
 
-                        const slipId = Number.parseInt(
-                                button.dataset?.slipId,
-                                10,
-                        );
-                        const participantId = Number.parseInt(
-                                button.dataset?.participantId,
-                                10,
-                        );
+      const slipId = Number.parseInt(
+        button.dataset?.slipId,
+        10,
+      );
+      const participantId = Number.parseInt(
+        button.dataset?.participantId,
+        10,
+      );
 
-                        if (!slipId || !participantId) {
-                                return;
-                        }
+      if (!slipId || !participantId) {
+        return;
+      }
 
-                        const signerName = (await promptDialog({
-                                title: translate('permission_slip_signer'),
-                                message: translate('permission_slip_signer'),
-                        }))?.trim();
-                        if (!signerName) {
-                                return;
-                        }
+      const signerName = (await promptDialog({
+        title: translate('permission_slip_signer'),
+        message: translate('permission_slip_signer'),
+      }))?.trim();
+      if (!signerName) {
+        return;
+      }
 
-                        const isDecline = button.classList.contains(
-                                'permission-slip-decline-btn',
-                        );
-                        if (
-                                isDecline &&
+      const isDecline = button.classList.contains(
+        'permission-slip-decline-btn',
+      );
+      if (
+        isDecline &&
                                 !(await confirmDialog(
-                                        translate(
-                                                'permission_slip_decline_confirm',
-                                        ),
+                                  translate(
+                                    'permission_slip_decline_confirm',
+                                  ),
                                 ))
-                        ) {
-                                return;
-                        }
+      ) {
+        return;
+      }
 
-                        try {
-                                if (isDecline) {
-                                        await declinePermissionSlip(slipId, {
-                                                declined_by: signerName,
-                                                declined_at:
+      try {
+        if (isDecline) {
+          await declinePermissionSlip(slipId, {
+            declined_by: signerName,
+            declined_at:
                                                         new Date().toISOString(),
-                                        });
-                                } else {
-                                        await signPermissionSlip(slipId, {
-                                                signed_by: signerName,
-                                                signature_hash: `signed-${Date.now()}`,
-                                        });
-                                }
-                                this.app.showMessage(
-                                        translate(
-                                                isDecline
-                                                        ? 'permission_slip_declined'
-                                                        : 'permission_slip_signed',
-                                        ),
-                                        'success',
-                                );
-                                await this.loadPermissionSlips(
-                                        participantId,
-                                        true,
-                                );
-                                this.refreshPermissionSlipSection(
-                                        participantId,
-                                );
-                        } catch (error) {
-                                debugError(
-                                        'Error responding to permission slip',
-                                        error,
-                                );
-
-                                const errorMessage = error?.message || '';
-                                if (
-                                        apiErrorMessageKey(error) === 'api_error_conflict' ||
-                                        errorMessage.includes('already been answered')
-                                ) {
-                                        this.app.showMessage(
-                                                translate('permission_slip_already_answered'),
-                                                'warning',
-                                        );
-                                        // Refresh the section to show current state
-                                        await this.loadPermissionSlips(participantId, true);
-                                        this.refreshPermissionSlipSection(participantId);
-                                } else if (
-                                        errorMessage.includes(
-                                                'only respond to permission slips for your own children',
-                                        )
-                                ) {
-                                        this.app.showMessage(
-                                                translate('permission_slip_not_your_child'),
-                                                'error',
-                                        );
-                                } else {
-                                        // The server's message is English; explain in the page's language.
-                                        this.app.showMessage(
-                                                apiErrorMessage(error, 'error_saving'),
-                                                'error',
-                                        );
-                                }
-                        }
-                });
-
-                this.permissionSlipHandlerBound = true;
+          });
+        } else {
+          await signPermissionSlip(slipId, {
+            signed_by: signerName,
+            signature_hash: `signed-${Date.now()}`,
+          });
         }
+        this.app.showMessage(
+          translate(
+            isDecline
+              ? 'permission_slip_declined'
+              : 'permission_slip_signed',
+          ),
+          'success',
+        );
+        await this.loadPermissionSlips(
+          participantId,
+          true,
+        );
+        this.refreshPermissionSlipSection(
+          participantId,
+        );
+      } catch (error) {
+        debugError(
+          'Error responding to permission slip',
+          error,
+        );
 
-        async showStatementModal(participantId) {
-                if (!participantId) return;
+        const errorMessage = error?.message || '';
+        if (
+          apiErrorMessageKey(error) === 'api_error_conflict' ||
+                                        errorMessage.includes('already been answered')
+        ) {
+          this.app.showMessage(
+            translate('permission_slip_already_answered'),
+            'warning',
+          );
+          // Refresh the section to show current state
+          await this.loadPermissionSlips(participantId, true);
+          this.refreshPermissionSlipSection(participantId);
+        } else if (
+          errorMessage.includes(
+            'only respond to permission slips for your own children',
+          )
+        ) {
+          this.app.showMessage(
+            translate('permission_slip_not_your_child'),
+            'error',
+          );
+        } else {
+          // The server's message is English; explain in the page's language.
+          this.app.showMessage(
+            apiErrorMessage(error, 'error_saving'),
+            'error',
+          );
+        }
+      }
+    });
 
-                const numericId = Number.parseInt(participantId, 10);
-                const existingStatement =
+    this.permissionSlipHandlerBound = true;
+  }
+
+  async showStatementModal(participantId) {
+    if (!participantId) {return;}
+
+    const numericId = Number.parseInt(participantId, 10);
+    const existingStatement =
                         this.participantStatements.get(numericId) ||
                         (await this.loadSingleStatement(numericId));
 
-                if (!existingStatement) {
-                        this.app.showMessage(
-                                translate('statement_unavailable'),
-                                'error',
-                        );
-                        return;
-                }
+    if (!existingStatement) {
+      this.app.showMessage(
+        translate('statement_unavailable'),
+        'error',
+      );
+      return;
+    }
 
-                const totals = existingStatement.totals || {
-                        total_billed: 0,
-                        total_paid: 0,
-                        total_outstanding: 0,
-                };
-                const feeLines =
+    const totals = existingStatement.totals || {
+      total_billed: 0,
+      total_paid: 0,
+      total_outstanding: 0,
+    };
+    const feeLines =
                         Array.isArray(existingStatement.fees) &&
                         existingStatement.fees.length > 0
-                                ? existingStatement.fees
-                                          .map((fee) => {
-                                                  const yearRange =
+                          ? existingStatement.fees
+                            .map((fee) => {
+                              const yearRange =
                                                           fee.year_start &&
                                                           fee.year_end
-                                                                  ? `${fee.year_start} – ${fee.year_end}`
-                                                                  : translate(
-                                                                            'membership_period',
-                                                                    );
-                                                  const safeStatus = escapeHTML(
-                                                          fee.status ||
+                                                            ? `${fee.year_start} – ${fee.year_end}`
+                                                            : translate(
+                                                              'membership_period',
+                                                            );
+                              const safeStatus = escapeHTML(
+                                fee.status ||
                                                                   translate(
-                                                                          'status',
+                                                                    'status',
                                                                   ),
-                                                  );
+                              );
 
-                                                  return `
+                              return `
                                         <div class="statement-line">
                                                 <div>
                                                         <p class="muted-text">${translate('membership_period')}: ${escapeHTML(yearRange)}</p>
@@ -1377,18 +1377,18 @@ export class ParentDashboard {
                                                 </div>
                                         </div>
                                 `;
-                                          })
-                                          .join('')
-                                : `<p class="muted-text">${translate('no_financial_activity')}</p>`;
+                            })
+                            .join('')
+                          : `<p class="muted-text">${translate('no_financial_activity')}</p>`;
 
-                const participantName = escapeHTML(
-                        `${existingStatement.participant.first_name} ${existingStatement.participant.last_name}`,
-                );
+    const participantName = escapeHTML(
+      `${existingStatement.participant.first_name} ${existingStatement.participant.last_name}`,
+    );
 
-                openModal({
-                        id: 'statement-modal',
-                        title: `${translate('membership_statement_title')} — ${participantName}`,
-                        body: `
+    openModal({
+      id: 'statement-modal',
+      title: `${translate('membership_statement_title')} — ${participantName}`,
+      body: `
                                 <div class="statement-summary">
                                         <div>
                                                 <span>${translate('total_billed')}</span>
@@ -1405,44 +1405,44 @@ export class ParentDashboard {
                                 </div>
                                 <div class="statement-lines">${feeLines}</div>
                         `,
-                        initialFocus: false,
-                });
-        }
+      initialFocus: false,
+    });
+  }
 
-        /**
+  /**
          * Pick an upcoming activity to open its carpool page. Parents share
          * the leaders' dialog, without its "create an activity" action.
          */
-        async showCarpoolActivitiesModal() {
-                await new CarpoolQuickAccessModal(this.app, { allowCreate: false }).show();
-        }
+  async showCarpoolActivitiesModal() {
+    await new CarpoolQuickAccessModal(this.app, { allowCreate: false }).show();
+  }
 
-        async requestNotificationPermission() {
-                if ('Notification' in window) {
-                        // Proceed with Notification logic
-                        if (Notification.permission === 'granted') {
-                                registerPushSubscription();
-                        } else if (Notification.permission === 'default') {
-                                Notification.requestPermission().then(
-                                        (permission) => {
-                                                if (permission === 'granted') {
-                                                        registerPushSubscription();
-                                                }
-                                        },
-                                );
-                        }
-                } else {
-                        debugError(
-                                'This browser does not support notifications.',
-                        );
-                }
-        }
+  async requestNotificationPermission() {
+    if ('Notification' in window) {
+      // Proceed with Notification logic
+      if (Notification.permission === 'granted') {
+        registerPushSubscription();
+      } else if (Notification.permission === 'default') {
+        Notification.requestPermission().then(
+          (permission) => {
+            if (permission === 'granted') {
+              registerPushSubscription();
+            }
+          },
+        );
+      }
+    } else {
+      debugError(
+        'This browser does not support notifications.',
+      );
+    }
+  }
 
-        renderError() {
-                const errorMessage = `
+  renderError() {
+    const errorMessage = `
                                 <h1>${translate('error')}</h1>
                                 <p>${translate('error_loading_parent_dashboard')}</p>
                         `;
-                setContent(document.getElementById('app'), errorMessage);
-        }
+    setContent(document.getElementById('app'), errorMessage);
+  }
 }

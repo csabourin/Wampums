@@ -8,22 +8,22 @@ import {
   getExpensesMonthly,
   getBudgetCategories,
   getBudgetItems
-} from "../../api/api-endpoints.js";
-import { translate } from "../../app.js";
-import { escapeHTML } from "../../utils/SecurityUtils.js";
-import { debugError, debugLog } from "../../utils/DebugUtils.js";
-import { formatDateShort, getTodayISO } from "../../utils/DateUtils.js";
-import { confirmDestructive } from "../../utils/DialogUtils.js";
-import { LoadingStateManager, debounce, retryWithBackoff } from "../../utils/PerformanceUtils.js";
-import { validateMoney, validateDateField, validateRequired } from "../../utils/ValidationUtils.js";
-import { canApproveFinance, canManageFinance } from "../../utils/PermissionUtils.js";
-import { deleteCachedData } from "../../indexedDB.js";
-import { setContent, insertHTML, withFormBusy } from "../../utils/DOMUtils.js";
-import { openModal, closeModal } from "../../utils/ModalUtils.js";
+} from '../../api/api-endpoints.js';
+import { translate } from '../../app.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { debugError, debugLog } from '../../utils/DebugUtils.js';
+import { formatDateShort, getTodayISO } from '../../utils/DateUtils.js';
+import { confirmDestructive } from '../../utils/DialogUtils.js';
+import { LoadingStateManager, debounce, retryWithBackoff } from '../../utils/PerformanceUtils.js';
+import { validateMoney, validateDateField, validateRequired } from '../../utils/ValidationUtils.js';
+import { canApproveFinance, canManageFinance } from '../../utils/PermissionUtils.js';
+import { deleteCachedData } from '../../indexedDB.js';
+import { setContent, insertHTML, withFormBusy } from '../../utils/DOMUtils.js';
+import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { setButtonLoading } from '../../utils/SkeletonUtils.js';
-import { aiParseReceipt } from "../AI.js";
+import { aiParseReceipt } from '../AI.js';
 
-const DEFAULT_CURRENCY = "CAD";
+const DEFAULT_CURRENCY = 'CAD';
 
 // Quebec tax rates
 const TAX_GST = 0.05; // 5%
@@ -41,7 +41,7 @@ export class Expenses {
     this.items = [];
     this.summary = null;
     this.monthlyData = null;
-    this.activeTab = "list";
+    this.activeTab = 'list';
     this.filters = {
       start_date: '',
       end_date: '',
@@ -83,7 +83,7 @@ export class Expenses {
   async init() {
     // Prevent race conditions - only one init at a time
     if (this.isInitializing) {
-      debugError("Expenses init already in progress, skipping duplicate call");
+      debugError('Expenses init already in progress, skipping duplicate call');
       return;
     }
 
@@ -109,11 +109,11 @@ export class Expenses {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Unable to initialize expenses page", error);
+      debugError('Unable to initialize expenses page', error);
       // Render error state but allow partial functionality
       this.render();
       this.attachEventListeners();
-      this.app.showMessage(translate("error_loading_data"), "error");
+      this.app.showMessage(translate('error_loading_data'), 'error');
     } finally {
       this.isInitializing = false;
     }
@@ -129,7 +129,7 @@ export class Expenses {
         this.categories = response?.data || [];
         debugLog(`Loaded ${this.categories.length} categories`);
       } catch (error) {
-        debugError("Error loading categories", error);
+        debugError('Error loading categories', error);
         this.categories = [];
       }
     });
@@ -145,7 +145,7 @@ export class Expenses {
         this.items = response?.data || [];
         debugLog(`Loaded ${this.items.length} budget items`);
       } catch (error) {
-        debugError("Error loading budget items", error);
+        debugError('Error loading budget items', error);
         this.items = [];
       }
     });
@@ -165,7 +165,7 @@ export class Expenses {
       this.expenses = response?.data || [];
       debugLog(`Loaded ${this.expenses.length} expenses`);
     } catch (error) {
-      debugError("Error loading expenses", error);
+      debugError('Error loading expenses', error);
       this.expenses = [];
       // Don't throw - allow page to render with empty data
     }
@@ -179,9 +179,9 @@ export class Expenses {
         this.filters.category_id !== 'all' ? this.filters.category_id : null
       );
       this.summary = response?.data || null;
-      debugLog("Loaded expense summary", this.summary);
+      debugLog('Loaded expense summary', this.summary);
     } catch (error) {
-      debugError("Error loading summary", error);
+      debugError('Error loading summary', error);
       this.summary = null;
     }
   }
@@ -194,9 +194,9 @@ export class Expenses {
         this.filters.category_id !== 'all' ? this.filters.category_id : null
       );
       this.monthlyData = response?.data || [];
-      debugLog("Loaded monthly expense data", this.monthlyData);
+      debugLog('Loaded monthly expense data', this.monthlyData);
     } catch (error) {
-      debugError("Error loading monthly data", error);
+      debugError('Error loading monthly data', error);
       this.monthlyData = [];
     }
   }
@@ -220,9 +220,9 @@ export class Expenses {
     const cacheKeys = this.getExpenseCacheKeys();
     try {
       await Promise.all(cacheKeys.map(key => deleteCachedData(key)));
-      debugLog("Cleared expense caches", cacheKeys);
+      debugLog('Cleared expense caches', cacheKeys);
     } catch (error) {
-      debugError("Error clearing expense caches", error);
+      debugError('Error clearing expense caches', error);
     }
   }
 
@@ -237,11 +237,11 @@ export class Expenses {
       return;
     }
 
-    if (action === "update") {
+    if (action === 'update') {
       this.expenses = this.expenses.map(expense =>
         expense.id === expenseId ? { ...expense, ...updates } : expense
       );
-    } else if (action === "delete") {
+    } else if (action === 'delete') {
       this.expenses = this.expenses.filter(expense => expense.id !== expenseId);
     }
   }
@@ -263,8 +263,8 @@ export class Expenses {
 
   formatCurrency(amount) {
     const value = Number(amount) || 0;
-    return new Intl.NumberFormat(this.app.lang || "en", {
-      style: "currency",
+    return new Intl.NumberFormat(this.app.lang || 'en', {
+      style: 'currency',
       currency: DEFAULT_CURRENCY,
       maximumFractionDigits: 2
     }).format(value);
@@ -286,40 +286,40 @@ export class Expenses {
   }
 
   renderLoading() {
-    const container = document.getElementById("app");
-    if (!container) return;
+    const container = document.getElementById('app');
+    if (!container) {return;}
 
     setContent(container, `
       <div class="page-container expenses-page">
         <div class="page-header">
-          <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+          <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
           <div class="page-header-content">
-            <h1>${translate("expense_tracking")}</h1>
+            <h1>${translate('expense_tracking')}</h1>
             <div class="fiscal-year-display">
-              <span>${translate("fiscal_year")}: <strong>${escapeHTML(this.fiscalYear.label)}</strong></span>
+              <span>${translate('fiscal_year')}: <strong>${escapeHTML(this.fiscalYear.label)}</strong></span>
             </div>
           </div>
         </div>
         <div class="loading-container">
           <div class="loading-spinner"></div>
-          <p>${translate("loading")}...</p>
+          <p>${translate('loading')}...</p>
         </div>
       </div>
     `);
   }
 
   async render() {
-    const container = document.getElementById("app");
-    if (!container) return;
+    const container = document.getElementById('app');
+    if (!container) {return;}
 
     setContent(container, `
       <div class="page-container expenses-page">
         <div class="page-header">
-          <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+          <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
           <div class="page-header-content">
-            <h1>${translate("expense_tracking")}</h1>
+            <h1>${translate('expense_tracking')}</h1>
             <div class="fiscal-year-display">
-              <span>${translate("fiscal_year")}: <strong>${escapeHTML(this.fiscalYear.label)}</strong></span>
+              <span>${translate('fiscal_year')}: <strong>${escapeHTML(this.fiscalYear.label)}</strong></span>
             </div>
           </div>
         </div>
@@ -327,14 +327,14 @@ export class Expenses {
         ${this.renderSummaryCards()}
 
         <div class="tab-navigation">
-          <button class="tab-btn ${this.activeTab === "list" ? "active" : ""}" data-tab="list">
-            ${translate("expense_list")}
+          <button class="tab-btn ${this.activeTab === 'list' ? 'active' : ''}" data-tab="list">
+            ${translate('expense_list')}
           </button>
-          <button class="tab-btn ${this.activeTab === "summary" ? "active" : ""}" data-tab="summary">
-            ${translate("summary")}
+          <button class="tab-btn ${this.activeTab === 'summary' ? 'active' : ''}" data-tab="summary">
+            ${translate('summary')}
           </button>
-          <button class="tab-btn ${this.activeTab === "monthly" ? "active" : ""}" data-tab="monthly">
-            ${translate("monthly_breakdown")}
+          <button class="tab-btn ${this.activeTab === 'monthly' ? 'active' : ''}" data-tab="monthly">
+            ${translate('monthly_breakdown')}
           </button>
         </div>
 
@@ -347,7 +347,7 @@ export class Expenses {
 
   renderSummaryCards() {
     if (!this.summary || !this.summary.totals) {
-      return "";
+      return '';
     }
 
     const totals = this.summary.totals;
@@ -357,9 +357,9 @@ export class Expenses {
         <div class="summary-card expense-card">
           <div class="card-icon">📊</div>
           <div class="card-content">
-            <div class="card-label">${translate("total_expenses")}</div>
+            <div class="card-label">${translate('total_expenses')}</div>
             <div class="card-value">${this.formatCurrency(totals.total_amount)}</div>
-            <div class="card-detail">${totals.expense_count} ${translate("entries")}</div>
+            <div class="card-detail">${totals.expense_count} ${translate('entries')}</div>
           </div>
         </div>
       </div>
@@ -368,14 +368,14 @@ export class Expenses {
 
   renderTabContent() {
     switch (this.activeTab) {
-      case "list":
+      case 'list':
         return this.renderExpenseList();
-      case "summary":
+      case 'summary':
         return this.renderSummaryView();
-      case "monthly":
+      case 'monthly':
         return this.renderMonthlyView();
       default:
-        return "";
+        return '';
     }
   }
 
@@ -392,33 +392,33 @@ export class Expenses {
       <div class="filters-section">
         <div class="filters-row">
           <div class="filter-group">
-            <label for="filter-start-date">${translate("start_date")}</label>
+            <label for="filter-start-date">${translate('start_date')}</label>
             <input type="date" id="filter-start-date" value="${this.filters.start_date}">
           </div>
           
           <div class="filter-group">
-            <label for="filter-end-date">${translate("end_date")}</label>
+            <label for="filter-end-date">${translate('end_date')}</label>
             <input type="date" id="filter-end-date" value="${this.filters.end_date}">
           </div>
 
           <div class="filter-group">
-            <label for="filter-category">${translate("category")}</label>
+            <label for="filter-category">${translate('category')}</label>
             <select id="filter-category">
-              <option value="all" ${this.filters.category_id === 'all' ? 'selected' : ''}>${translate("all_categories")}</option>
+              <option value="all" ${this.filters.category_id === 'all' ? 'selected' : ''}>${translate('all_categories')}</option>
               ${this.categories.map(cat => `
                 <option value="${cat.id}" ${String(this.filters.category_id) === String(cat.id) ? 'selected' : ''}>
                   ${escapeHTML(cat.name)}
                 </option>
-              `).join("")}
+              `).join('')}
             </select>
           </div>
 
           <div class="filter-actions">
             <button class="btn btn-primary" id="apply-filters-btn">
-              ${translate("apply_filters")}
+              ${translate('apply_filters')}
             </button>
             <button class="btn btn-secondary" id="reset-filters-btn">
-              ${translate("reset")}
+              ${translate('reset')}
             </button>
           </div>
         </div>
@@ -436,13 +436,13 @@ export class Expenses {
     return `
       <div class="action-buttons">
         <button class="btn btn-primary" id="add-expense-btn">
-          ${translate("add_expense")}
+          ${translate('add_expense')}
         </button>
         <button class="btn btn-secondary" id="bulk-add-expense-btn">
-          ${translate("bulk_add_expenses")}
+          ${translate('bulk_add_expenses')}
         </button>
         <button class="btn btn-secondary" id="export-expenses-btn">
-          ${translate("export_csv")}
+          ${translate('export_csv')}
         </button>
       </div>
     `;
@@ -450,7 +450,7 @@ export class Expenses {
 
   renderExpenseTable() {
     if (this.expenses.length === 0) {
-      return `<div class="no-data"><p>${translate("no_expenses_found")}</p></div>`;
+      return `<div class="no-data"><p>${translate('no_expenses_found')}</p></div>`;
     }
 
     return `
@@ -458,18 +458,18 @@ export class Expenses {
         <table class="data-table expense-table">
           <thead>
             <tr>
-              <th>${translate("date")}</th>
-              <th>${translate("category")}</th>
-              <th>${translate("item")}</th>
-              <th>${translate("description")}</th>
-              <th class="text-right">${translate("amount")}</th>
-              <th>${translate("payment_method")}</th>
-              <th>${translate("reference")}</th>
-              <th>${translate("actions")}</th>
+              <th>${translate('date')}</th>
+              <th>${translate('category')}</th>
+              <th>${translate('item')}</th>
+              <th>${translate('description')}</th>
+              <th class="text-right">${translate('amount')}</th>
+              <th>${translate('payment_method')}</th>
+              <th>${translate('reference')}</th>
+              <th>${translate('actions')}</th>
             </tr>
           </thead>
           <tbody>
-            ${this.expenses.map(expense => this.renderExpenseRow(expense)).join("")}
+            ${this.expenses.map(expense => this.renderExpenseRow(expense)).join('')}
           </tbody>
         </table>
       </div>
@@ -483,21 +483,21 @@ export class Expenses {
     return `
       <tr data-expense-id="${expense.id}">
         <td>${formatDateShort(expense.expense_date)}</td>
-        <td>${escapeHTML(expense.category_name || "-")}</td>
-        <td class="text-small">${escapeHTML(expense.item_name || "-")}</td>
+        <td>${escapeHTML(expense.category_name || '-')}</td>
+        <td class="text-small">${escapeHTML(expense.item_name || '-')}</td>
         <td>${escapeHTML(expense.description)}</td>
         <td class="text-right amount expense">${this.formatCurrency(expense.amount)}</td>
-        <td class="text-small">${escapeHTML(expense.payment_method || "-")}</td>
-        <td class="text-small">${escapeHTML(expense.reference_number || "-")}</td>
+        <td class="text-small">${escapeHTML(expense.payment_method || '-')}</td>
+        <td class="text-small">${escapeHTML(expense.reference_number || '-')}</td>
         <td class="actions-cell">
           ${canEdit ? `
             <button class="btn btn-sm btn-secondary edit-expense-btn" data-id="${expense.id}">
-              ${translate("edit")}
+              ${translate('edit')}
             </button>
           ` : ''}
           ${canDelete ? `
             <button class="btn btn-sm btn-danger delete-expense-btn" data-id="${expense.id}">
-              ${translate("delete")}
+              ${translate('delete')}
             </button>
           ` : ''}
         </td>
@@ -507,28 +507,28 @@ export class Expenses {
 
   renderSummaryView() {
     if (!this.summary || !this.summary.summary || this.summary.summary.length === 0) {
-      return `<div class="no-data"><p>${translate("no_data_available")}</p></div>`;
+      return `<div class="no-data"><p>${translate('no_data_available')}</p></div>`;
     }
 
     const summaryData = this.summary.summary;
 
     return `
       <div class="summary-view">
-        <h2>${translate("expense_summary_by_category")}</h2>
+        <h2>${translate('expense_summary_by_category')}</h2>
         <table class="data-table summary-table">
           <thead>
             <tr>
-              <th>${translate("category")}</th>
-              <th class="text-right">${translate("expense_count")}</th>
-              <th class="text-right">${translate("total_amount")}</th>
-              <th class="text-right">${translate("average_amount")}</th>
-              <th>${translate("date_range")}</th>
+              <th>${translate('category')}</th>
+              <th class="text-right">${translate('expense_count')}</th>
+              <th class="text-right">${translate('total_amount')}</th>
+              <th class="text-right">${translate('average_amount')}</th>
+              <th>${translate('date_range')}</th>
             </tr>
           </thead>
           <tbody>
             ${summaryData.map(cat => `
               <tr>
-                <td><strong>${escapeHTML(cat.category_name || translate("uncategorized"))}</strong></td>
+                <td><strong>${escapeHTML(cat.category_name || translate('uncategorized'))}</strong></td>
                 <td class="text-right">${cat.expense_count}</td>
                 <td class="text-right amount expense">${this.formatCurrency(cat.total_amount)}</td>
                 <td class="text-right amount">${this.formatCurrency(cat.average_amount)}</td>
@@ -536,11 +536,11 @@ export class Expenses {
                   ${formatDateShort(cat.first_expense_date)} - ${formatDateShort(cat.last_expense_date)}
                 </td>
               </tr>
-            `).join("")}
+            `).join('')}
           </tbody>
           <tfoot>
             <tr class="summary-total">
-              <td><strong>${translate("total")}</strong></td>
+              <td><strong>${translate('total')}</strong></td>
               <td class="text-right"><strong>${this.summary.totals.expense_count}</strong></td>
               <td class="text-right amount expense"><strong>${this.formatCurrency(this.summary.totals.total_amount)}</strong></td>
               <td colspan="2"></td>
@@ -553,7 +553,7 @@ export class Expenses {
 
   renderMonthlyView() {
     if (!this.monthlyData || this.monthlyData.length === 0) {
-      return `<div class="no-data"><p>${translate("no_data_available")}</p></div>`;
+      return `<div class="no-data"><p>${translate('no_data_available')}</p></div>`;
     }
 
     // Group by month
@@ -578,15 +578,15 @@ export class Expenses {
 
     return `
       <div class="monthly-view">
-        <h2>${translate("monthly_expense_breakdown")}</h2>
-        ${months.map(monthData => this.renderMonthSection(monthData)).join("")}
+        <h2>${translate('monthly_expense_breakdown')}</h2>
+        ${months.map(monthData => this.renderMonthSection(monthData)).join('')}
       </div>
     `;
   }
 
   renderMonthSection(monthData) {
     const monthDate = new Date(monthData.month);
-    const monthLabel = monthDate.toLocaleDateString(this.app.lang || "en", {
+    const monthLabel = monthDate.toLocaleDateString(this.app.lang || 'en', {
       year: 'numeric',
       month: 'long'
     });
@@ -597,23 +597,23 @@ export class Expenses {
         <table class="data-table month-table">
           <thead>
             <tr>
-              <th>${translate("category")}</th>
-              <th class="text-right">${translate("expense_count")}</th>
-              <th class="text-right">${translate("total_amount")}</th>
+              <th>${translate('category')}</th>
+              <th class="text-right">${translate('expense_count')}</th>
+              <th class="text-right">${translate('total_amount')}</th>
             </tr>
           </thead>
           <tbody>
             ${monthData.categories.map(cat => `
               <tr>
-                <td>${escapeHTML(cat.category_name || translate("uncategorized"))}</td>
+                <td>${escapeHTML(cat.category_name || translate('uncategorized'))}</td>
                 <td class="text-right">${cat.expense_count}</td>
                 <td class="text-right amount expense">${this.formatCurrency(cat.total_amount)}</td>
               </tr>
-            `).join("")}
+            `).join('')}
           </tbody>
           <tfoot>
             <tr class="summary-total">
-              <td><strong>${translate("month_total")}</strong></td>
+              <td><strong>${translate('month_total')}</strong></td>
               <td class="text-right"><strong>${monthData.categories.reduce((sum, cat) => sum + cat.expense_count, 0)}</strong></td>
               <td class="text-right amount expense"><strong>${this.formatCurrency(monthData.total)}</strong></td>
             </tr>
@@ -625,8 +625,8 @@ export class Expenses {
 
   attachEventListeners() {
     // Tab navigation
-    document.querySelectorAll(".tab-btn").forEach(btn => {
-      btn.addEventListener("click", (e) => {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
         this.activeTab = e.target.dataset.tab;
         this.render();
         this.attachEventListeners();
@@ -634,35 +634,35 @@ export class Expenses {
     });
 
     // Filter buttons
-    const applyFiltersBtn = document.getElementById("apply-filters-btn");
+    const applyFiltersBtn = document.getElementById('apply-filters-btn');
     if (applyFiltersBtn) {
-      applyFiltersBtn.addEventListener("click", () => this.applyFilters());
+      applyFiltersBtn.addEventListener('click', () => this.applyFilters());
     }
 
-    const resetFiltersBtn = document.getElementById("reset-filters-btn");
+    const resetFiltersBtn = document.getElementById('reset-filters-btn');
     if (resetFiltersBtn) {
-      resetFiltersBtn.addEventListener("click", () => this.resetFilters());
+      resetFiltersBtn.addEventListener('click', () => this.resetFilters());
     }
 
     // Action buttons
-    const addExpenseBtn = document.getElementById("add-expense-btn");
+    const addExpenseBtn = document.getElementById('add-expense-btn');
     if (addExpenseBtn) {
-      addExpenseBtn.addEventListener("click", () => this.showExpenseModal());
+      addExpenseBtn.addEventListener('click', () => this.showExpenseModal());
     }
 
-    const bulkAddExpenseBtn = document.getElementById("bulk-add-expense-btn");
+    const bulkAddExpenseBtn = document.getElementById('bulk-add-expense-btn');
     if (bulkAddExpenseBtn) {
-      bulkAddExpenseBtn.addEventListener("click", () => this.showBulkExpenseModal());
+      bulkAddExpenseBtn.addEventListener('click', () => this.showBulkExpenseModal());
     }
 
-    const exportExpensesBtn = document.getElementById("export-expenses-btn");
+    const exportExpensesBtn = document.getElementById('export-expenses-btn');
     if (exportExpensesBtn) {
-      exportExpensesBtn.addEventListener("click", () => this.exportToCSV());
+      exportExpensesBtn.addEventListener('click', () => this.exportToCSV());
     }
 
     // Edit buttons
-    document.querySelectorAll(".edit-expense-btn").forEach(btn => {
-      btn.addEventListener("click", (e) => {
+    document.querySelectorAll('.edit-expense-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
         const id = parseInt(e.target.dataset.id);
         const expense = this.expenses.find(exp => exp.id === id);
         if (expense) {
@@ -672,10 +672,10 @@ export class Expenses {
     });
 
     // Delete buttons
-    document.querySelectorAll(".delete-expense-btn").forEach(btn => {
-      btn.addEventListener("click", async (e) => {
+    document.querySelectorAll('.delete-expense-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
         const id = parseInt(e.target.dataset.id);
-        if (await confirmDestructive(translate("confirm_delete_expense"))) {
+        if (await confirmDestructive(translate('confirm_delete_expense'))) {
           await this.deleteExpense(id);
         }
       });
@@ -683,9 +683,9 @@ export class Expenses {
   }
 
   async applyFilters() {
-    this.filters.start_date = document.getElementById("filter-start-date").value;
-    this.filters.end_date = document.getElementById("filter-end-date").value;
-    this.filters.category_id = document.getElementById("filter-category").value;
+    this.filters.start_date = document.getElementById('filter-start-date').value;
+    this.filters.end_date = document.getElementById('filter-end-date').value;
+    this.filters.category_id = document.getElementById('filter-category').value;
 
     await Promise.all([
       this.loadExpenses(),
@@ -715,132 +715,132 @@ export class Expenses {
   showExpenseModal(expense = null) {
     const isEdit = !!expense;
     openModal({
-      id: "expense-modal",
-      title: isEdit ? translate("edit_expense") : translate("add_expense"),
-      size: "large",
+      id: 'expense-modal',
+      title: isEdit ? translate('edit_expense') : translate('add_expense'),
+      size: 'large',
       body: `
             <form id="expense-form">
               <div class="form-row">
                 <div class="form-group">
                    <div style="margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:15px;">
-                      <button type="button" class="button button--secondary" id="upload-receipt-btn"><span aria-hidden="true">📸</span> ${translate("upload_receipt")}</button>
+                      <button type="button" class="button button--secondary" id="upload-receipt-btn"><span aria-hidden="true">📸</span> ${translate('upload_receipt')}</button>
                       <input type="file" id="receipt-upload-input" accept="image/*,.pdf" style="display:none">
-                      <small style="display:block; margin-top:5px; color:#666;">${translate("upload_receipt_help")}</small>
+                      <small style="display:block; margin-top:5px; color:#666;">${translate('upload_receipt_help')}</small>
                    </div>
-                  <label for="expense-date">${translate("date")}*</label>
+                  <label for="expense-date">${translate('date')}*</label>
                   <input type="date" id="expense-date" required
                          value="${expense ? expense.expense_date : getTodayISO()}">
                 </div>
 
                 <div class="form-group">
-                  <label for="expense-category">${translate("category")}</label>
+                  <label for="expense-category">${translate('category')}</label>
                   <select id="expense-category">
-                    <option value="">${translate("uncategorized")}</option>
+                    <option value="">${translate('uncategorized')}</option>
                     ${this.categories.map(cat => `
-                      <option value="${cat.id}" ${String(expense?.budget_category_id) === String(cat.id) ? "selected" : ""}>
+                      <option value="${cat.id}" ${String(expense?.budget_category_id) === String(cat.id) ? 'selected' : ''}>
                         ${escapeHTML(cat.name)}
                       </option>
-                    `).join("")}
+                    `).join('')}
                   </select>
                 </div>
 
                 <div class="form-group">
-                  <label for="expense-item">${translate("budget_item")}</label>
+                  <label for="expense-item">${translate('budget_item')}</label>
                   <select id="expense-item">
-                    <option value="">${translate("select_item")}</option>
+                    <option value="">${translate('select_item')}</option>
                     ${this.items.map(item => `
-                      <option value="${item.id}" ${String(expense?.budget_item_id) === String(item.id) ? "selected" : ""}>
+                      <option value="${item.id}" ${String(expense?.budget_item_id) === String(item.id) ? 'selected' : ''}>
                         ${escapeHTML(item.name)}
                       </option>
-                    `).join("")}
+                    `).join('')}
                   </select>
                 </div>
               </div>
 
               <div class="form-group">
-                <label for="expense-description">${translate("description")}*</label>
+                <label for="expense-description">${translate('description')}*</label>
                 <input type="text" id="expense-description" required
-                       value="${expense ? escapeHTML(expense.description) : ""}"
-                       placeholder="${translate("enter_expense_description")}">
+                       value="${expense ? escapeHTML(expense.description) : ''}"
+                       placeholder="${translate('enter_expense_description')}">
               </div>
 
               <div class="tax-calculator-section">
-                <h3>${translate("amount_and_taxes")}</h3>
+                <h3>${translate('amount_and_taxes')}</h3>
                 <div class="form-row">
                   <div class="form-group">
-                    <label for="expense-subtotal">${translate("subtotal_before_tax")}</label>
+                    <label for="expense-subtotal">${translate('subtotal_before_tax')}</label>
                     <input type="number" id="expense-subtotal" step="0.01" min="0"
-                           value="${expense ? expense.amount : ""}"
+                           value="${expense ? expense.amount : ''}"
                            placeholder="0.00">
                   </div>
                   <div class="form-group">
                     <button type="button" class="btn btn-secondary" id="calculate-taxes-btn">
-                      ${translate("calculate_taxes")}
+                      ${translate('calculate_taxes')}
                     </button>
                   </div>
                 </div>
                 <div id="tax-breakdown" class="tax-breakdown hidden">
-                  <p><strong>${translate("gst")} (5%):</strong> <span id="tax-gst">$0.00</span></p>
-                  <p><strong>${translate("qst")} (9.975%):</strong> <span id="tax-qst">$0.00</span></p>
-                  <p><strong>${translate("total_with_taxes")}:</strong> <span id="tax-total">$0.00</span></p>
+                  <p><strong>${translate('gst')} (5%):</strong> <span id="tax-gst">$0.00</span></p>
+                  <p><strong>${translate('qst')} (9.975%):</strong> <span id="tax-qst">$0.00</span></p>
+                  <p><strong>${translate('total_with_taxes')}:</strong> <span id="tax-total">$0.00</span></p>
                 </div>
               </div>
 
               <div class="form-group">
-                <label for="expense-amount">${translate("final_amount")}*</label>
+                <label for="expense-amount">${translate('final_amount')}*</label>
                 <input type="number" id="expense-amount" step="0.01" min="0" required
-                       value="${expense ? expense.amount : ""}"
+                       value="${expense ? expense.amount : ''}"
                        placeholder="0.00">
               </div>
 
               <div class="form-row">
                 <div class="form-group">
-                  <label for="expense-payment-method">${translate("payment_method")}</label>
+                  <label for="expense-payment-method">${translate('payment_method')}</label>
                   <input type="text" id="expense-payment-method"
-                         value="${expense ? escapeHTML(expense.payment_method || "") : ""}"
-                         placeholder="${translate("cash_check_card")}">
+                         value="${expense ? escapeHTML(expense.payment_method || '') : ''}"
+                         placeholder="${translate('cash_check_card')}">
                 </div>
 
                 <div class="form-group">
-                  <label for="expense-reference">${translate("reference_number")}</label>
+                  <label for="expense-reference">${translate('reference_number')}</label>
                   <input type="text" id="expense-reference"
-                         value="${expense ? escapeHTML(expense.reference_number || "") : ""}"
-                         placeholder="${translate("invoice_check_number")}">
+                         value="${expense ? escapeHTML(expense.reference_number || '') : ''}"
+                         placeholder="${translate('invoice_check_number')}">
                 </div>
               </div>
 
               <div class="form-group">
-                <label for="expense-receipt-url">${translate("receipt_url")}</label>
+                <label for="expense-receipt-url">${translate('receipt_url')}</label>
                 <input type="url" id="expense-receipt-url"
-                       value="${expense ? escapeHTML(expense.receipt_url || "") : ""}"
+                       value="${expense ? escapeHTML(expense.receipt_url || '') : ''}"
                        placeholder="https://">
               </div>
 
               <div class="form-group">
-                <label for="expense-notes">${translate("notes")}</label>
-                <textarea id="expense-notes" rows="3">${expense ? escapeHTML(expense.notes || "") : ""}</textarea>
+                <label for="expense-notes">${translate('notes')}</label>
+                <textarea id="expense-notes" rows="3">${expense ? escapeHTML(expense.notes || '') : ''}</textarea>
               </div>
 
             </form>
       `,
       footer: `
-        <button type="button" class="btn btn-secondary" data-modal-close>${translate("cancel")}</button>
+        <button type="button" class="btn btn-secondary" data-modal-close>${translate('cancel')}</button>
         <button type="submit" class="btn btn-primary" form="expense-form">
-          ${isEdit ? translate("update") : translate("create")}
+          ${isEdit ? translate('update') : translate('create')}
         </button>
       `,
     });
 
     // Receipt Upload Handler
-    const uploadBtn = document.getElementById("upload-receipt-btn");
-    const fileInput = document.getElementById("receipt-upload-input");
+    const uploadBtn = document.getElementById('upload-receipt-btn');
+    const fileInput = document.getElementById('receipt-upload-input');
 
     if (uploadBtn && fileInput) {
-      uploadBtn.addEventListener("click", () => fileInput.click());
+      uploadBtn.addEventListener('click', () => fileInput.click());
 
-      fileInput.addEventListener("change", async (e) => {
+      fileInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
-        if (!file) return;
+        if (!file) {return;}
 
         setButtonLoading(uploadBtn, true);
         try {
@@ -848,40 +848,40 @@ export class Expenses {
           const data = response.data; // { vendor, date, total, tax... }
 
           // Fill Form
-          if (data.date) document.getElementById("expense-date").value = data.date;
-          if (data.vendor) document.getElementById("expense-description").value = data.vendor;
+          if (data.date) {document.getElementById('expense-date').value = data.date;}
+          if (data.vendor) {document.getElementById('expense-description').value = data.vendor;}
           if (data.total) {
-            document.getElementById("expense-amount").value = data.total;
+            document.getElementById('expense-amount').value = data.total;
             const tax = (data.tax || 0);
-            document.getElementById("expense-subtotal").value = (data.total - tax).toFixed(2);
+            document.getElementById('expense-subtotal').value = (data.total - tax).toFixed(2);
           }
 
-          this.app.showMessage("receipt_parsed_success", "success");
+          this.app.showMessage('receipt_parsed_success', 'success');
         } catch (err) {
-          debugError("Receipt upload error", err);
-          let msgKey = "error_parsing_receipt";
-          if (err.error?.code === 'AI_BUDGET_EXCEEDED') msgKey = 'ai_budget_exceeded';
+          debugError('Receipt upload error', err);
+          let msgKey = 'error_parsing_receipt';
+          if (err.error?.code === 'AI_BUDGET_EXCEEDED') {msgKey = 'ai_budget_exceeded';}
           this.app.showMessage(msgKey, 'error');
         } finally {
           setButtonLoading(uploadBtn, false);
-          fileInput.value = ""; // Reset
+          fileInput.value = ''; // Reset
         }
       });
     }
 
     // Tax calculator
-    document.getElementById("calculate-taxes-btn").addEventListener("click", () => {
-      const subtotal = parseFloat(document.getElementById("expense-subtotal").value) || 0;
+    document.getElementById('calculate-taxes-btn').addEventListener('click', () => {
+      const subtotal = parseFloat(document.getElementById('expense-subtotal').value) || 0;
       const taxes = this.calculateTaxes(subtotal);
 
-      document.getElementById("tax-gst").textContent = this.formatCurrency(taxes.gst);
-      document.getElementById("tax-qst").textContent = this.formatCurrency(taxes.qst);
-      document.getElementById("tax-total").textContent = this.formatCurrency(taxes.total);
-      document.getElementById("tax-breakdown").style.display = "block";
-      document.getElementById("expense-amount").value = taxes.total.toFixed(2);
+      document.getElementById('tax-gst').textContent = this.formatCurrency(taxes.gst);
+      document.getElementById('tax-qst').textContent = this.formatCurrency(taxes.qst);
+      document.getElementById('tax-total').textContent = this.formatCurrency(taxes.total);
+      document.getElementById('tax-breakdown').style.display = 'block';
+      document.getElementById('expense-amount').value = taxes.total.toFixed(2);
     });
 
-    document.getElementById("expense-form").addEventListener("submit", async (e) => {
+    document.getElementById('expense-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       await withFormBusy(e.currentTarget, () => this.saveExpense(expense?.id));
     });
@@ -889,35 +889,35 @@ export class Expenses {
 
   showBulkExpenseModal() {
     openModal({
-      id: "bulk-expense-modal",
-      title: translate("bulk_add_expenses"),
-      size: "large",
+      id: 'bulk-expense-modal',
+      title: translate('bulk_add_expenses'),
+      size: 'large',
       body: `
-        <p class="info-text">${translate("bulk_expense_info")}</p>
+        <p class="info-text">${translate('bulk_expense_info')}</p>
         <form id="bulk-expense-form">
           <div id="bulk-expense-rows">
             ${this.renderBulkExpenseRow(0)}
           </div>
           <button type="button" class="btn btn-secondary" id="add-bulk-row-btn">
-            ${translate("add_row")}
+            ${translate('add_row')}
           </button>
         </form>
       `,
       footer: `
-        <button type="button" class="btn btn-secondary" data-modal-close>${translate("cancel")}</button>
-        <button type="submit" class="btn btn-primary" form="bulk-expense-form">${translate("create_all")}</button>
+        <button type="button" class="btn btn-secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="submit" class="btn btn-primary" form="bulk-expense-form">${translate('create_all')}</button>
       `,
     });
 
     let rowCount = 1;
 
-    document.getElementById("add-bulk-row-btn").addEventListener("click", () => {
-      const container = document.getElementById("bulk-expense-rows");
-      insertHTML(container, "beforeend", this.renderBulkExpenseRow(rowCount));
+    document.getElementById('add-bulk-row-btn').addEventListener('click', () => {
+      const container = document.getElementById('bulk-expense-rows');
+      insertHTML(container, 'beforeend', this.renderBulkExpenseRow(rowCount));
       rowCount++;
     });
 
-    document.getElementById("bulk-expense-form").addEventListener("submit", async (e) => {
+    document.getElementById('bulk-expense-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       await withFormBusy(e.currentTarget, () => this.saveBulkExpenses());
     });
@@ -932,20 +932,20 @@ export class Expenses {
           </div>
           <div class="form-group form-group-sm">
             <select class="bulk-category">
-              <option value="">${translate("category")}</option>
+              <option value="">${translate('category')}</option>
               ${this.categories.map(cat => `
                 <option value="${cat.id}">${escapeHTML(cat.name)}</option>
-              `).join("")}
+              `).join('')}
             </select>
           </div>
           <div class="form-group">
-            <input type="text" class="bulk-description" required placeholder="${translate("description")}">
+            <input type="text" class="bulk-description" required placeholder="${translate('description')}">
           </div>
           <div class="form-group form-group-sm">
-            <input type="number" class="bulk-amount" step="0.01" min="0" required placeholder="${translate("amount")}">
+            <input type="number" class="bulk-amount" step="0.01" min="0" required placeholder="${translate('amount')}">
           </div>
           <div class="form-group form-group-sm">
-            <input type="text" class="bulk-reference" placeholder="${translate("reference")}">
+            <input type="text" class="bulk-reference" placeholder="${translate('reference')}">
           </div>
           <button type="button" class="btn btn-sm btn-danger remove-bulk-row-btn" data-row="${index}">✕</button>
         </div>
@@ -954,19 +954,19 @@ export class Expenses {
   }
 
   async saveExpense(expenseId = null) {
-    const expenseDate = document.getElementById("expense-date").value;
-    const categoryValue = document.getElementById("expense-category").value;
-    const itemValue = document.getElementById("expense-item").value;
-    const description = document.getElementById("expense-description").value;
-    const amount = parseFloat(document.getElementById("expense-amount").value);
-    const paymentMethod = document.getElementById("expense-payment-method").value;
-    const referenceNumber = document.getElementById("expense-reference").value;
-    const receiptUrl = document.getElementById("expense-receipt-url").value;
-    const notes = document.getElementById("expense-notes").value;
+    const expenseDate = document.getElementById('expense-date').value;
+    const categoryValue = document.getElementById('expense-category').value;
+    const itemValue = document.getElementById('expense-item').value;
+    const description = document.getElementById('expense-description').value;
+    const amount = parseFloat(document.getElementById('expense-amount').value);
+    const paymentMethod = document.getElementById('expense-payment-method').value;
+    const referenceNumber = document.getElementById('expense-reference').value;
+    const receiptUrl = document.getElementById('expense-receipt-url').value;
+    const notes = document.getElementById('expense-notes').value;
 
     // Validate amount
     if (Number.isNaN(amount)) {
-      this.app.showMessage(translate("invalid_amount"), "error");
+      this.app.showMessage(translate('invalid_amount'), 'error');
       return;
     }
 
@@ -989,31 +989,31 @@ export class Expenses {
 
       if (expenseId) {
         await updateBudgetExpense(expenseId, payload);
-        this.applyOptimisticExpenseChange("update", expenseId, payload);
-        this.app.showMessage(translate("expense_updated"), "success");
+        this.applyOptimisticExpenseChange('update', expenseId, payload);
+        this.app.showMessage(translate('expense_updated'), 'success');
       } else {
         await createBudgetExpense(payload);
-        this.app.showMessage(translate("expense_created"), "success");
+        this.app.showMessage(translate('expense_created'), 'success');
       }
 
-      closeModal("expense-modal");
+      closeModal('expense-modal');
       await this.refreshExpenseData();
     } catch (error) {
-      debugError("Error saving expense", error);
-      this.app.showMessage(translate("error_saving_expense"), "error");
+      debugError('Error saving expense', error);
+      this.app.showMessage(translate('error_saving_expense'), 'error');
     }
   }
 
   async saveBulkExpenses() {
-    const rows = document.querySelectorAll(".bulk-expense-row");
+    const rows = document.querySelectorAll('.bulk-expense-row');
     const expenses = [];
 
     rows.forEach(row => {
-      const date = row.querySelector(".bulk-date").value;
-      const categoryValue = row.querySelector(".bulk-category").value;
-      const description = row.querySelector(".bulk-description").value;
-      const amount = parseFloat(row.querySelector(".bulk-amount").value);
-      const reference = row.querySelector(".bulk-reference").value;
+      const date = row.querySelector('.bulk-date').value;
+      const categoryValue = row.querySelector('.bulk-category').value;
+      const description = row.querySelector('.bulk-description').value;
+      const amount = parseFloat(row.querySelector('.bulk-amount').value);
+      const reference = row.querySelector('.bulk-reference').value;
 
       // Normalize category ID to integer or null
       const categoryId = categoryValue ? parseInt(categoryValue, 10) : null;
@@ -1034,80 +1034,80 @@ export class Expenses {
     });
 
     if (expenses.length === 0) {
-      this.app.showMessage(translate("no_expenses_to_create"), "warning");
+      this.app.showMessage(translate('no_expenses_to_create'), 'warning');
       return;
     }
 
     try {
       await createExpensesBulk(expenses);
-      this.app.showMessage(translate("bulk_expenses_created", { count: expenses.length }), "success");
+      this.app.showMessage(translate('bulk_expenses_created', { count: expenses.length }), 'success');
 
-      closeModal("bulk-expense-modal");
+      closeModal('bulk-expense-modal');
       await this.refreshExpenseData();
     } catch (error) {
-      debugError("Error creating bulk expenses", error);
-      this.app.showMessage(translate("error_creating_bulk_expenses"), "error");
+      debugError('Error creating bulk expenses', error);
+      this.app.showMessage(translate('error_creating_bulk_expenses'), 'error');
     }
   }
 
   async deleteExpense(expenseId) {
     try {
       await deleteBudgetExpense(expenseId);
-      this.applyOptimisticExpenseChange("delete", expenseId);
-      this.app.showMessage(translate("expense_deleted"), "success");
+      this.applyOptimisticExpenseChange('delete', expenseId);
+      this.app.showMessage(translate('expense_deleted'), 'success');
       await this.refreshExpenseData();
     } catch (error) {
-      debugError("Error deleting expense", error);
-      this.app.showMessage(translate("error_deleting_expense"), "error");
+      debugError('Error deleting expense', error);
+      this.app.showMessage(translate('error_deleting_expense'), 'error');
     }
   }
 
   exportToCSV() {
     if (this.expenses.length === 0) {
-      this.app.showMessage(translate("no_data_to_export"), "warning");
+      this.app.showMessage(translate('no_data_to_export'), 'warning');
       return;
     }
 
     // Build CSV content
     const headers = [
-      translate("date"),
-      translate("category"),
-      translate("item"),
-      translate("description"),
-      translate("amount"),
-      translate("payment_method"),
-      translate("reference"),
-      translate("notes")
+      translate('date'),
+      translate('category'),
+      translate('item'),
+      translate('description'),
+      translate('amount'),
+      translate('payment_method'),
+      translate('reference'),
+      translate('notes')
     ];
 
     const rows = this.expenses.map(expense => [
       expense.expense_date,
-      expense.category_name || "-",
-      expense.item_name || "-",
+      expense.category_name || '-',
+      expense.item_name || '-',
       expense.description,
       expense.amount,
-      expense.payment_method || "-",
-      expense.reference_number || "-",
-      expense.notes || ""
+      expense.payment_method || '-',
+      expense.reference_number || '-',
+      expense.notes || ''
     ]);
 
     const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
-    ].join("\n");
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
 
     // Download file
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `expenses_${getTodayISO()}.csv`);
-    link.style.visibility = "hidden";
+    link.setAttribute('href', url);
+    link.setAttribute('download', `expenses_${getTodayISO()}.csv`);
+    link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
-    this.app.showMessage(translate("export_successful"), "success");
+    this.app.showMessage(translate('export_successful'), 'success');
   }
 }
 

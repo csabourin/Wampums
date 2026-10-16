@@ -14,46 +14,46 @@ import { confirmDestructive } from '../../utils/DialogUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 export class OfflinePreparation {
-    constructor(app) {
-        this.app = app;
-        this.activities = [];
-        this.isLoading = true;
-        this.preparingActivityId = null;
-        this.boundPreparationProgress = (event) => this.updateProgressUI(event.detail);
-        this.boundCampModeChanged = () => this.render();
+  constructor(app) {
+    this.app = app;
+    this.activities = [];
+    this.isLoading = true;
+    this.preparingActivityId = null;
+    this.boundPreparationProgress = (event) => this.updateProgressUI(event.detail);
+    this.boundCampModeChanged = () => this.render();
+  }
+
+  async init() {
+    // Load page-specific CSS
+    await loadStylesheet(offlinePrepStylesheetUrl);
+
+    // Show loading state
+    this.isLoading = true;
+    this.render();
+
+    // Load upcoming camps
+    await this.loadUpcomingCamps();
+
+    this.isLoading = false;
+    this.render();
+    this.attachEventListeners();
+  }
+
+  async loadUpcomingCamps() {
+    try {
+      this.activities = await offlineManager.getUpcomingCamps();
+      debugLog('OfflinePreparation: Loaded camps', this.activities.length);
+    } catch (error) {
+      debugError('OfflinePreparation: Failed to load camps', error);
+      this.activities = [];
     }
+  }
 
-    async init() {
-        // Load page-specific CSS
-        await loadStylesheet(offlinePrepStylesheetUrl);
+  render() {
+    const container = document.getElementById('app');
 
-        // Show loading state
-        this.isLoading = true;
-        this.render();
-
-        // Load upcoming camps
-        await this.loadUpcomingCamps();
-
-        this.isLoading = false;
-        this.render();
-        this.attachEventListeners();
-    }
-
-    async loadUpcomingCamps() {
-        try {
-            this.activities = await offlineManager.getUpcomingCamps();
-            debugLog('OfflinePreparation: Loaded camps', this.activities.length);
-        } catch (error) {
-            debugError('OfflinePreparation: Failed to load camps', error);
-            this.activities = [];
-        }
-    }
-
-    render() {
-        const container = document.getElementById('app');
-
-        if (this.isLoading) {
-            setContent(container, `
+    if (this.isLoading) {
+      setContent(container, `
                 <section class="page offline-prep-page">
                     <header class="page__header">
                         <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
@@ -62,10 +62,10 @@ export class OfflinePreparation {
                     ${skeletonList(3)}
                 </section>
             `);
-            return;
-        }
+      return;
+    }
 
-        setContent(container, `
+    setContent(container, `
             <section class="page offline-prep-page">
                 <header class="page__header">
                     <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
@@ -110,16 +110,16 @@ export class OfflinePreparation {
                 ${this.renderPreparedActivities()}
             </section>
         `);
-    }
+  }
 
-    renderCampModeStatus() {
-        if (offlineManager.campMode) {
-            const activePrep = offlineManager.preparedActivities.get(offlineManager.activeActivityId);
-            const dateRange = activePrep
-                ? `${formatDate(activePrep.startDate, this.app.currentLanguage)} - ${formatDate(activePrep.endDate, this.app.currentLanguage)}`
-                : '';
+  renderCampModeStatus() {
+    if (offlineManager.campMode) {
+      const activePrep = offlineManager.preparedActivities.get(offlineManager.activeActivityId);
+      const dateRange = activePrep
+        ? `${formatDate(activePrep.startDate, this.app.currentLanguage)} - ${formatDate(activePrep.endDate, this.app.currentLanguage)}`
+        : '';
 
-            return `
+      return `
                 <div class="camp-mode-banner camp-mode-banner--active">
                     <span class="camp-mode-banner__icon">⛺</span>
                     <div class="camp-mode-banner__content">
@@ -132,34 +132,34 @@ export class OfflinePreparation {
                     </button>
                 </div>
             `;
-        }
+    }
 
-        return `
+    return `
             <div class="camp-mode-banner camp-mode-banner--inactive">
                 <span class="camp-mode-banner__icon">📶</span>
                 <p>${translate('camp_mode_inactive')}</p>
             </div>
         `;
+  }
+
+  renderActivityList() {
+    if (this.activities.length === 0) {
+      return `<p class="empty-state">${translate('no_upcoming_camps')}</p>`;
     }
 
-    renderActivityList() {
-        if (this.activities.length === 0) {
-            return `<p class="empty-state">${translate('no_upcoming_camps')}</p>`;
-        }
-
-        return `
+    return `
             <div class="activity-cards">
                 ${this.activities.map(activity => this.renderActivityCard(activity)).join('')}
             </div>
         `;
-    }
+  }
 
-    renderActivityCard(activity) {
-        const isPrepared = offlineManager.preparedActivities.has(activity.id);
-        const isCurrentlyPreparing = this.preparingActivityId === activity.id;
-        const dayCount = activity.day_count || this.getDayCount(activity.activity_start_date, activity.activity_end_date);
+  renderActivityCard(activity) {
+    const isPrepared = offlineManager.preparedActivities.has(activity.id);
+    const isCurrentlyPreparing = this.preparingActivityId === activity.id;
+    const dayCount = activity.day_count || this.getDayCount(activity.activity_start_date, activity.activity_end_date);
 
-        return `
+    return `
             <div class="activity-card ${isPrepared ? 'activity-card--prepared' : ''}" data-activity-id="${activity.id}">
                 <div class="activity-card__header">
                     <h3>${escapeHTML(activity.name)}</h3>
@@ -178,23 +178,23 @@ export class OfflinePreparation {
                         data-end="${activity.activity_end_date}"
                         ${isPrepared || isCurrentlyPreparing ? 'disabled' : ''}>
                     ${isCurrentlyPreparing
-                        ? translate('preparing')
-                        : isPrepared
-                            ? translate('already_prepared')
-                            : translate('prepare_for_offline')}
+    ? translate('preparing')
+    : isPrepared
+      ? translate('already_prepared')
+      : translate('prepare_for_offline')}
                 </button>
             </div>
         `;
+  }
+
+  renderPreparedActivities() {
+    if (offlineManager.preparedActivities.size === 0) {
+      return '';
     }
 
-    renderPreparedActivities() {
-        if (offlineManager.preparedActivities.size === 0) {
-            return '';
-        }
+    const items = Array.from(offlineManager.preparedActivities.entries());
 
-        const items = Array.from(offlineManager.preparedActivities.entries());
-
-        return `
+    return `
             <div class="offline-prep__section">
                 <h2>${translate('prepared_activities')}</h2>
                 <div class="prepared-list">
@@ -215,197 +215,197 @@ export class OfflinePreparation {
                 </button>
             </div>
         `;
+  }
+
+  getDayCount(startDate, endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    return Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+  }
+
+  attachEventListeners() {
+    // Prepare buttons for activities
+    document.querySelectorAll('.prepare-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => this.handlePrepare(e));
+    });
+
+    // Manual date range form
+    const form = document.getElementById('manual-prep-form');
+    if (form) {
+      form.addEventListener('submit', (e) => this.handleManualPrepare(e));
     }
 
-    getDayCount(startDate, endDate) {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        return Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    // Disable camp mode button
+    const disableBtn = document.getElementById('disable-camp-mode');
+    if (disableBtn) {
+      disableBtn.addEventListener('click', () => this.handleDisableCampMode());
     }
 
-    attachEventListeners() {
-        // Prepare buttons for activities
-        document.querySelectorAll('.prepare-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => this.handlePrepare(e));
-        });
+    // Clear individual preparation
+    document.querySelectorAll('.clear-prep-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => this.handleClearPrep(e));
+    });
 
-        // Manual date range form
-        const form = document.getElementById('manual-prep-form');
-        if (form) {
-            form.addEventListener('submit', (e) => this.handleManualPrepare(e));
-        }
-
-        // Disable camp mode button
-        const disableBtn = document.getElementById('disable-camp-mode');
-        if (disableBtn) {
-            disableBtn.addEventListener('click', () => this.handleDisableCampMode());
-        }
-
-        // Clear individual preparation
-        document.querySelectorAll('.clear-prep-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => this.handleClearPrep(e));
-        });
-
-        // Clear all preparations
-        const clearAllBtn = document.getElementById('clear-all-prep');
-        if (clearAllBtn) {
-            clearAllBtn.addEventListener('click', () => this.handleClearAllPrep());
-        }
-
-        // Listen for preparation progress events
-        window.removeEventListener('preparationProgress', this.boundPreparationProgress);
-        window.removeEventListener('campModeChanged', this.boundCampModeChanged);
-        window.addEventListener('preparationProgress', this.boundPreparationProgress);
-        window.addEventListener('campModeChanged', this.boundCampModeChanged);
+    // Clear all preparations
+    const clearAllBtn = document.getElementById('clear-all-prep');
+    if (clearAllBtn) {
+      clearAllBtn.addEventListener('click', () => this.handleClearAllPrep());
     }
 
-    async handlePrepare(event) {
-        const btn = event.target;
-        const { activityId, start, end } = btn.dataset;
-        const id = parseInt(activityId);
+    // Listen for preparation progress events
+    window.removeEventListener('preparationProgress', this.boundPreparationProgress);
+    window.removeEventListener('campModeChanged', this.boundCampModeChanged);
+    window.addEventListener('preparationProgress', this.boundPreparationProgress);
+    window.addEventListener('campModeChanged', this.boundCampModeChanged);
+  }
 
-        this.preparingActivityId = id;
-        btn.disabled = true;
-        btn.textContent = translate('preparing');
-        btn.classList.add('button--loading');
+  async handlePrepare(event) {
+    const btn = event.target;
+    const { activityId, start, end } = btn.dataset;
+    const id = parseInt(activityId);
 
-        // Show progress container
-        const progressContainer = document.getElementById('preparation-progress');
-        if (progressContainer) {
-            progressContainer.classList.remove('hidden');
-        }
+    this.preparingActivityId = id;
+    btn.disabled = true;
+    btn.textContent = translate('preparing');
+    btn.classList.add('button--loading');
 
-        try {
-            await offlineManager.prepareForActivity(id, start, end);
-            this.app.showMessage(translate('preparation_complete'), 'success');
-            this.preparingActivityId = null;
-            this.render();
-            this.attachEventListeners();
-        } catch (error) {
-            debugError('OfflinePreparation: Prepare failed', error);
-            this.app.showMessage(apiErrorMessage(error, 'preparation_failed'), 'error');
-            this.preparingActivityId = null;
-            btn.disabled = false;
-            btn.textContent = translate('prepare_for_offline');
-            btn.classList.remove('button--loading');
-        }
+    // Show progress container
+    const progressContainer = document.getElementById('preparation-progress');
+    if (progressContainer) {
+      progressContainer.classList.remove('hidden');
     }
 
-    async handleManualPrepare(event) {
-        event.preventDefault();
-        const form = event.target;
-        const startDate = form.start_date.value;
-        const endDate = form.end_date.value;
+    try {
+      await offlineManager.prepareForActivity(id, start, end);
+      this.app.showMessage(translate('preparation_complete'), 'success');
+      this.preparingActivityId = null;
+      this.render();
+      this.attachEventListeners();
+    } catch (error) {
+      debugError('OfflinePreparation: Prepare failed', error);
+      this.app.showMessage(apiErrorMessage(error, 'preparation_failed'), 'error');
+      this.preparingActivityId = null;
+      btn.disabled = false;
+      btn.textContent = translate('prepare_for_offline');
+      btn.classList.remove('button--loading');
+    }
+  }
 
-        if (!startDate || !endDate) {
-            this.app.showMessage(translate('dates_required'), 'error');
-            return;
-        }
+  async handleManualPrepare(event) {
+    event.preventDefault();
+    const form = event.target;
+    const startDate = form.start_date.value;
+    const endDate = form.end_date.value;
 
-        if (new Date(endDate) < new Date(startDate)) {
-            this.app.showMessage(translate('end_date_after_start'), 'error');
-            return;
-        }
-
-        const dayCount = this.getDayCount(startDate, endDate);
-        if (dayCount > 14) {
-            this.app.showMessage(translate('max_14_days'), 'error');
-            return;
-        }
-
-        const submitBtn = form.querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-        submitBtn.textContent = translate('preparing');
-        submitBtn.classList.add('button--loading');
-
-        // Show progress container
-        const progressContainer = document.getElementById('preparation-progress');
-        if (progressContainer) {
-            progressContainer.classList.remove('hidden');
-        }
-
-        try {
-            await offlineManager.prepareForActivity(null, startDate, endDate);
-            this.app.showMessage(translate('preparation_complete'), 'success');
-            form.reset();
-            this.render();
-            this.attachEventListeners();
-        } catch (error) {
-            debugError('OfflinePreparation: Manual prepare failed', error);
-            this.app.showMessage(apiErrorMessage(error, 'preparation_failed'), 'error');
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.textContent = translate('prepare_date_range');
-            submitBtn.classList.remove('button--loading');
-        }
+    if (!startDate || !endDate) {
+      this.app.showMessage(translate('dates_required'), 'error');
+      return;
     }
 
-    handleDisableCampMode() {
+    if (new Date(endDate) < new Date(startDate)) {
+      this.app.showMessage(translate('end_date_after_start'), 'error');
+      return;
+    }
+
+    const dayCount = this.getDayCount(startDate, endDate);
+    if (dayCount > 14) {
+      this.app.showMessage(translate('max_14_days'), 'error');
+      return;
+    }
+
+    const submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = translate('preparing');
+    submitBtn.classList.add('button--loading');
+
+    // Show progress container
+    const progressContainer = document.getElementById('preparation-progress');
+    if (progressContainer) {
+      progressContainer.classList.remove('hidden');
+    }
+
+    try {
+      await offlineManager.prepareForActivity(null, startDate, endDate);
+      this.app.showMessage(translate('preparation_complete'), 'success');
+      form.reset();
+      this.render();
+      this.attachEventListeners();
+    } catch (error) {
+      debugError('OfflinePreparation: Manual prepare failed', error);
+      this.app.showMessage(apiErrorMessage(error, 'preparation_failed'), 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = translate('prepare_date_range');
+      submitBtn.classList.remove('button--loading');
+    }
+  }
+
+  handleDisableCampMode() {
+    offlineManager.disableCampMode();
+    this.app.showMessage(translate('camp_mode_disabled'), 'success');
+    this.render();
+    this.attachEventListeners();
+  }
+
+  async handleClearPrep(event) {
+    const id = event.target.dataset.activityId;
+    const idParsed = isNaN(parseInt(id)) ? id : parseInt(id);
+
+    if (await confirmDestructive(translate('confirm_clear_preparation'))) {
+      offlineManager.preparedActivities.delete(idParsed);
+      offlineManager.savePreparedActivities();
+
+      // If this was the active camp mode activity, disable camp mode
+      if (offlineManager.activeActivityId === idParsed) {
         offlineManager.disableCampMode();
-        this.app.showMessage(translate('camp_mode_disabled'), 'success');
-        this.render();
-        this.attachEventListeners();
+      }
+
+      this.render();
+      this.attachEventListeners();
+    }
+  }
+
+  async handleClearAllPrep() {
+    if (await confirmDestructive(translate('confirm_clear_all_preparations'))) {
+      offlineManager.clearPreparedActivities();
+      this.app.showMessage(translate('preparations_cleared'), 'success');
+      this.render();
+      this.attachEventListeners();
+    }
+  }
+
+  updateProgressUI(progress) {
+    const container = document.getElementById('preparation-progress');
+    if (!container) {return;}
+
+    container.classList.toggle('hidden', progress.status === 'idle' || progress.status === 'complete');
+
+    const fill = container.querySelector('.progress-fill');
+    const message = container.querySelector('.progress-message');
+
+    if (fill) {
+      const percent = (progress.current / progress.total) * 100;
+      fill.style.width = `${percent}%`;
     }
 
-    async handleClearPrep(event) {
-        const id = event.target.dataset.activityId;
-        const idParsed = isNaN(parseInt(id)) ? id : parseInt(id);
-
-        if (await confirmDestructive(translate('confirm_clear_preparation'))) {
-            offlineManager.preparedActivities.delete(idParsed);
-            offlineManager.savePreparedActivities();
-
-            // If this was the active camp mode activity, disable camp mode
-            if (offlineManager.activeActivityId === idParsed) {
-                offlineManager.disableCampMode();
-            }
-
-            this.render();
-            this.attachEventListeners();
-        }
+    if (message) {
+      message.textContent = progress.message || '';
     }
 
-    async handleClearAllPrep() {
-        if (await confirmDestructive(translate('confirm_clear_all_preparations'))) {
-            offlineManager.clearPreparedActivities();
-            this.app.showMessage(translate('preparations_cleared'), 'success');
-            this.render();
-            this.attachEventListeners();
-        }
+    // Add error styling if failed
+    if (progress.status === 'error') {
+      container.classList.add('preparation-progress--error');
+      if (message) {
+        message.textContent = progress.message || translate('preparation_failed');
+      }
+    } else {
+      container.classList.remove('preparation-progress--error');
     }
+  }
 
-    updateProgressUI(progress) {
-        const container = document.getElementById('preparation-progress');
-        if (!container) return;
-
-        container.classList.toggle('hidden', progress.status === 'idle' || progress.status === 'complete');
-
-        const fill = container.querySelector('.progress-fill');
-        const message = container.querySelector('.progress-message');
-
-        if (fill) {
-            const percent = (progress.current / progress.total) * 100;
-            fill.style.width = `${percent}%`;
-        }
-
-        if (message) {
-            message.textContent = progress.message || '';
-        }
-
-        // Add error styling if failed
-        if (progress.status === 'error') {
-            container.classList.add('preparation-progress--error');
-            if (message) {
-                message.textContent = progress.message || translate('preparation_failed');
-            }
-        } else {
-            container.classList.remove('preparation-progress--error');
-        }
-    }
-
-    destroy() {
-        // Clean up event listeners
-        window.removeEventListener('preparationProgress', this.boundPreparationProgress);
-        window.removeEventListener('campModeChanged', this.boundCampModeChanged);
-    }
+  destroy() {
+    // Clean up event listeners
+    window.removeEventListener('preparationProgress', this.boundPreparationProgress);
+    window.removeEventListener('campModeChanged', this.boundCampModeChanged);
+  }
 }

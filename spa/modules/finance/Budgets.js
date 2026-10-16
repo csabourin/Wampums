@@ -17,21 +17,21 @@ import {
   createBudgetPlan,
   updateBudgetPlan,
   deleteBudgetPlan,
-} from "../../api/api-endpoints.js";
-import { clearBudgetCaches } from "../../indexedDB.js";
-import { translate } from "../../app.js";
-import { escapeHTML } from "../../utils/SecurityUtils.js";
-import { debugError, debugLog } from "../../utils/DebugUtils.js";
-import { formatDateShort, getTodayISO } from "../../utils/DateUtils.js";
-import { LoadingStateManager, retryWithBackoff } from "../../utils/PerformanceUtils.js";
-import { validateMoney, validateRequired } from "../../utils/ValidationUtils.js";
-import { canViewBudget } from "../../utils/PermissionUtils.js";
-import { setContent, withFormBusy } from "../../utils/DOMUtils.js";
-import { openModal, closeModal } from "../../utils/ModalUtils.js";
-import { confirmDestructive } from "../../utils/DialogUtils.js";
-import { getCurrentFiscalYear, getFiscalYearOptions } from "../../utils/FiscalYearUtils.js";
+} from '../../api/api-endpoints.js';
+import { clearBudgetCaches } from '../../indexedDB.js';
+import { translate } from '../../app.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { debugError, debugLog } from '../../utils/DebugUtils.js';
+import { formatDateShort, getTodayISO } from '../../utils/DateUtils.js';
+import { LoadingStateManager, retryWithBackoff } from '../../utils/PerformanceUtils.js';
+import { validateMoney, validateRequired } from '../../utils/ValidationUtils.js';
+import { canViewBudget } from '../../utils/PermissionUtils.js';
+import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
+import { openModal, closeModal } from '../../utils/ModalUtils.js';
+import { confirmDestructive } from '../../utils/DialogUtils.js';
+import { getCurrentFiscalYear, getFiscalYearOptions } from '../../utils/FiscalYearUtils.js';
 
-const DEFAULT_CURRENCY = "CAD";
+const DEFAULT_CURRENCY = 'CAD';
 
 /**
  * Budget Management Module
@@ -47,12 +47,12 @@ export class Budgets {
     this.summaryReport = null;
     this.revenueBreakdown = null;
     this.budgetPlans = [];
-    this.activeTab = "overview";
+    this.activeTab = 'overview';
     this.selectedFiscalYear = null;
     this.fiscalYearOptions = [];
     this.revenueFilters = {
-      source: "all",
-      category: "all",
+      source: 'all',
+      category: 'all',
     };
 
     // Loading state management
@@ -99,13 +99,13 @@ export class Budgets {
   async init() {
     // Check permission
     if (!canViewBudget()) {
-      this.app.router.navigate("/dashboard");
+      this.app.router.navigate('/dashboard');
       return;
     }
 
     // Prevent race conditions - only one init at a time
     if (this.isInitializing) {
-      debugError("Budgets init already in progress, skipping duplicate call");
+      debugError('Budgets init already in progress, skipping duplicate call');
       return;
     }
 
@@ -125,10 +125,10 @@ export class Budgets {
       // Render with data
       await this.renderAndBind();
     } catch (error) {
-      debugError("Error loading budgets data:", error);
+      debugError('Error loading budgets data:', error);
       // Render error state but allow partial functionality
       await this.renderAndBind();
-      this.app.showMessage(translate("error_loading_data"), "warning");
+      this.app.showMessage(translate('error_loading_data'), 'warning');
     } finally {
       this.isInitializing = false;
     }
@@ -137,15 +137,15 @@ export class Budgets {
   setActiveTabFromQuery() {
     try {
       const url = new URL(window.location.href);
-      this.activeTab = url.searchParams.get("tab") || "overview";
+      this.activeTab = url.searchParams.get('tab') || 'overview';
     } catch (error) {
-      this.activeTab = "overview";
+      this.activeTab = 'overview';
     }
   }
 
   async loadCoreData(forceRefresh = false) {
     return this.loadingManager.withLoading('core-data', async () => {
-      debugLog("Loading budget data...");
+      debugLog('Loading budget data...');
       // Load data with individual error handling and retry logic
       const fy = this.getCurrentFiscalYearData();
       const [categories, items, expenses, summary, plans] = await Promise.all([
@@ -158,14 +158,14 @@ export class Budgets {
             }
           }
         ).catch(error => {
-          debugError("Error loading budget categories:", error);
+          debugError('Error loading budget categories:', error);
           return { data: [] };
         }),
         retryWithBackoff(
           () => getBudgetItems(null, { forceRefresh }),
           { maxRetries: 2 }
         ).catch(error => {
-          debugError("Error loading budget items:", error);
+          debugError('Error loading budget items:', error);
           return { data: [] };
         }),
         retryWithBackoff(
@@ -175,21 +175,21 @@ export class Budgets {
           }, { forceRefresh }),
           { maxRetries: 2 }
         ).catch(error => {
-          debugError("Error loading budget expenses:", error);
+          debugError('Error loading budget expenses:', error);
           return { data: [] };
         }),
         retryWithBackoff(
           () => getBudgetSummaryReport(fy.start, fy.end, { forceRefresh }),
           { maxRetries: 2 }
         ).catch(error => {
-          debugError("Error loading budget summary:", error);
+          debugError('Error loading budget summary:', error);
           return { data: null };
         }),
         retryWithBackoff(
           () => getBudgetPlans(fy.start, fy.end, { forceRefresh }),
           { maxRetries: 2 }
         ).catch(error => {
-          debugError("Error loading budget plans:", error);
+          debugError('Error loading budget plans:', error);
           return { data: [] };
         }),
       ]);
@@ -208,47 +208,47 @@ export class Budgets {
 
   formatCurrency(amount) {
     const value = Number(amount) || 0;
-    return new Intl.NumberFormat(this.app.lang || "en", {
-      style: "currency",
+    return new Intl.NumberFormat(this.app.lang || 'en', {
+      style: 'currency',
       currency: DEFAULT_CURRENCY,
       maximumFractionDigits: 2,
     }).format(value);
   }
 
   renderLoading() {
-    const container = document.getElementById("app");
-    if (!container) return;
+    const container = document.getElementById('app');
+    if (!container) {return;}
 
     setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <div class="page-container budget-page">
         <div class="page-header">
           <div class="page-header-content">
-            <h1>${translate("budget_management")}</h1>
+            <h1>${translate('budget_management')}</h1>
           </div>
         </div>
         <div class="loading-container">
           <div class="loading-spinner"></div>
-          <p>${translate("loading")}...</p>
+          <p>${translate('loading')}...</p>
         </div>
       </div>
     `);
   }
 
   async render() {
-    const container = document.getElementById("app");
-    if (!container) return;
+    const container = document.getElementById('app');
+    if (!container) {return;}
 
     const tabContent = await this.renderTabContent();
 
     setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <div class="page-container budgets-page">
         <div class="page-header">
           <div class="page-header-content">
-            <h1>${translate("budget_management")}</h1>
+            <h1>${translate('budget_management')}</h1>
             <div class="fiscal-year-selector">
-              <label for="fiscal-year-select">${translate("fiscal_year")}:</label>
+              <label for="fiscal-year-select">${translate('fiscal_year')}:</label>
               <select id="fiscal-year-select" class="fiscal-year-select">
                 ${this.fiscalYearOptions.map(fy => `<option value="${fy.year}" ${fy.year === this.selectedFiscalYear ? 'selected' : ''}>${fy.label}</option>`).join('')}
               </select>
@@ -259,29 +259,29 @@ export class Budgets {
         ${this.renderSummaryCards()}
 
         <div class="tab-navigation">
-          <button class="tab-btn ${this.activeTab === "overview" ? "active" : ""}"
+          <button class="tab-btn ${this.activeTab === 'overview' ? 'active' : ''}"
                   data-tab="overview">
-            ${translate("overview")}
+            ${translate('overview')}
           </button>
-          <button class="tab-btn ${this.activeTab === "categories" ? "active" : ""}"
+          <button class="tab-btn ${this.activeTab === 'categories' ? 'active' : ''}"
                   data-tab="categories">
-            ${translate("categories")}
+            ${translate('categories')}
           </button>
-          <button class="tab-btn ${this.activeTab === "items" ? "active" : ""}"
+          <button class="tab-btn ${this.activeTab === 'items' ? 'active' : ''}"
                   data-tab="items">
-            ${translate("budget_items")}
+            ${translate('budget_items')}
           </button>
-          <button class="tab-btn ${this.activeTab === "expenses" ? "active" : ""}"
+          <button class="tab-btn ${this.activeTab === 'expenses' ? 'active' : ''}"
                   data-tab="expenses">
-            ${translate("expenses")}
+            ${translate('expenses')}
           </button>
-          <button class="tab-btn ${this.activeTab === "planning" ? "active" : ""}"
+          <button class="tab-btn ${this.activeTab === 'planning' ? 'active' : ''}"
                   data-tab="planning">
-            ${translate("planning")}
+            ${translate('planning')}
           </button>
-          <button class="tab-btn ${this.activeTab === "reports" ? "active" : ""}"
+          <button class="tab-btn ${this.activeTab === 'reports' ? 'active' : ''}"
                   data-tab="reports">
-            ${translate("reports")}
+            ${translate('reports')}
           </button>
         </div>
 
@@ -331,7 +331,7 @@ export class Budgets {
         <div class="summary-card revenue-card">
           <div class="card-icon">💰</div>
           <div class="card-content">
-            <div class="card-label">${translate("total_revenue")}</div>
+            <div class="card-label">${translate('total_revenue')}</div>
             <div class="card-value">${this.formatCurrency(totalRevenue)}</div>
           </div>
         </div>
@@ -339,15 +339,15 @@ export class Budgets {
         <div class="summary-card expense-card">
           <div class="card-icon">📊</div>
           <div class="card-content">
-            <div class="card-label">${translate("total_expenses")}</div>
+            <div class="card-label">${translate('total_expenses')}</div>
             <div class="card-value">${this.formatCurrency(totalExpense)}</div>
           </div>
         </div>
 
-        <div class="summary-card net-card ${netAmount >= 0 ? "positive" : "negative"}">
-          <div class="card-icon">${netAmount >= 0 ? "✅" : "⚠️"}</div>
+        <div class="summary-card net-card ${netAmount >= 0 ? 'positive' : 'negative'}">
+          <div class="card-icon">${netAmount >= 0 ? '✅' : '⚠️'}</div>
           <div class="card-content">
-            <div class="card-label">${translate("net_position")}</div>
+            <div class="card-label">${translate('net_position')}</div>
             <div class="card-value">${this.formatCurrency(netAmount)}</div>
           </div>
         </div>
@@ -357,20 +357,20 @@ export class Budgets {
 
   async renderTabContent() {
     switch (this.activeTab) {
-      case "overview":
+      case 'overview':
         return this.renderOverview();
-      case "categories":
+      case 'categories':
         return this.renderCategories();
-      case "items":
+      case 'items':
         return this.renderBudgetItems();
-      case "expenses":
+      case 'expenses':
         return this.renderExpenses();
-      case "planning":
+      case 'planning':
         return this.renderPlanning();
-      case "reports":
+      case 'reports':
         return await this.renderReports();
       default:
-        return "";
+        return '';
     }
   }
 
@@ -399,20 +399,20 @@ export class Budgets {
       : Number(totals.net_amount) || 0;
 
     const emptyMessage = summaryUnavailable
-      ? translate("error_loading_data")
-      : translate("no_budget_data");
+      ? translate('error_loading_data')
+      : translate('no_budget_data');
 
     const bodyRows = categories.length > 0
       ? categories.map((cat) => `
           <tr>
-            <th scope="row">${escapeHTML(cat.category_name || translate("uncategorized"))}</th>
+            <th scope="row">${escapeHTML(cat.category_name || translate('uncategorized'))}</th>
             <td class="text-right amount revenue">${this.formatCurrency(cat.total_revenue)}</td>
             <td class="text-right amount expense">${this.formatCurrency(cat.total_expense)}</td>
-            <td class="text-right amount ${Number(cat.net_amount) >= 0 ? "positive" : "negative"}">
+            <td class="text-right amount ${Number(cat.net_amount) >= 0 ? 'positive' : 'negative'}">
               ${this.formatCurrency(cat.net_amount)}
             </td>
           </tr>
-        `).join("")
+        `).join('')
       : `
           <tr class="empty-row">
             <td colspan="4">${emptyMessage}</td>
@@ -421,16 +421,16 @@ export class Budgets {
 
     return `
       <div class="overview-content">
-        <h2>${translate("category_breakdown")}</h2>
+        <h2>${translate('category_breakdown')}</h2>
         <div class="table-scroll">
           <table class="data-table budget-table">
-            <caption class="visually-hidden">${translate("category_breakdown")}</caption>
+            <caption class="visually-hidden">${translate('category_breakdown')}</caption>
             <thead>
               <tr>
-                <th scope="col">${translate("category")}</th>
-                <th scope="col" class="text-right">${translate("revenue")}</th>
-                <th scope="col" class="text-right">${translate("expenses")}</th>
-                <th scope="col" class="text-right">${translate("net")}</th>
+                <th scope="col">${translate('category')}</th>
+                <th scope="col" class="text-right">${translate('revenue')}</th>
+                <th scope="col" class="text-right">${translate('expenses')}</th>
+                <th scope="col" class="text-right">${translate('net')}</th>
               </tr>
             </thead>
             <tbody>
@@ -438,10 +438,10 @@ export class Budgets {
             </tbody>
             <tfoot>
               <tr class="totals-row">
-                <th scope="row">${translate("total")}</th>
+                <th scope="row">${translate('total')}</th>
                 <td class="text-right amount revenue">${this.formatCurrency(totalRevenue)}</td>
                 <td class="text-right amount expense">${this.formatCurrency(totalExpense)}</td>
-                <td class="text-right amount ${totalNet >= 0 ? "positive" : "negative"}">
+                <td class="text-right amount ${totalNet >= 0 ? 'positive' : 'negative'}">
                   ${this.formatCurrency(totalNet)}
                 </td>
               </tr>
@@ -456,38 +456,38 @@ export class Budgets {
     return `
       <div class="categories-content">
         <div class="section-header">
-          <h2>${translate("budget_categories")}</h2>
+          <h2>${translate('budget_categories')}</h2>
           <button class="btn btn-primary" id="add-category-btn">
-            ${translate("add_category")}
+            ${translate('add_category')}
           </button>
         </div>
 
         <div class="categories-grid">
           ${
-            this.categories.length === 0
-              ? `<p class="no-data">${translate("no_categories_found")}</p>`
-              : this.categories
-                  .map(
-                    (cat) => `
+  this.categories.length === 0
+    ? `<p class="no-data">${translate('no_categories_found')}</p>`
+    : this.categories
+      .map(
+        (cat) => `
               <div class="category-card" data-category-id="${cat.id}">
                 <div class="category-header">
                   <h3>${escapeHTML(cat.name)}</h3>
-                  <span class="item-count">${cat.item_count || 0} ${translate("items")}</span>
+                  <span class="item-count">${cat.item_count || 0} ${translate('items')}</span>
                 </div>
-                ${cat.description ? `<p class="category-description">${escapeHTML(cat.description)}</p>` : ""}
+                ${cat.description ? `<p class="category-description">${escapeHTML(cat.description)}</p>` : ''}
                 <div class="category-actions">
                   <button class="btn btn-sm btn-secondary edit-category-btn" data-id="${cat.id}">
-                    ${translate("edit")}
+                    ${translate('edit')}
                   </button>
                   <button class="btn btn-sm btn-danger delete-category-btn" data-id="${cat.id}">
-                    ${translate("delete")}
+                    ${translate('delete')}
                   </button>
                 </div>
               </div>
             `,
-                  )
-                  .join("")
-          }
+      )
+      .join('')
+}
         </div>
       </div>
     `;
@@ -497,9 +497,9 @@ export class Budgets {
     return `
       <div class="budget-items-content">
         <div class="section-header">
-          <h2>${translate("budget_items")}</h2>
+          <h2>${translate('budget_items')}</h2>
           <button class="btn btn-primary" id="add-budget-item-btn">
-            ${translate("add_budget_item")}
+            ${translate('add_budget_item')}
           </button>
         </div>
 
@@ -507,36 +507,36 @@ export class Budgets {
           <table class="data-table budget-items-table">
             <thead>
               <tr>
-                <th>${translate("item_name")}</th>
-                <th>${translate("category")}</th>
-                <th>${translate("description")}</th>
-                <th>${translate("actions")}</th>
+                <th>${translate('item_name')}</th>
+                <th>${translate('category')}</th>
+                <th>${translate('description')}</th>
+                <th>${translate('actions')}</th>
               </tr>
             </thead>
             <tbody>
               ${
-                this.items.length === 0
-                  ? `<tr><td colspan="4" class="text-center">${translate("no_budget_items_found")}</td></tr>`
-                  : this.items
-                      .map(
-                        (item) => `
+  this.items.length === 0
+    ? `<tr><td colspan="4" class="text-center">${translate('no_budget_items_found')}</td></tr>`
+    : this.items
+      .map(
+        (item) => `
                   <tr data-item-id="${item.id}">
                     <td><strong>${escapeHTML(item.name)}</strong></td>
-                    <td>${escapeHTML(item.category_name || translate("uncategorized"))}</td>
-                    <td class="item-description">${escapeHTML(item.description || "-")}</td>
+                    <td>${escapeHTML(item.category_name || translate('uncategorized'))}</td>
+                    <td class="item-description">${escapeHTML(item.description || '-')}</td>
                     <td>
                       <button class="btn btn-sm btn-secondary edit-budget-item-btn" data-id="${item.id}">
-                        ${translate("edit")}
+                        ${translate('edit')}
                       </button>
                       <button class="btn btn-sm btn-danger delete-budget-item-btn" data-id="${item.id}">
-                        ${translate("delete")}
+                        ${translate('delete')}
                       </button>
                     </td>
                   </tr>
                 `,
-                      )
-                      .join("")
-              }
+      )
+      .join('')
+}
             </tbody>
           </table>
         </div>
@@ -548,9 +548,9 @@ export class Budgets {
     return `
       <div class="expenses-content">
         <div class="section-header">
-          <h2>${translate("expenses")}</h2>
+          <h2>${translate('expenses')}</h2>
           <button class="btn btn-primary" id="add-expense-btn">
-            ${translate("add_expense")}
+            ${translate('add_expense')}
           </button>
         </div>
 
@@ -558,38 +558,38 @@ export class Budgets {
           <table class="data-table expenses-table">
             <thead>
               <tr>
-                <th>${translate("date")}</th>
-                <th>${translate("category")}</th>
-                <th>${translate("description")}</th>
-                <th class="text-right">${translate("amount")}</th>
-                <th>${translate("actions")}</th>
+                <th>${translate('date')}</th>
+                <th>${translate('category')}</th>
+                <th>${translate('description')}</th>
+                <th class="text-right">${translate('amount')}</th>
+                <th>${translate('actions')}</th>
               </tr>
             </thead>
             <tbody>
               ${
-                this.expenses.length === 0
-                  ? `<tr><td colspan="5" class="text-center">${translate("no_expenses_found")}</td></tr>`
-                  : this.expenses
-                      .map(
-                        (expense) => `
+  this.expenses.length === 0
+    ? `<tr><td colspan="5" class="text-center">${translate('no_expenses_found')}</td></tr>`
+    : this.expenses
+      .map(
+        (expense) => `
                   <tr data-expense-id="${expense.id}">
                     <td>${formatDateShort(expense.expense_date)}</td>
-                    <td>${escapeHTML(expense.category_name || "-")}</td>
+                    <td>${escapeHTML(expense.category_name || '-')}</td>
                     <td>${escapeHTML(expense.description)}</td>
                     <td class="text-right amount expense">${this.formatCurrency(expense.amount)}</td>
                     <td>
                       <button class="btn btn-sm btn-secondary edit-expense-btn" data-id="${expense.id}">
-                        ${translate("edit")}
+                        ${translate('edit')}
                       </button>
                       <button class="btn btn-sm btn-danger delete-expense-btn" data-id="${expense.id}">
-                        ${translate("delete")}
+                        ${translate('delete')}
                       </button>
                     </td>
                   </tr>
                 `,
-                      )
-                      .join("")
-              }
+      )
+      .join('')
+}
             </tbody>
           </table>
         </div>
@@ -602,14 +602,14 @@ export class Budgets {
     return `
       <div class="planning-content">
         <div class="section-header">
-          <h2>${translate("budget_planning")}</h2>
+          <h2>${translate('budget_planning')}</h2>
           <button class="btn btn-primary" id="add-plan-btn">
-            ${translate("add_budget_plan")}
+            ${translate('add_budget_plan')}
           </button>
         </div>
 
         <div class="planning-info">
-          <p>${translate("fiscal_year")}: <strong>${escapeHTML(fy.label)}</strong></p>
+          <p>${translate('fiscal_year')}: <strong>${escapeHTML(fy.label)}</strong></p>
         </div>
 
         <div id="plans-list">
@@ -623,7 +623,7 @@ export class Budgets {
 
   renderPlansList() {
     if (!this.budgetPlans || this.budgetPlans.length === 0) {
-      return `<p class="no-data">${translate("no_budget_plans")}</p>`;
+      return `<p class="no-data">${translate('no_budget_plans')}</p>`;
     }
 
     return `
@@ -631,36 +631,36 @@ export class Budgets {
         <table class="data-table plans-table">
           <thead>
             <tr>
-              <th>${translate("budget_item")}</th>
-              <th>${translate("category")}</th>
-              <th class="text-right">${translate("budgeted_revenue")}</th>
-              <th class="text-right">${translate("budgeted_expense")}</th>
-              <th>${translate("notes")}</th>
-              <th>${translate("actions")}</th>
+              <th>${translate('budget_item')}</th>
+              <th>${translate('category')}</th>
+              <th class="text-right">${translate('budgeted_revenue')}</th>
+              <th class="text-right">${translate('budgeted_expense')}</th>
+              <th>${translate('notes')}</th>
+              <th>${translate('actions')}</th>
             </tr>
           </thead>
           <tbody>
             ${this.budgetPlans
-              .map(
-                (plan) => `
+    .map(
+      (plan) => `
               <tr data-plan-id="${plan.id}">
-                <td>${escapeHTML(plan.item_name || "-")}</td>
-                <td>${escapeHTML(plan.category_name || "-")}</td>
+                <td>${escapeHTML(plan.item_name || '-')}</td>
+                <td>${escapeHTML(plan.category_name || '-')}</td>
                 <td class="text-right amount revenue">${this.formatCurrency(plan.budgeted_revenue)}</td>
                 <td class="text-right amount expense">${this.formatCurrency(plan.budgeted_expense)}</td>
-                <td class="notes-cell">${escapeHTML(plan.notes || "")}</td>
+                <td class="notes-cell">${escapeHTML(plan.notes || '')}</td>
                 <td>
                   <button class="btn btn-sm btn-secondary edit-plan-btn" data-id="${plan.id}">
-                    ${translate("edit")}
+                    ${translate('edit')}
                   </button>
                   <button class="btn btn-sm btn-danger delete-plan-btn" data-id="${plan.id}">
-                    ${translate("delete")}
+                    ${translate('delete')}
                   </button>
                 </td>
               </tr>
             `,
-              )
-              .join("")}
+    )
+    .join('')}
           </tbody>
         </table>
       </div>
@@ -682,7 +682,7 @@ export class Budgets {
       this.budgetPlans.length === 0 ||
       !this.summaryReport
     ) {
-      return "";
+      return '';
     }
 
     const totals = this.summaryReport.totals || {};
@@ -714,16 +714,16 @@ export class Budgets {
      * @param {string} [options.actualClass] - Extra class for the actual cell
      * @returns {string} HTML table row
      */
-    const comparisonRow = ({ label, planned, actual, higherIsBetter, actualClass = "" }) => {
+    const comparisonRow = ({ label, planned, actual, higherIsBetter, actualClass = '' }) => {
       const variance = actual - planned;
       // A zero baseline has no meaningful percentage; render an em dash rather
       // than dividing by zero or hiding the row.
       const hasBaseline = planned !== 0;
       const variancePct = hasBaseline ? (variance / Math.abs(planned)) * 100 : null;
       const favourable = higherIsBetter ? variance >= 0 : variance <= 0;
-      const toneClass = favourable ? "positive" : "negative";
+      const toneClass = favourable ? 'positive' : 'negative';
       // Wording, not colour alone, carries the over/under budget meaning.
-      const toneLabel = favourable ? translate("under_budget") : translate("over_budget");
+      const toneLabel = favourable ? translate('under_budget') : translate('over_budget');
 
       return `
         <tr>
@@ -732,10 +732,10 @@ export class Budgets {
           <td class="text-right amount ${actualClass}">${this.formatCurrency(actual)}</td>
           <td class="text-right amount ${toneClass}">
             ${this.formatCurrency(variance)}
-            <span class="variance-note">${higherIsBetter ? "" : toneLabel}</span>
+            <span class="variance-note">${higherIsBetter ? '' : toneLabel}</span>
           </td>
           <td class="text-right ${toneClass}">
-            ${variancePct === null ? "—" : `${variancePct.toFixed(1)}%`}
+            ${variancePct === null ? '—' : `${variancePct.toFixed(1)}%`}
           </td>
         </tr>
       `;
@@ -743,40 +743,40 @@ export class Budgets {
 
     return `
       <div class="budget-vs-actual">
-        <h3>${translate("budget_vs_actual")}</h3>
+        <h3>${translate('budget_vs_actual')}</h3>
         <div class="table-scroll">
           <table class="data-table comparison-table">
-            <caption class="visually-hidden">${translate("budget_vs_actual")}</caption>
+            <caption class="visually-hidden">${translate('budget_vs_actual')}</caption>
             <thead>
               <tr>
-                <th scope="col">${translate("category")}</th>
-                <th scope="col" class="text-right">${translate("planned_budget")}</th>
-                <th scope="col" class="text-right">${translate("actual_amount")}</th>
-                <th scope="col" class="text-right">${translate("variance")}</th>
-                <th scope="col" class="text-right">${translate("variance_percentage")}</th>
+                <th scope="col">${translate('category')}</th>
+                <th scope="col" class="text-right">${translate('planned_budget')}</th>
+                <th scope="col" class="text-right">${translate('actual_amount')}</th>
+                <th scope="col" class="text-right">${translate('variance')}</th>
+                <th scope="col" class="text-right">${translate('variance_percentage')}</th>
               </tr>
             </thead>
             <tbody>
               ${comparisonRow({
-                label: translate("revenue"),
-                planned: plannedRevenue,
-                actual: actualRevenue,
-                higherIsBetter: true,
-                actualClass: "revenue",
-              })}
+    label: translate('revenue'),
+    planned: plannedRevenue,
+    actual: actualRevenue,
+    higherIsBetter: true,
+    actualClass: 'revenue',
+  })}
               ${comparisonRow({
-                label: translate("expenses"),
-                planned: plannedExpense,
-                actual: actualExpense,
-                higherIsBetter: false,
-                actualClass: "expense",
-              })}
+    label: translate('expenses'),
+    planned: plannedExpense,
+    actual: actualExpense,
+    higherIsBetter: false,
+    actualClass: 'expense',
+  })}
               ${comparisonRow({
-                label: translate("net_position"),
-                planned: plannedNet,
-                actual: actualNet,
-                higherIsBetter: true,
-              })}
+    label: translate('net_position'),
+    planned: plannedNet,
+    actual: actualNet,
+    higherIsBetter: true,
+  })}
             </tbody>
           </table>
         </div>
@@ -810,12 +810,12 @@ export class Budgets {
     try {
       const fy = this.getCurrentFiscalYearData();
       const categoryId =
-        this.revenueFilters.category && this.revenueFilters.category !== "all"
+        this.revenueFilters.category && this.revenueFilters.category !== 'all'
           ? this.revenueFilters.category
           : null;
 
       const revenueSource =
-        this.revenueFilters.source && this.revenueFilters.source !== "all"
+        this.revenueFilters.source && this.revenueFilters.source !== 'all'
           ? this.revenueFilters.source
           : null;
 
@@ -831,7 +831,7 @@ export class Budgets {
       this.revenueBreakdown = data?.breakdown || data || [];
       this.revenueBreakdownSummary = data?.summary || null;
     } catch (error) {
-      debugError("Error loading revenue breakdown", error);
+      debugError('Error loading revenue breakdown', error);
       this.revenueBreakdown = [];
       this.revenueBreakdownSummary = null;
     }
@@ -839,7 +839,7 @@ export class Budgets {
 
   renderProfitLossStatement() {
     if (!this.summaryReport || !this.summaryReport.categories) {
-      return `<p class="no-data">${translate("no_budget_data")}</p>`;
+      return `<p class="no-data">${translate('no_budget_data')}</p>`;
     }
 
     const fy = this.getCurrentFiscalYearData();
@@ -857,28 +857,28 @@ export class Budgets {
 
     return `
       <div class="profit-loss-statement">
-        <h2>${translate("profit_loss_statement")}</h2>
+        <h2>${translate('profit_loss_statement')}</h2>
         <div class="statement-period muted-text">
-          ${translate("fiscal_year")}: ${escapeHTML(fy.label)}
+          ${translate('fiscal_year')}: ${escapeHTML(fy.label)}
         </div>
 
         <div class="statement-section">
-          <h3 class="statement-section-title">${translate("revenue_by_source")}</h3>
+          <h3 class="statement-section-title">${translate('revenue_by_source')}</h3>
           <div class="table-scroll">
             <table class="data-table statement-table">
               <tbody>
                 ${revenueCategories
-                  .map(
-                    (cat) => `
+    .map(
+      (cat) => `
                   <tr>
-                    <td>${escapeHTML(cat.category_name || translate("uncategorized"))}</td>
+                    <td>${escapeHTML(cat.category_name || translate('uncategorized'))}</td>
                     <td class="text-right amount revenue">${this.formatCurrency(cat.total_revenue)}</td>
                   </tr>
                 `,
-                  )
-                  .join("")}
+    )
+    .join('')}
                 <tr class="statement-total">
-                  <td><strong>${translate("gross_revenue")}</strong></td>
+                  <td><strong>${translate('gross_revenue')}</strong></td>
                   <td class="text-right amount revenue"><strong>${this.formatCurrency(totalRevenue)}</strong></td>
                 </tr>
               </tbody>
@@ -887,22 +887,22 @@ export class Budgets {
         </div>
 
         <div class="statement-section">
-          <h3 class="statement-section-title">${translate("expense_by_category")}</h3>
+          <h3 class="statement-section-title">${translate('expense_by_category')}</h3>
           <div class="table-scroll">
             <table class="data-table statement-table">
               <tbody>
                 ${expenseCategories
-                  .map(
-                    (cat) => `
+    .map(
+      (cat) => `
                   <tr>
-                    <td>${escapeHTML(cat.category_name || translate("uncategorized"))}</td>
+                    <td>${escapeHTML(cat.category_name || translate('uncategorized'))}</td>
                     <td class="text-right amount expense">${this.formatCurrency(cat.total_expense)}</td>
                   </tr>
                 `,
-                  )
-                  .join("")}
+    )
+    .join('')}
                 <tr class="statement-total">
-                  <td><strong>${translate("gross_expenses")}</strong></td>
+                  <td><strong>${translate('gross_expenses')}</strong></td>
                   <td class="text-right amount expense"><strong>${this.formatCurrency(totalExpense)}</strong></td>
                 </tr>
               </tbody>
@@ -914,8 +914,8 @@ export class Budgets {
           <div class="table-scroll">
             <table class="data-table statement-table">
               <tbody>
-                <tr class="statement-net ${netAmount >= 0 ? "positive" : "negative"}">
-                  <td><strong>${netAmount >= 0 ? translate("net_income") : translate("net_loss")}</strong></td>
+                <tr class="statement-net ${netAmount >= 0 ? 'positive' : 'negative'}">
+                  <td><strong>${netAmount >= 0 ? translate('net_income') : translate('net_loss')}</strong></td>
                   <td class="text-right amount"><strong>${this.formatCurrency(Math.abs(netAmount))}</strong></td>
                 </tr>
               </tbody>
@@ -928,7 +928,7 @@ export class Budgets {
 
   renderCategoryTrends() {
     if (!this.summaryReport || !this.summaryReport.categories) {
-      return `<p class="no-data">${translate("no_budget_data")}</p>`;
+      return `<p class="no-data">${translate('no_budget_data')}</p>`;
     }
 
     const categories = this.summaryReport.categories;
@@ -938,22 +938,22 @@ export class Budgets {
 
     return `
       <div class="category-trends">
-        <h2>${translate("category_trends")}</h2>
+        <h2>${translate('category_trends')}</h2>
         
         <div class="trends-section">
-          <h3>${translate("revenue")} ${translate("category_breakdown")}</h3>
+          <h3>${translate('revenue')} ${translate('category_breakdown')}</h3>
           <div class="trend-bars">
             ${categories
-              .filter((cat) => cat.total_revenue > 0)
-              .map((cat) => {
-                const percentage =
+    .filter((cat) => cat.total_revenue > 0)
+    .map((cat) => {
+      const percentage =
                   totalRevenue > 0
                     ? (cat.total_revenue / totalRevenue) * 100
                     : 0;
-                return `
+      return `
                 <div class="trend-item">
                   <div class="trend-label">
-                    <span>${escapeHTML(cat.category_name || translate("uncategorized"))}</span>
+                    <span>${escapeHTML(cat.category_name || translate('uncategorized'))}</span>
                     <span class="trend-amount">${this.formatCurrency(cat.total_revenue)}</span>
                   </div>
                   <div class="trend-bar-container">
@@ -962,25 +962,25 @@ export class Budgets {
                   <div class="trend-percentage">${percentage.toFixed(1)}%</div>
                 </div>
               `;
-              })
-              .join("")}
+    })
+    .join('')}
           </div>
         </div>
 
         <div class="trends-section">
-          <h3>${translate("expenses")} ${translate("category_breakdown")}</h3>
+          <h3>${translate('expenses')} ${translate('category_breakdown')}</h3>
           <div class="trend-bars">
             ${categories
-              .filter((cat) => cat.total_expense > 0)
-              .map((cat) => {
-                const percentage =
+    .filter((cat) => cat.total_expense > 0)
+    .map((cat) => {
+      const percentage =
                   totalExpense > 0
                     ? (cat.total_expense / totalExpense) * 100
                     : 0;
-                return `
+      return `
                 <div class="trend-item">
                   <div class="trend-label">
-                    <span>${escapeHTML(cat.category_name || translate("uncategorized"))}</span>
+                    <span>${escapeHTML(cat.category_name || translate('uncategorized'))}</span>
                     <span class="trend-amount">${this.formatCurrency(cat.total_expense)}</span>
                   </div>
                   <div class="trend-bar-container">
@@ -989,8 +989,8 @@ export class Budgets {
                   <div class="trend-percentage">${percentage.toFixed(1)}%</div>
                 </div>
               `;
-              })
-              .join("")}
+    })
+    .join('')}
           </div>
         </div>
       </div>
@@ -1001,9 +1001,9 @@ export class Budgets {
     if (!this.revenueBreakdown || this.revenueBreakdown.length === 0) {
       return `
         <div class="revenue-breakdown">
-          <h2>${translate("revenue_breakdown")}</h2>
+          <h2>${translate('revenue_breakdown')}</h2>
           ${this.renderRevenueFilters()}
-          <p class="no-data">${translate("no_budget_data")}</p>
+          <p class="no-data">${translate('no_budget_data')}</p>
         </div>
       `;
     }
@@ -1011,7 +1011,7 @@ export class Budgets {
     // Group by revenue source
     const bySource = {};
     this.revenueBreakdown.forEach((item) => {
-      const source = item.revenue_source || "other";
+      const source = item.revenue_source || 'other';
       if (!bySource[source]) {
         bySource[source] = {
           items: [],
@@ -1025,75 +1025,75 @@ export class Budgets {
     });
 
     const sourceLabels = {
-      participant_fee: translate("fee_revenue"),
-      fees: translate("fees"),
-      fundraiser: translate("fundraiser_revenue"),
-      fundraisers: translate("fundraisers"),
-      calendar_sale: translate("calendar_revenue"),
-      calendar_sales: translate("calendar_sales"),
-      other: translate("other"),
+      participant_fee: translate('fee_revenue'),
+      fees: translate('fees'),
+      fundraiser: translate('fundraiser_revenue'),
+      fundraisers: translate('fundraisers'),
+      calendar_sale: translate('calendar_revenue'),
+      calendar_sales: translate('calendar_sales'),
+      other: translate('other'),
     };
 
     return `
       <div class="revenue-breakdown">
-        <h2>${translate("revenue_breakdown")}</h2>
+        <h2>${translate('revenue_breakdown')}</h2>
         
         ${this.renderRevenueFilters()}
         
         ${
-          this.revenueBreakdownSummary
-            ? `
+  this.revenueBreakdownSummary
+    ? `
           <div class="breakdown-summary">
             <div class="summary-stat">
-              <span class="stat-label">${translate("transaction_count")}</span>
+              <span class="stat-label">${translate('transaction_count')}</span>
               <span class="stat-value">${this.revenueBreakdownSummary.total_transactions}</span>
             </div>
             <div class="summary-stat">
-              <span class="stat-label">${translate("total_revenue")}</span>
+              <span class="stat-label">${translate('total_revenue')}</span>
               <span class="stat-value revenue">${this.formatCurrency(this.revenueBreakdownSummary.total_revenue)}</span>
             </div>
           </div>
         `
-            : ""
-        }
+    : ''
+}
         
         ${Object.keys(bySource)
-          .map(
-            (source) => `
+    .map(
+      (source) => `
           <div class="breakdown-section">
             <h3>${sourceLabels[source] || source}</h3>
             <div class="table-scroll">
               <table class="data-table breakdown-table">
                 <thead>
                   <tr>
-                    <th>${translate("category")}</th>
-                    <th class="text-right">${translate("transaction_count")}</th>
-                    <th class="text-right">${translate("amount")}</th>
-                    <th class="text-right">${translate("percentage_of_total")}</th>
+                    <th>${translate('category')}</th>
+                    <th class="text-right">${translate('transaction_count')}</th>
+                    <th class="text-right">${translate('amount')}</th>
+                    <th class="text-right">${translate('percentage_of_total')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${bySource[source].items
-                    .map((item) => {
-                      const percentage =
+    .map((item) => {
+      const percentage =
                         this.revenueBreakdownSummary &&
                         this.revenueBreakdownSummary.total_revenue > 0
                           ? (item.total_amount /
                               this.revenueBreakdownSummary.total_revenue) *
                             100
                           : 0;
-                      return `
+      return `
                       <tr>
-                        <td>${escapeHTML(item.category_name || translate("uncategorized"))}</td>
+                        <td>${escapeHTML(item.category_name || translate('uncategorized'))}</td>
                         <td class="text-right">${item.transaction_count}</td>
                         <td class="text-right amount revenue">${this.formatCurrency(item.total_amount)}</td>
                         <td class="text-right">${percentage.toFixed(1)}%</td>
                       </tr>
                     `;
-                    })
-                    .join("")}
+    })
+    .join('')}
                   <tr class="breakdown-total">
-                    <td><strong>${translate("total")}</strong></td>
+                    <td><strong>${translate('total')}</strong></td>
                     <td class="text-right"><strong>${bySource[source].count}</strong></td>
                     <td class="text-right amount revenue"><strong>${this.formatCurrency(bySource[source].total)}</strong></td>
                     <td class="text-right"><strong>${this.revenueBreakdownSummary && this.revenueBreakdownSummary.total_revenue > 0 ? ((bySource[source].total / this.revenueBreakdownSummary.total_revenue) * 100).toFixed(1) : 0}%</strong></td>
@@ -1103,8 +1103,8 @@ export class Budgets {
             </div>
           </div>
         `,
-          )
-          .join("")}
+    )
+    .join('')}
       </div>
     `;
   }
@@ -1113,36 +1113,36 @@ export class Budgets {
     return `
       <div class="revenue-filters">
         <div class="filter-group">
-          <label for="revenue-source-filter">${translate("filter_by_source")}</label>
+          <label for="revenue-source-filter">${translate('filter_by_source')}</label>
           <select id="revenue-source-filter" class="filter-select">
-            <option value="all" ${this.revenueFilters.source === "all" ? "selected" : ""}>${translate("all_sources")}</option>
-            <option value="participant_fee" ${this.revenueFilters.source === "participant_fee" ? "selected" : ""}>${translate("fee_revenue")}</option>
-            <option value="fundraiser" ${this.revenueFilters.source === "fundraiser" ? "selected" : ""}>${translate("fundraiser_revenue")}</option>
-            <option value="calendar_sale" ${this.revenueFilters.source === "calendar_sale" ? "selected" : ""}>${translate("calendar_revenue")}</option>
+            <option value="all" ${this.revenueFilters.source === 'all' ? 'selected' : ''}>${translate('all_sources')}</option>
+            <option value="participant_fee" ${this.revenueFilters.source === 'participant_fee' ? 'selected' : ''}>${translate('fee_revenue')}</option>
+            <option value="fundraiser" ${this.revenueFilters.source === 'fundraiser' ? 'selected' : ''}>${translate('fundraiser_revenue')}</option>
+            <option value="calendar_sale" ${this.revenueFilters.source === 'calendar_sale' ? 'selected' : ''}>${translate('calendar_revenue')}</option>
           </select>
         </div>
         
         <div class="filter-group">
-          <label for="revenue-category-filter">${translate("filter_by_category")}</label>
+          <label for="revenue-category-filter">${translate('filter_by_category')}</label>
           <select id="revenue-category-filter" class="filter-select">
-            <option value="all" ${this.revenueFilters.category === "all" ? "selected" : ""}>${translate("all_categories")}</option>
+            <option value="all" ${this.revenueFilters.category === 'all' ? 'selected' : ''}>${translate('all_categories')}</option>
             ${this.categories
-              .map(
-                (cat) => `
-              <option value="${cat.id}" ${String(this.revenueFilters.category) === String(cat.id) ? "selected" : ""}>
+    .map(
+      (cat) => `
+              <option value="${cat.id}" ${String(this.revenueFilters.category) === String(cat.id) ? 'selected' : ''}>
                 ${escapeHTML(cat.name)}
               </option>
             `,
-              )
-              .join("")}
+    )
+    .join('')}
           </select>
         </div>
         
         <button class="btn btn-secondary" id="apply-revenue-filters-btn">
-          ${translate("apply_filters")}
+          ${translate('apply_filters')}
         </button>
         <button class="btn btn-secondary" id="reset-revenue-filters-btn">
-          ${translate("reset_filters")}
+          ${translate('reset_filters')}
         </button>
       </div>
     `;
@@ -1153,44 +1153,44 @@ export class Budgets {
     const { signal } = this.abortController;
 
     // Fiscal year dropdown
-    const fySelect = document.getElementById("fiscal-year-select");
+    const fySelect = document.getElementById('fiscal-year-select');
     if (fySelect) {
-      fySelect.addEventListener("change", async (e) => {
+      fySelect.addEventListener('change', async (e) => {
         try {
           this.selectedFiscalYear = parseInt(e.target.value);
           await this.loadCoreData(false);
           await this.renderAndBind();
         } catch (error) {
-          debugError("Error changing fiscal year:", error);
-          this.app.showMessage(translate("error_loading_data"), "error");
+          debugError('Error changing fiscal year:', error);
+          this.app.showMessage(translate('error_loading_data'), 'error');
         }
       }, { signal });
     }
 
     // Tab navigation
-    document.querySelectorAll(".tab-btn").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
+    document.querySelectorAll('.tab-btn').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
         try {
           const targetTab = e.currentTarget?.dataset?.tab || e.target.dataset.tab;
-          this.activeTab = targetTab || "overview";
+          this.activeTab = targetTab || 'overview';
           this.updateURL();
           await this.renderAndBind();
         } catch (error) {
-          debugError("Error switching budget tabs", error);
-          this.app.showMessage(translate("error_loading_data"), "error");
+          debugError('Error switching budget tabs', error);
+          this.app.showMessage(translate('error_loading_data'), 'error');
         }
       }, { signal });
     });
 
     // Add category button
-    const addCategoryBtn = document.getElementById("add-category-btn");
+    const addCategoryBtn = document.getElementById('add-category-btn');
     if (addCategoryBtn) {
-      addCategoryBtn.addEventListener("click", () => this.showCategoryModal(), { signal });
+      addCategoryBtn.addEventListener('click', () => this.showCategoryModal(), { signal });
     }
 
     // Edit category buttons
-    document.querySelectorAll(".edit-category-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+    document.querySelectorAll('.edit-category-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
         const id = parseInt(e.target.dataset.id);
         const category = this.categories.find((c) => c.id === id);
         if (category) {
@@ -1200,24 +1200,24 @@ export class Budgets {
     });
 
     // Delete category buttons
-    document.querySelectorAll(".delete-category-btn").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
+    document.querySelectorAll('.delete-category-btn').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
         const id = parseInt(e.target.dataset.id);
-        if (await confirmDestructive(translate("confirm_delete_category"))) {
+        if (await confirmDestructive(translate('confirm_delete_category'))) {
           await this.deleteCategory(id);
         }
       });
     });
 
     // Add budget item button
-    const addBudgetItemBtn = document.getElementById("add-budget-item-btn");
+    const addBudgetItemBtn = document.getElementById('add-budget-item-btn');
     if (addBudgetItemBtn) {
-      addBudgetItemBtn.addEventListener("click", () => this.showBudgetItemModal());
+      addBudgetItemBtn.addEventListener('click', () => this.showBudgetItemModal());
     }
 
     // Edit budget item buttons
-    document.querySelectorAll(".edit-budget-item-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+    document.querySelectorAll('.edit-budget-item-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
         const id = parseInt(e.target.dataset.id);
         const item = this.items.find((i) => i.id === id);
         if (item) {
@@ -1227,24 +1227,24 @@ export class Budgets {
     });
 
     // Delete budget item buttons
-    document.querySelectorAll(".delete-budget-item-btn").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
+    document.querySelectorAll('.delete-budget-item-btn').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
         const id = parseInt(e.target.dataset.id);
-        if (await confirmDestructive(translate("confirm_delete_budget_item"))) {
+        if (await confirmDestructive(translate('confirm_delete_budget_item'))) {
           await this.deleteBudgetItem(id);
         }
       });
     });
 
     // Add expense button
-    const addExpenseBtn = document.getElementById("add-expense-btn");
+    const addExpenseBtn = document.getElementById('add-expense-btn');
     if (addExpenseBtn) {
-      addExpenseBtn.addEventListener("click", () => this.showExpenseModal());
+      addExpenseBtn.addEventListener('click', () => this.showExpenseModal());
     }
 
     // Edit expense buttons
-    document.querySelectorAll(".edit-expense-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+    document.querySelectorAll('.edit-expense-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
         const id = parseInt(e.target.dataset.id);
         const expense = this.expenses.find((ex) => ex.id === id);
         if (expense) {
@@ -1254,24 +1254,24 @@ export class Budgets {
     });
 
     // Delete expense buttons
-    document.querySelectorAll(".delete-expense-btn").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
+    document.querySelectorAll('.delete-expense-btn').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
         const id = parseInt(e.target.dataset.id);
-        if (await confirmDestructive(translate("confirm_delete_expense"))) {
+        if (await confirmDestructive(translate('confirm_delete_expense'))) {
           await this.deleteExpense(id);
         }
       });
     });
 
     // Add budget plan button
-    const addPlanBtn = document.getElementById("add-plan-btn");
+    const addPlanBtn = document.getElementById('add-plan-btn');
     if (addPlanBtn) {
-      addPlanBtn.addEventListener("click", () => this.showPlanModal());
+      addPlanBtn.addEventListener('click', () => this.showPlanModal());
     }
 
     // Edit plan buttons
-    document.querySelectorAll(".edit-plan-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+    document.querySelectorAll('.edit-plan-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
         const id = parseInt(e.target.dataset.id);
         const plan = this.budgetPlans.find((p) => p.id === id);
         if (plan) {
@@ -1281,10 +1281,10 @@ export class Budgets {
     });
 
     // Delete plan buttons
-    document.querySelectorAll(".delete-plan-btn").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
+    document.querySelectorAll('.delete-plan-btn').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
         const id = parseInt(e.target.dataset.id);
-        if (await confirmDestructive(translate("confirm_delete_budget_plan"))) {
+        if (await confirmDestructive(translate('confirm_delete_budget_plan'))) {
           await this.deletePlan(id);
         }
       });
@@ -1292,27 +1292,27 @@ export class Budgets {
 
     // Revenue filter buttons
     const applyFiltersBtn = document.getElementById(
-      "apply-revenue-filters-btn",
+      'apply-revenue-filters-btn',
     );
     if (applyFiltersBtn) {
-      applyFiltersBtn.addEventListener("click", () =>
+      applyFiltersBtn.addEventListener('click', () =>
         this.applyRevenueFilters(),
       );
     }
 
     const resetFiltersBtn = document.getElementById(
-      "reset-revenue-filters-btn",
+      'reset-revenue-filters-btn',
     );
     if (resetFiltersBtn) {
-      resetFiltersBtn.addEventListener("click", () =>
+      resetFiltersBtn.addEventListener('click', () =>
         this.resetRevenueFilters(),
       );
     }
   }
 
   async applyRevenueFilters() {
-    const sourceFilter = document.getElementById("revenue-source-filter");
-    const categoryFilter = document.getElementById("revenue-category-filter");
+    const sourceFilter = document.getElementById('revenue-source-filter');
+    const categoryFilter = document.getElementById('revenue-category-filter');
 
     if (sourceFilter) {
       this.revenueFilters.source = sourceFilter.value;
@@ -1327,15 +1327,15 @@ export class Budgets {
     this.revenueBreakdownSummary = null;
 
     // Only update the reports tab content if we're on the reports tab
-    if (this.activeTab === "reports") {
+    if (this.activeTab === 'reports') {
       await this.updateReportsTabContent();
     }
   }
 
   async resetRevenueFilters() {
     this.revenueFilters = {
-      source: "all",
-      category: "all",
+      source: 'all',
+      category: 'all',
     };
 
     // Clear cached data
@@ -1343,14 +1343,14 @@ export class Budgets {
     this.revenueBreakdownSummary = null;
 
     // Only update the reports tab content if we're on the reports tab
-    if (this.activeTab === "reports") {
+    if (this.activeTab === 'reports') {
       await this.updateReportsTabContent();
     }
   }
 
   async updateReportsTabContent() {
-    const tabContent = document.querySelector(".tab-content");
-    if (!tabContent) return;
+    const tabContent = document.querySelector('.tab-content');
+    if (!tabContent) {return;}
 
     await this.loadRevenueBreakdown();
 
@@ -1358,19 +1358,19 @@ export class Budgets {
     setContent(tabContent, reportsHTML);
     // Re-attach event listeners for the reports tab
     const applyFiltersBtn = document.getElementById(
-      "apply-revenue-filters-btn",
+      'apply-revenue-filters-btn',
     );
     if (applyFiltersBtn) {
-      applyFiltersBtn.addEventListener("click", () =>
+      applyFiltersBtn.addEventListener('click', () =>
         this.applyRevenueFilters(),
       );
     }
 
     const resetFiltersBtn = document.getElementById(
-      "reset-revenue-filters-btn",
+      'reset-revenue-filters-btn',
     );
     if (resetFiltersBtn) {
-      resetFiltersBtn.addEventListener("click", () =>
+      resetFiltersBtn.addEventListener('click', () =>
         this.resetRevenueFilters(),
       );
     }
@@ -1378,60 +1378,60 @@ export class Budgets {
 
   updateURL() {
     const url = new URL(window.location.href);
-    url.searchParams.set("tab", this.activeTab);
-    window.history.pushState({}, "", url);
+    url.searchParams.set('tab', this.activeTab);
+    window.history.pushState({}, '', url);
   }
 
   showCategoryModal(category = null) {
     const isEdit = !!category;
     openModal({
-      id: "category-modal",
-      title: isEdit ? translate("edit_category") : translate("add_category"),
+      id: 'category-modal',
+      title: isEdit ? translate('edit_category') : translate('add_category'),
       body: `
         <form id="category-form">
           <div class="form-group">
-            <label for="category-name">${translate("category_name")}*</label>
+            <label for="category-name">${translate('category_name')}*</label>
             <input type="text" id="category-name" required
-                   value="${category ? escapeHTML(category.name) : ""}">
+                   value="${category ? escapeHTML(category.name) : ''}">
           </div>
           <div class="form-group">
-            <label for="category-description">${translate("description")}</label>
-            <textarea id="category-description" rows="3">${category ? escapeHTML(category.description || "") : ""}</textarea>
+            <label for="category-description">${translate('description')}</label>
+            <textarea id="category-description" rows="3">${category ? escapeHTML(category.description || '') : ''}</textarea>
           </div>
           <div class="form-group">
-            <label for="category-type">${translate("category_type")}</label>
+            <label for="category-type">${translate('category_type')}</label>
             <select id="category-type">
-              <option value="registration" ${category?.category_type === "registration" ? "selected" : ""}>${translate("registration")}</option>
-              <option value="fundraising" ${category?.category_type === "fundraising" ? "selected" : ""}>${translate("fundraising")}</option>
-              <option value="activity" ${category?.category_type === "activity" ? "selected" : ""}>${translate("activity")}</option>
-              <option value="operations" ${category?.category_type === "operations" ? "selected" : ""}>${translate("operations")}</option>
-              <option value="other" ${category?.category_type === "other" ? "selected" : ""}>${translate("other")}</option>
+              <option value="registration" ${category?.category_type === 'registration' ? 'selected' : ''}>${translate('registration')}</option>
+              <option value="fundraising" ${category?.category_type === 'fundraising' ? 'selected' : ''}>${translate('fundraising')}</option>
+              <option value="activity" ${category?.category_type === 'activity' ? 'selected' : ''}>${translate('activity')}</option>
+              <option value="operations" ${category?.category_type === 'operations' ? 'selected' : ''}>${translate('operations')}</option>
+              <option value="other" ${category?.category_type === 'other' ? 'selected' : ''}>${translate('other')}</option>
             </select>
           </div>
         </form>
       `,
       footer: `
         <button type="button" class="btn btn-secondary" data-modal-close>
-          ${translate("cancel")}
+          ${translate('cancel')}
         </button>
         <button type="submit" form="category-form" class="btn btn-primary">
-          ${isEdit ? translate("update") : translate("create")}
+          ${isEdit ? translate('update') : translate('create')}
         </button>
       `,
     });
 
     document
-      .getElementById("category-form")
-      .addEventListener("submit", async (e) => {
+      .getElementById('category-form')
+      .addEventListener('submit', async (e) => {
         e.preventDefault();
         await withFormBusy(e.currentTarget, () => this.saveCategory(category?.id));
       });
   }
 
   async saveCategory(categoryId = null) {
-    const name = document.getElementById("category-name").value;
-    const description = document.getElementById("category-description").value;
-    const categoryType = document.getElementById("category-type").value;
+    const name = document.getElementById('category-name').value;
+    const description = document.getElementById('category-description').value;
+    const categoryType = document.getElementById('category-type').value;
 
     try {
       const payload = { name, description, category_type: categoryType };
@@ -1441,21 +1441,21 @@ export class Budgets {
         this.categories = this.categories.map((cat) =>
           cat.id === categoryId ? { ...cat, ...payload } : cat,
         );
-        this.app.showMessage(translate("category_updated"), "success");
+        this.app.showMessage(translate('category_updated'), 'success');
       } else {
         const response = await createBudgetCategory(payload);
         if (response?.data) {
           this.categories = [...this.categories, response.data];
         }
-        this.app.showMessage(translate("category_created"), "success");
+        this.app.showMessage(translate('category_created'), 'success');
       }
 
-      closeModal("category-modal");
+      closeModal('category-modal');
       await this.invalidateBudgetCaches();
       await this.refreshBudgetData(true);
     } catch (error) {
-      debugError("Error saving category", error);
-      this.app.showMessage(translate("error_saving_category"), "error");
+      debugError('Error saving category', error);
+      this.app.showMessage(translate('error_saving_category'), 'error');
     }
   }
 
@@ -1463,70 +1463,70 @@ export class Budgets {
     try {
       await deleteBudgetCategory(categoryId);
       this.categories = this.categories.filter((cat) => cat.id !== categoryId);
-      this.app.showMessage(translate("category_deleted"), "success");
+      this.app.showMessage(translate('category_deleted'), 'success');
       await this.invalidateBudgetCaches();
       await this.refreshBudgetData(true);
     } catch (error) {
-      debugError("Error deleting category", error);
-      this.app.showMessage(translate("error_deleting_category"), "error");
+      debugError('Error deleting category', error);
+      this.app.showMessage(translate('error_deleting_category'), 'error');
     }
   }
 
   showBudgetItemModal(item = null) {
     const isEdit = !!item;
     openModal({
-      id: "budget-item-modal",
-      title: isEdit ? translate("edit_budget_item") : translate("add_budget_item"),
+      id: 'budget-item-modal',
+      title: isEdit ? translate('edit_budget_item') : translate('add_budget_item'),
       body: `
         <form id="budget-item-form">
           <div class="form-group">
-            <label for="budget-item-name">${translate("item_name")}*</label>
+            <label for="budget-item-name">${translate('item_name')}*</label>
             <input type="text" id="budget-item-name" required
-                   value="${item ? escapeHTML(item.name) : ""}">
+                   value="${item ? escapeHTML(item.name) : ''}">
           </div>
           <div class="form-group">
-            <label for="budget-item-category">${translate("category")}</label>
+            <label for="budget-item-category">${translate('category')}</label>
             <select id="budget-item-category">
-              <option value="">${translate("uncategorized")}</option>
+              <option value="">${translate('uncategorized')}</option>
               ${this.categories
-                .map(
-                  (cat) => `
-                <option value="${cat.id}" ${item?.budget_category_id === cat.id ? "selected" : ""}>
+    .map(
+      (cat) => `
+                <option value="${cat.id}" ${item?.budget_category_id === cat.id ? 'selected' : ''}>
                   ${escapeHTML(cat.name)}
                 </option>
               `,
-                )
-                .join("")}
+    )
+    .join('')}
             </select>
           </div>
           <div class="form-group">
-            <label for="budget-item-description">${translate("description")}</label>
-            <textarea id="budget-item-description" rows="3">${item ? escapeHTML(item.description || "") : ""}</textarea>
+            <label for="budget-item-description">${translate('description')}</label>
+            <textarea id="budget-item-description" rows="3">${item ? escapeHTML(item.description || '') : ''}</textarea>
           </div>
         </form>
       `,
       footer: `
         <button type="button" class="btn btn-secondary" data-modal-close>
-          ${translate("cancel")}
+          ${translate('cancel')}
         </button>
         <button type="submit" form="budget-item-form" class="btn btn-primary">
-          ${isEdit ? translate("update") : translate("create")}
+          ${isEdit ? translate('update') : translate('create')}
         </button>
       `,
     });
 
     document
-      .getElementById("budget-item-form")
-      .addEventListener("submit", async (e) => {
+      .getElementById('budget-item-form')
+      .addEventListener('submit', async (e) => {
         e.preventDefault();
         await withFormBusy(e.currentTarget, () => this.saveBudgetItem(item?.id));
       });
   }
 
   async saveBudgetItem(itemId = null) {
-    const name = document.getElementById("budget-item-name").value;
-    const categoryId = document.getElementById("budget-item-category").value || null;
-    const description = document.getElementById("budget-item-description").value;
+    const name = document.getElementById('budget-item-name').value;
+    const categoryId = document.getElementById('budget-item-category').value || null;
+    const description = document.getElementById('budget-item-description').value;
 
     try {
       const payload = {
@@ -1540,21 +1540,21 @@ export class Budgets {
         this.items = this.items.map((item) =>
           item.id === itemId ? { ...item, ...payload } : item,
         );
-        this.app.showMessage(translate("budget_item_updated"), "success");
+        this.app.showMessage(translate('budget_item_updated'), 'success');
       } else {
         const response = await createBudgetItem(payload);
         if (response?.data) {
           this.items = [...this.items, response.data];
         }
-        this.app.showMessage(translate("budget_item_created"), "success");
+        this.app.showMessage(translate('budget_item_created'), 'success');
       }
 
-      closeModal("budget-item-modal");
+      closeModal('budget-item-modal');
       await this.invalidateBudgetCaches({ categoryId });
       await this.refreshBudgetData(true);
     } catch (error) {
-      debugError("Error saving budget item", error);
-      this.app.showMessage(translate("error_saving_budget_item"), "error");
+      debugError('Error saving budget item', error);
+      this.app.showMessage(translate('error_saving_budget_item'), 'error');
     }
   }
 
@@ -1562,71 +1562,71 @@ export class Budgets {
     try {
       await deleteBudgetItem(itemId);
       this.items = this.items.filter((item) => item.id !== itemId);
-      this.app.showMessage(translate("budget_item_deleted"), "success");
+      this.app.showMessage(translate('budget_item_deleted'), 'success');
       await this.invalidateBudgetCaches();
       await this.refreshBudgetData(true);
     } catch (error) {
-      debugError("Error deleting budget item", error);
-      this.app.showMessage(translate("error_deleting_budget_item"), "error");
+      debugError('Error deleting budget item', error);
+      this.app.showMessage(translate('error_deleting_budget_item'), 'error');
     }
   }
 
   showExpenseModal(expense = null) {
     const isEdit = !!expense;
     openModal({
-      id: "expense-modal",
-      title: isEdit ? translate("edit_expense") : translate("add_expense"),
+      id: 'expense-modal',
+      title: isEdit ? translate('edit_expense') : translate('add_expense'),
       body: `
         <form id="expense-form">
           <div class="form-group">
-            <label for="expense-category">${translate("category")}</label>
+            <label for="expense-category">${translate('category')}</label>
             <select id="expense-category">
-              <option value="">${translate("uncategorized")}</option>
+              <option value="">${translate('uncategorized')}</option>
               ${this.categories
-                .map(
-                  (cat) => `
-                <option value="${cat.id}" ${expense?.budget_category_id === cat.id ? "selected" : ""}>
+    .map(
+      (cat) => `
+                <option value="${cat.id}" ${expense?.budget_category_id === cat.id ? 'selected' : ''}>
                   ${escapeHTML(cat.name)}
                 </option>
               `,
-                )
-                .join("")}
+    )
+    .join('')}
             </select>
           </div>
           <div class="form-group">
-            <label for="expense-amount">${translate("amount")}*</label>
+            <label for="expense-amount">${translate('amount')}*</label>
             <input type="number" id="expense-amount" step="0.01" min="0" required
-                   value="${expense ? expense.amount : ""}">
+                   value="${expense ? expense.amount : ''}">
           </div>
           <div class="form-group">
-            <label for="expense-date">${translate("date")}*</label>
+            <label for="expense-date">${translate('date')}*</label>
             <input type="date" id="expense-date" required
                    value="${expense ? expense.expense_date : getTodayISO()}">
           </div>
           <div class="form-group">
-            <label for="expense-description">${translate("description")}*</label>
-            <textarea id="expense-description" rows="3" required>${expense ? escapeHTML(expense.description) : ""}</textarea>
+            <label for="expense-description">${translate('description')}*</label>
+            <textarea id="expense-description" rows="3" required>${expense ? escapeHTML(expense.description) : ''}</textarea>
           </div>
           <div class="form-group">
-            <label for="expense-payment-method">${translate("payment_method")}</label>
+            <label for="expense-payment-method">${translate('payment_method')}</label>
             <input type="text" id="expense-payment-method"
-                   value="${expense ? escapeHTML(expense.payment_method || "") : ""}">
+                   value="${expense ? escapeHTML(expense.payment_method || '') : ''}">
           </div>
         </form>
       `,
       footer: `
         <button type="button" class="btn btn-secondary" data-modal-close>
-          ${translate("cancel")}
+          ${translate('cancel')}
         </button>
         <button type="submit" form="expense-form" class="btn btn-primary">
-          ${isEdit ? translate("update") : translate("create")}
+          ${isEdit ? translate('update') : translate('create')}
         </button>
       `,
     });
 
     document
-      .getElementById("expense-form")
-      .addEventListener("submit", async (e) => {
+      .getElementById('expense-form')
+      .addEventListener('submit', async (e) => {
         e.preventDefault();
         await withFormBusy(e.currentTarget, () => this.saveExpense(expense?.id));
       });
@@ -1634,12 +1634,12 @@ export class Budgets {
 
   async saveExpense(expenseId = null) {
     const categoryId =
-      document.getElementById("expense-category").value || null;
-    const amount = parseFloat(document.getElementById("expense-amount").value);
-    const date = document.getElementById("expense-date").value;
-    const description = document.getElementById("expense-description").value;
+      document.getElementById('expense-category').value || null;
+    const amount = parseFloat(document.getElementById('expense-amount').value);
+    const date = document.getElementById('expense-date').value;
+    const description = document.getElementById('expense-description').value;
     const paymentMethod = document.getElementById(
-      "expense-payment-method",
+      'expense-payment-method',
     ).value;
 
     try {
@@ -1656,21 +1656,21 @@ export class Budgets {
         this.expenses = this.expenses.map((expense) =>
           expense.id === expenseId ? { ...expense, ...payload } : expense,
         );
-        this.app.showMessage(translate("expense_updated"), "success");
+        this.app.showMessage(translate('expense_updated'), 'success');
       } else {
         const response = await createBudgetExpense(payload);
         if (response?.data) {
           this.expenses = [response.data, ...this.expenses];
         }
-        this.app.showMessage(translate("expense_created"), "success");
+        this.app.showMessage(translate('expense_created'), 'success');
       }
 
-      closeModal("expense-modal");
+      closeModal('expense-modal');
       await this.invalidateBudgetCaches();
       await this.refreshBudgetData(true);
     } catch (error) {
-      debugError("Error saving expense", error);
-      this.app.showMessage(translate("error_saving_expense"), "error");
+      debugError('Error saving expense', error);
+      this.app.showMessage(translate('error_saving_expense'), 'error');
     }
   }
 
@@ -1678,12 +1678,12 @@ export class Budgets {
     try {
       await deleteBudgetExpense(expenseId);
       this.expenses = this.expenses.filter((expense) => expense.id !== expenseId);
-      this.app.showMessage(translate("expense_deleted"), "success");
+      this.app.showMessage(translate('expense_deleted'), 'success');
       await this.invalidateBudgetCaches();
       await this.refreshBudgetData(true);
     } catch (error) {
-      debugError("Error deleting expense", error);
-      this.app.showMessage(translate("error_deleting_expense"), "error");
+      debugError('Error deleting expense', error);
+      this.app.showMessage(translate('error_deleting_expense'), 'error');
     }
   }
 
@@ -1691,82 +1691,82 @@ export class Budgets {
     const isEdit = !!plan;
     const fy = this.getCurrentFiscalYearData();
     openModal({
-      id: "plan-modal",
-      title: isEdit ? translate("edit_budget_plan") : translate("add_budget_plan"),
+      id: 'plan-modal',
+      title: isEdit ? translate('edit_budget_plan') : translate('add_budget_plan'),
       body: `
         <form id="plan-form">
           <div class="form-group">
-            <label for="plan-item">${translate("budget_item")}</label>
+            <label for="plan-item">${translate('budget_item')}</label>
             <select id="plan-item">
-              <option value="">${translate("select")}...</option>
+              <option value="">${translate('select')}...</option>
               ${this.items
-                .map(
-                  (item) => `
-                <option value="${item.id}" ${plan?.budget_item_id === item.id ? "selected" : ""}>
-                  ${escapeHTML(item.name)} (${escapeHTML(item.category_name || "-")})
+    .map(
+      (item) => `
+                <option value="${item.id}" ${plan?.budget_item_id === item.id ? 'selected' : ''}>
+                  ${escapeHTML(item.name)} (${escapeHTML(item.category_name || '-')})
                 </option>
               `,
-                )
-                .join("")}
+    )
+    .join('')}
             </select>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label for="plan-fy-start">${translate("fiscal_year")} ${translate("start_date")}</label>
+              <label for="plan-fy-start">${translate('fiscal_year')} ${translate('start_date')}</label>
               <input type="date" id="plan-fy-start" required
                      value="${plan ? plan.fiscal_year_start : fy.start}">
             </div>
             <div class="form-group">
-              <label for="plan-fy-end">${translate("end_date")}</label>
+              <label for="plan-fy-end">${translate('end_date')}</label>
               <input type="date" id="plan-fy-end" required
                      value="${plan ? plan.fiscal_year_end : fy.end}">
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label for="plan-revenue">${translate("budgeted_revenue")}</label>
+              <label for="plan-revenue">${translate('budgeted_revenue')}</label>
               <input type="number" id="plan-revenue" step="0.01" min="0"
                      value="${plan ? plan.budgeted_revenue : 0}">
             </div>
             <div class="form-group">
-              <label for="plan-expense">${translate("budgeted_expense")}</label>
+              <label for="plan-expense">${translate('budgeted_expense')}</label>
               <input type="number" id="plan-expense" step="0.01" min="0"
                      value="${plan ? plan.budgeted_expense : 0}">
             </div>
           </div>
           <div class="form-group">
-            <label for="plan-notes">${translate("notes")}</label>
-            <textarea id="plan-notes" rows="3">${plan ? escapeHTML(plan.notes || "") : ""}</textarea>
+            <label for="plan-notes">${translate('notes')}</label>
+            <textarea id="plan-notes" rows="3">${plan ? escapeHTML(plan.notes || '') : ''}</textarea>
           </div>
         </form>
       `,
       footer: `
         <button type="button" class="btn btn-secondary" data-modal-close>
-          ${translate("cancel")}
+          ${translate('cancel')}
         </button>
         <button type="submit" form="plan-form" class="btn btn-primary">
-          ${isEdit ? translate("update") : translate("create")}
+          ${isEdit ? translate('update') : translate('create')}
         </button>
       `,
     });
 
     document
-      .getElementById("plan-form")
-      .addEventListener("submit", async (e) => {
+      .getElementById('plan-form')
+      .addEventListener('submit', async (e) => {
         e.preventDefault();
         await withFormBusy(e.currentTarget, () => this.savePlan(plan?.id));
       });
   }
 
   async savePlan(planId = null) {
-    const itemId = document.getElementById("plan-item").value || null;
-    const fyStart = document.getElementById("plan-fy-start").value;
-    const fyEnd = document.getElementById("plan-fy-end").value;
+    const itemId = document.getElementById('plan-item').value || null;
+    const fyStart = document.getElementById('plan-fy-start').value;
+    const fyEnd = document.getElementById('plan-fy-end').value;
     const revenue =
-      parseFloat(document.getElementById("plan-revenue").value) || 0;
+      parseFloat(document.getElementById('plan-revenue').value) || 0;
     const expense =
-      parseFloat(document.getElementById("plan-expense").value) || 0;
-    const notes = document.getElementById("plan-notes").value;
+      parseFloat(document.getElementById('plan-expense').value) || 0;
+    const notes = document.getElementById('plan-notes').value;
 
     try {
       const payload = {
@@ -1783,21 +1783,21 @@ export class Budgets {
         this.budgetPlans = this.budgetPlans.map((plan) =>
           plan.id === planId ? { ...plan, ...payload } : plan,
         );
-        this.app.showMessage(translate("budget_plan_updated"), "success");
+        this.app.showMessage(translate('budget_plan_updated'), 'success');
       } else {
         const response = await createBudgetPlan(payload);
         if (response?.data) {
           this.budgetPlans = [...this.budgetPlans, response.data];
         }
-        this.app.showMessage(translate("budget_plan_created"), "success");
+        this.app.showMessage(translate('budget_plan_created'), 'success');
       }
 
-      closeModal("plan-modal");
+      closeModal('plan-modal');
       await this.invalidateBudgetCaches();
       await this.refreshBudgetData(true);
     } catch (error) {
-      debugError("Error saving budget plan", error);
-      this.app.showMessage(translate("error_saving_budget_plan"), "error");
+      debugError('Error saving budget plan', error);
+      this.app.showMessage(translate('error_saving_budget_plan'), 'error');
     }
   }
 
@@ -1805,12 +1805,12 @@ export class Budgets {
     try {
       await deleteBudgetPlan(planId);
       this.budgetPlans = this.budgetPlans.filter((plan) => plan.id !== planId);
-      this.app.showMessage(translate("budget_plan_deleted"), "success");
+      this.app.showMessage(translate('budget_plan_deleted'), 'success');
       await this.invalidateBudgetCaches();
       await this.refreshBudgetData(true);
     } catch (error) {
-      debugError("Error deleting budget plan", error);
-      this.app.showMessage(translate("error_deleting_budget_plan"), "error");
+      debugError('Error deleting budget plan', error);
+      this.app.showMessage(translate('error_deleting_budget_plan'), 'error');
     }
   }
 }

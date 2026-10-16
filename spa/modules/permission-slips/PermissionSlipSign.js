@@ -10,11 +10,11 @@ import {
 } from '../../api/api-endpoints.js';
 import { CONFIG } from '../../config.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
-import { setContent } from "../../utils/DOMUtils.js";
-import { buildNotFoundMarkup } from "../../utils/NotFoundUtils.js";
-import { formatDateShort, getTodayISO } from "../../utils/DateUtils.js";
-import { escapeHTML } from "../../utils/SecurityUtils.js";
-import { confirm as confirmDialog } from "../../utils/DialogUtils.js";
+import { setContent } from '../../utils/DOMUtils.js';
+import { buildNotFoundMarkup } from '../../utils/NotFoundUtils.js';
+import { formatDateShort, getTodayISO } from '../../utils/DateUtils.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { confirm as confirmDialog } from '../../utils/DialogUtils.js';
 import { richTextOrPlain } from '../../utils/RichTextUtils.js';
 
 export class PermissionSlipSign {
@@ -173,13 +173,13 @@ export class PermissionSlipSign {
     const consentCheckbox = document.getElementById('consent-checkbox');
     const declineBtn = document.getElementById('decline-btn');
 
-    if (!signBtn) return;
+    if (!signBtn) {return;}
 
     // Signing requires consent; declining requires only the guardian's name.
     const checkForm = () => {
       const hasName = Boolean(guardianNameInput.value.trim());
       signBtn.disabled = !(hasName && consentCheckbox.checked);
-      if (declineBtn) declineBtn.disabled = !hasName;
+      if (declineBtn) {declineBtn.disabled = !hasName;}
     };
 
     guardianNameInput?.addEventListener('input', checkForm);
@@ -203,7 +203,7 @@ export class PermissionSlipSign {
     }
 
     signBtn.disabled = true;
-    setContent(signBtn, '<span class="spinner-border spinner-border-sm"></span> ' + translate('signing'));
+    setContent(signBtn, `<span class="spinner-border spinner-border-sm"></span> ${  translate('signing')}`);
     try {
       const response = await signPublicPermissionSlip(this.token, {
         signed_by: guardianName,
@@ -220,7 +220,7 @@ export class PermissionSlipSign {
       debugError('Error signing permission slip:', error);
       this.app.showMessage(translate('error_signing_slip'), 'error');
       signBtn.disabled = false;
-      setContent(signBtn, '<i class="fas fa-signature"></i> ' + translate('sign_permission_slip'));
+      setContent(signBtn, `<i class="fas fa-signature"></i> ${  translate('sign_permission_slip')}`);
     }
   }
 

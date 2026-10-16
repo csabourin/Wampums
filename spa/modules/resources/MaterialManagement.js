@@ -1,25 +1,25 @@
-import { translate } from "../../app.js";
-import { debugError } from "../../utils/DebugUtils.js";
-import { escapeHTML } from "../../utils/SecurityUtils.js";
-import { formatDate, getTodayISO } from "../../utils/DateUtils.js";
+import { translate } from '../../app.js';
+import { debugError } from '../../utils/DebugUtils.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
 import {
   formatActivityDateRange,
   getActivityEndDate,
   getActivityStartDate
-} from "../../utils/ActivityDateUtils.js";
+} from '../../utils/ActivityDateUtils.js';
 import {
   getEquipmentInventory,
   getEquipmentReservations,
   saveBulkReservations,
   updateEquipmentReservation,
   getActivities
-} from "../../api/api-endpoints.js";
-import { confirmDestructive } from "../../utils/DialogUtils.js";
-import { hasPermission } from "../../utils/PermissionUtils.js";
-import { getCurrentOrganizationId } from "../../ajax-functions.js";
-import { deleteCachedData } from "../../indexedDB.js";
-import { CONFIG } from "../../config.js";
-import { setContent } from "../../utils/DOMUtils.js";
+} from '../../api/api-endpoints.js';
+import { confirmDestructive } from '../../utils/DialogUtils.js';
+import { hasPermission } from '../../utils/PermissionUtils.js';
+import { getCurrentOrganizationId } from '../../ajax-functions.js';
+import { deleteCachedData } from '../../indexedDB.js';
+import { CONFIG } from '../../config.js';
+import { setContent } from '../../utils/DOMUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 /**
@@ -67,7 +67,7 @@ const LOCATION_TYPES = [
  */
 function reservationStatusLabel(status) {
   if (!status) {
-    return "";
+    return '';
   }
   const key = `reservation_status_${status}`;
   const label = translate(key);
@@ -94,8 +94,8 @@ export class MaterialManagement {
       this.render();
       this.attachEventHandlers();
     } catch (error) {
-      debugError("Error initializing material management:", error);
-      this.app.showMessage(translate("resource_dashboard_error_loading"), "error");
+      debugError('Error initializing material management:', error);
+      this.app.showMessage(translate('resource_dashboard_error_loading'), 'error');
     }
   }
 
@@ -231,7 +231,7 @@ export class MaterialManagement {
   }
 
   render() {
-    const container = document.getElementById("app");
+    const container = document.getElementById('app');
     if (!container) {
       return;
     }
@@ -248,20 +248,20 @@ export class MaterialManagement {
     const dateTo = document.getElementById('reservationDateTo')?.value || getTodayISO();
 
     setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <section class="page material-management-page">
         <div class="card">
-          <h1>${escapeHTML(translate("material_management_title"))}</h1>
-          <p class="subtitle">${escapeHTML(translate("material_management_description"))}</p>
+          <h1>${escapeHTML(translate('material_management_title'))}</h1>
+          <p class="subtitle">${escapeHTML(translate('material_management_description'))}</p>
         </div>
 
         <div class="card">
-          <h2>${escapeHTML(translate("reservation_form"))}</h2>
+          <h2>${escapeHTML(translate('reservation_form'))}</h2>
           <form id="bulkReservationForm" class="stacked">
             <label class="stacked">
-              <span>${escapeHTML(translate("select_activity_optional"))}</span>
+              <span>${escapeHTML(translate('select_activity_optional'))}</span>
               <select id="activitySelect">
-                <option value="">${escapeHTML(translate("manual_date_entry"))}</option>
+                <option value="">${escapeHTML(translate('manual_date_entry'))}</option>
                 ${this.activities.map(activity => `
                   <option value="${activity.id}" ${this.selectedActivityId === activity.id ? 'selected' : ''}>
                     ${escapeHTML(activity.name)} - ${formatActivityDateRange(activity, this.app.lang || 'fr')}
@@ -271,35 +271,35 @@ export class MaterialManagement {
             </label>
             <div class="grid grid-2" style="margin-bottom: 1.5rem;">
               <label class="stacked">
-                <span>${escapeHTML(translate("date_from"))}</span>
+                <span>${escapeHTML(translate('date_from'))}</span>
                 <input type="date" id="reservationDateFrom" value="${escapeHTML(dateFrom)}" ${this.selectedActivityId ? 'readonly' : ''} required />
               </label>
               <label class="stacked">
-                <span>${escapeHTML(translate("date_to"))}</span>
+                <span>${escapeHTML(translate('date_to'))}</span>
                 <input type="date" id="reservationDateTo" value="${escapeHTML(dateTo)}" ${this.selectedActivityId ? 'readonly' : ''} required />
               </label>
             </div>
             <label class="stacked">
-              <span>${escapeHTML(translate("activity_name"))}</span>
+              <span>${escapeHTML(translate('activity_name'))}</span>
               <input type="text" name="reserved_for" id="reservedFor" maxlength="200" ${this.selectedActivityId ? 'readonly' : ''} required />
             </label>
             <label class="stacked">
-              <span>${escapeHTML(translate("reservation_notes"))}</span>
+              <span>${escapeHTML(translate('reservation_notes'))}</span>
               <textarea name="notes" rows="2" maxlength="2000"></textarea>
             </label>
-            <button type="submit" class="btn primary" ${selectedItemsList.length === 0 ? 'disabled' : ''}>${escapeHTML(translate("reserve_selected"))}</button>
+            <button type="submit" class="btn primary" ${selectedItemsList.length === 0 ? 'disabled' : ''}>${escapeHTML(translate('reserve_selected'))}</button>
           </form>
         </div>
 
         <div class="card">
-          <h2>${escapeHTML(translate("select_equipment"))}</h2>
+          <h2>${escapeHTML(translate('select_equipment'))}</h2>
           <div class="equipment-selection">
             ${this.equipment.length === 0
-              ? `<p>${escapeHTML(translate("no_data_available"))}</p>`
-              : this.equipment.map((item) => {
-                  const conflicts = this.getConflictingReservations(item.id, dateFrom, dateTo);
-                  const isChecked = this.selectedItems.has(item.id);
-                  return `
+    ? `<p>${escapeHTML(translate('no_data_available'))}</p>`
+    : this.equipment.map((item) => {
+      const conflicts = this.getConflictingReservations(item.id, dateFrom, dateTo);
+      const isChecked = this.selectedItems.has(item.id);
+      return `
                   <div class="equipment-item ${isChecked && conflicts.length > 0 ? 'has-conflicts' : ''}" data-equipment-id="${item.id}">
                     <label class="equipment-checkbox">
                       <input
@@ -310,12 +310,12 @@ export class MaterialManagement {
                       />
                       <span class="equipment-name">${escapeHTML(item.name)}</span>
                       <span class="equipment-category">${escapeHTML(item.category || '')}</span>
-                      <span class="equipment-available">(${escapeHTML(translate("equipment_available"))}: ${item.quantity_total ?? 0})</span>
+                      <span class="equipment-available">(${escapeHTML(translate('equipment_available'))}: ${item.quantity_total ?? 0})</span>
                       <span class="equipment-location">${escapeHTML(this.formatLocation(item))}</span>
                     </label>
                     ${isChecked ? `
                       <label class="quantity-input">
-                        <span>${escapeHTML(translate("reserved_quantity"))}</span>
+                        <span>${escapeHTML(translate('reserved_quantity'))}</span>
                         <input
                           type="number"
                           min="1"
@@ -327,34 +327,34 @@ export class MaterialManagement {
                       </label>
                       ${conflicts.length > 0 ? `
                         <div class="conflict-warning" style="color: #d97706; font-size: 0.9em; margin-top: 0.5rem; padding: 0.5rem; background: #fef3c7; border-radius: 4px;">
-                          ⚠️ <strong>${escapeHTML(translate("existing_reservations") || "Existing reservations")}:</strong>
+                          ⚠️ <strong>${escapeHTML(translate('existing_reservations') || 'Existing reservations')}:</strong>
                           <ul style="margin: 0.25rem 0 0 1.5rem; padding: 0;">
                             ${conflicts.map(conflict => {
-                              const conflictDateRange = conflict.date_from && conflict.date_to
-                                ? `${formatDate(conflict.date_from, this.app.lang || 'en')} - ${formatDate(conflict.date_to, this.app.lang || 'en')}`
-                                : formatDate(conflict.meeting_date, this.app.lang || 'en');
-                              return `<li>${escapeHTML(conflictDateRange)} - ${escapeHTML(conflict.reserved_for || '-')} (${escapeHTML(conflict.organization_name || translate('unknown'))}, qty: ${conflict.reserved_quantity})</li>`;
-                            }).join('')}
+    const conflictDateRange = conflict.date_from && conflict.date_to
+      ? `${formatDate(conflict.date_from, this.app.lang || 'en')} - ${formatDate(conflict.date_to, this.app.lang || 'en')}`
+      : formatDate(conflict.meeting_date, this.app.lang || 'en');
+    return `<li>${escapeHTML(conflictDateRange)} - ${escapeHTML(conflict.reserved_for || '-')} (${escapeHTML(conflict.organization_name || translate('unknown'))}, qty: ${conflict.reserved_quantity})</li>`;
+  }).join('')}
                           </ul>
                         </div>
                       ` : ''}
                     ` : ''}
                   </div>
                 `;
-                }).join('')}
+    }).join('')}
           </div>
         </div>
 
         <div class="card">
-          <h2>${escapeHTML(translate("selected_items"))}</h2>
+          <h2>${escapeHTML(translate('selected_items'))}</h2>
           ${selectedItemsList.length === 0
-            ? `<p>${escapeHTML(translate("no_items_selected"))}</p>`
-            : `
+    ? `<p>${escapeHTML(translate('no_items_selected'))}</p>`
+    : `
               <ul class="selected-items-list">
                 ${selectedItemsList.map(item => `
                   <li>
                     <strong>${escapeHTML(item.name)}</strong> -
-                    ${escapeHTML(translate("reserved_quantity"))}: ${item.selectedQuantity}
+                    ${escapeHTML(translate('reserved_quantity'))}: ${item.selectedQuantity}
                   </li>
                 `).join('')}
               </ul>
@@ -362,29 +362,29 @@ export class MaterialManagement {
         </div>
 
         <div class="card">
-          <h2>${escapeHTML(translate("equipment_reservations"))}</h2>
+          <h2>${escapeHTML(translate('equipment_reservations'))}</h2>
           <div class="table-container">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>${escapeHTML(translate("equipment_name"))}</th>
-                  <th>${escapeHTML(translate("equipment_location"))}</th>
-                  <th>${escapeHTML(translate("reservation_date_range"))}</th>
-                  <th>${escapeHTML(translate("reserved_quantity"))}</th>
-                  <th>${escapeHTML(translate("reservation_for"))}</th>
-                  <th>${escapeHTML(translate("organization"))}</th>
-                  <th>${escapeHTML(translate("reservation_status"))}</th>
-                  <th>${escapeHTML(translate("reservation_actions"))}</th>
+                  <th>${escapeHTML(translate('equipment_name'))}</th>
+                  <th>${escapeHTML(translate('equipment_location'))}</th>
+                  <th>${escapeHTML(translate('reservation_date_range'))}</th>
+                  <th>${escapeHTML(translate('reserved_quantity'))}</th>
+                  <th>${escapeHTML(translate('reservation_for'))}</th>
+                  <th>${escapeHTML(translate('organization'))}</th>
+                  <th>${escapeHTML(translate('reservation_status'))}</th>
+                  <th>${escapeHTML(translate('reservation_actions'))}</th>
                 </tr>
               </thead>
               <tbody>
                 ${this.reservations.length === 0
-                  ? `<tr><td colspan="8">${escapeHTML(translate("no_data_available"))}</td></tr>`
-                  : this.reservations.map((reservation) => {
-                      const dateRange = reservation.date_from && reservation.date_to
-                        ? `${formatDate(reservation.date_from, this.app.lang || 'en')} - ${formatDate(reservation.date_to, this.app.lang || 'en')}`
-                        : formatDate(reservation.meeting_date, this.app.lang || 'en');
-                      return `
+    ? `<tr><td colspan="8">${escapeHTML(translate('no_data_available'))}</td></tr>`
+    : this.reservations.map((reservation) => {
+      const dateRange = reservation.date_from && reservation.date_to
+        ? `${formatDate(reservation.date_from, this.app.lang || 'en')} - ${formatDate(reservation.date_to, this.app.lang || 'en')}`
+        : formatDate(reservation.meeting_date, this.app.lang || 'en');
+      return `
                         <tr>
                           <td>${escapeHTML(reservation.equipment_name || '')}</td>
                           <td>${escapeHTML(this.formatLocation(reservation))}</td>
@@ -396,7 +396,7 @@ export class MaterialManagement {
                           <td class="reservation-actions">${this.renderReservationActions(reservation)}</td>
                         </tr>
                       `;
-                    }).join('')}
+    }).join('')}
               </tbody>
             </table>
           </div>
@@ -497,7 +497,7 @@ export class MaterialManagement {
         const dateTo = document.getElementById('reservationDateTo')?.value;
 
         if (!dateFrom || !dateTo) {
-          this.app.showMessage(translate("date_required") || "Please select reservation dates", "error");
+          this.app.showMessage(translate('date_required') || 'Please select reservation dates', 'error');
           return;
         }
 
@@ -554,7 +554,7 @@ export class MaterialManagement {
           const response = await saveBulkReservations(payload);
 
           if (response.success) {
-            this.app.showMessage(translate("bulk_reservation_saved"), "success");
+            this.app.showMessage(translate('bulk_reservation_saved'), 'success');
             this.selectedItems.clear();
 
             // Invalidate cache to ensure fresh data on next load
@@ -569,7 +569,7 @@ export class MaterialManagement {
             throw new Error(response.message || 'Failed to save reservations');
           }
         } catch (error) {
-          debugError("Error saving bulk reservations", error);
+          debugError('Error saving bulk reservations', error);
           this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
 
           // Revert optimistic update on error
@@ -597,7 +597,7 @@ export class MaterialManagement {
       setContent(listContainer, selectedItemsList.map(item => `
         <li>
           <strong>${escapeHTML(item.name)}</strong> - 
-          ${escapeHTML(translate("reserved_quantity"))}: ${item.selectedQuantity}
+          ${escapeHTML(translate('reserved_quantity'))}: ${item.selectedQuantity}
         </li>
       `).join(''));
     }

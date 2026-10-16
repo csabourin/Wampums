@@ -5,12 +5,12 @@ import { canManageActivities, canManageAttendance, canViewActivities } from '../
 debugLog('init-activity-widget.js loaded');
 
 export function initActivityWidget(app) {
-		debugLog('Initializing ActivityWidget');
-		debugLog('App state:', { isLoggedIn: app.isLoggedIn, userRole: app.userRole });
+  debugLog('Initializing ActivityWidget');
+  debugLog('App state:', { isLoggedIn: app.isLoggedIn, userRole: app.userRole });
 
-		if (app.isLoggedIn && (canViewActivities() || canManageActivities() || canManageAttendance())) {
-				new ActivityWidget(app);
-		} else {
-				debugLog('User not logged in or not authorized for ActivityWidget');
-		}
+  if (app.isLoggedIn && (canViewActivities() || canManageActivities() || canManageAttendance())) {
+    new ActivityWidget(app);
+  } else {
+    debugLog('User not logged in or not authorized for ActivityWidget');
+  }
 }

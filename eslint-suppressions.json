@@ -27,14 +27,14 @@
       "count": 1
     }
   },
-  "spa/modules/communication-settings/CommunicationSettings.js": {
-    "no-useless-escape": {
-      "count": 4
-    }
-  },
   "spa/functions.js": {
     "no-useless-escape": {
       "count": 1
+    }
+  },
+  "spa/modules/communication-settings/CommunicationSettings.js": {
+    "no-useless-escape": {
+      "count": 4
     }
   },
   "spa/modules/reports/Reports.js": {

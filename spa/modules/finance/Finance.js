@@ -15,21 +15,21 @@ import {
   deletePaymentPlan,
   getFinanceReport,
   getParticipants
-} from "../../ajax-functions.js";
-import { translate } from "../../app.js";
-import { escapeHTML } from "../../utils/SecurityUtils.js";
-import { debugLog, debugError } from "../../utils/DebugUtils.js";
-import { formatDateShort, getTodayISO } from "../../utils/DateUtils.js";
-import { clearFinanceRelatedCaches } from "../../indexedDB.js";
-import { LoadingStateManager, CacheWithTTL, retryWithBackoff, withButtonLoading, debounce } from "../../utils/PerformanceUtils.js";
-import { exportToCSV } from "../../utils/ExportUtils.js";
-import { confirmDestructive } from "../../utils/DialogUtils.js";
-import { validateMoney, validateDateField, validatePositiveInteger } from "../../utils/ValidationUtils.js";
-import { canManageFinance, canViewFinance } from "../../utils/PermissionUtils.js";
-import { setContent, insertHTML } from "../../utils/DOMUtils.js";
-import { openModal, closeModal } from "../../utils/ModalUtils.js";
-import { BaseModule } from "../../utils/BaseModule.js";
-import { CONFIG } from "../../config.js";
+} from '../../ajax-functions.js';
+import { translate } from '../../app.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { debugLog, debugError } from '../../utils/DebugUtils.js';
+import { formatDateShort, getTodayISO } from '../../utils/DateUtils.js';
+import { clearFinanceRelatedCaches } from '../../indexedDB.js';
+import { LoadingStateManager, CacheWithTTL, retryWithBackoff, withButtonLoading, debounce } from '../../utils/PerformanceUtils.js';
+import { exportToCSV } from '../../utils/ExportUtils.js';
+import { confirmDestructive } from '../../utils/DialogUtils.js';
+import { validateMoney, validateDateField, validatePositiveInteger } from '../../utils/ValidationUtils.js';
+import { canManageFinance, canViewFinance } from '../../utils/PermissionUtils.js';
+import { setContent, insertHTML } from '../../utils/DOMUtils.js';
+import { openModal, closeModal } from '../../utils/ModalUtils.js';
+import { BaseModule } from '../../utils/BaseModule.js';
+import { CONFIG } from '../../config.js';
 
 const DEFAULT_CURRENCY = CONFIG.DEFAULT_CURRENCY;
 
@@ -40,7 +40,7 @@ export class Finance extends BaseModule {
     this.participantFees = [];
     this.participants = [];
     this.financeSummary = null;
-    this.activeTab = "memberships";
+    this.activeTab = 'memberships';
 
     // Enhanced caching with TTL (5 minutes)
     this.paymentsCache = new CacheWithTTL(300000);
@@ -59,13 +59,13 @@ export class Finance extends BaseModule {
   async init() {
     // Check permission
     if (!canViewFinance()) {
-      this.app.router.navigate("/dashboard");
+      this.app.router.navigate('/dashboard');
       return;
     }
 
     // Prevent race conditions - only one init at a time
     if (this.isInitializing) {
-      debugError("Finance init already in progress, skipping duplicate call");
+      debugError('Finance init already in progress, skipping duplicate call');
       return;
     }
 
@@ -82,11 +82,11 @@ export class Finance extends BaseModule {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Error loading finance data:", error);
+      debugError('Error loading finance data:', error);
       // Render error state but allow partial functionality
       this.render();
       this.attachEventListeners();
-      this.app.showMessage(translate("error_loading_data"), "warning");
+      this.app.showMessage(translate('error_loading_data'), 'warning');
     } finally {
       this.isInitializing = false;
     }
@@ -95,9 +95,9 @@ export class Finance extends BaseModule {
   setActiveTabFromQuery() {
     try {
       const url = new URL(window.location.href);
-      this.activeTab = url.searchParams.get("tab") || "memberships";
+      this.activeTab = url.searchParams.get('tab') || 'memberships';
     } catch (error) {
-      this.activeTab = "memberships";
+      this.activeTab = 'memberships';
     }
   }
 
@@ -114,28 +114,28 @@ export class Finance extends BaseModule {
             }
           }
         ).catch(error => {
-          debugError("Error loading participant fees:", error);
+          debugError('Error loading participant fees:', error);
           return { data: [] };
         }),
         retryWithBackoff(
           () => getFeeDefinitions(),
           { maxRetries: 2 }
         ).catch(error => {
-          debugError("Error loading fee definitions:", error);
+          debugError('Error loading fee definitions:', error);
           return { data: [] };
         }),
         retryWithBackoff(
           () => getParticipants(),
           { maxRetries: 2 }
         ).catch(error => {
-          debugError("Error loading participants:", error);
+          debugError('Error loading participants:', error);
           return { data: [] };
         }),
         retryWithBackoff(
           () => getFinanceReport(),
           { maxRetries: 2 }
         ).catch(error => {
-          debugError("Error loading finance report:", error);
+          debugError('Error loading finance report:', error);
           return { data: null };
         })
       ]);
@@ -149,8 +149,8 @@ export class Finance extends BaseModule {
 
   formatCurrency(amount) {
     const value = Number(amount) || 0;
-    return new Intl.NumberFormat(this.app.lang || "en", {
-      style: "currency",
+    return new Intl.NumberFormat(this.app.lang || 'en', {
+      style: 'currency',
       currency: DEFAULT_CURRENCY,
       maximumFractionDigits: 2
     }).format(value);
@@ -158,14 +158,14 @@ export class Finance extends BaseModule {
 
   formatPercent(numerator, denominator) {
     if (!denominator || denominator <= 0) {
-      return new Intl.NumberFormat(this.app.lang || "en", {
-        style: "percent",
+      return new Intl.NumberFormat(this.app.lang || 'en', {
+        style: 'percent',
         maximumFractionDigits: 0
       }).format(0);
     }
     const ratio = Math.max(0, Number(numerator) || 0) / denominator;
-    return new Intl.NumberFormat(this.app.lang || "en", {
-      style: "percent",
+    return new Intl.NumberFormat(this.app.lang || 'en', {
+      style: 'percent',
       maximumFractionDigits: 0
     }).format(ratio);
   }
@@ -177,7 +177,7 @@ export class Finance extends BaseModule {
    * @returns {number | null}
    */
   extractYear(dateValue) {
-    if (!dateValue) return null;
+    if (!dateValue) {return null;}
     const parsedDate = new Date(dateValue);
     if (!Number.isNaN(parsedDate.getTime())) {
       return parsedDate.getFullYear();
@@ -203,7 +203,7 @@ export class Finance extends BaseModule {
     if (startYear || endYear) {
       return String(startYear || endYear);
     }
-    return translate("unknown");
+    return translate('unknown');
   }
 
   /**
@@ -212,7 +212,7 @@ export class Finance extends BaseModule {
    * @returns {number}
    */
   getOutstanding(fee) {
-    if (!fee) return 0;
+    if (!fee) {return 0;}
     const totalAmount = Number(fee.total_amount) || 0;
     const totalPaid = Number(fee.total_paid) || 0;
     return Math.max(totalAmount - totalPaid, 0);
@@ -249,52 +249,52 @@ export class Finance extends BaseModule {
    * @param {string | number} definitionId
    */
   populateFeesFromDefinition(definitionId) {
-    const form = document.getElementById("participant-fee-form");
-    if (!form) return;
+    const form = document.getElementById('participant-fee-form');
+    if (!form) {return;}
     const definition = this.feeDefinitions.find((item) => String(item.id) === String(definitionId));
-    if (!definition) return;
-    form.total_registration_fee.value = definition.registration_fee ?? "";
-    form.total_membership_fee.value = definition.membership_fee ?? "";
+    if (!definition) {return;}
+    form.total_registration_fee.value = definition.registration_fee ?? '';
+    form.total_membership_fee.value = definition.membership_fee ?? '';
   }
 
   renderLoading() {
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <section class="finance-page">
         <header class="finance-header">
           <div>
-            <p class="finance-kicker">${translate("dashboard_day_to_day_section")}</p>
-            <h1>${translate("finance_center_title")}</h1>
-            <p class="finance-subtitle">${translate("finance_center_subtitle")}</p>
+            <p class="finance-kicker">${translate('dashboard_day_to_day_section')}</p>
+            <h1>${translate('finance_center_title')}</h1>
+            <p class="finance-subtitle">${translate('finance_center_subtitle')}</p>
           </div>
         </header>
         <div class="loading-container">
           <div class="loading-spinner"></div>
-          <p>${translate("loading")}...</p>
+          <p>${translate('loading')}...</p>
         </div>
       </section>
     `;
 
-    setContent(document.getElementById("app"), content);
+    setContent(document.getElementById('app'), content);
   }
 
   render() {
     const canEditDefinitions = canManageFinance();
     const canSeeReports = canViewFinance();
     const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <section class="finance-page">
         <header class="finance-header">
           <div>
-            <p class="finance-kicker">${translate("dashboard_day_to_day_section")}</p>
-            <h1>${translate("finance_center_title")}</h1>
-            <p class="finance-subtitle">${translate("finance_center_subtitle")}</p>
+            <p class="finance-kicker">${translate('dashboard_day_to_day_section')}</p>
+            <h1>${translate('finance_center_title')}</h1>
+            <p class="finance-subtitle">${translate('finance_center_subtitle')}</p>
           </div>
         </header>
         <div class="finance-tabs" role="tablist">
-          ${this.renderTabButton("memberships", translate("finance_memberships_tab"))}
-          ${canEditDefinitions ? this.renderTabButton("definitions", translate("finance_definitions_tab")) : ""}
-          ${canSeeReports ? this.renderTabButton("reports", translate("financial_report")) : ""}
+          ${this.renderTabButton('memberships', translate('finance_memberships_tab'))}
+          ${canEditDefinitions ? this.renderTabButton('definitions', translate('finance_definitions_tab')) : ''}
+          ${canSeeReports ? this.renderTabButton('reports', translate('financial_report')) : ''}
         </div>
         <div id="finance-content" class="finance-content" aria-live="polite">
           ${this.renderActiveTab()}
@@ -302,13 +302,13 @@ export class Finance extends BaseModule {
       </section>
     `;
 
-    setContent(document.getElementById("app"), content);
+    setContent(document.getElementById('app'), content);
   }
 
   renderTabButton(tab, label) {
     const isActive = this.activeTab === tab;
     return `
-      <button class="finance-tab ${isActive ? "active" : ""}" data-tab="${tab}" role="tab" aria-selected="${isActive}">
+      <button class="finance-tab ${isActive ? 'active' : ''}" data-tab="${tab}" role="tab" aria-selected="${isActive}">
         ${label}
       </button>
     `;
@@ -316,11 +316,11 @@ export class Finance extends BaseModule {
 
   renderActiveTab() {
     switch (this.activeTab) {
-      case "definitions":
+      case 'definitions':
         return this.renderDefinitionsSection();
-      case "reports":
+      case 'reports':
         return this.renderReportsSection();
-      case "memberships":
+      case 'memberships':
       default:
         return this.renderMembershipsSection();
     }
@@ -328,7 +328,7 @@ export class Finance extends BaseModule {
 
   renderDefinitionsSection() {
     if (!canManageFinance()) {
-      return `<p class="finance-helper">${translate("finance_admin_only")}</p>`;
+      return `<p class="finance-helper">${translate('finance_admin_only')}</p>`;
     }
 
     const sortedDefinitions = this.getSortedFeeDefinitions();
@@ -342,40 +342,40 @@ export class Finance extends BaseModule {
               <h3>${yearRange}</h3>
               <span class="finance-pill">${this.formatCurrency(def.registration_fee)} / ${this.formatCurrency(def.membership_fee)}</span>
             </div>
-            <p class="finance-meta">${translate("registration_fee_label")}: ${this.formatCurrency(def.registration_fee)}</p>
-            <p class="finance-meta">${translate("membership_fee_label")}: ${this.formatCurrency(def.membership_fee)}</p>
+            <p class="finance-meta">${translate('registration_fee_label')}: ${this.formatCurrency(def.registration_fee)}</p>
+            <p class="finance-meta">${translate('membership_fee_label')}: ${this.formatCurrency(def.membership_fee)}</p>
             <div class="finance-actions">
-              <button class="secondary-button" data-action="edit-definition" data-id="${def.id}">${translate("edit")}</button>
-              <button class="btn-danger" data-action="delete-definition" data-id="${def.id}">${translate("delete")}</button>
+              <button class="secondary-button" data-action="edit-definition" data-id="${def.id}">${translate('edit')}</button>
+              <button class="btn-danger" data-action="delete-definition" data-id="${def.id}">${translate('delete')}</button>
             </div>
           </article>
         `;
       })
-      .join("");
+      .join('');
 
     return `
       <div class="finance-grid">
         <article class="finance-card">
-          <h2>${translate("add_fee_definition")}</h2>
+          <h2>${translate('add_fee_definition')}</h2>
           <form id="fee-definition-form" class="finance-form" novalidate>
             <input type="hidden" name="definition_id" id="definition_id">
-            <label for="year_start">${translate("year_start")}</label>
+            <label for="year_start">${translate('year_start')}</label>
             <input type="date" name="year_start" id="year_start" required>
-            <label for="year_end">${translate("year_end")}</label>
+            <label for="year_end">${translate('year_end')}</label>
             <input type="date" name="year_end" id="year_end" required>
-            <label for="registration_fee">${translate("registration_fee_label")}</label>
+            <label for="registration_fee">${translate('registration_fee_label')}</label>
             <input type="number" step="0.01" min="0" name="registration_fee" id="registration_fee" required>
-            <label for="membership_fee">${translate("membership_fee_label")}</label>
+            <label for="membership_fee">${translate('membership_fee_label')}</label>
             <input type="number" step="0.01" min="0" name="membership_fee" id="membership_fee" required>
             <div class="finance-actions">
-              <button type="submit" class="primary-button">${translate("save")}</button>
-              <button type="button" class="ghost-button" id="reset-definition-form">${translate("reset")}</button>
+              <button type="submit" class="primary-button">${translate('save')}</button>
+              <button type="button" class="ghost-button" id="reset-definition-form">${translate('reset')}</button>
             </div>
           </form>
         </article>
         <section class="finance-card">
-          <h2>${translate("existing_fee_definitions")}</h2>
-          ${options || `<p class="finance-helper">${translate("no_definitions")}</p>`}
+          <h2>${translate('existing_fee_definitions')}</h2>
+          ${options || `<p class="finance-helper">${translate('no_definitions')}</p>`}
         </section>
       </div>
     `;
@@ -387,69 +387,69 @@ export class Finance extends BaseModule {
     return `
       <div class="finance-section">
         <div class="finance-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-          <h2>${translate("participant_fees")}</h2>
+          <h2>${translate('participant_fees')}</h2>
           <div class="search-container">
-            <input type="search" id="finance-search" class="search-input" placeholder="${translate("search")}..." value="${escapeHTML(this.searchTerm)}">
+            <input type="search" id="finance-search" class="search-input" placeholder="${translate('search')}..." value="${escapeHTML(this.searchTerm)}">
           </div>
         </div>
-        ${sortedFees.length > 0 ? this.renderParticipantFeesTable(sortedFees) : `<p class="finance-helper">${translate("no_participant_fees")}</p>`}
+        ${sortedFees.length > 0 ? this.renderParticipantFeesTable(sortedFees) : `<p class="finance-helper">${translate('no_participant_fees')}</p>`}
       </div>
 
       <div class="finance-section">
         <details class="finance-card">
-          <summary><h2>${translate("assign_membership_fee")}</h2></summary>
+          <summary><h2>${translate('assign_membership_fee')}</h2></summary>
           <form id="participant-fee-form" class="finance-form" novalidate>
-            <label for="participant_select">${translate("select_participant")}</label>
+            <label for="participant_select">${translate('select_participant')}</label>
             <select id="participant_select" name="participant_id" required>
-              <option value="">${translate("select_participant")}</option>
+              <option value="">${translate('select_participant')}</option>
               ${this.participants
-        .map(
-          (p) => `
-                    <option value="${p.id}">${escapeHTML(p.first_name || "")} ${escapeHTML(p.last_name || "")}</option>
+    .map(
+      (p) => `
+                    <option value="${p.id}">${escapeHTML(p.first_name || '')} ${escapeHTML(p.last_name || '')}</option>
                   `
-        )
-        .join("")}
+    )
+    .join('')}
             </select>
-            <label for="fee_definition">${translate("select_fee_definition")}</label>
+            <label for="fee_definition">${translate('select_fee_definition')}</label>
             <select id="fee_definition" name="fee_definition_id" required>
-              <option value="">${translate("select_fee_definition")}</option>
+              <option value="">${translate('select_fee_definition')}</option>
               ${this.getSortedFeeDefinitions()
-        .map(
-          (def) => `
+    .map(
+      (def) => `
                     <option value="${def.id}">${this.formatYearRange(def.year_start, def.year_end)}</option>
                   `
-        )
-        .join("")}
+    )
+    .join('')}
             </select>
-            <label for="registration_total">${translate("registration_fee_label")}</label>
+            <label for="registration_total">${translate('registration_fee_label')}</label>
             <input type="number" step="0.01" min="0" id="registration_total" name="total_registration_fee" required>
-            <label for="membership_total">${translate("membership_fee_label")}</label>
+            <label for="membership_total">${translate('membership_fee_label')}</label>
             <input type="number" step="0.01" min="0" id="membership_total" name="total_membership_fee" required>
-            <label for="fee_notes">${translate("notes")}</label>
+            <label for="fee_notes">${translate('notes')}</label>
             <textarea id="fee_notes" name="notes" rows="2"></textarea>
             <div class="finance-plan-toggle">
               <label for="enable_plan" class="checkbox-label">
-                <input type="checkbox" id="enable_plan" name="enable_plan"> ${translate("add_payment_plan_optional")}
+                <input type="checkbox" id="enable_plan" name="enable_plan"> ${translate('add_payment_plan_optional')}
               </label>
-              <p class="finance-helper">${translate("add_payment_plan_optional_helper")}</p>
+              <p class="finance-helper">${translate('add_payment_plan_optional_helper')}</p>
             </div>
             <div id="inline-plan-fields" class="finance-plan-fields hidden">
-              <label for="inline_number_of_payments">${translate("number_of_payments")}</label>
+              <label for="inline_number_of_payments">${translate('number_of_payments')}</label>
               <input type="number" min="1" id="inline_number_of_payments" name="plan_number_of_payments">
-              <label for="inline_amount_per_payment">${translate("amount_per_payment")}</label>
+              <label for="inline_amount_per_payment">${translate('amount_per_payment')}</label>
               <input type="number" step="0.01" min="0" id="inline_amount_per_payment" name="plan_amount_per_payment">
-              <label for="inline_start_date">${translate("start_date")}</label>
+              <label for="inline_start_date">${translate('start_date')}</label>
               <input type="date" id="inline_start_date" name="plan_start_date" value="${getTodayISO()}">
-              <label for="inline_frequency">${translate("frequency")}</label>
+              <label for="inline_frequency">${translate('frequency')}</label>
               <select id="inline_frequency" name="plan_frequency">
-                <option value="monthly">${translate("monthly")}</option>
-                <option value="biweekly">${translate("biweekly")}</option>
-                <option value="weekly">${translate("weekly")}</option>
+                <option value="monthly">${translate('monthly')}</option>
+                <option value="biweekly">${translate('biweekly')}</option>
+                <option value="weekly">${translate('weekly')}</option>
               </select>
-              <label for="inline_plan_notes">${translate("notes")}</label>
+              <label for="inline_plan_notes">${translate('notes')}</label>
               <textarea id="inline_plan_notes" name="plan_notes" rows="2"></textarea>
             </div>
-            <button type="submit" class="primary-button">${translate("save")}</button>
+            <button type="submit" class="primary-button">${translate('save')}</button>
           </form>
         </details>
       </div>
@@ -458,7 +458,7 @@ export class Finance extends BaseModule {
 
   getSortedParticipantFees() {
     const fees = [...this.participantFees].filter(fee => {
-      if (!this.searchTerm) return true;
+      if (!this.searchTerm) {return true;}
       const term = this.searchTerm.toLowerCase();
       const name = `${fee.first_name} ${fee.last_name}`.toLowerCase();
       return name.includes(term);
@@ -487,8 +487,8 @@ export class Finance extends BaseModule {
           return 0;
       }
 
-      if (valA < valB) return this.sortDirection === 'asc' ? -1 : 1;
-      if (valA > valB) return this.sortDirection === 'asc' ? 1 : -1;
+      if (valA < valB) {return this.sortDirection === 'asc' ? -1 : 1;}
+      if (valA > valB) {return this.sortDirection === 'asc' ? 1 : -1;}
       return 0;
     });
     return fees;
@@ -507,17 +507,17 @@ export class Finance extends BaseModule {
         <table class="finance-table">
           <thead>
             <tr>
-              <th><button class="sort-btn" data-sort="name">${translate("participant")}${sortIcon('name')}</button></th>
-              <th>${translate("period")}</th>
-              <th><button class="sort-btn" data-sort="total">${translate("total_billed")}${sortIcon('total')}</button></th>
-              <th><button class="sort-btn" data-sort="paid">${translate("total_paid")}${sortIcon('paid')}</button></th>
-              <th><button class="sort-btn" data-sort="outstanding">${translate("outstanding_balance")}${sortIcon('outstanding')}</button></th>
-              <th>${translate("status")}</th>
-              <th>${translate("actions")}</th>
+              <th><button class="sort-btn" data-sort="name">${translate('participant')}${sortIcon('name')}</button></th>
+              <th>${translate('period')}</th>
+              <th><button class="sort-btn" data-sort="total">${translate('total_billed')}${sortIcon('total')}</button></th>
+              <th><button class="sort-btn" data-sort="paid">${translate('total_paid')}${sortIcon('paid')}</button></th>
+              <th><button class="sort-btn" data-sort="outstanding">${translate('outstanding_balance')}${sortIcon('outstanding')}</button></th>
+              <th>${translate('status')}</th>
+              <th>${translate('actions')}</th>
             </tr>
           </thead>
           <tbody>
-            ${fees.map((fee) => this.renderParticipantFeeRow(fee)).join("")}
+            ${fees.map((fee) => this.renderParticipantFeeRow(fee)).join('')}
           </tbody>
         </table>
       </div>
@@ -525,11 +525,11 @@ export class Finance extends BaseModule {
   }
 
   renderParticipantFeeRow(fee) {
-    const participantName = `${escapeHTML(fee.first_name || "")} ${escapeHTML(fee.last_name || "")}`;
+    const participantName = `${escapeHTML(fee.first_name || '')} ${escapeHTML(fee.last_name || '')}`;
     const feeDefinition = this.feeDefinitions.find(def => String(def.id) === String(fee.fee_definition_id));
     const yearRange = feeDefinition
       ? this.formatYearRange(feeDefinition.year_start, feeDefinition.year_end)
-      : translate("unknown");
+      : translate('unknown');
     const outstanding = this.getOutstanding(fee);
     const statusLabel = translate(fee.status) || fee.status;
     const statusClass = fee.status === 'paid' ? 'success' : fee.status === 'partial' ? 'warning' : 'danger';
@@ -543,8 +543,8 @@ export class Finance extends BaseModule {
         <td><strong class="text-${statusClass}">${this.formatCurrency(outstanding)}</strong></td>
         <td><span class="finance-pill finance-pill--${statusClass}">${statusLabel}</span></td>
         <td class="finance-actions">
-          <button class="secondary-button" data-action="open-payment" data-id="${fee.id}">${translate("make_payment")}</button>
-          <button class="ghost-button" data-action="open-plan" data-id="${fee.id}">${translate("manage_installments")}</button>
+          <button class="secondary-button" data-action="open-payment" data-id="${fee.id}">${translate('make_payment')}</button>
+          <button class="ghost-button" data-action="open-plan" data-id="${fee.id}">${translate('manage_installments')}</button>
         </td>
       </tr>
     `;
@@ -573,14 +573,14 @@ export class Finance extends BaseModule {
           </div>
         `
       )
-      .join("");
+      .join('');
 
     const participantRows = participants
       .map(
         (p) => `
           <div class="finance-list__row">
             <div>
-              <p class="finance-meta">${escapeHTML(p.first_name || "")} ${escapeHTML(p.last_name || "")}</p>
+              <p class="finance-meta">${escapeHTML(p.first_name || '')} ${escapeHTML(p.last_name || '')}</p>
             </div>
             <div class="finance-row-values">
               <span>${this.formatCurrency(p.total_billed)}</span>
@@ -590,12 +590,12 @@ export class Finance extends BaseModule {
           </div>
         `
       )
-      .join("");
+      .join('');
 
     const paymentMethodRows = paymentMethods
       .map((methodRow) => {
-        const methodKey = methodRow.method || "unknown";
-        const methodLabel = translate(methodKey) || translate("unknown");
+        const methodKey = methodRow.method || 'unknown';
+        const methodLabel = translate(methodKey) || translate('unknown');
         return `
           <div class="finance-list__row">
             <div>
@@ -608,45 +608,45 @@ export class Finance extends BaseModule {
           </div>
         `;
       })
-      .join("");
+      .join('');
 
     return `
       <section class="finance-grid">
         <article class="finance-card finance-card--highlight">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2>${translate("financial_report")}</h2>
+            <h2>${translate('financial_report')}</h2>
             ${CONFIG.FEATURES.EXPORT_REPORTS ? `
               <button class="button button--secondary" id="export-finance-csv">
-                <span class="button-icon">⬇️</span> ${translate("export_csv")}
+                <span class="button-icon">⬇️</span> ${translate('export_csv')}
               </button>
             ` : ''}
           </div>
           <div class="finance-stats">
             <div>
-              <p class="finance-stat__label">${translate("total_billed")}</p>
+              <p class="finance-stat__label">${translate('total_billed')}</p>
               <p class="finance-stat__value">${this.formatCurrency(totals.total_billed)}</p>
             </div>
             <div>
-              <p class="finance-stat__label">${translate("total_paid")}</p>
+              <p class="finance-stat__label">${translate('total_paid')}</p>
               <p class="finance-stat__value">${this.formatCurrency(totals.total_paid)}</p>
             </div>
             <div>
-              <p class="finance-stat__label">${translate("outstanding_balance")}</p>
+              <p class="finance-stat__label">${translate('outstanding_balance')}</p>
               <p class="finance-stat__value finance-stat__value--alert">${this.formatCurrency(totals.total_outstanding)}</p>
             </div>
           </div>
         </article>
         <article class="finance-card">
-          <h3>${translate("by_payment_method")}</h3>
-          ${paymentMethodRows || `<p class="finance-helper">${translate("no_payments")}</p>`}
+          <h3>${translate('by_payment_method')}</h3>
+          ${paymentMethodRows || `<p class="finance-helper">${translate('no_payments')}</p>`}
         </article>
         <article class="finance-card">
-          <h3>${translate("by_year")}</h3>
-          ${definitionsHtml || `<p class="finance-helper">${translate("no_definitions")}</p>`}
+          <h3>${translate('by_year')}</h3>
+          ${definitionsHtml || `<p class="finance-helper">${translate('no_definitions')}</p>`}
         </article>
         <article class="finance-card">
-          <h3>${translate("by_participant")}</h3>
-          ${participantRows || `<p class="finance-helper">${translate("no_participant_fees")}</p>`}
+          <h3>${translate('by_participant')}</h3>
+          ${participantRows || `<p class="finance-helper">${translate('no_participant_fees')}</p>`}
         </article>
       </section>
     `;
@@ -657,16 +657,16 @@ export class Finance extends BaseModule {
     const participants = summary.participants || [];
 
     if (!participants.length) {
-      this.app.showMessage(translate("no_data_to_export"), "warning");
+      this.app.showMessage(translate('no_data_to_export'), 'warning');
       return;
     }
 
     const columns = [
-      { key: "first_name", label: translate("first_name") },
-      { key: "last_name", label: translate("last_name") },
-      { key: "total_billed", label: translate("total_billed"), format: (val) => val.toFixed(2) },
-      { key: "total_paid", label: translate("total_paid"), format: (val) => val.toFixed(2) },
-      { key: "total_outstanding", label: translate("outstanding_balance"), format: (val) => val.toFixed(2) }
+      { key: 'first_name', label: translate('first_name') },
+      { key: 'last_name', label: translate('last_name') },
+      { key: 'total_billed', label: translate('total_billed'), format: (val) => val.toFixed(2) },
+      { key: 'total_paid', label: translate('total_paid'), format: (val) => val.toFixed(2) },
+      { key: 'total_outstanding', label: translate('outstanding_balance'), format: (val) => val.toFixed(2) }
     ];
 
     const filename = `finance_report_${formatDateShort(new Date()).replace(/\//g, '-')}`;
@@ -682,7 +682,7 @@ export class Finance extends BaseModule {
       body: `
         <div class="finance-amounts">
           <div>
-            <p id="payment-total-label" class="finance-stat__label">${translate("total_amount")}</p>
+            <p id="payment-total-label" class="finance-stat__label">${translate('total_amount')}</p>
             <output id="payment-total-output" class="finance-stat__value" aria-labelledby="payment-total-label">--</output>
           </div>
         </div>
@@ -690,12 +690,12 @@ export class Finance extends BaseModule {
         <form id="payment-form" class="finance-form" novalidate>
           <input type="hidden" id="payment_fee_id" name="participant_fee_id">
           <div id="payment-rows">${this.renderPaymentRow(0)}</div>
-          <button type="button" class="ghost-button" id="add-payment-row">${translate("add_payment_row")}</button>
+          <button type="button" class="ghost-button" id="add-payment-row">${translate('add_payment_row')}</button>
         </form>
       `,
       footer: `
-        <button type="button" class="ghost-button" data-modal-close>${translate("cancel")}</button>
-        <button type="submit" class="primary-button" form="payment-form">${translate("save_payment")}</button>
+        <button type="button" class="ghost-button" data-modal-close>${translate('cancel')}</button>
+        <button type="submit" class="primary-button" form="payment-form">${translate('save_payment')}</button>
       `,
     };
   }
@@ -704,19 +704,19 @@ export class Finance extends BaseModule {
     const today = getTodayISO();
     return `
       <fieldset class="payment-row" data-index="${index}">
-        <legend class="sr-only">${translate("payment_entry")} ${index + 1}</legend>
-        <label for="payment_amount_${index}">${translate("amount")}</label>
+        <legend class="sr-only">${translate('payment_entry')} ${index + 1}</legend>
+        <label for="payment_amount_${index}">${translate('amount')}</label>
         <input type="number" step="0.01" min="0" id="payment_amount_${index}" name="amount_${index}">
-        <label for="payment_date_${index}">${translate("payment_date")}</label>
+        <label for="payment_date_${index}">${translate('payment_date')}</label>
         <input type="date" id="payment_date_${index}" name="payment_date_${index}" value="${today}">
-        <label for="payment_method_${index}">${translate("payment_method")}</label>
+        <label for="payment_method_${index}">${translate('payment_method')}</label>
         <select id="payment_method_${index}" name="method_${index}">
-          <option value="cash">${translate("cash")}</option>
-          <option value="card">${translate("card")}</option>
-          <option value="etransfer">${translate("etransfer")}</option>
-          <option value="cheque">${translate("cheque")}</option>
+          <option value="cash">${translate('cash')}</option>
+          <option value="card">${translate('card')}</option>
+          <option value="etransfer">${translate('etransfer')}</option>
+          <option value="cheque">${translate('cheque')}</option>
         </select>
-        <label for="payment_reference_${index}">${translate("reference_number")}</label>
+        <label for="payment_reference_${index}">${translate('reference_number')}</label>
         <input type="text" id="payment_reference_${index}" name="reference_number_${index}">
       </fieldset>
     `;
@@ -724,7 +724,7 @@ export class Finance extends BaseModule {
 
   addPaymentRow() {
     const container = document.getElementById('payment-rows');
-    if (!container) return;
+    if (!container) {return;}
     const newIndex = container.querySelectorAll('.payment-row').length;
     insertHTML(container, 'beforeend', this.renderPaymentRow(newIndex));
   }
@@ -746,25 +746,25 @@ export class Finance extends BaseModule {
         <div id="plan-details" class="finance-list"></div>
         <form id="plan-form" class="finance-form" novalidate>
           <input type="hidden" id="plan_fee_id" name="participant_fee_id">
-          <label for="plan_count">${translate("number_of_payments")}</label>
+          <label for="plan_count">${translate('number_of_payments')}</label>
           <input type="number" min="1" id="plan_count" name="number_of_payments" required>
-          <label for="plan_amount">${translate("amount_per_payment")}</label>
+          <label for="plan_amount">${translate('amount_per_payment')}</label>
           <input type="number" step="0.01" min="0" id="plan_amount" name="amount_per_payment" required>
-          <label for="plan_start">${translate("start_date")}</label>
+          <label for="plan_start">${translate('start_date')}</label>
           <input type="date" id="plan_start" name="start_date" required>
-          <label for="plan_frequency">${translate("frequency")}</label>
+          <label for="plan_frequency">${translate('frequency')}</label>
           <select id="plan_frequency" name="frequency" required>
-            <option value="monthly">${translate("monthly")}</option>
-            <option value="biweekly">${translate("biweekly")}</option>
-            <option value="weekly">${translate("weekly")}</option>
+            <option value="monthly">${translate('monthly')}</option>
+            <option value="biweekly">${translate('biweekly')}</option>
+            <option value="weekly">${translate('weekly')}</option>
           </select>
-          <label for="plan_notes">${translate("notes")}</label>
+          <label for="plan_notes">${translate('notes')}</label>
           <textarea id="plan_notes" name="notes" rows="2"></textarea>
         </form>
       `,
       footer: `
-        <button type="button" class="btn-danger" id="delete-plan-btn">${translate("delete")}</button>
-        <button type="submit" class="primary-button" form="plan-form">${translate("save")}</button>
+        <button type="button" class="btn-danger" id="delete-plan-btn">${translate('delete')}</button>
+        <button type="submit" class="primary-button" form="plan-form">${translate('save')}</button>
       `,
     };
   }
@@ -976,9 +976,9 @@ export class Finance extends BaseModule {
 
   populateDefinitionForm(id) {
     const def = this.feeDefinitions.find((item) => String(item.id) === String(id));
-    if (!def) return;
+    if (!def) {return;}
     const form = document.getElementById('fee-definition-form');
-    if (!form) return;
+    if (!form) {return;}
     form.definition_id.value = def.id;
     form.year_start.value = def.year_start?.split('T')[0] || def.year_start;
     form.year_end.value = def.year_end?.split('T')[0] || def.year_end;
@@ -994,12 +994,12 @@ export class Finance extends BaseModule {
    * @returns {object | null}
    */
   findExistingParticipantFee(participantId, feeDefinitionId) {
-    if (!participantId) return null;
+    if (!participantId) {return null;}
     if (feeDefinitionId) {
       const exactMatch = this.participantFees.find(
         (fee) => Number(fee.participant_id) === participantId && Number(fee.fee_definition_id) === feeDefinitionId
       );
-      if (exactMatch) return exactMatch;
+      if (exactMatch) {return exactMatch;}
     }
     return this.participantFees.find((fee) => Number(fee.participant_id) === participantId) || null;
   }
@@ -1009,7 +1009,7 @@ export class Finance extends BaseModule {
    */
   syncParticipantFeeFormState() {
     const form = document.getElementById('participant-fee-form');
-    if (!form) return;
+    if (!form) {return;}
 
     const participantId = Number.parseInt(form.participant_id.value, 10);
     const feeDefinitionId = Number.parseInt(form.fee_definition_id.value, 10);
@@ -1017,7 +1017,7 @@ export class Finance extends BaseModule {
     const normalizedDefinitionId = Number.isNaN(feeDefinitionId) ? null : feeDefinitionId;
     const submitButton = form.querySelector('button[type="submit"]');
 
-    if (!submitButton) return;
+    if (!submitButton) {return;}
 
     const existingFee = this.findExistingParticipantFee(normalizedParticipantId, normalizedDefinitionId);
 
@@ -1078,10 +1078,10 @@ export class Finance extends BaseModule {
    */
   updateInlinePlanAmount() {
     const form = document.getElementById('participant-fee-form');
-    if (!form || !form.enable_plan?.checked) return;
+    if (!form || !form.enable_plan?.checked) {return;}
 
     const paymentsCount = Number.parseInt(form.plan_number_of_payments.value, 10);
-    if (!paymentsCount || paymentsCount <= 0) return;
+    if (!paymentsCount || paymentsCount <= 0) {return;}
 
     const participantId = Number.parseInt(form.participant_id.value, 10);
     const feeDefinitionId = Number.parseInt(form.fee_definition_id.value, 10);
@@ -1090,7 +1090,7 @@ export class Finance extends BaseModule {
     const existingFee = this.findExistingParticipantFee(normalizedParticipantId, normalizedDefinitionId);
     const baseAmount = this.getPlanBaseAmount(form, existingFee);
 
-    if (baseAmount <= 0) return;
+    if (baseAmount <= 0) {return;}
 
     const amountPerPayment = baseAmount / paymentsCount;
     form.plan_amount_per_payment.value = amountPerPayment.toFixed(2);
@@ -1173,7 +1173,7 @@ export class Finance extends BaseModule {
   async openPaymentModal(feeId) {
     const { overlay } = openModal({
       id: 'payment-modal',
-      title: translate("payment_details"),
+      title: translate('payment_details'),
       ...this.renderPaymentModal(),
     });
     const paymentForm = overlay.querySelector('#payment-form');
@@ -1194,7 +1194,7 @@ export class Finance extends BaseModule {
 
   async renderPaymentHistory(feeId) {
     const historyContainer = document.getElementById('payment-history');
-    if (!historyContainer) return;
+    if (!historyContainer) {return;}
     try {
       if (!this.paymentsCache.has(feeId)) {
         const payments = await getParticipantPayments(feeId);
@@ -1208,27 +1208,27 @@ export class Finance extends BaseModule {
                 <div class="finance-list__row" data-payment-id="${payment.id}">
                   <div>
                     <p class="finance-meta">${formatDateShort(payment.payment_date)}</p>
-                    <p class="finance-meta">${translate(payment.method || "")}</p>
+                    <p class="finance-meta">${translate(payment.method || '')}</p>
                   </div>
                   <div class="finance-row-values">
                     <span>${this.formatCurrency(payment.amount)}</span>
-                    ${payment.reference_number ? `<span>${escapeHTML(payment.reference_number)}</span>` : ""}
+                    ${payment.reference_number ? `<span>${escapeHTML(payment.reference_number)}</span>` : ''}
                   </div>
                 </div>
               `
           )
-          .join("")
-        : `<p class="finance-helper">${translate("no_payments")}</p>`);
+          .join('')
+        : `<p class="finance-helper">${translate('no_payments')}</p>`);
     } catch (error) {
       debugError('Error loading payments', error);
-      setContent(historyContainer, `<p class="finance-helper">${translate("error_loading_data")}</p>`);
+      setContent(historyContainer, `<p class="finance-helper">${translate('error_loading_data')}</p>`);
     }
   }
 
   updatePaymentSummary(fee) {
     const labelEl = document.getElementById('payment-total-label');
     const outputEl = document.getElementById('payment-total-output');
-    if (!labelEl || !outputEl) return;
+    if (!labelEl || !outputEl) {return;}
 
     if (!fee) {
       labelEl.textContent = translate('total_amount');
@@ -1248,7 +1248,7 @@ export class Finance extends BaseModule {
 
   prefillPaymentRowAmounts(fee) {
     const firstAmountInput = document.querySelector('#payment-rows [name="amount_0"]');
-    if (!firstAmountInput || !fee) return;
+    if (!firstAmountInput || !fee) {return;}
 
     // Check if there's a cached last payment amount for this fee
     const lastAmount = this.lastPaymentAmounts.get(String(fee.id));
@@ -1357,7 +1357,7 @@ export class Finance extends BaseModule {
   async openPlanModal(feeId) {
     const { overlay } = openModal({
       id: 'plan-modal',
-      title: translate("manage_installments"),
+      title: translate('manage_installments'),
       ...this.renderPlanModal(),
     });
     const planForm = overlay.querySelector('#plan-form');
@@ -1376,7 +1376,7 @@ export class Finance extends BaseModule {
 
   async renderPlanDetails(feeId) {
     const planContainer = document.getElementById('plan-details');
-    if (!planContainer) return;
+    if (!planContainer) {return;}
     try {
       if (!this.paymentPlanCache.has(feeId)) {
         const plans = await getPaymentPlans(feeId);
@@ -1388,8 +1388,8 @@ export class Finance extends BaseModule {
         ? `
             <div class="finance-list__row">
               <div>
-                <p class="finance-meta">${translate("number_of_payments")}: ${plan.number_of_payments}</p>
-                <p class="finance-meta">${translate("frequency")}: ${translate(plan.frequency || "")}</p>
+                <p class="finance-meta">${translate('number_of_payments')}: ${plan.number_of_payments}</p>
+                <p class="finance-meta">${translate('frequency')}: ${translate(plan.frequency || '')}</p>
               </div>
               <div class="finance-row-values">
                 <span>${this.formatCurrency(plan.amount_per_payment)}</span>
@@ -1397,7 +1397,7 @@ export class Finance extends BaseModule {
               </div>
             </div>
           `
-        : `<p class="finance-helper">${translate("no_payment_plan")}</p>`);
+        : `<p class="finance-helper">${translate('no_payment_plan')}</p>`);
       const form = document.getElementById('plan-form');
       if (form) {
         if (plan) {
@@ -1414,7 +1414,7 @@ export class Finance extends BaseModule {
       }
     } catch (error) {
       debugError('Error loading payment plan', error);
-      setContent(planContainer, `<p class="finance-helper">${translate("error_loading_data")}</p>`);
+      setContent(planContainer, `<p class="finance-helper">${translate('error_loading_data')}</p>`);
     }
   }
 
@@ -1458,8 +1458,8 @@ export class Finance extends BaseModule {
     const form = document.getElementById('plan-form');
     const planId = form?.dataset.planId;
     const feeId = form?.participant_fee_id.value;
-    if (!planId || !feeId) return;
-    if (!(await confirmDestructive(translate('confirm_delete')))) return;
+    if (!planId || !feeId) {return;}
+    if (!(await confirmDestructive(translate('confirm_delete')))) {return;}
     try {
       await deletePaymentPlan(planId);
 

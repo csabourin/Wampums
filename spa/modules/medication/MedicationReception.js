@@ -1,8 +1,8 @@
-import { translate } from "../../app.js";
-import { escapeHTML } from "../../utils/SecurityUtils.js";
-import { debugError, debugLog } from "../../utils/DebugUtils.js";
-import { formatDate, getTodayISO, parseDate } from "../../utils/DateUtils.js";
-import { setContent } from "../../utils/DOMUtils.js";
+import { translate } from '../../app.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { debugError, debugLog } from '../../utils/DebugUtils.js';
+import { formatDate, getTodayISO, parseDate } from '../../utils/DateUtils.js';
+import { setContent } from '../../utils/DOMUtils.js';
 import { isSameMedication, splitDeclaredMedications } from '../../utils/MedicationTextUtils.js';
 import {
   getActivities,
@@ -14,7 +14,7 @@ import {
   saveMedicationReception,
   updateMedicationReception,
   saveMedicationRequirement
-} from "../../api/api-endpoints.js";
+} from '../../api/api-endpoints.js';
 
 /**
  * Medication Reception module
@@ -41,8 +41,8 @@ export class MedicationReception {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Error initializing medication reception", error);
-      this.app.showMessage(translate("error_loading_data"), "error");
+      debugError('Error initializing medication reception', error);
+      this.app.showMessage(translate('error_loading_data'), 'error');
     }
   }
 
@@ -77,14 +77,14 @@ export class MedicationReception {
         await this.loadReceptions();
       }
 
-      debugLog("Medication reception data loaded", {
+      debugLog('Medication reception data loaded', {
         activities: this.activities.length,
         participants: this.participants.length,
         requirements: this.requirements.length,
         receptions: this.receptions.length
       });
     } catch (error) {
-      debugError("Error loading medication reception data", error);
+      debugError('Error loading medication reception data', error);
       throw error;
     }
   }
@@ -98,9 +98,9 @@ export class MedicationReception {
     try {
       const response = await getMedicationReceptions({ activity_id: this.selectedActivityId });
       this.receptions = response?.data?.receptions || response?.receptions || [];
-      debugLog("Loaded receptions for activity", this.selectedActivityId, this.receptions.length);
+      debugLog('Loaded receptions for activity', this.selectedActivityId, this.receptions.length);
     } catch (error) {
-      debugError("Error loading receptions", error);
+      debugError('Error loading receptions', error);
       this.receptions = [];
     }
   }
@@ -111,7 +111,7 @@ export class MedicationReception {
       const startDate = activity.activity_start_date || activity.activity_date;
       const endDate = activity.activity_end_date || startDate;
 
-      if (!startDate) return false;
+      if (!startDate) {return false;}
 
       const start = parseDate(startDate);
       const end = parseDate(endDate);
@@ -124,12 +124,12 @@ export class MedicationReception {
   }
 
   injectStyles() {
-    if (document.getElementById("medication-reception-styles")) {
+    if (document.getElementById('medication-reception-styles')) {
       return;
     }
 
-    const style = document.createElement("style");
-    style.id = "medication-reception-styles";
+    const style = document.createElement('style');
+    style.id = 'medication-reception-styles';
     style.textContent = `
       .medication-reception-page {
         display: flex;
@@ -382,27 +382,27 @@ export class MedicationReception {
   }
 
   render() {
-    const container = document.getElementById("app");
-    if (!container) return;
+    const container = document.getElementById('app');
+    if (!container) {return;}
 
     const activityOptions = this.renderActivityOptions();
     const selectedActivity = this.activities.find(a => a.id === this.selectedActivityId);
-    const activityName = selectedActivity ? escapeHTML(selectedActivity.name) : translate("med_reception_select_activity");
+    const activityName = selectedActivity ? escapeHTML(selectedActivity.name) : translate('med_reception_select_activity');
 
     setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
       <section class="page medication-reception-page">
         <div class="card">
-          <h1>🏥 ${translate("med_reception_title")}</h1>
-          <p class="subtitle">${translate("med_reception_description")}</p>
+          <h1>🏥 ${translate('med_reception_title')}</h1>
+          <p class="subtitle">${translate('med_reception_description')}</p>
         </div>
 
         <div class="card">
           <div class="activity-selector">
             <label>
-              <strong>${translate("med_reception_select_activity_label")}</strong>
+              <strong>${translate('med_reception_select_activity_label')}</strong>
               <select id="activitySelect">
-                <option value="">${translate("select_option")}</option>
+                <option value="">${translate('select_option')}</option>
                 ${activityOptions}
               </select>
             </label>
@@ -413,12 +413,12 @@ export class MedicationReception {
           <div class="card">
             <div class="participant-filter">
               <input type="checkbox" id="showAllParticipants" ${this.showAllParticipants ? 'checked' : ''} />
-              <label for="showAllParticipants">${translate("med_reception_show_all_participants")}</label>
+              <label for="showAllParticipants">${translate('med_reception_show_all_participants')}</label>
             </div>
           </div>
 
           <div class="card">
-            <h2>${translate("med_reception_for_activity")}: ${activityName}</h2>
+            <h2>${translate('med_reception_for_activity')}: ${activityName}</h2>
             <div id="participant-reception-list">
               ${this.renderParticipantReceptionCards()}
             </div>
@@ -426,7 +426,7 @@ export class MedicationReception {
         ` : `
           <div class="card">
             <p class="subtitle" style="text-align: center; padding: 2rem;">
-              ${translate("med_reception_select_activity_prompt")}
+              ${translate('med_reception_select_activity_prompt')}
             </p>
           </div>
         `}
@@ -440,7 +440,7 @@ export class MedicationReception {
     // Filter to upcoming and current activities (exclude past)
     const relevantActivities = this.activities.filter(activity => {
       const endDate = activity.activity_end_date || activity.activity_start_date || activity.activity_date;
-      if (!endDate) return true; // Include if no date
+      if (!endDate) {return true;} // Include if no date
 
       const end = parseDate(endDate);
       const todayDate = parseDate(today);
@@ -471,7 +471,7 @@ export class MedicationReception {
 
     if (participantsWithMeds.length === 0) {
       return `<p class="subtitle" style="text-align: center; padding: 2rem;">
-        ${translate("med_reception_no_participants")}
+        ${translate('med_reception_no_participants')}
       </p>`;
     }
 
@@ -500,7 +500,7 @@ export class MedicationReception {
     // Sort by last name, first name
     return filteredParticipants.sort((a, b) => {
       const lastNameCompare = (a.last_name || '').localeCompare(b.last_name || '');
-      if (lastNameCompare !== 0) return lastNameCompare;
+      if (lastNameCompare !== 0) {return lastNameCompare;}
       return (a.first_name || '').localeCompare(b.first_name || '');
     });
   }
@@ -521,16 +521,16 @@ export class MedicationReception {
 
     const unplanned = this.getUnplannedDeclarations(participant.id, medications);
     const planLink = `<a href="/medication-planning/${participant.id}" class="btn btn-small secondary">
-          + ${translate("manage_medications")}
+          + ${translate('manage_medications')}
         </a>`;
 
     const headerActions = medications.length > 0
       ? `
         <button class="btn btn-small secondary mark-all-received" data-participant-id="${participant.id}">
-          ✓ ${translate("med_reception_mark_all_received")}
+          ✓ ${translate('med_reception_mark_all_received')}
         </button>
         ${allReceived ? `<span class="pill" style="background: #10b981; color: white;">
-          ${translate("med_reception_all_received")}
+          ${translate('med_reception_all_received')}
         </span>` : ''}
         ${unplanned.length > 0 ? planLink : ''}
       `
@@ -587,7 +587,7 @@ export class MedicationReception {
 
     return assignments.map(assignment => {
       const requirement = this.requirements.find(req => req.id === assignment.medication_requirement_id);
-      if (!requirement) return null;
+      if (!requirement) {return null;}
 
       return {
         assignment,
@@ -612,7 +612,7 @@ export class MedicationReception {
       ? `${req.default_dose_amount}${req.default_dose_unit || ''}`
       : req.dosage_instructions || '';
     const route = req.route ? ` · ${req.route}` : '';
-    const frequency = req.frequency_text || translate("medication_frequency_prn_text");
+    const frequency = req.frequency_text || translate('medication_frequency_prn_text');
 
     const status = reception?.status || 'not_received';
     const quantity = reception?.quantity_received || '';
@@ -634,52 +634,52 @@ export class MedicationReception {
             </div>` : ''}
           </div>
           <button class="edit-toggle-btn" data-participant-id="${participant.id}" data-requirement-id="${req.id}">
-            ${isEditing ? translate("med_reception_done_editing") : translate("med_reception_edit")}
+            ${isEditing ? translate('med_reception_done_editing') : translate('med_reception_edit')}
           </button>
         </div>
 
         <div class="med-item-editable-fields ${isEditing ? 'visible' : ''}" id="edit-fields-${participant.id}-${req.id}">
           <label>
-            ${translate("medication_name_label")}
+            ${translate('medication_name_label')}
             <input type="text" data-field="medication_name" value="${escapeHTML(req.medication_name)}" />
           </label>
           <label>
-            ${translate("medication_dosage_label")}
+            ${translate('medication_dosage_label')}
             <input type="text" data-field="dosage" value="${escapeHTML(req.dosage_instructions || '')}" />
           </label>
           <label style="grid-column: 1 / -1;">
-            ${translate("medication_general_notes_label")}
+            ${translate('medication_general_notes_label')}
             <textarea data-field="notes" rows="2">${escapeHTML(req.general_notes || '')}</textarea>
           </label>
         </div>
 
         <div class="med-item-reception">
           <div class="reception-status-group">
-            <strong>${translate("med_reception_status_label")}</strong>
+            <strong>${translate('med_reception_status_label')}</strong>
             <div class="status-option ${status === 'received' ? 'selected' : ''}"
                  data-status="received">
               <input type="radio" name="status-${participant.id}-${req.id}" value="received"
                      ${status === 'received' ? 'checked' : ''} />
-              <span>✓ ${translate("med_reception_status_received")}</span>
+              <span>✓ ${translate('med_reception_status_received')}</span>
             </div>
             <div class="status-option ${status === 'partial' ? 'selected' : ''}"
                  data-status="partial">
               <input type="radio" name="status-${participant.id}-${req.id}" value="partial"
                      ${status === 'partial' ? 'checked' : ''} />
-              <span>⚠️ ${translate("med_reception_status_partial")}</span>
+              <span>⚠️ ${translate('med_reception_status_partial')}</span>
             </div>
             <div class="status-option ${status === 'not_received' ? 'selected' : ''}"
                  data-status="not_received">
               <input type="radio" name="status-${participant.id}-${req.id}" value="not_received"
                      ${status === 'not_received' ? 'checked' : ''} />
-              <span>✗ ${translate("med_reception_status_not_received")}</span>
+              <span>✗ ${translate('med_reception_status_not_received')}</span>
             </div>
           </div>
 
           <div class="reception-quantity">
-            <label>${translate("med_reception_quantity_label")}</label>
+            <label>${translate('med_reception_quantity_label')}</label>
             <input type="text"
-                   placeholder="${translate("med_reception_quantity_placeholder")}"
+                   placeholder="${translate('med_reception_quantity_placeholder')}"
                    data-participant-id="${participant.id}"
                    data-requirement-id="${req.id}"
                    data-field="quantity"
@@ -687,9 +687,9 @@ export class MedicationReception {
           </div>
 
           <div class="reception-notes">
-            <label>${translate("med_reception_notes_label")}</label>
+            <label>${translate('med_reception_notes_label')}</label>
             <textarea
-              placeholder="${translate("med_reception_notes_placeholder")}"
+              placeholder="${translate('med_reception_notes_placeholder')}"
               data-participant-id="${participant.id}"
               data-requirement-id="${req.id}"
               data-field="reception_notes"
@@ -814,7 +814,7 @@ export class MedicationReception {
       await this.saveReception(participantId, med.requirement.id, 'received');
     }
 
-    this.app.showMessage(translate("med_reception_all_marked_received"), "success");
+    this.app.showMessage(translate('med_reception_all_marked_received'), 'success');
     await this.loadReceptions();
     this.render();
     this.attachEventListeners();
@@ -836,7 +836,7 @@ export class MedicationReception {
         `.medication-reception-item[data-participant-id="${participantId}"][data-requirement-id="${requirementId}"]`
       );
 
-      if (!item) return;
+      if (!item) {return;}
 
       const statusRadios = item.querySelectorAll('input[type="radio"]');
       let status = statusOverride;
@@ -867,19 +867,19 @@ export class MedicationReception {
         throw new Error(result?.message || 'Save failed');
       }
     } catch (error) {
-      debugError("Error saving reception", error);
+      debugError('Error saving reception', error);
       this.showSaveStatus(participantId, requirementId, 'error');
-      this.app.showMessage(translate("error_saving"), "error");
+      this.app.showMessage(translate('error_saving'), 'error');
     }
   }
 
   async saveRequirementEdits(requirementId, item) {
     try {
       const requirement = this.requirements.find(r => r.id === requirementId);
-      if (!requirement) return;
+      if (!requirement) {return;}
 
       const editFields = item.querySelector('.med-item-editable-fields');
-      if (!editFields) return;
+      if (!editFields) {return;}
 
       const medicationName = editFields.querySelector('[data-field="medication_name"]')?.value?.trim();
       const dosage = editFields.querySelector('[data-field="dosage"]')?.value?.trim();
@@ -905,7 +905,7 @@ export class MedicationReception {
       const result = await saveMedicationRequirement(payload);
 
       if (result?.success) {
-        this.app.showMessage(translate("med_reception_requirement_updated"), "success");
+        this.app.showMessage(translate('med_reception_requirement_updated'), 'success');
         // Update local cache
         Object.assign(requirement, {
           medication_name: medicationName,
@@ -916,18 +916,18 @@ export class MedicationReception {
         throw new Error(result?.message || 'Update failed');
       }
     } catch (error) {
-      debugError("Error updating requirement", error);
-      this.app.showMessage(translate("error_saving"), "error");
+      debugError('Error updating requirement', error);
+      this.app.showMessage(translate('error_saving'), 'error');
     }
   }
 
   showSaveStatus(participantId, requirementId, type) {
     const statusSpan = document.getElementById(`save-status-${participantId}-${requirementId}`);
-    if (!statusSpan) return;
+    if (!statusSpan) {return;}
 
     statusSpan.textContent = type === 'success'
-      ? `✓ ${translate("saved")}`
-      : `✗ ${translate("error_saving")}`;
+      ? `✓ ${translate('saved')}`
+      : `✗ ${translate('error_saving')}`;
     statusSpan.className = `save-status ${type}`;
 
     setTimeout(() => {

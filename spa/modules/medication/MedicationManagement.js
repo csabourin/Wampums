@@ -1,14 +1,14 @@
-import { translate } from "../../app.js";
-import { escapeHTML } from "../../utils/SecurityUtils.js";
-import { debugError, debugLog } from "../../utils/DebugUtils.js";
-import { formatDate, getTodayISO } from "../../utils/DateUtils.js";
-import { deleteCachedData, getCachedData, getCachedDataIgnoreExpiration, setCachedData } from "../../indexedDB.js";
-import { setContent } from "../../utils/DOMUtils.js";
-import { openModal, closeModal } from "../../utils/ModalUtils.js";
-import { OptimisticUpdateManager } from "../../utils/OptimisticUpdateManager.js";
+import { translate } from '../../app.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { debugError, debugLog } from '../../utils/DebugUtils.js';
+import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
+import { deleteCachedData, getCachedData, getCachedDataIgnoreExpiration, setCachedData } from '../../indexedDB.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { openModal, closeModal } from '../../utils/ModalUtils.js';
+import { OptimisticUpdateManager } from '../../utils/OptimisticUpdateManager.js';
 import { canManageMedication, canViewMedication } from '../../utils/PermissionUtils.js';
 import { isSameMedication, splitDeclaredMedications } from '../../utils/MedicationTextUtils.js';
-import { getGuardiansForParticipant, getLeaders } from "../../api/api-endpoints.js";
+import { getGuardiansForParticipant, getLeaders } from '../../api/api-endpoints.js';
 import {
   getParticipants,
   getMedicationRequirements,
@@ -24,10 +24,10 @@ import {
   getMedicationAuthorizations,
   saveTreatmentAuthorization,
   saveAdministrationAuthorization
-} from "../../api/api-endpoints.js";
-import { buildApiCacheKey } from "../../utils/OfflineCacheKeys.js";
+} from '../../api/api-endpoints.js';
+import { buildApiCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
-import { offlineManager } from "../OfflineManager.js";
+import { offlineManager } from '../OfflineManager.js';
 
 /**
  * Medication management module
@@ -48,8 +48,8 @@ export class MedicationManagement {
     this.ficheDeclarations = new Map();
     this.lastPrefill = '';
     this.receptions = [];
-    this.view = options.view || "planning";
-    this.enableAlerts = options.enableAlerts ?? this.view === "dispensing";
+    this.view = options.view || 'planning';
+    this.enableAlerts = options.enableAlerts ?? this.view === 'dispensing';
     this.participantId = options.participantId || null;
     this.returnUrl = options.returnUrl || null;
     this.alertInterval = null;
@@ -73,15 +73,15 @@ export class MedicationManagement {
       this.render();
       this.attachEventListeners();
       this.registerOfflineListener();
-      if (this.view === "authorizations") {
+      if (this.view === 'authorizations') {
         this.loadAuthorizationData();
       }
       if (this.enableAlerts) {
         this.startAlertTicker();
       }
     } catch (error) {
-      debugError("Error initializing medication management", error);
-      this.app.showMessage(translate("error_loading_data"), "error");
+      debugError('Error initializing medication management', error);
+      this.app.showMessage(translate('error_loading_data'), 'error');
     }
   }
 
@@ -121,7 +121,7 @@ export class MedicationManagement {
         this.ficheMedications = [];
 
         // Load receptions from cache for dispensing view
-        if (this.view === "dispensing") {
+        if (this.view === 'dispensing') {
           const rawRecData = recData?.receptions || recData?.data?.receptions || recData || [];
           this.receptions = Array.isArray(rawRecData) ? rawRecData : [];
         }
@@ -182,13 +182,13 @@ export class MedicationManagement {
     this.filterDataByParticipant();
 
     // Load reception data for dispensing view
-    if (this.view === "dispensing") {
+    if (this.view === 'dispensing') {
       try {
         const receptionsResponse = await getMedicationReceptions({}, cacheOptions);
         const rawRecs = receptionsResponse?.data?.receptions || receptionsResponse?.receptions || receptionsResponse?.data || [];
         this.receptions = Array.isArray(rawRecs) ? rawRecs : [];
       } catch (error) {
-        debugError("Failed to load medication receptions", error);
+        debugError('Failed to load medication receptions', error);
         this.receptions = [];
       }
     }
@@ -224,7 +224,7 @@ export class MedicationManagement {
     }
 
     this.offlineStatusHandler = (event) => this.handleOfflineStatusChange(event);
-    window.addEventListener("offlineStatusChanged", this.offlineStatusHandler);
+    window.addEventListener('offlineStatusChanged', this.offlineStatusHandler);
   }
 
   /**
@@ -238,7 +238,7 @@ export class MedicationManagement {
       this.alertInterval = null;
     }
     if (this.offlineStatusHandler) {
-      window.removeEventListener("offlineStatusChanged", this.offlineStatusHandler);
+      window.removeEventListener('offlineStatusChanged', this.offlineStatusHandler);
       this.offlineStatusHandler = null;
     }
   }
@@ -247,13 +247,13 @@ export class MedicationManagement {
     const isOffline = event?.detail?.isOffline;
 
     // Update offline banner visibility
-    const banner = document.getElementById("medication-offline-banner");
+    const banner = document.getElementById('medication-offline-banner');
     if (banner) {
       if (isOffline) {
-        banner.style.display = "flex";
-        setContent(banner, `<span style="font-size:1.2rem;">&#9888;</span><span>${escapeHTML(translate("medication_offline_banner"))}</span>`);
+        banner.style.display = 'flex';
+        setContent(banner, `<span style="font-size:1.2rem;">&#9888;</span><span>${escapeHTML(translate('medication_offline_banner'))}</span>`);
       } else {
-        banner.style.display = "none";
+        banner.style.display = 'none';
       }
     }
 
@@ -271,9 +271,9 @@ export class MedicationManagement {
       if (this.enableAlerts) {
         this.renderAlertArea();
       }
-      this.app.showMessage(translate("medication_reloaded_after_reconnect"), "success");
+      this.app.showMessage(translate('medication_reloaded_after_reconnect'), 'success');
     } catch (error) {
-      debugError("Error refreshing medication data after reconnect", error);
+      debugError('Error refreshing medication data after reconnect', error);
       this.app.showMessage(apiErrorMessage(error, 'error_loading_data'), 'error');
     }
   }
@@ -294,18 +294,18 @@ export class MedicationManagement {
 
   async invalidateCaches() {
     const keys = [
-      "medication_requirements",
-      "participant_medications",
-      "medication_distributions",
-      "medication_distributions?upcoming_only=true",
-      "fiche_medications"
+      'medication_requirements',
+      'participant_medications',
+      'medication_distributions',
+      'medication_distributions?upcoming_only=true',
+      'fiche_medications'
     ];
 
     await Promise.all(keys.map(async (key) => {
       try {
         await deleteCachedData(key);
       } catch (error) {
-        debugError("Failed to clear medication cache", key, error);
+        debugError('Failed to clear medication cache', key, error);
       }
     }));
   }
@@ -314,12 +314,12 @@ export class MedicationManagement {
    * Inject page-specific styles optimized for mobile screens.
    */
   injectStyles() {
-    if (document.getElementById("medication-management-styles")) {
+    if (document.getElementById('medication-management-styles')) {
       return;
     }
 
-    const style = document.createElement("style");
-    style.id = "medication-management-styles";
+    const style = document.createElement('style');
+    style.id = 'medication-management-styles';
     style.textContent = `
       .medication-page {
         display: flex;
@@ -643,57 +643,57 @@ export class MedicationManagement {
    * @param {string} presetType
    * @returns {string}
    */
-  getFrequencyPresetFieldsMarkup(presetType = "time_of_day") {
+  getFrequencyPresetFieldsMarkup(presetType = 'time_of_day') {
     const mealSlots = this.getMealSlots();
-    if (presetType === "interval") {
+    if (presetType === 'interval') {
       return `
-        <span>${escapeHTML(translate("medication_frequency_interval_label"))}</span>
+        <span>${escapeHTML(translate('medication_frequency_interval_label'))}</span>
         <div class="frequency-time-grid">
           <label class="slot-label">
-            <input type="number" name="frequency_interval_hours" min="1" step="1" value="6" aria-label="${escapeHTML(translate("medication_frequency_interval_hours"))}" />
-            <span>${escapeHTML(translate("medication_frequency_interval_hours"))}</span>
+            <input type="number" name="frequency_interval_hours" min="1" step="1" value="6" aria-label="${escapeHTML(translate('medication_frequency_interval_hours'))}" />
+            <span>${escapeHTML(translate('medication_frequency_interval_hours'))}</span>
           </label>
           <label class="slot-label">
-            <input type="time" name="frequency_interval_start" value="08:00" aria-label="${escapeHTML(translate("medication_frequency_anchor_time"))}" />
-            <span>${escapeHTML(translate("medication_frequency_anchor_time"))}</span>
+            <input type="time" name="frequency_interval_start" value="08:00" aria-label="${escapeHTML(translate('medication_frequency_anchor_time'))}" />
+            <span>${escapeHTML(translate('medication_frequency_anchor_time'))}</span>
           </label>
         </div>
-        <p class="help-text">${escapeHTML(translate("medication_frequency_interval_hint"))}</p>
+        <p class="help-text">${escapeHTML(translate('medication_frequency_interval_hint'))}</p>
       `;
     }
 
-    if (presetType === "meal") {
+    if (presetType === 'meal') {
       return `
-        <span>${escapeHTML(translate("medication_frequency_meal_label"))}</span>
+        <span>${escapeHTML(translate('medication_frequency_meal_label'))}</span>
         <div class="participant-grid">
           ${mealSlots
-          .map(
-            (slot) => `
+    .map(
+      (slot) => `
                 <label class="participant-pill" style="align-items:center;">
                   <input type="checkbox" name="frequency_meal_${slot.key}" value="${slot.key}" checked />
                   <span>${escapeHTML(translate(slot.labelKey))}</span>
                   <input type="time" name="frequency_meal_${slot.key}_time" value="${slot.defaultTime}" aria-label="${escapeHTML(translate(slot.labelKey))}" />
                 </label>
               `
-          )
-          .join("")}
+    )
+    .join('')}
         </div>
-        <p class="help-text">${escapeHTML(translate("medication_frequency_meal_hint"))}</p>
+        <p class="help-text">${escapeHTML(translate('medication_frequency_meal_hint'))}</p>
       `;
     }
 
-    if (presetType === "prn") {
-      return `<p class="help-text">${escapeHTML(translate("medication_frequency_prn_hint"))}</p>`;
+    if (presetType === 'prn') {
+      return `<p class="help-text">${escapeHTML(translate('medication_frequency_prn_hint'))}</p>`;
     }
 
     return `
-      <span>${escapeHTML(translate("medication_frequency_time_of_day_label"))}</span>
+      <span>${escapeHTML(translate('medication_frequency_time_of_day_label'))}</span>
       <div class="frequency-time-grid">
-        <input type="time" name="frequency_times" value="08:00" aria-label="${escapeHTML(translate("medication_frequency_time_one"))}" />
-        <input type="time" name="frequency_times" value="12:00" aria-label="${escapeHTML(translate("medication_frequency_time_two"))}" />
-        <input type="time" name="frequency_times" value="20:00" aria-label="${escapeHTML(translate("medication_frequency_time_three"))}" />
+        <input type="time" name="frequency_times" value="08:00" aria-label="${escapeHTML(translate('medication_frequency_time_one'))}" />
+        <input type="time" name="frequency_times" value="12:00" aria-label="${escapeHTML(translate('medication_frequency_time_two'))}" />
+        <input type="time" name="frequency_times" value="20:00" aria-label="${escapeHTML(translate('medication_frequency_time_three'))}" />
       </div>
-      <p class="help-text">${escapeHTML(translate("medication_frequency_time_of_day_hint"))}</p>
+      <p class="help-text">${escapeHTML(translate('medication_frequency_time_of_day_hint'))}</p>
     `;
   }
 
@@ -703,22 +703,22 @@ export class MedicationManagement {
    * @returns {string|null}
    */
   normalizeTimeValue(value) {
-    if (!value || typeof value !== "string") {
+    if (!value || typeof value !== 'string') {
       return null;
     }
-    const [hour, minute] = value.split(":").map((part) => Number(part));
+    const [hour, minute] = value.split(':').map((part) => Number(part));
     if (Number.isNaN(hour) || Number.isNaN(minute)) {
       return null;
     }
-    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
   }
 
   getMealSlots() {
     return [
-      { key: "breakfast", labelKey: "medication_frequency_breakfast", defaultTime: "08:00" },
-      { key: "lunch", labelKey: "medication_frequency_lunch", defaultTime: "12:00" },
-      { key: "dinner", labelKey: "medication_frequency_dinner", defaultTime: "18:00" },
-      { key: "bedtime", labelKey: "medication_frequency_bedtime", defaultTime: "21:00" }
+      { key: 'breakfast', labelKey: 'medication_frequency_breakfast', defaultTime: '08:00' },
+      { key: 'lunch', labelKey: 'medication_frequency_lunch', defaultTime: '12:00' },
+      { key: 'dinner', labelKey: 'medication_frequency_dinner', defaultTime: '18:00' },
+      { key: 'bedtime', labelKey: 'medication_frequency_bedtime', defaultTime: '21:00' }
     ];
   }
 
@@ -727,14 +727,14 @@ export class MedicationManagement {
    * @param {FormData} formData
    */
   buildFrequencyConfigFromForm(formData) {
-    const presetType = formData.get("frequency_preset_type") || "time_of_day";
+    const presetType = formData.get('frequency_preset_type') || 'time_of_day';
     const config = { type: presetType, times: [], slots: {}, intervalHours: null, intervalStart: null };
 
-    if (presetType === "interval") {
-      config.intervalHours = formData.get("frequency_interval_hours") ? Number(formData.get("frequency_interval_hours")) : null;
-      config.intervalStart = this.normalizeTimeValue(formData.get("frequency_interval_start")) || null;
-      config.times = this.computeIntervalTimes(config.intervalStart || "08:00", config.intervalHours || 1);
-    } else if (presetType === "meal") {
+    if (presetType === 'interval') {
+      config.intervalHours = formData.get('frequency_interval_hours') ? Number(formData.get('frequency_interval_hours')) : null;
+      config.intervalStart = this.normalizeTimeValue(formData.get('frequency_interval_start')) || null;
+      config.times = this.computeIntervalTimes(config.intervalStart || '08:00', config.intervalHours || 1);
+    } else if (presetType === 'meal') {
       this.getMealSlots().forEach((slot) => {
         if (formData.get(`frequency_meal_${slot.key}`)) {
           const slotTime = this.normalizeTimeValue(formData.get(`frequency_meal_${slot.key}_time`)) || slot.defaultTime;
@@ -742,9 +742,9 @@ export class MedicationManagement {
           config.times.push(slotTime);
         }
       });
-    } else if (presetType === "time_of_day") {
+    } else if (presetType === 'time_of_day') {
       config.times = formData
-        .getAll("frequency_times")
+        .getAll('frequency_times')
         .map((value) => this.normalizeTimeValue(value))
         .filter(Boolean);
     }
@@ -754,16 +754,16 @@ export class MedicationManagement {
   }
 
   buildFrequencyText(config) {
-    if (config.type === "interval" && config.intervalHours) {
-      return translate("medication_frequency_interval_text").replace("{hours}", config.intervalHours);
+    if (config.type === 'interval' && config.intervalHours) {
+      return translate('medication_frequency_interval_text').replace('{hours}', config.intervalHours);
     }
-    if (config.type === "meal" && config.times.length) {
-      return translate("medication_frequency_meal_text");
+    if (config.type === 'meal' && config.times.length) {
+      return translate('medication_frequency_meal_text');
     }
-    if (config.type === "time_of_day" && config.times.length) {
-      return translate("medication_frequency_time_of_day_text");
+    if (config.type === 'time_of_day' && config.times.length) {
+      return translate('medication_frequency_time_of_day_text');
     }
-    return translate("medication_frequency_prn_text");
+    return translate('medication_frequency_prn_text');
   }
 
   /**
@@ -773,23 +773,23 @@ export class MedicationManagement {
    * @returns {string[]}
    */
   computeIntervalTimes(startTime, intervalHours) {
-    const normalizedStart = this.normalizeTimeValue(startTime) || "08:00";
+    const normalizedStart = this.normalizeTimeValue(startTime) || '08:00';
     const hours = intervalHours && intervalHours > 0 ? intervalHours : 1;
-    const [startHour, startMinute] = normalizedStart.split(":").map((value) => Number(value));
+    const [startHour, startMinute] = normalizedStart.split(':').map((value) => Number(value));
     const anchor = new Date();
     anchor.setHours(startHour, startMinute, 0, 0);
     const times = [];
     const cutoff = new Date(anchor.getTime() + 24 * 60 * 60 * 1000);
     let cursor = new Date(anchor);
     while (cursor < cutoff && times.length < 12) {
-      times.push(`${String(cursor.getHours()).padStart(2, "0")}:${String(cursor.getMinutes()).padStart(2, "0")}`);
+      times.push(`${String(cursor.getHours()).padStart(2, '0')}:${String(cursor.getMinutes()).padStart(2, '0')}`);
       cursor = new Date(cursor.getTime() + hours * 60 * 60 * 1000);
     }
     return Array.from(new Set(times));
   }
 
   buildDateTimeISO(date, time) {
-    const normalizedTime = this.normalizeTimeValue(time) || "00:00";
+    const normalizedTime = this.normalizeTimeValue(time) || '00:00';
     return `${date}T${normalizedTime}:00`;
   }
 
@@ -800,26 +800,26 @@ export class MedicationManagement {
     let times = [];
     if (Array.isArray(requirement.frequency_times)) {
       times = requirement.frequency_times;
-    } else if (typeof requirement.frequency_times === "string") {
+    } else if (typeof requirement.frequency_times === 'string') {
       const trimmed = requirement.frequency_times.trim();
-      if (trimmed.startsWith("[")) {
+      if (trimmed.startsWith('[')) {
         try {
           const parsed = JSON.parse(trimmed);
           if (Array.isArray(parsed)) {
             times = parsed;
           }
         } catch (error) {
-          debugError("Unable to parse frequency_times", error);
+          debugError('Unable to parse frequency_times', error);
         }
       } else {
         times = trimmed
-          .split(",")
+          .split(',')
           .map((value) => this.normalizeTimeValue(value))
           .filter(Boolean);
       }
     }
 
-    const slots = typeof requirement.frequency_slots === "object" && requirement.frequency_slots !== null
+    const slots = typeof requirement.frequency_slots === 'object' && requirement.frequency_slots !== null
       ? requirement.frequency_slots
       : {};
 
@@ -841,16 +841,16 @@ export class MedicationManagement {
     const selectedDate = date || getTodayISO();
     const slots = [];
 
-    if (config.type === "interval" && config.intervalHours) {
+    if (config.type === 'interval' && config.intervalHours) {
       const intervalTimes = this.computeIntervalTimes(config.intervalStart || anchorTime, config.intervalHours);
       intervalTimes.forEach((time) => {
         slots.push({
           key: `interval-${time}`,
           iso: this.buildDateTimeISO(selectedDate, time),
-          label: translate("medication_frequency_interval_slot").replace("{time}", time)
+          label: translate('medication_frequency_interval_slot').replace('{time}', time)
         });
       });
-    } else if (config.type === "meal") {
+    } else if (config.type === 'meal') {
       const slotMap = Object.keys(config.slots).length ? config.slots : this.getMealSlots().reduce((map, slot) => {
         map[slot.key] = slot.defaultTime;
         return map;
@@ -862,12 +862,12 @@ export class MedicationManagement {
           label: translate(`medication_frequency_${slotKey}`)
         });
       });
-    } else if (config.type === "time_of_day" && config.times?.length) {
+    } else if (config.type === 'time_of_day' && config.times?.length) {
       config.times.forEach((time, index) => {
         slots.push({
           key: `time-${index}-${time}`,
           iso: this.buildDateTimeISO(selectedDate, time),
-          label: translate("medication_frequency_specific_time").replace("{time}", time)
+          label: translate('medication_frequency_specific_time').replace('{time}', time)
         });
       });
     }
@@ -876,61 +876,61 @@ export class MedicationManagement {
   }
 
   renderScheduleFrequencyHelper() {
-    const requirementSelect = document.getElementById("medicationRequirementSelect");
+    const requirementSelect = document.getElementById('medicationRequirementSelect');
     const requirementId = requirementSelect ? Number(requirementSelect.value) : null;
     const requirement = requirementId ? this.getRequirementById(requirementId) : null;
     const dateField = document.querySelector("input[name='scheduled_date']");
     const timeField = document.querySelector("input[name='scheduled_time']");
     const scheduledDate = dateField?.value || getTodayISO();
-    const anchorTime = timeField?.value || "08:00";
+    const anchorTime = timeField?.value || '08:00';
 
     if (!requirement) {
-      return `<p class="help-text">${escapeHTML(translate("medication_schedule_frequency_helper"))}</p>`;
+      return `<p class="help-text">${escapeHTML(translate('medication_schedule_frequency_helper'))}</p>`;
     }
 
     const slots = this.buildSlotsForRequirement(requirement, scheduledDate, anchorTime);
     if (!slots.length) {
-      return `<p class="help-text">${escapeHTML(translate("medication_schedule_frequency_missing"))}</p>`;
+      return `<p class="help-text">${escapeHTML(translate('medication_schedule_frequency_missing'))}</p>`;
     }
 
     return `
-      <span>${escapeHTML(translate("medication_schedule_frequency_label"))}</span>
+      <span>${escapeHTML(translate('medication_schedule_frequency_label'))}</span>
       <div class="participant-grid">
         ${slots
-        .map(
-          (slot) => `
+    .map(
+      (slot) => `
               <label class="participant-pill" style="align-items:center;">
                 <input type="checkbox" name="schedule_slots" value="${slot.iso}" checked />
                 <span>${escapeHTML(slot.label)}</span>
               </label>
             `
-        )
-        .join("")}
+    )
+    .join('')}
       </div>
-      <p class="help-text">${escapeHTML(translate("medication_schedule_frequency_hint"))}</p>
+      <p class="help-text">${escapeHTML(translate('medication_schedule_frequency_hint'))}</p>
     `;
   }
 
   updateScheduleFrequencyHelper() {
-    const helper = document.getElementById("scheduleFrequencyHelper");
+    const helper = document.getElementById('scheduleFrequencyHelper');
     if (helper) {
       setContent(helper, this.renderScheduleFrequencyHelper());
     }
   }
 
   render() {
-    const container = document.getElementById("app");
+    const container = document.getElementById('app');
     if (!container) {
       return;
     }
 
     if (this.offlineNoData) {
       setContent(container, `
-        <a href="/dashboard" class="button button--ghost">← ${escapeHTML(translate("back"))}</a>
+        <a href="/dashboard" class="button button--ghost">← ${escapeHTML(translate('back'))}</a>
         <section class="page medication-page">
           <div class="card" style="text-align:center; padding:2rem;">
-            <h2>${escapeHTML(translate("offline_indicator"))}</h2>
-            <p>${escapeHTML(translate("offline_data_not_prepared"))}</p>
+            <h2>${escapeHTML(translate('offline_indicator'))}</h2>
+            <p>${escapeHTML(translate('offline_data_not_prepared'))}</p>
           </div>
         </section>
       `);
@@ -939,50 +939,50 @@ export class MedicationManagement {
 
     const today = getTodayISO();
     const now = new Date();
-    const timeValue = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const timeValue = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
     const requirementOptions = this.requirements
       .map((req) => {
-        const syncingLabel = req.isOptimistic ? ` (${escapeHTML(translate("medication_pending_sync"))})` : "";
-        const disabled = req.isOptimistic ? " disabled" : "";
+        const syncingLabel = req.isOptimistic ? ` (${escapeHTML(translate('medication_pending_sync'))})` : '';
+        const disabled = req.isOptimistic ? ' disabled' : '';
         return `<option value="${req.id}"${disabled}>${escapeHTML(req.medication_name)}${syncingLabel}</option>`;
       })
-      .join("");
+      .join('');
 
     const participantOptions = this.participants
       .map((participant) => {
-        const label = `${participant.first_name || ""} ${participant.last_name || ""}`.trim();
-        return `<option value="${participant.id}">${escapeHTML(label || translate("unknown"))}</option>`;
+        const label = `${participant.first_name || ''} ${participant.last_name || ''}`.trim();
+        return `<option value="${participant.id}">${escapeHTML(label || translate('unknown'))}</option>`;
       })
-      .join("");
+      .join('');
 
     const medicationSuggestions = this.ficheMedications
       .map((medication) => `<option value="${escapeHTML(medication)}"></option>`)
-      .join("");
+      .join('');
 
-    const pageTitle = this.view === "dispensing"
-      ? translate("medication_dispensing_title")
-      : this.view === "authorizations"
-        ? translate("medication_authorizations_title")
-        : translate("medication_planning_title");
-    const pageDescription = this.view === "dispensing"
-      ? translate("medication_dispensing_description")
-      : this.view === "authorizations"
-        ? translate("medication_authorizations_description")
-        : translate("medication_planning_description");
+    const pageTitle = this.view === 'dispensing'
+      ? translate('medication_dispensing_title')
+      : this.view === 'authorizations'
+        ? translate('medication_authorizations_title')
+        : translate('medication_planning_title');
+    const pageDescription = this.view === 'dispensing'
+      ? translate('medication_dispensing_description')
+      : this.view === 'authorizations'
+        ? translate('medication_authorizations_description')
+        : translate('medication_planning_description');
 
     // Hide switch link for parents (they should only see planning view)
     // Authorizations belong to one child, so they are only offered once a
     // participant is chosen; there is no unit-wide authorizations page.
     let switchLink;
     if (this.participantId) {
-      switchLink = this.view === "authorizations"
-        ? `<a class="pill" href="/medication-planning/${this.participantId}">${escapeHTML(translate("medication_switch_to_planning"))}</a>`
-        : `<a class="pill" href="/medication-authorizations/${this.participantId}">${escapeHTML(translate("medication_switch_to_authorizations"))}</a>`;
+      switchLink = this.view === 'authorizations'
+        ? `<a class="pill" href="/medication-planning/${this.participantId}">${escapeHTML(translate('medication_switch_to_planning'))}</a>`
+        : `<a class="pill" href="/medication-authorizations/${this.participantId}">${escapeHTML(translate('medication_switch_to_authorizations'))}</a>`;
     } else {
-      switchLink = this.view === "dispensing"
-        ? `<a class="pill" href="/medication-planning">${escapeHTML(translate("medication_switch_to_planning"))}</a>`
-        : `<a class="pill" href="/medication-dispensing">${escapeHTML(translate("medication_switch_to_dispensing"))}</a>`;
+      switchLink = this.view === 'dispensing'
+        ? `<a class="pill" href="/medication-planning">${escapeHTML(translate('medication_switch_to_planning'))}</a>`
+        : `<a class="pill" href="/medication-dispensing">${escapeHTML(translate('medication_switch_to_dispensing'))}</a>`;
     }
 
     // Back button goes to returnUrl (set by router based on role), or dashboard
@@ -992,23 +992,23 @@ export class MedicationManagement {
       : '';
 
     setContent(container, `
-      <a href="${backUrl}" class="button button--ghost">← ${translate("back")}</a>
+      <a href="${backUrl}" class="button button--ghost">← ${translate('back')}</a>
       <section class="page medication-page">
         <div class="card">
           <h1>${escapeHTML(pageTitle)}${participantName}</h1>
           <p class="subtitle">${escapeHTML(pageDescription)}</p>
-          ${this.view === "dispensing" ? `<div class="pill">${escapeHTML(translate("medication_management_alert_window_hint"))}</div>` : ""}
+          ${this.view === 'dispensing' ? `<div class="pill">${escapeHTML(translate('medication_management_alert_window_hint'))}</div>` : ''}
           ${switchLink}
         </div>
 
-        ${this.view === "planning"
-        ? this.renderPlanningSection({ medicationSuggestions, participantOptions })
-        : this.view === "authorizations"
-          ? this.renderAuthorizationsSection()
-          : this.renderDispensingSection({ today, timeValue, requirementOptions, participantOptions })}
+        ${this.view === 'planning'
+    ? this.renderPlanningSection({ medicationSuggestions, participantOptions })
+    : this.view === 'authorizations'
+      ? this.renderAuthorizationsSection()
+      : this.renderDispensingSection({ today, timeValue, requirementOptions, participantOptions })}
       </section>
     `);
-    if (this.view === "dispensing") {
+    if (this.view === 'dispensing') {
       this.renderAlertArea();
       this.updateScheduleFrequencyHelper();
     }
@@ -1017,14 +1017,14 @@ export class MedicationManagement {
   renderPlanningSection({ medicationSuggestions, participantOptions }) {
     const suggestionList = medicationSuggestions
       ? `<datalist id="ficheMedicationsList">${medicationSuggestions}</datalist>`
-      : "";
+      : '';
 
     // When participantId is set (parent view), hide the participant selector and auto-populate it
     const participantSelectorHtml = this.participantId
       ? `
         <input type="hidden" name="participant_id" value="${this.participantId}" />
         <div class="field-group" style="grid-column: 1 / -1;">
-          <span>${escapeHTML(translate("participants"))}</span>
+          <span>${escapeHTML(translate('participants'))}</span>
           <p style="padding: 0.5rem; background: #f3f4f6; border-radius: 8px; margin: 0;">
             ${escapeHTML(this.participants[0]?.first_name || '')} ${escapeHTML(this.participants[0]?.last_name || '')}
           </p>
@@ -1032,74 +1032,74 @@ export class MedicationManagement {
       `
       : `
         <label class="field-group" style="grid-column: 1 / -1;">
-          <span>${escapeHTML(translate("medication_assign_participants"))}</span>
+          <span>${escapeHTML(translate('medication_assign_participants'))}</span>
           <select name="participant_id" id="requirementParticipantSelect" required>
-            <option value="">${escapeHTML(translate("select_option"))}</option>
+            <option value="">${escapeHTML(translate('select_option'))}</option>
             ${participantOptions}
           </select>
-          <p class="help-text">${escapeHTML(translate("medication_requirement_single_participant_hint"))}</p>
+          <p class="help-text">${escapeHTML(translate('medication_requirement_single_participant_hint'))}</p>
         </label>
       `;
 
     return `
       <div class="card">
-        <h2>${escapeHTML(translate("medication_requirement_form_title"))}</h2>
+        <h2>${escapeHTML(translate('medication_requirement_form_title'))}</h2>
         <form id="medicationRequirementForm" class="medication-grid">
           <label class="field-group">
-            <span>${escapeHTML(translate("medication_name_label"))}</span>
+            <span>${escapeHTML(translate('medication_name_label'))}</span>
             <input type="text" name="medication_name" list="ficheMedicationsList" required maxlength="200" />
-            ${medicationSuggestions ? `<p class="help-text">${escapeHTML(translate("medication_fiche_suggestions_hint"))}</p>` : ""}
+            ${medicationSuggestions ? `<p class="help-text">${escapeHTML(translate('medication_fiche_suggestions_hint'))}</p>` : ''}
             <p class="help-text" id="medicationPrefillHint" hidden>${escapeHTML(translate('medication_prefilled_from_fiche'))}</p>
             <div class="field-group" id="declaredMedications" hidden></div>
             ${suggestionList}
           </label>
           <label class="field-group">
-            <span>${escapeHTML(translate("medication_dosage_label"))}</span>
-            <input type="text" name="dosage_instructions" maxlength="200" placeholder="${escapeHTML(translate("dose"))}" />
+            <span>${escapeHTML(translate('medication_dosage_label'))}</span>
+            <input type="text" name="dosage_instructions" maxlength="200" placeholder="${escapeHTML(translate('dose'))}" />
           </label>
           <label class="field-group">
-            <span>${escapeHTML(translate("medication_frequency_label"))}</span>
+            <span>${escapeHTML(translate('medication_frequency_label'))}</span>
             <select name="frequency_preset_type" id="frequencyPreset" required>
-              <option value="interval">${escapeHTML(translate("medication_frequency_interval"))}</option>
-              <option value="time_of_day" selected>${escapeHTML(translate("medication_frequency_time_of_day"))}</option>
-              <option value="meal">${escapeHTML(translate("medication_frequency_meal"))}</option>
-              <option value="prn">${escapeHTML(translate("medication_frequency_prn"))}</option>
+              <option value="interval">${escapeHTML(translate('medication_frequency_interval'))}</option>
+              <option value="time_of_day" selected>${escapeHTML(translate('medication_frequency_time_of_day'))}</option>
+              <option value="meal">${escapeHTML(translate('medication_frequency_meal'))}</option>
+              <option value="prn">${escapeHTML(translate('medication_frequency_prn'))}</option>
             </select>
           </label>
           <div class="field-group" id="frequencyPresetFields" style="grid-column: 1 / -1;">
-            ${this.getFrequencyPresetFieldsMarkup("time_of_day")}
+            ${this.getFrequencyPresetFieldsMarkup('time_of_day')}
           </div>
           <label class="field-group">
-            <span>${escapeHTML(translate("medication_route_label"))}</span>
+            <span>${escapeHTML(translate('medication_route_label'))}</span>
             <input type="text" name="route" maxlength="120" />
           </label>
           <label class="field-group">
-            <span>${escapeHTML(translate("medication_default_dose"))}</span>
+            <span>${escapeHTML(translate('medication_default_dose'))}</span>
             <div style="display:flex; gap:0.5rem;">
-              <input type="number" step="0.01" name="default_dose_amount" aria-label="${escapeHTML(translate("dose"))}" />
-              <input type="text" name="default_dose_unit" maxlength="50" placeholder="mg, ml" aria-label="${escapeHTML(translate("unit"))}" />
+              <input type="number" step="0.01" name="default_dose_amount" aria-label="${escapeHTML(translate('dose'))}" />
+              <input type="text" name="default_dose_unit" maxlength="50" placeholder="mg, ml" aria-label="${escapeHTML(translate('unit'))}" />
             </div>
           </label>
           <label class="field-group" style="grid-column: 1 / -1;">
-            <span>${escapeHTML(translate("medication_general_notes_label"))}</span>
+            <span>${escapeHTML(translate('medication_general_notes_label'))}</span>
             <textarea name="general_notes" rows="3" maxlength="1000"></textarea>
           </label>
           <label class="field-group">
-            <span>${escapeHTML(translate("medication_start_date_label"))}</span>
+            <span>${escapeHTML(translate('medication_start_date_label'))}</span>
             <input type="date" name="start_date" />
-            <p class="help-text">${escapeHTML(translate("medication_start_date_hint"))}</p>
+            <p class="help-text">${escapeHTML(translate('medication_start_date_hint'))}</p>
           </label>
           <label class="field-group">
-            <span>${escapeHTML(translate("medication_end_date_label"))}</span>
+            <span>${escapeHTML(translate('medication_end_date_label'))}</span>
             <input type="date" name="end_date" />
-            <p class="help-text">${escapeHTML(translate("medication_end_date_hint"))}</p>
+            <p class="help-text">${escapeHTML(translate('medication_end_date_hint'))}</p>
           </label>
           ${participantSelectorHtml}
-          <button class="btn primary" type="submit">${escapeHTML(translate("medication_save_requirement"))}</button>
+          <button class="btn primary" type="submit">${escapeHTML(translate('medication_save_requirement'))}</button>
         </form>
       </div>
       <div class="card">
-        <h2>${escapeHTML(translate("medication_existing_requirements_title"))}</h2>
+        <h2>${escapeHTML(translate('medication_existing_requirements_title'))}</h2>
         ${this.renderRequirementTable()}
       </div>
     `;
@@ -1108,7 +1108,7 @@ export class MedicationManagement {
   renderAuthorizationsSection() {
     const participant = this.participants[0];
     if (!participant) {
-      return `<div class="card"><p>${escapeHTML(translate("medication_auth_no_guardian"))}</p></div>`;
+      return `<div class="card"><p>${escapeHTML(translate('medication_auth_no_guardian'))}</p></div>`;
     }
 
     const guardianOptions = (this.authGuardians || []).map(g =>
@@ -1148,12 +1148,12 @@ export class MedicationManagement {
 
     return `
       <div class="card" id="treatment-auth-card">
-        <h2>📋 ${escapeHTML(translate("medication_auth_treatment_title"))}</h2>
-        <p style="color:#6b7280;font-size:0.9rem;font-style:italic;">${escapeHTML(translate("medication_auth_treatment_legal"))}</p>
+        <h2>📋 ${escapeHTML(translate('medication_auth_treatment_title'))}</h2>
+        <p style="color:#6b7280;font-size:0.9rem;font-style:italic;">${escapeHTML(translate('medication_auth_treatment_legal'))}</p>
 
         <form id="treatmentAuthForm" style="display:flex;flex-direction:column;gap:1rem;margin-top:1rem;">
           <label class="field-group">
-            <span>${escapeHTML(translate("guardian_first_name"))} / ${escapeHTML(translate("guardian_last_name"))}</span>
+            <span>${escapeHTML(translate('guardian_first_name'))} / ${escapeHTML(translate('guardian_last_name'))}</span>
             <select name="guardian_id" required style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;">
               <option value="">—</option>
               ${guardianOptions}
@@ -1161,9 +1161,9 @@ export class MedicationManagement {
           </label>
 
           <fieldset style="border:1px solid #e5e7eb;border-radius:8px;padding:1rem;">
-            <legend style="font-weight:600;padding:0 0.5rem;">${escapeHTML(translate("medication_auth_treatment_instruction"))}</legend>
+            <legend style="font-weight:600;padding:0 0.5rem;">${escapeHTML(translate('medication_auth_treatment_instruction'))}</legend>
             <div class="participant-grid" style="gap:0.5rem;margin-top:0.5rem;">
-              ${supplyCheckboxes || `<p style="color:#9ca3af;">${escapeHTML(translate("not_available"))}</p>`}
+              ${supplyCheckboxes || `<p style="color:#9ca3af;">${escapeHTML(translate('not_available'))}</p>`}
             </div>
           </fieldset>
 
@@ -1171,47 +1171,47 @@ export class MedicationManagement {
             <legend style="font-weight:600;padding:0 0.5rem;">${escapeHTML(translate('medication_auth_consents'))}</legend>
             <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:0.5rem;">
               ${[
-        { n: 1, field: 'autorise_gestes_securite_bien_etre' },
-        { n: 2, field: 'accepte_soins_medicaux_urgence' },
-        { n: 3, field: 'autorise_transmission_fiche_medicale' },
-        { n: 4, field: 'reconnait_responsabilite_aviser_changements_sante' }
-      ].map(({ n, field }) => `
+    { n: 1, field: 'autorise_gestes_securite_bien_etre' },
+    { n: 2, field: 'accepte_soins_medicaux_urgence' },
+    { n: 3, field: 'autorise_transmission_fiche_medicale' },
+    { n: 4, field: 'reconnait_responsabilite_aviser_changements_sante' }
+  ].map(({ n, field }) => `
                 <label style="display:flex;gap:0.75rem;align-items:flex-start;">
                   <input type="checkbox" name="${field}" ${ta?.[field] ? 'checked' : ''} style="margin-top:0.2rem;flex-shrink:0;" />
-                  <span style="font-size:0.9rem;">${escapeHTML(translate("medication_auth_treatment_consent_" + n))}</span>
+                  <span style="font-size:0.9rem;">${escapeHTML(translate(`medication_auth_treatment_consent_${  n}`))}</span>
                 </label>`).join('')}
             </div>
           </fieldset>
 
           <div class="responsive-grid-2">
             <label class="field-group">
-              <span>${escapeHTML(translate("medication_auth_sign_printed_name"))}</span>
+              <span>${escapeHTML(translate('medication_auth_sign_printed_name'))}</span>
               <input type="text" name="nom_en_caractere_d_imprimerie" value="${escapeHTML(ta?.nom_en_caractere_d_imprimerie || '')}"
                 style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;" required />
             </label>
             <label class="field-group">
-              <span>${escapeHTML(translate("medication_auth_sign_date"))}</span>
+              <span>${escapeHTML(translate('medication_auth_sign_date'))}</span>
               <input type="date" name="date_signature" value="${ta?.date_signature ? ta.date_signature.substring(0, 10) : getTodayISO()}"
                 style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;" required />
             </label>
           </div>
 
-          ${ta ? `<p style="color:#15803d;font-weight:600;">✅ ${escapeHTML(translate("signed_on"))} ${formatDate(ta.date_signature)}</p>` : ''}
+          ${ta ? `<p style="color:#15803d;font-weight:600;">✅ ${escapeHTML(translate('signed_on'))} ${formatDate(ta.date_signature)}</p>` : ''}
 
           <button type="submit" class="btn primary" id="saveTreatmentAuth">
-            ${escapeHTML(translate("save"))}
+            ${escapeHTML(translate('save'))}
           </button>
         </form>
       </div>
 
       <div class="card" id="admin-auth-card" style="margin-top:1rem;">
-        <h2>💊 ${escapeHTML(translate("medication_auth_admin_title"))}</h2>
-        <p style="font-size:0.85rem;color:#6b7280;font-weight:600;">${escapeHTML(translate("medication_auth_admin_subtitle"))}</p>
-        <p style="color:#6b7280;font-size:0.85rem;font-style:italic;margin-top:0.5rem;">${escapeHTML(translate("medication_auth_admin_legal_1"))}</p>
+        <h2>💊 ${escapeHTML(translate('medication_auth_admin_title'))}</h2>
+        <p style="font-size:0.85rem;color:#6b7280;font-weight:600;">${escapeHTML(translate('medication_auth_admin_subtitle'))}</p>
+        <p style="color:#6b7280;font-size:0.85rem;font-style:italic;margin-top:0.5rem;">${escapeHTML(translate('medication_auth_admin_legal_1'))}</p>
 
         <form id="adminAuthForm" style="display:flex;flex-direction:column;gap:1rem;margin-top:1rem;">
           <label class="field-group">
-            <span>${escapeHTML(translate("guardian_first_name"))} / ${escapeHTML(translate("guardian_last_name"))}</span>
+            <span>${escapeHTML(translate('guardian_first_name'))} / ${escapeHTML(translate('guardian_last_name'))}</span>
             <select name="guardian_id" required style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;">
               <option value="">—</option>
               ${guardianOptions}
@@ -1219,7 +1219,7 @@ export class MedicationManagement {
           </label>
 
           <fieldset style="border:1px solid #e5e7eb;border-radius:8px;padding:1rem;">
-            <legend style="font-weight:600;padding:0 0.5rem;">${escapeHTML(translate("medication_auth_admin_adults"))}</legend>
+            <legend style="font-weight:600;padding:0 0.5rem;">${escapeHTML(translate('medication_auth_admin_adults'))}</legend>
             <div class="responsive-grid-2" style="margin-top:0.5rem;">
               <label class="field-group">
                 <span>1.</span>
@@ -1239,21 +1239,21 @@ export class MedicationManagement {
           </fieldset>
 
           <fieldset style="border:1px solid #e5e7eb;border-radius:8px;padding:1rem;">
-            <legend style="font-weight:600;padding:0 0.5rem;">${escapeHTML(translate("medication_auth_admin_meds_posology"))}</legend>
+            <legend style="font-weight:600;padding:0 0.5rem;">${escapeHTML(translate('medication_auth_admin_meds_posology'))}</legend>
             <div class="participant-grid" style="gap:0.5rem;margin-top:0.5rem;">
-              ${medicationCheckboxes || `<p style="color:#9ca3af;">${escapeHTML(translate("not_available"))}</p>`}
+              ${medicationCheckboxes || `<p style="color:#9ca3af;">${escapeHTML(translate('not_available'))}</p>`}
             </div>
           </fieldset>
 
           <fieldset style="border:1px solid #e5e7eb;border-radius:8px;padding:1rem;">
-            <legend style="font-weight:600;padding:0 0.5rem;">${escapeHTML(translate("medication_auth_admin_parental"))}</legend>
+            <legend style="font-weight:600;padding:0 0.5rem;">${escapeHTML(translate('medication_auth_admin_parental'))}</legend>
             <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:0.5rem;">
               ${[
-        { key: 'deja_pris_a_la_maison', tKey: 'medication_auth_admin_attest_1' },
-        { key: 'remettre_contenant_origine', tKey: 'medication_auth_admin_attest_2' },
-        { key: 'etiquette_pharmacie_et_avis', tKey: 'medication_auth_admin_attest_3' },
-        { key: 'reconnait_risques_et_accepte', tKey: 'medication_auth_admin_attest_4' }
-      ].map(({ key, tKey }) => `
+    { key: 'deja_pris_a_la_maison', tKey: 'medication_auth_admin_attest_1' },
+    { key: 'remettre_contenant_origine', tKey: 'medication_auth_admin_attest_2' },
+    { key: 'etiquette_pharmacie_et_avis', tKey: 'medication_auth_admin_attest_3' },
+    { key: 'reconnait_risques_et_accepte', tKey: 'medication_auth_admin_attest_4' }
+  ].map(({ key, tKey }) => `
                 <label style="display:flex;gap:0.75rem;align-items:flex-start;">
                   <input type="checkbox" name="${key}" ${aa?.[key] ? 'checked' : ''} style="margin-top:0.2rem;flex-shrink:0;" />
                   <span style="font-size:0.9rem;">${escapeHTML(translate(tKey))}</span>
@@ -1263,21 +1263,21 @@ export class MedicationManagement {
 
           <div class="responsive-grid-2">
             <label class="field-group">
-              <span>${escapeHTML(translate("medication_auth_name_parent_legal"))}</span>
+              <span>${escapeHTML(translate('medication_auth_name_parent_legal'))}</span>
               <input type="text" name="nom_parent_ou_tuteur_legal" value="${escapeHTML(aa?.nom_parent_ou_tuteur_legal || '')}"
                 style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;" required />
             </label>
             <label class="field-group">
-              <span>${escapeHTML(translate("medication_auth_sign_date"))}</span>
+              <span>${escapeHTML(translate('medication_auth_sign_date'))}</span>
               <input type="date" name="date_signature" value="${aa?.date_signature ? aa.date_signature.substring(0, 10) : getTodayISO()}"
                 style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;" required />
             </label>
           </div>
 
-          ${aa ? `<p style="color:#15803d;font-weight:600;">✅ ${escapeHTML(translate("signed_on"))} ${formatDate(aa.date_signature)}</p>` : ''}
+          ${aa ? `<p style="color:#15803d;font-weight:600;">✅ ${escapeHTML(translate('signed_on'))} ${formatDate(aa.date_signature)}</p>` : ''}
 
           <button type="submit" class="btn primary" id="saveAdminAuth">
-            ${escapeHTML(translate("save"))}
+            ${escapeHTML(translate('save'))}
           </button>
         </form>
       </div>
@@ -1290,7 +1290,7 @@ export class MedicationManagement {
       ? `<div class="offline-banner" id="medication-offline-banner"
               style="background:#fef3c7; color:#92400e; padding:0.75rem 1rem; border-radius:8px; margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;">
            <span style="font-size:1.2rem;">&#9888;</span>
-           <span>${escapeHTML(translate("medication_offline_banner"))}</span>
+           <span>${escapeHTML(translate('medication_offline_banner'))}</span>
          </div>`
       : '<div id="medication-offline-banner" style="display:none;"></div>';
 
@@ -1298,39 +1298,39 @@ export class MedicationManagement {
       ${offlineBanner}
 
       <div class="card">
-        <h2>${escapeHTML(translate("medication_alerts_heading"))}</h2>
+        <h2>${escapeHTML(translate('medication_alerts_heading'))}</h2>
         <div id="medication-alerts"></div>
       </div>
 
       <div class="card">
-        <h2>${escapeHTML(translate("medication_to_distribute"))}</h2>
-        <p class="subtitle">${escapeHTML(translate("medication_tap_to_dispense"))}</p>
+        <h2>${escapeHTML(translate('medication_to_distribute'))}</h2>
+        <p class="subtitle">${escapeHTML(translate('medication_tap_to_dispense'))}</p>
         <div id="participant-medication-cards-pending">
           ${pendingCards}
         </div>
       </div>
 
       <div class="card">
-        <h2>${escapeHTML(translate("medication_given_today"))}</h2>
-        <p class="subtitle">${escapeHTML(translate("medication_given_today_description"))}</p>
+        <h2>${escapeHTML(translate('medication_given_today'))}</h2>
+        <p class="subtitle">${escapeHTML(translate('medication_given_today_description'))}</p>
         <div id="participant-medication-cards-given">
           ${givenCards}
         </div>
       </div>
 
       <div class="card">
-        <h2>${escapeHTML(translate("medication_upcoming_schedule"))}</h2>
+        <h2>${escapeHTML(translate('medication_upcoming_schedule'))}</h2>
         <div class="table-container">
           <table class="data-table">
             <thead>
               <tr>
-                <th>${escapeHTML(translate("date"))}</th>
-                <th>${escapeHTML(translate("time"))}</th>
-                <th>${escapeHTML(translate("participants"))}</th>
-                <th>${escapeHTML(translate("medication"))}</th>
-                <th>${escapeHTML(translate("medication_default_dose"))}</th>
-                <th>${escapeHTML(translate("medication_frequency"))}</th>
-                <th>${escapeHTML(translate("notes"))}</th>
+                <th>${escapeHTML(translate('date'))}</th>
+                <th>${escapeHTML(translate('time'))}</th>
+                <th>${escapeHTML(translate('participants'))}</th>
+                <th>${escapeHTML(translate('medication'))}</th>
+                <th>${escapeHTML(translate('medication_default_dose'))}</th>
+                <th>${escapeHTML(translate('medication_frequency'))}</th>
+                <th>${escapeHTML(translate('notes'))}</th>
               </tr>
             </thead>
             <tbody id="medication-upcoming-table-body">${this.renderUpcomingRows()}</tbody>
@@ -1347,7 +1347,7 @@ export class MedicationManagement {
 
     this.participantMedications.forEach((assignment) => {
       const requirement = this.getRequirementById(assignment.medication_requirement_id);
-      if (!requirement) return;
+      if (!requirement) {return;}
 
       const participantId = assignment.participant_id;
       if (!participantMeds.has(participantId)) {
@@ -1361,7 +1361,7 @@ export class MedicationManagement {
     });
 
     if (participantMeds.size === 0) {
-      return `<p>${escapeHTML(translate("medication_no_participants_assigned"))}</p>`;
+      return `<p>${escapeHTML(translate('medication_no_participants_assigned'))}</p>`;
     }
 
     const cards = Array.from(participantMeds.entries()).map(([participantId, medications]) => {
@@ -1370,7 +1370,7 @@ export class MedicationManagement {
       // Filter out medications not yet received (hide status = not_received or no reception record)
       const dispensableMeds = medications.filter((med) => {
         const reception = this.getReceptionForMedication(participantId, med.requirement.id);
-        return reception && reception.status !== "not_received";
+        return reception && reception.status !== 'not_received';
       });
 
       if (dispensableMeds.length === 0) {
@@ -1381,40 +1381,40 @@ export class MedicationManagement {
         <div class="participant-med-card">
           <div class="participant-med-header">
             <h3>${escapeHTML(participantName)}</h3>
-            <span class="pill">${dispensableMeds.length} ${escapeHTML(translate("medications"))}</span>
+            <span class="pill">${dispensableMeds.length} ${escapeHTML(translate('medications'))}</span>
           </div>
           <div class="medication-list">
             ${dispensableMeds.map((med) => {
-        const req = med.requirement;
-        const reception = this.getReceptionForMedication(participantId, req.id);
-        const doseInfo = req.default_dose_amount
-          ? `${req.default_dose_amount}${req.default_dose_unit || ''}`
-          : req.dosage_instructions || '';
-        const route = req.route ? ` · ${req.route}` : '';
-        const frequency = req.frequency_text || translate("medication_frequency_prn_text");
+    const req = med.requirement;
+    const reception = this.getReceptionForMedication(participantId, req.id);
+    const doseInfo = req.default_dose_amount
+      ? `${req.default_dose_amount}${req.default_dose_unit || ''}`
+      : req.dosage_instructions || '';
+    const route = req.route ? ` · ${req.route}` : '';
+    const frequency = req.frequency_text || translate('medication_frequency_prn_text');
 
-        // Get time slots for display
-        const timeSlots = this.getTimeSlotsForDisplay(req);
-        const timeSlotsHtml = timeSlots.length > 0
-          ? `<div class="medication-time-slots">
-                     <strong>⏰ ${escapeHTML(translate("medication_administration_times"))}:</strong>
+    // Get time slots for display
+    const timeSlots = this.getTimeSlotsForDisplay(req);
+    const timeSlotsHtml = timeSlots.length > 0
+      ? `<div class="medication-time-slots">
+                     <strong>⏰ ${escapeHTML(translate('medication_administration_times'))}:</strong>
                      <div class="time-slots-list">
                        ${timeSlots.map(slot => `<span class="time-badge">${escapeHTML(slot)}</span>`).join('')}
                      </div>
                    </div>`
-          : '';
+      : '';
 
-        // Show reception notes and partial status if applicable
-        const receptionNotesHtml = reception?.reception_notes
-          ? `<div class="medication-notes" style="color:#0b3c5d; background:#e0f2fe; padding:0.35rem 0.5rem; border-radius:6px; margin-top:0.4rem;">
+    // Show reception notes and partial status if applicable
+    const receptionNotesHtml = reception?.reception_notes
+      ? `<div class="medication-notes" style="color:#0b3c5d; background:#e0f2fe; padding:0.35rem 0.5rem; border-radius:6px; margin-top:0.4rem;">
                      📋 ${escapeHTML(reception.reception_notes)}
                    </div>`
-          : '';
-        const partialBadge = reception?.status === "partial"
-          ? `<span style="font-size:0.8rem; color:#92400e; background:#fef3c7; padding:0.2rem 0.5rem; border-radius:999px; margin-left:0.5rem;">${escapeHTML(translate("med_reception_status_partial"))}</span>`
-          : '';
+      : '';
+    const partialBadge = reception?.status === 'partial'
+      ? `<span style="font-size:0.8rem; color:#92400e; background:#fef3c7; padding:0.2rem 0.5rem; border-radius:999px; margin-left:0.5rem;">${escapeHTML(translate('med_reception_status_partial'))}</span>`
+      : '';
 
-        return `
+    return `
                 <div class="medication-item">
                   <div class="medication-info">
                     <strong>${escapeHTML(req.medication_name)}${partialBadge}</strong>
@@ -1436,17 +1436,17 @@ export class MedicationManagement {
                     data-dose="${escapeHTML(doseInfo)}"
                     data-route="${escapeHTML(req.route || '')}"
                   >
-                    ${escapeHTML(translate("medication_give_now"))}
+                    ${escapeHTML(translate('medication_give_now'))}
                   </button>
                 </div>
               `;
-      }).join('')}
+  }).join('')}
           </div>
         </div>
       `;
     }).join('');
 
-    return cards || `<p>${escapeHTML(translate("med_reception_no_received"))}</p>`;
+    return cards || `<p>${escapeHTML(translate('med_reception_no_received'))}</p>`;
   }
 
   /**
@@ -1459,7 +1459,7 @@ export class MedicationManagement {
     if (typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
       return dateValue;
     }
-    return new Date(dateValue).toLocaleDateString("en-CA");
+    return new Date(dateValue).toLocaleDateString('en-CA');
   }
 
   /**
@@ -1479,7 +1479,7 @@ export class MedicationManagement {
   getTodayGivenDistributions() {
     const today = getTodayISO();
     return this.distributions.filter((dist) => {
-      if (dist.status !== 'given') return false;
+      if (dist.status !== 'given') {return false;}
       return this.toLocalDateString(dist.scheduled_for || dist.administered_at) === today;
     });
   }
@@ -1497,7 +1497,7 @@ export class MedicationManagement {
 
     // Get all today's distributions for this participant + requirement
     const todayDistributions = this.distributions.filter((dist) => {
-      if (dist.participant_id !== participantId || dist.medication_requirement_id !== requirementId) return false;
+      if (dist.participant_id !== participantId || dist.medication_requirement_id !== requirementId) {return false;}
       return this.toLocalDateString(dist.scheduled_for || dist.administered_at) === today;
     });
 
@@ -1542,7 +1542,7 @@ export class MedicationManagement {
 
     this.participantMedications.forEach((assignment) => {
       const requirement = this.getRequirementById(assignment.medication_requirement_id);
-      if (!requirement) return;
+      if (!requirement) {return;}
 
       const participantId = assignment.participant_id;
       if (!participantMeds.has(participantId)) {
@@ -1557,8 +1557,8 @@ export class MedicationManagement {
 
     if (participantMeds.size === 0) {
       return {
-        pendingCards: `<p>${escapeHTML(translate("medication_no_participants_assigned"))}</p>`,
-        givenCards: `<p>${escapeHTML(translate("medication_no_given_today"))}</p>`
+        pendingCards: `<p>${escapeHTML(translate('medication_no_participants_assigned'))}</p>`,
+        givenCards: `<p>${escapeHTML(translate('medication_no_given_today'))}</p>`
       };
     }
 
@@ -1571,10 +1571,10 @@ export class MedicationManagement {
       // Filter out medications not yet received
       const dispensableMeds = medications.filter((med) => {
         const reception = this.getReceptionForMedication(participantId, med.requirement.id);
-        return reception && reception.status !== "not_received";
+        return reception && reception.status !== 'not_received';
       });
 
-      if (dispensableMeds.length === 0) return;
+      if (dispensableMeds.length === 0) {return;}
 
       const pendingMeds = [];
       const givenMeds = [];
@@ -1605,8 +1605,8 @@ export class MedicationManagement {
     });
 
     return {
-      pendingCards: pendingHtml || `<p>${escapeHTML(translate("medication_all_distributed_today"))}</p>`,
-      givenCards: givenHtml || `<p>${escapeHTML(translate("medication_no_given_today"))}</p>`
+      pendingCards: pendingHtml || `<p>${escapeHTML(translate('medication_all_distributed_today'))}</p>`,
+      givenCards: givenHtml || `<p>${escapeHTML(translate('medication_no_given_today'))}</p>`
     };
   }
 
@@ -1623,7 +1623,7 @@ export class MedicationManagement {
     const borderColor = isGiven ? '#10b981' : '#e5e7eb';
     const headerBg = isGiven ? '#ecfdf5' : '#f9fafb';
     const statusBadgeColor = isGiven ? 'background:#d1fae5; color:#065f46;' : 'background:#e0f2fe; color:#0b3c5d;';
-    const statusLabel = isGiven ? translate("medication_status_given") : translate("medication_status_pending");
+    const statusLabel = isGiven ? translate('medication_status_given') : translate('medication_status_pending');
 
     return `
       <div class="participant-med-card" style="border-color:${borderColor}; ${isGiven ? 'opacity:0.85;' : ''}">
@@ -1633,60 +1633,60 @@ export class MedicationManagement {
         </div>
         <div class="medication-list">
           ${medications.map((med) => {
-      const req = med.requirement;
-      const reception = this.getReceptionForMedication(participantId, req.id);
-      const doseInfo = req.default_dose_amount
-        ? `${req.default_dose_amount}${req.default_dose_unit || ''}`
-        : req.dosage_instructions || '';
-      const route = req.route ? ` · ${req.route}` : '';
-      const frequency = req.frequency_text || translate("medication_frequency_prn_text");
+    const req = med.requirement;
+    const reception = this.getReceptionForMedication(participantId, req.id);
+    const doseInfo = req.default_dose_amount
+      ? `${req.default_dose_amount}${req.default_dose_unit || ''}`
+      : req.dosage_instructions || '';
+    const route = req.route ? ` · ${req.route}` : '';
+    const frequency = req.frequency_text || translate('medication_frequency_prn_text');
 
-      // Time slots display
-      const timeSlots = this.getTimeSlotsForDisplay(req);
-      const timeSlotsHtml = timeSlots.length > 0
-        ? `<div class="medication-time-slots">
-                   <strong>${escapeHTML(translate("medication_administration_times"))}:</strong>
+    // Time slots display
+    const timeSlots = this.getTimeSlotsForDisplay(req);
+    const timeSlotsHtml = timeSlots.length > 0
+      ? `<div class="medication-time-slots">
+                   <strong>${escapeHTML(translate('medication_administration_times'))}:</strong>
                    <div class="time-slots-list">
                      ${timeSlots.map(slot => `<span class="time-badge">${escapeHTML(slot)}</span>`).join('')}
                    </div>
                  </div>`
-        : '';
+      : '';
 
-      // Reception notes
-      const receptionNotesHtml = reception?.reception_notes
-        ? `<div class="medication-notes" style="color:#0b3c5d; background:#e0f2fe; padding:0.35rem 0.5rem; border-radius:6px; margin-top:0.4rem;">
+    // Reception notes
+    const receptionNotesHtml = reception?.reception_notes
+      ? `<div class="medication-notes" style="color:#0b3c5d; background:#e0f2fe; padding:0.35rem 0.5rem; border-radius:6px; margin-top:0.4rem;">
                    ${escapeHTML(reception.reception_notes)}
                  </div>`
-        : '';
-      const partialBadge = reception?.status === "partial"
-        ? `<span style="font-size:0.8rem; color:#92400e; background:#fef3c7; padding:0.2rem 0.5rem; border-radius:999px; margin-left:0.5rem;">${escapeHTML(translate("med_reception_status_partial"))}</span>`
-        : '';
+      : '';
+    const partialBadge = reception?.status === 'partial'
+      ? `<span style="font-size:0.8rem; color:#92400e; background:#fef3c7; padding:0.2rem 0.5rem; border-radius:999px; margin-left:0.5rem;">${escapeHTML(translate('med_reception_status_partial'))}</span>`
+      : '';
 
-      if (isGiven) {
-        // Render given medication with administration details
-        const givenDoses = med.givenDoses || [];
-        const anyPending = givenDoses.some((d) => d.isOptimistic);
-        const givenTimesHtml = givenDoses.map((d) => {
-          const givenAt = d.administered_at ? new Date(d.administered_at) : new Date(d.scheduled_for);
-          const timeStr = givenAt.toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" });
-          const witnessStr = d.witness_name ? ` · ${escapeHTML(d.witness_name)}` : '';
-          const pendingLabel = d.isOptimistic
-            ? ` <em style="font-size:0.7rem; opacity:0.8;">(${escapeHTML(translate("medication_pending_sync"))})</em>`
-            : '';
-          return `<span class="pill" style="background:${d.isOptimistic ? '#fef3c7; color:#92400e' : '#d1fae5; color:#065f46'}; font-size:0.8rem;">
-                  ${escapeHTML(translate("medication_given_at"))} ${escapeHTML(timeStr)}${witnessStr}${pendingLabel}
+    if (isGiven) {
+      // Render given medication with administration details
+      const givenDoses = med.givenDoses || [];
+      const anyPending = givenDoses.some((d) => d.isOptimistic);
+      const givenTimesHtml = givenDoses.map((d) => {
+        const givenAt = d.administered_at ? new Date(d.administered_at) : new Date(d.scheduled_for);
+        const timeStr = givenAt.toLocaleTimeString(this.app.lang || 'en', { hour: '2-digit', minute: '2-digit' });
+        const witnessStr = d.witness_name ? ` · ${escapeHTML(d.witness_name)}` : '';
+        const pendingLabel = d.isOptimistic
+          ? ` <em style="font-size:0.7rem; opacity:0.8;">(${escapeHTML(translate('medication_pending_sync'))})</em>`
+          : '';
+        return `<span class="pill" style="background:${d.isOptimistic ? '#fef3c7; color:#92400e' : '#d1fae5; color:#065f46'}; font-size:0.8rem;">
+                  ${escapeHTML(translate('medication_given_at'))} ${escapeHTML(timeStr)}${witnessStr}${pendingLabel}
                 </span>`;
-        }).join('');
+      }).join('');
 
-        const statusPill = anyPending
-          ? `<span class="pill" style="background:#fef3c7; color:#92400e; font-weight:700; font-size:1rem; white-space:nowrap;">
-                    ${escapeHTML(translate("medication_pending_sync"))}
+      const statusPill = anyPending
+        ? `<span class="pill" style="background:#fef3c7; color:#92400e; font-weight:700; font-size:1rem; white-space:nowrap;">
+                    ${escapeHTML(translate('medication_pending_sync'))}
                   </span>`
-          : `<span class="pill" style="background:#d1fae5; color:#065f46; font-weight:700; font-size:1rem; white-space:nowrap;">
-                    ${escapeHTML(translate("medication_status_given"))}
+        : `<span class="pill" style="background:#d1fae5; color:#065f46; font-weight:700; font-size:1rem; white-space:nowrap;">
+                    ${escapeHTML(translate('medication_status_given'))}
                   </span>`;
 
-        return `
+      return `
                 <div class="medication-item" style="border-color:${anyPending ? '#f59e0b' : '#10b981'}; background:${anyPending ? '#fffbeb' : '#f0fdf4'};">
                   <div class="medication-info">
                     <strong>${escapeHTML(req.medication_name)}${partialBadge}</strong>
@@ -1705,10 +1705,10 @@ export class MedicationManagement {
                   ${statusPill}
                 </div>
               `;
-      }
+    }
 
-      // Render pending medication with give button
-      return `
+    // Render pending medication with give button
+    return `
               <div class="medication-item">
                 <div class="medication-info">
                   <strong>${escapeHTML(req.medication_name)}${partialBadge}</strong>
@@ -1730,11 +1730,11 @@ export class MedicationManagement {
                   data-dose="${escapeHTML(doseInfo)}"
                   data-route="${escapeHTML(req.route || '')}"
                 >
-                  ${escapeHTML(translate("medication_give_now"))}
+                  ${escapeHTML(translate('medication_give_now'))}
                 </button>
               </div>
             `;
-    }).join('')}
+  }).join('')}
         </div>
       </div>
     `;
@@ -1742,30 +1742,30 @@ export class MedicationManagement {
 
   renderUpcomingRows() {
     if (!this.distributions.length) {
-      return `<tr><td colspan="7">${escapeHTML(translate("medication_alerts_empty"))}</td></tr>`;
+      return `<tr><td colspan="7">${escapeHTML(translate('medication_alerts_empty'))}</td></tr>`;
     }
 
     return this.distributions.map((dist) => {
       const requirement = this.getRequirementById(dist.medication_requirement_id) || {};
       const participantName = escapeHTML(this.getParticipantName(dist.participant_id));
-      const dateLabel = formatDate(dist.scheduled_for, this.app.lang || "en", { year: "numeric", month: "short", day: "numeric" });
-      const timeLabel = new Date(dist.scheduled_for).toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" });
+      const dateLabel = formatDate(dist.scheduled_for, this.app.lang || 'en', { year: 'numeric', month: 'short', day: 'numeric' });
+      const timeLabel = new Date(dist.scheduled_for).toLocaleTimeString(this.app.lang || 'en', { hour: '2-digit', minute: '2-digit' });
       return `
         <tr>
           <td>${escapeHTML(dateLabel)}</td>
           <td>${escapeHTML(timeLabel)}</td>
           <td>${participantName}</td>
-          <td>${escapeHTML(requirement.medication_name || translate("medication"))}</td>
-          <td>${escapeHTML(dist.dose_notes || requirement.dosage_instructions || "-")}</td>
-          <td>${escapeHTML(dist.frequency_text || requirement.frequency_text || "-")}</td>
-          <td>${escapeHTML(dist.general_notice || requirement.general_notes || "-")}</td>
+          <td>${escapeHTML(requirement.medication_name || translate('medication'))}</td>
+          <td>${escapeHTML(dist.dose_notes || requirement.dosage_instructions || '-')}</td>
+          <td>${escapeHTML(dist.frequency_text || requirement.frequency_text || '-')}</td>
+          <td>${escapeHTML(dist.general_notice || requirement.general_notes || '-')}</td>
         </tr>
       `;
-    }).join("");
+    }).join('');
   }
 
   updateUpcomingTable() {
-    const tableBody = document.getElementById("medication-upcoming-table-body");
+    const tableBody = document.getElementById('medication-upcoming-table-body');
     if (tableBody) {
       setContent(tableBody, this.renderUpcomingRows());
     }
@@ -1776,8 +1776,8 @@ export class MedicationManagement {
    */
   updateSplitCards() {
     const { pendingCards, givenCards } = this.renderParticipantMedicationSplitCards();
-    const pendingContainer = document.getElementById("participant-medication-cards-pending");
-    const givenContainer = document.getElementById("participant-medication-cards-given");
+    const pendingContainer = document.getElementById('participant-medication-cards-pending');
+    const givenContainer = document.getElementById('participant-medication-cards-given');
     if (pendingContainer) {
       setContent(pendingContainer, pendingCards);
     }
@@ -1788,37 +1788,37 @@ export class MedicationManagement {
 
   renderRequirementTable() {
     if (!this.requirements.length) {
-      return `<p>${escapeHTML(translate("medication_requirements_empty"))}</p>`;
+      return `<p>${escapeHTML(translate('medication_requirements_empty'))}</p>`;
     }
 
     const rows = this.requirements.map((req) => {
       const assigned = this.participantMedications.find((assignment) => assignment.medication_requirement_id === req.id);
-      const participantName = assigned ? this.getParticipantName(assigned.participant_id) : translate("unknown");
-      const nameLabel = `${req.medication_name}${req.isOptimistic ? ` (${translate("medication_pending_sync")})` : ""}`;
+      const participantName = assigned ? this.getParticipantName(assigned.participant_id) : translate('unknown');
+      const nameLabel = `${req.medication_name}${req.isOptimistic ? ` (${translate('medication_pending_sync')})` : ''}`;
       const dateRange = req.start_date || req.end_date
-        ? `${req.start_date || "—"} → ${req.end_date || "—"}`
-        : "-";
+        ? `${req.start_date || '—'} → ${req.end_date || '—'}`
+        : '-';
       return `
         <tr>
           <td>${escapeHTML(nameLabel)}</td>
           <td>${escapeHTML(participantName)}</td>
-          <td>${escapeHTML(req.frequency_text || translate("medication_frequency"))}</td>
+          <td>${escapeHTML(req.frequency_text || translate('medication_frequency'))}</td>
           <td>${escapeHTML(dateRange)}</td>
-          <td>${escapeHTML(req.general_notes || req.dosage_instructions || "-")}</td>
+          <td>${escapeHTML(req.general_notes || req.dosage_instructions || '-')}</td>
         </tr>
       `;
-    }).join("");
+    }).join('');
 
     return `
       <div class="table-container">
         <table class="data-table">
           <thead>
             <tr>
-              <th>${escapeHTML(translate("medication"))}</th>
-              <th>${escapeHTML(translate("participants"))}</th>
-              <th>${escapeHTML(translate("medication_frequency"))}</th>
-              <th>${escapeHTML(translate("dates"))}</th>
-              <th>${escapeHTML(translate("notes"))}</th>
+              <th>${escapeHTML(translate('medication'))}</th>
+              <th>${escapeHTML(translate('participants'))}</th>
+              <th>${escapeHTML(translate('medication_frequency'))}</th>
+              <th>${escapeHTML(translate('dates'))}</th>
+              <th>${escapeHTML(translate('notes'))}</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -1830,7 +1830,7 @@ export class MedicationManagement {
    * Render aggregated alerts so only one alert is shown per time slot.
    */
   renderAlertArea() {
-    const container = document.getElementById("medication-alerts");
+    const container = document.getElementById('medication-alerts');
     if (!container) {
       return;
     }
@@ -1838,40 +1838,40 @@ export class MedicationManagement {
     const alerts = this.getAggregatedAlerts();
 
     if (!alerts.length) {
-      setContent(container, `<p>${escapeHTML(translate("medication_alerts_empty"))}</p>`);
+      setContent(container, `<p>${escapeHTML(translate('medication_alerts_empty'))}</p>`);
       return;
     }
 
     setContent(container, alerts.map((alert) => {
-      const timeLabel = alert.time.toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" });
-      const dateLabel = formatDate(alert.time.toISOString(), this.app.lang || "en", { year: "numeric", month: "short", day: "numeric" });
-      const dueLabel = alert.minutesUntil <= 5 ? translate("medication_due_now") : translate("medication_due_in_minutes").replace("{minutes}", alert.minutesUntil);
+      const timeLabel = alert.time.toLocaleTimeString(this.app.lang || 'en', { hour: '2-digit', minute: '2-digit' });
+      const dateLabel = formatDate(alert.time.toISOString(), this.app.lang || 'en', { year: 'numeric', month: 'short', day: 'numeric' });
+      const dueLabel = alert.minutesUntil <= 5 ? translate('medication_due_now') : translate('medication_due_in_minutes').replace('{minutes}', alert.minutesUntil);
 
       return `
         <div class="alert-group" data-slot="${alert.slotKey}">
           <div class="alert-meta">
             <div>
               <div style="font-size:0.9rem; opacity:0.9;">${escapeHTML(dateLabel)}</div>
-              <strong>${escapeHTML(translate("medication_alert_due"))} ${escapeHTML(timeLabel)}</strong>
+              <strong>${escapeHTML(translate('medication_alert_due'))} ${escapeHTML(timeLabel)}</strong>
             </div>
             <span class="pill">${escapeHTML(dueLabel)}</span>
           </div>
           <div class="alert-participants">
-            <strong>${escapeHTML(translate("medication_alert_group_label"))}</strong>
+            <strong>${escapeHTML(translate('medication_alert_group_label'))}</strong>
             <ul style="margin:0; padding-left:1.25rem;">
               ${alert.items.map((item) => {
-        const requirement = this.getRequirementById(item.medication_requirement_id) || {};
-        return `<li>${escapeHTML(this.getParticipantName(item.participant_id))} · ${escapeHTML(requirement.medication_name || translate("medication"))}</li>`;
-      }).join("")}
+    const requirement = this.getRequirementById(item.medication_requirement_id) || {};
+    return `<li>${escapeHTML(this.getParticipantName(item.participant_id))} · ${escapeHTML(requirement.medication_name || translate('medication'))}</li>`;
+  }).join('')}
             </ul>
           </div>
           <div class="alert-actions">
-            <button class="btn secondary" data-prefill-slot="${alert.slotKey}" data-requirement-id="${alert.primaryRequirementId}">${escapeHTML(translate("medication_prefill_from_alert"))}</button>
-            <button class="btn primary" data-mark-given-slot="${alert.slotKey}" data-distributions="${alert.distributionIds.join(",")}">${escapeHTML(translate("medication_mark_given"))}</button>
+            <button class="btn secondary" data-prefill-slot="${alert.slotKey}" data-requirement-id="${alert.primaryRequirementId}">${escapeHTML(translate('medication_prefill_from_alert'))}</button>
+            <button class="btn primary" data-mark-given-slot="${alert.slotKey}" data-distributions="${alert.distributionIds.join(',')}">${escapeHTML(translate('medication_mark_given'))}</button>
           </div>
         </div>
       `;
-    }).join(""));
+    }).join(''));
   }
 
   /**
@@ -1885,7 +1885,7 @@ export class MedicationManagement {
     const grouped = new Map();
 
     this.distributions
-      .filter((dist) => dist.status === "scheduled")
+      .filter((dist) => dist.status === 'scheduled')
       .forEach((dist) => {
         const scheduledAt = new Date(dist.scheduled_for);
         if (scheduledAt < recentWindow || scheduledAt > windowLimit) {
@@ -1975,13 +1975,13 @@ export class MedicationManagement {
   }
 
   attachEventListeners() {
-    const requirementForm = document.getElementById("medicationRequirementForm");
-    const alertContainer = document.getElementById("medication-alerts");
-    const frequencyPresetSelect = document.getElementById("frequencyPreset");
-    const giveMedButtons = document.querySelectorAll(".btn-give-med");
+    const requirementForm = document.getElementById('medicationRequirementForm');
+    const alertContainer = document.getElementById('medication-alerts');
+    const frequencyPresetSelect = document.getElementById('frequencyPreset');
+    const giveMedButtons = document.querySelectorAll('.btn-give-med');
 
-    document.querySelectorAll("[data-medication-tab]").forEach((tabButton) => {
-      tabButton.addEventListener("click", () => {
+    document.querySelectorAll('[data-medication-tab]').forEach((tabButton) => {
+      tabButton.addEventListener('click', () => {
         const nextTab = tabButton.dataset.medicationTab;
         if (nextTab && nextTab !== this.activeTab) {
           this.activeTab = nextTab;
@@ -1991,7 +1991,7 @@ export class MedicationManagement {
       });
     });
 
-    requirementForm?.addEventListener("submit", (event) => this.handleRequirementSubmit(event));
+    requirementForm?.addEventListener('submit', (event) => this.handleRequirementSubmit(event));
 
     if (requirementForm && this.participantId) {
       this.applyDeclaredPrefill(requirementForm, this.participantId);
@@ -2009,18 +2009,18 @@ export class MedicationManagement {
       requirementForm.elements.medication_name.focus();
     });
 
-    document.getElementById("treatmentAuthForm")?.addEventListener("submit", (event) => {
+    document.getElementById('treatmentAuthForm')?.addEventListener('submit', (event) => {
       event.preventDefault();
       this.handleTreatmentAuthSubmit(event);
     });
 
-    document.getElementById("adminAuthForm")?.addEventListener("submit", (event) => {
+    document.getElementById('adminAuthForm')?.addEventListener('submit', (event) => {
       event.preventDefault();
       this.handleAdminAuthSubmit(event);
     });
 
-    frequencyPresetSelect?.addEventListener("change", (event) => {
-      const container = document.getElementById("frequencyPresetFields");
+    frequencyPresetSelect?.addEventListener('change', (event) => {
+      const container = document.getElementById('frequencyPresetFields');
       if (container) {
         setContent(container, this.getFrequencyPresetFieldsMarkup(event.target.value));
       }
@@ -2028,7 +2028,7 @@ export class MedicationManagement {
 
     // Handle quick give medication buttons
     giveMedButtons.forEach((button) => {
-      button.addEventListener("click", (event) => {
+      button.addEventListener('click', (event) => {
         const btn = event.currentTarget;
         const participantId = Number(btn.dataset.participantId);
         const requirementId = Number(btn.dataset.requirementId);
@@ -2040,17 +2040,17 @@ export class MedicationManagement {
       });
     });
 
-    alertContainer?.addEventListener("click", (event) => {
-      const prefillSlot = event.target.closest("[data-prefill-slot]");
-      const markGiven = event.target.closest("[data-mark-given-slot]");
+    alertContainer?.addEventListener('click', (event) => {
+      const prefillSlot = event.target.closest('[data-prefill-slot]');
+      const markGiven = event.target.closest('[data-mark-given-slot]');
 
       if (prefillSlot) {
         this.prefillFromSlot(prefillSlot.dataset.prefillSlot, Number(prefillSlot.dataset.requirementId));
       }
 
       if (markGiven) {
-        const ids = (markGiven.dataset.distributions || "")
-          .split(",")
+        const ids = (markGiven.dataset.distributions || '')
+          .split(',')
           .map((id) => Number(id))
           .filter(Boolean);
         this.handleMarkGiven(ids, markGiven.dataset.markGivenSlot);
@@ -2060,7 +2060,7 @@ export class MedicationManagement {
 
   prefillFromRequirement(requirementId) {
     const requirement = this.getRequirementById(requirementId);
-    const participantSelect = document.getElementById("distributionParticipant");
+    const participantSelect = document.getElementById('distributionParticipant');
     const noteField = document.querySelector("textarea[name='dose_notes']");
 
     if (!requirement || !participantSelect) {
@@ -2070,10 +2070,10 @@ export class MedicationManagement {
     const participantId = this.participantMedications
       .find((assignment) => assignment.medication_requirement_id === requirementId)?.participant_id;
 
-    participantSelect.value = participantId ? String(participantId) : "";
+    participantSelect.value = participantId ? String(participantId) : '';
 
     if (noteField && !noteField.value) {
-      noteField.value = requirement.dosage_instructions || requirement.general_notes || "";
+      noteField.value = requirement.dosage_instructions || requirement.general_notes || '';
     }
   }
 
@@ -2085,18 +2085,18 @@ export class MedicationManagement {
 
     const scheduledDate = matchingAlert.time.toISOString().slice(0, 10);
     const scheduledTime = matchingAlert.time.toISOString().slice(11, 16);
-    const participantSelect = document.getElementById("distributionParticipant");
+    const participantSelect = document.getElementById('distributionParticipant');
     const dateField = document.querySelector("input[name='scheduled_date']");
     const timeField = document.querySelector("input[name='scheduled_time']");
-    const requirementSelect = document.getElementById("medicationRequirementSelect");
+    const requirementSelect = document.getElementById('medicationRequirementSelect');
 
-    if (dateField) dateField.value = scheduledDate;
-    if (timeField) timeField.value = scheduledTime;
-    if (requirementSelect && requirementId) requirementSelect.value = requirementId;
+    if (dateField) {dateField.value = scheduledDate;}
+    if (timeField) {timeField.value = scheduledTime;}
+    if (requirementSelect && requirementId) {requirementSelect.value = requirementId;}
 
     const participantId = matchingAlert.items[0]?.participant_id || null;
     if (participantSelect) {
-      participantSelect.value = participantId ? String(participantId) : "";
+      participantSelect.value = participantId ? String(participantId) : '';
     }
 
     this.updateScheduleFrequencyHelper();
@@ -2106,27 +2106,27 @@ export class MedicationManagement {
     event.preventDefault();
     const form = event.target;
     const formData = new FormData(form);
-    const participantId = Number(formData.get("participant_id"));
+    const participantId = Number(formData.get('participant_id'));
     const frequencyConfig = this.buildFrequencyConfigFromForm(formData);
 
-    if (!formData.get("medication_name") || !participantId) {
-      this.app.showMessage(translate("medication_requirement_fields_missing"), "warning");
+    if (!formData.get('medication_name') || !participantId) {
+      this.app.showMessage(translate('medication_requirement_fields_missing'), 'warning');
       return;
     }
 
     const payload = {
-      medication_name: formData.get("medication_name")?.trim(),
-      dosage_instructions: formData.get("dosage_instructions")?.trim() || null,
+      medication_name: formData.get('medication_name')?.trim(),
+      dosage_instructions: formData.get('dosage_instructions')?.trim() || null,
       frequency_text: frequencyConfig.text,
       frequency_preset_type: frequencyConfig.type,
       frequency_times: frequencyConfig.times,
       frequency_slots: frequencyConfig.slots,
       frequency_interval_hours: frequencyConfig.intervalHours,
       frequency_interval_start: frequencyConfig.intervalStart,
-      route: formData.get("route")?.trim() || null,
-      default_dose_amount: formData.get("default_dose_amount") ? Number(formData.get("default_dose_amount")) : null,
-      default_dose_unit: formData.get("default_dose_unit")?.trim() || null,
-      general_notes: formData.get("general_notes")?.trim() || null,
+      route: formData.get('route')?.trim() || null,
+      default_dose_amount: formData.get('default_dose_amount') ? Number(formData.get('default_dose_amount')) : null,
+      default_dose_unit: formData.get('default_dose_unit')?.trim() || null,
+      general_notes: formData.get('general_notes')?.trim() || null,
       participant_ids: [participantId]
     };
 
@@ -2148,28 +2148,28 @@ export class MedicationManagement {
     this.participantMedications = [optimisticAssignment, ...this.participantMedications];
     this.render();
     this.attachEventListeners();
-    this.app.showMessage(translate("medication_requirement_syncing"), "info");
+    this.app.showMessage(translate('medication_requirement_syncing'), 'info');
 
     try {
       const response = await saveMedicationRequirement(payload);
 
       // Handle queued (offline) response
       if (response?.queued) {
-        debugLog("Medication requirement queued for offline sync");
-        this.app.showMessage(translate("medication_offline_dose_queued"), "info");
+        debugLog('Medication requirement queued for offline sync');
+        this.app.showMessage(translate('medication_offline_dose_queued'), 'info');
         return;
       }
 
       if (!response?.success) {
-        throw new Error(response?.message || translate("error_saving"));
+        throw new Error(response?.message || translate('error_saving'));
       }
       await this.invalidateCaches();
       await this.refreshData(true);
       this.render();
       this.attachEventListeners();
-      this.app.showMessage(translate("medication_requirement_saved"), "success");
+      this.app.showMessage(translate('medication_requirement_saved'), 'success');
     } catch (error) {
-      debugError("Error saving medication requirement", error);
+      debugError('Error saving medication requirement', error);
       this.requirements = previousRequirements;
       this.participantMedications = previousAssignments;
       this.render();
@@ -2182,20 +2182,20 @@ export class MedicationManagement {
     event.preventDefault();
     const form = event.target;
     const formData = new FormData(form);
-    const participantId = Number(formData.get("distribution_participant_id"));
+    const participantId = Number(formData.get('distribution_participant_id'));
     const participantIds = Number.isFinite(participantId) && participantId > 0 ? [participantId] : [];
-    const requirementId = Number(formData.get("medication_requirement_id"));
+    const requirementId = Number(formData.get('medication_requirement_id'));
     const requirement = this.getRequirementById(requirementId);
     const frequencyConfig = this.getRequirementFrequencyConfig(requirement);
 
-    if (!formData.get("medication_requirement_id") || !formData.get("scheduled_date") || !formData.get("scheduled_time") || participantIds.length === 0) {
-      this.app.showMessage(translate("medication_distribution_fields_missing"), "warning");
+    if (!formData.get('medication_requirement_id') || !formData.get('scheduled_date') || !formData.get('scheduled_time') || participantIds.length === 0) {
+      this.app.showMessage(translate('medication_distribution_fields_missing'), 'warning');
       return;
     }
 
-    const scheduledDate = formData.get("scheduled_date");
-    const anchorTime = formData.get("scheduled_time");
-    const slotSelections = Array.from(formData.getAll("schedule_slots"));
+    const scheduledDate = formData.get('scheduled_date');
+    const anchorTime = formData.get('scheduled_time');
+    const slotSelections = Array.from(formData.getAll('schedule_slots'));
     const timesToSchedule = (slotSelections.length ? slotSelections : [this.buildDateTimeISO(scheduledDate, anchorTime)])
       .filter(Boolean);
 
@@ -2203,10 +2203,10 @@ export class MedicationManagement {
       medication_requirement_id: requirementId,
       participant_ids: participantIds,
       scheduled_for: scheduledFor,
-      activity_name: formData.get("activity_name")?.trim() || null,
-      dose_notes: formData.get("dose_notes")?.trim() || null,
-      witness_name: formData.get("witness_name")?.trim() || null,
-      general_notice: formData.get("dose_notes")?.trim() || null,
+      activity_name: formData.get('activity_name')?.trim() || null,
+      dose_notes: formData.get('dose_notes')?.trim() || null,
+      witness_name: formData.get('witness_name')?.trim() || null,
+      general_notice: formData.get('dose_notes')?.trim() || null,
       frequency_text: frequencyConfig.text || requirement?.frequency_text || null,
       frequency_preset_type: frequencyConfig.type || null,
       frequency_times: frequencyConfig.times?.length ? frequencyConfig.times : null
@@ -2218,7 +2218,7 @@ export class MedicationManagement {
       medication_requirement_id: payload.medication_requirement_id,
       participant_id: participantId,
       scheduled_for: payload.scheduled_for,
-      status: "scheduled",
+      status: 'scheduled',
       dose_notes: payload.dose_notes,
       general_notice: payload.general_notice,
       frequency_text: payload.frequency_text,
@@ -2230,7 +2230,7 @@ export class MedicationManagement {
     this.renderAlertArea();
     this.updateUpcomingTable();
     this.updateSplitCards();
-    this.app.showMessage(translate("medication_distribution_syncing"), "info");
+    this.app.showMessage(translate('medication_distribution_syncing'), 'info');
 
     try {
       const responses = await Promise.all(payloads.map((payload) => recordMedicationDistribution(payload)));
@@ -2239,21 +2239,21 @@ export class MedicationManagement {
       if (anyQueued) {
         // Offline: persist optimistic state in cache
         await this.persistDistributionsCache();
-        this.app.showMessage(translate("medication_offline_dose_queued"), "info");
+        this.app.showMessage(translate('medication_offline_dose_queued'), 'info');
         return;
       }
 
       const allSuccessful = responses.every((response) => response?.success !== false);
       if (!allSuccessful) {
-        throw new Error(translate("error_saving"));
+        throw new Error(translate('error_saving'));
       }
       await this.invalidateCaches();
       await this.refreshData(true);
       this.render();
       this.attachEventListeners();
-      this.app.showMessage(translate("medication_distribution_saved"), "success");
+      this.app.showMessage(translate('medication_distribution_saved'), 'success');
     } catch (error) {
-      debugError("Error saving medication distribution", error);
+      debugError('Error saving medication distribution', error);
       this.distributions = previousDistributions;
       this.renderAlertArea();
       this.updateUpcomingTable();
@@ -2281,14 +2281,14 @@ export class MedicationManagement {
         // Optimistically mark all as given
         this.distributions = this.distributions.map((dist) => (
           distributionIds.includes(dist.id)
-            ? { ...dist, status: "given", administered_at: administeredAt, witness_name: witness, isOptimistic: true }
+            ? { ...dist, status: 'given', administered_at: administeredAt, witness_name: witness, isOptimistic: true }
             : dist
         ));
         this.renderAlertArea();
         this.updateUpcomingTable();
         this.updateSplitCards();
         this.attachEventListeners();
-        this.app.showMessage(translate("medication_mark_given_syncing"), "info");
+        this.app.showMessage(translate('medication_mark_given_syncing'), 'info');
 
         return rollbackState;
       },
@@ -2296,7 +2296,7 @@ export class MedicationManagement {
       apiFn: async () => {
         const results = await Promise.all(
           distributionIds.map((id) => markMedicationDistributionAsGiven(id, {
-            status: "given",
+            status: 'given',
             administered_at: administeredAt,
             witness_name: witness
           }))
@@ -2314,11 +2314,11 @@ export class MedicationManagement {
 
       successFn: async (response) => {
         if (response?.queued) {
-          this.app.showMessage(translate("medication_offline_dose_queued"), "info");
+          this.app.showMessage(translate('medication_offline_dose_queued'), 'info');
           return;
         }
 
-        this.app.showMessage(translate("medication_mark_given_success"), "success");
+        this.app.showMessage(translate('medication_mark_given_success'), 'success');
         await this.invalidateCaches();
         await this.refreshData(true);
         this.renderAlertArea();
@@ -2337,14 +2337,14 @@ export class MedicationManagement {
 
         const isDuplicate = err?.message?.includes('already been given');
         if (isDuplicate) {
-          this.app.showMessage(translate("medication_dose_already_given"), "warning");
+          this.app.showMessage(translate('medication_dose_already_given'), 'warning');
         } else {
           this.app.showMessage(apiErrorMessage(err, 'error_saving'), 'error');
         }
       },
 
       onError: (err) => {
-        debugError("Error marking medication as given", err);
+        debugError('Error marking medication as given', err);
       }
     });
   }
@@ -2366,17 +2366,17 @@ export class MedicationManagement {
   getParticipantName(participantId) {
     const participant = this.participants.find((p) => p.id === participantId);
     if (!participant) {
-      return translate("unknown");
+      return translate('unknown');
     }
-    return `${participant.first_name || ""} ${participant.last_name || ""}`.trim();
+    return `${participant.first_name || ''} ${participant.last_name || ''}`.trim();
   }
 
   getDefaultWitness() {
-    return this.app?.userFullName || localStorage.getItem("userFullName") || "";
+    return this.app?.userFullName || localStorage.getItem('userFullName') || '';
   }
 
   getTimeSlotsForDisplay(requirement) {
-    if (!requirement) return [];
+    if (!requirement) {return [];}
 
     const config = this.getRequirementFrequencyConfig(requirement);
 
@@ -2422,7 +2422,7 @@ export class MedicationManagement {
    */
   getReceptionForMedication(participantId, requirementId) {
     if (!Array.isArray(this.receptions)) {
-      debugLog("this.receptions is not an array, defaulting to null");
+      debugLog('this.receptions is not an array, defaulting to null');
       return null;
     }
     return this.receptions.find(
@@ -2453,44 +2453,44 @@ export class MedicationManagement {
 
     // Build details HTML
     let details = `<strong>${escapeHTML(participantName)}</strong>`;
-    details += `<div><strong>${escapeHTML(translate("medication"))}:</strong> ${escapeHTML(medicationName)}</div>`;
+    details += `<div><strong>${escapeHTML(translate('medication'))}:</strong> ${escapeHTML(medicationName)}</div>`;
     if (dose) {
-      details += `<div><strong>${escapeHTML(translate("medication_dosage_label"))}:</strong> ${escapeHTML(dose)}</div>`;
+      details += `<div><strong>${escapeHTML(translate('medication_dosage_label'))}:</strong> ${escapeHTML(dose)}</div>`;
     }
     if (route) {
-      details += `<div><strong>${escapeHTML(translate("medication_route_label"))}:</strong> ${escapeHTML(route)}</div>`;
+      details += `<div><strong>${escapeHTML(translate('medication_route_label'))}:</strong> ${escapeHTML(route)}</div>`;
     }
-    details += `<div><strong>${escapeHTML(translate("time"))}:</strong> ${new Date().toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" })}</div>`;
+    details += `<div><strong>${escapeHTML(translate('time'))}:</strong> ${new Date().toLocaleTimeString(this.app.lang || 'en', { hour: '2-digit', minute: '2-digit' })}</div>`;
 
     const { overlay } = openModal({
-      id: "quickGiveModal",
-      title: escapeHTML(translate("medication_give_confirmation")),
-      size: "small",
+      id: 'quickGiveModal',
+      title: escapeHTML(translate('medication_give_confirmation')),
+      size: 'small',
       body: `
         <div id="quickGiveDetails">${details}</div>
         <div class="field-group">
-          <label for="quickGiveWitness">${escapeHTML(translate("medication_witness_label"))}</label>
+          <label for="quickGiveWitness">${escapeHTML(translate('medication_witness_label'))}</label>
           <input type="text" id="quickGiveWitness" maxlength="150" value="${escapeHTML(values.witness ?? this.getDefaultWitness())}" />
         </div>
         <div class="field-group">
-          <label for="quickGiveNotes">${escapeHTML(translate("medication_optional_notes"))}</label>
-          <textarea id="quickGiveNotes" rows="2" maxlength="500">${escapeHTML(values.notes || "")}</textarea>
+          <label for="quickGiveNotes">${escapeHTML(translate('medication_optional_notes'))}</label>
+          <textarea id="quickGiveNotes" rows="2" maxlength="500">${escapeHTML(values.notes || '')}</textarea>
         </div>
       `,
       footer: `
-        <button type="button" class="btn secondary" data-modal-close>${escapeHTML(translate("cancel"))}</button>
-        <button type="button" class="btn primary" id="quickGiveConfirm">${escapeHTML(translate("medication_confirm_given"))}</button>
+        <button type="button" class="btn secondary" data-modal-close>${escapeHTML(translate('cancel'))}</button>
+        <button type="button" class="btn primary" id="quickGiveConfirm">${escapeHTML(translate('medication_confirm_given'))}</button>
       `,
-      initialFocus: "#quickGiveWitness",
+      initialFocus: '#quickGiveWitness',
     });
-    overlay.querySelector("#quickGiveConfirm").addEventListener("click", () => this.confirmQuickGive());
+    overlay.querySelector('#quickGiveConfirm').addEventListener('click', () => this.confirmQuickGive());
   }
 
   async confirmQuickGive() {
-    if (!this.pendingGive) return;
+    if (!this.pendingGive) {return;}
 
-    const witnessField = document.getElementById("quickGiveWitness");
-    const notesField = document.getElementById("quickGiveNotes");
+    const witnessField = document.getElementById('quickGiveWitness');
+    const notesField = document.getElementById('quickGiveNotes');
 
     const witness = witnessField?.value?.trim() || this.getDefaultWitness();
     const notes = notesField?.value?.trim() || null;
@@ -2508,7 +2508,7 @@ export class MedicationManagement {
       scheduled_for,
       dose_notes: notes,
       witness_name: witness,
-      status: "given",
+      status: 'given',
       administered_at: scheduled_for
     };
 
@@ -2517,7 +2517,7 @@ export class MedicationManagement {
     // Close modal immediately for responsiveness
     const give = this.pendingGive;
     this.pendingGive = null;
-    closeModal("quickGiveModal");
+    closeModal('quickGiveModal');
 
     await this.optimisticManager.execute(updateKey, {
       optimisticFn: () => {
@@ -2537,7 +2537,7 @@ export class MedicationManagement {
           dose_amount: requirement?.default_dose_amount || null,
           dose_unit: requirement?.default_dose_unit || null,
           dose_notes: notes,
-          status: "given",
+          status: 'given',
           administered_at: scheduled_for,
           administered_by: null,
           witness_name: witness,
@@ -2549,7 +2549,7 @@ export class MedicationManagement {
         this.renderAlertArea();
         this.updateUpcomingTable();
         this.attachEventListeners();
-        this.app.showMessage(translate("medication_mark_given_syncing"), "info");
+        this.app.showMessage(translate('medication_mark_given_syncing'), 'info');
 
         return rollbackState;
       },
@@ -2559,19 +2559,19 @@ export class MedicationManagement {
 
         // Handle queued (offline) response
         if (response?.queued) {
-          debugLog("Quick give queued for offline sync");
+          debugLog('Quick give queued for offline sync');
           await this.persistDistributionsCache();
           return response;
         }
 
         if (!response?.success) {
-          throw new Error(response?.message || translate("error_saving"));
+          throw new Error(response?.message || translate('error_saving'));
         }
 
         // If we got a distribution ID back, mark it as given
         if (response.data?.id) {
           await markMedicationDistributionAsGiven(response.data.id, {
-            status: "given",
+            status: 'given',
             administered_at: scheduled_for,
             witness_name: witness
           });
@@ -2583,7 +2583,7 @@ export class MedicationManagement {
       successFn: async (response) => {
         // If queued for offline, keep optimistic state
         if (response?.queued) {
-          this.app.showMessage(translate("medication_offline_dose_queued"), "info");
+          this.app.showMessage(translate('medication_offline_dose_queued'), 'info');
           return;
         }
 
@@ -2594,7 +2594,7 @@ export class MedicationManagement {
         this.renderAlertArea();
         this.updateUpcomingTable();
         this.attachEventListeners();
-        this.app.showMessage(translate("medication_mark_given_success"), "success");
+        this.app.showMessage(translate('medication_mark_given_success'), 'success');
       },
 
       rollbackFn: (rollbackState, err) => {
@@ -2603,7 +2603,7 @@ export class MedicationManagement {
         // Handle duplicate dose (409 Conflict)
         const isDuplicate = err?.message?.includes('already been given');
         if (isDuplicate) {
-          this.app.showMessage(translate("medication_dose_already_given"), "warning");
+          this.app.showMessage(translate('medication_dose_already_given'), 'warning');
           // Refresh to get actual state from server (if online). If the refresh
           // itself fails (e.g. offline), the user already saw the warning toast,
           // so we only need to log the failure for diagnostics.
@@ -2612,7 +2612,7 @@ export class MedicationManagement {
             this.renderAlertArea();
             this.attachEventListeners();
           }).catch((err) => {
-            debugError("Failed to refresh after duplicate dose detection", err);
+            debugError('Failed to refresh after duplicate dose detection', err);
           });
         } else {
           this.updateSplitCards();
@@ -2623,13 +2623,13 @@ export class MedicationManagement {
           // Reopen modal on non-duplicate error, with what was typed
           this.showQuickGiveModal(
             give.participantId, give.requirementId, give.medicationName, give.dose, give.route,
-            { witness, notes: notes || "" },
+            { witness, notes: notes || '' },
           );
         }
       },
 
       onError: (err) => {
-        debugError("Error giving medication", err);
+        debugError('Error giving medication', err);
       }
     });
   }
@@ -2639,7 +2639,7 @@ export class MedicationManagement {
    * Called when view === "authorizations".
    */
   async loadAuthorizationData() {
-    if (!this.participantId) return;
+    if (!this.participantId) {return;}
     try {
       // Guardians and leaders are non-critical (we show empty lists rather than
       // failing the whole view), but we still log the underlying error so
@@ -2653,8 +2653,8 @@ export class MedicationManagement {
       const [suppliesRes, authsRes, guardianRes, leadersRes] = await Promise.all([
         getFirstAidSupplies({ participant_id: this.participantId }),
         getMedicationAuthorizations(this.participantId),
-        safeFetch("guardians", () => getGuardiansForParticipant(this.participantId)),
-        safeFetch("leaders", () => getLeaders()),
+        safeFetch('guardians', () => getGuardiansForParticipant(this.participantId)),
+        safeFetch('leaders', () => getLeaders()),
       ]);
 
       this.firstAidSupplies = suppliesRes?.data?.supplies || suppliesRes?.supplies || [];
@@ -2667,8 +2667,8 @@ export class MedicationManagement {
       this.render();
       this.attachEventListeners();
     } catch (err) {
-      debugError("Error loading authorization data", err);
-      this.app.showMessage(translate("error_loading_data"), "error");
+      debugError('Error loading authorization data', err);
+      this.app.showMessage(translate('error_loading_data'), 'error');
     }
   }
 
@@ -2676,7 +2676,7 @@ export class MedicationManagement {
     const form = event.target;
     const fd = new FormData(form);
     const participant = this.participants[0];
-    if (!participant) return;
+    if (!participant) {return;}
 
     const supplies = this.firstAidSupplies.map(s => ({
       id: s.id,
@@ -2698,16 +2698,16 @@ export class MedicationManagement {
 
     try {
       const btn = form.querySelector('[type="submit"]');
-      if (btn) btn.disabled = true;
+      if (btn) {btn.disabled = true;}
       await saveTreatmentAuthorization(payload);
-      this.app.showMessage(translate("saved"), "success");
+      this.app.showMessage(translate('saved'), 'success');
       await this.loadAuthorizationData();
     } catch (err) {
-      debugError("Error saving treatment authorization", err);
+      debugError('Error saving treatment authorization', err);
       this.app.showMessage(apiErrorMessage(err, 'error_saving'), 'error');
     } finally {
       const btn = form.querySelector('[type="submit"]');
-      if (btn) btn.disabled = false;
+      if (btn) {btn.disabled = false;}
     }
   }
 
@@ -2715,7 +2715,7 @@ export class MedicationManagement {
     const form = event.target;
     const fd = new FormData(form);
     const participant = this.participants[0];
-    if (!participant) return;
+    if (!participant) {return;}
 
     const requirements = this.requirements
       .filter(req => fd.get(`med_req_${req.id}`) !== null)
@@ -2741,16 +2741,16 @@ export class MedicationManagement {
 
     try {
       const btn = form.querySelector('[type="submit"]');
-      if (btn) btn.disabled = true;
+      if (btn) {btn.disabled = true;}
       await saveAdministrationAuthorization(payload);
-      this.app.showMessage(translate("saved"), "success");
+      this.app.showMessage(translate('saved'), 'success');
       await this.loadAuthorizationData();
     } catch (err) {
-      debugError("Error saving admin authorization", err);
+      debugError('Error saving admin authorization', err);
       this.app.showMessage(apiErrorMessage(err, 'error_saving'), 'error');
     } finally {
       const btn = form.querySelector('[type="submit"]');
-      if (btn) btn.disabled = false;
+      if (btn) {btn.disabled = false;}
     }
   }
 }

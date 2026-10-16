@@ -261,10 +261,10 @@ export class FormPermissionsManager {
             </thead>
             <tbody>
               ${rolesArray.map(roleName => {
-      const perm = formPerms.find(p => p.role_name === roleName);
-      if (!perm) return '';
+    const perm = formPerms.find(p => p.role_name === roleName);
+    if (!perm) {return '';}
 
-      return `
+    return `
                   <tr>
                     <td class="role-name">${escapeHTML(roleLabel({ role_name: roleName, display_name: perm.role_display_name }))}</td>
                     <td>
@@ -309,7 +309,7 @@ export class FormPermissionsManager {
                     </td>
                   </tr>
                 `;
-    }).join('')}
+  }).join('')}
             </tbody>
           </table>
         </div>

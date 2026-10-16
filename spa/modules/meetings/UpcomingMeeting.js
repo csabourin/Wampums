@@ -1,19 +1,19 @@
-import { translate } from "../../app.js";
+import { translate } from '../../app.js';
 import {
   debugLog,
   debugError,
   debugWarn,
   debugInfo,
-} from "../../utils/DebugUtils.js";
-import { getReunionDates, getReunionPreparation, saveBadgeProgress, getParticipants, getBadgeSummary, getAttendance } from "../../ajax-functions.js";
-import { markMeetingActivitiesProcessed } from "../../api/api-endpoints.js";
-import { formatDate, isToday, parseDate } from "../../utils/DateUtils.js";
-import { setContent } from "../../utils/DOMUtils.js";
+} from '../../utils/DebugUtils.js';
+import { getReunionDates, getReunionPreparation, saveBadgeProgress, getParticipants, getBadgeSummary, getAttendance } from '../../ajax-functions.js';
+import { markMeetingActivitiesProcessed } from '../../api/api-endpoints.js';
+import { formatDate, isToday, parseDate } from '../../utils/DateUtils.js';
+import { setContent } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
-import { escapeHTML } from "../../utils/SecurityUtils.js";
-import { canApproveBadges } from "../../utils/PermissionUtils.js";
-import { getUpcomingBirthdays } from "../../utils/BirthdayUtils.js";
-import { getMountPoint, resolveMountOptions } from "../../utils/PageMount.js";
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { canApproveBadges } from '../../utils/PermissionUtils.js';
+import { getUpcomingBirthdays } from '../../utils/BirthdayUtils.js';
+import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 
 export class UpcomingMeeting {
   constructor(app, options = {}) {
@@ -31,9 +31,9 @@ export class UpcomingMeeting {
    * @returns {string} HTML, empty when embedded.
    */
   renderHeader() {
-    if (this.embedded) return "";
-    return `<a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-            <h1>${translate("tile_upcoming_meeting")}</h1>`;
+    if (this.embedded) {return '';}
+    return `<a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+            <h1>${translate('tile_upcoming_meeting')}</h1>`;
   }
 
   async init() {
@@ -53,15 +53,15 @@ export class UpcomingMeeting {
       await this.render();
     } catch (error) {
       debugError(
-        "Error initializing upcoming meeting:",
+        'Error initializing upcoming meeting:',
         error,
       );
       this.renderError();
       this.app.showMessage(
         translate(
-          "error_loading_upcoming_meeting",
+          'error_loading_upcoming_meeting',
         ),
-        "error",
+        'error',
       );
     }
   }
@@ -75,7 +75,7 @@ export class UpcomingMeeting {
         .map((entry) => entry.date);
     } catch (error) {
       debugError(
-        "Error fetching meeting dates:",
+        'Error fetching meeting dates:',
         error,
       );
     }
@@ -91,7 +91,7 @@ export class UpcomingMeeting {
         [];
     } catch (error) {
       debugError(
-        "Error fetching participants:",
+        'Error fetching participants:',
         error,
       );
       this.participants = [];
@@ -99,15 +99,15 @@ export class UpcomingMeeting {
   }
 
   normalizeDateString(dateStr) {
-    if (!dateStr) return '';
-    return dateStr.includes("T")
-      ? dateStr.split("T")[0]
+    if (!dateStr) {return '';}
+    return dateStr.includes('T')
+      ? dateStr.split('T')[0]
       : dateStr;
   }
 
   getNextMeetingDateAfter(meetingDate) {
     const normalizedDate = this.normalizeDateString(meetingDate);
-    if (!normalizedDate) return null;
+    if (!normalizedDate) {return null;}
 
     const nextMeeting = this.meetingDates
       .map((dateStr) => this.normalizeDateString(dateStr))
@@ -141,10 +141,10 @@ export class UpcomingMeeting {
         // Handle both ISO format and plain date strings
         const plainDateStr =
           dateStr.includes(
-            "T",
+            'T',
           )
             ? dateStr.split(
-              "T",
+              'T',
             )[0]
             : dateStr;
         // Use parseDate to avoid timezone issues
@@ -161,7 +161,7 @@ export class UpcomingMeeting {
         if (
           !meeting.date
         )
-          return false;
+        {return false;}
         // Include today's and future meetings
         return (
           meeting.date >=
@@ -201,7 +201,7 @@ export class UpcomingMeeting {
           dateStr,
         );
       const meeting = response?.data?.meeting;
-      if (!meeting) return false;
+      if (!meeting) {return false;}
 
       const activities = meeting.activities || [];
 
@@ -209,7 +209,7 @@ export class UpcomingMeeting {
         this.calculateMeetingEndTime(
           activities,
         );
-      if (!endTime) return false;
+      if (!endTime) {return false;}
 
       // Compare current time with meeting end time
       const currentHours =
@@ -231,7 +231,7 @@ export class UpcomingMeeting {
       );
     } catch (error) {
       debugError(
-        "Error checking if meeting has ended:",
+        'Error checking if meeting has ended:',
         error,
       );
       // If we can't determine, assume it hasn't ended yet
@@ -278,7 +278,7 @@ export class UpcomingMeeting {
       }
     } catch (error) {
       debugError(
-        "Error fetching meeting details:",
+        'Error fetching meeting details:',
         error,
       );
       this.meetingDetails = null;
@@ -288,7 +288,7 @@ export class UpcomingMeeting {
   getRelativeTimeText(dateStr) {
     try {
       const meetingDate = parseDate(dateStr);
-      if (!meetingDate) return '';
+      if (!meetingDate) {return '';}
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -323,26 +323,26 @@ export class UpcomingMeeting {
 
   calculateMeetingEndTime(activities) {
     if (!activities || activities.length === 0)
-      return null;
+    {return null;}
 
     // Get the last activity
     const lastActivity =
       activities[
-      activities.length -
+        activities.length -
       1
       ];
     if (
       !lastActivity.time ||
       !lastActivity.duration
     )
-      return null;
+    {return null;}
 
     try {
       // Parse time (format: "HH:MM")
       const [hours, minutes] =
         lastActivity.time
           .split(
-            ":",
+            ':',
           )
           .map(
             Number,
@@ -353,7 +353,7 @@ export class UpcomingMeeting {
         durationHours,
         durationMinutes,
       ] = lastActivity.duration
-        .split(":")
+        .split(':')
         .map(Number);
 
       // Calculate end time in minutes
@@ -380,7 +380,7 @@ export class UpcomingMeeting {
       };
     } catch (error) {
       debugError(
-        "Error calculating meeting end time:",
+        'Error calculating meeting end time:',
         error,
       );
       return null;
@@ -394,7 +394,7 @@ export class UpcomingMeeting {
         `
                                                                 <div class="upcoming-meeting">
                                                                                 ${this.renderHeader()}
-                                                                                <p>${translate("no_upcoming_meeting")}</p>
+                                                                                <p>${translate('no_upcoming_meeting')}</p>
                                                                 </div>
                                                 `,
       );
@@ -422,15 +422,15 @@ export class UpcomingMeeting {
       this.closestMeeting,
       this.app.lang,
       {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
       },
     );
     const location = this.meetingDetails?.endroit
       ? escapeHTML(this.meetingDetails.endroit)
-      : translate("no_location_specified");
+      : translate('no_location_specified');
     const honorValues = Array.isArray(this.meetingDetails?.youth_of_honor)
       ? this.meetingDetails.youth_of_honor
       : this.meetingDetails?.youth_of_honor
@@ -444,9 +444,9 @@ export class UpcomingMeeting {
               `<li>${escapeHTML(honor)}</li>`,
           )
           .join(
-            "",
+            '',
           )
-        : `<li>${translate("no_honors_on_this_date")}</li>`;
+        : `<li>${translate('no_honors_on_this_date')}</li>`;
     const activities =
       this.meetingDetails
         ?.activities ||
@@ -458,16 +458,16 @@ export class UpcomingMeeting {
             (
               a,
             ) =>
-              `<li>${escapeHTML(a.time || "")} - ${escapeHTML(a.activity || "")}</li>`,
+              `<li>${escapeHTML(a.time || '')} - ${escapeHTML(a.activity || '')}</li>`,
           )
           .join(
-            "",
+            '',
           )
-        : `<li>${translate("no_activities_scheduled")}</li>`;
+        : `<li>${translate('no_activities_scheduled')}</li>`;
     const birthdays = this.getUpcomingBirthdays(this.closestMeeting);
     const birthdayRangeLabel = birthdays.startDate && birthdays.endDate
-      ? `${translate("birthdays_between")} ${formatDate(birthdays.startDate, this.app.lang, { month: 'long', day: 'numeric' })} - ${formatDate(birthdays.endDate, this.app.lang, { month: 'long', day: 'numeric' })}`
-      : translate("birthdays_range_unavailable");
+      ? `${translate('birthdays_between')} ${formatDate(birthdays.startDate, this.app.lang, { month: 'long', day: 'numeric' })} - ${formatDate(birthdays.endDate, this.app.lang, { month: 'long', day: 'numeric' })}`
+      : translate('birthdays_range_unavailable');
     const birthdayItems = birthdays.entries.length > 0
       ? `<ul class="birthday-list">
           ${birthdays.entries.map((entry) => `
@@ -477,7 +477,7 @@ export class UpcomingMeeting {
             </li>
           `).join('')}
         </ul>`
-      : `<p class="empty-state">${translate("no_upcoming_birthdays")}</p>`;
+      : `<p class="empty-state">${translate('no_upcoming_birthdays')}</p>`;
 
     const unprocessedAchievements = activities
       .filter(a => a.badge_template_id && !a.processed);
@@ -488,22 +488,22 @@ export class UpcomingMeeting {
                                                                 ${this.renderHeader()}
                                                                 ${futureMeetings.length > 1 ? `
                                                                 <div class="meeting-selector">
-                                                                                <label for="meeting-select">${translate("select_meeting")}:</label>
+                                                                                <label for="meeting-select">${translate('select_meeting')}:</label>
                                                                                 <select id="meeting-select" class="meeting-select">
                                                                                                 ${meetingOptions}
                                                                                 </select>
                                                                 </div>
                                                                 ` : ''}
                                                                 <div class="meeting-details">
-                                                                                <h2>${translate("honors")}</h2>
+                                                                                <h2>${translate('honors')}</h2>
                                                                                 <ul>${honorsHtml}</ul>
                                                                 </div>
                                                                 <div class="meeting-details">
                                                                                 <p>${meetingDate}</p>
-                                                                                <p><strong>${translate("location")}:</strong> ${location}</p>
+                                                                                <p><strong>${translate('location')}:</strong> ${location}</p>
                                                                 </div>
                                                                 <div class="meeting-details">
-                                                                                <h2>${translate("upcoming_birthdays")}</h2>
+                                                                                <h2>${translate('upcoming_birthdays')}</h2>
                                                                                 <p class="section-description">${birthdayRangeLabel}</p>
                                                                                 ${birthdayItems}
                                                                 </div>
@@ -511,13 +511,13 @@ export class UpcomingMeeting {
                                                                                <ul>${activitiesHtml}</ul>
                                                                </div>
                                                                 <div class="manage-items">
-                                                                                <a href="/preparation-reunions?date=${this.closestMeeting}" aria-label="${translate("preparation_reunions")}">
+                                                                                <a href="/preparation-reunions?date=${this.closestMeeting}" aria-label="${translate('preparation_reunions')}">
                                                                                                 <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
-                                                                                                <span>${translate("preparation_reunions")}</span>
+                                                                                                <span>${translate('preparation_reunions')}</span>
                                                                                 </a>
                                                                                 ${showAwardButton ? `
                                                                                 <button id="award-achievements-btn" class="button button--primary" style="margin-left: 10px;">
-                                                                                        <i class="fa-solid fa-star"></i> ${translate("award_planned_achievements") || "Award Achievements"}
+                                                                                        <i class="fa-solid fa-star"></i> ${translate('award_planned_achievements') || 'Award Achievements'}
                                                                                 </button>
                                                                                 ` : ''}
                                                                 </div>
@@ -561,7 +561,7 @@ export class UpcomingMeeting {
     const presentParticipantIds = attendanceData ? Object.keys(attendanceData).filter(id => attendanceData[id] === 'present') : [];
 
     // 2. Build Modal Content
-    let curreMeetingDate = this.closestMeeting;
+    const curreMeetingDate = this.closestMeeting;
 
     // Helper to get names
     const getNames = (ids) => ids.map(id => {
@@ -572,7 +572,7 @@ export class UpcomingMeeting {
     const rows = achievements.map((a, index) => {
       const template = templates.find(t => String(t.id) === String(a.badge_template_id));
       const badgeName = template ? template.name : 'Unknown Badge';
-      const typeLabel = a.star_type === 'battue' ? translate("badge_type_battue") : translate("badge_type_proie");
+      const typeLabel = a.star_type === 'battue' ? translate('badge_type_battue') : translate('badge_type_proie');
 
       let targets = [];
       if (a.star_type === 'battue') {
@@ -583,16 +583,16 @@ export class UpcomingMeeting {
       }
 
       const targetNames = a.star_type === 'battue'
-        ? (presentParticipantIds.length > 0 ? `${presentParticipantIds.length} ${translate("present_participants")}` : translate("all_participants"))
+        ? (presentParticipantIds.length > 0 ? `${presentParticipantIds.length} ${translate('present_participants')}` : translate('all_participants'))
         : getNames(targets);
 
       return `
                     <div class="award-row" style="margin-bottom: 15px; padding: 10px; background: #f9f9f9; border-left: 4px solid #4CAF50;">
                             <div style="font-weight: bold;">${badgeName} <span class="badge" style="font-size: 0.8em; background: #ddd; padding: 2px 6px; border-radius: 4px;">${typeLabel}</span></div>
-                            <div style="font-size: 0.9em; color: #666; margin-top: 5px;">${translate("awarding_to")}: ${escapeHTML(targetNames)}</div>
+                            <div style="font-size: 0.9em; color: #666; margin-top: 5px;">${translate('awarding_to')}: ${escapeHTML(targetNames)}</div>
                             <label style="display: block; margin-top: 5px;">
                                     <input type="checkbox" checked class="award-confirm-checkbox" data-index="${index}" data-targets='${JSON.stringify(targets)}'>
-                                    ${translate("confirm_award")}
+                                    ${translate('confirm_award')}
                             </label>
                     </div>
             `;
@@ -602,13 +602,13 @@ export class UpcomingMeeting {
       id: 'award-modal',
       title: translate('award_planned_achievements'),
       body: `
-        <p>${translate("confirm_award_instructions") || "Please confirm the achievements to award:"}</p>
-        ${presentParticipantIds.length === 0 ? `<p class="warning-text"><span aria-hidden="true">⚠</span> ${translate("no_attendance_warning") || "No attendance data found. Defaulting to all participants."}</p>` : ''}
+        <p>${translate('confirm_award_instructions') || 'Please confirm the achievements to award:'}</p>
+        ${presentParticipantIds.length === 0 ? `<p class="warning-text"><span aria-hidden="true">⚠</span> ${translate('no_attendance_warning') || 'No attendance data found. Defaulting to all participants.'}</p>` : ''}
         <div class="award-list">${rows}</div>
       `,
       footer: `
-        <button type="button" class="button button--ghost" data-modal-close>${translate("cancel")}</button>
-        <button type="button" class="button button--primary" id="confirm-award-btn">${translate("confirm")}</button>
+        <button type="button" class="button button--ghost" data-modal-close>${translate('cancel')}</button>
+        <button type="button" class="button button--primary" id="confirm-award-btn">${translate('confirm')}</button>
       `,
     });
 
@@ -622,7 +622,7 @@ export class UpcomingMeeting {
       const data = await getAttendance(date);
       return data.success ? (data.data || data.attendance || {}) : {};
     } catch (e) {
-      debugError("Error fetching attendance for date:", e);
+      debugError('Error fetching attendance for date:', e);
       return {};
     }
   }
@@ -634,7 +634,7 @@ export class UpcomingMeeting {
     // Disable button
     const btn = document.getElementById('confirm-award-btn');
     btn.disabled = true;
-    btn.textContent = translate("processing") + "...";
+    btn.textContent = `${translate('processing')  }...`;
 
     for (const cb of checkboxes) {
       const index = cb.dataset.index;
@@ -674,11 +674,11 @@ export class UpcomingMeeting {
       }
 
       closeModal('award-modal');
-      this.app.showMessage(translate("achievements_awarded_success"), "success");
+      this.app.showMessage(translate('achievements_awarded_success'), 'success');
       this.render(); // Re-render to hide button
     } catch (error) {
-      debugError("Error processing awards:", error);
-      this.app.showMessage(translate("error_processing_awards"), "error");
+      debugError('Error processing awards:', error);
+      this.app.showMessage(translate('error_processing_awards'), 'error');
       btn.disabled = false;
     }
   }
@@ -688,8 +688,8 @@ export class UpcomingMeeting {
                                                 <div class="upcoming-meeting">
                                                                 ${this.renderHeader()}
                                                                 <div class="error-message">
-                                                                                <p>${translate("error_loading_upcoming_meeting")}</p>
-                                                                                <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+                                                                                <p>${translate('error_loading_upcoming_meeting')}</p>
+                                                                                <p><a href="/dashboard">${translate('back_to_dashboard')}</a></p>
                                                                 </div>
                                                 </div>
                                 `;
