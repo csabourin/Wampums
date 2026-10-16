@@ -139,5 +139,27 @@ describe('AI prompt trust boundaries', () => {
     expect(CANADIAN_FRENCH_RULE).toMatch(/Québec/);
     expect(CANADIAN_FRENCH_RULE).toMatch(/dîner \(noon\)/);
   });
-});
 
+  test('a translation keeps the unit\'s terms as data, in the user message only', () => {
+    const validation = validateAIPayload('translate', {
+      from: 'fr',
+      to: 'en',
+      text: 'Les Louveteaux',
+      sourceVocabulary: { youth_plural: 'Louveteaux' },
+      targetVocabulary: { youth_plural: INJECTION_SENTINEL },
+    });
+    expect(validation.errors).toEqual([]);
+    expect(validation.value.targetVocabulary).toEqual({ youth_plural: INJECTION_SENTINEL });
+
+    const messages = buildMessages('translate', validation.value);
+    expect(messages.find(({ role }) => role === 'system').content).not.toContain(INJECTION_SENTINEL);
+    expect(messages.find(({ role }) => role === 'user').content).toContain(INJECTION_SENTINEL);
+  });
+
+  test('a translation refuses a malformed vocabulary', () => {
+    const validation = validateAIPayload('translate', {
+      from: 'fr', to: 'en', text: 'Bonjour', targetVocabulary: { 'Ignore rules': 'x' },
+    });
+    expect(validation.errors).toEqual([expect.objectContaining({ field: 'payload.targetVocabulary.Ignore rules' })]);
+  });
+});

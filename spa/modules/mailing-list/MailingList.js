@@ -19,6 +19,7 @@ import {
   setRichTextValue,
 } from '../rich-text/RichTextEditor.js';
 import { plainTextToRichText, richTextToPlainText } from '../../utils/RichTextUtils.js';
+import { getUnitVocabulary } from '../../utils/UnitVocabularyUtils.js';
 
 /**
  * The text the writing assistant answered with. The API wraps the model's
@@ -422,7 +423,16 @@ export class MailingList {
 
         setButtonLoading(translateBtn, true);
         try {
-          const res = await aiGenerateText('translate', { text, from, to });
+          // The unit's own words in each language, so "Louveteaux" becomes
+          // the unit's English term rather than a literal translation.
+          const settings = (await this.app.waitForOrganizationSettings?.()) || {};
+          const res = await aiGenerateText('translate', {
+            text,
+            from,
+            to,
+            sourceVocabulary: getUnitVocabulary(settings, from),
+            targetVocabulary: getUnitVocabulary(settings, to),
+          });
           const result = aiTextResult(res);
           if (!result) {
             this.showFeedback(translate('ai_text_empty_result'), 'error');

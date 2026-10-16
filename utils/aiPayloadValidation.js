@@ -56,6 +56,37 @@ function normalizeInteger(value, field, errors, minimum, maximum, defaultValue) 
   return normalized;
 }
 
+/**
+ * The unit's vocabulary (term key -> the unit's word), bounded and shape-checked.
+ *
+ * @param {*} value - Client value
+ * @param {string} field - Field path for errors
+ * @param {Array} errors - Collected errors
+ * @returns {Object<string, string>} Normalized terms
+ */
+function normalizeVocabulary(value, field, errors) {
+  const vocabulary = {};
+  if (value === undefined || value === null) {
+    return vocabulary;
+  }
+  if (!isPlainObject(value)) {
+    addError(errors, field, 'Vocabulary must be an object');
+    return vocabulary;
+  }
+  const entries = Object.entries(value);
+  if (entries.length > AI_LIMITS.MAX_VOCABULARY_TERMS) {
+    addError(errors, field, 'Too many vocabulary terms');
+  }
+  entries.slice(0, AI_LIMITS.MAX_VOCABULARY_TERMS).forEach(([key, term]) => {
+    if (!TERM_KEY_PATTERN.test(key)) {
+      addError(errors, `${field}.${key}`, 'Invalid vocabulary key');
+      return;
+    }
+    vocabulary[key] = normalizeText(term, `${field}.${key}`, errors, { maxLength: 80 });
+  });
+  return vocabulary;
+}
+
 function normalizeMeetingPlan(payload, errors) {
   const isActivityPlan = payload.durationMinutes !== undefined
     || payload.badgeFocus !== undefined
@@ -115,22 +146,7 @@ function normalizeMeetingPlan(payload, errors) {
     addError(errors, 'payload.activityTemplates', 'Too many activity templates');
   }
 
-  const vocabulary = {};
-  if (payload.vocabulary !== undefined && !isPlainObject(payload.vocabulary)) {
-    addError(errors, 'payload.vocabulary', 'Vocabulary must be an object');
-  } else {
-    const entries = Object.entries(payload.vocabulary || {});
-    if (entries.length > AI_LIMITS.MAX_VOCABULARY_TERMS) {
-      addError(errors, 'payload.vocabulary', 'Too many vocabulary terms');
-    }
-    entries.slice(0, AI_LIMITS.MAX_VOCABULARY_TERMS).forEach(([key, value]) => {
-      if (!TERM_KEY_PATTERN.test(key)) {
-        addError(errors, `payload.vocabulary.${key}`, 'Invalid vocabulary key');
-        return;
-      }
-      vocabulary[key] = normalizeText(value, `payload.vocabulary.${key}`, errors, { maxLength: 80 });
-    });
-  }
+  const vocabulary = normalizeVocabulary(payload.vocabulary, 'payload.vocabulary', errors);
 
   let recentHonor = null;
   if (payload.recentHonor !== undefined && payload.recentHonor !== null) {
@@ -208,6 +224,9 @@ function validateAIPayload(mode, input) {
       from: SUPPORTED_LOCALES.has(from) ? from : 'fr',
       to: SUPPORTED_LOCALES.has(to) ? to : 'en',
       text: normalizeText(input.text, 'payload.text', errors, { maxLength: AI_LIMITS.MAX_TEXT_LENGTH }),
+      // The unit's own words in each language (Louveteaux / Cubs, Tanière / Den).
+      sourceVocabulary: normalizeVocabulary(input.sourceVocabulary, 'payload.sourceVocabulary', errors),
+      targetVocabulary: normalizeVocabulary(input.targetVocabulary, 'payload.targetVocabulary', errors),
     };
   } else {
     value = {

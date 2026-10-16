@@ -149,8 +149,32 @@ test('a translation replaces the message with the translated text', async () => 
   document.getElementById('ai-translate-btn').click();
   await flush();
 
-  expect(aiGenerateText).toHaveBeenCalledWith('translate', { text: 'Bonjour', from: 'fr', to: 'en' });
+  expect(aiGenerateText).toHaveBeenCalledWith('translate', expect.objectContaining({
+    text: 'Bonjour', from: 'fr', to: 'en',
+  }));
   expect(messageArea().innerHTML).toBe('<p>Hello</p>');
+});
+
+test('a translation carries the unit\'s own terms in both languages', async () => {
+  const page = await renderPage();
+  page.app.waitForOrganizationSettings = () => Promise.resolve({
+    unit_vocabulary: {
+      locales: {
+        fr: { youth_plural: 'Louveteaux', subgroup_plural: 'Tanières' },
+        en: { youth_plural: 'Cubs', subgroup_plural: 'Dens' },
+      },
+    },
+  });
+  messageArea().innerHTML = '<p>Les Louveteaux et leurs Tanières</p>';
+  aiGenerateText.mockResolvedValue({ success: true, data: { data: { text: 'The Cubs and their Dens' } } });
+
+  document.getElementById('ai-translate-btn').click();
+  await flush();
+
+  const [, payload] = aiGenerateText.mock.calls[0];
+  expect(payload.sourceVocabulary).toEqual(expect.objectContaining({ youth_plural: 'Louveteaux', subgroup_plural: 'Tanières' }));
+  expect(payload.targetVocabulary).toEqual(expect.objectContaining({ youth_plural: 'Cubs', subgroup_plural: 'Dens' }));
+  expect(messageArea().innerHTML).toBe('<p>The Cubs and their Dens</p>');
 });
 
 test('an answer without text leaves the message as written and says so', async () => {

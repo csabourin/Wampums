@@ -325,7 +325,7 @@ ${CANADIAN_FRENCH_RULE}`,
       return [
         {
           role: 'system',
-          content: `You translate communications for a youth-program management platform. ${untrustedDataRule} Use the source and target locales supplied in the data. Return only JSON: { "text": "translated text here" }
+          content: `You translate communications for a youth-program management platform. ${untrustedDataRule} Use the source and target locales supplied in the data. sourceVocabulary and targetVocabulary hold the unit's own terms in each language: wherever the text uses a term of sourceVocabulary (or its plain-language meaning), write the term under the same key in targetVocabulary, exactly as given. Return only JSON: { "text": "translated text here" }
 
 ${CANADIAN_FRENCH_RULE}`,
         },
