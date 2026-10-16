@@ -402,9 +402,14 @@ describe('reports', () => {
     await reports.loadReport('participant-age');
     const shown = reportContent().innerHTML;
 
+    const exported = reports.currentReportData;
+
     slow.resolve({ data: [{ first_name: 'Old', last_name: 'Report', allergies: 'x' }] });
     await first;
     expect(reportContent().innerHTML).toBe(shown);
+    // Export CSV reads what the report on screen loaded, not the late one.
+    expect(reports.currentReportData).toBe(exported);
+    expect(reports.currentReportType).toBe('participant-age');
   });
 
   test('an unknown report is said in the person\'s language', async () => {

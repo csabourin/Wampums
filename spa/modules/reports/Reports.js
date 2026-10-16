@@ -381,6 +381,9 @@ export class Reports {
 
       this.currentReportType = reportType;
       this.currentReportData = null; // Reset previous data
+      // What the report on screen loaded: the export reads it, and an earlier
+      // report answering late must not replace it.
+      this.shownReportData = null;
       setContent(document.getElementById('report-content'), `<p role="status">${translate('loading_report')}</p>`);
 
       let reportData;
@@ -464,8 +467,10 @@ export class Reports {
       }
 
       if (!isCurrent()) {
+        this.currentReportData = this.shownReportData;
         return;
       }
+      this.shownReportData = this.currentReportData;
       setContent(document.getElementById('report-content'), reportContent);
       if (reportType === 'participant-progress') {
         this.attachParticipantProgressListeners();
@@ -473,6 +478,7 @@ export class Reports {
     } catch (error) {
       debugError(`Error loading ${reportType} report:`, error);
       if (!isCurrent()) {
+        this.currentReportData = this.shownReportData;
         return;
       }
       this.renderReportError(error, () => this.loadReport(reportType, formType, { retrying: true }));
