@@ -31,7 +31,8 @@ jest.mock('../../spa/config.js', () => ({
   CONFIG: {
     DEFAULT_LANG: 'en',
     CACHE_DURATION: { SHORT: 300000, CAMP_MODE: 864000000 },
-    PROGRAMME_BAR: { LEAD_MINUTES: 15, ENDING_SOON_MINUTES: 5, DEFAULT_LAST_ACTIVITY_MINUTES: 15, REFRESH_AFTER_MINUTES: 15 },
+    PROGRAMME_BAR: { LEAD_MINUTES: 15, ENDING_SOON_MINUTES: 5, DEFAULT_LAST_ACTIVITY_MINUTES: 15, REFRESH_AFTER_MINUTES: 15, CARRY_OVER_UNTIL_HOUR: 6,
+    },
   },
 }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
@@ -300,6 +301,41 @@ describe('past midnight', () => {
     await runClockTo(nextDay(1, 0));
     expect(getDayProgramme).toHaveBeenLastCalledWith('2026-10-17', { forceRefresh: true });
     expect(bar().hidden).toBe(true);
+  });
+
+  test('opened after midnight, it finds the evening activity still on', async () => {
+    getDayProgramme.mockImplementation((date) => Promise.resolve({ success: true, data: date === '2026-10-16' ? NIGHT : null }));
+    clock = nextDay(0, 30);
+    const instance = new ProgrammeBar({ lang: 'en', showMessage: jest.fn() }, { now: () => new Date(clock), wakeLock: null });
+    bars.push(instance);
+    await instance.start();
+
+    expect(bar().hidden).toBe(false);
+    expect(button().textContent).toContain('Night game');
+    expect(button().textContent).toContain('30 min');
+  });
+
+  test('opened later in the morning, it does not look at the day before', async () => {
+    getDayProgramme.mockResolvedValue({ success: true, data: null });
+    clock = nextDay(9, 0);
+    const instance = new ProgrammeBar({ lang: 'en', showMessage: jest.fn() }, { now: () => new Date(clock), wakeLock: null });
+    bars.push(instance);
+    await instance.start();
+
+    expect(getDayProgramme).toHaveBeenCalledTimes(1);
+    expect(getDayProgramme).toHaveBeenCalledWith('2026-10-17', { forceRefresh: true });
+  });
+
+  test('opened after midnight when the evening is over, today\'s programme stays and the day before is not asked again', async () => {
+    getDayProgramme.mockImplementation((date) => Promise.resolve({ success: true, data: date === '2026-10-16' ? CAMP : null }));
+    clock = nextDay(0, 30);
+    const instance = new ProgrammeBar({ lang: 'en', showMessage: jest.fn() }, { now: () => new Date(clock), wakeLock: null });
+    bars.push(instance);
+    await instance.start();
+    expect(bar().hidden).toBe(true);
+
+    await runClockTo(nextDay(0, 50));
+    expect(getDayProgramme.mock.calls.filter(([date]) => date === '2026-10-16')).toHaveLength(1);
   });
 
   test('a day that ended before midnight gives way to the new day at midnight', async () => {

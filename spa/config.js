@@ -278,6 +278,9 @@ export const CONFIG = {
     ENDING_SOON_MINUTES: 5,
     // A last activity planned without a duration is taken to last this long.
     DEFAULT_LAST_ACTIVITY_MINUTES: 15,
+    // Opened after midnight but before this hour, the bar also looks for an
+    // activity of the evening before that is still on (a night game at camp).
+    CARRY_OVER_UNTIL_HOUR: 6,
     // A programme read longer ago than this is read again when the app returns.
     REFRESH_AFTER_MINUTES: 15,
   },

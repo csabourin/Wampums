@@ -107,6 +107,7 @@ export class ProgrammeBar extends BaseModule {
     this.announcer = null;
     this.lastMarkup = '';
     this.sheetMarkup = new Map();
+    this.checkedDayBefore = null;
     this.lastAnnounced = null;
     this.rendered = false;
     this.tickTimer = null;
@@ -180,6 +181,7 @@ export class ProgrammeBar extends BaseModule {
    */
   async load() {
     const date = this.programmeDate();
+    const heldDate = this.loadedDate;
     try {
       const response = await getDayProgramme(date, { forceRefresh: true });
       if (this.isDestroyed) {
@@ -188,6 +190,10 @@ export class ProgrammeBar extends BaseModule {
       this.programme = response?.data || null;
       this.loadedDate = date;
       this.loadedAt = this.now().getTime();
+      await this.carryOverFromDayBefore(heldDate);
+      if (this.isDestroyed) {
+        return;
+      }
     } catch (error) {
       debugError('Programme bar: the day\'s programme could not be read', error);
       if (this.isDestroyed) {
@@ -201,6 +207,43 @@ export class ProgrammeBar extends BaseModule {
       }
     }
     this.update();
+  }
+
+  /**
+   * Opened after midnight with nothing on today yet: an activity begun the
+   * evening before may still be running. Looked for once per day, only in the
+   * small hours, and not when the bar already followed the day before past
+   * midnight; the day before is kept only if something of it is on.
+   *
+   * @param {?string} heldDate - The day the bar followed before this reading
+   * @returns {Promise<void>}
+   */
+  async carryOverFromDayBefore(heldDate) {
+    const now = this.now();
+    const today = localDateKey(now);
+    const dayBefore = previousDateKey(now);
+    if (this.loadedDate !== today || heldDate === dayBefore || this.checkedDayBefore === today
+      || now.getHours() >= CONFIG.PROGRAMME_BAR.CARRY_OVER_UNTIL_HOUR || this.moment().state !== 'hidden') {
+      return;
+    }
+    this.checkedDayBefore = today;
+    let response;
+    try {
+      response = await getDayProgramme(dayBefore, { forceRefresh: true });
+    } catch (error) {
+      debugError('Programme bar: the day before\'s programme could not be read', error);
+      return;
+    }
+    if (this.isDestroyed || !response?.data) {
+      return;
+    }
+    const todays = { programme: this.programme, loadedDate: this.loadedDate };
+    this.programme = response.data;
+    this.loadedDate = dayBefore;
+    if (this.moment().state === 'hidden') {
+      this.programme = todays.programme;
+      this.loadedDate = todays.loadedDate;
+    }
   }
 
   /** After a language switch, relabel the landmark and redraw in the new language. */
