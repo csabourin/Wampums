@@ -929,7 +929,6 @@ export class OfflineManager {
             () => import('./meetings/MeetingPrep.js'),
             () => import('./program-progress/ProgramProgressDashboard.js'),
             () => import('./offline/OfflinePreparation.js'),
-            () => import('./activity-widget/initActivityWidget.js'),
         ];
 
         const results = await Promise.allSettled(campModules.map(loader => loader()));

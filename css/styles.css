@@ -6139,33 +6139,6 @@ body.online .pending-update {
 }
 
 /* ----------------------------------------------------------------------------
-   11.6 ACTIVITY WIDGET
-   ---------------------------------------------------------------------------- */
-
-.activity-widget {
-  background-color: var(--color-secondary);
-  padding: var(--space-lg);
-  border: 1px solid var(--color-border);
-  margin-block: var(--space-2xl) var(--space-lg);
-  border-radius: var(--radius-md);
-  text-align: center;
-  display: none;
-  box-shadow: var(--shadow-base);
-}
-
-.activity-widget h3 {
-  margin: 0;
-  font-size: var(--font-size-xl);
-  color: var(--color-primary);
-}
-
-.activity-widget p {
-  margin: var(--space-sm) 0 0;
-  font-size: var(--font-size-base);
-  color: var(--color-text);
-}
-
-/* ----------------------------------------------------------------------------
    11.7 UPCOMING MEETING
    ---------------------------------------------------------------------------- */
 

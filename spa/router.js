@@ -21,7 +21,6 @@ import {
   // ... (imports continue)
   canCreateOrganization,
   canManageActivities,
-  canManageAttendance,
   canManageBudget,
   canManageFinance,
   canManageFundraisers,
@@ -1053,20 +1052,6 @@ export class Router {
           this.loadNotFoundPage();
       }
 
-      // Load activity widget only on dashboard/activity-related routes for better performance
-      const activityRoutes = ['dashboard', 'activities', 'carpool', 'carpoolLanding'];
-      const canShowActivityWidget = (canViewActivities() || canManageActivities() || canManageAttendance()) && !isParent();
-      if (
-        this.app.isLoggedIn &&
-        canShowActivityWidget &&
-        activityRoutes.includes(routeName) &&
-        !this.activityWidgetInitialized  // Check if the widget is already initialized
-      ) {
-        import('./modules/activity-widget/initActivityWidget.js').then(module => {
-          module.initActivityWidget(this.app);
-        });
-        this.activityWidgetInitialized = true;  // Mark the widget as initialized
-      }
     } catch (error) {
       if (error instanceof NavigationCancelledError || navigationId !== this.navigationId) {
         debugLog('[Router] Ignoring superseded navigation');
