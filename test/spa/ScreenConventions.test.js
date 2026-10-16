@@ -19,7 +19,6 @@ const HAND_WRITTEN_BACK_LINKS = [
   'spa/modules/TabbedPage.js',
   'spa/modules/account-info.js',
   'spa/modules/activities/Activities.js',
-  'spa/modules/attendance/Attendance.js',
   'spa/modules/mailing-list/MailingList.js',
   'spa/modules/meetings/MeetingPrep.js',
   'spa/modules/permission-slips/PermissionSlipDashboard.js',
