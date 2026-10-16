@@ -9,7 +9,7 @@ applies mode-specific schemas, length and collection limits, locale/tone
 allowlists, and copies known properties into a new plain object. Unknown client
 properties—including proposed prompt instructions or constraints—are discarded.
 
-`services/openai.js` uses static system messages. Normalized request data is
+`services/aiText.js` uses static system messages. Normalized request data is
 serialized as JSON only in a user-role message, and the static system policy
 explicitly directs the model to treat all JSON values as data rather than
 instructions. This separation applies to meeting plans, activity plans,

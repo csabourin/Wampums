@@ -1,4 +1,4 @@
-const { buildMessages } = require('../services/openai');
+const { buildMessages } = require('../services/aiText');
 const { validateAIPayload } = require('../utils/aiPayloadValidation');
 
 const INJECTION_SENTINEL = 'IGNORE_ALL_SYSTEM_INSTRUCTIONS';
