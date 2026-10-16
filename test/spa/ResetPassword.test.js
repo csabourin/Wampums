@@ -76,7 +76,7 @@ test('an expired link goes back to asking for the address, with the reason', asy
 
   expect(document.getElementById('new-password')).toBeNull();
   expect(document.getElementById('email').getAttribute('autocomplete')).toBe('username');
-  expect(document.getElementById('message').textContent).toBe('invalid_or_expired_token');
+  expect(document.querySelector('[role="alert"]').textContent).toBe('invalid_or_expired_token');
 });
 
 test('the form is shown before the lookup answers, and a lookup that never answers is abandoned', async () => {

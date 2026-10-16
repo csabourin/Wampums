@@ -2,14 +2,27 @@ import { translate } from '../../app.js';
 import { debugLog, debugError, debugWarn, debugInfo } from '../../utils/DebugUtils.js';
 import * as ajaxFunctions from '../../ajax-functions.js';
 import { setContent } from '../../utils/DOMUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+
+/** How long the success message stays before the sign-in page opens. */
+const REDIRECT_DELAY_MS = 3000;
+/** The password fields a password error is about. */
+const PASSWORD_FIELDS = ['password', 'confirm_password'];
 
 export class Register {
   constructor(app) {
     this.app = app;
+    this.redirectTimer = null;
+  }
+
+  /** Called by the router when the person leaves: no redirect fires after that. */
+  destroy() {
+    clearTimeout(this.redirectTimer);
   }
 
   render() {
     const content = `
+            ${renderBackLink('/login')}
             <form id="register-form">
                 <h1>${translate('register')}</h1>
                 <div id="error-message" class="error hidden" role="alert" aria-live="assertive"></div>
@@ -54,9 +67,36 @@ export class Register {
   }
 
   attachEventListeners() {
-    document
-      .getElementById('register-form')
-      .addEventListener('submit', (e) => this.handleSubmit(e));
+    const form = document.getElementById('register-form');
+    form.addEventListener('submit', (e) => this.handleSubmit(e));
+    // An error about the password clears as soon as either field changes.
+    PASSWORD_FIELDS.forEach((id) => {
+      document.getElementById(id)?.addEventListener('input', () => this.markPasswordInvalid(false));
+    });
+  }
+
+  /**
+   * Tie the error message to the password fields, or release them.
+   *
+   * @param {boolean} invalid - Whether the error is about the password
+   * @returns {void}
+   */
+  markPasswordInvalid(invalid) {
+    PASSWORD_FIELDS.forEach((id) => {
+      const field = document.getElementById(id);
+      if (!field) {
+        return;
+      }
+      field.setAttribute('aria-invalid', String(invalid));
+      if (invalid) {
+        field.setAttribute('aria-describedby', 'error-message');
+      } else {
+        field.removeAttribute('aria-describedby');
+      }
+    });
+    if (!invalid) {
+      document.getElementById('error-message')?.classList.add('hidden');
+    }
   }
 
   async handleSubmit(e) {
@@ -72,14 +112,17 @@ export class Register {
 
     if (registerData.password !== registerData.confirm_password) {
       this.showError(translate('passwords_do_not_match'));
+      this.markPasswordInvalid(true);
       return;
     }
 
     const passwordError = this.validatePassword(registerData.password);
     if (passwordError) {
       this.showError(passwordError);
+      this.markPasswordInvalid(true);
       return;
     }
+    this.markPasswordInvalid(false);
 
     if (submitButton) {
       submitButton.disabled = true;
@@ -91,7 +134,7 @@ export class Register {
       if (result.success) {
         if (submitButton) {submitButton.dataset.completed = 'true';}
         this.showSuccess(this.translateMessage(result.message, 'registration_successful'));
-        setTimeout(() => this.app.router.navigate('/login'), 3000);
+        this.redirectTimer = setTimeout(() => this.app.router.navigate('/login'), REDIRECT_DELAY_MS);
       } else {
         this.showError(this.translateMessage(result.message, 'error_creating_account'));
       }

@@ -4,14 +4,25 @@ import { getApiUrl } from '../../ajax-functions.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 /** Status the server answers with when a reset token is invalid or expired. */
 const HTTP_BAD_REQUEST = 400;
 /** How long the reset form waits to learn which account a link belongs to. */
 const RESET_LINK_LOOKUP_TIMEOUT_MS = 8000;
+/** How long the success message stays before the sign-in page opens. */
+const REDIRECT_DELAY_MS = 2000;
+/** The fields a password error is about. */
+const PASSWORD_FIELDS = ['new-password', 'confirm-password'];
 
 export class ResetPassword {
   constructor(app) {
     this.app = app;
+    this.redirectTimer = null;
+  }
+
+  /** Called by the router when the person leaves: no redirect fires after that. */
+  destroy() {
+    clearTimeout(this.redirectTimer);
   }
 
   /**
@@ -40,15 +51,55 @@ export class ResetPassword {
 	 */
   renderPage(token, error) {
     const content = `
+												${renderBackLink('/login')}
 												<h1>${translate('reset_password')}</h1>
 												<form id="reset-password-form">
 																${token ? this.renderResetStep(token) : this.renderEmailStep()}
 												</form>
-												<div id="message" class="${error ? 'error-message' : ''}" role="status" aria-live="polite">${error ? translate(error) : ''}</div>
-												<p><a href="/login">${translate('back_to_login')}</a></p>
+												<div id="reset-status" class="success-message" role="status" aria-live="polite"></div>
+												<div id="reset-error" class="error-message" role="alert">${error ? escapeHTML(translate(error)) : ''}</div>
 								`;
     setContent(document.getElementById('app'), content);
     this.attachEventListeners();
+  }
+
+  /**
+   * Show progress or success politely, and an error at once, clearing the other.
+   *
+   * @param {string} message - Text to show (set as text, never markup)
+   * @param {boolean} [isError=false] - Whether it is an error
+   * @returns {void}
+   */
+  showMessage(message, isError = false) {
+    const status = document.getElementById('reset-status');
+    const error = document.getElementById('reset-error');
+    if (status) {
+      status.textContent = isError ? '' : message;
+    }
+    if (error) {
+      error.textContent = isError ? message : '';
+    }
+  }
+
+  /**
+   * Tie the error message to the password fields, or release them.
+   *
+   * @param {boolean} invalid - Whether the error is about the password
+   * @returns {void}
+   */
+  markPasswordInvalid(invalid) {
+    PASSWORD_FIELDS.forEach((id) => {
+      const field = document.getElementById(id);
+      if (!field) {
+        return;
+      }
+      field.setAttribute('aria-invalid', String(invalid));
+      if (invalid) {
+        field.setAttribute('aria-describedby', 'reset-error');
+      } else {
+        field.removeAttribute('aria-describedby');
+      }
+    });
   }
 
   /**
@@ -144,6 +195,13 @@ export class ResetPassword {
   attachEventListeners() {
     const form = document.getElementById('reset-password-form');
     form.addEventListener('submit', (e) => this.handleSubmit(e));
+    // An error about the password clears as soon as either field changes.
+    PASSWORD_FIELDS.forEach((id) => {
+      document.getElementById(id)?.addEventListener('input', () => {
+        this.markPasswordInvalid(false);
+        this.showMessage('');
+      });
+    });
   }
 
   async handleSubmit(e) {
@@ -151,7 +209,6 @@ export class ResetPassword {
     const submitButton = e.currentTarget.querySelector('button[type="submit"]');
     if (submitButton?.disabled) {return;}
     if (submitButton) {submitButton.disabled = true;}
-    const messageDiv = document.getElementById('message');
     const token = document.getElementById('token')?.value;
 
     try {
@@ -162,23 +219,25 @@ export class ResetPassword {
         const confirmPassword = document.getElementById('confirm-password').value;
 
         if (!newPassword || !confirmPassword) {
-          messageDiv.textContent = translate('please_fill_all_fields');
+          this.showMessage(translate('please_fill_all_fields'), true);
+          this.markPasswordInvalid(true);
           return;
         }
 
         if (newPassword !== confirmPassword) {
-          messageDiv.textContent = translate('passwords_do_not_match');
-          messageDiv.className = 'error-message';
+          this.showMessage(translate('passwords_do_not_match'), true);
+          this.markPasswordInvalid(true);
           return;
         }
 
         // Client-side validation for better UX
         const validationError = this.validatePassword(newPassword);
         if (validationError) {
-          messageDiv.textContent = validationError;
-          messageDiv.className = 'error-message';
+          this.showMessage(validationError, true);
+          this.markPasswordInvalid(true);
           return;
         }
+        this.markPasswordInvalid(false);
 
         try {
           const response = await fetch(getApiUrl('v1/auth/reset-password'), {
@@ -192,29 +251,25 @@ export class ResetPassword {
 
           if (result.success) {
             if (submitButton) {submitButton.dataset.completed = 'true';}
-            messageDiv.className = 'success-message';
-            messageDiv.textContent = translate('password_reset_successful');
-            setTimeout(() => this.app.router.navigate('/login'), 2000);
+            this.showMessage(translate('password_reset_successful'));
+            this.redirectTimer = setTimeout(() => this.app.router.navigate('/login'), REDIRECT_DELAY_MS);
+          } else if (result.errors && result.errors.length > 0) {
+            // Validation errors from the server are about the password.
+            const errorMessages = [...new Set(result.errors.map(err => this.translateValidationError(err.msg)))].join('. ');
+            this.showMessage(errorMessages, true);
+            this.markPasswordInvalid(true);
           } else {
-            messageDiv.className = 'error-message';
-            // Handle validation errors from server
-            if (result.errors && result.errors.length > 0) {
-              const errorMessages = result.errors.map(err => this.translateValidationError(err.msg)).join('. ');
-              messageDiv.textContent = errorMessages;
-            } else {
-              messageDiv.textContent = apiErrorMessage({ message: result.message, status: response.status }, 'error_resetting_password');
-            }
+            this.showMessage(apiErrorMessage({ message: result.message, status: response.status }, 'error_resetting_password'), true);
           }
         } catch (error) {
           debugError('Error:', error);
-          messageDiv.className = 'error-message';
-          messageDiv.textContent = translate('error_resetting_password');
+          this.showMessage(translate('error_resetting_password'), true);
         }
       } else {
         // Handle email submission
         const email = document.getElementById('email').value;
         if (!email) {
-          messageDiv.textContent = translate('please_enter_email');
+          this.showMessage(translate('please_enter_email'), true);
           return;
         }
         try {
@@ -225,13 +280,13 @@ export class ResetPassword {
           });
           const result = await response.json();
           if (result.success) {
-            messageDiv.textContent = translate('reset_link_sent');
+            this.showMessage(translate('reset_link_sent'));
           } else {
-            messageDiv.textContent = apiErrorMessage({ message: result.message, status: response.status }, 'error_sending_reset_link');
+            this.showMessage(apiErrorMessage({ message: result.message, status: response.status }, 'error_sending_reset_link'), true);
           }
         } catch (error) {
           debugError('Error:', error);
-          messageDiv.textContent = translate('error_sending_reset_link');
+          this.showMessage(translate('error_sending_reset_link'), true);
         }
       }
     } finally {
@@ -271,6 +326,7 @@ export class ResetPassword {
       'Password must contain at least one number': translate('password_needs_number'),
       'Password must contain at least one special character': translate('password_needs_special')
     };
-    return errorMap[errorMsg] || errorMsg;
+    // The server's own wording is English: an unknown rule gets the general message.
+    return errorMap[errorMsg] || translate('error_resetting_password');
   }
 }
