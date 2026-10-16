@@ -21,9 +21,21 @@ jest.mock('../../spa/config.js', () => ({
   },
   getStorageKey: (key) => key,
 }));
-jest.mock('../../spa/router.js', () => ({ initRouter: jest.fn(), Router: class {} }));
+// How each start goes; every test describes its own.
+const mockStart = { unitFound: false, routerFails: false };
+jest.mock('../../spa/router.js', () => ({
+  initRouter: jest.fn(() => {
+    if (mockStart.routerFails) {
+      throw new Error('router failed');
+    }
+    return { route: jest.fn() };
+  }),
+  Router: class {},
+}));
 jest.mock('../../spa/ajax-functions.js', () => ({
-  fetchOrganizationId: jest.fn(() => Promise.reject(Object.assign(new Error('Unknown domain'), { status: 404 }))),
+  fetchOrganizationId: jest.fn(() => (mockStart.unitFound
+    ? Promise.resolve({ organization_id: 1 })
+    : Promise.reject(Object.assign(new Error('Unknown domain'), { status: 404 })))),
   fetchOrganizationJwt: jest.fn(),
   getOrganizationSettings: jest.fn(),
   getPublicOrganizationSettings: jest.fn(),
@@ -55,6 +67,7 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
  */
 async function startWith(lang, fallback = null) {
   jest.resetModules();
+  jest.restoreAllMocks();
   localStorage.clear();
   if (lang) {
     localStorage.setItem('lang', lang);
@@ -78,6 +91,13 @@ async function startWith(lang, fallback = null) {
 function app() {
   return document.getElementById('app');
 }
+
+afterEach(() => {
+  mockStart.unitFound = false;
+  mockStart.routerFails = false;
+  delete global.fetch;
+  jest.restoreAllMocks();
+});
 
 test('a French reader sees the failure explained in French, with a reload button', async () => {
   await startWith('fr');
@@ -112,4 +132,29 @@ test('the startup error page has no WCAG A/AA violations', async () => {
   await startWith('fr');
   const results = await axe.run(document.body, AXE_OPTIONS);
   expect(results.violations).toEqual([]);
+});
+
+test('when the browser refuses storage, the failure is still explained, in the default language', async () => {
+  jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    throw new DOMException('The operation is insecure.', 'SecurityError');
+  });
+  jest.resetModules();
+  document.body.innerHTML = '<a class="skip-link" href="#app">Skip to main content</a><main id="app" tabindex="-1"></main>';
+  require('../../spa/app.js');
+  await flush();
+  await flush();
+
+  expect(app().querySelector('h1').textContent).toBe('Erreur d’application');
+  expect(app().querySelector('button').textContent).toBe('Recharger');
+});
+
+test('a translation download that failed does not count as translated: the built-in texts are used', async () => {
+  mockStart.unitFound = true;
+  mockStart.routerFails = true;
+  global.fetch = jest.fn(() => Promise.reject(new TypeError('Failed to fetch')));
+  await startWith('en');
+
+  expect(global.fetch).toHaveBeenCalled();
+  expect(app().querySelector('h1').textContent).toBe('Application Error');
+  expect(app().textContent).not.toMatch(RAW_KEY);
 });

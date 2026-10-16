@@ -256,7 +256,7 @@ export const app = {
       const normalizedLang = INTERFACE_LANGS.includes(currentLang) ? currentLang : CONFIG.DEFAULT_LANG;
       this.lang = normalizedLang;
       this.language = normalizedLang;
-      this.fallbackLang = fallbackLanguageFor(normalizedLang, localStorage.getItem(FALLBACK_LANG_STORAGE_KEY));
+      this.fallbackLang = fallbackLanguageFor(normalizedLang, getStorage(FALLBACK_LANG_STORAGE_KEY));
       document.documentElement.lang = normalizedLang;
       debugLog(`Loading translations for ${normalizedLang} before routing...`);
       try {
@@ -308,11 +308,14 @@ export const app = {
    * whole page in that language.
    */
   renderStartupError() {
-    const translationsLoaded = Boolean(this.lang && this.translations[this.lang]);
+    // A bundle that failed to download is stored as {}: ask for the words
+    // themselves, not whether a bundle object exists.
+    const translationsLoaded = this.translate('error_loading_application') !== 'error_loading_application';
     let text = this.translate.bind(this);
     if (!translationsLoaded) {
+      // Storage may be refused (the reason the start failed): read it safely.
       const requested = this.lang || getStorage('lang', false, CONFIG.DEFAULT_LANG);
-      const lang = startupLanguage(requested, localStorage.getItem(FALLBACK_LANG_STORAGE_KEY));
+      const lang = startupLanguage(requested, getStorage(FALLBACK_LANG_STORAGE_KEY));
       text = startupTranslator(lang);
       document.documentElement.lang = lang;
       localizeStaticChrome(text);
