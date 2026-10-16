@@ -223,7 +223,7 @@
     "spa/utils/PrintUtils.js": 1,
     "spa/utils/RoleValidationUtils.js": 10,
     "spa/utils/SecurityUtils.js": 2,
-    "spa/utils/SkeletonUtils.js": 9,
+    "spa/utils/SkeletonUtils.js": 8,
     "spa/utils/StorageUtils.js": 186,
     "spa/utils/ValidationUtils.js": 372,
     "spa/utils/meetingSections.js": 3,

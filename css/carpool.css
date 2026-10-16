@@ -20,8 +20,10 @@
   --carpool-highlight-soft: var(--color-primary-light, #18b29a);
   --carpool-text: #1d2f2a;
   --carpool-text-muted: var(--color-text-muted, #6f8a81);
-  --carpool-warning: #bbe69e;
-  --carpool-warning-soft: #af861d;
+  /* A light amber field with a darker amber edge: the dark text reads at 12.5:1
+     (the old dark gold was 4.2:1, under AA), the edge at 4.5:1. */
+  --carpool-warning: #8a6914;
+  --carpool-warning-soft: #fdf1d2;
   --carpool-success: var(--color-success, #1a8f6b);
   --carpool-touch-target: var(--touch-target-min, 44px);
 }
@@ -140,6 +142,8 @@
 
 .activity-info-card h2 {
   margin: 0;
+  /* The page's h2 colour is the primary green: on this green card it vanished. */
+  color: inherit;
   font-size: var(--font-size-2xl, 1.5rem);
   line-height: var(--line-height-tight, 1.25);
 }
@@ -758,8 +762,9 @@
 }
 
 .badge--warning {
-  background: var(--carpool-warning);
+  background: var(--carpool-warning-soft);
   color: var(--carpool-text);
+  border: 1px solid var(--carpool-warning);
 }
 
 /* Info Boxes */

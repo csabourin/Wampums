@@ -17,7 +17,7 @@ import {
 } from '../../api/api-carpools.js';
 import { canManageCarpools, canViewCarpools, isParent } from '../../utils/PermissionUtils.js';
 import { OptimisticUpdateManager, generateOptimisticId } from '../../utils/OptimisticUpdateManager.js';
-import { skeletonCarpoolDashboard, setButtonLoading } from '../../utils/SkeletonUtils.js';
+import { skeletonCards, setButtonLoading } from '../../utils/SkeletonUtils.js';
 import { debugError, debugLog } from '../../utils/DebugUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { CONFIG } from '../../config.js';
@@ -31,15 +31,21 @@ import { parseDate } from '../../utils/DateUtils.js';
 import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { withButtonLoading } from '../../utils/PerformanceUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageError } from '../../utils/PageStateUtils.js';
 import {
   formatActivityDateRange,
   getActivityStartDate
 } from '../../utils/ActivityDateUtils.js';
 
+/** Placeholder cards drawn while the activity loads. */
+const SKELETON_CARD_COUNT = 4;
+/** The answer for an activity that does not exist in this unit. */
+const HTTP_NOT_FOUND = 404;
+
 export class CarpoolDashboard {
   constructor(app, activityId) {
     this.app = app;
-    this.activityId = parseInt(activityId);
+    this.activityId = Number(activityId);
     this.activity = null;
     this.carpoolOffers = [];
     this.participants = [];
@@ -50,6 +56,13 @@ export class CarpoolDashboard {
     // Optimistic update manager for instant UI feedback
     this.optimisticManager = new OptimisticUpdateManager();
     this.isLoading = true;
+    this.loadError = null;
+    this.destroyed = false;
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
   }
 
   async init() {
@@ -63,14 +76,20 @@ export class CarpoolDashboard {
 
     // Show loading skeleton
     this.isLoading = true;
+    this.loadError = null;
     this.render();
 
     await this.loadData();
+    if (this.destroyed) {
+      return;
+    }
 
     // Show actual content
     this.isLoading = false;
     this.render();
-    this.attachEventListeners();
+    if (!this.loadError) {
+      this.attachEventListeners();
+    }
   }
 
   async updateCarpoolCache() {
@@ -150,8 +169,9 @@ export class CarpoolDashboard {
         this.unassignedParticipants = await getUnassignedParticipants(this.activityId);
       }
     } catch (error) {
+      // Shown by render(): an activity that did not load is not "not found".
       debugError('Error loading carpool data:', error);
-      this.app.showMessage(translate('error_loading_carpool_data'), 'error');
+      this.loadError = error;
     }
   }
 
@@ -174,14 +194,31 @@ export class CarpoolDashboard {
 
     // Show loading skeleton while data is being fetched
     if (this.isLoading) {
-      setContent(container, skeletonCarpoolDashboard());
+      setContent(container, `
+        <section class="page carpool-page loading-state" aria-busy="true">
+          ${renderBackLink()}
+          <h1>${translate('carpool_coordination')}</h1>
+          <p role="status" class="sr-only">${translate('loading')}</p>
+          <div class="skeleton-grid skeleton-grid--2col" aria-hidden="true">${skeletonCards(SKELETON_CARD_COUNT, true)}</div>
+        </section>
+      `);
+      return;
+    }
+
+    if (this.loadError && this.loadError.status !== HTTP_NOT_FOUND) {
+      showPageError(container, {
+        title: translate('carpool_coordination'),
+        className: 'carpool-page',
+        message: translate('error_loading_carpool_data'),
+      }, () => this.init());
       return;
     }
 
     if (this.offlineNoData) {
       setContent(container, `
-        <section class="page">
+        <section class="page carpool-page">
           ${renderBackLink()}
+          <h1>${translate('carpool_coordination')}</h1>
           <div class="card" style="text-align:center; padding:2rem;">
             <h2>${translate('offline_indicator')}</h2>
             <p>${translate('offline_data_not_prepared')}</p>

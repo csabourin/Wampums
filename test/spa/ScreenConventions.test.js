@@ -49,8 +49,8 @@ const HAND_WRITTEN_BACK_LINK = /button--ghost[^>]*>\s*←/;
 const OLD_BUTTON_CLASS = /class="[^"]*(?<![\w-])btn(?:-(?:primary|secondary|danger|sm|small|lg|link|icon|success)|--[\w$]+)?(?![\w-])/;
 // Unprefixed modifiers (`button primary`) style nothing; the variants are `button--*`.
 const UNPREFIXED_MODIFIER = /class="button(?:\s+[^"\s]+)*\s+(?:primary|secondary|danger|small)(?=[\s"])/;
-// The `*-button` family (`primary-button`, `ghost-button`) predates the `button` classes.
-const OLDER_BUTTON_FAMILY = /class="[^"]*(?<![\w-])(?:primary|secondary|ghost|danger)-button(?![\w-])/;
+// The `*-button` and `*-btn` families (`ghost-button`, `primary-btn`) predate the `button` classes.
+const OLDER_BUTTON_FAMILY = /class="[^"]*(?<![\w-])(?:primary|secondary|ghost|danger)-(?:button|btn)(?![\w-])/;
 // A variant without its base class: the base rule is what styles a link as a button.
 const VARIANT_WITHOUT_BASE = /class="(?![^"]*(?<![\w-])button(?![\w-]))[^"$]*(?<![\w-])button--/;
 

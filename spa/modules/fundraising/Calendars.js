@@ -8,11 +8,16 @@ import { openPrintWindow, setPrintContent } from '../../utils/PrintUtils.js';
 import { formatDateShort } from '../../utils/DateUtils.js';
 import { formatCurrency } from '../../utils/NumberUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
+import { buildNotFoundMarkup } from '../../utils/NotFoundUtils.js';
 import {
   DEFAULT_CAMPAIGN_TYPE,
   campaignTypeCapabilities,
   resolveEntryAmount,
 } from './campaignModel.js';
+
+/** The answer for a fundraiser that does not exist in this unit. */
+const HTTP_NOT_FOUND = 404;
 
 export class Calendars {
   constructor(app) {
@@ -24,46 +29,75 @@ export class Calendars {
     this.sortBy = 'name'; // 'name' or 'paid'
     this.updateTimeout = null;
     this.boundInputHandler = (event) => this.handleInput(event);
+    this.destroyed = false;
+  }
+
+  /** @returns {Object} Shared page-state options; the campaign's name is not known yet. */
+  pageOptions() {
+    return { title: translate('fundraisers'), className: 'calendars-page', backHref: '/fundraisers' };
+  }
+
+  /** The page for a fundraiser that does not exist, or no longer does. */
+  showNotFound() {
+    setContent(document.getElementById('app'), buildNotFoundMarkup({
+      messageKey: 'error_fetching_fundraiser',
+      resourceLabel: translate('fundraiser'),
+      backHref: '/fundraisers',
+    }));
   }
 
   async init(fundraiserId) {
     if (!fundraiserId) {
       debugError('No fundraiser ID provided');
-      this.app.showMessage('error_no_fundraiser_id', 'error');
+      this.showNotFound();
       return;
     }
 
     this.fundraiserId = fundraiserId;
-    await this.fetchFundraiser();
-    await this.fetchCalendars();
+    showPageLoading(document.getElementById('app'), this.pageOptions());
+    try {
+      await this.fetchFundraiser();
+      if (this.fundraiser) {
+        await this.fetchCalendars();
+      }
+    } catch (error) {
+      // A list of entries that did not load is never shown as nobody having sold anything.
+      debugError('Error loading fundraiser entries:', error);
+      if (error?.status === HTTP_NOT_FOUND && !this.destroyed) {
+        this.showNotFound();
+        return;
+      }
+      if (!this.destroyed) {
+        showPageError(document.getElementById('app'), {
+          ...this.pageOptions(),
+          message: translate('error_fetching_fundraiser_entries'),
+        }, () => this.init(fundraiserId));
+      }
+      return;
+    }
+    if (this.destroyed) {
+      return;
+    }
+    if (!this.fundraiser) {
+      this.showNotFound();
+      return;
+    }
     this.render();
     this.initEventListeners();
   }
 
   async fetchFundraiser() {
-    try {
-      const response = await getFundraiser(this.fundraiserId);
-      if (response.success && response.data?.fundraiser) {
-        this.fundraiser = response.data.fundraiser;
-      }
-    } catch (error) {
-      debugError('Error fetching fundraiser:', error);
-      this.app.showMessage('error_fetching_fundraiser', 'error');
-    }
+    const response = await getFundraiser(this.fundraiserId);
+    this.fundraiser = response?.success && response.data?.fundraiser ? response.data.fundraiser : null;
   }
 
   async fetchCalendars() {
-    try {
-      const response = await getCalendarsForFundraiser(this.fundraiserId);
-      this.calendars = response.data?.fundraiser_entries || [];
-      // The entries endpoint returns the campaign shape so the table can show
-      // only the measures this campaign type actually records.
-      this.campaign = response.data?.campaign || this.fundraiser || null;
-      this.applySorting();
-    } catch (error) {
-      debugError('Error fetching fundraiser entries:', error);
-      this.app.showMessage('error_fetching_fundraiser_entries', 'error');
-    }
+    const response = await getCalendarsForFundraiser(this.fundraiserId);
+    this.calendars = response?.data?.fundraiser_entries || [];
+    // The entries endpoint returns the campaign shape so the table can show
+    // only the measures this campaign type actually records.
+    this.campaign = response?.data?.campaign || this.fundraiser || null;
+    this.applySorting();
   }
 
   applySorting() {
@@ -131,7 +165,7 @@ export class Calendars {
 				<p><strong>${translate('participants_paid')}:</strong> ${this.getPaidCount()} / ${this.calendars.length}</p>
 			</div>
 
-			<button id="print-view-btn" class="secondary-btn">${translate('print_view')}</button>
+			<button type="button" id="print-view-btn" class="button button--secondary">${translate('print_view')}</button>
 		`;
     setContent(document.getElementById('app'), content);
   }
@@ -512,7 +546,7 @@ export class Calendars {
     setPrintContent(printWindow, `
 			<html>
 				<head>
-					<title>${this.fundraiser.name} - ${translate('fundraiser_sales_title')}</title>
+					<title>${escapeHTML(this.fundraiser.name)} - ${translate('fundraiser_sales_title')}</title>
 					<style>
 						@page {
 							size: letter;
@@ -612,6 +646,7 @@ export class Calendars {
   }
 
   destroy() {
+    this.destroyed = true;
     clearTimeout(this.updateTimeout);
     document.removeEventListener('input', this.boundInputHandler);
   }

@@ -107,21 +107,6 @@ export function skeletonActivityList() {
 }
 
 /**
- * Generate a skeleton carpool dashboard layout
- * @returns {string} HTML for a skeleton carpool dashboard
- */
-export function skeletonCarpoolDashboard() {
-  return `
-    <section class="page carpool-page loading-state">
-      ${skeletonHeader()}
-      <div class="skeleton-grid skeleton-grid--2col">
-        ${skeletonCards(4, true)}
-      </div>
-    </section>
-  `;
-}
-
-/**
  * Generate a skeleton list item
  * @returns {string} HTML for a skeleton list item
  */
