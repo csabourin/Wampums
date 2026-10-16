@@ -70,6 +70,9 @@ const { setContent } = require('../../spa/utils/DOMUtils.js');
 const { prompt } = require('../../spa/utils/DialogUtils.js');
 const { ParentDashboard } = require('../../spa/modules/dashboard/ParentDashboard.js');
 
+// The app catches the browser's install prompt as it starts.
+require('../../spa/utils/InstallPromptUtils.js').startInstallPromptCapture();
+
 const PARENT_PERMISSIONS = [
   'participants.view', 'participants.create_own', 'permission_slips.sign', 'activities.view', 'carpools.view',
 ];
@@ -321,5 +324,76 @@ describe('buttons the unit hides', () => {
       rules: { 'color-contrast': { enabled: false } },
     });
     expect(results.violations).toEqual([]);
+  });
+
+  describe('installing the app', () => {
+    const flush = () => new Promise((resolve) => { setTimeout(resolve, 0); });
+    const installButton = () => document.getElementById('installPwaButton');
+
+    /**
+     * Render the dashboard with its real listeners.
+     *
+     * @param {Object} app - App stub
+     * @returns {Promise<ParentDashboard>} The page
+     */
+    async function renderWithListeners(app) {
+      const page = await renderDashboard(app);
+      ParentDashboard.prototype.attachEventListeners.call(page);
+      return page;
+    }
+
+    afterEach(() => {
+      delete window.matchMedia;
+      require('../../spa/utils/ModalUtils.js').closeAllModals();
+    });
+
+    test('a parent is offered to install the app, with the prompt the browser gave at startup', async () => {
+      // The browser offers its prompt once, before the dashboard exists.
+      const offer = new Event('beforeinstallprompt');
+      offer.prompt = jest.fn(() => Promise.resolve());
+      offer.userChoice = Promise.resolve({ outcome: 'dismissed' });
+      window.dispatchEvent(offer);
+
+      const page = await renderWithListeners({ organizationSettings: {}, showMessage: jest.fn() });
+      const button = installButton();
+      expect(button).not.toBeNull();
+      expect(button.classList.contains('hidden')).toBe(false);
+      expect(button.hidden).toBe(false);
+
+      button.click();
+      await flush();
+      expect(offer.prompt).toHaveBeenCalledTimes(1);
+
+      // Dismissed, the offer stays: asking again explains how to install.
+      button.click();
+      await flush();
+      expect(offer.prompt).toHaveBeenCalledTimes(1);
+      expect(document.querySelector('[role="dialog"] h2').textContent).toBe('install_app_dialog_title');
+      page.destroy();
+    });
+
+    test('running as the installed app, the offer is not shown', async () => {
+      window.matchMedia = jest.fn((query) => ({ matches: query === '(display-mode: standalone)' }));
+      await renderWithListeners({ organizationSettings: {}, showMessage: jest.fn() });
+      expect(installButton()).toBeNull();
+    });
+
+    test('once installed, the offer goes and the parent is told; a page left behind is not', async () => {
+      const app = { organizationSettings: {}, showMessage: jest.fn() };
+      const page = await renderWithListeners(app);
+
+      installButton().focus();
+      window.dispatchEvent(new Event('appinstalled'));
+      // Gone from the page (a [hidden] button would still show: the button
+      // class sets display), and focus is not lost with it.
+      expect(installButton()).toBeNull();
+      expect(document.activeElement.closest('.parent-dashboard__footer')).not.toBeNull();
+      expect(app.showMessage).toHaveBeenCalledWith('install_app_installed', 'success');
+
+      page.destroy();
+      app.showMessage.mockClear();
+      window.dispatchEvent(new Event('appinstalled'));
+      expect(app.showMessage).not.toHaveBeenCalled();
+    });
   });
 });
