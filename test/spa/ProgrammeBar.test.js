@@ -387,6 +387,52 @@ describe('the rest of the day', () => {
     expect(sentinel.release).toHaveBeenCalled();
   });
 
+  test('left open, the sheet moves on with the clock: the next activity becomes the one in progress', async () => {
+    await startAt(at(19, 24), MEETING);
+    button().click();
+    const closeButton = () => document.querySelector('[role="dialog"] [data-modal-close]');
+    closeButton().focus();
+    const nowItem = () => document.querySelector('.programme-sheet__item--now').textContent.replace(/\s+/g, ' ').trim();
+    expect(nowItem()).toContain('Den game');
+
+    await runClockTo(at(19, 25));
+    expect(nowItem()).toContain('Jungle story');
+    expect(nowItem()).toContain('In progress · 20 min');
+    expect(document.activeElement).toBe(closeButton());
+  });
+
+  test('left open, the sheet shows a programme changed on the server at its next reading', async () => {
+    await startAt(at(19, 0), MEETING);
+    button().click();
+    const edited = { ...MEETING, activities: MEETING.activities.map((activity) => (activity.id === 3 ? { ...activity, name: 'Campfire' } : activity)) };
+    getDayProgramme.mockResolvedValue({ success: true, data: edited });
+
+    await runClockTo(at(19, 15));
+    expect(document.querySelector('.programme-sheet__list').textContent).toContain('Campfire');
+  });
+
+  test('when the programme ends with the sheet open, the sheet closes, the screen lock goes and focus stays on the page', async () => {
+    const sentinel = { release: jest.fn().mockResolvedValue(), addEventListener: jest.fn() };
+    const wakeLock = { request: jest.fn().mockResolvedValue(sentinel) };
+    document.getElementById('app')?.remove();
+    const app = document.createElement('main');
+    app.id = 'app';
+    app.innerHTML = '<h1>Dashboard</h1>';
+    document.body.prepend(app);
+    await startAt(at(19, 44), MEETING, { wakeLock });
+    button().focus();
+    button().click();
+    document.getElementById('programme-wake-lock').click();
+    await settle();
+
+    await runClockTo(at(19, 45));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.getElementById('programme-wake-lock')).toBeNull();
+    expect(sentinel.release).toHaveBeenCalled();
+    expect(document.activeElement).toBe(app.querySelector('h1'));
+    app.remove();
+  });
+
   test('a lock the browser grants after the box was unticked is let go at once', async () => {
     const sentinel = { release: jest.fn().mockResolvedValue(), addEventListener: jest.fn() };
     let grant;

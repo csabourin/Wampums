@@ -20,6 +20,7 @@ import { setContent } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
+import { focusPageStart } from '../../utils/PageFocusUtils.js';
 import { hasPermission, isParent } from '../../utils/PermissionUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
@@ -101,6 +102,7 @@ export class ProgrammeBar extends BaseModule {
     this.root = null;
     this.announcer = null;
     this.lastMarkup = '';
+    this.sheetMarkup = new Map();
     this.lastAnnounced = null;
     this.rendered = false;
     this.tickTimer = null;
@@ -187,12 +189,9 @@ export class ProgrammeBar extends BaseModule {
       if (this.isDestroyed) {
         return;
       }
-      const refused = REFUSED_STATUSES.has(error?.status);
-      if (refused) {
-        // Access was withdrawn: what the open sheet lists must not stay on screen.
-        closeModal(SHEET_ID);
-      }
-      if (this.loadedDate !== date || refused) {
+      // A refusal (access withdrawn) drops the day; the redraw below then hides
+      // the bar and closes an open sheet, so none of it stays on screen.
+      if (this.loadedDate !== date || REFUSED_STATUSES.has(error?.status)) {
         this.programme = null;
         this.loadedDate = date;
       }
@@ -371,9 +370,16 @@ export class ProgrammeBar extends BaseModule {
         }
       }
       this.keepRoomForBar();
+      this.syncSheet(moment);
     } else {
+      this.syncSheet(null);
       if (this.lastMarkup) {
+        // Focus on the bar (or returned to it by the sheet) would be lost with it.
+        const hadFocus = this.root.contains(document.activeElement);
         setContent(this.root, '');
+        if (hadFocus) {
+          focusPageStart({ follow: false });
+        }
       }
       this.lastMarkup = '';
       document.documentElement.style.removeProperty(SPACE_PROPERTY);
@@ -472,19 +478,59 @@ export class ProgrammeBar extends BaseModule {
       </li>`;
   }
 
-  /** Open the rest of the day, with a way to keep the screen on. */
-  openSheet() {
-    if (!this.programme) {
-      return;
-    }
-    const moment = this.moment();
+  /**
+   * @param {Object} moment - Where the programme stands now
+   * @returns {string} Every activity of the day, in order, untimed ones last
+   */
+  sheetItems(moment) {
     const timedIds = new Set(moment.entries.map((entry) => entry.activity.id));
-    const items = [
+    return [
       ...moment.entries.map((entry) => this.sheetItem(entry.activity, entry.status, moment.minutesLeft)),
       ...this.programme.activities
         .filter((activity) => !timedIds.has(activity.id))
         .map((activity) => this.sheetItem(activity, 'untimed', null)),
     ].join('');
+  }
+
+  /**
+   * Keep an open sheet in step with the bar: redraw its day as the clock turns
+   * or the programme is read again, and close it once the bar is gone, so it
+   * never shows a stale "in progress" or a screen lock for a finished day.
+   *
+   * @param {?Object} moment - Where the programme stands, or null when hidden
+   */
+  syncSheet(moment) {
+    const sheet = document.getElementById(SHEET_ID);
+    if (!sheet) {
+      return;
+    }
+    if (!moment || moment.state === 'hidden') {
+      closeModal(SHEET_ID);
+      return;
+    }
+    const parts = [
+      [`#${SHEET_ID}-title`, escapeHTML(this.sheetTitle())],
+      ['.programme-sheet__when', escapeHTML(this.sheetWhen())],
+      ['.programme-sheet__list', this.sheetItems(moment)],
+    ];
+    parts.forEach(([selector, markup]) => {
+      const element = sheet.querySelector(selector);
+      if (element && this.sheetMarkup.get(selector) !== markup) {
+        setContent(element, markup);
+        this.sheetMarkup.set(selector, markup);
+      }
+    });
+  }
+
+  /** Open the rest of the day, with a way to keep the screen on. */
+  openSheet() {
+    if (!this.programme) {
+      return;
+    }
+    const items = this.sheetItems(this.moment());
+    // What the sheet opens with is current; syncSheet() redraws only changes.
+    this.sheetMarkup = new Map([[`#${SHEET_ID}-title`, escapeHTML(this.sheetTitle())],
+      ['.programme-sheet__when', escapeHTML(this.sheetWhen())], ['.programme-sheet__list', items]]);
 
     const wakeLock = this.wakeLockApi ? `
       <div class="programme-sheet__wake">

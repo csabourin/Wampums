@@ -430,6 +430,13 @@ export class Router {
       this.app.removeSettingsIcon();
     }
 
+    // The leaders' "now / next" bar lives outside #app: start it for a
+    // leader, stop it once signed out. Synced before any early return (a
+    // session that expired sends to login), and loaded only once needed.
+    import('./modules/programme-bar/ProgrammeBar.js')
+      .then((module) => module.syncProgrammeBar(this.app))
+      .catch((error) => debugError('[Router] Programme bar unavailable:', error));
+
     try {
       const guard = (condition) => {
         if (!condition) {
@@ -1051,12 +1058,6 @@ export class Router {
         default:
           this.loadNotFoundPage();
       }
-
-      // The leaders' "now / next" bar lives outside #app: start it for a
-      // leader, stop it after signing out. Loaded only once it is needed.
-      import('./modules/programme-bar/ProgrammeBar.js')
-        .then((module) => module.syncProgrammeBar(this.app))
-        .catch((error) => debugError('[Router] Programme bar unavailable:', error));
     } catch (error) {
       if (error instanceof NavigationCancelledError || navigationId !== this.navigationId) {
         debugLog('[Router] Ignoring superseded navigation');
