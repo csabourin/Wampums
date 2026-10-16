@@ -359,21 +359,20 @@ const result = await pool.query(
 #### Where code goes
 - ✅ ES modules only. **New screens go in `spa/modules/<feature>/`**; no new files in the `spa/` root
   (`npm run lint:spa-files`).
-- ✅ **Touching an older screen in the `spa/` root (`spa/manage_points.js`, `spa/modules/badges/BadgeTracker.js`, …)
-  means bringing it into line.** The app is to read as one codebase, however long it has been built:
-  - move it to `spa/modules/<feature>/<Screen>.js` (`git mv`, so history follows), then update its
-    imports, the router's loader, every test's import and `jest.mock` path, and remove its name from
-    `SPA_ALLOW_LIST` in `scripts/modernization/check-spa-files.js`;
-  - the lint ratchets count by path, so carry the file's existing counts to its new path: rename its key
-    in `scripts/modernization/policy-baseline.json` and in `eslint-suppressions.json`, counts unchanged.
-    This rename is the only hand edit those files accept. Then `npx eslint --fix` the moved file and
-    lower the baseline (§10);
+- ✅ **Every screen lives in `spa/modules/<feature>/`.** Only shared infrastructure stays in the root
+  (`app.js`, `router.js`, `config.js`, `ajax-functions.js`, `indexedDB.js`, `JSONFormRenderer.js`,
+  `dynamicFormHandler.js`, `functions.js`, `jwt-helper.js`, `offline-init.js`, `pwa-update-manager.js`):
+  many files import it. `SPA_ALLOW_LIST` in `scripts/modernization/check-spa-files.js` lists exactly these.
+- ✅ **Touching an older screen means bringing it into line.** The screens moved out of the root in
+  October 2026 (`spa/modules/badges/BadgeTracker.js`, `spa/modules/finance/Budgets.js`, …) were moved,
+  not rewritten. The app is to read as one codebase, however long it has been built:
   - bring the parts you change up to this section (back link, states, escaping, `apiErrorMessage`,
     `showMessage`, `openModal`, `button` classes), and at least what a test of your change exercises;
-  - do the move in its own commit, before the behaviour change, so the review can tell them apart;
-  - shared infrastructure in the root (`app.js`, `router.js`, `config.js`, `ajax-functions.js`,
-    `indexedDB.js`, `JSONFormRenderer.js`, `dynamicFormHandler.js`, `functions.js`, `jwt-helper.js`,
-    `offline-init.js`, `pwa-update-manager.js`) stays where it is: many files import it.
+  - moving or renaming a file: `git mv`, so history follows; update its imports, the router's loader,
+    every test's import and `jest.mock` path; and, since the lint ratchets count by path, rename its key
+    in `scripts/modernization/policy-baseline.json` and in `eslint-suppressions.json`, counts unchanged.
+    This rename is the only hand edit those files accept;
+  - do a move in its own commit, before the behaviour change, so the review can tell them apart.
 - ✅ Shared helpers go in `spa/utils/`, configuration in `spa/config.js` and `spa/config/*.js`, and a
   feature's API calls in `spa/api/api-<feature>.js`. Check `spa/utils/` before writing a helper; most
   needs (dates, money, labels, dialogs, scroll lock, back link, errors) already have one there.
@@ -669,7 +668,7 @@ before changing it.
   WCAG 2.2 A/AA violation (contrast included), sideways scroll at 390px, a screen left `aria-busy`, a
   title not named after the screen's `<h1>`, and focus that is invisible, hidden, or lost after a
   navigation or in a dialog. A new screen joins `SCREENS` there. `KNOWN_VIOLATIONS` only shrinks: fix
-  its entries when you move their screen out of the `spa/` root. It needs a running seeded app
+  an entry when you touch its screen. It needs a running seeded app
   (`run-wampums` skill: `db.sh`, `seed.mjs`, `start.sh`).
 - ✅ CI runs `npm run lint:all`, `npm run build`, `npm run test:quality` (every Jest suite; the
   integration ones skip without `TEST_DATABASE_URL`), the integration job and the accessibility job.
@@ -717,7 +716,7 @@ before changing it.
     archive read-only, cache invalidation
   - `api-<feature>.js` - Feature API modules (where new functions go)
   - `api-endpoints.js`, `../ajax-functions.js` - Older catch-all endpoint files; do not grow them
-- **Modules:** `spa/modules/<feature>/` (new screens); older screens remain as files in `spa/`
+- **Modules:** `spa/modules/<feature>/` (every screen)
 - **Assets:** `assets/`, `css/`, `spa/assets/`
 
 ### Mobile App (Expo / React Native)
@@ -766,7 +765,7 @@ wampums/
 │   │   ├── DateUtils.js
 │   │   ├── SecurityUtils.js
 │   │   └── ...
-│   └── modules/                # Feature modules (new screens go here)
+│   └── modules/                # Feature modules (every screen)
 ├── assets/                     # Static assets
 ├── css/                        # Stylesheets
 ├── lang/                       # Translation files
@@ -1172,7 +1171,7 @@ Before submitting code, verify:
 
 **Frontend (SPA):**
 - [ ] New screens in `spa/modules/<feature>/`, API calls in `spa/api/api-<feature>.js` through `API`
-- [ ] An older `spa/` root screen that was touched has been moved into `spa/modules/` (own commit)
+- [ ] An older screen that was touched has been brought into line (§7); any move in its own commit
 - [ ] Route guarded by the permission its endpoints require; dashboard tile gated the same way
 - [ ] `setContent()` only; text escaped with `escapeHTML()`, attributes with `escapeAttribute()`
 - [ ] Back link first; loading, error (with retry) and empty states

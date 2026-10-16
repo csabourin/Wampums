@@ -58,7 +58,7 @@ Le positionnement proposé pour les décideurs régionaux:
 |---|---|---|---|
 | Réduction du temps admin | `routes/forms.js`, `routes/finance.js`, `routes/carpools.js` | `spa/modules/forms/FormPermissions.js`, `spa/modules/finance/Finance.js`, `spa/modules/carpool/CarpoolDashboard.js` | Centralise les traitements répétitifs (soumissions, suivi paiements, assignation covoiturage) avec statuts exploitables. |
 | Hausse du taux de formulaires complétés | `routes/forms.js` | `spa/modules/participants/FormulaireInscription.js`, `spa/modules/forms/FormPermissions.js`, `spa/modules/forms/FormBuilder.js` | Structure les formulaires, les permissions et la soumission standardisée pour réduire les dossiers incomplets. |
-| Baisse des incidents de suivi santé | `routes/medication.js`, `routes/forms.js` (fiche santé) | `spa/modules/medication/MedicationManagement.js`, `spa/fiche_sante.js`, `spa/modules/medication/MedicationReception.js` | Planifie, enregistre et met à jour les distributions de médicaments avec statuts auditable et alertes opérationnelles. |
+| Baisse des incidents de suivi santé | `routes/medication.js`, `routes/forms.js` (fiche santé) | `spa/modules/medication/MedicationManagement.js`, `spa/dynamicFormHandler.js` (formulaire `fiche_sante`), `spa/modules/medication/MedicationReception.js` | Planifie, enregistre et met à jour les distributions de médicaments avec statuts auditable et alertes opérationnelles. |
 
 ### Détails de correspondance par promesse
 

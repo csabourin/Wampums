@@ -1,7 +1,7 @@
 /**
  * Dashboard Tiles — single source of truth.
  *
- * Every dashboard tile is declared exactly once, here. `spa/dashboard.js`
+ * Every dashboard tile is declared exactly once, here. `spa/modules/dashboard/Dashboard.js`
  * consumes this list; nothing else may redeclare tiles.
  *
  * Naming rules for `label` (see devdocs/REFONTE_TABLEAU_DE_BORD.md):

@@ -10,7 +10,7 @@ process.env.DB_PORT = '5432';
 process.env.ORGANIZATION_ID = String(ORG_ID);
 
 console.log("Before require");
-const app = require('./api');
+const app = require('../api');
 console.log("After require", Object.keys(app));
 console.log("Done");
 process.exit(0);

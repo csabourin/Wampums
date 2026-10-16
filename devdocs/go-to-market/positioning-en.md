@@ -58,7 +58,7 @@ Positioning for regional decision-makers:
 |---|---|---|---|
 | Admin time reduction | `routes/forms.js`, `routes/finance.js`, `routes/carpools.js` | `spa/modules/forms/FormPermissions.js`, `spa/modules/finance/Finance.js`, `spa/modules/carpool/CarpoolDashboard.js` | Centralizes recurring work (submissions, payment tracking, carpool assignment) with actionable status data. |
 | Higher form completion rate | `routes/forms.js` | `spa/modules/participants/FormulaireInscription.js`, `spa/modules/forms/FormPermissions.js`, `spa/modules/forms/FormBuilder.js` | Structures forms, permissions, and standardized submission flow to reduce incomplete files. |
-| Fewer health follow-up incidents | `routes/medication.js`, `routes/forms.js` (health forms) | `spa/modules/medication/MedicationManagement.js`, `spa/fiche_sante.js`, `spa/modules/medication/MedicationReception.js` | Plans, records, and updates medication events with auditable statuses and operational alerts. |
+| Fewer health follow-up incidents | `routes/medication.js`, `routes/forms.js` (health forms) | `spa/modules/medication/MedicationManagement.js`, `spa/dynamicFormHandler.js` (`fiche_sante` form), `spa/modules/medication/MedicationReception.js` | Plans, records, and updates medication events with auditable statuses and operational alerts. |
 
 ### Detailed alignment by promise
 

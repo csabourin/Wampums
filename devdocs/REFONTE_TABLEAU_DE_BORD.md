@@ -8,7 +8,7 @@ Les règles qui gouvernent le tableau de bord web. Le *quoi* est dans le code :
 ## 1. Une seule source
 
 Chaque tuile est déclarée **une fois**, dans `spa/config/dashboard-tiles.js`, avec son `moment`, son
-`domain`, sa `priority` et une règle de visibilité déclarative (`gate`) que `spa/dashboard.js`
+`domain`, sa `priority` et une règle de visibilité déclarative (`gate`) que `spa/modules/dashboard/Dashboard.js`
 résout. Rien d'autre ne redéclare de tuile. Une destination de tableau de bord est une page, pas un
 onglet (`?tab=`) : les onglets se trouvent dans la page.
 
