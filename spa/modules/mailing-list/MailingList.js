@@ -1,6 +1,6 @@
 import { getMailingList, getAnnouncements, createAnnouncement, getGroups } from '../../ajax-functions.js';
 import { sendAnnouncementTest } from '../../api/api-endpoints.js';
-import { aiGenerateText } from '../AI.js';
+import { aiGenerateText } from '../../api/api-ai.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { translate } from '../../app.js';
 import { escapeHTML, sanitizeHTML } from '../../utils/SecurityUtils.js';

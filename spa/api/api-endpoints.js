@@ -3022,33 +3022,6 @@ export async function fetchOrganizationId() {
 }
 export const getParticipantAgeReport = getParticipantAge;
 
-// ============================================================================
-// AI FEATURES
-// ============================================================================
-
-/**
- * AI Text Generation
- * @param {string} mode - 'meeting_plan', 'rewrite', 'translate', 'risk_suggest'
- * @param {object} payload - Data required for the mode
- */
-export async function aiGenerateText(mode, payload) {
-    return API.post('v1/ai/text', { mode, payload });
-}
-
-/**
- * AI Receipt Parsing
- * @param {File} file - Receipt image/PDF
- */
-export async function aiParseReceipt(file) {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    return API.post('v1/ai/receipt', formData);
-}
-
-// Expose to window for global access
-window.aiGenerateText = aiGenerateText;
-window.aiParseReceipt = aiParseReceipt;
 
 export async function getProgramProgressStream(params = {}, cacheOptions = {}) {
     return makeApiRequestWithCache('v1/program-progress/stream', {

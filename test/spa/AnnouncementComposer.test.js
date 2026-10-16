@@ -23,7 +23,7 @@ jest.mock('../../spa/ajax-functions.js', () => ({
   getGroups: jest.fn(),
 }));
 jest.mock('../../spa/api/api-endpoints.js', () => ({ sendAnnouncementTest: jest.fn() }));
-jest.mock('../../spa/modules/AI.js', () => ({ aiGenerateText: jest.fn() }));
+jest.mock('../../spa/api/api-ai.js', () => ({ aiGenerateText: jest.fn() }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({ canSendCommunications: () => true }));
 jest.mock('../../spa/utils/DialogUtils.js', () => ({ prompt: jest.fn(), alert: jest.fn() }));
 
@@ -31,7 +31,7 @@ const ajax = {
   ...require('../../spa/ajax-functions.js'),
   ...require('../../spa/api/api-endpoints.js'),
 };
-const { aiGenerateText } = require('../../spa/modules/AI.js');
+const { aiGenerateText } = require('../../spa/api/api-ai.js');
 const { MailingList } = require('../../spa/modules/mailing-list/MailingList.js');
 
 const AXE_OPTIONS = {

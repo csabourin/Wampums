@@ -141,6 +141,26 @@ async function filterRolesInUnit(pool, roleNames, organizationId) {
 }
 
 /**
+ * Keep the dens that belong to the unit: one deleted since the page loaded,
+ * or another unit's, is dropped.
+ *
+ * @param {Object} pool - Database pool
+ * @param {Array<number>} groupIds - Requested den ids
+ * @param {number} organizationId - Organization ID
+ * @returns {Promise<Array<number>>} The unit's dens among them
+ */
+async function filterGroupsInUnit(pool, groupIds, organizationId) {
+  if (!groupIds.length) {
+    return [];
+  }
+  const { rows } = await pool.query(
+    'SELECT id FROM groups WHERE id = ANY($1::int[]) AND organization_id = $2',
+    [groupIds, organizationId],
+  );
+  return rows.map((row) => row.id);
+}
+
+/**
  * Roles the unit may address: its own custom roles and the built-in ones.
  *
  * @param {Object} pool - Database pool
@@ -906,11 +926,19 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
         const organizationId = await getOrganizationId(req, pool);
         const normalized = normalizeAnnouncementPayload(req.body);
         const requestedRoleCount = normalized.roles.length;
-        normalized.roles = await filterRolesInUnit(pool, normalized.roles, organizationId);
+        const requestedGroupCount = normalized.groups.length;
+        [normalized.roles, normalized.groups] = await Promise.all([
+          filterRolesInUnit(pool, normalized.roles, organizationId),
+          filterGroupsInUnit(pool, normalized.groups, organizationId),
+        ]);
 
         if (normalized.audience !== ALUMNI_AUDIENCE) {
           if (requestedRoleCount && !normalized.roles.length) {
             return res.status(400).json({ success: false, message: 'No valid roles provided' });
+          }
+          // Dens that no longer exist would narrow the message to nobody.
+          if (requestedGroupCount && !normalized.groups.length) {
+            return errorResponse(res, 'announcement_groups_not_found', HTTP_BAD_REQUEST);
           }
           if (!normalized.roles.length && !normalized.groups.length) {
             return errorResponse(res, 'announcement_recipients_required', HTTP_BAD_REQUEST);

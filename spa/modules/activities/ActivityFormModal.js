@@ -11,7 +11,7 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { setButtonLoading } from '../../utils/SkeletonUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { getActivityEndDate, getActivityStartDate } from '../../utils/ActivityDateUtils.js';
-import { aiGenerateText } from '../AI.js';
+import { aiGenerateText } from '../../api/api-ai.js';
 import { attachInviteesPicker, buildInviteesFieldsetHTML } from './ActivityInviteesPicker.js';
 import {
   attachRichTextEditor,

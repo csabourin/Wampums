@@ -282,6 +282,25 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
     expect(sentTo).toEqual([emails['guardian-red'], emails['parent-red']].sort());
   });
 
+  test('a message to a den that no longer exists, or another unit\'s, is refused and sends nothing', async () => {
+    const otherUnitDen = await one(
+      "INSERT INTO groups (name, organization_id) VALUES ('Ailleurs', NULL) RETURNING id"
+    );
+    try {
+      for (const groupIds of [[otherUnitDen], [2147483000]]) {
+        // eslint-disable-next-line no-await-in-loop
+        const response = await request(app).post('/api/v1/announcements').send({
+          subject: 'Sortie', message: 'Bonjour', recipient_roles: [], recipient_group_ids: groupIds, send_now: true,
+        });
+        expect(response.status).toBe(400);
+        expect(response.body.message).toBe('announcement_groups_not_found');
+      }
+      expect(sendEmail).not.toHaveBeenCalled();
+    } finally {
+      await pool.query('DELETE FROM groups WHERE id = $1', [otherUnitDen]);
+    }
+  });
+
   test('a message with neither role nor den is refused, naming what is missing', async () => {
     const response = await request(app).post('/api/v1/announcements').send({
       subject: 'Sortie',

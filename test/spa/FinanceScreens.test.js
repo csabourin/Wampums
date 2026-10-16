@@ -45,7 +45,7 @@ jest.mock('../../spa/indexedDB.js', () => ({
   clearExternalRevenueCaches: jest.fn(),
   deleteCachedData: jest.fn(),
 }));
-jest.mock('../../spa/modules/AI.js', () => ({ aiParseReceipt: jest.fn() }));
+jest.mock('../../spa/api/api-ai.js', () => ({ aiParseReceipt: jest.fn() }));
 jest.mock('../../spa/utils/DialogUtils.js', () => ({ confirmDestructive: jest.fn() }));
 jest.mock('../../spa/ajax-functions.js', () => ({
   getFeeDefinitions: jest.fn(),

@@ -21,7 +21,7 @@ import { deleteCachedData } from '../../indexedDB.js';
 import { setContent, insertHTML, withFormBusy } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { setButtonLoading } from '../../utils/SkeletonUtils.js';
-import { aiParseReceipt } from '../AI.js';
+import { aiParseReceipt } from '../../api/api-ai.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { showPageError } from '../../utils/PageStateUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';

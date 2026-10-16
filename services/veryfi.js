@@ -1,5 +1,8 @@
 const Client = require('@veryfi/veryfi-sdk');
-const { CQ } = require('@veryfi/veryfi-sdk'); // Check if required, usually Client is default export or named. documentation says const Client = require('@veryfi/veryfi-sdk');
+const crypto = require('crypto');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { checkAndReserveBudget, recordUsage, releaseBudget } = require('./ai-budget');
 
 // Initialize Veryfi client (lazy-init to avoid noise in test environment)
@@ -34,6 +37,19 @@ function initVeryfiClient() {
   }
 }
 
+const RECEIPT_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.tif', '.tiff', '.pdf']);
+
+/**
+ * The uploaded file's extension when it is a receipt format, else none.
+ *
+ * @param {string} originalFilename - Name the client gave the upload
+ * @returns {string} '.jpg', '.pdf', … or ''
+ */
+function receiptExtension(originalFilename) {
+  const extension = path.extname(String(originalFilename || '')).toLowerCase();
+  return RECEIPT_EXTENSIONS.has(extension) ? extension : '';
+}
+
 // Configurable cost per receipt (USD) - Approximate cost per receipt for Veryfi or budget allocation
 const COST_PER_RECEIPT_USD = 0.10;
 
@@ -66,35 +82,10 @@ async function parseReceipt(fileBuffer, originalFilename, userContext) {
   try {
     console.log('Calling Veryfi API...');
 
-    // Convert buffer to base64 for upload
-    const fileBase64 = fileBuffer.toString('base64');
-
-    // 2. Call Veryfi
-    // process_document(file_path, categories, delete_after_processing, parameters)
-    // or process_document_buffer(file_base64, file_name, categories, delete_after_processing, parameters)
-    // The SDK usually exposes process_document method that handles base64 if passed strictly or we use a specific method.
-    // Looking at common usage: client.process_document(file_path) or client.process_document_url(url)
-    // For buffer/base64, standard SDKs might have specific methods. 
-    // Based on search results, we should check if there is a direct buffer method.
-    // If not, we might need to write to temp file. Let's try to assume common SDK pattern or temp file.
-    // To be safe and compliant with the "don't write to tmp unless essential" rule, let's see if we can pass base64.
-    // The Veryfi Node SDK source (index.js) usually has process_document which takes file_path. 
-    // Newer versions might support base64 string as first arg if we pass correct params.
-    // Let's use a temp string to be safe if the SDK requires a path, BUT wait, checking Docs...
-    // Actually, many node SDKs accept base64. Let's try `process_document` with base64 string and file_name.
-    // Wait, looking at online samples for veryfi-nodejs, it often uses `process_document(file_path)`
-    // However, there is often `process_document_buffer` or similar.
-    // Let's try to use a temp file to be 100% sure it works without guessing SDK internals on the fly.
-
-    // Actually, let's try `process_document_from_buffer` if it exists, or submit as base64.
-    // Checking the search result again: "process a document from a local file using process_document".
-    // Let's use a temp file.
-
-    const fs = require('fs');
-    const path = require('path');
-    const os = require('os');
-
-    const tempFilePath = path.join(os.tmpdir(), `veryfi_${Date.now()}_${originalFilename}`);
+    // The SDK reads a file path, so the upload goes through a temp file. Its
+    // name is random: the client's file name never reaches the path, only an
+    // extension from a fixed list, which Veryfi uses to tell the format.
+    const tempFilePath = path.join(os.tmpdir(), `veryfi_${crypto.randomUUID()}${receiptExtension(originalFilename)}`);
     fs.writeFileSync(tempFilePath, fileBuffer);
 
     let apiResponse;
@@ -161,4 +152,4 @@ async function parseReceipt(fileBuffer, originalFilename, userContext) {
   }
 }
 
-module.exports = { parseReceipt };
+module.exports = { parseReceipt, receiptExtension };

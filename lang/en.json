@@ -4030,5 +4030,6 @@
   "ai_text_empty_result": "The assistant returned no text. Your message has not been changed.",
   "ai_unavailable": "The AI assistant is not available right now.",
   "ai_rate_limited": "The AI assistant is busy. Try again in a minute.",
-  "ai_service_error": "The AI assistant could not answer. Try again."
+  "ai_service_error": "The AI assistant could not answer. Try again.",
+  "announcement_groups_not_found": "The selected {subgroup_plural} no longer exist. Reload the page and choose again."
 }
