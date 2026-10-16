@@ -32,7 +32,7 @@ jest.mock('../../spa/ajax-functions.js', () => ({
   register: (...args) => mockRegister(...args)
 }));
 
-import { Register } from '../../spa/register.js';
+import { Register } from '../../spa/modules/session/Register.js';
 
 function fillValidForm() {
   document.getElementById('full_name').value = 'Test User';

@@ -42,7 +42,7 @@ const SCREENS = {
 const KNOWN_VIOLATIONS = {
   '/reports': {
     'aria-required-children': {
-      why: 'spa/reports.js: role="menu" groups hold links, not menuitems',
+      why: 'spa/modules/reports/Reports.js: role="menu" groups hold links, not menuitems',
       targets: [
         'div[aria-label="Santé et médical"]',
         'div[aria-label="Autorisations et documents"]',
@@ -54,13 +54,13 @@ const KNOWN_VIOLATIONS = {
   },
   '/district': {
     'aria-required-children': {
-      why: 'spa/district_management.js: .dm-filters is a listbox of buttons',
+      why: 'spa/modules/district/DistrictManagement.js: .dm-filters is a listbox of buttons',
       targets: ['.dm-filters'],
     },
   },
   '/inventory': {
     'color-contrast': {
-      why: 'spa/inventory.js: .photo-hint styled below 4.5:1 in its own <style>',
+      why: 'spa/modules/resources/Inventory.js: .photo-hint styled below 4.5:1 in its own <style>',
       targets: ['.photo-hint'],
     },
   },
@@ -68,7 +68,7 @@ const KNOWN_VIOLATIONS = {
 
 /** Screens that stay marked busy after loading, for the same reason. */
 const KNOWN_STAYS_BUSY = {
-  '/carpool': 'spa/carpool.js: landing skeleton cards keep aria-busy="true"',
+  '/carpool': 'spa/modules/carpool/CarpoolLanding.js: landing skeleton cards keep aria-busy="true"',
 };
 
 /**

@@ -79,7 +79,7 @@ jest.mock('../../spa/ajax-functions.js', () => ({
   archiveFundraiser: jest.fn(),
 }));
 
-import { Fundraisers } from '../../spa/fundraisers.js';
+import { Fundraisers } from '../../spa/modules/fundraising/Fundraisers.js';
 
 /**
  * Render the campaign screen and open its modal.

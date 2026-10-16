@@ -66,7 +66,7 @@ jest.mock('../../spa/utils/PageMount.js', () => ({
   resolveMountOptions: () => ({}),
 }));
 
-import { DistrictManagement } from '../../spa/district_management.js';
+import { DistrictManagement } from '../../spa/modules/district/DistrictManagement.js';
 
 const LEADER = { id: 3, role_name: 'leader', display_name: 'Leader' };
 const PARENT = { id: 4, role_name: 'parent', display_name: 'Parent' };

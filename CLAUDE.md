@@ -359,7 +359,7 @@ const result = await pool.query(
 #### Where code goes
 - ✅ ES modules only. **New screens go in `spa/modules/<feature>/`**; no new files in the `spa/` root
   (`npm run lint:spa-files`).
-- ✅ **Touching an older screen in the `spa/` root (`spa/manage_points.js`, `spa/badge_tracker.js`, …)
+- ✅ **Touching an older screen in the `spa/` root (`spa/manage_points.js`, `spa/modules/badges/BadgeTracker.js`, …)
   means bringing it into line.** The app is to read as one codebase, however long it has been built:
   - move it to `spa/modules/<feature>/<Screen>.js` (`git mv`, so history follows), then update its
     imports, the router's loader, every test's import and `jest.mock` path, and remove its name from

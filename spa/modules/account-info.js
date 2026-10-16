@@ -1047,7 +1047,7 @@ export class AccountInfoModule {
     }
 
     try {
-      const { Login } = await import('../login.js');
+      const { Login } = await import('./session/Login.js');
       await Login.logout();
       // Note: Login.logout() always redirects via window.location.href (never throws)
     } catch (error) {

@@ -36,7 +36,7 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
 jest.mock('../../spa/utils/OfflineCacheKeys.js', () => ({ buildApiCacheKey: jest.fn() }));
 jest.mock('../../spa/modules/OfflineManager.js', () => ({ offlineManager: {} }));
 
-const { MedicationManagement } = require('../../spa/medication_management.js');
+const { MedicationManagement } = require('../../spa/modules/medication/MedicationManagement.js');
 
 /**
  * Build the planning form with the parts the prefill touches.

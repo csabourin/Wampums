@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  *
- * User stories: manage honors page (spa/manage_honors.js).
+ * User stories: manage honors page (spa/modules/honors/ManageHonors.js).
  *
  * Implements: US-HON-001, US-HON-002, US-HON-003, US-HON-008, US-HON-009,
  *             US-HON-010, US-HON-011, US-HON-012, US-HON-013, US-HON-014
@@ -9,7 +9,7 @@
  * NOTE: one acceptance of US-HON-002 (optimistic marking is visible before the
  * server responds) is EXPECTED TO FAIL against current code: the pending honor
  * stores participant_id as a DOM string while participants carry numeric ids,
- * and processHonors compares with === (spa/manage_honors.js:138 vs :469).
+ * and processHonors compares with === (spa/modules/honors/ManageHonors.js:138 vs :469).
  */
 
 'use strict';
@@ -70,7 +70,7 @@ const { confirmDestructive } = require('../../spa/utils/DialogUtils.js');
 const { offlineManager } = require('../../spa/modules/OfflineManager.js');
 const { setCachedData, getCachedData } = require('../../spa/indexedDB.js');
 const { getTodayISO } = require('../../spa/utils/DateUtils.js');
-const { ManageHonors } = require('../../spa/manage_honors.js');
+const { ManageHonors } = require('../../spa/modules/honors/ManageHonors.js');
 const { tr, deferred, flushPromises, i18nGaps } = require('./helpers/story-helpers');
 
 const TODAY = getTodayISO();

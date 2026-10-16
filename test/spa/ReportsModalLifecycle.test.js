@@ -71,7 +71,7 @@ jest.mock('../../spa/ajax-functions.js', () => ({
   getFinanceReport: jest.fn(),
 }));
 
-import { Reports } from '../../spa/reports.js';
+import { Reports } from '../../spa/modules/reports/Reports.js';
 import { isBodyScrollLocked, releaseAllScrollLocks } from '../../spa/utils/ScrollLockUtils.js';
 
 /**

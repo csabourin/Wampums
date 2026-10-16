@@ -56,25 +56,25 @@ Le positionnement proposé pour les décideurs régionaux:
 
 | Promesse | Modules backend (`routes/*.js`) | Modules SPA (`spa/*`) | Valeur opérationnelle |
 |---|---|---|---|
-| Réduction du temps admin | `routes/forms.js`, `routes/finance.js`, `routes/carpools.js` | `spa/form_permissions.js`, `spa/finance.js`, `spa/carpool_dashboard.js` | Centralise les traitements répétitifs (soumissions, suivi paiements, assignation covoiturage) avec statuts exploitables. |
-| Hausse du taux de formulaires complétés | `routes/forms.js` | `spa/formulaire_inscription.js`, `spa/form_permissions.js`, `spa/formBuilder.js` | Structure les formulaires, les permissions et la soumission standardisée pour réduire les dossiers incomplets. |
-| Baisse des incidents de suivi santé | `routes/medication.js`, `routes/forms.js` (fiche santé) | `spa/medication_management.js`, `spa/fiche_sante.js`, `spa/medication_reception.js` | Planifie, enregistre et met à jour les distributions de médicaments avec statuts auditable et alertes opérationnelles. |
+| Réduction du temps admin | `routes/forms.js`, `routes/finance.js`, `routes/carpools.js` | `spa/modules/forms/FormPermissions.js`, `spa/modules/finance/Finance.js`, `spa/modules/carpool/CarpoolDashboard.js` | Centralise les traitements répétitifs (soumissions, suivi paiements, assignation covoiturage) avec statuts exploitables. |
+| Hausse du taux de formulaires complétés | `routes/forms.js` | `spa/modules/participants/FormulaireInscription.js`, `spa/modules/forms/FormPermissions.js`, `spa/modules/forms/FormBuilder.js` | Structure les formulaires, les permissions et la soumission standardisée pour réduire les dossiers incomplets. |
+| Baisse des incidents de suivi santé | `routes/medication.js`, `routes/forms.js` (fiche santé) | `spa/modules/medication/MedicationManagement.js`, `spa/fiche_sante.js`, `spa/modules/medication/MedicationReception.js` | Planifie, enregistre et met à jour les distributions de médicaments avec statuts auditable et alertes opérationnelles. |
 
 ### Détails de correspondance par promesse
 
 #### Promesse 1 — Temps admin
 - **Formulaires**: création/soumission/approbation de formulaires et filtrage par statut dans `routes/forms.js`.
-- **Finance**: définitions de frais et génération de frais participants dans `routes/finance.js`, puis pilotage côté `spa/finance.js`.
-- **Covoiturage**: offres + assignations + capacité dans `routes/carpools.js`, orchestration dans `spa/carpool_dashboard.js`.
+- **Finance**: définitions de frais et génération de frais participants dans `routes/finance.js`, puis pilotage côté `spa/modules/finance/Finance.js`.
+- **Covoiturage**: offres + assignations + capacité dans `routes/carpools.js`, orchestration dans `spa/modules/carpool/CarpoolDashboard.js`.
 
 #### Promesse 2 — Formulaires complétés
 - `routes/forms.js` gère le cycle de vie (brouillon/soumis/approbation selon type).
-- `spa/form_permissions.js` pilote qui peut voir/soumettre/éditer/approuver.
-- `spa/formulaire_inscription.js` + `spa/formBuilder.js` permettent la collecte structurée des données terrain.
+- `spa/modules/forms/FormPermissions.js` pilote qui peut voir/soumettre/éditer/approuver.
+- `spa/modules/participants/FormulaireInscription.js` + `spa/modules/forms/FormBuilder.js` permettent la collecte structurée des données terrain.
 
 #### Promesse 3 — Suivi santé
 - `routes/medication.js` couvre les exigences, planifications de doses et mises à jour de statuts (`scheduled`, `given`, `missed`, `cancelled`).
-- `spa/medication_management.js` apporte une exécution terrain mobile-first avec cache hors-ligne, alertes et flux de distribution.
+- `spa/modules/medication/MedicationManagement.js` apporte une exécution terrain mobile-first avec cache hors-ligne, alertes et flux de distribution.
 - Les données santé saisies par formulaire (`fiche_sante`) enrichissent la préparation médication.
 
 ---

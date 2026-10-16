@@ -23,7 +23,7 @@ jest.mock('../../spa/ajax-functions.js', () => ({
   getApiUrl: (endpoint) => `/api/${endpoint}`
 }));
 
-import { ResetPassword } from '../../spa/reset_password.js';
+import { ResetPassword } from '../../spa/modules/session/ResetPassword.js';
 
 const TOKEN = 'b'.repeat(64);
 

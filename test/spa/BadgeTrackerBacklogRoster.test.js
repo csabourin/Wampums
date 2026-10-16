@@ -29,7 +29,7 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   canViewBadges: jest.fn(() => true)
 }));
 
-import { BadgeTracker } from '../../spa/badge_tracker.js';
+import { BadgeTracker } from '../../spa/modules/badges/BadgeTracker.js';
 
 const TEMPLATE_ID = 5;
 const ON_ROSTER_ID = 1;

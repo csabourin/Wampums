@@ -24,7 +24,7 @@ jest.mock('../../spa/modules/modals/QuickCreateActivityModal.js', () => ({
 }));
 
 const { getActivities } = require('../../spa/api/api-activities.js');
-const { CarpoolLanding } = require('../../spa/carpool.js');
+const { CarpoolLanding } = require('../../spa/modules/carpool/CarpoolLanding.js');
 const { QuickCreateActivityModal } = require('../../spa/modules/modals/QuickCreateActivityModal.js');
 
 const AXE_OPTIONS = {

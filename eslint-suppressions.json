@@ -27,7 +27,7 @@
       "count": 1
     }
   },
-  "spa/communication-settings.js": {
+  "spa/modules/communication-settings/CommunicationSettings.js": {
     "no-useless-escape": {
       "count": 4
     }
@@ -37,7 +37,7 @@
       "count": 1
     }
   },
-  "spa/reports.js": {
+  "spa/modules/reports/Reports.js": {
     "no-case-declarations": {
       "count": 2
     }

@@ -33,7 +33,7 @@ jest.mock('../../spa/utils/DOMUtils.js', () => ({
   }
 }));
 
-import { FormPermissionsManager } from '../../spa/form_permissions.js';
+import { FormPermissionsManager } from '../../spa/modules/forms/FormPermissions.js';
 
 const PERMISSION_ROW = {
   form_format_id: 41,

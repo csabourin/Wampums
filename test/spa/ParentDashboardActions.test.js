@@ -68,7 +68,7 @@ const endpoints = require('../../spa/api/api-endpoints.js');
 const ajax = require('../../spa/ajax-functions.js');
 const { setContent } = require('../../spa/utils/DOMUtils.js');
 const { prompt } = require('../../spa/utils/DialogUtils.js');
-const { ParentDashboard } = require('../../spa/parent_dashboard.js');
+const { ParentDashboard } = require('../../spa/modules/dashboard/ParentDashboard.js');
 
 const PARENT_PERMISSIONS = [
   'participants.view', 'participants.create_own', 'permission_slips.sign', 'activities.view', 'carpools.view',

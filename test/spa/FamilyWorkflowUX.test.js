@@ -37,7 +37,7 @@ import { describeLink } from '../../spa/modules/family-access/publicLinks.js';
 import { CompleteRegistration } from '../../spa/modules/family-access/CompleteRegistration.js';
 import { FamilyAccess } from '../../spa/modules/family-access/FamilyAccess.js';
 import { ParentInvitations } from '../../spa/modules/parent-invitations/ParentInvitations.js';
-import { FormulaireInscription } from '../../spa/formulaire_inscription.js';
+import { FormulaireInscription } from '../../spa/modules/participants/FormulaireInscription.js';
 import { createParentInvitation, updateParentInvitation, resendParentInvitation } from '../../spa/api/api-parent-invitations.js';
 import { saveParticipant, saveFormSubmission, saveGuardian } from '../../spa/ajax-functions.js';
 

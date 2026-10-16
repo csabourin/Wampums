@@ -301,7 +301,7 @@ export const DASHBOARD_TILES = [
 
   // ---------------------------------------------------------------
   // ARGENT — the three `?tab=` duplicates of /finance are gone; the
-  // page renders those tabs itself (spa/finance.js:293).
+  // page renders those tabs itself (spa/modules/finance/Finance.js:293).
   // ---------------------------------------------------------------
   {
     featureKey: "finance",
