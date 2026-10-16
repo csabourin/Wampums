@@ -203,6 +203,31 @@ test.describe('keyboard', () => {
       await openScreen(page, '/login');
       expect(await focusProblemsWhileTabbing(page, 8)).toEqual([]);
     });
+
+    test('when the app cannot start, it says so in French with a reload button, and meets WCAG 2.2 AA', async ({ page }) => {
+      // The worst start: the unit cannot be found and no translation arrives.
+      await page.route(/\/lang\/|\/api\/v1\/.*organization/, (route) => route.fulfill({ status: 503, body: '{}' }));
+      await page.goto('/login');
+
+      await expect(page.locator('#app h1')).toHaveText('Erreur d’application');
+      await expect(page.locator('#app [role="alert"]')).toContainText('Un problème est survenu');
+      await expect(page).toHaveTitle(`Erreur d’application - ${APP_NAME}`);
+      expect(await page.locator('#app').innerText()).not.toMatch(/\b[a-z]+(?:_[a-z]+)+\b/);
+      expect(await axeViolations(page)).toEqual([]);
+
+      await page.locator('body').focus();
+      await page.keyboard.press('Tab');
+      await page.keyboard.press('Tab');
+      await expect(page.getByRole('button', { name: 'Recharger' })).toBeFocused();
+    });
+
+    test('the skip link stays readable under the mouse', async ({ page }) => {
+      await openScreen(page, '/login');
+      await page.locator('body').focus();
+      await page.keyboard.press('Tab');
+      await page.locator('.skip-link').hover();
+      expect(await axeViolations(page)).toEqual([]);
+    });
   });
 
   test.describe('leader', () => {

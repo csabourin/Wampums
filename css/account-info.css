@@ -141,13 +141,13 @@
   color: #666;
 }
 
-.error-container a {
+.error-container a:not(.button) {
   color: #4c65ae;
   text-decoration: none;
   font-weight: 600;
 }
 
-.error-container a:hover {
+.error-container a:not(.button):hover {
   text-decoration: underline;
 }
 
