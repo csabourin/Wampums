@@ -6,8 +6,10 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { mayReadInviteeList } = require('../services/activityInvitations');
+const { mayReadInviteeList, getActivityParticipation } = require('../services/activityInvitations');
 const { DATE_LIMITS } = require('../config/constants');
+
+const HTTP_BAD_REQUEST = 400;
 
 /**
  * Generate an array of date strings between start and end (inclusive)
@@ -53,24 +55,24 @@ module.exports = (pool, logger) => {
 
             // Validate dates
             if (!start_date || !end_date) {
-                return error(res, 'start_date and end_date are required', 400);
+                return error(res, 'start_date and end_date are required', HTTP_BAD_REQUEST);
             }
 
             const startDateObj = new Date(start_date);
             const endDateObj = new Date(end_date);
 
             if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
-                return error(res, 'Invalid date format. Use YYYY-MM-DD', 400);
+                return error(res, 'Invalid date format. Use YYYY-MM-DD', HTTP_BAD_REQUEST);
             }
 
             if (endDateObj < startDateObj) {
-                return error(res, 'end_date must be after start_date', 400);
+                return error(res, 'end_date must be after start_date', HTTP_BAD_REQUEST);
             }
 
             // Limit date range for performance
             const daysDiff = Math.ceil((endDateObj - startDateObj) / (1000 * 60 * 60 * 24));
             if (daysDiff > DATE_LIMITS.OFFLINE_MAX_DAYS) {
-                return error(res, `Date range cannot exceed ${DATE_LIMITS.OFFLINE_MAX_DAYS} days`, 400);
+                return error(res, `Date range cannot exceed ${DATE_LIMITS.OFFLINE_MAX_DAYS} days`, HTTP_BAD_REQUEST);
             }
 
             const dates = generateDateRange(start_date, end_date);
@@ -277,7 +279,8 @@ module.exports = (pool, logger) => {
                     medications: {
                         requirements: medicationRequirementsResult.rows,
                         distributions: medicationDistributionsResult.rows,
-                        receptions: medicationReceptionsResult.rows
+                        receptions: medicationReceptionsResult.rows,
+                        participation: activity_id ? await getActivityParticipation(client, activity_id, organizationId) : null
                     },
                     badges: {
                         templates: badgeTemplatesResult.rows,

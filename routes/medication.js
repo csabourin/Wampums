@@ -10,7 +10,7 @@ const {
   listParticipantFilter
 } = require('../middleware/medicationAuthorizationPolicy');
 const { areUnitLeaders } = require('../services/unitLeaders');
-const { getInvitedParticipantIds } = require('../services/activityInvitations');
+const { getActivityParticipation } = require('../services/activityInvitations');
 const { declaresMedication, medicationText } = require('../utils/health-form');
 
 const MEDICATION_READ_PERMISSIONS = ['medication.view'];
@@ -703,33 +703,12 @@ module.exports = (pool, logger) => {
 
     query += ` ORDER BY p.last_name, p.first_name, mreq.medication_name`;
 
-    const [result, invited, declined] = await Promise.all([
+    const [result, participation] = await Promise.all([
       pool.query(query, params),
-      forActivity ? getInvitedParticipantIds(pool, activityId, organizationId) : null,
-      forActivity
-        ? pool.query(
-          `SELECT ps.participant_id
-             FROM permission_slips ps
-            WHERE ps.activity_id = $1 AND ps.organization_id = $2
-              AND ($3::int IS NULL OR ps.participant_id = $3)
-            GROUP BY ps.participant_id
-           HAVING bool_or(ps.status = 'declined') AND NOT bool_or(ps.status = 'signed')`,
-          [activityId, organizationId, onlyParticipantId]
-        )
-        : null
+      forActivity ? getActivityParticipation(pool, activityId, organizationId, onlyParticipantId) : null
     ]);
 
-    if (!forActivity) {
-      return success(res, { receptions: result.rows });
-    }
-    const invitedParticipantIds = invited === null || onlyParticipantId === null
-      ? invited
-      : invited.filter((id) => id === Number(onlyParticipantId));
-    return success(res, {
-      receptions: result.rows,
-      invited_participant_ids: invitedParticipantIds,
-      declined_participant_ids: declined.rows.map((row) => Number(row.participant_id))
-    });
+    return success(res, { receptions: result.rows, ...participation });
   }));
 
   /**

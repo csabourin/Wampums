@@ -283,6 +283,8 @@ describe('medication reception', () => {
     const listed = () => [...page().querySelectorAll('.participant-reception-card h3')].map((name) => name.textContent);
     expect(listed()).toEqual(['Maxime Tremblay']);
     expect(page().textContent).toContain('med_reception_participants_only_notice');
+    // Invitations and slips change elsewhere: the server is asked, the cache is only the offline copy.
+    expect(api.getMedicationReceptions).toHaveBeenCalledWith({ activity_id: 3 }, { forceRefresh: true });
 
     // Showing everyone means every invited child, even without medication.
     page().querySelector('#showAllParticipants').click();

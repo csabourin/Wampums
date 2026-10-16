@@ -141,7 +141,9 @@ export class MedicationReception {
     }
 
     try {
-      const response = await getMedicationReceptions({ activity_id: this.selectedActivityId });
+      // Who takes part changes with invitations and slips other people answer:
+      // ask the server, and use the cached copy only offline.
+      const response = await getMedicationReceptions({ activity_id: this.selectedActivityId }, { forceRefresh: true });
       this.receptions = response?.data?.receptions || response?.receptions || [];
       const invited = response?.data?.invited_participant_ids;
       this.invitedParticipantIds = Array.isArray(invited) ? new Set(invited.map(Number)) : null;
