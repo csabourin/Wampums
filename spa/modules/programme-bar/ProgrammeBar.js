@@ -71,7 +71,10 @@ export function syncProgrammeBar(app) {
   if (allowed && !instance) {
     instance = new ProgrammeBar(app);
     instance.start();
-  } else if (!allowed && instance) {
+  } else if (allowed) {
+    // A language switch reloads the route: the bar speaks the new language too.
+    instance.refreshLanguage();
+  } else if (instance) {
     instance.destroy();
   }
   return instance;
@@ -182,6 +185,20 @@ export class ProgrammeBar extends BaseModule {
       }
     }
     this.update();
+  }
+
+  /** After a language switch, relabel the landmark and redraw in the new language. */
+  refreshLanguage() {
+    if (this.isDestroyed || !this.root) {
+      return;
+    }
+    const label = translate('programme_bar_label');
+    if (this.root.getAttribute('aria-label') === label) {
+      return;
+    }
+    this.root.setAttribute('aria-label', label);
+    this.lastMarkup = '';
+    this.render();
   }
 
   /** Redraw now and again at the next minute. */
@@ -344,6 +361,11 @@ export class ProgrammeBar extends BaseModule {
     } else {
       this.lastMarkup = '';
       document.documentElement.style.removeProperty(SPACE_PROPERTY);
+      // The programme is over: a screen kept on for it goes back to normal,
+      // since the checkbox that would turn it off is no longer reachable.
+      if (this.wakeLockWanted || this.wakeLockSentinel) {
+        this.setWakeLock(false);
+      }
     }
     this.announce(view);
   }

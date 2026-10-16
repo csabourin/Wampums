@@ -18,8 +18,8 @@
 import axe from 'axe-core';
 
 jest.mock('../../spa/app.js', () => {
-  const en = require('../../lang/en.json');
-  return { translate: (key) => en[key] ?? key };
+  const bundles = { en: require('../../lang/en.json'), fr: require('../../lang/fr.json') };
+  return { translate: (key) => bundles[globalThis.programmeTestLang || 'en'][key] ?? key };
 });
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn(),
@@ -138,6 +138,7 @@ async function runClockTo(time) {
 }
 
 beforeEach(() => {
+  globalThis.programmeTestLang = 'en';
   jest.useFakeTimers();
   document.body.innerHTML = '<main id="app"><h1>Dashboard</h1><a href="/x">A link</a></main>';
   document.documentElement.className = '';
@@ -336,6 +337,23 @@ describe('the rest of the day', () => {
     expect(sentinel.release).toHaveBeenCalled();
   });
 
+  test('a screen kept on goes back to normal when the programme ends', async () => {
+    const sentinel = { release: jest.fn().mockResolvedValue(), addEventListener: jest.fn() };
+    const wakeLock = { request: jest.fn().mockResolvedValue(sentinel) };
+    await startAt(at(19, 44), MEETING, { wakeLock });
+    button().click();
+    document.getElementById('programme-wake-lock').click();
+    await settle();
+    document.querySelector('[data-modal-close]').click();
+    jest.runOnlyPendingTimers();
+    await settle();
+    expect(sentinel.release).not.toHaveBeenCalled();
+
+    await runClockTo(at(19, 45));
+    expect(bar().hidden).toBe(true);
+    expect(sentinel.release).toHaveBeenCalled();
+  });
+
   test('without that ability, no checkbox is offered', async () => {
     await startAt(at(19, 13), MEETING);
     button().click();
@@ -353,6 +371,22 @@ describe('who sees it', () => {
     syncProgrammeBar({ isLoggedIn: false });
     expect(bar()).toBeNull();
     expect(announcer()).toBeNull();
+  });
+
+  test('after switching language, the bar and its landmark speak the new one', async () => {
+    jest.setSystemTime(at(19, 13));
+    getDayProgramme.mockResolvedValue({ success: true, data: MEETING });
+    syncProgrammeBar({ isLoggedIn: true, lang: 'en' });
+    await settle();
+    expect(bar().getAttribute('aria-label')).toBe('Programme in progress');
+    expect(button().textContent).toContain('Now');
+
+    globalThis.programmeTestLang = 'fr';
+    syncProgrammeBar({ isLoggedIn: true, lang: 'fr' });
+
+    expect(bar().getAttribute('aria-label')).toBe('Programme en cours');
+    expect(button().textContent).toContain('Maintenant');
+    expect(announcer().textContent).toBe('');
   });
 
   test('a parent does not get it', () => {
