@@ -518,7 +518,7 @@ export class UpcomingMeeting {
                                                                                 </a>
                                                                                 ${showAwardButton ? `
                                                                                 <button id="award-achievements-btn" class="button button--primary" style="margin-left: 10px;">
-                                                                                        <i class="fa-solid fa-star"></i> ${translate('award_planned_achievements') || 'Award Achievements'}
+                                                                                        <i class="fa-solid fa-star"></i> ${translate('award_planned_achievements')}
                                                                                 </button>
                                                                                 ` : ''}
                                                                 </div>
@@ -603,8 +603,8 @@ export class UpcomingMeeting {
       id: 'award-modal',
       title: translate('award_planned_achievements'),
       body: `
-        <p>${translate('confirm_award_instructions') || 'Please confirm the achievements to award:'}</p>
-        ${presentParticipantIds.length === 0 ? `<p class="warning-text"><span aria-hidden="true">⚠</span> ${translate('no_attendance_warning') || 'No attendance data found. Defaulting to all participants.'}</p>` : ''}
+        <p>${translate('confirm_award_instructions')}</p>
+        ${presentParticipantIds.length === 0 ? `<p class="warning-text"><span aria-hidden="true">⚠</span> ${translate('no_attendance_warning')}</p>` : ''}
         <div class="award-list">${rows}</div>
       `,
       footer: `

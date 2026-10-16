@@ -168,7 +168,6 @@
     "spa/modules/meetings/MeetingPrep.js": 5,
     "spa/modules/meetings/UpcomingMeeting.js": 18,
     "spa/modules/offline/OfflinePreparation.js": 7,
-    "spa/modules/organizations/CreateOrganization.js": 3,
     "spa/modules/participant-duplicates/ParticipantDuplicates.js": 3,
     "spa/modules/participants/ManageParticipants.js": 4,
     "spa/modules/participants/ManageUsersParticipants.js": 3,

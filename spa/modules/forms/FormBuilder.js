@@ -18,6 +18,7 @@ import { BaseModule } from '../../utils/BaseModule.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { DEFAULT_LANG, FORM_CONTENT_LANGS, SUPPORTED_LANGS } from '../../config/languages.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 import {
   formInfoHtml,
   hasOwnText,
@@ -88,13 +89,31 @@ export class FormBuilder extends BaseModule {
   /**
      * Initialize the form builder
      */
+  /** @returns {Object} Shared page-state options */
+  pageOptions() {
+    return { title: translate('form_builder_title'), className: 'form-builder-page' };
+  }
+
   async init() {
     debugLog('Initializing FormBuilder');
-    // Every interface language's bundle, to flag fields missing one of them.
-    await Promise.all([
-      this.loadData(),
-      ...SUPPORTED_LANGS.map((lang) => app?.loadTranslation?.(lang)),
-    ]);
+    showPageLoading(document.getElementById('app'), this.pageOptions());
+    try {
+      // Every interface language's bundle, to flag fields missing one of them.
+      await Promise.all([
+        this.loadData(),
+        ...SUPPORTED_LANGS.map((lang) => app?.loadTranslation?.(lang)),
+      ]);
+    } catch (error) {
+      // A list of forms that did not load is never shown as no forms.
+      debugError('Error loading form builder data:', error);
+      if (!this.isDestroyed) {
+        showPageError(document.getElementById('app'), this.pageOptions(), () => this.init());
+      }
+      return;
+    }
+    if (this.isDestroyed) {
+      return;
+    }
     this.render();
     this.attachEventListeners();
   }
@@ -102,24 +121,27 @@ export class FormBuilder extends BaseModule {
   /**
      * Load initial data
      */
+  /**
+   * Load the unit's form formats and the units a form may be copied from.
+   * Throws when the formats did not arrive.
+   *
+   * @returns {Promise<void>}
+   */
   async loadData() {
+    const formatsResponse = await API.get('v1/form-builder/form-formats');
+    if (!formatsResponse?.success) {
+      throw Object.assign(new Error('form_formats_not_loaded'), { status: formatsResponse?.status });
+    }
+    this.formFormats = formatsResponse.data || [];
+
+    // The units to copy from only add an option; without them the builder still works.
     try {
-      // Load form formats
-      const formatsResponse = await API.get('v1/form-builder/form-formats');
-
-      if (formatsResponse.success) {
-        this.formFormats = formatsResponse.data || [];
-      }
-
-      // Load user organizations for copy functionality
       const orgsResponse = await API.get('v1/form-builder/user-organizations');
-
-      if (orgsResponse.success) {
+      if (orgsResponse?.success) {
         this.userOrganizations = orgsResponse.data || [];
       }
     } catch (error) {
-      debugError('Error loading form builder data:', error);
-      this.app.showMessage(translate('error_loading_data'), 'error');
+      debugError('Error loading units to copy forms from:', error);
     }
   }
 

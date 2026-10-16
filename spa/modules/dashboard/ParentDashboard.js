@@ -983,7 +983,7 @@ export class ParentDashboard {
 
   getPermissionSlipStatusLabel(status) {
     if (!status) {
-      return translate('unknown') || '-';
+      return translate('unknown');
     }
 
     const localized = translate(`permission_slip_status_${status}`);

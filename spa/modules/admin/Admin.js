@@ -21,6 +21,7 @@ import { setContent, clearElement } from '../../utils/DOMUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { canAccessAdminPanel, canCreateOrganization, canManageUsers, canSendCommunications, canViewUsers } from '../../utils/PermissionUtils.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 import { roleLabel } from '../../utils/RoleLabelUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
@@ -41,6 +42,19 @@ export class Admin {
       canViewUsers: false,
       canSendCommunications: false,
     };
+    this.usersFailed = false;
+    this.subscribersFailed = false;
+    this.destroyed = false;
+  }
+
+  /** Called when the person leaves this screen or tab. */
+  destroy() {
+    this.destroyed = true;
+  }
+
+  /** @returns {Object} Shared page-state options; a tab shows only the state. */
+  pageOptions() {
+    return { title: translate('tile_admin_panel'), className: 'admin-page', embedded: Boolean(this.embedded) };
   }
 
   async init() {
@@ -62,15 +76,14 @@ export class Admin {
                         null;
 
     if (!this.currentOrganizationId) {
-      this.app.showMessage(
-        this.app.translate(
-          'error_loading_data',
-        ),
-        'error',
-      );
+      showPageError(getMountPoint(this), this.pageOptions(), () => this.init());
       return;
     }
+    showPageLoading(getMountPoint(this), this.pageOptions());
     await this.fetchData(this.getDataFetchOptions());
+    if (this.destroyed) {
+      return;
+    }
     this.render();
     this.initEventListeners();
   }
@@ -83,6 +96,8 @@ export class Admin {
     } = options;
 
     try {
+      this.usersFailed = false;
+      this.subscribersFailed = false;
       if (loadUsers) {
         try {
           const usersResult = await getUsers(
@@ -98,8 +113,9 @@ export class Admin {
             );
           }
         } catch (userError) {
+          // Shown as an error with a retry, never as "no users".
           debugError('Error fetching users:', userError);
-          this.users = [];
+          this.usersFailed = true;
         }
       } else {
         this.users = [];
@@ -127,7 +143,7 @@ export class Admin {
             'Unable to load subscribers; proceeding without list',
             subscriberError,
           );
-          this.subscribers = [];
+          this.subscribersFailed = true;
         }
       } else {
         this.subscribers = [];
@@ -146,13 +162,10 @@ export class Admin {
         }
       }
     } catch (error) {
+      // Each list says it did not load, in its own place, with a retry.
       debugError('Error fetching data:', error);
-      this.users = [];
-      this.subscribers = [];
-      this.app.showMessage(
-        this.app.translate('error_loading_data'),
-        'error',
-      );
+      this.usersFailed = true;
+      this.subscribersFailed = true;
     }
   }
 
@@ -173,10 +186,8 @@ export class Admin {
                         <div id="message"></div>
 
                         <div class="admin-quick-actions" style="margin: 1rem 0; display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                ${this.permissions.canCreateOrg ? `<button id="create-organization-btn">${translate('create_new_unit')}</button>` : ''}
-                                <a href="/form-builder" class="button-link" style="display: inline-block; padding: 0.5rem 1rem; background: #007bff; color: white; text-decoration: none; border-radius: 4px;">
-                                        ${translate('form_builder_title')}
-                                </a>
+                                ${this.permissions.canCreateOrg ? `<button type="button" class="button button--primary" id="create-organization-btn">${translate('create_new_unit')}</button>` : ''}
+                                <a href="/form-builder" class="button button--secondary">${translate('form_builder_title')}</a>
                         </div>
 
 ${showNotifications ? `
@@ -194,7 +205,7 @@ ${showNotifications ? `
                 ${this.renderSubscribers()}
         </fieldset>
 
-        <button type="submit">${this.app.translate('send_notification')}</button>
+        <button type="submit" class="button button--primary">${this.app.translate('send_notification')}</button>
 </form>
 
 <div id="notification-result" role="status" aria-live="polite"></div>` : ''}
@@ -203,7 +214,7 @@ ${showNotifications ? `
 <div class="import-section">
         <p>${this.app.translate('import_sisc_description')}</p>
         <div class="file-upload-area">
-                <input type="file" id="sisc-file-input" accept=".csv" class="hidden">
+                <input type="file" id="sisc-file-input" accept=".csv" class="hidden" aria-label="${this.app.translate('select_csv_file')}">
                 <button type="button" id="select-file-btn" class="button button--secondary">${this.app.translate('select_csv_file')}</button>
                 <span id="selected-file-name"></span>
         </div>
@@ -216,23 +227,23 @@ ${showNotifications ? `
 </div>
 
                         ${showUserManagement ? `
-                        <h2>${this.app.translate('user_management')}</h2>
+                        <h2 id="admin-users-heading">${this.app.translate('user_management')}</h2>
+                        <div class="table-scroll" tabindex="0" role="region" aria-labelledby="admin-users-heading">
                         <table>
                                 <thead>
                                         <tr>
-                                                <th>${this.app.translate('email')}</th>
-                                                <th>${this.app.translate('role')}</th>
-                                                <th>${this.app.translate('verified')}</th>
-                                                <th>${this.app.translate('actions')}</th>
+                                                <th scope="col">${this.app.translate('email')}</th>
+                                                <th scope="col">${this.app.translate('role')}</th>
+                                                <th scope="col">${this.app.translate('verified')}</th>
+                                                <th scope="col">${this.app.translate('actions')}</th>
                                         </tr>
                                 </thead>
                                 <tbody id="users-table">
                                         ${this.renderUsers()}
                                 </tbody>
                         </table>
+                        </div>
                         ` : ''}
-
-                        ${this.embedded ? '' : `<a href="/dashboard">${translate('back_to_dashboard')}</a>`}
                 `;
     setContent(getMountPoint(this), content);
   }
@@ -290,6 +301,12 @@ ${showNotifications ? `
     const canModifyUsers = this.permissions.canManageUsers;
 
     debugLog(users);
+    if (this.usersFailed) {
+      return `<tr><td colspan="4">
+        <p class="status-message error" role="alert">${escapeHTML(translate('error_loading_data'))}</p>
+        <button type="button" class="button button--secondary" id="admin-users-retry">${escapeHTML(translate('retry'))}</button>
+      </td></tr>`;
+    }
     if (!users.length) {
       return `<tr><td colspan="4">${this.app.translate('no_users_found')}</td></tr>`;
     }
@@ -321,7 +338,7 @@ ${showNotifications ? `
                                         ${roleBadges}
                                         ${manageBtn}
                                 </td>
-                                <td>${isVerified ? '✅' : '❌'}</td>
+                                <td><span aria-hidden="true">${isVerified ? '✅' : '❌'}</span><span class="sr-only">${translate(isVerified ? 'yes' : 'no')}</span></td>
                                 <td>
                                         ${!isVerified && canModifyUsers ? `<button class="approve-btn" data-user-id="${user.id}">${this.app.translate('approve')}</button>` : ''}
                                 </td>
@@ -378,6 +395,9 @@ ${showNotifications ? `
   }
 
   renderSubscribers() {
+    if (this.subscribersFailed) {
+      return `<p class="status-message error" role="alert">${escapeHTML(translate('error_loading_data'))}</p>`;
+    }
     return renderPushRecipients(Array.isArray(this.subscribers) ? this.subscribers : []);
   }
 
@@ -390,6 +410,14 @@ ${showNotifications ? `
         this.app.router.navigate('/create-organization');
       });
     }
+
+    document.getElementById('admin-users-retry')?.addEventListener('click', async () => {
+      await this.fetchData(this.getDataFetchOptions());
+      if (!this.destroyed) {
+        this.render();
+        this.initEventListeners();
+      }
+    });
 
     const usersTable = document.getElementById('users-table');
     if (usersTable && this.permissions.canManageUsers) {

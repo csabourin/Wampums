@@ -16,6 +16,7 @@ import { roleLabel } from '../../utils/RoleLabelUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 
 export class FormPermissionsManager {
   constructor(app) {
@@ -23,6 +24,7 @@ export class FormPermissionsManager {
     this.permissions = [];
     this.formTypes = new Set();
     this.roles = new Set();
+    this.destroyed = false;
   }
 
   /**
@@ -36,14 +38,30 @@ export class FormPermissionsManager {
       return;
     }
 
+    const pageOptions = { title: translate('form_permissions_management'), className: 'form-permissions-page' };
+    showPageLoading(document.getElementById('app'), pageOptions);
     try {
       await this.loadPermissions();
-      this.render();
-      this.attachEventListeners();
     } catch (error) {
       debugError('Error initializing form permissions manager:', error);
-      this.app.renderError(translate('error_loading_form_permissions'));
+      if (!this.destroyed) {
+        showPageError(document.getElementById('app'), {
+          ...pageOptions,
+          message: translate('error_loading_form_permissions'),
+        }, () => this.init());
+      }
+      return;
     }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventListeners();
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
   }
 
   /**
@@ -405,7 +423,12 @@ export class FormPermissionsManager {
  * Initialize the form permissions manager
  * Called by the router
  */
+/**
+ * @param {Object} app - Application instance
+ * @returns {Promise<FormPermissionsManager>} The screen, for the router to tear down
+ */
 export async function initFormPermissions(app) {
   const manager = new FormPermissionsManager(app);
   await manager.init();
+  return manager;
 }

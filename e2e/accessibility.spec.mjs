@@ -30,6 +30,7 @@ const SCREENS = {
     '/time-since-registration', '/formulaire-inscription', `/carpool/${seededActivityId()}`,
     '/material-management',
     '/medication-dispensing', '/medication-reception',
+    '/create-organization',
   ],
 };
 

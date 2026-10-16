@@ -103,6 +103,11 @@ export class DistrictManagement {
 
     await this.hydrateFromCache();
     await this.fetchOrganizations();
+    if (this.destroyed) {
+      return;
+    }
+    // Nothing cached yet: the list says it is loading, not that nobody matches.
+    this.syncing = !this.lastSyncedAt;
     this.renderAndBind();
     this.setupOfflineListeners();
     await this.refreshData();
@@ -196,6 +201,7 @@ export class DistrictManagement {
    * Called by the router before navigating away.
    */
   destroy() {
+    this.destroyed = true;
     if (this.offlineStatusChangedHandler) {
       window.removeEventListener('offlineStatusChanged', this.offlineStatusChangedHandler);
       this.offlineStatusChangedHandler = null;
@@ -216,6 +222,7 @@ export class DistrictManagement {
    */
   async refreshData(forceRefresh = false) {
     this.syncing = true;
+    this.loadFailed = false;
     this.renderSyncBadge();
 
     try {
@@ -248,17 +255,26 @@ export class DistrictManagement {
         this.filteredUsers = this.getFilteredUsers();
         this.lastSyncedAt = Date.now();
         this.userMeta = this.buildUserMeta();
+      } else {
+        this.loadFailed = true;
       }
 
       await this.persistCache();
-      this.renderAndBind();
     } catch (error) {
       debugError('district_management: failed to refresh data', error);
-      this.app.showMessage('district_management_load_error', 'error');
+      this.loadFailed = true;
     } finally {
       this.syncing = false;
-      this.renderSyncBadge();
     }
+    if (this.destroyed) {
+      return;
+    }
+    // With members cached, they stay shown under "last synced"; without, the
+    // list is an error with a retry instead of "no results".
+    if (this.loadFailed) {
+      this.app.showMessage('district_management_load_error', 'error');
+    }
+    this.renderAndBind();
   }
 
   async hydrateRoleBundles(roleCatalog = [], forceRefresh = false) {
@@ -585,6 +601,14 @@ export class DistrictManagement {
   }
 
   renderUserCards() {
+    if (!this.lastSyncedAt && this.syncing) {
+      return `<p role="status">${translate('loading')}</p>`;
+    }
+    if (!this.lastSyncedAt && this.loadFailed) {
+      return `
+        <p class="status-message error" role="alert">${translate('district_management_load_error')}</p>
+        <button type="button" class="button button--primary" id="dm-load-retry">${translate('retry')}</button>`;
+    }
     if (!this.filteredUsers.length) {
       return `<p class="muted-text">${translate('district_management_no_results')}</p>`;
     }
@@ -928,6 +952,8 @@ export class DistrictManagement {
   }
 
   attachEventListeners() {
+    document.getElementById('dm-load-retry')?.addEventListener('click', () => this.refreshData(true));
+
     const searchInput = document.getElementById('dm-search-input');
     if (searchInput) {
       searchInput.removeEventListener('input', this.debouncedSearch);
@@ -1182,8 +1208,7 @@ export class DistrictManagement {
     const conflictResult = detectRoleConflicts(selectedRoleNames, this.roleBundleIndex);
     if (conflictResult.hasConflict) {
       const messageTemplate =
-        translate('district_management_conflict_roles') ||
-        'The selected roles cannot be combined: {roles}';
+        translate('district_management_conflict_roles');
       return {
         blocking: messageTemplate.replace('{roles}', conflictResult.conflicts.join(', ')),
         warnings: [],
@@ -1198,8 +1223,7 @@ export class DistrictManagement {
 
     if (permissionGaps.missing.length) {
       const template =
-        translate('district_management_permission_gap') ||
-        'You cannot assign roles that include permissions you do not have: {permissions}';
+        translate('district_management_permission_gap');
       const missingList = permissionGaps.missing.join(', ');
       return { blocking: template.replace('{permissions}', missingList), warnings: [] };
     }
@@ -1208,8 +1232,7 @@ export class DistrictManagement {
     const localGroupRoles = getLocalGroupEligibleRoles(selectedRoleNames, this.roleBundleIndex);
     if (localGroupRoles.length) {
       const template =
-        translate('district_management_local_group_notice') ||
-        'Inventory bundles can extend to organizations within your local group.';
+        translate('district_management_local_group_notice');
       const bundleLabels = localGroupRoles
         .map((roleName) => roleLabel(this.getRoleByName(roleName) || roleName))
         .filter(Boolean)

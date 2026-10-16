@@ -1031,12 +1031,12 @@ export class Router {
           await districtManagement.init();
           break;
         case "formPermissions":
-          // Only accessible by district and unitadmin
+          // Whoever may open the admin panel.
           if (!guard(canAccessAdminPanel())) {
             break;
           }
           const initFormPermissions = await this.loadModule('FormPermissions');
-          await initFormPermissions(this.app);
+          this.currentModuleInstance = await initFormPermissions(this.app);
           break;
         case "register":
           if (this.app.isLoggedIn) {

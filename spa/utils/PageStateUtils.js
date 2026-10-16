@@ -18,6 +18,8 @@ import { setContent } from './DOMUtils.js';
  * @property {string} title - The page title, already translated (escaped here)
  * @property {string} [className] - The screen's own class on the page section
  * @property {string} [backHref='/dashboard'] - Where the back link leads
+ * @property {boolean} [embedded=false] - Drawn inside a page that already shows
+ *   the way back and the title (a tab of a tabbed page): only the state itself
  */
 
 /**
@@ -34,7 +36,13 @@ function sectionClass(className) {
  * @param {PageStateOptions} options
  * @returns {string} HTML
  */
-export function pageLoadingMarkup({ title, className = '', backHref = '/dashboard' }) {
+export function pageLoadingMarkup({ title, className = '', backHref = '/dashboard', embedded = false }) {
+  if (embedded) {
+    return `
+    <div class="${escapeHTML(className)}" aria-busy="true">
+      <p role="status">${escapeHTML(translate('loading'))}</p>
+    </div>`;
+  }
   return `
     <section class="${sectionClass(className)}" aria-busy="true">
       ${renderBackLink(backHref)}
@@ -52,11 +60,18 @@ export function pageLoadingMarkup({ title, className = '', backHref = '/dashboar
  * @returns {string} HTML
  */
 export function pageErrorMarkup({
-  title, className = '', backHref = '/dashboard', message = translate('error_loading_data'), retryId = '',
+  title, className = '', backHref = '/dashboard', message = translate('error_loading_data'), retryId = '', embedded = false,
 }) {
   const retry = retryId
     ? `<button type="button" class="button button--primary" id="${escapeHTML(retryId)}">${escapeHTML(translate('retry'))}</button>`
     : '';
+  if (embedded) {
+    return `
+    <div class="${escapeHTML(className)}">
+      <p class="status-message error" role="alert">${escapeHTML(message)}</p>
+      ${retry}
+    </div>`;
+  }
   return `
     <section class="${sectionClass(className)}">
       ${renderBackLink(backHref)}

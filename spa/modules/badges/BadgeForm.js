@@ -152,7 +152,7 @@ export class BadgeForm {
                     <option value="-1" selected disabled>...</option>
                     ${this.renderTemplateOptions()}
                 </select>
-                ${hasTemplates ? '' : `<p class="warning">${translate('no_badge_templates_for_section') || translate('no_badges') || ''}</p>`}
+                ${hasTemplates ? '' : `<p class="warning">${translate('no_badge_templates_for_section') || translate('no_badges')}</p>`}
 
                 <div id="starInfo">
                     ${translate(
@@ -306,7 +306,7 @@ export class BadgeForm {
     const templates = this.getTemplatesForSection();
 
     if (!templates.length) {
-      return `<p class="muted">${translate('no_badge_templates_for_section') || translate('no_badges') || ''}</p>`;
+      return `<p class="muted">${translate('no_badge_templates_for_section') || translate('no_badges')}</p>`;
     }
 
     return templates

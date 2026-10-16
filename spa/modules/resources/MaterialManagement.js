@@ -371,7 +371,7 @@ export class MaterialManagement {
                       </label>
                       ${conflicts.length > 0 ? `
                         <div class="conflict-warning" style="color: #d97706; font-size: 0.9em; margin-top: 0.5rem; padding: 0.5rem; background: #fef3c7; border-radius: 4px;">
-                          ⚠️ <strong>${escapeHTML(translate('existing_reservations') || 'Existing reservations')}:</strong>
+                          ⚠️ <strong>${escapeHTML(translate('existing_reservations'))}:</strong>
                           <ul style="margin: 0.25rem 0 0 1.5rem; padding: 0;">
                             ${conflicts.map(conflict => {
     const conflictDateRange = conflict.date_from && conflict.date_to
@@ -541,7 +541,7 @@ export class MaterialManagement {
         const dateTo = document.getElementById('reservationDateTo')?.value;
 
         if (!dateFrom || !dateTo) {
-          this.app.showMessage(translate('date_required') || 'Please select reservation dates', 'error');
+          this.app.showMessage(translate('date_required'), 'error');
           return;
         }
 
