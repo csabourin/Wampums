@@ -262,6 +262,17 @@ describe('when the programme cannot be read again', () => {
     await runClockTo(at(19, 15));
     expect(bar().hidden).toBe(true);
   });
+
+  test('a refusal closes the open programme, so its activities and leaders no longer show', async () => {
+    await startAt(at(19, 0), MEETING);
+    button().click();
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    getDayProgramme.mockRejectedValue(Object.assign(new Error('refused'), { status: 403 }));
+
+    await runClockTo(at(19, 15));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.textContent).not.toContain('Den game');
+  });
 });
 
 describe('as the clock turns', () => {

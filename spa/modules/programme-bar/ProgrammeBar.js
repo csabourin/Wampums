@@ -187,7 +187,12 @@ export class ProgrammeBar extends BaseModule {
       if (this.isDestroyed) {
         return;
       }
-      if (this.loadedDate !== date || REFUSED_STATUSES.has(error?.status)) {
+      const refused = REFUSED_STATUSES.has(error?.status);
+      if (refused) {
+        // Access was withdrawn: what the open sheet lists must not stay on screen.
+        closeModal(SHEET_ID);
+      }
+      if (this.loadedDate !== date || refused) {
         this.programme = null;
         this.loadedDate = date;
       }
@@ -367,6 +372,9 @@ export class ProgrammeBar extends BaseModule {
       }
       this.keepRoomForBar();
     } else {
+      if (this.lastMarkup) {
+        setContent(this.root, '');
+      }
       this.lastMarkup = '';
       document.documentElement.style.removeProperty(SPACE_PROPERTY);
       // The programme is over: a screen kept on for it goes back to normal,
