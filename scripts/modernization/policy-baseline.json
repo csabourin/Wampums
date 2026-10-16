@@ -20,7 +20,7 @@
     "migrations/001_seed_default_form_formats.js": 1,
     "migrations/002_fix_parent_guardian_email_label.js": 6,
     "migrations/006_asc_form_content.js": 6,
-    "routes/activities.js": 28,
+    "routes/activities.js": 22,
     "routes/ai.js": 139,
     "routes/alumni.js": 1,
     "routes/announcements.js": 15,

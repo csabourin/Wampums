@@ -571,3 +571,62 @@ h1 {
     padding: 48px 16px;
   }
 }
+
+/* Calendar subscription (spa/modules/calendar-feed/CalendarFeedPanel.js) */
+.calendar-feed__link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-block: var(--space-md);
+}
+
+.calendar-feed__link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.calendar-feed__link-row input {
+  flex: 1 1 14rem;
+  min-width: 0;
+  min-height: var(--touch-target-min);
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 0.5rem);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.calendar-feed__link-row input:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.calendar-feed__copy-status:empty {
+  display: none;
+}
+
+.calendar-feed__help {
+  margin-block: var(--space-md);
+}
+
+.calendar-feed__help summary {
+  min-height: var(--touch-target-min);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.calendar-feed__help ul {
+  margin: 0;
+  padding-inline-start: var(--space-lg);
+}
+
+.calendar-feed__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-block-start: var(--space-md);
+}

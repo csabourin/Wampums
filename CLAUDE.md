@@ -254,6 +254,10 @@ const result = await pool.query(
 - ✅ A `GET` on such a link only **describes** it. Acting on it takes a `POST` the person submitted — mail
   scanners open links before people do.
 - ✅ Build link URLs from `resolveOrganizationBaseUrl` (`utils/public-url.js`), never from request headers.
+- ✅ **Calendar subscription links** (`services/calendarFeeds.js`, `GET /api/v1/calendar-feeds/:token.ics`)
+  follow the same rules: digest only, shown once, one active link per person and unit. A link only
+  names its holder (`authenticateCalendarFeed`); every fetch then goes through `requirePermission`,
+  so leaving the unit or losing `activities.view` closes the feed with nothing to revoke.
 
 ### 4) Database Conventions
 

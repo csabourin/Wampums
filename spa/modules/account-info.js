@@ -15,7 +15,8 @@ import { translate, app as appInstance } from '../app.js';
 import { escapeAttribute, escapeHTML } from '../utils/SecurityUtils.js';
 import { nativeLanguageName } from '../utils/InterfaceLanguageUtils.js';
 import { apiErrorMessage } from '../utils/ApiErrorUtils.js';
-import { holdsFamilyRole, isDemoUser, isParent } from '../utils/PermissionUtils.js';
+import { canViewActivities, holdsFamilyRole, isDemoUser, isParent } from '../utils/PermissionUtils.js';
+import { CALENDAR_FEED_ANCHOR, CalendarFeedPanel } from './calendar-feed/CalendarFeedPanel.js';
 import { setContent, loadStylesheet, withFormBusy } from '../utils/DOMUtils.js';
 import { updateMyNickname } from '../api/api-members.js';
 import { confirm as confirmDialog } from '../utils/DialogUtils.js';
@@ -38,6 +39,13 @@ export class AccountInfoModule {
     this.holdsFamilyRole = false;
     this.pushEnabled = false;
     this.pushSupported = false;
+    // The calendar link serves the unit's activities: offered to those who see them.
+    this.calendarFeedPanel = canViewActivities() ? new CalendarFeedPanel(app) : null;
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.calendarFeedPanel?.destroy();
   }
 
   /**
@@ -459,6 +467,10 @@ export class AccountInfoModule {
         </section>
         ` : ''}
 
+        ${this.calendarFeedPanel ? `
+        <section class="account-section calendar-feed" id="${CALENDAR_FEED_ANCHOR}" aria-labelledby="calendar-feed-heading"></section>
+        ` : ''}
+
         <!-- Account Actions -->
         <section class="account-section">
           <button class="btn btn-danger" id="logout-btn">
@@ -475,6 +487,7 @@ export class AccountInfoModule {
     const appContainer = document.getElementById('app');
     if (appContainer) {
       setContent(appContainer, content);
+      this.calendarFeedPanel?.mount(document.getElementById(CALENDAR_FEED_ANCHOR));
     } else {
       debugError('App container not found');
     }

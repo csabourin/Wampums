@@ -343,3 +343,45 @@ test.describe('permission slips for a parent', () => {
     await expect(page.locator('.permission-slip-section .permission-slip-sign-btn').first()).toBeVisible();
   });
 });
+
+test.describe('calendar subscription', () => {
+  // One link per account: the two sizes run at once, so each uses its own
+  // account (a parent on desktop, an admin on the phone) and neither revokes
+  // the other's link.
+  test('from Activities, a member creates a link, and the link serves the unit\'s calendar until turned off', async ({ browser }, testInfo) => {
+    const account = testInfo.project.name === 'phone' ? ACCOUNTS.admin : ACCOUNTS.parent;
+    const context = await browser.newContext({ ...testInfo.project.use, storageState: storageStateFor(account) });
+    const page = await context.newPage();
+    await openScreen(page, '/activities');
+    await page.locator('#app a[href="/account-info#calendar-feed"]').click();
+    await page.waitForURL('**/account-info#calendar-feed');
+    await settleScreen(page);
+    const section = page.locator('#calendar-feed');
+    await expect(section.locator('h2')).toBeFocused();
+
+    // A link made by an earlier run would be replaced after a confirmation.
+    const turnOff = section.locator('[data-calendar-feed="revoke"]');
+    if (await turnOff.count()) {
+      await turnOff.click();
+      await page.getByRole('alertdialog').getByRole('button', { name: /désactiver/i }).click();
+      await expect(section.locator('[data-calendar-feed="create"]')).toBeVisible();
+    }
+
+    await section.locator('[data-calendar-feed="create"]').click();
+    const field = page.locator('#calendar-feed-url');
+    await expect(field).toBeFocused();
+    expect(await axeViolations(page)).toEqual([]);
+
+    const feedPath = new URL(await field.inputValue()).pathname;
+    const feed = await page.request.get(feedPath);
+    expect(feed.status()).toBe(200);
+    expect(feed.headers()['content-type']).toMatch(/^text\/calendar/);
+    expect(await feed.text()).toContain('SUMMARY:Sortie canot');
+
+    await section.locator('[data-calendar-feed="revoke"]').click();
+    await page.getByRole('alertdialog').getByRole('button', { name: /désactiver/i }).click();
+    await expect(section.locator('[data-calendar-feed="create"]')).toBeVisible();
+    expect((await page.request.get(feedPath)).status()).toBe(404);
+    await context.close();
+  });
+});
