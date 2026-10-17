@@ -24,7 +24,7 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugInfo: jest.fn(),
 }));
 jest.mock('../../spa/config.js', () => ({
-  CONFIG: { DEFAULT_CURRENCY: 'CAD', DEFAULT_LANG: 'fr', PAYMENTS: { STRIPE_PUBLISHABLE_KEY: '' }, STORAGE_KEYS: {}, UI: {} },
+  CONFIG: { DEFAULT_CURRENCY: 'CAD', DEFAULT_LANG: 'fr', PAYMENTS: { STRIPE_PUBLISHABLE_KEY: '', STRIPE_LOCALES: ['en', 'fr', 'it', 'id'], STRIPE_PAYER_ERROR_TYPES: ['card_error', 'validation_error'] }, STORAGE_KEYS: {}, UI: {} },
   getStorageKey: (key) => key,
 }));
 jest.mock('../../spa/utils/PerformanceUtils.js', () => {
@@ -437,5 +437,89 @@ describe('a parent\'s finances', () => {
     expect(page().querySelector('h1').textContent).toBe('my_finances');
     expect(page().querySelector('[role="alert"]').textContent).toBe('error_loading_data');
     expect(page().querySelector('#page-retry')).not.toBeNull();
+  });
+});
+
+describe('paying a fee online', () => {
+  /**
+   * A stand-in for Stripe.js: records the Elements options and answers
+   * confirmPayment with `result`.
+   *
+   * @param {Object} result - What confirmPayment resolves to
+   * @returns {{stripe: Object, elementsOptions: Function}} The fake and its recorded options
+   */
+  function fakeStripe(result) {
+    let options = null;
+    const paymentElement = {
+      mount: jest.fn(),
+      on: (event, handler) => {
+        if (event === 'ready') {
+          handler();
+        }
+      },
+    };
+    const stripe = {
+      elements: (given) => {
+        options = given;
+        return { create: () => paymentElement };
+      },
+      confirmPayment: jest.fn().mockResolvedValue(result),
+    };
+    return { stripe, elementsOptions: () => options };
+  }
+
+  /**
+   * Open the payment dialog for a 30 $ fee, as the pay button does.
+   *
+   * @param {Object} app - Application stub
+   * @param {Object} stripe - Stripe stand-in
+   * @returns {Promise<ParentFinance>} The screen
+   */
+  async function openPayment(app, stripe) {
+    api.createStripePaymentIntent.mockResolvedValue({ success: true, data: { clientSecret: 'secret', paymentIntentId: 'pi_1' } });
+    const screen = new ParentFinance(app);
+    screen.stripe = stripe;
+    screen.openPaymentModal(7, 30, 'Ana Roy');
+    await flush();
+    return screen;
+  }
+
+  test('a page in Ukrainian, which Stripe does not offer, gets the card form in the unit\'s fallback language', async () => {
+    const { stripe, elementsOptions } = fakeStripe({});
+    await openPayment({ ...makeApp(), language: 'uk', fallbackLang: 'en' }, stripe);
+
+    expect(elementsOptions().locale).toBe('en');
+  });
+
+  test('a page in French gets the card form in French', async () => {
+    const { stripe, elementsOptions } = fakeStripe({});
+    await openPayment({ ...makeApp(), language: 'fr', fallbackLang: null }, stripe);
+
+    expect(elementsOptions().locale).toBe('fr');
+  });
+
+  test('a declined card shows Stripe\'s own explanation, written for the payer', async () => {
+    const app = makeApp();
+    const { stripe } = fakeStripe({ error: { type: 'card_error', message: 'Votre carte a été refusée.' } });
+    await openPayment({ ...app, language: 'fr' }, stripe);
+
+    document.getElementById('submit-payment').click();
+    await flush();
+
+    expect(document.getElementById('payment-error-message').textContent).toBe('Votre carte a été refusée.');
+  });
+
+  test('a failure that is not about the card is explained in the page\'s language, not Stripe\'s English', async () => {
+    const app = { ...makeApp(), language: 'fr' };
+    const { stripe } = fakeStripe({ error: { type: 'api_error', message: 'An unknown error occurred' } });
+    await openPayment(app, stripe);
+
+    const pay = document.getElementById('submit-payment');
+    pay.click();
+    await flush();
+
+    expect(document.getElementById('payment-error-message').textContent).toBe('payment_failed');
+    expect(app.showMessage).toHaveBeenCalledWith('payment_failed', 'error');
+    expect(pay.disabled).toBe(false);
   });
 });

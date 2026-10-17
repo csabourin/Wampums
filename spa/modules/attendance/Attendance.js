@@ -631,7 +631,7 @@ export class Attendance {
     // Mock structure of group and participant rows
     return `
       <div class="group-card skeleton">
-        <h3 class="skeleton-text">Loading...</h3>
+        <h3 class="skeleton-text">${translate('loading')}</h3>
         <div class="participant-row skeleton">
           <span class="participant-name skeleton-text"></span>
           <span class="participant-status skeleton-text"></span>

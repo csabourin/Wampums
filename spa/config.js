@@ -266,6 +266,12 @@ export const CONFIG = {
    */
   PAYMENTS: {
     STRIPE_PUBLISHABLE_KEY: import.meta.env?.VITE_STRIPE_PUBLISHABLE_KEY || '',
+    // Interface languages Stripe Elements is written in (Ukrainian is not).
+    // https://docs.stripe.com/js/appendix/supported_locales
+    STRIPE_LOCALES: ['en', 'fr', 'it', 'id'],
+    // Stripe error types whose message is written for the payer, in the
+    // Elements locale; any other is an English message for developers.
+    STRIPE_PAYER_ERROR_TYPES: ['card_error', 'validation_error'],
   },
 
   /**

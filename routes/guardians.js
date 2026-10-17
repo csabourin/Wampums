@@ -26,7 +26,7 @@ const {
   requirePermission,
   userHasPermission,
 } = require('../middleware/auth');
-const { success, error, asyncHandler } = require('../middleware/response');
+const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const { revokeGuardianAccess } = require('../services/participantAccess');
 const { hasNameMarkup } = require('../middleware/validation');
 const { splitFullName } = require('../services/accountProvisioning');
@@ -542,7 +542,7 @@ module.exports = (pool) => {
 
         if (guardianCheck.rows.length === 0) {
           await client.query('ROLLBACK');
-          return error(res, 'Guardian not found for this participant', 403);
+          return forbidden(res, 'Guardian not found for this participant', [], []);
         }
 
         // Update existing guardian

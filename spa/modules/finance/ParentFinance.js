@@ -494,7 +494,7 @@ export class ParentFinance {
       this.elements = this.stripe.elements({
         clientSecret,
         // Card errors come from Stripe; ask for them in the page's language.
-        locale: this.app?.language || CONFIG.DEFAULT_LANG || 'auto',
+        locale: this.stripeLocale(),
         appearance: {
           theme: 'stripe',
           variables: {
@@ -525,6 +525,33 @@ export class ParentFinance {
     }
   }
 
+  /**
+   * The language Stripe Elements writes the card form and its errors in: the
+   * page's own when Stripe has it, else the unit's fallback, which a page in an
+   * optional language falls back to. Stripe left to choose would follow the
+   * browser instead, mixing languages on the page.
+   * @returns {string} Stripe locale
+   */
+  stripeLocale() {
+    const supported = CONFIG.PAYMENTS.STRIPE_LOCALES;
+    const candidates = [this.app?.language, this.app?.fallbackLang, CONFIG.DEFAULT_LANG];
+    return candidates.find((lang) => supported.includes(lang)) || CONFIG.DEFAULT_LANG;
+  }
+
+  /**
+   * What to tell the payer about a failed payment. Stripe writes card and
+   * validation errors for the payer, in the Elements locale; anything else
+   * (network, API) is an English message for developers.
+   * @param {{type?: string, message?: string}} error - Stripe error
+   * @returns {string} Message to show
+   */
+  stripeErrorMessage(error) {
+    if (CONFIG.PAYMENTS.STRIPE_PAYER_ERROR_TYPES.includes(error?.type) && error.message) {
+      return error.message;
+    }
+    return translate('payment_failed');
+  }
+
   async handlePaymentSubmit(submitBtn) {
     // Disable submit button and show loading state
     this.paymentProcessing = true;
@@ -549,12 +576,13 @@ export class ParentFinance {
 
       if (error) {
         // Payment failed
-        errorDiv.textContent = error.message;
+        const message = this.stripeErrorMessage(error);
+        errorDiv.textContent = message;
         btnText.style.display = 'inline-block';
         btnSpinner.style.display = 'none';
         submitBtn.disabled = false;
         this.paymentProcessing = false;
-        this.app.showMessage(error.message, 'error');
+        this.app.showMessage(message, 'error');
         debugError('Payment error:', error);
       } else if (paymentIntent && paymentIntent.status === 'succeeded') {
         // Payment succeeded

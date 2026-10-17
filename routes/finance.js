@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, userHasPermission } = require('../middleware/auth');
-const { success, error, asyncHandler } = require('../middleware/response');
+const { success, error, forbidden, asyncHandler } = require('../middleware/response');
+const { validateIdParam, checkValidation } = require('../middleware/validation');
 
 function toNumeric(value) {
   const numeric = Number(value);
@@ -123,7 +124,7 @@ module.exports = (pool, _logger) => {
     }
   }));
 
-  router.put('/v1/finance/fee-definitions/:id', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
+  router.put('/v1/finance/fee-definitions/:id', authenticate, blockDemoRoles, requirePermission('finance.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -165,7 +166,7 @@ module.exports = (pool, _logger) => {
     return success(res, updateResult.rows[0], 'Fee definition updated');
   }));
 
-  router.delete('/v1/finance/fee-definitions/:id', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
+  router.delete('/v1/finance/fee-definitions/:id', authenticate, blockDemoRoles, requirePermission('finance.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -278,7 +279,7 @@ module.exports = (pool, _logger) => {
     return success(res, formatFeeRow(insertResult.rows[0]), 'Participant fee created', 201);
   }));
 
-  router.put('/v1/finance/participant-fees/:id', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
+  router.put('/v1/finance/participant-fees/:id', authenticate, blockDemoRoles, requirePermission('finance.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -331,7 +332,7 @@ module.exports = (pool, _logger) => {
     return success(res, formatFeeRow(updateResult.rows[0]), 'Participant fee updated');
   }));
 
-  router.get('/v1/finance/participant-fees/:id/payments', authenticate, requirePermission('finance.view'), asyncHandler(async (req, res) => {
+  router.get('/v1/finance/participant-fees/:id/payments', authenticate, requirePermission('finance.view'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -355,7 +356,7 @@ module.exports = (pool, _logger) => {
     return success(res, payments.rows, 'Payments loaded');
   }));
 
-  router.post('/v1/finance/participant-fees/:id/payments', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
+  router.post('/v1/finance/participant-fees/:id/payments', authenticate, blockDemoRoles, requirePermission('finance.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -411,7 +412,7 @@ module.exports = (pool, _logger) => {
     }
   }));
 
-  router.put('/v1/finance/payments/:paymentId', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
+  router.put('/v1/finance/payments/:paymentId', authenticate, blockDemoRoles, requirePermission('finance.manage'), validateIdParam('paymentId'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { paymentId } = req.params;
@@ -432,12 +433,9 @@ module.exports = (pool, _logger) => {
       [paymentId]
     );
 
-    if (paymentRow.rows.length === 0) {
+    // Another unit's payment reads as missing: saying it exists would leak it.
+    if (paymentRow.rows.length === 0 || paymentRow.rows[0].organization_id !== organizationId) {
       return error(res, 'Payment not found', 404);
-    }
-
-    if (paymentRow.rows[0].organization_id !== organizationId) {
-      return error(res, 'Payment does not belong to this organization', 403);
     }
 
     const client = await pool.connect();
@@ -479,7 +477,7 @@ module.exports = (pool, _logger) => {
     }
   }));
 
-  router.get('/v1/finance/participant-fees/:id/payment-plans', authenticate, requirePermission('finance.view'), asyncHandler(async (req, res) => {
+  router.get('/v1/finance/participant-fees/:id/payment-plans', authenticate, requirePermission('finance.view'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -503,7 +501,7 @@ module.exports = (pool, _logger) => {
     return success(res, plans.rows, 'Payment plans loaded');
   }));
 
-  router.post('/v1/finance/participant-fees/:id/payment-plans', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
+  router.post('/v1/finance/participant-fees/:id/payment-plans', authenticate, blockDemoRoles, requirePermission('finance.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -540,7 +538,7 @@ module.exports = (pool, _logger) => {
     return success(res, insertResult.rows[0], 'Payment plan created', 201);
   }));
 
-  router.put('/v1/finance/payment-plans/:planId', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
+  router.put('/v1/finance/payment-plans/:planId', authenticate, blockDemoRoles, requirePermission('finance.manage'), validateIdParam('planId'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { planId } = req.params;
@@ -566,12 +564,9 @@ module.exports = (pool, _logger) => {
       [planId]
     );
 
-    if (existing.rows.length === 0) {
+    // Another unit's plan reads as missing: saying it exists would leak it.
+    if (existing.rows.length === 0 || existing.rows[0].organization_id !== organizationId) {
       return error(res, 'Payment plan not found', 404);
-    }
-
-    if (existing.rows[0].organization_id !== organizationId) {
-      return error(res, 'Payment plan does not belong to this organization', 403);
     }
 
     const updated = await pool.query(
@@ -589,7 +584,7 @@ module.exports = (pool, _logger) => {
     return success(res, updated.rows[0], 'Payment plan updated');
   }));
 
-  router.delete('/v1/finance/payment-plans/:planId', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
+  router.delete('/v1/finance/payment-plans/:planId', authenticate, blockDemoRoles, requirePermission('finance.manage'), validateIdParam('planId'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { planId } = req.params;
@@ -602,12 +597,9 @@ module.exports = (pool, _logger) => {
       [planId]
     );
 
-    if (existing.rows.length === 0) {
+    // Another unit's plan reads as missing: saying it exists would leak it.
+    if (existing.rows.length === 0 || existing.rows[0].organization_id !== organizationId) {
       return error(res, 'Payment plan not found', 404);
-    }
-
-    if (existing.rows[0].organization_id !== organizationId) {
-      return error(res, 'Payment plan does not belong to this organization', 403);
     }
 
     await pool.query('DELETE FROM payment_plans WHERE id = $1', [planId]);
@@ -713,7 +705,7 @@ module.exports = (pool, _logger) => {
 
   // No requirePermission here: guardians without finance.view may view their own
   // children's statements. Staff/guardian access is enforced inside the handler.
-  router.get('/v1/finance/participants/:participantId/statement', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/finance/participants/:participantId/statement', authenticate, validateIdParam('participantId'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { participantId } = req.params;
@@ -746,7 +738,7 @@ module.exports = (pool, _logger) => {
       );
 
       if (guardianLink.rows.length === 0) {
-        return error(res, 'Insufficient permissions to view this statement', 403);
+        return forbidden(res, 'Insufficient permissions to view this statement', ['finance.view'], ['finance.view']);
       }
     }
 

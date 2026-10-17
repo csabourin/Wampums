@@ -20,7 +20,7 @@ const {
   blockDemoRoles,
   getOrganizationId
 } = require('../middleware/auth');
-const { success, error, asyncHandler } = require('../middleware/response');
+const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const {
   listSiblingOrganizations,
   areSiblings,
@@ -112,7 +112,7 @@ module.exports = (pool, logger) => {
         return error(res, 'same_organization', 400);
       }
       if (!(await areSiblings(pool, organizationId, targetOrganizationId))) {
-        return error(res, 'not_a_sibling_unit', 403);
+        return forbidden(res, 'not_a_sibling_unit', [], []);
       }
 
       const client = await pool.connect();
