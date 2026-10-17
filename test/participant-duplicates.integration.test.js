@@ -170,7 +170,7 @@ describe.skipIf(!DATABASE_URL)('Duplicate candidates', () => {
    */
   async function link(from, to) {
     const asked = await as(from.id).post('/api/v1/family-link-requests').send({ email: to.email });
-    if (asked.status !== 201) throw new Error(`ask failed: ${JSON.stringify(asked.body)}`);
+    if (asked.status !== 201) {throw new Error(`ask failed: ${JSON.stringify(asked.body)}`);}
     const token = decodeURIComponent(/family-link\?token=([^"\s&]+)/.exec(sentEmails[sentEmails.length - 1].message)[1]);
     const accepted = await request(app).post('/api/v1/public/family-links/accept').send({ token });
     return accepted.body.data;
@@ -218,7 +218,7 @@ describe.skipIf(!DATABASE_URL)('Duplicate candidates', () => {
   });
 
   afterAll(async () => {
-    if (pool) await pool.end();
+    if (pool) {await pool.end();}
   });
 
   beforeEach(async () => {

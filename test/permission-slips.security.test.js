@@ -4,21 +4,21 @@ const { closeServerResources } = require('./test-helpers');
 
 // Mock pg module before requiring app
 jest.mock('pg', () => {
-    const mClient = {
-        query: jest.fn(),
-        release: jest.fn()
-    };
-    const mPool = {
-        connect: jest.fn(() => Promise.resolve(mClient)),
-        query: jest.fn(),
-        on: jest.fn()
-    };
-    return {
-        Pool: jest.fn(() => mPool),
-        __esModule: true,
-        __mClient: mClient,
-        __mPool: mPool
-    };
+  const mClient = {
+    query: jest.fn(),
+    release: jest.fn()
+  };
+  const mPool = {
+    connect: jest.fn(() => Promise.resolve(mClient)),
+    query: jest.fn(),
+    on: jest.fn()
+  };
+  return {
+    Pool: jest.fn(() => mPool),
+    __esModule: true,
+    __mClient: mClient,
+    __mPool: mPool
+  };
 });
 
 const { Pool } = require('pg');
@@ -30,156 +30,156 @@ const TEST_TOKEN = '550e8400-e29b-41d4-a716-446655440000';
 const TEST_ID = 28;
 
 beforeAll(() => {
-    process.env.JWT_SECRET_KEY = TEST_SECRET;
-    app = require('../api');
+  process.env.JWT_SECRET_KEY = TEST_SECRET;
+  app = require('../api');
 });
 
 afterAll((done) => {
-    closeServerResources(app, done);
+  closeServerResources(app, done);
 });
 
 describe('Permission Slip Security', () => {
-    const { __mClient, __mPool } = require('pg');
+  const { __mClient, __mPool } = require('pg');
 
-    beforeEach(() => {
-        __mPool.query.mockReset();
+  beforeEach(() => {
+    __mPool.query.mockReset();
+  });
+
+  describe('Public access via Token', () => {
+    test('GET /api/v1/resources/permission-slips/v/:token should allow viewing', async () => {
+      __mPool.query.mockResolvedValueOnce({
+        rows: [{
+          id: TEST_ID,
+          access_token: TEST_TOKEN,
+          activity_title: 'Camp',
+          meeting_date: '2026-06-01',
+          participant_name: 'John Doe',
+          status: 'pending'
+        }]
+      });
+
+      const res = await request(app).get(`/api/v1/resources/permission-slips/v/${TEST_TOKEN}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.access_token).toBe(TEST_TOKEN);
     });
 
-    describe('Public access via Token', () => {
-        test('GET /api/v1/resources/permission-slips/v/:token should allow viewing', async () => {
-            __mPool.query.mockResolvedValueOnce({
-                rows: [{
-                    id: TEST_ID,
-                    access_token: TEST_TOKEN,
-                    activity_title: 'Camp',
-                    meeting_date: '2026-06-01',
-                    participant_name: 'John Doe',
-                    status: 'pending'
-                }]
-            });
+    test('PATCH /api/v1/resources/permission-slips/s/:token should allow signing', async () => {
+      // Mock existing slip check
+      __mPool.query.mockResolvedValueOnce({
+        rows: [{ id: TEST_ID, status: 'pending' }]
+      });
+      // Mock update
+      __mPool.query.mockResolvedValueOnce({
+        rows: [{ id: TEST_ID, status: 'signed', signed_by: 'Parent' }]
+      });
 
-            const res = await request(app).get(`/api/v1/resources/permission-slips/v/${TEST_TOKEN}`);
+      const res = await request(app)
+        .patch(`/api/v1/resources/permission-slips/s/${TEST_TOKEN}`)
+        .send({ signed_by: 'Parent' });
 
-            expect(res.status).toBe(200);
-            expect(res.body.success).toBe(true);
-            expect(res.body.data.access_token).toBe(TEST_TOKEN);
-        });
-
-        test('PATCH /api/v1/resources/permission-slips/s/:token should allow signing', async () => {
-            // Mock existing slip check
-            __mPool.query.mockResolvedValueOnce({
-                rows: [{ id: TEST_ID, status: 'pending' }]
-            });
-            // Mock update
-            __mPool.query.mockResolvedValueOnce({
-                rows: [{ id: TEST_ID, status: 'signed', signed_by: 'Parent' }]
-            });
-
-            const res = await request(app)
-                .patch(`/api/v1/resources/permission-slips/s/${TEST_TOKEN}`)
-                .send({ signed_by: 'Parent' });
-
-            expect(res.status).toBe(200);
-            expect(res.body.success).toBe(true);
-            expect(res.body.message).toContain('signed');
-        });
-
-        test('PATCH /api/v1/resources/permission-slips/public/:token should allow declining', async () => {
-            __mPool.query.mockResolvedValueOnce({
-                rows: [{
-                    id: TEST_ID,
-                    status: 'declined',
-                    declined_by: 'Parent'
-                }]
-            });
-
-            const res = await request(app)
-                .patch(`/api/v1/resources/permission-slips/public/${TEST_TOKEN}`)
-                .send({ status: 'declined', declined_by: 'Parent' });
-
-            expect(res.status).toBe(200);
-            expect(res.body.success).toBe(true);
-            expect(res.body.data.permission_slip.status).toBe('declined');
-        });
-
-        test('PATCH /api/v1/resources/permission-slips/public/:token should reject a second response', async () => {
-            __mPool.query
-                .mockResolvedValueOnce({ rows: [] })
-                .mockResolvedValueOnce({ rows: [{ status: 'signed' }] });
-
-            const res = await request(app)
-                .patch(`/api/v1/resources/permission-slips/public/${TEST_TOKEN}`)
-                .send({ status: 'declined', declined_by: 'Parent' });
-
-            expect(res.status).toBe(409);
-            expect(res.body.success).toBe(false);
-        });
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toContain('signed');
     });
 
-    describe('Insecure access via ID (Protection Check)', () => {
-        test('GET /api/v1/resources/permission-slips/:id/view should REJECT without authentication', async () => {
-            const res = await request(app).get(`/api/v1/resources/permission-slips/${TEST_ID}/view`);
+    test('PATCH /api/v1/resources/permission-slips/public/:token should allow declining', async () => {
+      __mPool.query.mockResolvedValueOnce({
+        rows: [{
+          id: TEST_ID,
+          status: 'declined',
+          declined_by: 'Parent'
+        }]
+      });
 
-            expect(res.status).toBe(401);
-        });
+      const res = await request(app)
+        .patch(`/api/v1/resources/permission-slips/public/${TEST_TOKEN}`)
+        .send({ status: 'declined', declined_by: 'Parent' });
 
-        test('PATCH /api/v1/resources/permission-slips/:id/sign should REJECT without authentication', async () => {
-            const res = await request(app)
-                .patch(`/api/v1/resources/permission-slips/${TEST_ID}/sign`)
-                .send({ signed_by: 'Attacker' });
-
-            expect(res.status).toBe(401);
-        });
-
-        test('GET /api/v1/resources/permission-slips/:id/view should allow with valid authentication', async () => {
-            const token = jwt.sign({ user_id: 1, organizationId: 1 }, TEST_SECRET);
-
-            setupDefaultMocks(__mClient, __mPool);
-
-            // Mock active organization membership
-            __mPool.query.mockResolvedValueOnce({
-                rows: [{ organization_id: 1 }]
-            });
-            // Mock authorization context
-            __mPool.query.mockResolvedValueOnce(authorizationContextRow({
-                permissions: ['activities.view'],
-                roles: [{ role_name: 'leader', display_name: 'Leader' }],
-            }));
-            // Mock the organization-scoped slip result
-            __mPool.query.mockResolvedValueOnce({
-                rows: [{ id: TEST_ID, activity_title: 'Camp' }]
-            });
-
-            const res = await request(app)
-                .get(`/api/v1/resources/permission-slips/${TEST_ID}/view`)
-                .set('Authorization', `Bearer ${token}`)
-                .set('x-organization-id', '1');
-
-            expect(res.status).toBe(200);
-            expect(res.body.success).toBe(true);
-        });
-
-        test('PATCH /api/v1/resources/permission-slips/:id/archive should update within the active organization', async () => {
-            const token = jwt.sign({ user_id: 1, organizationId: 1 }, TEST_SECRET);
-
-            __mPool.query
-                .mockResolvedValueOnce({ rows: [{ organization_id: 1 }] })
-                .mockResolvedValueOnce(authorizationContextRow({
-                    permissions: ['activities.edit'],
-                    roles: [{ role_name: 'leader', display_name: 'Leader' }],
-                }))
-                .mockResolvedValueOnce({ rows: [{ id: TEST_ID, status: 'archived' }] });
-
-            const res = await request(app)
-                .patch(`/api/v1/resources/permission-slips/${TEST_ID}/archive`)
-                .set('Authorization', `Bearer ${token}`)
-                .send({});
-
-            expect(res.status).toBe(200);
-            expect(res.body.data.permission_slip.status).toBe('archived');
-            const archiveQuery = __mPool.query.mock.calls[2];
-            expect(archiveQuery[0]).toContain('organization_id = $2');
-            expect(archiveQuery[1]).toEqual([TEST_ID, 1]);
-        });
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.permission_slip.status).toBe('declined');
     });
+
+    test('PATCH /api/v1/resources/permission-slips/public/:token should reject a second response', async () => {
+      __mPool.query
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ status: 'signed' }] });
+
+      const res = await request(app)
+        .patch(`/api/v1/resources/permission-slips/public/${TEST_TOKEN}`)
+        .send({ status: 'declined', declined_by: 'Parent' });
+
+      expect(res.status).toBe(409);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('Insecure access via ID (Protection Check)', () => {
+    test('GET /api/v1/resources/permission-slips/:id/view should REJECT without authentication', async () => {
+      const res = await request(app).get(`/api/v1/resources/permission-slips/${TEST_ID}/view`);
+
+      expect(res.status).toBe(401);
+    });
+
+    test('PATCH /api/v1/resources/permission-slips/:id/sign should REJECT without authentication', async () => {
+      const res = await request(app)
+        .patch(`/api/v1/resources/permission-slips/${TEST_ID}/sign`)
+        .send({ signed_by: 'Attacker' });
+
+      expect(res.status).toBe(401);
+    });
+
+    test('GET /api/v1/resources/permission-slips/:id/view should allow with valid authentication', async () => {
+      const token = jwt.sign({ user_id: 1, organizationId: 1 }, TEST_SECRET);
+
+      setupDefaultMocks(__mClient, __mPool);
+
+      // Mock active organization membership
+      __mPool.query.mockResolvedValueOnce({
+        rows: [{ organization_id: 1 }]
+      });
+      // Mock authorization context
+      __mPool.query.mockResolvedValueOnce(authorizationContextRow({
+        permissions: ['activities.view'],
+        roles: [{ role_name: 'leader', display_name: 'Leader' }],
+      }));
+      // Mock the organization-scoped slip result
+      __mPool.query.mockResolvedValueOnce({
+        rows: [{ id: TEST_ID, activity_title: 'Camp' }]
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/resources/permission-slips/${TEST_ID}/view`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-organization-id', '1');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    test('PATCH /api/v1/resources/permission-slips/:id/archive should update within the active organization', async () => {
+      const token = jwt.sign({ user_id: 1, organizationId: 1 }, TEST_SECRET);
+
+      __mPool.query
+        .mockResolvedValueOnce({ rows: [{ organization_id: 1 }] })
+        .mockResolvedValueOnce(authorizationContextRow({
+          permissions: ['activities.edit'],
+          roles: [{ role_name: 'leader', display_name: 'Leader' }],
+        }))
+        .mockResolvedValueOnce({ rows: [{ id: TEST_ID, status: 'archived' }] });
+
+      const res = await request(app)
+        .patch(`/api/v1/resources/permission-slips/${TEST_ID}/archive`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.permission_slip.status).toBe('archived');
+      const archiveQuery = __mPool.query.mock.calls[2];
+      expect(archiveQuery[0]).toContain('organization_id = $2');
+      expect(archiveQuery[1]).toEqual([TEST_ID, 1]);
+    });
+  });
 });

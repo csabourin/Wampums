@@ -53,7 +53,7 @@ async function applyBaseMigrations(client, context = {}) {
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) throw new Error('DATABASE_URL must be configured');
+  if (!databaseUrl) {throw new Error('DATABASE_URL must be configured');}
   const pool = new Pool({
     connectionString: databaseUrl,
     ssl: databaseUrl.includes('sslmode=require') ? { rejectUnauthorized: false } : false,

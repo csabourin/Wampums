@@ -13,12 +13,12 @@
 // Mock DateUtils to keep the test hermetic (no config/storage dependencies)
 jest.mock('../../spa/utils/DateUtils.js', () => ({
   parseDate: jest.fn((dateString) => {
-    if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return null;
+    if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {return null;}
     const [year, month, day] = dateString.split('-').map(Number);
     return new Date(year, month - 1, day);
   }),
   isoToDateString: jest.fn((value) => {
-    if (!value) return '';
+    if (!value) {return '';}
     if (value instanceof Date) {
       const y = value.getFullYear();
       const m = String(value.getMonth() + 1).padStart(2, '0');

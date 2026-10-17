@@ -426,7 +426,7 @@ describe('XSS Prevention - escapeHtml', () => {
   });
 
   test('escapes single and double quotes', () => {
-    expect(escapeHtml("it's a \"test\"")).toBe("it&#039;s a &quot;test&quot;");
+    expect(escapeHtml("it's a \"test\"")).toBe('it&#039;s a &quot;test&quot;');
   });
 
   test('handles empty string', () => {
@@ -470,12 +470,12 @@ describe('Security Headers', () => {
       );
       expect(imageSources).not.toContain('https://*.storageapi.dev');
     } finally {
-      if (originalEndpoint === undefined) delete process.env.AWS_ENDPOINT_URL;
-      else process.env.AWS_ENDPOINT_URL = originalEndpoint;
-      if (originalBucket === undefined) delete process.env.AWS_S3_BUCKET_NAME;
-      else process.env.AWS_S3_BUCKET_NAME = originalBucket;
-      if (originalUrlStyle === undefined) delete process.env.AWS_S3_URL_STYLE;
-      else process.env.AWS_S3_URL_STYLE = originalUrlStyle;
+      if (originalEndpoint === undefined) {delete process.env.AWS_ENDPOINT_URL;}
+      else {process.env.AWS_ENDPOINT_URL = originalEndpoint;}
+      if (originalBucket === undefined) {delete process.env.AWS_S3_BUCKET_NAME;}
+      else {process.env.AWS_S3_BUCKET_NAME = originalBucket;}
+      if (originalUrlStyle === undefined) {delete process.env.AWS_S3_URL_STYLE;}
+      else {process.env.AWS_S3_URL_STYLE = originalUrlStyle;}
     }
   });
 

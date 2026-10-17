@@ -1072,8 +1072,8 @@ describe('User Organization Isolation', () => {
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM users')) {
         const orgId = params[params.length - 1];
-        if (orgId === 1) org1QueryCount++;
-        if (orgId === 2) org2QueryCount++;
+        if (orgId === 1) {org1QueryCount++;}
+        if (orgId === 2) {org2QueryCount++;}
         return Promise.resolve({ rows: [] });
       }
       return Promise.resolve({ rows: [] });

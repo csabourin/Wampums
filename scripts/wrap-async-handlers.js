@@ -15,9 +15,9 @@ function findHandlers(ast) {
   const out = [];
 
   function walk(node, parent) {
-    if (!node || typeof node !== 'object') return;
+    if (!node || typeof node !== 'object') {return;}
     if (Array.isArray(node)) {
-      for (const c of node) walk(c, parent);
+      for (const c of node) {walk(c, parent);}
       return;
     }
     if (node.type === 'CallExpression') {
@@ -52,7 +52,7 @@ function findHandlers(ast) {
       }
     }
     for (const k of Object.keys(node)) {
-      if (k === 'loc' || k === 'start' || k === 'end' || k === 'tokens') continue;
+      if (k === 'loc' || k === 'start' || k === 'end' || k === 'tokens') {continue;}
       walk(node[k], node);
     }
   }

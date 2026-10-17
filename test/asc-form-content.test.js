@@ -46,7 +46,7 @@ describe('Risk acceptance form', () => {
     // checkbox for the *next* topic, so people ticked boxes against the wrong
     // text. Every checkbox must now be preceded by a block of standing text.
     fields.forEach((field, index) => {
-      if (field.type !== 'checkbox') return;
+      if (field.type !== 'checkbox') {return;}
       expect(index).toBeGreaterThan(0);
       expect(fields[index - 1].type).toBe('infoText');
     });
@@ -97,7 +97,7 @@ describe('Migrating an existing organization', () => {
     expect(keys).not.toContain('text:sante_symptomes_texte');
   });
 
-  it("keeps a field the organization added for itself", () => {
+  it('keeps a field the organization added for itself', () => {
     const result = applyCorrectedFields('fiche_sante', {
       fields: [{ name: 'regles', type: 'radio' }, { name: 'local_question', type: 'text' }],
     });

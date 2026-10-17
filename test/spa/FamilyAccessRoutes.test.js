@@ -25,7 +25,7 @@ const routerSource = fs.readFileSync(path.join(__dirname, '../../spa/router.js')
  */
 function loggedOutRoutes() {
   const match = /if \(!this\.app\.isLoggedIn && !\[([^\]]+)\]\.includes\(routeName\)\)/.exec(routerSource);
-  if (!match) throw new Error('logged-out allow-list not found in router');
+  if (!match) {throw new Error('logged-out allow-list not found in router');}
   return match[1].split(',').map((name) => name.trim().replace(/^["']|["']$/g, ''));
 }
 

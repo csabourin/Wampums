@@ -1,7 +1,7 @@
-const express = require("express");
-const request = require("supertest");
+const express = require('express');
+const request = require('supertest');
 
-jest.mock("../middleware/auth", () => {
+jest.mock('../middleware/auth', () => {
   const getOrganizationId = jest.fn(async () => 1);
   return {
     authenticate: (req, _res, next) => {
@@ -15,31 +15,31 @@ jest.mock("../middleware/auth", () => {
   };
 });
 
-jest.mock("../utils/railway-storage", () => ({
+jest.mock('../utils/railway-storage', () => ({
   MAX_FILE_SIZE: 1_000_000,
-  OUTPUT_MIME_TYPE: "image/webp",
+  OUTPUT_MIME_TYPE: 'image/webp',
   validateFile: () => ({ isValid: true }),
   isAllowedImageType: () => true,
   convertImageToWebP: async (buffer) => buffer,
-  generateFilePath: () => "path",
+  generateFilePath: () => 'path',
   getPhotoOrganizationId: jest.fn((reference) => {
-    const match = /^org_(\d+)\/equipment_/.exec(reference || "");
+    const match = /^org_(\d+)\/equipment_/.exec(reference || '');
     return match ? Number.parseInt(match[1], 10) : null;
   }),
   getSignedPhotoUrl: jest.fn(
     async (reference) => `https://signed.example/${reference}`,
   ),
-  uploadFile: async () => ({ success: true, path: "path" }),
+  uploadFile: async () => ({ success: true, path: 'path' }),
   deleteFile: async () => true,
   extractPathFromUrl: (reference) => reference,
   isStorageConfigured: () => false,
-  WEBP_EXTENSION: ".webp",
+  WEBP_EXTENSION: '.webp',
 }));
 
-const { getOrganizationId } = require("../middleware/auth");
-const { getSignedPhotoUrl } = require("../utils/railway-storage");
+const { getOrganizationId } = require('../middleware/auth');
+const { getSignedPhotoUrl } = require('../utils/railway-storage');
 
-describe("Equipment sharing and metadata", () => {
+describe('Equipment sharing and metadata', () => {
   let app;
   let mockPool;
   let equipmentItems;
@@ -152,22 +152,22 @@ describe("Equipment sharing and metadata", () => {
     jest.clearAllMocks();
 
     organizations = {
-      1: "Pack 1",
-      2: "Pack 2",
-      3: "Outside Org",
+      1: 'Pack 1',
+      2: 'Pack 2',
+      3: 'Outside Org',
     };
 
     localGroups = {
-      1: [{ id: 10, name: "North" }],
-      2: [{ id: 10, name: "North" }],
-      3: [{ id: 20, name: "South" }],
+      1: [{ id: 10, name: 'North' }],
+      2: [{ id: 10, name: 'North' }],
+      3: [{ id: 20, name: 'South' }],
     };
 
     equipmentItems = {
       1: {
         id: 1,
         organization_id: 1,
-        name: "Camp stove",
+        name: 'Camp stove',
         category: null,
         description: null,
         quantity_total: 2,
@@ -177,16 +177,16 @@ describe("Equipment sharing and metadata", () => {
         item_value: null,
         photo_url: null,
         acquisition_date: null,
-        location_type: "leader_home",
-        location_details: "Call ahead for garage code",
+        location_type: 'leader_home',
+        location_details: 'Call ahead for garage code',
         is_active: true,
       },
       2: {
         id: 2,
         organization_id: 2,
-        name: "Tent",
-        category: "camping",
-        description: "Large tent",
+        name: 'Tent',
+        category: 'camping',
+        description: 'Large tent',
         quantity_total: 3,
         quantity_available: 3,
         condition_note: null,
@@ -194,8 +194,8 @@ describe("Equipment sharing and metadata", () => {
         item_value: null,
         photo_url: null,
         acquisition_date: null,
-        location_type: "leader_home",
-        location_details: "Garage",
+        location_type: 'leader_home',
+        location_details: 'Garage',
         is_active: true,
       },
     };
@@ -209,20 +209,20 @@ describe("Equipment sharing and metadata", () => {
       {
         id: 5,
         equipment_id: 2,
-        meeting_date: "2024-05-01",
-        date_from: "2024-05-01",
-        date_to: "2024-05-03",
+        meeting_date: '2024-05-01',
+        date_from: '2024-05-01',
+        date_to: '2024-05-03',
         reserved_quantity: 1,
-        reserved_for: "Spring Camp",
+        reserved_for: 'Spring Camp',
         organization_id: 1,
-        status: "reserved",
+        status: 'reserved',
         notes: null,
       },
     ];
 
     mockPool = {
       query: jest.fn(async (text, params) => {
-        if (text.startsWith("INSERT INTO equipment_items")) {
+        if (text.startsWith('INSERT INTO equipment_items')) {
           const newId = Math.max(...Object.keys(equipmentItems).map(Number)) + 1;
           const newEquipment = {
             id: newId,
@@ -246,7 +246,7 @@ describe("Equipment sharing and metadata", () => {
           return { rows: [newEquipment] };
         }
 
-        if (text.startsWith("SELECT DISTINCT peers.organization_id")) {
+        if (text.startsWith('SELECT DISTINCT peers.organization_id')) {
           const ownerId = params[0];
           const ownerGroupIds = getLocalGroupIds(ownerId);
           const peers = Object.entries(localGroups)
@@ -257,7 +257,7 @@ describe("Equipment sharing and metadata", () => {
           return { rows: peers };
         }
 
-        if (text.startsWith("DELETE FROM equipment_item_organizations")) {
+        if (text.startsWith('DELETE FROM equipment_item_organizations')) {
           const [equipmentId, allowedOrgIds] = params;
           equipmentItemOrganizations[equipmentId] = new Set(
             (equipmentItemOrganizations[equipmentId]
@@ -268,7 +268,7 @@ describe("Equipment sharing and metadata", () => {
           return { rows: [] };
         }
 
-        if (text.startsWith("INSERT INTO equipment_item_organizations")) {
+        if (text.startsWith('INSERT INTO equipment_item_organizations')) {
           const [equipmentId, orgId] = params;
           if (!equipmentItemOrganizations[equipmentId]) {
             equipmentItemOrganizations[equipmentId] = new Set();
@@ -278,9 +278,9 @@ describe("Equipment sharing and metadata", () => {
         }
 
         if (
-          text.startsWith("SELECT 1") &&
-          text.includes("equipment_items ei") &&
-          text.includes("share_with_local_group")
+          text.startsWith('SELECT 1') &&
+          text.includes('equipment_items ei') &&
+          text.includes('share_with_local_group')
         ) {
           const [equipmentId, orgId] = params;
           const equipment = equipmentItems[equipmentId];
@@ -298,39 +298,39 @@ describe("Equipment sharing and metadata", () => {
             : { rows: [] };
         }
 
-        if (text.startsWith("SELECT name, quantity_total FROM equipment_items")) {
+        if (text.startsWith('SELECT name, quantity_total FROM equipment_items')) {
           const equipment = equipmentItems[params[0]];
           return equipment
             ? { rows: [{ name: equipment.name, quantity_total: equipment.quantity_total }] }
             : { rows: [] };
         }
 
-        if (text.startsWith("SELECT * FROM equipment_items WHERE id =")) {
+        if (text.startsWith('SELECT * FROM equipment_items WHERE id =')) {
           const equipment = equipmentItems[params[0]];
           return equipment ? { rows: [equipment] } : { rows: [] };
         }
 
         if (
-          text.includes("SELECT id, organization_id, photo_url") &&
-          text.includes("FROM equipment_items")
+          text.includes('SELECT id, organization_id, photo_url') &&
+          text.includes('FROM equipment_items')
         ) {
           const equipment = equipmentItems[params[0]];
           return equipment && equipment.is_active !== false
             ? {
-                rows: [{
-                  id: equipment.id,
-                  organization_id: equipment.organization_id,
-                  photo_url: equipment.photo_url,
-                }],
-              }
+              rows: [{
+                id: equipment.id,
+                organization_id: equipment.organization_id,
+                photo_url: equipment.photo_url,
+              }],
+            }
             : { rows: [] };
         }
 
-        if (text.startsWith("SELECT COALESCE(SUM(reserved_quantity)")) {
+        if (text.startsWith('SELECT COALESCE(SUM(reserved_quantity)')) {
           return { rows: [{ total_reserved: 0 }] };
         }
 
-        if (text.startsWith("INSERT INTO equipment_reservations")) {
+        if (text.startsWith('INSERT INTO equipment_reservations')) {
           const [
             reservationOrgId,
             equipmentId,
@@ -363,9 +363,9 @@ describe("Equipment sharing and metadata", () => {
         }
 
         if (
-          text.includes("WITH requester_groups") &&
-          text.includes("reservation_local_group_names") &&
-          text.includes("equipment_reservations er")
+          text.includes('WITH requester_groups') &&
+          text.includes('reservation_local_group_names') &&
+          text.includes('equipment_reservations er')
         ) {
           const orgId = params[0];
           const meetingDateFilter = params[1];
@@ -376,27 +376,27 @@ describe("Equipment sharing and metadata", () => {
         }
 
         if (
-          text.includes("WITH requester_groups") &&
-          text.includes("shared_visibility") &&
-          text.includes("accessible_equipment")
+          text.includes('WITH requester_groups') &&
+          text.includes('shared_visibility') &&
+          text.includes('accessible_equipment')
         ) {
           const orgId = params[0];
           return { rows: buildEquipmentResponse(orgId) };
         }
 
-        if (text.startsWith("UPDATE equipment_items")) {
+        if (text.startsWith('UPDATE equipment_items')) {
           const equipmentId = params[0];
           const equipment = equipmentItems[equipmentId];
           if (!equipment) {
             return { rows: [] };
           }
-          const setClause = text.split("SET")[1].split("WHERE")[0];
+          const setClause = text.split('SET')[1].split('WHERE')[0];
           const assignments = setClause
-            .split(",")
+            .split(',')
             .map((entry) => entry.trim())
-            .filter((entry) => entry && !entry.startsWith("updated_at"));
+            .filter((entry) => entry && !entry.startsWith('updated_at'));
           assignments.forEach((assignment, index) => {
-            const field = assignment.split("=")[0].trim();
+            const field = assignment.split('=')[0].trim();
             const value = params[index + 1];
             equipment[field] = value;
           });
@@ -407,197 +407,197 @@ describe("Equipment sharing and metadata", () => {
       }),
     };
 
-    const resourcesRouter = require("../routes/resources")(mockPool);
+    const resourcesRouter = require('../routes/resources')(mockPool);
     app = express();
     app.use(express.json());
     app.locals.pool = mockPool;
-    app.use("/api/v1/resources", resourcesRouter);
+    app.use('/api/v1/resources', resourcesRouter);
   });
 
-  test("creates equipment with location metadata", async () => {
+  test('creates equipment with location metadata', async () => {
     const response = await request(app)
-      .post("/api/v1/resources/equipment")
+      .post('/api/v1/resources/equipment')
       .send({
-        name: "Camp stove",
+        name: 'Camp stove',
         quantity_total: 2,
-        photo_url: "org_1/equipment_3_123.webp",
-        location_type: "leader_home",
-        location_details: "Call ahead for garage code",
+        photo_url: 'org_1/equipment_3_123.webp',
+        location_type: 'leader_home',
+        location_details: 'Call ahead for garage code',
       });
 
     expect(response.status).toBe(201);
-    expect(response.body.data.equipment.location_type).toBe("leader_home");
+    expect(response.body.data.equipment.location_type).toBe('leader_home');
     expect(response.body.data.equipment.location_details).toBe(
-      "Call ahead for garage code",
+      'Call ahead for garage code',
     );
     expect(response.body.data.equipment.photo_url).toBe(
-      "https://signed.example/org_1/equipment_3_123.webp",
+      'https://signed.example/org_1/equipment_3_123.webp',
     );
     const newEquipmentId = response.body.data.equipment.id;
     expect(equipmentItemOrganizations[newEquipmentId].has(2)).toBe(true);
   });
 
-  test("rejects a photo key owned by another organization on create", async () => {
+  test('rejects a photo key owned by another organization on create', async () => {
     const response = await request(app)
-      .post("/api/v1/resources/equipment")
+      .post('/api/v1/resources/equipment')
       .send({
-        name: "Foreign photo item",
-        photo_url: "org_2/equipment_44_123.webp",
+        name: 'Foreign photo item',
+        photo_url: 'org_2/equipment_44_123.webp',
       });
 
     expect(response.status).toBe(400);
     expect(response.body.message).toBe(
-      "equipment_photo_organization_mismatch",
+      'equipment_photo_organization_mismatch',
     );
     expect(
       Object.values(equipmentItems).some(
-        (equipment) => equipment.name === "Foreign photo item",
+        (equipment) => equipment.name === 'Foreign photo item',
       ),
     ).toBe(false);
   });
 
-  test("updates equipment location fields", async () => {
-    equipmentItems[1].photo_url = "org_1/equipment_1_123.webp";
+  test('updates equipment location fields', async () => {
+    equipmentItems[1].photo_url = 'org_1/equipment_1_123.webp';
 
     const response = await request(app)
-      .put("/api/v1/resources/equipment/1")
+      .put('/api/v1/resources/equipment/1')
       .send({
-        location_type: "warehouse",
-        location_details: "Locker 12",
+        location_type: 'warehouse',
+        location_details: 'Locker 12',
       });
 
     expect(response.status).toBe(200);
-    expect(response.body.data.equipment.location_type).toBe("warehouse");
-    expect(response.body.data.equipment.location_details).toBe("Locker 12");
+    expect(response.body.data.equipment.location_type).toBe('warehouse');
+    expect(response.body.data.equipment.location_details).toBe('Locker 12');
     expect(response.body.data.equipment.photo_url).toBe(
-      "https://signed.example/org_1/equipment_1_123.webp",
+      'https://signed.example/org_1/equipment_1_123.webp',
     );
   });
 
   test("rejects a photo key outside the equipment owner's organization on update", async () => {
     const response = await request(app)
-      .put("/api/v1/resources/equipment/1")
-      .send({ photo_url: "org_2/equipment_44_123.webp" });
+      .put('/api/v1/resources/equipment/1')
+      .send({ photo_url: 'org_2/equipment_44_123.webp' });
 
     expect(response.status).toBe(400);
     expect(response.body.message).toBe(
-      "equipment_photo_organization_mismatch",
+      'equipment_photo_organization_mismatch',
     );
     expect(equipmentItems[1].photo_url).toBeNull();
   });
 
-  test("uses the owner organization when a shared equipment photo is updated", async () => {
+  test('uses the owner organization when a shared equipment photo is updated', async () => {
     const response = await request(app)
-      .put("/api/v1/resources/equipment/2")
-      .send({ photo_url: "org_2/equipment_2_456.webp" });
+      .put('/api/v1/resources/equipment/2')
+      .send({ photo_url: 'org_2/equipment_2_456.webp' });
 
     expect(response.status).toBe(200);
-    expect(equipmentItems[2].photo_url).toBe("org_2/equipment_2_456.webp");
+    expect(equipmentItems[2].photo_url).toBe('org_2/equipment_2_456.webp');
   });
 
-  test("returns reservation locations with audit context", async () => {
-    const response = await request(app).get("/api/v1/resources/equipment/reservations");
+  test('returns reservation locations with audit context', async () => {
+    const response = await request(app).get('/api/v1/resources/equipment/reservations');
 
     expect(response.status).toBe(200);
     const reservation = response.body.data.reservations[0];
-    expect(reservation.location_type).toBe("leader_home");
-    expect(reservation.location_details).toBe("Garage");
-    expect(reservation.owner_organization_name).toBe("Pack 2");
-    expect(reservation.owner_local_group_names).toContain("North");
+    expect(reservation.location_type).toBe('leader_home');
+    expect(reservation.location_details).toBe('Garage');
+    expect(reservation.owner_organization_name).toBe('Pack 2');
+    expect(reservation.owner_local_group_names).toContain('North');
   });
 
-  test("allows same local group to read shared equipment without explicit share rows", async () => {
+  test('allows same local group to read shared equipment without explicit share rows', async () => {
     getOrganizationId.mockResolvedValueOnce(1);
 
-    const response = await request(app).get("/api/v1/resources/equipment");
+    const response = await request(app).get('/api/v1/resources/equipment');
 
     expect(response.status).toBe(200);
     const ids = response.body.data.equipment.map((item) => item.id);
     expect(ids).toContain(2);
   });
 
-  test("returns signed Railway URLs for stored equipment photo keys", async () => {
-    equipmentItems[1].photo_url = "org_1/equipment_1_123.webp";
+  test('returns signed Railway URLs for stored equipment photo keys', async () => {
+    equipmentItems[1].photo_url = 'org_1/equipment_1_123.webp';
 
-    const response = await request(app).get("/api/v1/resources/equipment");
+    const response = await request(app).get('/api/v1/resources/equipment');
 
     expect(response.status).toBe(200);
     const equipment = response.body.data.equipment.find((item) => item.id === 1);
     expect(equipment.photo_url).toBe(
-      "https://signed.example/org_1/equipment_1_123.webp",
+      'https://signed.example/org_1/equipment_1_123.webp',
     );
     expect(getSignedPhotoUrl).toHaveBeenCalledWith(
-      "org_1/equipment_1_123.webp",
+      'org_1/equipment_1_123.webp',
       1,
     );
   });
 
-  test("scopes shared equipment photo signing to the equipment owner", async () => {
-    equipmentItems[2].photo_url = "org_2/equipment_2_123.webp";
+  test('scopes shared equipment photo signing to the equipment owner', async () => {
+    equipmentItems[2].photo_url = 'org_2/equipment_2_123.webp';
 
-    const response = await request(app).get("/api/v1/resources/equipment");
+    const response = await request(app).get('/api/v1/resources/equipment');
 
     expect(response.status).toBe(200);
     expect(getSignedPhotoUrl).toHaveBeenCalledWith(
-      "org_2/equipment_2_123.webp",
+      'org_2/equipment_2_123.webp',
       2,
     );
   });
 
-  test("issues a fresh non-cacheable photo URL for accessible equipment", async () => {
-    equipmentItems[1].photo_url = "org_1/equipment_1_123.webp";
+  test('issues a fresh non-cacheable photo URL for accessible equipment', async () => {
+    equipmentItems[1].photo_url = 'org_1/equipment_1_123.webp';
 
     const response = await request(app).get(
-      "/api/v1/resources/equipment/1/photo",
+      '/api/v1/resources/equipment/1/photo',
     );
 
     expect(response.status).toBe(200);
-    expect(response.headers["cache-control"]).toContain("no-store");
+    expect(response.headers['cache-control']).toContain('no-store');
     expect(response.body.data.photo_url).toBe(
-      "https://signed.example/org_1/equipment_1_123.webp",
+      'https://signed.example/org_1/equipment_1_123.webp',
     );
     expect(getSignedPhotoUrl).toHaveBeenCalledWith(
-      "org_1/equipment_1_123.webp",
+      'org_1/equipment_1_123.webp',
       1,
     );
   });
 
   test("renews a shared photo using the equipment owner's tenant", async () => {
-    equipmentItems[2].photo_url = "org_2/equipment_2_123.webp";
+    equipmentItems[2].photo_url = 'org_2/equipment_2_123.webp';
 
     const response = await request(app).get(
-      "/api/v1/resources/equipment/2/photo",
+      '/api/v1/resources/equipment/2/photo',
     );
 
     expect(response.status).toBe(200);
     expect(getSignedPhotoUrl).toHaveBeenCalledWith(
-      "org_2/equipment_2_123.webp",
+      'org_2/equipment_2_123.webp',
       2,
     );
   });
 
-  test("does not renew a photo for an organization without equipment access", async () => {
-    equipmentItems[2].photo_url = "org_2/equipment_2_123.webp";
+  test('does not renew a photo for an organization without equipment access', async () => {
+    equipmentItems[2].photo_url = 'org_2/equipment_2_123.webp';
     getOrganizationId.mockResolvedValueOnce(3);
 
     const response = await request(app).get(
-      "/api/v1/resources/equipment/2/photo",
+      '/api/v1/resources/equipment/2/photo',
     );
 
     expect(response.status).toBe(403);
     expect(getSignedPhotoUrl).not.toHaveBeenCalled();
   });
 
-  test("blocks reservation when requester is outside the local group", async () => {
+  test('blocks reservation when requester is outside the local group', async () => {
     getOrganizationId.mockResolvedValueOnce(3);
 
     const response = await request(app)
-      .post("/api/v1/resources/equipment/reservations")
+      .post('/api/v1/resources/equipment/reservations')
       .send({
         equipment_id: 2,
-        meeting_date: "2024-05-10",
+        meeting_date: '2024-05-10',
         reserved_quantity: 1,
-        reserved_for: "Outside booking",
+        reserved_for: 'Outside booking',
       });
 
     expect(response.status).toBe(403);

@@ -196,7 +196,7 @@ describe('Email Validation', () => {
   });
 
   test('rejects email longer than 255 characters', async () => {
-    const longEmail = 'a'.repeat(250) + '@example.com';
+    const longEmail = `${'a'.repeat(250)  }@example.com`;
 
     const res = await request(app)
       .post('/public/register')
@@ -393,7 +393,7 @@ describe('Password Validation', () => {
       return Promise.resolve({ rows: [] });
     });
 
-    const longPassword = 'Strong' + 'A' + 'Pass123!' + 'x'.repeat(237); // 253 chars (under 255 limit)
+    const longPassword = `Strong` + `A` + `Pass123!${  'x'.repeat(237)}`; // 253 chars (under 255 limit)
 
     const res = await request(app)
       .post('/public/register')
