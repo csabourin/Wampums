@@ -1851,7 +1851,7 @@ module.exports = (pool, logger) => {
             organizationId,
           );
           if (participantId && !allowedParticipantIds.includes(participantId)) {
-            return error(res, 'Permission denied for participant', 403);
+            return forbidden(res, 'Permission denied for participant', [], []);
           }
 
           if (!participantId) {
@@ -2845,7 +2845,7 @@ module.exports = (pool, logger) => {
             slipResult.rows[0].participant_id,
           ))
         ) {
-          return error(res, 'You can only view permission slips for your own children', 403);
+          return forbidden(res, 'You can only view permission slips for your own children', ['permission_slips.view'], []);
         }
 
         return success(res, slipResult.rows[0]);
@@ -3167,17 +3167,14 @@ module.exports = (pool, logger) => {
         const organizationId = await getOrganizationId(req, pool);
 
         // Check if slip exists and belongs to organization
+        // Another unit's slip reads as missing: saying it exists would leak it.
         const slipResult = await pool.query(
-          'SELECT organization_id, email_sent FROM permission_slips WHERE id = $1',
-          [slipId],
+          'SELECT organization_id, email_sent FROM permission_slips WHERE id = $1 AND organization_id = $2',
+          [slipId, organizationId],
         );
 
         if (slipResult.rows.length === 0) {
           return error(res, 'Permission slip not found', 404);
-        }
-
-        if (slipResult.rows[0].organization_id !== organizationId) {
-          return error(res, 'Permission denied', 403);
         }
 
         // Prevent deletion if email has been sent

@@ -775,7 +775,7 @@ module.exports = (pool, logger) => {
       // Additional check: must have users.edit permission to link other users
       const { hasAnyPermission } = require('../middleware/auth');
       if (!hasAnyPermission(req, 'users.edit')) {
-        return error(res, 'Only admins can link participants to other users', 403);
+        return forbidden(res, 'Only admins can link participants to other users', ['users.edit'], ['users.edit']);
       }
     }
 

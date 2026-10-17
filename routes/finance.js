@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, userHasPermission } = require('../middleware/auth');
-const { success, error, asyncHandler } = require('../middleware/response');
+const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
 
 function toNumeric(value) {
@@ -433,12 +433,9 @@ module.exports = (pool, _logger) => {
       [paymentId]
     );
 
-    if (paymentRow.rows.length === 0) {
+    // Another unit's payment reads as missing: saying it exists would leak it.
+    if (paymentRow.rows.length === 0 || paymentRow.rows[0].organization_id !== organizationId) {
       return error(res, 'Payment not found', 404);
-    }
-
-    if (paymentRow.rows[0].organization_id !== organizationId) {
-      return error(res, 'Payment does not belong to this organization', 403);
     }
 
     const client = await pool.connect();
@@ -567,12 +564,9 @@ module.exports = (pool, _logger) => {
       [planId]
     );
 
-    if (existing.rows.length === 0) {
+    // Another unit's plan reads as missing: saying it exists would leak it.
+    if (existing.rows.length === 0 || existing.rows[0].organization_id !== organizationId) {
       return error(res, 'Payment plan not found', 404);
-    }
-
-    if (existing.rows[0].organization_id !== organizationId) {
-      return error(res, 'Payment plan does not belong to this organization', 403);
     }
 
     const updated = await pool.query(
@@ -603,12 +597,9 @@ module.exports = (pool, _logger) => {
       [planId]
     );
 
-    if (existing.rows.length === 0) {
+    // Another unit's plan reads as missing: saying it exists would leak it.
+    if (existing.rows.length === 0 || existing.rows[0].organization_id !== organizationId) {
       return error(res, 'Payment plan not found', 404);
-    }
-
-    if (existing.rows[0].organization_id !== organizationId) {
-      return error(res, 'Payment plan does not belong to this organization', 403);
     }
 
     await pool.query('DELETE FROM payment_plans WHERE id = $1', [planId]);
@@ -747,7 +738,7 @@ module.exports = (pool, _logger) => {
       );
 
       if (guardianLink.rows.length === 0) {
-        return error(res, 'Insufficient permissions to view this statement', 403);
+        return forbidden(res, 'Insufficient permissions to view this statement', ['finance.view'], ['finance.view']);
       }
     }
 

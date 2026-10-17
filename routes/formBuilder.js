@@ -16,7 +16,8 @@ const router = express.Router();
 
 // Import middleware
 const { authenticate, requirePermission, blockDemoRoles } = require('../middleware/auth');
-const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
+const { success, error: errorResponse, forbidden, asyncHandler } = require('../middleware/response');
+const { validateIdParam, checkValidation } = require('../middleware/validation');
 
 // Import utilities
 const { handleOrganizationResolutionError } = require('../utils/api-helpers');
@@ -473,22 +474,22 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Source form format not found
    */
-  router.post('/form-formats/:sourceOrgId/:formType/copy', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
+  router.post('/form-formats/:sourceOrgId/:formType/copy', authenticate, blockDemoRoles, requirePermission('forms.manage'), validateIdParam('sourceOrgId'), checkValidation, asyncHandler(async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
-      const sourceOrgId = parseInt(req.params.sourceOrgId, 10);
+      const sourceOrgId = Number(req.params.sourceOrgId);
       const formType = req.params.formType;
       const userId = req.user.id;
 
-      // Verify user has access to source organization
+      // Verify user is still an active member of the source organization
       const accessCheck = await pool.query(
         `SELECT 1 FROM user_organizations
-         WHERE user_id = $1 AND organization_id = $2`,
+         WHERE user_id = $1 AND organization_id = $2 AND status = 'active'`,
         [userId, sourceOrgId]
       );
 
       if (accessCheck.rows.length === 0) {
-        return errorResponse(res, 'Access denied to source organization', 403);
+        return forbidden(res, 'Access denied to source organization', [], []);
       }
 
       // Get source form format

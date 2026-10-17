@@ -78,7 +78,7 @@ module.exports = (pool, _logger) => {
       );
 
       if (fundraiserCheck.rows.length === 0) {
-        return error(res, 'Access denied to this fundraiser', 403);
+        return error(res, 'Fundraiser not found', 404);
       }
 
       const result = await pool.query(
