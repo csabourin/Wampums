@@ -855,9 +855,17 @@ export class MedicationManagement {
     return Array.from(new Set(times));
   }
 
+  /**
+   * The instant a dose is due, from a local date and time as the leader typed them.
+   * The offset is spelled out (UTC "Z"): the server reads a time without one in its
+   * own time zone, which would move the dose and its reminder by hours.
+   * @param {string} date - Local date (YYYY-MM-DD)
+   * @param {string} time - Local time (HH:MM)
+   * @returns {string} ISO 8601 instant, e.g. "2026-02-12T13:00:00.000Z" for 08:00 in Gatineau
+   */
   buildDateTimeISO(date, time) {
     const normalizedTime = this.normalizeTimeValue(time) || '00:00';
-    return `${date}T${normalizedTime}:00`;
+    return new Date(`${date}T${normalizedTime}:00`).toISOString();
   }
 
   getRequirementFrequencyConfig(requirement) {
@@ -1578,8 +1586,8 @@ export class MedicationManagement {
     }
 
     // Determine which slots still need doses.
-    // slot.iso is a local datetime (e.g. "2026-02-12T14:00:00") so extract
-    // the local HH:MM via toLocalTimeString to keep timezone handling uniform.
+    // slot.iso and scheduled_for are instants, so compare them by their local
+    // HH:MM via toLocalTimeString to keep timezone handling uniform.
     const givenTimes = new Set(givenDoses.map((d) =>
       this.toLocalTimeString(d.scheduled_for)
     ));
@@ -1813,7 +1821,7 @@ export class MedicationManagement {
     return this.distributions.map((dist) => {
       const requirement = this.getRequirementById(dist.medication_requirement_id) || {};
       const participantName = escapeHTML(this.getParticipantName(dist.participant_id));
-      const dateLabel = formatDate(dist.scheduled_for, this.app.lang || 'en', { year: 'numeric', month: 'short', day: 'numeric' });
+      const dateLabel = formatDate(new Date(dist.scheduled_for), this.app.lang || 'en', { year: 'numeric', month: 'short', day: 'numeric' });
       const timeLabel = new Date(dist.scheduled_for).toLocaleTimeString(this.app.lang || 'en', { hour: '2-digit', minute: '2-digit' });
       return `
         <tr>
@@ -1909,7 +1917,7 @@ export class MedicationManagement {
 
     setContent(container, alerts.map((alert) => {
       const timeLabel = alert.time.toLocaleTimeString(this.app.lang || 'en', { hour: '2-digit', minute: '2-digit' });
-      const dateLabel = formatDate(alert.time.toISOString(), this.app.lang || 'en', { year: 'numeric', month: 'short', day: 'numeric' });
+      const dateLabel = formatDate(alert.time, this.app.lang || 'en', { year: 'numeric', month: 'short', day: 'numeric' });
       const dueLabel = alert.minutesUntil <= 5 ? translate('medication_due_now') : translate('medication_due_in_minutes').replace('{minutes}', alert.minutesUntil);
 
       return `
@@ -2148,8 +2156,9 @@ export class MedicationManagement {
       return;
     }
 
-    const scheduledDate = matchingAlert.time.toISOString().slice(0, 10);
-    const scheduledTime = matchingAlert.time.toISOString().slice(11, 16);
+    // The form's date and time fields are local, like what the leader types in them.
+    const scheduledDate = this.toLocalDateString(matchingAlert.time);
+    const scheduledTime = this.toLocalTimeString(matchingAlert.time);
     const participantSelect = document.getElementById('distributionParticipant');
     const dateField = document.querySelector("input[name='scheduled_date']");
     const timeField = document.querySelector("input[name='scheduled_time']");
