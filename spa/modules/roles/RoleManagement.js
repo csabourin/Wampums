@@ -206,8 +206,9 @@ export class RoleManagement {
           <div class="role-info">
             <h3 class="role-name">${this.escapeHtml(roleLabel(role))}</h3>
           </div>
-          <button class="toggle-permissions-btn" data-role-id="${role.id}">
-            <span class="icon">${isExpanded ? '▼' : '▶'}</span>
+          <button type="button" class="toggle-permissions-btn" data-role-id="${role.id}"
+            aria-expanded="${isExpanded}" aria-controls="role-permissions-${role.id}">
+            <span class="icon" aria-hidden="true">${isExpanded ? '▼' : '▶'}</span>
             ${translate('view_permissions')}
           </button>
         </div>
@@ -215,7 +216,7 @@ export class RoleManagement {
         <p class="role-description">${this.escapeHtml(roleDescription(role) || translate('district_management_generic_bundle_description'))}</p>
 
         <div class="role-permissions-container ${isExpanded ? 'visible' : 'hidden'}" id="role-permissions-${role.id}">
-          ${isExpanded ? '<div class="loading-spinner">Loading permissions...</div>' : ''}
+          ${isExpanded ? `<div class="loading-spinner" role="status">${translate('loading')}</div>` : ''}
         </div>
       </div>
     `;
@@ -603,7 +604,7 @@ export class RoleManagement {
           setContent(container, this.renderPermissionsList(permissions));
         } catch (error) {
           debugError('Error loading role permissions:', error);
-          setContent(container, `<p class="error-message">${escapeHTML(apiErrorMessage(error, 'error_loading_data'))}</p>`);
+          setContent(container, `<p class="error-message" role="alert">${escapeHTML(apiErrorMessage(error, 'error_loading_data'))}</p>`);
         }
       }
     }
