@@ -18,7 +18,6 @@ import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { getCurrentOrganizationId } from '../../ajax-functions.js';
 import { deleteCachedData } from '../../indexedDB.js';
-import { CONFIG } from '../../config.js';
 import { setContent } from '../../utils/DOMUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';

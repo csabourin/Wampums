@@ -39,7 +39,7 @@ import { offerAppInstall } from '../install/InstallAppDialog.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { CarpoolQuickAccessModal } from '../modals/CarpoolQuickAccessModal.js';
 import { isParent, hasPermission, canViewBadges, canApproveBadges, canViewReports, canViewActivities, canViewCarpools } from '../../utils/PermissionUtils.js';
-import { formatDateShort, parseDate } from '../../utils/DateUtils.js';
+import { parseDate } from '../../utils/DateUtils.js';
 import {
   confirm as confirmDialog,
   prompt as promptDialog,

@@ -24,7 +24,6 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { debugError, debugLog } from '../../utils/DebugUtils.js';
 import { formatDateShort, getTodayISO } from '../../utils/DateUtils.js';
 import { LoadingStateManager, retryWithBackoff } from '../../utils/PerformanceUtils.js';
-import { validateMoney, validateRequired } from '../../utils/ValidationUtils.js';
 import { canViewBudget } from '../../utils/PermissionUtils.js';
 import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';

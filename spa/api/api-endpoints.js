@@ -10,11 +10,10 @@ import {
   clearBudgetCaches,
   clearFinanceRelatedCaches,
   clearExternalRevenueCaches,
-  clearFundraiserRelatedCaches,
   clearBadgeRelatedCaches,
   clearPointsRelatedCaches,
   clearAttendanceRelatedCaches,
-  deleteCachedData
+  deleteCachedData,
 } from '../indexedDB.js';
 import { buildApiCacheKey } from '../utils/OfflineCacheKeys.js';
 
@@ -780,7 +779,7 @@ export async function linkParticipantToOrganization(participantId, organizationI
 /**
  * Remove participant from organization (admin only)
  */
-export async function removeParticipantFromOrganization(participantId, organizationId) {
+export async function removeParticipantFromOrganization(participantId, _organizationId) {
   const response = await API.delete(`v1/participants/${participantId}`);
 
   if (response?.success) {

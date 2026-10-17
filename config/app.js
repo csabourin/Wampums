@@ -49,7 +49,7 @@ function createApp() {
   initRoutes(app, pool);
 
   // 7. Global Error Handler
-  app.use((err, req, res, next) => {
+  app.use((err, req, res, _next) => {
     const { OrganizationNotFoundError } = require('../utils/api-helpers');
     const { respondWithOrganizationFallback } = require('../utils/api-helpers');
 

@@ -11,7 +11,7 @@ import accountInfoStylesheetUrl from '../../css/account-info.css?url';
 import { makeApiRequest } from '../api/api-core.js';
 import { enablePushNotifications, disablePushNotifications, PushSetupError } from './push/PushSubscription.js';
 import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
-import { translate, app as appInstance } from '../app.js';
+import { translate } from '../app.js';
 import { escapeAttribute, escapeHTML } from '../utils/SecurityUtils.js';
 import { nativeLanguageName } from '../utils/InterfaceLanguageUtils.js';
 import { apiErrorMessage } from '../utils/ApiErrorUtils.js';

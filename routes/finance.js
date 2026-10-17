@@ -49,7 +49,7 @@ function formatFeeRow(row) {
   };
 }
 
-module.exports = (pool, logger) => {
+module.exports = (pool, _logger) => {
   router.get('/v1/finance/fee-definitions', authenticate, requirePermission('finance.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 

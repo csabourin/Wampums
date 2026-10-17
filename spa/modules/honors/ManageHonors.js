@@ -1,6 +1,6 @@
 import { getHonorsAndParticipants, awardHonor } from '../../ajax-functions.js';
 import { updateHonor, deleteHonor } from '../../api/api-endpoints.js';
-import { debugLog, debugError, debugWarn, debugInfo } from '../../utils/DebugUtils.js';
+import { debugLog, debugError, debugWarn } from '../../utils/DebugUtils.js';
 import { translate } from '../../app.js';
 import { getTodayISO, formatDate, isValidDate, isPastDate as isDateInPast } from '../../utils/DateUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';

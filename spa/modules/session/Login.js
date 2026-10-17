@@ -1,7 +1,7 @@
 import { translate } from '../../app.js';
-import { debugLog, debugError, debugWarn, debugInfo } from '../../utils/DebugUtils.js';
+import { debugLog, debugError, debugWarn } from '../../utils/DebugUtils.js';
 import { login, verify2FA, getApiUrl, getCurrentOrganizationId, fetchOrganizationId } from '../../ajax-functions.js';
-import { setStorage, getStorage, removeStorage, setStorageMultiple } from '../../utils/StorageUtils.js';
+import { getStorage, setStorageMultiple } from '../../utils/StorageUtils.js';
 import { clearAllClientData } from '../../utils/ClientCleanupUtils.js';
 import { isParent, hasPermission } from '../../utils/PermissionUtils.js';
 import { getOnboardingContext } from '../../api/api-family.js';
@@ -401,7 +401,7 @@ export class Login {
    * @param {string} email - User's email address
    * @param {Function} setStatus - Function to set status messages
    */
-  show2FAForm(email, setStatus) {
+  show2FAForm(email, _setStatus) {
     const appContainer = document.getElementById('app');
     if (!appContainer) {
       debugError('Could not find app container element');

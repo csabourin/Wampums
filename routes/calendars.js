@@ -32,7 +32,7 @@ const {
  * @param {Object} logger - Winston logger instance
  * @returns {Router} Express router with fundraiser entry routes
  */
-module.exports = (pool, logger) => {
+module.exports = (pool, _logger) => {
   const router = express.Router();
   /**
    * @swagger

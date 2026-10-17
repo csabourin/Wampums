@@ -568,7 +568,7 @@ export class PermissionSlipDashboard {
 
     let html = '';
 
-    activitiesMap.forEach((activity, key) => {
+    activitiesMap.forEach((activity, _key) => {
       const signedCount = activity.slips.filter(s => s.status === 'signed').length;
       const declinedCount = activity.slips.filter(s => s.status === 'declined').length;
 

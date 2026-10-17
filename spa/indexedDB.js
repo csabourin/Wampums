@@ -934,7 +934,7 @@ export async function clearCarpoolRelatedCaches(activityId = null) {
  * @param {string} formType - Optional form type to clear specific form caches
  * @param {number} organizationId - Optional organization ID to clear org-specific caches
  */
-export async function clearFormRelatedCaches(formType = null, organizationId = null) {
+export async function clearFormRelatedCaches(formType = null, _organizationId = null) {
   const keysToDelete = [
     'v1/form-types',
     'v1/forms/formats',

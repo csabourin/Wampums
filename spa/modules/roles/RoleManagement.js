@@ -7,7 +7,7 @@
  */
 
 import roleManagementStylesheetUrl from '../../../css/role-management.css?url';
-import { app, translate } from '../../app.js';
+import { translate } from '../../app.js';
 import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { roleDescription, roleLabel } from '../../utils/RoleLabelUtils.js';

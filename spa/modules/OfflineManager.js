@@ -945,7 +945,7 @@ export class OfflineManager {
       failed > 0 ? `, ${failed} failed` : ''}`);
 
     if (failed > 0) {
-      results.forEach((r, i) => {
+      results.forEach((r, _i) => {
         if (r.status === 'rejected') {
           debugError(`OfflineManager: Module preload failed:`, r.reason);
         }

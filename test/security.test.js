@@ -79,7 +79,7 @@ beforeEach(() => {
   
   // Setup mock implementation that handles organization_domains AND falls back to default mocks
   const factory = new MockFactory();
-  mockQueryImplementation(__mClient, __mPool, (query, params) => {
+  mockQueryImplementation(__mClient, __mPool, (query, _params) => {
     // Check if this is an organization_domains query
     if (typeof query === 'string' && query.includes('organization_domains')) {
       return Promise.resolve({

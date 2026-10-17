@@ -7,7 +7,7 @@
  */
 
 import DOMPurify from 'dompurify';
-import { debugLog, debugError } from './DebugUtils.js';
+import { debugError } from './DebugUtils.js';
 
 /**
  * Additional safe attributes to allow beyond DOMPurify's defaults

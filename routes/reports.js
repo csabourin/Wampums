@@ -122,7 +122,7 @@ const REGISTRATION_FORM_AS_OF_YEAR = `
  * @param {Object} logger - Winston logger instance
  * @returns {Router} Express router with report routes
  */
-module.exports = (pool, logger) => {
+module.exports = (pool, _logger) => {
   /**
    * GET /api/v1/reports/mailing-list
    * Get mailing list

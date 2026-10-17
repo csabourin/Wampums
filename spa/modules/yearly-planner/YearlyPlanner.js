@@ -915,7 +915,7 @@ export class YearlyPlanner extends BaseModule {
     URL.revokeObjectURL(url);
   }
 
-  renderObjectivesTab(rootObjectives, subObjectiveMap, periods) {
+  renderObjectivesTab(rootObjectives, subObjectiveMap, _periods) {
     return `
       <div class="yp-objectives">
         ${this.canManage ? `

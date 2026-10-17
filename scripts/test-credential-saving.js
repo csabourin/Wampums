@@ -163,7 +163,7 @@ async function testCredentialSaving() {
       },
       logger: logger,
       browser: ['Wampums Test', 'Chrome', '10.0'],
-      getMessage: async (key) => {
+      getMessage: async (_key) => {
         return { conversation: '' };
       }
     });

@@ -157,7 +157,7 @@ class WhatsAppBaileysService {
         },
         logger: logger,
         browser: ['Wampums', 'Chrome', '10.0'], // Custom browser name
-        getMessage: async (key) => {
+        getMessage: async (_key) => {
           // Implement message retrieval if needed
           return { conversation: '' };
         }
@@ -199,7 +199,7 @@ class WhatsAppBaileysService {
    * @param {object} update - Connection update object
    * @param {function} saveCreds - Save credentials function
    */
-  async handleConnectionUpdate(organizationId, update, saveCreds) {
+  async handleConnectionUpdate(organizationId, update, _saveCreds) {
     const { connection, lastDisconnect, qr } = update;
     const connectionObj = this.connections.get(organizationId);
 

@@ -110,7 +110,7 @@ describe('GET /api/v1/activities/:id', () => {
       permissions: ['activities.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('WHERE a.id') && query.includes('AND a.organization_id')) {
         return Promise.resolve({
           rows: [{
@@ -156,7 +156,7 @@ describe('GET /api/v1/activities/:id', () => {
       permissions: ['activities.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('WHERE a.id')) {
         return Promise.resolve({ rows: [] }); // Not found
       }
@@ -177,7 +177,7 @@ describe('GET /api/v1/activities/:id', () => {
       permissions: [] // No permission
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       // Mock permission query to return no permissions
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
@@ -200,7 +200,7 @@ describe('GET /api/v1/activities/:id', () => {
       permissions: ['activities.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('WHERE a.id')) {
         // Not found because belongs to different org
         return Promise.resolve({ rows: [] });
@@ -229,7 +229,7 @@ describe('GET /api/v1/activities/:id', () => {
       permissions: ['activities.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('WHERE a.id')) {
         return Promise.resolve({
           rows: [{
@@ -265,7 +265,7 @@ describe('GET /api/v1/activities/:id', () => {
       permissions: ['activities.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('WHERE a.id')) {
         return Promise.resolve({
           rows: [{
@@ -305,7 +305,7 @@ describe('POST /api/v1/activities', () => {
 
     let insertQuery = '';
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('INSERT INTO activities')) {
         insertQuery = query;
         return Promise.resolve({
@@ -351,7 +351,7 @@ describe('POST /api/v1/activities', () => {
       permissions: ['activities.create']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (_query, _params) => {
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
     });
@@ -378,7 +378,7 @@ describe('POST /api/v1/activities', () => {
       permissions: ['activities.create']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (_query, _params) => {
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
     });
@@ -406,7 +406,7 @@ describe('POST /api/v1/activities', () => {
       permissions: [] // No permission
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       // Mock permission query to return no permissions
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
@@ -437,7 +437,7 @@ describe('POST /api/v1/activities', () => {
       permissions: ['activities.create']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       // Mock demo role check to return demo role
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({
@@ -469,7 +469,7 @@ describe('POST /api/v1/activities', () => {
       permissions: ['activities.create']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (_query, _params) => {
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
     });
@@ -492,7 +492,7 @@ describe('POST /api/v1/activities', () => {
       permissions: ['activities.create']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('INSERT INTO activities')) {
         return Promise.resolve({
           rows: [{
@@ -795,7 +795,7 @@ describe('PUT /api/v1/activities/:id', () => {
       permissions: [] // No permission
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       // Mock permission query to return no permissions
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
@@ -821,7 +821,7 @@ describe('PUT /api/v1/activities/:id', () => {
       permissions: ['activities.edit']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       // Mock demo role check to return demo role
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({
@@ -870,7 +870,7 @@ describe('DELETE /api/v1/activities/:id', () => {
 
     let deletedActivity = null;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('SELECT id FROM activities')) {
         return Promise.resolve({
           rows: [{ id: ACTIVITY_ID }]
@@ -910,7 +910,7 @@ describe('DELETE /api/v1/activities/:id', () => {
 
     let carpoolUpdateCalled = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('SELECT id FROM activities')) {
         return Promise.resolve({
           rows: [{ id: ACTIVITY_ID }]
@@ -945,7 +945,7 @@ describe('DELETE /api/v1/activities/:id', () => {
 
     let slipQuery = null;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('SELECT id FROM activities')) {
         return Promise.resolve({ rows: [{ id: ACTIVITY_ID }] });
       }
@@ -974,7 +974,7 @@ describe('DELETE /api/v1/activities/:id', () => {
       permissions: ['activities.delete']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('SELECT id FROM activities')) {
         return Promise.resolve({ rows: [] }); // Not found
       }
@@ -995,7 +995,7 @@ describe('DELETE /api/v1/activities/:id', () => {
       permissions: [] // No permission
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       // Mock permission query to return no permissions
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
@@ -1018,7 +1018,7 @@ describe('DELETE /api/v1/activities/:id', () => {
       permissions: ['activities.delete']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       // Mock demo role check to return demo role
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({
@@ -1043,7 +1043,7 @@ describe('DELETE /api/v1/activities/:id', () => {
       permissions: ['activities.delete']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('SELECT id FROM activities')) {
         // Not found in user's org
         return Promise.resolve({ rows: [] });
@@ -1078,7 +1078,7 @@ describe('Activity Permission Enforcement', () => {
       permissions: ['activities.view'] // View only
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       // Mock permission query to return only view permission
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({
@@ -1121,7 +1121,7 @@ describe('Activity Permission Enforcement', () => {
     const { __mClient, __mPool } = require('pg');
 
     // Test POST with only create permission - should succeed
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({
           rows: [{ permission_key: 'activities.create' }]

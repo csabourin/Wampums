@@ -647,7 +647,7 @@ export class ActivityManager {
         }
       });
 
-      timeInput.addEventListener('input', (event) => {
+      timeInput.addEventListener('input', (_event) => {
         const rowIndex = Array.from(
           document.querySelectorAll(
             '.activity-row',

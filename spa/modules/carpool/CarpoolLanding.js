@@ -2,7 +2,6 @@ import carpoolStylesheetUrl from '../../../css/carpool.css?url';
 import { translate } from '../../app.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { CarpoolQuickAccessModal } from '../modals/CarpoolQuickAccessModal.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 

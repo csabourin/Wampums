@@ -1,5 +1,5 @@
 import { translate } from '../../app.js';
-import { debugLog, debugError, debugWarn, debugInfo } from '../../utils/DebugUtils.js';
+import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { getApiUrl } from '../../ajax-functions.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';

@@ -18,11 +18,6 @@ import {
   debounce,
   retryWithBackoff,
 } from '../../utils/PerformanceUtils.js';
-import {
-  validateMoney,
-  validateDateField,
-  validateRequired,
-} from '../../utils/ValidationUtils.js';
 import { canApproveFinance, canManageFinance } from '../../utils/PermissionUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';

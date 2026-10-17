@@ -1,5 +1,5 @@
 import { getCalendarsForFundraiser, getFundraiser, updateCalendarEntry, updateCalendarPayment } from '../../ajax-functions.js';
-import { debugLog, debugError, debugWarn, debugInfo } from '../../utils/DebugUtils.js';
+import { debugError } from '../../utils/DebugUtils.js';
 import { translate } from '../../app.js';
 import { clearFundraiserRelatedCaches } from '../../indexedDB.js';
 import { setContent } from '../../utils/DOMUtils.js';

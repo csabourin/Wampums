@@ -2,8 +2,6 @@ import dashboardV2StylesheetUrl from '../../../css/dashboard-v2.css?url';
 import {
   getParticipants,
   getGroups,
-  getCurrentOrganizationId,
-  getOrganizationSettings,
   CONFIG,
 } from '../../ajax-functions.js';
 import {
@@ -15,7 +13,6 @@ import {
 } from '../../api/api-endpoints.js';
 import { getActivities } from '../../api/api-activities.js';
 import { translate } from '../../app.js';
-import { getCachedData, setCachedData, clearActivityRelatedCaches } from '../../indexedDB.js';
 import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { skeletonDashboard } from '../../utils/SkeletonUtils.js';

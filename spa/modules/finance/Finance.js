@@ -8,23 +8,22 @@ import {
   updateParticipantFee,
   getParticipantPayments,
   createParticipantPayment,
-  updatePayment,
   getPaymentPlans,
   createPaymentPlan,
   updatePaymentPlan,
   deletePaymentPlan,
   getFinanceReport,
-  getParticipants
+  getParticipants,
 } from '../../ajax-functions.js';
 import { translate } from '../../app.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { debugLog, debugError } from '../../utils/DebugUtils.js';
+import { debugError } from '../../utils/DebugUtils.js';
 import { formatDateShort, getTodayISO } from '../../utils/DateUtils.js';
 import { clearFinanceRelatedCaches } from '../../indexedDB.js';
 import { LoadingStateManager, CacheWithTTL, retryWithBackoff, withButtonLoading, debounce } from '../../utils/PerformanceUtils.js';
 import { exportToCSV } from '../../utils/ExportUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
-import { validateMoney, validateDateField, validatePositiveInteger } from '../../utils/ValidationUtils.js';
+import { validateMoney, validateDateField } from '../../utils/ValidationUtils.js';
 import { canManageFinance, canViewFinance } from '../../utils/PermissionUtils.js';
 import { setContent, insertHTML } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';

@@ -1,6 +1,6 @@
 // dynamicFormHandler.js
 import { translate } from './app.js';
-import { debugLog, debugError, debugWarn, debugInfo } from './utils/DebugUtils.js';
+import { debugLog, debugError, debugWarn } from './utils/DebugUtils.js';
 import { shouldKeepSavedDependency, isControllerAnswerMatching, clearDependentValues, readControllingValue } from './utils/FormDependencyUtils.js';
 import { JSONFormRenderer } from './JSONFormRenderer.js';
 import {
@@ -9,7 +9,6 @@ import {
   saveFormSubmission,
 } from './ajax-functions.js';
 import { setContent } from './utils/DOMUtils.js';
-import { escapeHTML } from './utils/SecurityUtils.js';
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 
 /**
@@ -28,7 +27,7 @@ function getElementsByFieldName(root, name) {
 }
 
 export class DynamicFormHandler {
-  constructor(app, customSaveHandler = null, useUniqueIds = false, formIndex = null) {
+  constructor(app, customSaveHandler = null, _useUniqueIds = false, _formIndex = null) {
     this.app = app;
     this.customSaveHandler = customSaveHandler; 
     this.formFormats = {};
@@ -42,7 +41,7 @@ export class DynamicFormHandler {
     this.organizationId = null;
   }
 
-  async init(formType, participantId = null, initialData = {}, container = null, useUniqueIds = false, formIndex = null, formStructure = null,organizationId = null) {
+  async init(formType, participantId = null, initialData = {}, container = null, useUniqueIds = false, formIndex = null, _formStructure = null,organizationId = null) {
     debugLog('Initializing DynamicFormHandler', { formType, participantId, initialData, container,organizationId});
     this.formType = formType;
     this.participantId = participantId;

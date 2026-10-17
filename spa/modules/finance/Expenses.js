@@ -15,7 +15,6 @@ import { debugError, debugLog } from '../../utils/DebugUtils.js';
 import { formatDateShort, getTodayISO } from '../../utils/DateUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { LoadingStateManager, debounce, retryWithBackoff } from '../../utils/PerformanceUtils.js';
-import { validateMoney, validateDateField, validateRequired } from '../../utils/ValidationUtils.js';
 import { canApproveFinance, canManageFinance } from '../../utils/PermissionUtils.js';
 import { deleteCachedData } from '../../indexedDB.js';
 import { setContent, insertHTML, withFormBusy } from '../../utils/DOMUtils.js';

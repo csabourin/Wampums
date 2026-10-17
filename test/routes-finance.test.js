@@ -95,7 +95,7 @@ describe('Fee Definitions', () => {
       permissions: ['finance.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({ rows: [] });
       }
@@ -148,7 +148,7 @@ describe('Fee Definitions', () => {
 
     __mPool.connect.mockResolvedValue(__mClient);
     
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query === 'BEGIN') {
         transactionStarted = true;
         return Promise.resolve({ rows: [] });
@@ -178,7 +178,7 @@ describe('Fee Definitions', () => {
     });
 
     __mPool.connect.mockResolvedValue(__mClient);
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({ rows: [] });
       }
@@ -219,7 +219,7 @@ describe('Fee Definitions', () => {
       permissions: ['finance.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({ rows: [] });
       }
@@ -252,7 +252,7 @@ describe('Fee Definitions', () => {
       permissions: ['finance.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({ rows: [] });
       }
@@ -285,7 +285,7 @@ describe('Fee Definitions', () => {
       permissions: ['finance.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({ rows: [] });
       }
@@ -318,7 +318,7 @@ describe('Fee Definitions', () => {
       permissions: ['finance.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({ rows: [] });
       }
@@ -363,7 +363,7 @@ describe('Fee Definitions', () => {
       permissions: ['finance.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({ rows: [] });
       }
@@ -393,7 +393,7 @@ describe('Fee Definitions', () => {
       permissions: ['finance.view'] // Can view, not manage
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({ rows: [] });
       }
@@ -437,7 +437,7 @@ describe('Participant Fees and Payments', () => {
       permissions: ['finance.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({ rows: [] });
       }
@@ -485,7 +485,7 @@ describe('Participant Fees and Payments', () => {
 
     let paymentInserted = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({ rows: [] });
       }
@@ -531,7 +531,7 @@ describe('Participant Fees and Payments', () => {
       permissions: ['finance.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({ rows: [] });
       }
@@ -572,7 +572,7 @@ describe('Financial Reports', () => {
       permissions: ['finance.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({ rows: [] });
       }
@@ -616,7 +616,7 @@ describe('Financial Reports', () => {
       permissions: ['finance.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({ rows: [] });
       }
@@ -725,7 +725,7 @@ describe('Demo user protection on financial operations', () => {
       permissions: ['finance.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({ rows: [{ role_name: 'demoadmin' }] });
       }

@@ -174,7 +174,7 @@ async function testActualConnection() {
         },
         logger: logger,
         browser: ['Wampums', 'Chrome', '10.0'],
-        getMessage: async (key) => {
+        getMessage: async (_key) => {
           return { conversation: '' };
         }
       });

@@ -79,7 +79,7 @@ describe('Email Validation', () => {
   test('accepts valid email format', async () => {
     const { __mPool } = require('pg');
 
-    __mPool.query.mockImplementation((query, params) => {
+    __mPool.query.mockImplementation((query, _params) => {
       if (query.includes('FROM users WHERE email')) {
         return Promise.resolve({ rows: [] });
       }
@@ -314,7 +314,7 @@ describe('Password Validation', () => {
   test('accepts strong password meeting all requirements', async () => {
     const { __mPool } = require('pg');
 
-    __mPool.query.mockImplementation((query, params) => {
+    __mPool.query.mockImplementation((query, _params) => {
       if (query.includes('FROM users WHERE email')) {
         return Promise.resolve({ rows: [] });
       }
@@ -373,7 +373,7 @@ describe('Password Validation', () => {
   test('allows passwords up to reasonable length (256+ chars)', async () => {
     const { __mPool } = require('pg');
 
-    __mPool.query.mockImplementation((query, params) => {
+    __mPool.query.mockImplementation((query, _params) => {
       if (query.includes('FROM users WHERE email')) {
         return Promise.resolve({ rows: [] });
       }
@@ -428,7 +428,7 @@ describe('Input Sanitization', () => {
   test('rejects XSS attempts in full_name', async () => {
     const { __mPool } = require('pg');
 
-    __mPool.query.mockImplementation((query, params) => {
+    __mPool.query.mockImplementation((query, _params) => {
       if (query.includes('FROM users WHERE email')) {
         return Promise.resolve({ rows: [] });
       }
@@ -455,7 +455,7 @@ describe('Input Sanitization', () => {
   test('handles unicode and non-ASCII characters safely', async () => {
     const { __mPool } = require('pg');
 
-    __mPool.query.mockImplementation((query, params) => {
+    __mPool.query.mockImplementation((query, _params) => {
       if (query.includes('FROM users WHERE email')) {
         return Promise.resolve({ rows: [] });
       }
@@ -512,7 +512,7 @@ describe('checkValidation middleware', () => {
 
     let userQueryCalled = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('SELECT u.id, u.email, u.password') && query.includes('FROM users u')) {
         userQueryCalled = true;
         return Promise.resolve({ 
@@ -572,7 +572,7 @@ describe('Input validation edge cases', () => {
   test('handles numeric values passed as strings', async () => {
     const { __mPool } = require('pg');
 
-    __mPool.query.mockImplementation((query, params) => {
+    __mPool.query.mockImplementation((query, _params) => {
       if (query.includes('FROM users')) {
         return Promise.resolve({ rows: [] });
       }

@@ -109,7 +109,7 @@ describe('GET /api/v1/users', () => {
 
     // Use mockQueryImplementation with schema-based fallback
     const factory = new MockFactory();
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users') && query.includes('WHERE')) {
         return Promise.resolve({
           rows: [
@@ -152,7 +152,7 @@ describe('GET /api/v1/users', () => {
     });
 
     // Rely on default mocks for permission checks, only customize the pending users query
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users') && query.includes('is_verified = false')) {
         return Promise.resolve({
           rows: [
@@ -186,7 +186,7 @@ describe('GET /api/v1/users', () => {
       permissions: [] // No permission
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -236,7 +236,7 @@ describe('GET /api/v1/users/:id', () => {
       permissions: ['users.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('SELECT * FROM users WHERE id')) {
         return Promise.resolve({
           rows: [{
@@ -276,7 +276,7 @@ describe('GET /api/v1/users/:id', () => {
       permissions: ['users.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users')) {
         return Promise.resolve({ rows: [] });
       }
@@ -296,7 +296,7 @@ describe('GET /api/v1/users/:id', () => {
       permissions: []
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -322,7 +322,7 @@ describe('POST /api/v1/users', () => {
       permissions: ['users.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('INSERT INTO users')) {
         return Promise.resolve({
           rows: [{
@@ -356,7 +356,7 @@ describe('POST /api/v1/users', () => {
       permissions: ['users.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (_query, _params) => {
       return Promise.resolve({ rows: [] });
     });
 
@@ -378,7 +378,7 @@ describe('POST /api/v1/users', () => {
       permissions: ['users.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (_query, _params) => {
       return Promise.resolve({ rows: [] });
     });
 
@@ -399,7 +399,7 @@ describe('POST /api/v1/users', () => {
       permissions: ['users.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('INSERT INTO users')) {
         // Simulate duplicate key error
         const err = new Error('duplicate key value');
@@ -427,7 +427,7 @@ describe('POST /api/v1/users', () => {
       permissions: ['users.view'] // Only view
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -458,7 +458,7 @@ describe('PUT /api/v1/users/:id', () => {
       permissions: ['users.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('UPDATE users SET')) {
         return Promise.resolve({
           rows: [{
@@ -490,7 +490,7 @@ describe('PUT /api/v1/users/:id', () => {
       permissions: ['users.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('UPDATE users SET')) {
         const err = new Error('duplicate key value');
         err.code = '23505';
@@ -515,7 +515,7 @@ describe('PUT /api/v1/users/:id', () => {
       permissions: ['users.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -546,7 +546,7 @@ describe('POST /api/v1/users/:id/approve', () => {
 
     let updateCalled = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('UPDATE users SET status')) {
         updateCalled = true;
         return Promise.resolve({
@@ -576,7 +576,7 @@ describe('POST /api/v1/users/:id/approve', () => {
       permissions: ['users.approve']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('SELECT * FROM users WHERE id')) {
         return Promise.resolve({
           rows: [{
@@ -602,7 +602,7 @@ describe('POST /api/v1/users/:id/approve', () => {
       permissions: ['users.manage'] // Manage but not approve
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -623,7 +623,7 @@ describe('POST /api/v1/users/:id/approve', () => {
       permissions: ['users.approve']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('UPDATE users')) {
         return Promise.resolve({ rows: [] });
       }
@@ -650,7 +650,7 @@ describe('POST /api/v1/users/:id/roles', () => {
       permissions: ['users.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('INSERT INTO user_roles')) {
         return Promise.resolve({
           rows: [{
@@ -688,7 +688,7 @@ describe('POST /api/v1/users/:id/roles', () => {
       permissions: ['users.manage'] // Has manage but not admin
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('SELECT * FROM users WHERE id')) {
         return Promise.resolve({
           rows: [{ id: STAFF_USER_ID }]
@@ -713,7 +713,7 @@ describe('POST /api/v1/users/:id/roles', () => {
       permissions: ['users.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('INSERT INTO user_roles')) {
         const err = new Error('duplicate');
         err.code = '23505';
@@ -738,7 +738,7 @@ describe('POST /api/v1/users/:id/roles', () => {
       permissions: ['users.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -769,7 +769,7 @@ describe('DELETE /api/v1/users/:id/roles/:roleId', () => {
 
     let deleteCalled = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('DELETE FROM user_roles')) {
         deleteCalled = true;
         return Promise.resolve({ rows: [{ rowCount: 1 }] });
@@ -791,7 +791,7 @@ describe('DELETE /api/v1/users/:id/roles/:roleId', () => {
       permissions: ['users.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('COUNT(*)') && query.includes('role_id')) {
         return Promise.resolve({
           rows: [{ count: '1' }] // Only 1 admin
@@ -813,7 +813,7 @@ describe('DELETE /api/v1/users/:id/roles/:roleId', () => {
       permissions: ['users.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -839,7 +839,7 @@ describe('POST /api/v1/users/:id/parent', () => {
       permissions: ['users.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('INSERT INTO user_participants')) {
         return Promise.resolve({
           rows: [{
@@ -867,7 +867,7 @@ describe('POST /api/v1/users/:id/parent', () => {
       permissions: ['users.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('INSERT INTO user_participants')) {
         const err = new Error('foreign key');
         err.code = '23503';
@@ -892,7 +892,7 @@ describe('POST /api/v1/users/:id/parent', () => {
       permissions: ['users.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -921,7 +921,7 @@ describe('DELETE /api/v1/users/:id', () => {
       permissions: ['users.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('UPDATE users SET') && query.includes('is_active')) {
         return Promise.resolve({
           rows: [{
@@ -947,7 +947,7 @@ describe('DELETE /api/v1/users/:id', () => {
       permissions: ['users.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('SELECT * FROM users WHERE id')) {
         return Promise.resolve({
           rows: [{
@@ -977,7 +977,7 @@ describe('DELETE /api/v1/users/:id', () => {
       permissions: ['users.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -997,7 +997,7 @@ describe('DELETE /api/v1/users/:id', () => {
       permissions: ['users.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('UPDATE users SET')) {
         return Promise.resolve({ rows: [] });
       }
@@ -1023,7 +1023,7 @@ describe('User Permission Enforcement', () => {
       permissions: ['users.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users') && !query.includes('INSERT|UPDATE|DELETE')) {
         return Promise.resolve({ rows: [] });
       }
@@ -1105,7 +1105,7 @@ describe('Privilege Escalation Prevention', () => {
       permissions: ['users.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (_query, _params) => {
       return Promise.resolve({ rows: [] });
     });
 
@@ -1126,7 +1126,7 @@ describe('Privilege Escalation Prevention', () => {
       permissions: ['users.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('Escalation policy')) {
         return Promise.resolve({ rows: [] });
       }

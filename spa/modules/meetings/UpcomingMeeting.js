@@ -1,9 +1,6 @@
 import { translate } from '../../app.js';
 import {
-  debugLog,
   debugError,
-  debugWarn,
-  debugInfo,
 } from '../../utils/DebugUtils.js';
 import { getReunionDates, getReunionPreparation, saveBadgeProgress, getParticipants, getBadgeSummary, getAttendance } from '../../ajax-functions.js';
 import { markMeetingActivitiesProcessed } from '../../api/api-endpoints.js';

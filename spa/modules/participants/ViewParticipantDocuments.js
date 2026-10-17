@@ -1,5 +1,5 @@
 import { getParticipantsWithDocuments, getOrganizationFormFormats, getFormSubmission } from '../../ajax-functions.js'; // Updated import to reflect getOrganizationFormFormats
-import { debugLog, debugError, debugWarn, debugInfo } from '../../utils/DebugUtils.js';
+import { debugLog, debugError, debugWarn } from '../../utils/DebugUtils.js';
 import { translate } from '../../app.js';
 import { JSONFormRenderer } from '../../JSONFormRenderer.js';
 import { canViewParticipants } from '../../utils/PermissionUtils.js';

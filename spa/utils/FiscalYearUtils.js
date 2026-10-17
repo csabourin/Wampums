@@ -21,7 +21,7 @@ import { debugError } from './DebugUtils.js';
  * @param {number} day - Start day (1-31)
  * @returns {string} ISO date string for fiscal year end (YYYY-MM-DD)
  */
-function calculateFiscalYearEndDate(fiscalYearStart, month, day) {
+function calculateFiscalYearEndDate(fiscalYearStart, month, _day) {
   // End date is the day before next fiscal year start
   const endMonth = month === 1 ? 12 : month - 1;
   const endYear = month === 1 ? fiscalYearStart : fiscalYearStart + 1;

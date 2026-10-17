@@ -102,7 +102,7 @@ describe('GET /api/v1/forms', () => {
       permissions: ['forms.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM forms') && query.includes('WHERE')) {
         return Promise.resolve({
           rows: [
@@ -182,7 +182,7 @@ describe('GET /api/v1/forms', () => {
       permissions: [] // No permission
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
       }
@@ -231,7 +231,7 @@ describe('GET /api/v1/forms', () => {
       permissions: ['forms.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM forms')) {
         // Check that query filters for is_active = TRUE
         return Promise.resolve({
@@ -321,7 +321,7 @@ describe('GET /api/v1/forms/:id', () => {
       permissions: ['forms.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('WHERE id') && query.includes('forms')) {
         return Promise.resolve({
           rows: [{
@@ -361,7 +361,7 @@ describe('GET /api/v1/forms/:id', () => {
       permissions: ['forms.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('WHERE id')) {
         return Promise.resolve({ rows: [] });
       }
@@ -382,7 +382,7 @@ describe('GET /api/v1/forms/:id', () => {
       permissions: []
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
       }
@@ -409,7 +409,7 @@ describe('POST /api/v1/forms', () => {
       permissions: ['forms.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('INSERT INTO forms')) {
         return Promise.resolve({
           rows: [{
@@ -449,7 +449,7 @@ describe('POST /api/v1/forms', () => {
       permissions: [] // No permission
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
       }
@@ -475,7 +475,7 @@ describe('POST /api/v1/forms', () => {
       permissions: ['forms.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (_query, _params) => {
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
     });
@@ -497,7 +497,7 @@ describe('POST /api/v1/forms', () => {
       permissions: ['forms.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (_query, _params) => {
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
     });
@@ -530,7 +530,7 @@ describe('POST /api/v1/forms/:id/submit', () => {
 
     let insertCalled = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('SELECT id, schema FROM forms WHERE id')) {
         // Mock form lookup
         return Promise.resolve({
@@ -592,7 +592,7 @@ describe('POST /api/v1/forms/:id/submit', () => {
       permissions: ['forms.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('SELECT id, schema FROM forms WHERE id')) {
         // Mock form lookup
         return Promise.resolve({
@@ -638,7 +638,7 @@ describe('POST /api/v1/forms/:id/submit', () => {
       permissions: ['forms.submit']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('SELECT id, schema FROM forms WHERE id')) {
         // Mock form lookup
         return Promise.resolve({
@@ -678,7 +678,7 @@ describe('POST /api/v1/forms/:id/submit', () => {
       permissions: ['forms.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM forms WHERE id')) {
         return Promise.resolve({
           rows: [{
@@ -717,7 +717,7 @@ describe('POST /api/v1/forms/:id/submit', () => {
       permissions: [] // No permission
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
       }
@@ -742,7 +742,7 @@ describe('POST /api/v1/forms/:id/submit', () => {
       permissions: ['forms.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM forms')) {
         return Promise.resolve({ rows: [] }); // Not found
       }
@@ -773,7 +773,7 @@ describe('GET /api/v1/forms/:id/submissions', () => {
       permissions: ['forms.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM form_submissions')) {
         return Promise.resolve({
           rows: [
@@ -838,7 +838,7 @@ describe('GET /api/v1/forms/:id/submissions', () => {
       permissions: []
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
       }
@@ -867,7 +867,7 @@ describe('PUT /api/v1/forms/:id/submissions/:submissionId/approve', () => {
 
     let updateCalled = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('UPDATE form_submissions SET status')) {
         updateCalled = true;
         return Promise.resolve({
@@ -900,7 +900,7 @@ describe('PUT /api/v1/forms/:id/submissions/:submissionId/approve', () => {
       permissions: ['forms.view'] // Only view
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
       }
@@ -922,7 +922,7 @@ describe('PUT /api/v1/forms/:id/submissions/:submissionId/approve', () => {
       permissions: ['forms.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('UPDATE form_submissions')) {
         return Promise.resolve({ rows: [] }); // Not found
       }
@@ -950,7 +950,7 @@ describe('Form Permission Enforcement', () => {
       permissions: ['forms.view'] // View only
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM forms') && !query.includes('INSERT')) {
         return Promise.resolve({
           rows: [{ id: FORM_ID, name: 'Form' }]
@@ -994,7 +994,7 @@ describe('Form Versioning', () => {
       permissions: ['forms.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM forms')) {
         return Promise.resolve({
           rows: [
@@ -1032,7 +1032,7 @@ describe('Form Versioning', () => {
       permissions: ['forms.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM forms')) {
         return Promise.resolve({
           rows: [
