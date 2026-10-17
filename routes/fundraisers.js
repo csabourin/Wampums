@@ -164,11 +164,11 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.get('/', authenticate, requirePermission('fundraisers.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
-      const includeArchived = req.query.include_archived === 'true';
-      const extended = await hasCampaignModelColumns(pool);
+    const organizationId = await getOrganizationId(req, pool);
+    const includeArchived = req.query.include_archived === 'true';
+    const extended = await hasCampaignModelColumns(pool);
 
-      let query = `
+    let query = `
         SELECT
           f.id,
           f.name,
@@ -189,19 +189,19 @@ module.exports = (pool, logger) => {
         WHERE f.organization = $1
       `;
 
-      if (!includeArchived) {
-        query += ` AND (f.archived IS NULL OR f.archived = false)`;
-      }
+    if (!includeArchived) {
+      query += ` AND (f.archived IS NULL OR f.archived = false)`;
+    }
 
-      query += `
+    query += `
         GROUP BY f.id, f.name, f.start_date, f.end_date, f.objective, f.result, f.archived, f.created_at
                  ${extended ? ', f.campaign_type, f.unit_price, f.unit_label' : ''}
         ORDER BY f.start_date DESC, f.created_at DESC
       `;
 
-      const result = await pool.query(query, [organizationId]);
+    const result = await pool.query(query, [organizationId]);
 
-      return success(res, { fundraisers: result.rows });
+    return success(res, { fundraisers: result.rows });
   }));
 
   /**
@@ -253,12 +253,12 @@ module.exports = (pool, logger) => {
    *         description: Fundraiser not found
    */
   router.get('/:id', authenticate, requirePermission('fundraisers.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
-      const { id } = req.params;
-      const extended = await hasCampaignModelColumns(pool);
+    const organizationId = await getOrganizationId(req, pool);
+    const { id } = req.params;
+    const extended = await hasCampaignModelColumns(pool);
 
-      const result = await pool.query(
-        `SELECT f.*,
+    const result = await pool.query(
+      `SELECT f.*,
                 ${extended ? '' : `'${DEFAULT_CAMPAIGN_TYPE}'::text AS campaign_type,
                 NULL::numeric AS unit_price,
                 NULL::text AS unit_label,`}
@@ -271,14 +271,14 @@ module.exports = (pool, logger) => {
          LEFT JOIN fundraiser_entries c ON c.fundraiser = f.id
          WHERE f.id = $1 AND f.organization = $2
          GROUP BY f.id`,
-        [id, organizationId]
-      );
+      [id, organizationId]
+    );
 
-      if (result.rows.length === 0) {
-        return error(res, 'Fundraiser not found', 404);
-      }
+    if (result.rows.length === 0) {
+      return error(res, 'Fundraiser not found', 404);
+    }
 
-      return success(res, { fundraiser: result.rows[0] });
+    return success(res, { fundraiser: result.rows[0] });
   }));
 
   /**
@@ -315,125 +315,125 @@ module.exports = (pool, logger) => {
    *         description: Missing required fields
    */
   router.post('/', authenticate, blockDemoRoles, requirePermission('fundraisers.create'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+    const organizationId = await getOrganizationId(req, pool);
 
-      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
-        return error(res, 'Invalid request body. Expected JSON object payload.', 400);
-      }
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+    }
 
-      const { errors: validationErrors, values } = validateCampaignPayload(req.body);
+    const { errors: validationErrors, values } = validateCampaignPayload(req.body);
 
-      if (validationErrors.length > 0) {
-        return error(res, 'Invalid campaign data', 400, validationErrors);
-      }
+    if (validationErrors.length > 0) {
+      return error(res, 'Invalid campaign data', 400, validationErrors);
+    }
 
-      const extended = await hasCampaignModelColumns(pool);
+    const extended = await hasCampaignModelColumns(pool);
 
-      if (!extended && values.campaign_type !== DEFAULT_CAMPAIGN_TYPE) {
-        // The campaign is still created and usable, but its type cannot be
-        // stored yet. Make that visible to operators instead of silently
-        // downgrading it.
-        logger?.warn?.(
-          `Campaign type "${values.campaign_type}" stored as "${DEFAULT_CAMPAIGN_TYPE}": ` +
+    if (!extended && values.campaign_type !== DEFAULT_CAMPAIGN_TYPE) {
+      // The campaign is still created and usable, but its type cannot be
+      // stored yet. Make that visible to operators instead of silently
+      // downgrading it.
+      logger?.warn?.(
+        `Campaign type "${values.campaign_type}" stored as "${DEFAULT_CAMPAIGN_TYPE}": ` +
           'migration 001_initial.sql has not been applied to this database.'
-        );
-      }
+      );
+    }
 
-      // Start a transaction
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
+    // Start a transaction
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-        // Create fundraiser. The generalised columns are only written when
-        // they exist, so campaign creation keeps working on a database where
-        // migration 004 has not been applied yet.
-        const fundraiserResult = extended
-          ? await client.query(
-            `INSERT INTO fundraisers
+      // Create fundraiser. The generalised columns are only written when
+      // they exist, so campaign creation keeps working on a database where
+      // migration 004 has not been applied yet.
+      const fundraiserResult = extended
+        ? await client.query(
+          `INSERT INTO fundraisers
                (name, start_date, end_date, objective, organization, archived, campaign_type, unit_price, unit_label)
              VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8)
              RETURNING *`,
-            [
-              values.name,
-              values.start_date,
-              values.end_date,
-              values.objective ?? null,
-              organizationId,
-              values.campaign_type,
-              values.unit_price ?? null,
-              values.unit_label ?? null,
-            ]
-          )
-          : await client.query(
-            `INSERT INTO fundraisers
+          [
+            values.name,
+            values.start_date,
+            values.end_date,
+            values.objective ?? null,
+            organizationId,
+            values.campaign_type,
+            values.unit_price ?? null,
+            values.unit_label ?? null,
+          ]
+        )
+        : await client.query(
+          `INSERT INTO fundraisers
                (name, start_date, end_date, objective, organization, archived)
              VALUES ($1, $2, $3, $4, $5, false)
              RETURNING *`,
-            [
-              values.name,
-              values.start_date,
-              values.end_date,
-              values.objective ?? null,
-              organizationId,
-            ]
-          );
+          [
+            values.name,
+            values.start_date,
+            values.end_date,
+            values.objective ?? null,
+            organizationId,
+          ]
+        );
 
-        const fundraiser = fundraiserResult.rows[0];
+      const fundraiser = fundraiserResult.rows[0];
 
-        // Get all participants for this organization
-        const participantsResult = await client.query(
-          `SELECT DISTINCT p.id
+      // Get all participants for this organization
+      const participantsResult = await client.query(
+        `SELECT DISTINCT p.id
            FROM participants p
            JOIN participant_organizations po ON p.id = po.participant_id
            WHERE po.organization_id = $1`,
-          [organizationId]
-        );
+        [organizationId]
+      );
 
-        // Create calendar entries for all participants
-        if (participantsResult.rows.length > 0) {
-          const values = participantsResult.rows.map((p, idx) => {
-            const offset = idx * 5;
-            return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5})`;
-          }).join(',');
+      // Create calendar entries for all participants
+      if (participantsResult.rows.length > 0) {
+        const values = participantsResult.rows.map((p, idx) => {
+          const offset = idx * 5;
+          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5})`;
+        }).join(',');
 
-          const params = participantsResult.rows.flatMap(p => [
-            p.id,              // participant_id
-            fundraiser.id,     // fundraiser
-            0,                 // amount (default to 0)
-            false,             // paid (default to false)
-            0                  // amount_paid (default to 0)
-          ]);
+        const params = participantsResult.rows.flatMap(p => [
+          p.id,              // participant_id
+          fundraiser.id,     // fundraiser
+          0,                 // amount (default to 0)
+          false,             // paid (default to false)
+          0                  // amount_paid (default to 0)
+        ]);
 
-          await client.query(
-            `INSERT INTO fundraiser_entries (participant_id, fundraiser, amount, paid, amount_paid)
+        await client.query(
+          `INSERT INTO fundraiser_entries (participant_id, fundraiser, amount, paid, amount_paid)
              VALUES ${values}
              ON CONFLICT DO NOTHING`,
-            params
-          );
-        }
-
-        await client.query('COMMIT');
-
-        return success(
-          res,
-          {
-            fundraiser: extended ? fundraiser : {
-              ...fundraiser,
-              campaign_type: DEFAULT_CAMPAIGN_TYPE,
-              unit_price: null,
-              unit_label: null,
-            },
-            participants_added: participantsResult.rows.length,
-          },
-          'Fundraiser created',
-          201
+          params
         );
-      } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
-      } finally {
-        client.release();
       }
+
+      await client.query('COMMIT');
+
+      return success(
+        res,
+        {
+          fundraiser: extended ? fundraiser : {
+            ...fundraiser,
+            campaign_type: DEFAULT_CAMPAIGN_TYPE,
+            unit_price: null,
+            unit_label: null,
+          },
+          participants_added: participantsResult.rows.length,
+        },
+        'Fundraiser created',
+        201
+      );
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }));
 
   /**
@@ -477,45 +477,45 @@ module.exports = (pool, logger) => {
    *         description: Fundraiser not found
    */
   router.put('/:id', authenticate, blockDemoRoles, requirePermission('fundraisers.edit'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+    const organizationId = await getOrganizationId(req, pool);
 
-      const { id } = req.params;
+    const { id } = req.params;
 
-      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
-        return error(res, 'Invalid request body. Expected JSON object payload.', 400);
-      }
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+    }
 
-      const { errors: validationErrors, values } = validateCampaignPayload(req.body, { partial: true });
+    const { errors: validationErrors, values } = validateCampaignPayload(req.body, { partial: true });
 
-      if (validationErrors.length > 0) {
-        return error(res, 'Invalid campaign data', 400, validationErrors);
-      }
+    if (validationErrors.length > 0) {
+      return error(res, 'Invalid campaign data', 400, validationErrors);
+    }
 
-      const extended = await hasCampaignModelColumns(pool);
+    const extended = await hasCampaignModelColumns(pool);
 
-      // A partial update needs both start and end dates to compare them, so
-      // re-check the ordering against the stored row when only one was sent.
-      if ((values.start_date && !values.end_date) || (values.end_date && !values.start_date)) {
-        const currentResult = await pool.query(
-          'SELECT start_date, end_date FROM fundraisers WHERE id = $1 AND organization = $2',
-          [id, organizationId]
-        );
-        if (currentResult.rows.length > 0) {
-          const current = currentResult.rows[0];
-          const toIso = (value) => (value instanceof Date ? value.toISOString().slice(0, 10) : String(value ?? '').slice(0, 10));
-          const startDate = values.start_date || toIso(current.start_date);
-          const endDate = values.end_date || toIso(current.end_date);
-          if (startDate && endDate && endDate < startDate) {
-            return error(res, 'Invalid campaign data', 400, [
-              { field: 'end_date', message: 'end_date must be on or after start_date' },
-            ]);
-          }
+    // A partial update needs both start and end dates to compare them, so
+    // re-check the ordering against the stored row when only one was sent.
+    if ((values.start_date && !values.end_date) || (values.end_date && !values.start_date)) {
+      const currentResult = await pool.query(
+        'SELECT start_date, end_date FROM fundraisers WHERE id = $1 AND organization = $2',
+        [id, organizationId]
+      );
+      if (currentResult.rows.length > 0) {
+        const current = currentResult.rows[0];
+        const toIso = (value) => (value instanceof Date ? value.toISOString().slice(0, 10) : String(value ?? '').slice(0, 10));
+        const startDate = values.start_date || toIso(current.start_date);
+        const endDate = values.end_date || toIso(current.end_date);
+        if (startDate && endDate && endDate < startDate) {
+          return error(res, 'Invalid campaign data', 400, [
+            { field: 'end_date', message: 'end_date must be on or after start_date' },
+          ]);
         }
       }
+    }
 
-      const updateResult = extended
-        ? await pool.query(
-          `UPDATE fundraisers
+    const updateResult = extended
+      ? await pool.query(
+        `UPDATE fundraisers
            SET name = COALESCE($1, name),
                start_date = COALESCE($2, start_date),
                end_date = COALESCE($3, end_date),
@@ -526,21 +526,21 @@ module.exports = (pool, logger) => {
                unit_label = COALESCE($8, unit_label)
            WHERE id = $9 AND organization = $10
            RETURNING *`,
-          [
-            values.name ?? null,
-            values.start_date ?? null,
-            values.end_date ?? null,
-            values.objective ?? null,
-            values.result ?? null,
-            values.campaign_type ?? null,
-            values.unit_price ?? null,
-            values.unit_label ?? null,
-            id,
-            organizationId,
-          ]
-        )
-        : await pool.query(
-          `UPDATE fundraisers
+        [
+          values.name ?? null,
+          values.start_date ?? null,
+          values.end_date ?? null,
+          values.objective ?? null,
+          values.result ?? null,
+          values.campaign_type ?? null,
+          values.unit_price ?? null,
+          values.unit_label ?? null,
+          id,
+          organizationId,
+        ]
+      )
+      : await pool.query(
+        `UPDATE fundraisers
            SET name = COALESCE($1, name),
                start_date = COALESCE($2, start_date),
                end_date = COALESCE($3, end_date),
@@ -548,22 +548,22 @@ module.exports = (pool, logger) => {
                result = COALESCE($5, result)
            WHERE id = $6 AND organization = $7
            RETURNING *`,
-          [
-            values.name ?? null,
-            values.start_date ?? null,
-            values.end_date ?? null,
-            values.objective ?? null,
-            values.result ?? null,
-            id,
-            organizationId,
-          ]
-        );
+        [
+          values.name ?? null,
+          values.start_date ?? null,
+          values.end_date ?? null,
+          values.objective ?? null,
+          values.result ?? null,
+          id,
+          organizationId,
+        ]
+      );
 
-      if (updateResult.rows.length === 0) {
-        return error(res, 'Fundraiser not found', 404);
-      }
+    if (updateResult.rows.length === 0) {
+      return error(res, 'Fundraiser not found', 404);
+    }
 
-      return success(res, { fundraiser: updateResult.rows[0] }, 'Fundraiser updated');
+    return success(res, { fundraiser: updateResult.rows[0] }, 'Fundraiser updated');
   }));
 
   /**

@@ -11,7 +11,7 @@ const TERM_KEY_PATTERN = /^[a-z][a-z0-9_]{0,49}$/u;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/u;
 
 function isPlainObject(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {return false;}
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
 }
@@ -28,7 +28,7 @@ function normalizeText(value, field, errors, options = {}) {
   } = options;
 
   if (value === undefined || value === null) {
-    if (required) addError(errors, field, 'Field is required');
+    if (required) {addError(errors, field, 'Field is required');}
     return defaultValue;
   }
   if (typeof value !== 'string') {
@@ -37,7 +37,7 @@ function normalizeText(value, field, errors, options = {}) {
   }
 
   const normalized = value.trim();
-  if (required && !normalized) addError(errors, field, 'Field cannot be empty');
+  if (required && !normalized) {addError(errors, field, 'Field cannot be empty');}
   if (normalized.length > maxLength) {
     addError(errors, field, `Field must be ${maxLength} characters or fewer`);
   }
@@ -116,10 +116,10 @@ function normalizeMeetingPlan(payload, errors) {
   }
 
   const locale = typeof payload.locale === 'string' ? payload.locale.toLowerCase() : 'fr';
-  if (!SUPPORTED_LOCALES.has(locale)) addError(errors, 'payload.locale', 'Unsupported locale');
+  if (!SUPPORTED_LOCALES.has(locale)) {addError(errors, 'payload.locale', 'Unsupported locale');}
 
   const date = normalizeText(payload.date, 'payload.date', errors, { maxLength: 10 });
-  if (date && !DATE_PATTERN.test(date)) addError(errors, 'payload.date', 'Date must use YYYY-MM-DD');
+  if (date && !DATE_PATTERN.test(date)) {addError(errors, 'payload.date', 'Date must use YYYY-MM-DD');}
 
   if (payload.activityTemplates !== undefined && !Array.isArray(payload.activityTemplates)) {
     addError(errors, 'payload.activityTemplates', 'Activity templates must be an array');
@@ -132,8 +132,8 @@ function normalizeMeetingPlan(payload, errors) {
       }
       const time = normalizeText(template.time, `payload.activityTemplates.${index}.time`, errors, { maxLength: 8 });
       const duration = normalizeText(template.duration, `payload.activityTemplates.${index}.duration`, errors, { maxLength: 8 });
-      if (time && !TIME_PATTERN.test(time)) addError(errors, `payload.activityTemplates.${index}.time`, 'Invalid time');
-      if (duration && !TIME_PATTERN.test(duration)) addError(errors, `payload.activityTemplates.${index}.duration`, 'Invalid duration');
+      if (time && !TIME_PATTERN.test(time)) {addError(errors, `payload.activityTemplates.${index}.time`, 'Invalid time');}
+      if (duration && !TIME_PATTERN.test(duration)) {addError(errors, `payload.activityTemplates.${index}.duration`, 'Invalid duration');}
       return {
         time,
         duration,
@@ -209,7 +209,7 @@ function validateAIPayload(mode, input) {
     value = normalizeMeetingPlan(input, errors);
   } else if (mode === 'rewrite') {
     const tone = typeof input.tone === 'string' ? input.tone.toLowerCase() : '';
-    if (!REWRITE_TONES.has(tone)) addError(errors, 'payload.tone', 'Unsupported rewrite tone');
+    if (!REWRITE_TONES.has(tone)) {addError(errors, 'payload.tone', 'Unsupported rewrite tone');}
     value = {
       tone: REWRITE_TONES.has(tone) ? tone : 'professional',
       text: normalizeText(input.text, 'payload.text', errors, { maxLength: AI_LIMITS.MAX_TEXT_LENGTH }),
@@ -217,9 +217,9 @@ function validateAIPayload(mode, input) {
   } else if (mode === 'translate') {
     const from = typeof input.from === 'string' ? input.from.toLowerCase() : '';
     const to = typeof input.to === 'string' ? input.to.toLowerCase() : '';
-    if (!SUPPORTED_LOCALES.has(from)) addError(errors, 'payload.from', 'Unsupported source locale');
-    if (!SUPPORTED_LOCALES.has(to)) addError(errors, 'payload.to', 'Unsupported target locale');
-    if (from && from === to) addError(errors, 'payload.to', 'Target locale must differ from source locale');
+    if (!SUPPORTED_LOCALES.has(from)) {addError(errors, 'payload.from', 'Unsupported source locale');}
+    if (!SUPPORTED_LOCALES.has(to)) {addError(errors, 'payload.to', 'Unsupported target locale');}
+    if (from && from === to) {addError(errors, 'payload.to', 'Target locale must differ from source locale');}
     value = {
       from: SUPPORTED_LOCALES.has(from) ? from : 'fr',
       to: SUPPORTED_LOCALES.has(to) ? to : 'en',

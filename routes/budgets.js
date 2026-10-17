@@ -515,7 +515,7 @@ module.exports = (pool, logger) => {
     const { fiscal_year_start, fiscal_year_end } = req.query;
 
     // Get summary by category using the view
-    let query = `
+    const query = `
       SELECT
         organization_id,
         budget_category_id,

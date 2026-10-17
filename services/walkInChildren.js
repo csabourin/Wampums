@@ -151,7 +151,7 @@ async function detachFromOtherInvitations(client, { organizationId, participantI
   );
 
   const touched = [...new Set(detached.rows.map((row) => row.invitation_id))];
-  if (touched.length === 0) return;
+  if (touched.length === 0) {return;}
 
   await client.query(
     `UPDATE parent_invitations

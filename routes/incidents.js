@@ -66,7 +66,7 @@ function buildIncidentEscalationEmail(formData, submitter, orgName) {
     `Victim: ${victimName}`,
     `Date: ${date} ${time}`,
     `Activity: ${activityNature}`,
-    `Location: ${location}${exactLocation ? ' - ' + exactLocation : ''}`,
+    `Location: ${location}${exactLocation ? ` - ${  exactLocation}` : ''}`,
     '',
     `Description: ${description}`,
     '',
@@ -94,7 +94,7 @@ function buildIncidentEscalationEmail(formData, submitter, orgName) {
           </tr>
           <tr style="border-bottom: 1px solid #eee;">
             <td style="padding: 10px 8px; font-weight: bold; color: #555;">Date / Time</td>
-            <td style="padding: 10px 8px;">${escapeHtml(date)}${time ? ' at ' + escapeHtml(time) : ''}</td>
+            <td style="padding: 10px 8px;">${escapeHtml(date)}${time ? ` at ${  escapeHtml(time)}` : ''}</td>
           </tr>
           <tr style="border-bottom: 1px solid #eee;">
             <td style="padding: 10px 8px; font-weight: bold; color: #555;">Activity</td>
@@ -102,7 +102,7 @@ function buildIncidentEscalationEmail(formData, submitter, orgName) {
           </tr>
           <tr style="border-bottom: 1px solid #eee;">
             <td style="padding: 10px 8px; font-weight: bold; color: #555;">Location</td>
-            <td style="padding: 10px 8px;">${escapeHtml(location)}${exactLocation ? ' &mdash; ' + escapeHtml(exactLocation) : ''}</td>
+            <td style="padding: 10px 8px;">${escapeHtml(location)}${exactLocation ? ` &mdash; ${  escapeHtml(exactLocation)}` : ''}</td>
           </tr>
           <tr style="border-bottom: 1px solid #eee;">
             <td style="padding: 10px 8px; font-weight: bold; color: #555; vertical-align: top;">Description</td>

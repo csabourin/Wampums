@@ -3,12 +3,12 @@
  * Replaces PHP functions.php with Node.js equivalents
  */
 
-const jwt = require("jsonwebtoken");
-const Brevo = require("sib-api-v3-sdk");
-const nodemailer = require("nodemailer");
-const winston = require("winston");
+const jwt = require('jsonwebtoken');
+const Brevo = require('sib-api-v3-sdk');
+const nodemailer = require('nodemailer');
+const winston = require('winston');
 const { getDefaultPointSystemRules } = require('./api-helpers');
-const { verifyJWTToken } = require("./jwt-config");
+const { verifyJWTToken } = require('./jwt-config');
 const { isAuthenticatedSenderAddress } = require('../services/emailSender');
 const { listLeaderContactsWithPermissions } = require('../services/unitLeaders');
 
@@ -17,11 +17,11 @@ const ACCOUNT_APPROVER_PERMISSIONS = ['users.view', 'users.edit'];
 
 // Configure logger for utilities
 const logger = winston.createLogger({
-  level: "info",
+  level: 'info',
   format: winston.format.json(),
   transports: [
-    new winston.transports.File({ filename: "error.log", level: "error" }),
-    new winston.transports.File({ filename: "combined.log" }),
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
   ],
 });
 
@@ -31,17 +31,17 @@ let brevoSmtpTransport = null;
 
 // Normalize Brevo API key and sender configuration
 const brevoApiKeyValue = process.env.BREVO_KEY || process.env.BREVO_API_KEY;
-const senderEmail = process.env.EMAIL_FROM || "info@wampums.app";
+const senderEmail = process.env.EMAIL_FROM || 'info@wampums.app';
 const senderName = process.env.EMAIL_FROM_NAME || 'Wampums';
 const brevoSmtpKey = process.env.BREVO_SMTP_KEY;
 const brevoSmtpUser = process.env.BREVO_SMTP_USER || '9d142c001@smtp-brevo.com';
 
 const translationBundles = {
-  en: require("../lang/en.json"),
-  fr: require("../lang/fr.json"),
-  uk: require("../lang/uk.json"),
-  it: require("../lang/it.json"),
-  id: require("../lang/id.json"),
+  en: require('../lang/en.json'),
+  fr: require('../lang/fr.json'),
+  uk: require('../lang/uk.json'),
+  it: require('../lang/it.json'),
+  id: require('../lang/id.json'),
 };
 
 // Initialize Brevo
@@ -56,8 +56,8 @@ if (brevoApiKeyValue) {
  * @param {string} languageCode - Preferred language code (e.g., en, fr)
  * @returns {object} Translation object
  */
-function getTranslationsByCode(languageCode = "en") {
-  const normalized = (languageCode || "en").slice(0, 2).toLowerCase();
+function getTranslationsByCode(languageCode = 'en') {
+  const normalized = (languageCode || 'en').slice(0, 2).toLowerCase();
   return translationBundles[normalized] || translationBundles.en;
 }
 
@@ -88,10 +88,10 @@ function calculateAge(dateOfBirth) {
  * @returns {string} Sanitized and trimmed input, capped at 10,000 characters
  */
 function sanitizeInput(input) {
-  if (input === null || input === undefined) return "";
+  if (input === null || input === undefined) {return '';}
 
   let str;
-  if (typeof input === "string") {
+  if (typeof input === 'string') {
     str = input;
   } else {
     try {
@@ -101,7 +101,7 @@ function sanitizeInput(input) {
     }
   }
 
-  if (typeof str !== "string") {
+  if (typeof str !== 'string') {
     str = String(str);
   }
 
@@ -128,25 +128,25 @@ function sanitizeInput(input) {
  * @returns {string} 't' or 'f'
  */
 function toBool(value) {
-  if (typeof value === "boolean") {
-    return value ? "t" : "f";
+  if (typeof value === 'boolean') {
+    return value ? 't' : 'f';
   }
-  if (typeof value === "string") {
+  if (typeof value === 'string') {
     const lower = value.toLowerCase();
     if (
-      lower === "true" ||
-      lower === "1" ||
-      lower === "yes" ||
-      lower === "on" ||
-      lower === "t"
+      lower === 'true' ||
+      lower === '1' ||
+      lower === 'yes' ||
+      lower === 'on' ||
+      lower === 't'
     ) {
-      return "t";
+      return 't';
     }
   }
-  if (typeof value === "number") {
-    return value ? "t" : "f";
+  if (typeof value === 'number') {
+    return value ? 't' : 'f';
   }
-  return "f";
+  return 'f';
 }
 
 /**
@@ -155,9 +155,9 @@ function toBool(value) {
  * @returns {boolean}
  */
 function fromBool(value) {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "string") {
-    return value === "t" || value === "true" || value === "1";
+  if (typeof value === 'boolean') {return value;}
+  if (typeof value === 'string') {
+    return value === 't' || value === 'true' || value === '1';
   }
   return Boolean(value);
 }
@@ -305,7 +305,7 @@ async function sendEmail(to, subject, message, html = null, sender = null) {
         ...(html ? { htmlContent: html } : {}),
       };
       const result = await brevoTransactionalApi.sendTransacEmail(apiPayload);
-      logger.info("Email sent successfully via Brevo API", {
+      logger.info('Email sent successfully via Brevo API', {
         messageId: result?.messageId,
         to,
       });
@@ -315,7 +315,7 @@ async function sendEmail(to, subject, message, html = null, sender = null) {
     if (brevoSmtpKey) {
       if (!brevoSmtpTransport) {
         brevoSmtpTransport = nodemailer.createTransport({
-          host: "smtp-relay.brevo.com",
+          host: 'smtp-relay.brevo.com',
           port: 587,
           secure: false,
           auth: {
@@ -325,7 +325,7 @@ async function sendEmail(to, subject, message, html = null, sender = null) {
         });
       }
 
-      logger.info("Sending email via Brevo SMTP relay", {
+      logger.info('Sending email via Brevo SMTP relay', {
         to,
         from: from.email,
         user: brevoSmtpUser,
@@ -338,7 +338,7 @@ async function sendEmail(to, subject, message, html = null, sender = null) {
         text: message,
         ...(html ? { html } : {}),
       });
-      logger.info("Email sent successfully via SMTP", {
+      logger.info('Email sent successfully via SMTP', {
         messageId: smtpResult?.messageId,
         to,
       });
@@ -346,14 +346,14 @@ async function sendEmail(to, subject, message, html = null, sender = null) {
     }
 
     logger.error(
-      "Brevo API key not found and no SMTP key provided (BREVO_SMTP_KEY)",
+      'Brevo API key not found and no SMTP key provided (BREVO_SMTP_KEY)',
     );
     return false;
   } catch (error) {
-    logger.error("Error sending email:", error.message || error);
+    logger.error('Error sending email:', error.message || error);
     if (error.response?.body) {
       logger.error(
-        "Brevo API error details:",
+        'Brevo API error details:',
         JSON.stringify(error.response.body),
       );
     }
@@ -388,26 +388,26 @@ async function sendWhatsApp(to, message, organizationId = null, whatsappService 
       const isConnected = await whatsappService.isConnected(organizationId);
 
       if (isConnected) {
-        logger.info("Using Baileys to send WhatsApp message", { to, organizationId });
+        logger.info('Using Baileys to send WhatsApp message', { to, organizationId });
         const result = await whatsappService.sendMessage(organizationId, to, message);
 
         if (result.success) {
-          logger.info("WhatsApp message sent successfully via Baileys");
+          logger.info('WhatsApp message sent successfully via Baileys');
           return { success: true };
         } else {
-          logger.warn("Baileys failed to send message:", result.error);
+          logger.warn('Baileys failed to send message:', result.error);
           return { success: false, error: result.error };
         }
       } else {
-        logger.info("Baileys not connected for organization", { organizationId });
-        return { success: false, error: "WhatsApp is not connected" };
+        logger.info('Baileys not connected for organization', { organizationId });
+        return { success: false, error: 'WhatsApp is not connected' };
       }
     }
 
-    return { success: false, error: "WhatsApp service not available" };
+    return { success: false, error: 'WhatsApp service not available' };
   } catch (error) {
-    logger.error("Error in sendWhatsApp:", error.message || error);
-    return { success: false, error: error.message || "Unknown error" };
+    logger.error('Error in sendWhatsApp:', error.message || error);
+    return { success: false, error: error.message || 'Unknown error' };
   }
 }
 
@@ -428,7 +428,7 @@ async function sendAdminVerificationEmail(
 ) {
   try {
     const overrideTranslations = translations && Object.keys(translations).length > 0 ? translations : null;
-    const englishTranslations = getTranslationsByCode("en");
+    const englishTranslations = getTranslationsByCode('en');
 
     // The leaders who can review and approve the account (GET /users, POST /users/approve)
     const admins = await listLeaderContactsWithPermissions(pool, organizationId, ACCOUNT_APPROVER_PERMISSIONS);
@@ -449,7 +449,7 @@ async function sendAdminVerificationEmail(
       [organizationId],
     );
 
-    const orgName = orgResult.rows[0]?.org_name || "Wampums.app";
+    const orgName = orgResult.rows[0]?.org_name || 'Wampums.app';
 
     // Send email to all admins
     for (const adminEmail of adminEmails) {
@@ -459,18 +459,18 @@ async function sendAdminVerificationEmail(
         adminTranslations.new_animator_registration_subject ||
         overrideTranslations?.new_animator_registration_subject ||
         englishTranslations.new_animator_registration_subject ||
-        "New Animator Registration for {orgName}"
-      ).replace("{orgName}", orgName);
+        'New Animator Registration for {orgName}'
+      ).replace('{orgName}', orgName);
 
       const message = (
         adminTranslations.new_animator_registration_body ||
         overrideTranslations?.new_animator_registration_body ||
         englishTranslations.new_animator_registration_body ||
-        "A new animator has registered for {orgName}:\n\nName: {animatorName}\nEmail: {animatorEmail}\n\nPlease review and approve their account."
+        'A new animator has registered for {orgName}:\n\nName: {animatorName}\nEmail: {animatorEmail}\n\nPlease review and approve their account.'
       )
-        .replace("{orgName}", orgName)
-        .replace("{animatorName}", animatorName)
-        .replace("{animatorEmail}", animatorEmail);
+        .replace('{orgName}', orgName)
+        .replace('{animatorName}', animatorName)
+        .replace('{animatorEmail}', animatorEmail);
 
       const result = await sendEmail(adminEmail, subject, message);
       if (!result) {
@@ -480,7 +480,7 @@ async function sendAdminVerificationEmail(
       }
     }
   } catch (error) {
-    logger.error("Error in sendAdminVerificationEmail:", error);
+    logger.error('Error in sendAdminVerificationEmail:', error);
   }
 }
 
@@ -503,7 +503,7 @@ async function determineOrganizationId(pool, domain) {
 
     return result.rows[0]?.organization_id || null;
   } catch (error) {
-    logger.error("Error determining organization ID:", error);
+    logger.error('Error determining organization ID:', error);
     return null;
   }
 }
@@ -516,7 +516,7 @@ async function determineOrganizationId(pool, domain) {
 function getJWTPayload(req) {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return null;
   }
 
@@ -526,7 +526,7 @@ function getJWTPayload(req) {
     const decoded = jwt.decode(token);
     return decoded;
   } catch (error) {
-    logger.error("Error decoding JWT:", error);
+    logger.error('Error decoding JWT:', error);
     return null;
   }
 }
@@ -580,7 +580,7 @@ function getOrganizationIdFromToken(token) {
  * @returns {string} Formatted date string
  */
 function formatDateForDB(date) {
-  if (!date) return null;
+  if (!date) {return null;}
   const d = new Date(date);
   return d.toISOString();
 }
@@ -617,17 +617,17 @@ async function getPointSystemRules(pool, organizationId) {
     if (result.rows.length > 0) {
       const value = result.rows[0].setting_value;
       // Handle both JSON string and already-parsed object (JSONB)
-      if (typeof value === "object" && value !== null) {
+      if (typeof value === 'object' && value !== null) {
         return value;
       }
       try {
         return JSON.parse(value);
       } catch (e) {
-        logger.warn("Error parsing point_system_rules:", e);
+        logger.warn('Error parsing point_system_rules:', e);
       }
     }
   } catch (error) {
-    logger.error("Error getting point system rules:", error);
+    logger.error('Error getting point system rules:', error);
   }
 
   return getDefaultPointSystemRules();

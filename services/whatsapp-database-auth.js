@@ -28,10 +28,10 @@ async function useDatabaseAuthState(organizationId, pool) {
    * @returns {Object} Revived object ready for Baileys
    */
   const reviveBaileysJson = (value, fallback) => {
-    if (!value) return fallback;
+    if (!value) {return fallback;}
 
     try {
-      const serialized = typeof value === "string" ? value : JSON.stringify(value);
+      const serialized = typeof value === 'string' ? value : JSON.stringify(value);
       return JSON.parse(serialized, BufferJSON.reviver);
     } catch (error) {
       logger.error(`Error reviving Baileys JSON for org ${organizationId}:`, error);
@@ -235,7 +235,7 @@ async function useDatabaseAuthState(organizationId, pool) {
    */
   const makeKeyStore = (initialKeys) => {
     // Keep a reference that can be updated
-    let keysCache = initialKeys;
+    const keysCache = initialKeys;
 
     return {
       get: async (type, ids) => {

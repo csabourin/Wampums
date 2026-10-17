@@ -22,9 +22,9 @@ async function up(client, { organizationIds } = {}) {
     : null;
 
   for (const format of result.rows) {
-    if (targets && !targets.has(format.organization_id)) continue;
+    if (targets && !targets.has(format.organization_id)) {continue;}
     const corrected = correctEmailLabel(format.form_structure);
-    if (JSON.stringify(corrected) === JSON.stringify(format.form_structure)) continue;
+    if (JSON.stringify(corrected) === JSON.stringify(format.form_structure)) {continue;}
 
     const versionResult = await client.query(
       `SELECT COALESCE(MAX(version_number), 0)::int + 1 AS next_version

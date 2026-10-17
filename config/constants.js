@@ -14,7 +14,7 @@
  * @returns {number} Parsed integer or default value
  */
 function parseEnvInt(envValue, defaultValue) {
-  if (!envValue) return defaultValue;
+  if (!envValue) {return defaultValue;}
   const trimmed = String(envValue).trim();
   const parsed = parseInt(trimmed, 10);
   // Ensure the entire string is a valid integer (no trailing non-numeric characters)

@@ -1,13 +1,13 @@
-const { escapeHtml } = require("./api-helpers");
-const { sanitizeInput, getTranslationsByCode } = require("./index");
+const { escapeHtml } = require('./api-helpers');
+const { sanitizeInput, getTranslationsByCode } = require('./index');
 const { sanitizeRichTextHtml } = require('./richText');
 
 const LANGUAGE_LOCALES = {
-  en: "en-CA",
-  fr: "fr-CA",
-  uk: "uk-UA",
-  it: "it-IT",
-  id: "id-ID",
+  en: 'en-CA',
+  fr: 'fr-CA',
+  uk: 'uk-UA',
+  it: 'it-IT',
+  id: 'id-ID',
 };
 
 /**
@@ -18,12 +18,12 @@ const LANGUAGE_LOCALES = {
  */
 function formatTranslation(template, replacements = {}) {
   if (!template) {
-    return "";
+    return '';
   }
 
   let result = template;
   Object.entries(replacements).forEach(([key, value]) => {
-    result = result.split(`{${key}}`).join(value ?? "");
+    result = result.split(`{${key}}`).join(value ?? '');
   });
   return result;
 }
@@ -50,8 +50,8 @@ function getTranslationValue(
  * @param {string} languageCode - Language code (e.g., en, fr).
  * @returns {string} Locale for date formatting.
  */
-function getLocaleForLanguage(languageCode = "en") {
-  const normalized = (languageCode || "en").slice(0, 2).toLowerCase();
+function getLocaleForLanguage(languageCode = 'en') {
+  const normalized = (languageCode || 'en').slice(0, 2).toLowerCase();
   return LANGUAGE_LOCALES[normalized] || LANGUAGE_LOCALES.en;
 }
 
@@ -79,11 +79,11 @@ function buildPermissionSlipEmailContent({
   participantFirstName,
   participantLastName,
   signLink,
-  languageCode = "en",
+  languageCode = 'en',
   isReminder = false,
 }) {
   const translations = getTranslationsByCode(languageCode);
-  const fallbackTranslations = getTranslationsByCode("en");
+  const fallbackTranslations = getTranslationsByCode('en');
   const locale = getLocaleForLanguage(languageCode);
 
   const sanitizedActivityTitle =
@@ -91,46 +91,46 @@ function buildPermissionSlipEmailContent({
     getTranslationValue(
       translations,
       fallbackTranslations,
-      "activity",
-      "Activity",
+      'activity',
+      'Activity',
     );
-  const sanitizedActivityDescription = sanitizeInput(activityDescription || "");
+  const sanitizedActivityDescription = sanitizeInput(activityDescription || '');
   const sanitizedParticipantName = sanitizeInput(
-    `${participantFirstName || ""} ${participantLastName || ""}`.trim(),
+    `${participantFirstName || ''} ${participantLastName || ''}`.trim(),
   );
   const participantFallback = getTranslationValue(
     translations,
     fallbackTranslations,
-    "permission_slip_participant_fallback",
-    "Participant",
+    'permission_slip_participant_fallback',
+    'Participant',
   );
   const participantName = sanitizedParticipantName || participantFallback;
 
   const formattedActivityDate = new Date(meetingDate).toLocaleDateString(locale);
   const formattedDeadlineDate = deadlineDate
     ? new Date(deadlineDate).toLocaleDateString(locale)
-    : "";
+    : '';
   const deadlineText = formattedDeadlineDate
     ? formatTranslation(
       getTranslationValue(
         translations,
         fallbackTranslations,
-        "permission_slip_email_deadline_text",
-        "Signature deadline: {deadlineDate}",
+        'permission_slip_email_deadline_text',
+        'Signature deadline: {deadlineDate}',
       ),
       { deadlineDate: formattedDeadlineDate },
     )
-    : "";
+    : '';
 
   const subjectKeyWithParticipant = isReminder
-    ? "permission_slip_reminder_subject_with_participant"
-    : "permission_slip_email_subject_with_participant";
+    ? 'permission_slip_reminder_subject_with_participant'
+    : 'permission_slip_email_subject_with_participant';
   const subjectKey = isReminder
-    ? "permission_slip_reminder_subject"
-    : "permission_slip_email_subject";
+    ? 'permission_slip_reminder_subject'
+    : 'permission_slip_email_subject';
   const defaultSubject = isReminder
-    ? "Reminder: Parent permission required - {activityTitle} - {participantName}"
-    : "Parent permission required - {activityTitle} - {participantName}";
+    ? 'Reminder: Parent permission required - {activityTitle} - {participantName}'
+    : 'Parent permission required - {activityTitle} - {participantName}';
   const subjectTemplate =
     translations?.[subjectKeyWithParticipant] ||
     translations?.[subjectKey] ||
@@ -147,14 +147,14 @@ function buildPermissionSlipEmailContent({
     ? getTranslationValue(
       translations,
       fallbackTranslations,
-      "permission_slip_reminder_body",
-      "Hello,\n\nThis is a reminder about the parent permission for the activity: {activityTitle}\n\nActivity date: {activityDate}\n\nWe have not yet received your signature. Please sign the permission slip by clicking the link below:\n{signLink}\n\n{deadlineText}\n\nThank you!",
+      'permission_slip_reminder_body',
+      'Hello,\n\nThis is a reminder about the parent permission for the activity: {activityTitle}\n\nActivity date: {activityDate}\n\nWe have not yet received your signature. Please sign the permission slip by clicking the link below:\n{signLink}\n\n{deadlineText}\n\nThank you!',
     )
     : getTranslationValue(
       translations,
       fallbackTranslations,
-      "permission_slip_email_body",
-      "Hello,\n\nWe are organizing the following activity: {activityTitle}\n\nActivity date: {activityDate}\n\n{activityDescription}\n\nPlease sign the permission slip by clicking the link below:\n{signLink}\n\n{deadlineText}\n\nThank you!",
+      'permission_slip_email_body',
+      'Hello,\n\nWe are organizing the following activity: {activityTitle}\n\nActivity date: {activityDate}\n\n{activityDescription}\n\nPlease sign the permission slip by clicking the link below:\n{signLink}\n\n{deadlineText}\n\nThank you!',
     );
 
   const textBody = formatTranslation(textTemplate, {
@@ -169,66 +169,66 @@ function buildPermissionSlipEmailContent({
     translations,
     fallbackTranslations,
     isReminder
-      ? "permission_slip_reminder_heading"
-      : "permission_slip_email_heading",
+      ? 'permission_slip_reminder_heading'
+      : 'permission_slip_email_heading',
     isReminder
-      ? "Reminder: Parent permission required"
-      : "Parent permission required",
+      ? 'Reminder: Parent permission required'
+      : 'Parent permission required',
   );
   const greeting = getTranslationValue(
     translations,
     fallbackTranslations,
-    "permission_slip_email_greeting",
-    "Hello,",
+    'permission_slip_email_greeting',
+    'Hello,',
   );
   const introTemplate = getTranslationValue(
     translations,
     fallbackTranslations,
     isReminder
-      ? "permission_slip_reminder_intro"
-      : "permission_slip_email_intro",
+      ? 'permission_slip_reminder_intro'
+      : 'permission_slip_email_intro',
     isReminder
-      ? "This is a reminder about the parent permission for the activity: {activityTitle}"
-      : "We are organizing the following activity: {activityTitle}",
+      ? 'This is a reminder about the parent permission for the activity: {activityTitle}'
+      : 'We are organizing the following activity: {activityTitle}',
   );
   const dateLabel = getTranslationValue(
     translations,
     fallbackTranslations,
-    "permission_slip_email_date_label",
-    "Activity date:",
+    'permission_slip_email_date_label',
+    'Activity date:',
   );
   const reminderMissingText = isReminder
     ? getTranslationValue(
       translations,
       fallbackTranslations,
-      "permission_slip_reminder_missing_signature",
-      "We have not yet received your signature.",
+      'permission_slip_reminder_missing_signature',
+      'We have not yet received your signature.',
     )
-    : "";
+    : '';
   const buttonLabel = getTranslationValue(
     translations,
     fallbackTranslations,
     isReminder
-      ? "permission_slip_reminder_sign_button"
-      : "permission_slip_email_sign_button",
-    isReminder ? "Sign the permission slip now" : "Sign the permission slip",
+      ? 'permission_slip_reminder_sign_button'
+      : 'permission_slip_email_sign_button',
+    isReminder ? 'Sign the permission slip now' : 'Sign the permission slip',
   );
   const thanksText = getTranslationValue(
     translations,
     fallbackTranslations,
-    "permission_slip_email_thanks",
-    "Thank you!",
+    'permission_slip_email_thanks',
+    'Thank you!',
   );
 
   const safeActivityTitle = escapeHtml(sanitizedActivityTitle);
   const safeActivityDescription =
     sanitizeRichTextHtml(activityDescriptionHtml) ||
-    escapeHtml(sanitizedActivityDescription).replace(/\n/g, "<br>");
+    escapeHtml(sanitizedActivityDescription).replace(/\n/g, '<br>');
   const safeSignLink = escapeHtml(signLink);
   const safeIntro = formatTranslation(introTemplate, {
     activityTitle: safeActivityTitle,
   });
-  const safeDeadlineText = deadlineText ? escapeHtml(deadlineText) : "";
+  const safeDeadlineText = deadlineText ? escapeHtml(deadlineText) : '';
 
   const htmlBody = `
     <h2>${escapeHtml(heading)}</h2>
@@ -237,10 +237,10 @@ function buildPermissionSlipEmailContent({
     <p><strong>${escapeHtml(dateLabel)}</strong> ${escapeHtml(formattedActivityDate)}</p>
     ${!isReminder && safeActivityDescription
     ? `<div>${safeActivityDescription}</div>`
-    : ""}
-    ${isReminder ? `<p>${escapeHtml(reminderMissingText)}</p>` : ""}
-    <p><a href="${safeSignLink}" style="display: inline-block; padding: 12px 24px; background-color: ${isReminder ? "#cc6600" : "#0066cc"}; color: white; text-decoration: none; border-radius: 4px;">${escapeHtml(buttonLabel)}</a></p>
-    ${safeDeadlineText ? `<p><em>${safeDeadlineText}</em></p>` : ""}
+    : ''}
+    ${isReminder ? `<p>${escapeHtml(reminderMissingText)}</p>` : ''}
+    <p><a href="${safeSignLink}" style="display: inline-block; padding: 12px 24px; background-color: ${isReminder ? '#cc6600' : '#0066cc'}; color: white; text-decoration: none; border-radius: 4px;">${escapeHtml(buttonLabel)}</a></p>
+    ${safeDeadlineText ? `<p><em>${safeDeadlineText}</em></p>` : ''}
     <p>${escapeHtml(thanksText)}</p>
   `;
 

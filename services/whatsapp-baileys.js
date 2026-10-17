@@ -31,7 +31,7 @@ const ENABLE_WHATSAPP_CONSOLE_LOGS = process.env.WHATSAPP_CONSOLE_LOGS !== 'fals
 // Custom format to handle Baileys passing objects directly as messages
 const baileysFormat = winston.format.printf(({ level, message, ...rest }) => {
   const msg = typeof message === 'object' ? JSON.stringify(message) : message;
-  const extra = Object.keys(rest).length > 0 ? ' ' + JSON.stringify(rest) : '';
+  const extra = Object.keys(rest).length > 0 ? ` ${  JSON.stringify(rest)}` : '';
   return `${level}: ${msg}${extra}`;
 });
 
@@ -203,7 +203,7 @@ class WhatsAppBaileysService {
     const { connection, lastDisconnect, qr } = update;
     const connectionObj = this.connections.get(organizationId);
 
-    if (!connectionObj) return;
+    if (!connectionObj) {return;}
 
     // QR code generated - send to frontend
     if (qr) {
@@ -453,7 +453,7 @@ class WhatsAppBaileysService {
       }
 
       // Format phone number for WhatsApp (remove + and add @s.whatsapp.net)
-      const formattedNumber = phoneNumber.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+      const formattedNumber = `${phoneNumber.replace(/[^0-9]/g, '')  }@s.whatsapp.net`;
 
       // Add random delay to avoid rate limiting (2-5 seconds)
       const delay = Math.floor(Math.random() * 3000) + 2000;
