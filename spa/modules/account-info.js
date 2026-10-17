@@ -239,7 +239,7 @@ export class AccountInfoModule {
                 autocomplete="name"
               />
             </div>
-            <button type="submit" class="btn btn-primary" id="fullname-submit">
+            <button type="submit" class="button button--primary" id="fullname-submit">
               ${translate('save_profile') || translate('account_info_fullname_button')}
             </button>
           </form>
@@ -266,7 +266,7 @@ export class AccountInfoModule {
               />
               <small class="form-text">${translate('account_info_email_warning')}</small>
             </div>
-            <button type="submit" class="btn btn-primary" id="email-submit">
+            <button type="submit" class="button button--primary" id="email-submit">
               ${translate('account_info_email_button')}
             </button>
           </form>
@@ -369,7 +369,7 @@ export class AccountInfoModule {
                   ${translate('guardian_emergency_contact')}
                 </label>
               </div>
-              <button type="submit" class="btn btn-primary" id="guardian-submit" ${!hasParticipantLinks ? 'disabled' : ''}>
+              <button type="submit" class="button button--primary" id="guardian-submit" ${!hasParticipantLinks ? 'disabled' : ''}>
                 ${translate('guardian_save')}
               </button>
             </form>
@@ -417,7 +417,7 @@ export class AccountInfoModule {
                 autocomplete="new-password"
               />
             </div>
-            <button type="submit" class="btn btn-primary" id="password-submit">
+            <button type="submit" class="button button--primary" id="password-submit">
               ${translate('change_password') || translate('account_info_password_button')}
             </button>
           </form>
@@ -473,7 +473,7 @@ export class AccountInfoModule {
 
         <!-- Account Actions -->
         <section class="account-section">
-          <button class="btn btn-danger" id="logout-btn">
+          <button class="button button--danger" id="logout-btn">
             ${translate('logout')}
           </button>
         </section>

@@ -167,7 +167,7 @@ export class WhatsAppConnectionModule {
         ${!isConnected
           ? `
             <div class="whatsapp-connect-container">
-              <button id="whatsapp-connect-btn" class="btn btn-primary">
+              <button id="whatsapp-connect-btn" class="button button--primary">
                 ${translate("whatsapp_connect_button") || "Connect WhatsApp"}
               </button>
 
@@ -196,7 +196,7 @@ export class WhatsAppConnectionModule {
           `
           : `
             <div class="whatsapp-disconnect-container" style="margin-top: 20px;">
-              <button id="whatsapp-disconnect-btn" class="btn btn-danger">
+              <button id="whatsapp-disconnect-btn" class="button button--danger">
                 ${translate("whatsapp_disconnect_button") || "Disconnect WhatsApp"}
               </button>
             </div>
@@ -225,7 +225,7 @@ export class WhatsAppConnectionModule {
                     required
                   ></textarea>
                 </div>
-                <button type="submit" class="btn btn-primary" id="test-message-submit">
+                <button type="submit" class="button button--primary" id="test-message-submit">
                   ${translate("send_test_message_button") || "Send Test Message"}
                 </button>
               </form>

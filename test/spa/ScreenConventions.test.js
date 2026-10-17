@@ -28,14 +28,8 @@ const HAND_WRITTEN_BACK_LINKS = [
   'spa/modules/yearly-planner/YearlyPlanner.js',
 ];
 
-/** Screens that still use the older `btn btn-*` classes. */
-const OLD_BUTTON_CLASSES = [
-  'spa/modules/account-info.js',
-  'spa/modules/incident-report/incident-report.js',
-  'spa/modules/parent-onboarding/ParentOnboarding.js',
-  'spa/modules/permission-slips/PermissionSlipDashboard.js',
-  'spa/modules/whatsapp-connection.js',
-];
+/** Screens that still use the older `btn btn-*` classes: none are left; it stays empty. */
+const OLD_BUTTON_CLASSES = [];
 
 /** Screens that still give a button a variant without its `button` base class. */
 const VARIANTS_WITHOUT_BASE = [

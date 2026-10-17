@@ -219,7 +219,7 @@ export class PermissionSlipDashboard {
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
             <h2 style="margin: 0;">${escapeHTML(translate('permission_slip_section_title'))}</h2>
-            <button id="toggleCreateFormBtn" class="btn primary" aria-expanded="${this.showCreateForm ? 'true' : 'false'}">
+            <button id="toggleCreateFormBtn" class="button button--primary" aria-expanded="${this.showCreateForm ? 'true' : 'false'}">
               ${this.showCreateForm ? translate('cancel') : translate('permission_slip_new')}
             </button>
           </div>
@@ -472,8 +472,8 @@ export class PermissionSlipDashboard {
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <span><strong>${escapeHTML(translate('select_participants_label'))}</strong> (<span id="selectedCount">0</span> ${escapeHTML(translate('participants_selected'))})</span>
             <div>
-              <button type="button" id="selectAllBtn" class="btn link">${escapeHTML(translate('select_all_participants'))}</button>
-              <button type="button" id="deselectAllBtn" class="btn link">${escapeHTML(translate('deselect_all_participants'))}</button>
+              <button type="button" id="selectAllBtn" class="button button--secondary button--small">${escapeHTML(translate('select_all_participants'))}</button>
+              <button type="button" id="deselectAllBtn" class="button button--secondary button--small">${escapeHTML(translate('deselect_all_participants'))}</button>
             </div>
           </div>
           <div id="participantsList" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 12px; background: white; border-radius: 4px;">
@@ -496,14 +496,14 @@ export class PermissionSlipDashboard {
       return `
         <p class="form-help" id="permission-slip-send-explainer">${escapeHTML(translate('permission_slip_send_explainer_create_only'))}</p>
         <div class="form-actions">
-          <button type="submit" name="intent" value="create" class="btn primary"
+          <button type="submit" name="intent" value="create" class="button button--primary"
                   aria-describedby="permission-slip-send-explainer">${escapeHTML(translate('permission_slip_create_only'))}</button>
         </div>`;
     }
     return `
       <p class="form-help" id="permission-slip-send-explainer">${escapeHTML(translate('permission_slip_send_explainer'))}</p>
       <div class="form-actions">
-        <button type="submit" name="intent" value="send" class="btn primary"
+        <button type="submit" name="intent" value="send" class="button button--primary"
                 aria-describedby="permission-slip-send-explainer">${escapeHTML(translate('permission_slip_create_and_send'))}</button>
         <button type="submit" name="intent" value="create" class="button button--outline"
                 aria-describedby="permission-slip-send-explainer">${escapeHTML(translate('permission_slip_create_only'))}</button>
@@ -589,10 +589,10 @@ export class PermissionSlipDashboard {
                   ${declinedCount > 0 ? `<br><strong>${escapeHTML(translate('permission_slip_status_declined'))}:</strong> ${declinedCount}` : ''}
                 </div>
                 ${this.groupSlipIds(activity.slips) ? `<div>
-                  <button class="btn secondary btn-send-emails" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}" data-slip-ids="${escapeHTML(this.groupSlipIds(activity.slips))}">
+                  <button class="button button--secondary btn-send-emails" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}" data-slip-ids="${escapeHTML(this.groupSlipIds(activity.slips))}">
                     ${escapeHTML(translate('send_emails_to_parents'))}
                   </button>
-                  <button class="btn secondary btn-send-reminders" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}" data-slip-ids="${escapeHTML(this.groupSlipIds(activity.slips))}">
+                  <button class="button button--secondary btn-send-reminders" data-activity-title="${escapeHTML(activity.title)}" data-date="${activity.date}" data-slip-ids="${escapeHTML(this.groupSlipIds(activity.slips))}">
                     ${escapeHTML(translate('send_reminder_emails'))}
                   </button>
                   ${this.activityId && hasPermission('communications.send') ? `
@@ -636,7 +636,7 @@ export class PermissionSlipDashboard {
     !slip.email_sent
       ? `<button class="button button--danger delete-slip" data-id="${slip.id}">${escapeHTML(translate('delete'))}</button>`
       : '',
-    `<button class="btn link archive-slip" data-id="${slip.id}">${escapeHTML(translate('permission_slip_archive'))}</button>`
+    `<button class="button button--secondary button--small archive-slip" data-id="${slip.id}">${escapeHTML(translate('permission_slip_archive'))}</button>`
   ].filter(Boolean).join(' ')}
                     </td>
                   </tr>

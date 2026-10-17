@@ -151,11 +151,11 @@ export class IncidentReport {
           <td><span class="badge ${statusClass}">${statusLabel}</span></td>
           <td>
             ${inc.status === 'draft' && this.canManage
-              ? `<button class="btn btn--small btn--secondary incident-edit-btn" data-id="${inc.id}">${translate('edit')}</button>`
-              : `<button class="btn btn--small btn--secondary incident-view-btn" data-id="${inc.id}">${translate('view')}</button>`
+              ? `<button class="button button--small button--secondary incident-edit-btn" data-id="${inc.id}">${translate('edit')}</button>`
+              : `<button class="button button--small button--secondary incident-view-btn" data-id="${inc.id}">${translate('view')}</button>`
             }
             ${inc.status === 'draft' && this.canManage
-              ? `<button class="btn btn--small btn--danger incident-delete-btn" data-id="${inc.id}">${translate('Delete')}</button>`
+              ? `<button class="button button--small button--danger incident-delete-btn" data-id="${inc.id}">${translate('Delete')}</button>`
               : ''
             }
           </td>
@@ -171,10 +171,10 @@ export class IncidentReport {
           </div>
           <div class="page__actions">
             ${this.canManage ? `
-              <button class="btn btn--secondary" id="incident-escalation-btn">
+              <button class="button button--secondary" id="incident-escalation-btn">
                 ${translate('incident_escalation_settings')}
               </button>
-              <button class="btn btn--primary" id="incident-new-btn">
+              <button class="button button--primary" id="incident-new-btn">
                 + ${translate('incident_new')}
               </button>
             ` : ''}
@@ -359,10 +359,10 @@ export class IncidentReport {
 
           <!-- Action buttons -->
           <div class="form-actions">
-            <button class="btn btn--secondary" id="incident-save-draft-btn">
+            <button class="button button--secondary" id="incident-save-draft-btn">
               ${translate('incident_save_draft')}
             </button>
-            <button class="btn btn--primary" id="incident-submit-btn">
+            <button class="button button--primary" id="incident-submit-btn">
               ${translate('incident_submit')}
             </button>
           </div>
@@ -727,7 +727,7 @@ export class IncidentReport {
 
         ${inc.status === 'draft' && this.canManage ? `
           <div class="form-actions">
-            <button class="btn btn--primary" id="incident-edit-from-view-btn">${translate('edit')}</button>
+            <button class="button button--primary" id="incident-edit-from-view-btn">${translate('edit')}</button>
           </div>
         ` : ''}
       </section>`;
@@ -768,7 +768,7 @@ export class IncidentReport {
         <div class="escalation-contact-row" data-id="${c.id}">
           <span>${escapeHTML(c.name || '')} &lt;${escapeHTML(c.email)}&gt;</span>
           <span class="escalation-role">${escapeHTML(c.role_description || '')}</span>
-          <button type="button" class="btn btn--small btn--danger escalation-delete-btn" data-id="${c.id}"
+          <button type="button" class="button button--small button--danger escalation-delete-btn" data-id="${c.id}"
             aria-label="${escapeHTML(`${translate('delete')} ${c.name || c.email}`)}"><span aria-hidden="true">&times;</span></button>
         </div>
       `).join('');
@@ -790,7 +790,7 @@ export class IncidentReport {
           <label for="escalation-new-role">${translate('incident_escalation_role')}</label>
           <input type="text" id="escalation-new-role" class="form-control">
         </div>
-        <button type="button" class="btn btn--primary" id="escalation-add-btn">${translate('incident_escalation_add')}</button>
+        <button type="button" class="button button--primary" id="escalation-add-btn">${translate('incident_escalation_add')}</button>
       </div>`;
 
     openModal({
@@ -1003,7 +1003,7 @@ export class IncidentReport {
       @media (max-width: 600px) {
         .incident-reports-page .page__header { flex-direction: column; align-items: flex-start; }
         .form-actions { flex-direction: column; }
-        .form-actions .btn { width: 100%; }
+        .form-actions .button { width: 100%; }
         .incident-form-container .radio-group { flex-direction: column; gap: 10px; }
       }
     `;
