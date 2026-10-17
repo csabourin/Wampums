@@ -12,7 +12,7 @@ const { randomUUID } = require('crypto');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId, userHasPermission } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { check } = require('express-validator');
-const { checkValidation } = require('../middleware/validation');
+const { checkValidation, validateIdParam } = require('../middleware/validation');
 const { getMeetingDefaults, computeEndTime, formatLocalDate } = require('../utils/meeting-defaults');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 
@@ -199,9 +199,11 @@ module.exports = (pool, logger) => {
   router.get('/plans/:id',
     authenticate,
     requirePermission('meetings.view'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const planId = parseInt(req.params.id);
+      const planId = Number(req.params.id);
 
       const [planResult, periodsResult, objectivesResult, meetingsResult] = await Promise.all([
         pool.query(
@@ -466,11 +468,12 @@ module.exports = (pool, logger) => {
       check('blackout_dates').optional().isArray(),
       check('anchors').optional().isArray(),
       check('regenerate_meetings').optional().isBoolean(),
+      validateIdParam('id'),
       checkValidation
     ],
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const planId = parseInt(req.params.id);
+      const planId = Number(req.params.id);
       const { title, default_location, blackout_dates, anchors, settings, regenerate_meetings: regenerate } = req.body;
 
       const check_result = await pool.query(
@@ -597,9 +600,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.manage'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const planId = parseInt(req.params.id);
+      const planId = Number(req.params.id);
 
       const client = await pool.connect();
       try {
@@ -655,9 +660,11 @@ module.exports = (pool, logger) => {
   router.get('/plans/:planId/periods',
     authenticate,
     requirePermission('meetings.view'),
+    validateIdParam('planId'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const planId = parseInt(req.params.planId);
+      const planId = Number(req.params.planId);
 
       const result = await pool.query(
         `SELECT p.*,
@@ -684,11 +691,12 @@ module.exports = (pool, logger) => {
       check('title').trim().notEmpty().isLength({ max: 255 }),
       check('start_date').isISO8601(),
       check('end_date').isISO8601(),
+      validateIdParam('planId'),
       checkValidation
     ],
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const planId = parseInt(req.params.planId);
+      const planId = Number(req.params.planId);
       const { title, start_date, end_date, sort_order, settings } = req.body;
 
       // Verify plan exists
@@ -728,9 +736,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.manage'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const periodId = parseInt(req.params.id);
+      const periodId = Number(req.params.id);
       const { title, start_date, end_date, sort_order, settings } = req.body;
 
       const result = await pool.query(
@@ -766,9 +776,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.manage'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const periodId = parseInt(req.params.id);
+      const periodId = Number(req.params.id);
 
       // Unlink meetings from period before deleting
       await pool.query(
@@ -799,9 +811,11 @@ module.exports = (pool, logger) => {
   router.get('/plans/:planId/objectives',
     authenticate,
     requirePermission('meetings.view'),
+    validateIdParam('planId'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const planId = parseInt(req.params.planId);
+      const planId = Number(req.params.planId);
 
       const result = await pool.query(
         `SELECT o.*,
@@ -837,11 +851,12 @@ module.exports = (pool, logger) => {
     requirePermission('meetings.manage'),
     [
       check('title').trim().notEmpty().isLength({ max: 255 }),
+      validateIdParam('planId'),
       checkValidation
     ],
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const planId = parseInt(req.params.planId);
+      const planId = Number(req.params.planId);
       const { title, description, period_id, parent_id, scope, sort_order } = req.body;
 
       const result = await pool.query(
@@ -866,9 +881,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.manage'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const objId = parseInt(req.params.id);
+      const objId = Number(req.params.id);
       const { title, description, period_id, parent_id, scope, sort_order } = req.body;
 
       const result = await pool.query(
@@ -904,9 +921,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.manage'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const objId = parseInt(req.params.id);
+      const objId = Number(req.params.id);
 
       const result = await pool.query(
         'DELETE FROM year_plan_objectives WHERE id = $1 AND organization_id = $2 RETURNING id',
@@ -933,9 +952,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.edit'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const meetingId = parseInt(req.params.id);
+      const meetingId = Number(req.params.id);
 
       const meetingCheck = await pool.query(
         'SELECT id, meeting_date FROM year_plan_meetings WHERE id = $1 AND organization_id = $2',
@@ -1006,9 +1027,11 @@ module.exports = (pool, logger) => {
   router.get('/meetings/:id',
     authenticate,
     requirePermission('meetings.view'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const meetingId = parseInt(req.params.id);
+      const meetingId = Number(req.params.id);
 
       const [meetingResult, activitiesResult] = await Promise.all([
         pool.query(
@@ -1054,9 +1077,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('activities.create'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const meetingId = parseInt(req.params.id);
+      const meetingId = Number(req.params.id);
 
       const meetingResult = await pool.query(
         `SELECT m.*, m.meeting_date::text as meeting_date
@@ -1114,9 +1139,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.manage'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const meetingId = parseInt(req.params.id);
+      const meetingId = Number(req.params.id);
 
       const existing = await pool.query(
         'SELECT activity_id FROM year_plan_meetings WHERE id = $1 AND organization_id = $2',
@@ -1159,11 +1186,12 @@ module.exports = (pool, logger) => {
       check('kind').optional().isIn(MEETING_KINDS),
       check('theme').optional({ nullable: true }).trim().isLength({ max: 255 }),
       check('location').optional({ nullable: true }).trim().isLength({ max: 500 }),
+      validateIdParam('planId'),
       checkValidation
     ],
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const planId = parseInt(req.params.planId);
+      const planId = Number(req.params.planId);
       const {
         meeting_date, end_date, theme, location, notes,
         start_time, end_time, duration_minutes, period_id
@@ -1302,9 +1330,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.delete'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const meetingId = parseInt(req.params.id);
+      const meetingId = Number(req.params.id);
 
       const meetingResult = await pool.query(
         `SELECT id, activity_id, meeting_date::text AS meeting_date
@@ -1380,9 +1410,11 @@ module.exports = (pool, logger) => {
   router.get('/meetings/:id/schedule',
     authenticate,
     requirePermission('meetings.view'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const meetingId = parseInt(req.params.id, 10);
+      const meetingId = Number(req.params.id);
       const context = await getScheduleContext(pool, meetingId, organizationId);
 
       if (!context) {
@@ -1477,11 +1509,12 @@ module.exports = (pool, logger) => {
       check('dayOffset').isInt({ min: 0, max: 59 }),
       check('title').optional({ nullable: true }).trim().isLength({ max: 255 }),
       check('notes').optional({ nullable: true }).isString().isLength({ max: 10000 }),
+      validateIdParam('id'),
       checkValidation
     ],
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const meetingId = parseInt(req.params.id, 10);
+      const meetingId = Number(req.params.id);
       const dayOffset = parseInt(req.params.dayOffset, 10);
       const context = await getScheduleContext(pool, meetingId, organizationId);
 
@@ -1516,10 +1549,13 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.manage'),
+    validateIdParam('id'),
+    validateIdParam('sourceMeetingId'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const targetMeetingId = parseInt(req.params.id, 10);
-      const sourceMeetingId = parseInt(req.params.sourceMeetingId, 10);
+      const targetMeetingId = Number(req.params.id);
+      const sourceMeetingId = Number(req.params.sourceMeetingId);
       const [target, source] = await Promise.all([
         getScheduleContext(pool, targetMeetingId, organizationId),
         getScheduleContext(pool, sourceMeetingId, organizationId)
@@ -1616,11 +1652,12 @@ module.exports = (pool, logger) => {
       check('start_time').optional({ nullable: true }).matches(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
       check('responsable').optional({ nullable: true }).trim().isLength({ max: 255 }),
       check('material').optional({ nullable: true }).isString().isLength({ max: 10000 }),
+      validateIdParam('meetingId'),
       checkValidation
     ],
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const meetingId = parseInt(req.params.meetingId);
+      const meetingId = Number(req.params.meetingId);
 
       // Verify meeting exists. Past dates are allowed: series placement spans
       // whole terms and must not fail on dates that have already gone by.
@@ -1683,11 +1720,12 @@ module.exports = (pool, logger) => {
       check('start_time').optional({ nullable: true }).matches(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
       check('responsable').optional({ nullable: true }).trim().isLength({ max: 255 }),
       check('material').optional({ nullable: true }).isString().isLength({ max: 10000 }),
+      validateIdParam('id'),
       checkValidation
     ],
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const activityId = parseInt(req.params.id, 10);
+      const activityId = Number(req.params.id);
       const existing = await pool.query(
         `SELECT id, meeting_id FROM year_plan_meeting_activities
           WHERE id = $1 AND organization_id = $2`,
@@ -1745,9 +1783,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.manage'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const activityId = parseInt(req.params.id);
+      const activityId = Number(req.params.id);
 
       const result = await pool.query(
         'DELETE FROM year_plan_meeting_activities WHERE id = $1 AND organization_id = $2 RETURNING id',
@@ -1783,11 +1823,12 @@ module.exports = (pool, logger) => {
       check('activity.name').trim().notEmpty().isLength({ max: 255 }),
       check('as_series').optional().isBoolean(),
       check('series_label').optional({ nullable: true }).trim().isLength({ max: 255 }),
+      validateIdParam('planId'),
       checkValidation
     ],
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const planId = parseInt(req.params.planId);
+      const planId = Number(req.params.planId);
       const { activity, as_series: asSeries, series_label: seriesLabel } = req.body;
       const meetingIds = req.body.meeting_ids.map(id => parseInt(id, 10));
 
@@ -2074,9 +2115,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.manage'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const libId = parseInt(req.params.id);
+      const libId = Number(req.params.id);
       const {
         name, description, category, tags,
         estimated_duration_min, estimated_duration_max,
@@ -2122,9 +2165,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.manage'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const libId = parseInt(req.params.id);
+      const libId = Number(req.params.id);
 
       const result = await pool.query(
         `UPDATE activity_library SET is_active = FALSE, updated_at = NOW()
@@ -2242,9 +2287,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.manage'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const achId = parseInt(req.params.id);
+      const achId = Number(req.params.id);
 
       const result = await pool.query(
         'DELETE FROM objective_achievements WHERE id = $1 AND organization_id = $2 RETURNING id',
@@ -2269,9 +2316,11 @@ module.exports = (pool, logger) => {
   router.get('/plans/:planId/distribution-rules',
     authenticate,
     requirePermission('meetings.view'),
+    validateIdParam('planId'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const planId = parseInt(req.params.planId);
+      const planId = Number(req.params.planId);
 
       const result = await pool.query(
         `SELECT dr.*, al.name as library_activity_name, al.category
@@ -2298,11 +2347,12 @@ module.exports = (pool, logger) => {
       check('distribution_scope').isIn(['year', 'period', 'month']),
       check('placement_rule').isIn(['near_start', 'near_end', 'evenly_spaced', 'manual']),
       check('occurrences_per_scope').optional().isInt({ min: 1, max: 60 }),
+      validateIdParam('planId'),
       checkValidation
     ],
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const planId = parseInt(req.params.planId);
+      const planId = Number(req.params.planId);
       const {
         activity_library_id, activity_name, distribution_scope,
         placement_rule, occurrences_per_scope, settings
@@ -2435,9 +2485,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.manage'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const ruleId = parseInt(req.params.id);
+      const ruleId = Number(req.params.id);
 
       const result = await pool.query(
         'DELETE FROM activity_distribution_rules WHERE id = $1 AND organization_id = $2 RETURNING id',
@@ -2468,11 +2520,12 @@ module.exports = (pool, logger) => {
       check('scheduled_at').isISO8601(),
       check('custom_message').optional({ nullable: true }).isString().isLength({ max: 5000 }),
       check('is_recurring').optional().isBoolean(),
+      validateIdParam('meetingId'),
       checkValidation
     ],
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const meetingId = parseInt(req.params.meetingId);
+      const meetingId = Number(req.params.meetingId);
       const { channel, scheduled_at, custom_message, is_recurring } = req.body;
 
       const meeting = await pool.query(
@@ -2506,9 +2559,11 @@ module.exports = (pool, logger) => {
   router.get('/meetings/:meetingId/reminders',
     authenticate,
     requirePermission('meetings.view'),
+    validateIdParam('meetingId'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const meetingId = parseInt(req.params.meetingId, 10);
+      const meetingId = Number(req.params.meetingId);
       const result = await pool.query(
         `SELECT id, meeting_id, channel, scheduled_at,
                 reminder_date::text AS reminder_date,
@@ -2529,9 +2584,11 @@ module.exports = (pool, logger) => {
   router.get('/plans/:planId/reminders',
     authenticate,
     requirePermission('meetings.view'),
+    validateIdParam('planId'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const planId = parseInt(req.params.planId);
+      const planId = Number(req.params.planId);
 
       const result = await pool.query(
         `SELECT r.*, m.meeting_date, m.theme

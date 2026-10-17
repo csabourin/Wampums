@@ -13,7 +13,7 @@ const {
   getUserDataScope,
 } = require('../middleware/auth');
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
-const { checkValidation } = require('../middleware/validation');
+const { checkValidation, validateIdParam } = require('../middleware/validation');
 const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { sendEmail, getUserEmailLanguage, getTranslationsByCode } = require('../utils/index');
 const {
@@ -724,7 +724,7 @@ module.exports = (pool, logger) => {
     blockDemoRoles,
     requirePermission('inventory.manage'),
     [
-      param('id').isInt({ min: 1 }),
+      validateIdParam('id'),
       check('name').optional().isString().trim().isLength({ min: 2, max: 150 }),
       check('category').optional().isString().trim().isLength({ max: 100 }),
       check('description').optional().isString().trim().isLength({ max: 2000 }),
@@ -758,7 +758,7 @@ module.exports = (pool, logger) => {
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const equipmentId = parseInt(req.params.id, 10);
+        const equipmentId = Number(req.params.id);
         const sharedIdsProvided = Array.isArray(req.body.shared_organization_ids);
         const sanitizedSharedIds = sharedIdsProvided
           ? req.body.shared_organization_ids.filter((id) => Number.isInteger(id))
@@ -922,12 +922,12 @@ module.exports = (pool, logger) => {
     '/equipment/:id/photo',
     authenticate,
     requirePermission('inventory.view'),
-    [param('id').isInt({ min: 1 })],
+    [validateIdParam('id')],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const equipmentId = parseInt(req.params.id, 10);
+        const equipmentId = Number(req.params.id);
         res.set('Cache-Control', 'private, no-store, max-age=0');
 
         await verifyEquipmentAccess(equipmentId, organizationId);
@@ -972,12 +972,12 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('inventory.manage'),
-    [param('id').isInt({ min: 1 })],
+    [validateIdParam('id')],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const equipmentId = parseInt(req.params.id, 10);
+        const equipmentId = Number(req.params.id);
 
         // Verify organization has access to this equipment (owner or shared)
         await verifyEquipmentAccess(equipmentId, organizationId);
@@ -1042,7 +1042,7 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('inventory.manage'),
-    [param('id').isInt({ min: 1 })],
+    [validateIdParam('id')],
     checkValidation,
     upload.single('photo'),
     asyncHandler(async (req, res) => {
@@ -1057,7 +1057,7 @@ module.exports = (pool, logger) => {
         }
 
         const organizationId = await getOrganizationId(req, pool);
-        const equipmentId = parseInt(req.params.id, 10);
+        const equipmentId = Number(req.params.id);
 
         // Verify organization has access to this equipment (owner or shared)
         await verifyEquipmentAccess(equipmentId, organizationId);
@@ -1158,12 +1158,12 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('inventory.manage'),
-    [param('id').isInt({ min: 1 })],
+    [validateIdParam('id')],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const equipmentId = parseInt(req.params.id, 10);
+        const equipmentId = Number(req.params.id);
 
         // Verify organization has access to this equipment (owner or shared)
         await verifyEquipmentAccess(equipmentId, organizationId);
@@ -1523,7 +1523,7 @@ module.exports = (pool, logger) => {
     blockDemoRoles,
     requirePermission('inventory.reserve'),
     [
-      param('id').isInt({ min: 1 }),
+      validateIdParam('id'),
       check('reserved_quantity').optional().isInt({ min: 1 }),
       check('reserved_for').optional().isString().trim().isLength({ max: 200 }),
       check('status')
@@ -1535,7 +1535,7 @@ module.exports = (pool, logger) => {
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const reservationId = parseInt(req.params.id, 10);
+        const reservationId = Number(req.params.id);
         const fields = ['reserved_quantity', 'reserved_for', 'status', 'notes'];
         const updates = [];
         const values = [];
@@ -2819,11 +2819,11 @@ module.exports = (pool, logger) => {
     '/permission-slips/:id/view',
     authenticate,
     requirePermission('activities.view'),
-    [param('id').isInt({ min: 1 })],
+    [validateIdParam('id')],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const slipId = parseInt(req.params.id, 10);
+        const slipId = Number(req.params.id);
         const organizationId = await getOrganizationId(req, pool);
 
         const slipResult = await pool.query(
@@ -2862,14 +2862,14 @@ module.exports = (pool, logger) => {
     blockDemoRoles,
     requirePermission('permission_slips.sign'),
     [
-      param('id').isInt({ min: 1 }),
+      validateIdParam('id'),
       check('signed_by').isString().trim().isLength({ min: 2, max: 200 }),
       check('signed_at').optional().isISO8601(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const slipId = parseInt(req.params.id, 10);
+        const slipId = Number(req.params.id);
         const organizationId = await getOrganizationId(req, pool);
         const { signed_by, signed_at } = req.body;
 
@@ -2925,7 +2925,7 @@ module.exports = (pool, logger) => {
     blockDemoRoles,
     requirePermission('permission_slips.sign'),
     [
-      param('id').isInt({ min: 1 }),
+      validateIdParam('id'),
       check('status').equals('declined'),
       check('declined_by').isString().trim().isLength({ min: 2, max: 200 }),
       check('declined_at').optional().isISO8601(),
@@ -2933,7 +2933,7 @@ module.exports = (pool, logger) => {
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const slipId = parseInt(req.params.id, 10);
+        const slipId = Number(req.params.id);
         const organizationId = await getOrganizationId(req, pool);
         const { declined_by, declined_at } = req.body;
 
@@ -3115,11 +3115,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('activities.edit'),
-    [param('id').isInt({ min: 1 })],
+    [validateIdParam('id')],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const slipId = parseInt(req.params.id, 10);
+        const slipId = Number(req.params.id);
         const organizationId = await getOrganizationId(req, pool);
 
         const updateResult = await pool.query(
@@ -3159,11 +3159,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('activities.edit'),
-    [param('id').isInt({ min: 1 })],
+    [validateIdParam('id')],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const slipId = parseInt(req.params.id, 10);
+        const slipId = Number(req.params.id);
         const organizationId = await getOrganizationId(req, pool);
 
         // Check if slip exists and belongs to organization

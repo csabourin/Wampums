@@ -15,6 +15,7 @@ const router = express.Router();
 const { getPointSystemRules } = require('../utils/api-helpers');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId, withScoutYear } = require('../middleware/auth');
 const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
+const { validateIdParam, checkValidation } = require('../middleware/validation');
 
 /**
  * Export route factory function
@@ -326,9 +327,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('honors.create'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const honorId = parseInt(req.params.id);
+      const honorId = Number(req.params.id);
       let { date, reason } = req.body;
 
       // Validation
@@ -451,9 +454,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('honors.create'),
+    validateIdParam('id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const honorId = parseInt(req.params.id);
+      const honorId = Number(req.params.id);
 
       const client = await pool.connect();
 
