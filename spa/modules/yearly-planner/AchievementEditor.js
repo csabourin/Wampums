@@ -65,14 +65,14 @@ export class AchievementEditor extends BaseModule {
         ` : `
           <div class="yp-achievements__list">
             ${this.participants.map(participant => {
-              const name = participant.full_name || [participant.first_name, participant.last_name].filter(Boolean).join(' ');
-              return `
+    const name = participant.full_name || [participant.first_name, participant.last_name].filter(Boolean).join(' ');
+    return `
                 <label class="yp-achievements__participant">
                   <input type="checkbox" value="${participant.id}" ${achievedIds.has(Number(participant.id)) ? 'checked' : ''}>
                   <span>${escapeHTML(name || String(participant.id))}</span>
                 </label>
               `;
-            }).join('')}
+  }).join('')}
           </div>
         `}
       </div>

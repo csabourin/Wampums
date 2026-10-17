@@ -169,7 +169,7 @@ describe('MeetingAutosave', () => {
   test('does not discard an edit made while applying a successful response', async () => {
     const firstApply = deferred();
     const onSaved = jest.fn(() => {
-      if (onSaved.mock.calls.length === 1) return firstApply.promise;
+      if (onSaved.mock.calls.length === 1) {return firstApply.promise;}
       return Promise.resolve();
     });
     const setup = createController({ onSaved });
@@ -280,9 +280,9 @@ describe('MeetingAutosave', () => {
     mockGetCachedData.mockImplementation((key) => Promise.resolve(
       key === 'meeting_preparation_draft_2026-08-12'
         ? {
-            version: 1,
-            formData: { date: '2026-08-12', notes: 'Existing destination work' }
-          }
+          version: 1,
+          formData: { date: '2026-08-12', notes: 'Existing destination work' }
+        }
         : null
     ));
     const setup = createController();

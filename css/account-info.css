@@ -68,38 +68,11 @@
   border-color: #dc3545;
 }
 
-/* Button styles */
-.account-form .btn {
+/* Buttons take their look from the shared button classes (css/styles.css);
+   on a phone they span the form. */
+.account-form .button,
+.account-section .button--danger {
   width: 100%;
-  padding: 12px 24px;
-  font-size: 1rem;
-  font-weight: 600;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.1s ease;
-  /* Minimum 44px touch target */
-  min-height: 44px;
-  text-align: center;
-}
-
-.account-form .btn-primary {
-  background-color: #4c65ae;
-  color: #fff;
-}
-
-.account-form .btn-primary:hover {
-  background-color: #3d5290;
-}
-
-.account-form .btn-primary:active {
-  transform: scale(0.98);
-}
-
-.account-form .btn:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
-  opacity: 0.6;
 }
 
 /* Warning box for email change */
@@ -197,10 +170,10 @@ h1 {
   }
 
   /* Button on desktop can be smaller width */
-  .account-form .btn {
+  .account-form .button,
+  .account-section .button--danger {
     width: auto;
     min-width: 200px;
-    padding: 12px 32px;
   }
 
   /* Warning box */
@@ -258,11 +231,6 @@ h1 {
    ============================================ */
 
 /* Focus visible for keyboard navigation */
-.account-form .btn:focus-visible {
-  outline: 3px solid #4c65ae;
-  outline-offset: 2px;
-}
-
 .form-group input[type="text"]:focus-visible,
 .form-group input[type="email"]:focus-visible,
 .form-group input[type="password"]:focus-visible {
@@ -284,7 +252,6 @@ h1 {
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
   .home-icon,
-  .account-form .btn,
   .form-group input[type="text"],
   .form-group input[type="email"],
   .form-group input[type="password"] {
@@ -461,30 +428,6 @@ h1 {
   transform: translateX(20px);
 }
 
-/* Danger button (logout) */
-.btn-danger {
-  background-color: #dc3545;
-  color: #fff;
-  width: 100%;
-  padding: 12px 24px;
-  font-size: 1rem;
-  font-weight: 600;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.1s ease;
-  min-height: 44px;
-  text-align: center;
-}
-
-.btn-danger:hover {
-  background-color: #c82333;
-}
-
-.btn-danger:active {
-  transform: scale(0.98);
-}
-
 /* Settings Footer */
 .settings-footer {
   text-align: center;
@@ -560,11 +503,6 @@ h1 {
 
   .language-selector {
     max-width: 500px;
-  }
-
-  .btn-danger {
-    width: auto;
-    min-width: 200px;
   }
 
   .settings-footer {

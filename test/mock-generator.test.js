@@ -153,7 +153,7 @@ describe('Mock Helpers', () => {
   });
   
   test('mockQueryImplementation with custom handler', async () => {
-    mockQueryImplementation(mockClient, mockPool, (query, params) => {
+    mockQueryImplementation(mockClient, mockPool, (query, _params) => {
       if (query.includes('custom_table')) {
         return Promise.resolve({ rows: [{ id: 999, name: 'Custom' }] });
       }
@@ -169,7 +169,7 @@ describe('Mock Helpers', () => {
   });
   
   test('custom handler can override default behavior', async () => {
-    mockQueryImplementation(mockClient, mockPool, (query, params) => {
+    mockQueryImplementation(mockClient, mockPool, (query, _params) => {
       if (query.includes('COUNT')) {
         return Promise.resolve({ rows: [{ total: '42', count: '42' }] });
       }

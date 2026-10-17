@@ -12,13 +12,13 @@ import { getStorage } from './StorageUtils.js';
 import { CONFIG, getStorageKey } from '../config.js';
 
 function getTimeFormatPreference() {
-    const defaultFormat = CONFIG?.TIME_FORMAT?.DEFAULT || '24h';
-    const stored = getStorage(getStorageKey('TIME_FORMAT'), false, defaultFormat);
-    return stored === '12h' ? '12h' : '24h';
+  const defaultFormat = CONFIG?.TIME_FORMAT?.DEFAULT || '24h';
+  const stored = getStorage(getStorageKey('TIME_FORMAT'), false, defaultFormat);
+  return stored === '12h' ? '12h' : '24h';
 }
 
 function getLocale() {
-    return getStorage('lang', false, CONFIG.DEFAULT_LANG || 'fr');
+  return getStorage('lang', false, CONFIG.DEFAULT_LANG || 'fr');
 }
 
 
@@ -27,7 +27,7 @@ function getLocale() {
  * @returns {string} Today's date in ISO format
  */
 export function getTodayISO() {
-    return new Date().toLocaleDateString("en-CA");
+  return new Date().toLocaleDateString('en-CA');
 }
 
 /**
@@ -38,22 +38,22 @@ export function getTodayISO() {
  * @returns {string} Formatted date string
  */
 export function formatDate(dateString, lang = 'en', options = null) {
-    const date = parseDate(dateString);
-    if (!date) return '';
+  const date = parseDate(dateString);
+  if (!date) {return '';}
 
-    try {
-        const defaultOptions = {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        };
+  try {
+    const defaultOptions = {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    };
 
-        return date.toLocaleDateString(lang, options || defaultOptions);
-    } catch (error) {
-        debugError('Error formatting date:', error);
-        return String(dateString);
-    }
+    return date.toLocaleDateString(lang, options || defaultOptions);
+  } catch (error) {
+    debugError('Error formatting date:', error);
+    return String(dateString);
+  }
 }
 
 /**
@@ -63,19 +63,19 @@ export function formatDate(dateString, lang = 'en', options = null) {
  * @returns {string} Formatted date string
  */
 export function formatDateShort(dateString, lang = 'en') {
-    const date = parseDate(dateString);
-    if (!date) return '';
+  const date = parseDate(dateString);
+  if (!date) {return '';}
 
-    try {
-        return date.toLocaleDateString(lang, {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-    } catch (error) {
-        debugError('Error formatting date short:', error);
-        return String(dateString);
-    }
+  try {
+    return date.toLocaleDateString(lang, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  } catch (error) {
+    debugError('Error formatting date short:', error);
+    return String(dateString);
+  }
 }
 
 /**
@@ -84,26 +84,26 @@ export function formatDateShort(dateString, lang = 'en') {
  * @returns {Date|null} Date object or null if invalid
  */
 export function parseDate(dateSource) {
-    if (!dateSource) return null;
+  if (!dateSource) {return null;}
 
-    try {
-        if (dateSource instanceof Date) {
-            return new Date(dateSource.getTime());
-        }
-
-        if (typeof dateSource !== 'string') return null;
-
-        // If it's an ISO string with time, convert to date part first
-        const datePart = isoToDateString(dateSource);
-        const [year, month, day] = datePart.split('-').map(Number);
-
-        if (!year || !month || !day) return null;
-
-        return new Date(year, month - 1, day);
-    } catch (error) {
-        debugError('Error parsing date:', error);
-        return null;
+  try {
+    if (dateSource instanceof Date) {
+      return new Date(dateSource.getTime());
     }
+
+    if (typeof dateSource !== 'string') {return null;}
+
+    // If it's an ISO string with time, convert to date part first
+    const datePart = isoToDateString(dateSource);
+    const [year, month, day] = datePart.split('-').map(Number);
+
+    if (!year || !month || !day) {return null;}
+
+    return new Date(year, month - 1, day);
+  } catch (error) {
+    debugError('Error parsing date:', error);
+    return null;
+  }
 }
 
 /**
@@ -112,13 +112,13 @@ export function parseDate(dateSource) {
  * @returns {boolean} True if valid date
  */
 export function isValidDate(dateString) {
-    if (!dateString || typeof dateString !== 'string') return false;
+  if (!dateString || typeof dateString !== 'string') {return false;}
 
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(dateString)) return false;
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(dateString)) {return false;}
 
-    const date = parseDate(dateString);
-    return date instanceof Date && !isNaN(date);
+  const date = parseDate(dateString);
+  return date instanceof Date && !isNaN(date);
 }
 
 /**
@@ -128,33 +128,33 @@ export function isValidDate(dateString) {
  * @returns {string} Date string in YYYY-MM-DD format
  */
 export function isoToDateString(dateSource) {
-    if (!dateSource) return '';
+  if (!dateSource) {return '';}
 
-    try {
-        if (dateSource instanceof Date) {
-            return dateSource.toLocaleDateString("en-CA"); // Always returns YYYY-MM-DD
-        }
-
-        if (typeof dateSource !== 'string') return '';
-
-        // If it's already a YYYY-MM-DD string, return it
-        if (/^\d{4}-\d{2}-\d{2}$/.test(dateSource)) {
-            return dateSource;
-        }
-
-        // If it's an ISO string with time (e.g. from database)
-        if (dateSource.includes('T')) {
-            // Split by T to get the date part. 
-            // IMPORTANT: We take the date part literally from the string to avoid timezone shifts
-            // that happen when parsing "2025-01-01T00:00:00Z" as a Date object.
-            return dateSource.split('T')[0];
-        }
-
-        return dateSource;
-    } catch (error) {
-        debugError('Error converting to date string:', error);
-        return String(dateSource);
+  try {
+    if (dateSource instanceof Date) {
+      return dateSource.toLocaleDateString('en-CA'); // Always returns YYYY-MM-DD
     }
+
+    if (typeof dateSource !== 'string') {return '';}
+
+    // If it's already a YYYY-MM-DD string, return it
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateSource)) {
+      return dateSource;
+    }
+
+    // If it's an ISO string with time (e.g. from database)
+    if (dateSource.includes('T')) {
+      // Split by T to get the date part. 
+      // IMPORTANT: We take the date part literally from the string to avoid timezone shifts
+      // that happen when parsing "2025-01-01T00:00:00Z" as a Date object.
+      return dateSource.split('T')[0];
+    }
+
+    return dateSource;
+  } catch (error) {
+    debugError('Error converting to date string:', error);
+    return String(dateSource);
+  }
 }
 
 /**
@@ -164,13 +164,13 @@ export function isoToDateString(dateSource) {
  * @returns {string} Time string in HH:MM format
  */
 export function formatTime(hours, minutes) {
-    const use24h = getTimeFormatPreference() === '24h';
-    const date = new Date(1970, 0, 1, Number(hours) || 0, Number(minutes) || 0);
-    return date.toLocaleTimeString(getLocale(), {
-        hour: use24h ? '2-digit' : 'numeric',
-        minute: '2-digit',
-        hour12: !use24h
-    });
+  const use24h = getTimeFormatPreference() === '24h';
+  const date = new Date(1970, 0, 1, Number(hours) || 0, Number(minutes) || 0);
+  return date.toLocaleTimeString(getLocale(), {
+    hour: use24h ? '2-digit' : 'numeric',
+    minute: '2-digit',
+    hour12: !use24h
+  });
 }
 
 /**
@@ -179,9 +179,9 @@ export function formatTime(hours, minutes) {
  * @returns {string} Time string in HH:MM format
  */
 export function formatMinutesToHHMM(totalMinutes) {
-    const hours = Math.floor(totalMinutes / 60);
-    const mins = totalMinutes % 60;
-    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
 }
 
 /**
@@ -190,15 +190,15 @@ export function formatMinutesToHHMM(totalMinutes) {
  * @returns {{hours: number, minutes: number}} Object with hours and minutes
  */
 export function parseTime(timeString) {
-    if (!timeString) return { hours: 0, minutes: 0 };
+  if (!timeString) {return { hours: 0, minutes: 0 };}
 
-    try {
-        const [hours, minutes] = timeString.split(':').map(Number);
-        return { hours: hours || 0, minutes: minutes || 0 };
-    } catch (error) {
-        debugError('Error parsing time:', error);
-        return { hours: 0, minutes: 0 };
-    }
+  try {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    return { hours: hours || 0, minutes: minutes || 0 };
+  } catch (error) {
+    debugError('Error parsing time:', error);
+    return { hours: 0, minutes: 0 };
+  }
 }
 
 /**
@@ -207,8 +207,8 @@ export function parseTime(timeString) {
  * @returns {number} Total minutes
  */
 export function timeToMinutes(timeString) {
-    const { hours, minutes } = parseTime(timeString);
-    return (hours * 60) + minutes;
+  const { hours, minutes } = parseTime(timeString);
+  return (hours * 60) + minutes;
 }
 
 /**
@@ -218,9 +218,9 @@ export function timeToMinutes(timeString) {
  * @returns {string} End time in HH:MM format
  */
 export function addDuration(startTime, durationMinutes) {
-    const startMinutes = timeToMinutes(startTime);
-    const endMinutes = startMinutes + durationMinutes;
-    return formatMinutesToHHMM(endMinutes);
+  const startMinutes = timeToMinutes(startTime);
+  const endMinutes = startMinutes + durationMinutes;
+  return formatMinutesToHHMM(endMinutes);
 }
 
 /**
@@ -230,19 +230,19 @@ export function addDuration(startTime, durationMinutes) {
  * @returns {string[]} Array of date strings in YYYY-MM-DD format
  */
 export function getDateRange(startDate, endDate) {
-    const dates = [];
-    const start = parseDate(startDate);
-    const end = parseDate(endDate);
+  const dates = [];
+  const start = parseDate(startDate);
+  const end = parseDate(endDate);
 
-    if (!start || !end || start > end) return [];
+  if (!start || !end || start > end) {return [];}
 
-    const current = new Date(start);
-    while (current <= end) {
-        dates.push(current.toLocaleDateString("en-CA"));
-        current.setDate(current.getDate() + 1);
-    }
+  const current = new Date(start);
+  while (current <= end) {
+    dates.push(current.toLocaleDateString('en-CA'));
+    current.setDate(current.getDate() + 1);
+  }
 
-    return dates;
+  return dates;
 }
 
 /**
@@ -251,12 +251,12 @@ export function getDateRange(startDate, endDate) {
  * @returns {boolean} True if date is in the past
  */
 export function isPastDate(dateString) {
-    const date = parseDate(dateString);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  const date = parseDate(dateString);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-    if (!date) return false;
-    return date < today;
+  if (!date) {return false;}
+  return date < today;
 }
 
 /**
@@ -265,7 +265,7 @@ export function isPastDate(dateString) {
  * @returns {boolean} True if date is today
  */
 export function isToday(dateString) {
-    return dateString === getTodayISO();
+  return dateString === getTodayISO();
 }
 
 /**
@@ -274,12 +274,12 @@ export function isToday(dateString) {
  * @returns {boolean} True if date is in the future
  */
 export function isFutureDate(dateString) {
-    const date = parseDate(dateString);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  const date = parseDate(dateString);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-    if (!date) return false;
-    return date > today;
+  if (!date) {return false;}
+  return date > today;
 }
 
 /**
@@ -289,28 +289,28 @@ export function isFutureDate(dateString) {
  * @returns {string} Date string in YYYY-MM-DD format
  */
 export function getNextDayOfWeek(dayName, fromDate = new Date()) {
-    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const targetDayIndex = daysOfWeek.indexOf(dayName);
+  const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const targetDayIndex = daysOfWeek.indexOf(dayName);
 
-    if (targetDayIndex === -1) {
-        throw new Error(`Invalid day name: ${dayName}`);
-    }
+  if (targetDayIndex === -1) {
+    throw new Error(`Invalid day name: ${dayName}`);
+  }
 
-    const today = new Date(fromDate);
-    const todayIndex = today.getDay();
+  const today = new Date(fromDate);
+  const todayIndex = today.getDay();
 
-    // Calculate days until the next target day
-    let daysUntilNext = (targetDayIndex - todayIndex + 7) % 7;
+  // Calculate days until the next target day
+  let daysUntilNext = (targetDayIndex - todayIndex + 7) % 7;
 
-    // If today is the target day and it's after 8 PM, set to next week
-    if (daysUntilNext === 0 && today.getHours() >= 20) {
-        daysUntilNext = 7;
-    }
+  // If today is the target day and it's after 8 PM, set to next week
+  if (daysUntilNext === 0 && today.getHours() >= 20) {
+    daysUntilNext = 7;
+  }
 
-    const nextDate = new Date(today);
-    nextDate.setDate(today.getDate() + daysUntilNext);
+  const nextDate = new Date(today);
+  nextDate.setDate(today.getDate() + daysUntilNext);
 
-    return nextDate.toLocaleDateString("en-CA");
+  return nextDate.toLocaleDateString('en-CA');
 }
 
 /**
@@ -319,7 +319,7 @@ export function getNextDayOfWeek(dayName, fromDate = new Date()) {
  * @returns {string[]} Sorted array of date strings
  */
 export function sortDatesAscending(dates) {
-    return [...dates].sort((a, b) => new Date(a) - new Date(b));
+  return [...dates].sort((a, b) => new Date(a) - new Date(b));
 }
 
 /**
@@ -328,7 +328,7 @@ export function sortDatesAscending(dates) {
  * @returns {string[]} Sorted array of date strings
  */
 export function sortDatesDescending(dates) {
-    return [...dates].sort((a, b) => new Date(b) - new Date(a));
+  return [...dates].sort((a, b) => new Date(b) - new Date(a));
 }
 
 /**
@@ -338,21 +338,21 @@ export function sortDatesDescending(dates) {
  * @returns {string} Formatted timestamp string
  */
 export function formatTimestamp(timestamp, lang = 'en') {
-    try {
-        const date = new Date(timestamp);
-        const use24h = getTimeFormatPreference() === '24h';
-        return date.toLocaleString(lang, {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: !use24h
-        });
-    } catch (error) {
-        debugError('Error formatting timestamp:', error);
-        return String(timestamp);
-    }
+  try {
+    const date = new Date(timestamp);
+    const use24h = getTimeFormatPreference() === '24h';
+    return date.toLocaleString(lang, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: !use24h
+    });
+  } catch (error) {
+    debugError('Error formatting timestamp:', error);
+    return String(timestamp);
+  }
 }
 
 /**
@@ -362,32 +362,32 @@ export function formatTimestamp(timestamp, lang = 'en') {
  * @returns {string} Relative time string
  */
 export function getRelativeTime(date, lang = 'en') {
-    const now = new Date();
-    const target = new Date(date);
-    const diffMs = target - now;
-    const diffSecs = Math.floor(diffMs / 1000);
-    const diffMins = Math.floor(diffSecs / 60);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
+  const now = new Date();
+  const target = new Date(date);
+  const diffMs = target - now;
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
 
-    if (Math.abs(diffDays) > 7) {
-        return formatDate(target.toLocaleDateString("en-CA"), lang);
+  if (Math.abs(diffDays) > 7) {
+    return formatDate(target.toLocaleDateString('en-CA'), lang);
+  }
+
+  try {
+    const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' });
+
+    if (Math.abs(diffDays) >= 1) {
+      return rtf.format(diffDays, 'day');
+    } else if (Math.abs(diffHours) >= 1) {
+      return rtf.format(diffHours, 'hour');
+    } else if (Math.abs(diffMins) >= 1) {
+      return rtf.format(diffMins, 'minute');
+    } else {
+      return rtf.format(diffSecs, 'second');
     }
-
-    try {
-        const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' });
-
-        if (Math.abs(diffDays) >= 1) {
-            return rtf.format(diffDays, 'day');
-        } else if (Math.abs(diffHours) >= 1) {
-            return rtf.format(diffHours, 'hour');
-        } else if (Math.abs(diffMins) >= 1) {
-            return rtf.format(diffMins, 'minute');
-        } else {
-            return rtf.format(diffSecs, 'second');
-        }
-    } catch (error) {
-        debugError('Error getting relative time:', error);
-        return formatDate(target.toLocaleDateString("en-CA"), lang);
-    }
+  } catch (error) {
+    debugError('Error getting relative time:', error);
+    return formatDate(target.toLocaleDateString('en-CA'), lang);
+  }
 }

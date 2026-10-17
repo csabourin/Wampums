@@ -16,7 +16,7 @@
  * leaks even if the caller never awaits the promise.
  */
 
-import { translate } from "../app.js";
+import { translate } from '../app.js';
 
 const FOCUSABLE_SELECTOR =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -32,7 +32,7 @@ function getNextDialogInstanceId() {
 function tr(key, fallback) {
   try {
     const translated = translate(key);
-    if (translated && translated !== key) return translated;
+    if (translated && translated !== key) {return translated;}
   } catch (_) {
     // translate may not be ready
   }
@@ -40,41 +40,41 @@ function tr(key, fallback) {
 }
 
 function buildOverlay() {
-  const overlay = document.createElement("div");
-  overlay.className = "dialog-overlay";
-  overlay.setAttribute("role", "presentation");
+  const overlay = document.createElement('div');
+  overlay.className = 'dialog-overlay';
+  overlay.setAttribute('role', 'presentation');
   return overlay;
 }
 
-function buildDialog({ title, message, kind = "info", isPrompt = false, promptValue = "" }) {
-  const dialog = document.createElement("div");
+function buildDialog({ title, message, kind = 'info', isPrompt = false, promptValue = '' }) {
+  const dialog = document.createElement('div');
   dialog.className = `dialog dialog--${kind}`;
-  dialog.setAttribute("role", "alertdialog");
-  dialog.setAttribute("aria-modal", "true");
+  dialog.setAttribute('role', 'alertdialog');
+  dialog.setAttribute('aria-modal', 'true');
 
   const dialogInstanceId = getNextDialogInstanceId();
   const titleId = `dialog-title-${dialogInstanceId}`;
   const bodyId = `dialog-body-${dialogInstanceId}`;
-  dialog.setAttribute("aria-labelledby", titleId);
-  dialog.setAttribute("aria-describedby", bodyId);
+  dialog.setAttribute('aria-labelledby', titleId);
+  dialog.setAttribute('aria-describedby', bodyId);
 
   // Heading
   if (title) {
-    const h = document.createElement("h2");
-    h.className = "dialog__title";
+    const h = document.createElement('h2');
+    h.className = 'dialog__title';
     h.id = titleId;
     h.textContent = title;
     dialog.appendChild(h);
   }
 
   // Body
-  const body = document.createElement("div");
-  body.className = "dialog__body";
+  const body = document.createElement('div');
+  body.className = 'dialog__body';
   body.id = bodyId;
   // Message may contain newlines — render as text nodes for safety.
-  const lines = String(message ?? "").split("\n");
+  const lines = String(message ?? '').split('\n');
   lines.forEach((line, i) => {
-    if (i > 0) body.appendChild(document.createElement("br"));
+    if (i > 0) {body.appendChild(document.createElement('br'));}
     body.appendChild(document.createTextNode(line));
   });
   dialog.appendChild(body);
@@ -82,26 +82,26 @@ function buildDialog({ title, message, kind = "info", isPrompt = false, promptVa
   // Prompt input
   let inputEl = null;
   if (isPrompt) {
-    inputEl = document.createElement("input");
-    inputEl.type = "text";
-    inputEl.className = "dialog__input";
+    inputEl = document.createElement('input');
+    inputEl.type = 'text';
+    inputEl.className = 'dialog__input';
     inputEl.value = promptValue;
-    inputEl.setAttribute("aria-label", title || tr("input", "Input"));
+    inputEl.setAttribute('aria-label', title || tr('input', 'Input'));
     dialog.appendChild(inputEl);
   }
 
   // Actions
-  const actions = document.createElement("div");
-  actions.className = "dialog__actions";
+  const actions = document.createElement('div');
+  actions.className = 'dialog__actions';
   dialog.appendChild(actions);
 
   return { dialog, actions, inputEl };
 }
 
 function ensureStyles() {
-  if (document.getElementById("dialog-utils-styles")) return;
-  const style = document.createElement("style");
-  style.id = "dialog-utils-styles";
+  if (document.getElementById('dialog-utils-styles')) {return;}
+  const style = document.createElement('style');
+  style.id = 'dialog-utils-styles';
   style.textContent = `
 .dialog-overlay {
   position: fixed;
@@ -205,7 +205,7 @@ function trapFocus(container, event) {
   const focusable = Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR)).filter(
     (el) => !el.disabled && el.offsetParent !== null,
   );
-  if (focusable.length === 0) return;
+  if (focusable.length === 0) {return;}
   const first = focusable[0];
   const last = focusable[focusable.length - 1];
 
@@ -221,10 +221,10 @@ function trapFocus(container, event) {
 function openDialog({
   title,
   message,
-  kind = "info",
+  kind = 'info',
   buttons,
   isPrompt = false,
-  promptValue = "",
+  promptValue = '',
   defaultButtonIndex = 0,
   cancelValue = null,
 }) {
@@ -250,14 +250,14 @@ function openDialog({
     let settled = false;
 
     const cleanup = () => {
-      if (settled) return;
+      if (settled) {return;}
       settled = true;
       activeDialog = null;
-      document.removeEventListener("keydown", onKeydown, true);
+      document.removeEventListener('keydown', onKeydown, true);
       if (overlay.parentNode) {
         overlay.parentNode.removeChild(overlay);
       }
-      if (previousFocus && typeof previousFocus.focus === "function") {
+      if (previousFocus && typeof previousFocus.focus === 'function') {
         try {
           previousFocus.focus();
         } catch (_) {
@@ -272,14 +272,14 @@ function openDialog({
     };
 
     const onKeydown = (event) => {
-      if (event.key === "Escape") {
+      if (event.key === 'Escape') {
         event.preventDefault();
         settle(cancelValue);
-      } else if (event.key === "Enter" && (event.target?.tagName !== "TEXTAREA")) {
+      } else if (event.key === 'Enter' && (event.target?.tagName !== 'TEXTAREA')) {
         // If a dialog button has focus, let the native Enter->click fire so
         // Enter on "Cancel" cancels instead of triggering the default
         // (possibly destructive) action.
-        if (event.target instanceof Element && event.target.closest(".dialog__actions")) {
+        if (event.target instanceof Element && event.target.closest('.dialog__actions')) {
           return;
         }
         const primary = buttons[defaultButtonIndex];
@@ -287,32 +287,32 @@ function openDialog({
           event.preventDefault();
           settle(primary.resolve(inputEl?.value));
         }
-      } else if (event.key === "Tab") {
+      } else if (event.key === 'Tab') {
         trapFocus(dialog, event);
       }
     };
 
     buttons.forEach((btn, idx) => {
-      const buttonEl = document.createElement("button");
-      buttonEl.type = "button";
+      const buttonEl = document.createElement('button');
+      buttonEl.type = 'button';
       buttonEl.textContent = btn.label;
-      buttonEl.className = `dialog__btn dialog__btn--${btn.variant || "secondary"}`;
-      buttonEl.addEventListener("click", () => {
+      buttonEl.className = `dialog__btn dialog__btn--${btn.variant || 'secondary'}`;
+      buttonEl.addEventListener('click', () => {
         settle(btn.resolve(inputEl?.value));
       });
       actions.appendChild(buttonEl);
-      if (idx === defaultButtonIndex) buttonEl.dataset.dialogDefault = "true";
+      if (idx === defaultButtonIndex) {buttonEl.dataset.dialogDefault = 'true';}
     });
 
     // Click outside the dialog closes it (cancel)
-    overlay.addEventListener("click", (event) => {
+    overlay.addEventListener('click', (event) => {
       if (event.target === overlay) {
         settle(cancelValue);
       }
     });
 
     document.body.appendChild(overlay);
-    document.addEventListener("keydown", onKeydown, true);
+    document.addEventListener('keydown', onKeydown, true);
 
     activeDialog = { cancel: () => settle(cancelValue) };
 
@@ -323,7 +323,7 @@ function openDialog({
         inputEl.select();
       } else {
         const defaultBtn = dialog.querySelector('[data-dialog-default="true"]');
-        if (defaultBtn) defaultBtn.focus();
+        if (defaultBtn) {defaultBtn.focus();}
       }
     });
   });
@@ -341,20 +341,20 @@ function openDialog({
  * @returns {Promise<boolean>}
  */
 export function confirm(options) {
-  const opts = typeof options === "string" ? { message: options } : options || {};
-  const confirmLabel = opts.confirmLabel || tr("confirm", "Confirm");
-  const cancelLabel = opts.cancelLabel || tr("cancel", "Cancel");
+  const opts = typeof options === 'string' ? { message: options } : options || {};
+  const confirmLabel = opts.confirmLabel || tr('confirm', 'Confirm');
+  const cancelLabel = opts.cancelLabel || tr('cancel', 'Cancel');
   return openDialog({
-    title: opts.title || "",
-    message: opts.message || "",
-    kind: opts.danger ? "danger" : "info",
+    title: opts.title || '',
+    message: opts.message || '',
+    kind: opts.danger ? 'danger' : 'info',
     cancelValue: false,
     defaultButtonIndex: 1,
     buttons: [
-      { label: cancelLabel, variant: "secondary", resolve: () => false },
+      { label: cancelLabel, variant: 'secondary', resolve: () => false },
       {
         label: confirmLabel,
-        variant: opts.danger ? "danger" : "primary",
+        variant: opts.danger ? 'danger' : 'primary',
         resolve: () => true,
       },
     ],
@@ -368,15 +368,15 @@ export function confirm(options) {
  * @returns {Promise<void>}
  */
 export function alert(options) {
-  const opts = typeof options === "string" ? { message: options } : options || {};
-  const okLabel = opts.okLabel || tr("ok", "OK");
+  const opts = typeof options === 'string' ? { message: options } : options || {};
+  const okLabel = opts.okLabel || tr('ok', 'OK');
   return openDialog({
-    title: opts.title || "",
-    message: opts.message || "",
-    kind: opts.kind || "info",
+    title: opts.title || '',
+    message: opts.message || '',
+    kind: opts.kind || 'info',
     cancelValue: undefined,
     defaultButtonIndex: 0,
-    buttons: [{ label: okLabel, variant: "primary", resolve: () => undefined }],
+    buttons: [{ label: okLabel, variant: 'primary', resolve: () => undefined }],
   }).then(() => undefined);
 }
 
@@ -387,26 +387,26 @@ export function alert(options) {
  * @param {string} [defaultValue]
  * @returns {Promise<string|null>}
  */
-export function prompt(options, defaultValue = "") {
-  const opts = typeof options === "string" ? { message: options } : options || {};
-  const confirmLabel = opts.confirmLabel || tr("ok", "OK");
-  const cancelLabel = opts.cancelLabel || tr("cancel", "Cancel");
-  const initialValue = opts.defaultValue ?? defaultValue ?? "";
+export function prompt(options, defaultValue = '') {
+  const opts = typeof options === 'string' ? { message: options } : options || {};
+  const confirmLabel = opts.confirmLabel || tr('ok', 'OK');
+  const cancelLabel = opts.cancelLabel || tr('cancel', 'Cancel');
+  const initialValue = opts.defaultValue ?? defaultValue ?? '';
 
   return openDialog({
-    title: opts.title || "",
-    message: opts.message || "",
-    kind: "info",
+    title: opts.title || '',
+    message: opts.message || '',
+    kind: 'info',
     isPrompt: true,
     promptValue: initialValue,
     cancelValue: null,
     defaultButtonIndex: 1,
     buttons: [
-      { label: cancelLabel, variant: "secondary", resolve: () => null },
+      { label: cancelLabel, variant: 'secondary', resolve: () => null },
       {
         label: confirmLabel,
-        variant: "primary",
-        resolve: (value) => (value === undefined ? "" : value),
+        variant: 'primary',
+        resolve: (value) => (value === undefined ? '' : value),
       },
     ],
   });
@@ -435,7 +435,7 @@ export function hasActiveDialog() {
 }
 
 export function confirmDestructive(options) {
-  const opts = typeof options === "string" ? { message: options } : options || {};
+  const opts = typeof options === 'string' ? { message: options } : options || {};
   return confirm({ ...opts, danger: true });
 }
 

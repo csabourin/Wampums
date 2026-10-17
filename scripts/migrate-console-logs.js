@@ -15,7 +15,7 @@ const path = require('path');
 const { glob } = require('glob');
 
 // Statistics
-let stats = {
+const stats = {
   filesProcessed: 0,
   filesUpdated: 0,
   logsReplaced: 0,
@@ -47,7 +47,7 @@ function getDebugUtilsPath(filePath) {
     if (depth === 0) {
       return './utils/DebugUtils.js';
     } else {
-      return '../'.repeat(depth) + 'utils/DebugUtils.js';
+      return `${'../'.repeat(depth)  }utils/DebugUtils.js`;
     }
   }
 
@@ -60,7 +60,7 @@ function getDebugUtilsPath(filePath) {
     if (depth === 0) {
       return './utils/DebugUtils.js';
     } else {
-      return '../'.repeat(depth) + 'utils/DebugUtils.js';
+      return `${'../'.repeat(depth)  }utils/DebugUtils.js`;
     }
   }
 
@@ -101,15 +101,15 @@ function migrateFile(filePath) {
     const errorMatches = content.match(/console\.error\(/g);
     const warnMatches = content.match(/console\.warn\(/g);
 
-    if (logMatches) stats.logsReplaced += logMatches.length;
-    if (errorMatches) stats.errorsReplaced += errorMatches.length;
-    if (warnMatches) stats.warnsReplaced += warnMatches.length;
+    if (logMatches) {stats.logsReplaced += logMatches.length;}
+    if (errorMatches) {stats.errorsReplaced += errorMatches.length;}
+    if (warnMatches) {stats.warnsReplaced += warnMatches.length;}
 
     // Build import statement
     const imports = [];
-    if (usesLog) imports.push('debugLog');
-    if (usesError) imports.push('debugError');
-    if (usesWarn) imports.push('debugWarn');
+    if (usesLog) {imports.push('debugLog');}
+    if (usesError) {imports.push('debugError');}
+    if (usesWarn) {imports.push('debugWarn');}
 
     const debugUtilsPath = getDebugUtilsPath(filePath);
     const importStatement = `import { ${imports.join(', ')} } from '${debugUtilsPath}';\n`;
@@ -133,7 +133,7 @@ function migrateFile(filePath) {
         insertPosition = content.indexOf(jsdocEndMatch[0]) + jsdocEndMatch[0].length;
       }
 
-      content = content.slice(0, insertPosition) + importStatement + '\n' + content.slice(insertPosition);
+      content = `${content.slice(0, insertPosition) + importStatement  }\n${  content.slice(insertPosition)}`;
     }
 
     // Replace console calls
@@ -179,7 +179,7 @@ async function main() {
   files.forEach(migrateFile);
 
   // Print statistics
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${  '='.repeat(60)}`);
   console.log('📊 Migration Statistics');
   console.log('='.repeat(60));
   console.log(`Files processed: ${stats.filesProcessed}`);

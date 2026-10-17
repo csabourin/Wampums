@@ -49,7 +49,7 @@ function formatFeeRow(row) {
   };
 }
 
-module.exports = (pool, logger) => {
+module.exports = (pool, _logger) => {
   router.get('/v1/finance/fee-definitions', authenticate, requirePermission('finance.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
@@ -383,7 +383,7 @@ module.exports = (pool, logger) => {
 
       // Insert payment
       const insertResult = await client.query(
-         `INSERT INTO payments (participant_fee_id, payment_plan_id, amount, payment_date, method, reference_number)
+        `INSERT INTO payments (participant_fee_id, payment_plan_id, amount, payment_date, method, reference_number)
           VALUES ($1, $2, $3, $4, $5, $6)
           RETURNING id, participant_fee_id, payment_plan_id, amount, payment_date, method, reference_number, created_at`,
         [id, payment_plan_id || null, amountValidation.value, payment_date, method || null, reference_number || null]
@@ -531,7 +531,7 @@ module.exports = (pool, logger) => {
     }
 
     const insertResult = await pool.query(
-       `INSERT INTO payment_plans (participant_fee_id, number_of_payments, amount_per_payment, start_date, frequency, notes)
+      `INSERT INTO payment_plans (participant_fee_id, number_of_payments, amount_per_payment, start_date, frequency, notes)
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, participant_fee_id, number_of_payments, amount_per_payment, start_date, frequency, notes, created_at`,
       [id, paymentsValidation.value, amountValidation.value, start_date, frequency, notes || null]

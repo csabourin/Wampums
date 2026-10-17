@@ -78,9 +78,9 @@ function generateInvitationToken() {
  *   to hash
  */
 function digestInvitationToken(token) {
-  if (typeof token !== 'string') return null;
+  if (typeof token !== 'string') {return null;}
   const trimmed = token.trim();
-  if (trimmed.length === 0) return null;
+  if (trimmed.length === 0) {return null;}
   return createHash('sha256').update(trimmed, 'utf8').digest('hex');
 }
 
@@ -108,9 +108,9 @@ function invitationExpiresAt({ days = DEFAULT_TOKEN_TTL_DAYS, from = new Date() 
  * @returns {boolean} True when the link is no longer usable
  */
 function isInvitationExpired(expiresAt, now = new Date()) {
-  if (!expiresAt) return true;
+  if (!expiresAt) {return true;}
   const expiry = expiresAt instanceof Date ? expiresAt : new Date(expiresAt);
-  if (Number.isNaN(expiry.getTime())) return true;
+  if (Number.isNaN(expiry.getTime())) {return true;}
   return expiry.getTime() <= now.getTime();
 }
 

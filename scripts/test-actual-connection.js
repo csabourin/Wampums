@@ -55,9 +55,9 @@ async function testActualConnection() {
     console.log('-'.repeat(60));
 
     const reviveBaileysJson = (value, fallback) => {
-      if (!value) return fallback;
+      if (!value) {return fallback;}
       try {
-        const serialized = typeof value === "string" ? value : JSON.stringify(value);
+        const serialized = typeof value === 'string' ? value : JSON.stringify(value);
         return JSON.parse(serialized, BufferJSON.reviver);
       } catch (error) {
         console.error('Error reviving:', error);
@@ -113,7 +113,7 @@ async function testActualConnection() {
     console.log('-'.repeat(60));
 
     const makeKeyStore = (initialKeys) => {
-      let keysCache = initialKeys;
+      const keysCache = initialKeys;
       return {
         get: async (type, ids) => {
           const data = {};
@@ -174,7 +174,7 @@ async function testActualConnection() {
         },
         logger: logger,
         browser: ['Wampums', 'Chrome', '10.0'],
-        getMessage: async (key) => {
+        getMessage: async (_key) => {
           return { conversation: '' };
         }
       });

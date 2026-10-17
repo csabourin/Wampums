@@ -35,9 +35,9 @@ export function renderYearGrid(model, options = {}) {
   return `
     <div class="yp-year">
       ${model.months.map(month => renderMonthRow(month, {
-        ...options,
-        periodsById: model.periodsById
-      })).join('')}
+    ...options,
+    periodsById: model.periodsById
+  })).join('')}
     </div>
   `;
 }

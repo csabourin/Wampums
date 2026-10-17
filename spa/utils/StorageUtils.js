@@ -18,7 +18,7 @@ import { debugError } from './DebugUtils.js';
  * @returns {Storage} Storage object
  */
 function getStorageObject(isSession = false) {
-    return isSession ? sessionStorage : localStorage;
+  return isSession ? sessionStorage : localStorage;
 }
 
 /**
@@ -29,15 +29,15 @@ function getStorageObject(isSession = false) {
  * @returns {boolean} True if successful
  */
 export function setStorage(key, value, isSession = false) {
-    try {
-        const storage = getStorageObject(isSession);
-        const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
-        storage.setItem(key, stringValue);
-        return true;
-    } catch (error) {
-        debugError(`Error setting storage for key "${key}":`, error);
-        return false;
-    }
+  try {
+    const storage = getStorageObject(isSession);
+    const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+    storage.setItem(key, stringValue);
+    return true;
+  } catch (error) {
+    debugError(`Error setting storage for key "${key}":`, error);
+    return false;
+  }
 }
 
 /**
@@ -48,14 +48,14 @@ export function setStorage(key, value, isSession = false) {
  * @returns {any} Retrieved value or default value
  */
 export function getStorage(key, isSession = false, defaultValue = null) {
-    try {
-        const storage = getStorageObject(isSession);
-        const value = storage.getItem(key);
-        return value !== null ? value : defaultValue;
-    } catch (error) {
-        debugError(`Error getting storage for key "${key}":`, error);
-        return defaultValue;
-    }
+  try {
+    const storage = getStorageObject(isSession);
+    const value = storage.getItem(key);
+    return value !== null ? value : defaultValue;
+  } catch (error) {
+    debugError(`Error getting storage for key "${key}":`, error);
+    return defaultValue;
+  }
 }
 
 /**
@@ -66,24 +66,24 @@ export function getStorage(key, isSession = false, defaultValue = null) {
  * @returns {any} Parsed value or default value
  */
 export function getStorageJSON(key, isSession = false, defaultValue = null) {
-    try {
-        const storage = getStorageObject(isSession);
-        const value = storage.getItem(key);
+  try {
+    const storage = getStorageObject(isSession);
+    const value = storage.getItem(key);
 
-        if (value === null) {
-            return defaultValue;
-        }
-
-        try {
-            return JSON.parse(value);
-        } catch (parseError) {
-            debugError(`Error parsing JSON for key "${key}":`, parseError);
-            return defaultValue;
-        }
-    } catch (error) {
-        debugError(`Error getting storage JSON for key "${key}":`, error);
-        return defaultValue;
+    if (value === null) {
+      return defaultValue;
     }
+
+    try {
+      return JSON.parse(value);
+    } catch (parseError) {
+      debugError(`Error parsing JSON for key "${key}":`, parseError);
+      return defaultValue;
+    }
+  } catch (error) {
+    debugError(`Error getting storage JSON for key "${key}":`, error);
+    return defaultValue;
+  }
 }
 
 /**
@@ -93,14 +93,14 @@ export function getStorageJSON(key, isSession = false, defaultValue = null) {
  * @returns {boolean} True if successful
  */
 export function removeStorage(key, isSession = false) {
-    try {
-        const storage = getStorageObject(isSession);
-        storage.removeItem(key);
-        return true;
-    } catch (error) {
-        debugError(`Error removing storage for key "${key}":`, error);
-        return false;
-    }
+  try {
+    const storage = getStorageObject(isSession);
+    storage.removeItem(key);
+    return true;
+  } catch (error) {
+    debugError(`Error removing storage for key "${key}":`, error);
+    return false;
+  }
 }
 
 /**
@@ -109,14 +109,14 @@ export function removeStorage(key, isSession = false) {
  * @returns {boolean} True if successful
  */
 export function clearStorage(isSession = false) {
-    try {
-        const storage = getStorageObject(isSession);
-        storage.clear();
-        return true;
-    } catch (error) {
-        debugError('Error clearing storage:', error);
-        return false;
-    }
+  try {
+    const storage = getStorageObject(isSession);
+    storage.clear();
+    return true;
+  } catch (error) {
+    debugError('Error clearing storage:', error);
+    return false;
+  }
 }
 
 /**
@@ -126,43 +126,43 @@ export function clearStorage(isSession = false) {
  * @returns {boolean} True if successful
  */
 export function clearUserData(isSession = false) {
-    try {
-        const storage = getStorageObject(isSession);
+  try {
+    const storage = getStorageObject(isSession);
 
-        // Keys to PRESERVE across logout (device-level preferences, not user-specific)
-        const keysToPreserve = [
-            'device_token',              // 2FA device trust - must preserve!
-            'language',                  // Language preference
-            'lang',                      // Alternative language key
-            'wampums-lang',             // Namespaced language key
-            'dashboard_points_collapsed', // UI preference (non-critical)
-            'lastSwVersionPrompt',       // PWA update state (non-critical)
-        ];
+    // Keys to PRESERVE across logout (device-level preferences, not user-specific)
+    const keysToPreserve = [
+      'device_token',              // 2FA device trust - must preserve!
+      'language',                  // Language preference
+      'lang',                      // Alternative language key
+      'wampums-lang',             // Namespaced language key
+      'dashboard_points_collapsed', // UI preference (non-critical)
+      'lastSwVersionPrompt',       // PWA update state (non-critical)
+    ];
 
-        // For sessionStorage, clear everything (no need to preserve device-level prefs)
-        if (isSession) {
-            storage.clear();
-            return true;
-        }
-
-        // For localStorage, selectively remove user-specific keys
-        const allKeys = Object.keys(storage);
-
-        for (const key of allKeys) {
-            // Skip preserved keys
-            if (keysToPreserve.includes(key)) {
-                continue;
-            }
-
-            // Remove user-specific keys
-            storage.removeItem(key);
-        }
-
-        return true;
-    } catch (error) {
-        debugError('Error clearing user data from storage:', error);
-        return false;
+    // For sessionStorage, clear everything (no need to preserve device-level prefs)
+    if (isSession) {
+      storage.clear();
+      return true;
     }
+
+    // For localStorage, selectively remove user-specific keys
+    const allKeys = Object.keys(storage);
+
+    for (const key of allKeys) {
+      // Skip preserved keys
+      if (keysToPreserve.includes(key)) {
+        continue;
+      }
+
+      // Remove user-specific keys
+      storage.removeItem(key);
+    }
+
+    return true;
+  } catch (error) {
+    debugError('Error clearing user data from storage:', error);
+    return false;
+  }
 }
 
 /**
@@ -172,13 +172,13 @@ export function clearUserData(isSession = false) {
  * @returns {boolean} True if key exists
  */
 export function hasStorage(key, isSession = false) {
-    try {
-        const storage = getStorageObject(isSession);
-        return storage.getItem(key) !== null;
-    } catch (error) {
-        debugError(`Error checking storage for key "${key}":`, error);
-        return false;
-    }
+  try {
+    const storage = getStorageObject(isSession);
+    return storage.getItem(key) !== null;
+  } catch (error) {
+    debugError(`Error checking storage for key "${key}":`, error);
+    return false;
+  }
 }
 
 /**
@@ -187,13 +187,13 @@ export function hasStorage(key, isSession = false) {
  * @returns {string[]} Array of storage keys
  */
 export function getStorageKeys(isSession = false) {
-    try {
-        const storage = getStorageObject(isSession);
-        return Object.keys(storage);
-    } catch (error) {
-        debugError('Error getting storage keys:', error);
-        return [];
-    }
+  try {
+    const storage = getStorageObject(isSession);
+    return Object.keys(storage);
+  } catch (error) {
+    debugError('Error getting storage keys:', error);
+    return [];
+  }
 }
 
 /**
@@ -202,21 +202,21 @@ export function getStorageKeys(isSession = false) {
  * @returns {number} Approximate size in bytes
  */
 export function getStorageSize(isSession = false) {
-    try {
-        const storage = getStorageObject(isSession);
-        let size = 0;
+  try {
+    const storage = getStorageObject(isSession);
+    let size = 0;
 
-        for (let key in storage) {
-            if (storage.hasOwnProperty(key)) {
-                size += key.length + storage[key].length;
-            }
-        }
-
-        return size;
-    } catch (error) {
-        debugError('Error getting storage size:', error);
-        return 0;
+    for (const key in storage) {
+      if (storage.hasOwnProperty(key)) {
+        size += key.length + storage[key].length;
+      }
     }
+
+    return size;
+  } catch (error) {
+    debugError('Error getting storage size:', error);
+    return 0;
+  }
 }
 
 /**
@@ -228,17 +228,17 @@ export function getStorageSize(isSession = false) {
  * @returns {boolean} True if successful
  */
 export function setStorageWithExpiry(key, value, expirationMs, isSession = false) {
-    try {
-        const now = Date.now();
-        const item = {
-            value: value,
-            expiry: now + expirationMs
-        };
-        return setStorage(key, item, isSession);
-    } catch (error) {
-        debugError(`Error setting storage with expiry for key "${key}":`, error);
-        return false;
-    }
+  try {
+    const now = Date.now();
+    const item = {
+      value: value,
+      expiry: now + expirationMs
+    };
+    return setStorage(key, item, isSession);
+  } catch (error) {
+    debugError(`Error setting storage with expiry for key "${key}":`, error);
+    return false;
+  }
 }
 
 /**
@@ -249,26 +249,26 @@ export function setStorageWithExpiry(key, value, expirationMs, isSession = false
  * @returns {any} Retrieved value or default value
  */
 export function getStorageWithExpiry(key, isSession = false, defaultValue = null) {
-    try {
-        const itemStr = getStorage(key, isSession);
-        if (!itemStr) {
-            return defaultValue;
-        }
-
-        const item = JSON.parse(itemStr);
-        const now = Date.now();
-
-        if (now > item.expiry) {
-            // Item has expired, remove it
-            removeStorage(key, isSession);
-            return defaultValue;
-        }
-
-        return item.value;
-    } catch (error) {
-        debugError(`Error getting storage with expiry for key "${key}":`, error);
-        return defaultValue;
+  try {
+    const itemStr = getStorage(key, isSession);
+    if (!itemStr) {
+      return defaultValue;
     }
+
+    const item = JSON.parse(itemStr);
+    const now = Date.now();
+
+    if (now > item.expiry) {
+      // Item has expired, remove it
+      removeStorage(key, isSession);
+      return defaultValue;
+    }
+
+    return item.value;
+  } catch (error) {
+    debugError(`Error getting storage with expiry for key "${key}":`, error);
+    return defaultValue;
+  }
 }
 
 /**
@@ -278,18 +278,18 @@ export function getStorageWithExpiry(key, isSession = false, defaultValue = null
  * @returns {boolean} True if all successful
  */
 export function setStorageMultiple(items, isSession = false) {
-    try {
-        let allSuccessful = true;
-        for (const [key, value] of Object.entries(items)) {
-            if (!setStorage(key, value, isSession)) {
-                allSuccessful = false;
-            }
-        }
-        return allSuccessful;
-    } catch (error) {
-        debugError('Error setting multiple storage items:', error);
-        return false;
+  try {
+    let allSuccessful = true;
+    for (const [key, value] of Object.entries(items)) {
+      if (!setStorage(key, value, isSession)) {
+        allSuccessful = false;
+      }
     }
+    return allSuccessful;
+  } catch (error) {
+    debugError('Error setting multiple storage items:', error);
+    return false;
+  }
 }
 
 /**
@@ -299,16 +299,16 @@ export function setStorageMultiple(items, isSession = false) {
  * @returns {Object} Object with key-value pairs
  */
 export function getStorageMultiple(keys, isSession = false) {
-    const result = {};
-    try {
-        for (const key of keys) {
-            result[key] = getStorage(key, isSession);
-        }
-        return result;
-    } catch (error) {
-        debugError('Error getting multiple storage items:', error);
-        return result;
+  const result = {};
+  try {
+    for (const key of keys) {
+      result[key] = getStorage(key, isSession);
     }
+    return result;
+  } catch (error) {
+    debugError('Error getting multiple storage items:', error);
+    return result;
+  }
 }
 
 /**
@@ -318,18 +318,18 @@ export function getStorageMultiple(keys, isSession = false) {
  * @returns {boolean} True if all successful
  */
 export function removeStorageMultiple(keys, isSession = false) {
-    try {
-        let allSuccessful = true;
-        for (const key of keys) {
-            if (!removeStorage(key, isSession)) {
-                allSuccessful = false;
-            }
-        }
-        return allSuccessful;
-    } catch (error) {
-        debugError('Error removing multiple storage items:', error);
-        return false;
+  try {
+    let allSuccessful = true;
+    for (const key of keys) {
+      if (!removeStorage(key, isSession)) {
+        allSuccessful = false;
+      }
     }
+    return allSuccessful;
+  } catch (error) {
+    debugError('Error removing multiple storage items:', error);
+    return false;
+  }
 }
 
 /**
@@ -339,16 +339,16 @@ export function removeStorageMultiple(keys, isSession = false) {
  * @returns {Function} Cleanup function to remove listener
  */
 export function onStorageChange(callback) {
-    const listener = (event) => {
-        callback(event.key, event.newValue, event.oldValue, event.url);
-    };
+  const listener = (event) => {
+    callback(event.key, event.newValue, event.oldValue, event.url);
+  };
 
-    window.addEventListener('storage', listener);
+  window.addEventListener('storage', listener);
 
-    // Return cleanup function
-    return () => {
-        window.removeEventListener('storage', listener);
-    };
+  // Return cleanup function
+  return () => {
+    window.removeEventListener('storage', listener);
+  };
 }
 
 /**
@@ -364,7 +364,7 @@ const DEFAULT_NAMESPACE = 'wampums';
  * @returns {string} Namespaced key
  */
 export function createNamespacedKey(key, namespace = DEFAULT_NAMESPACE) {
-    return `${namespace}:${key}`;
+  return `${namespace}:${key}`;
 }
 
 /**
@@ -376,8 +376,8 @@ export function createNamespacedKey(key, namespace = DEFAULT_NAMESPACE) {
  * @returns {boolean} True if successful
  */
 export function setNamespacedStorage(key, value, isSession = false, namespace = DEFAULT_NAMESPACE) {
-    const namespacedKey = createNamespacedKey(key, namespace);
-    return setStorage(namespacedKey, value, isSession);
+  const namespacedKey = createNamespacedKey(key, namespace);
+  return setStorage(namespacedKey, value, isSession);
 }
 
 /**
@@ -389,8 +389,8 @@ export function setNamespacedStorage(key, value, isSession = false, namespace = 
  * @returns {any} Retrieved value or default value
  */
 export function getNamespacedStorage(key, isSession = false, defaultValue = null, namespace = DEFAULT_NAMESPACE) {
-    const namespacedKey = createNamespacedKey(key, namespace);
-    return getStorage(namespacedKey, isSession, defaultValue);
+  const namespacedKey = createNamespacedKey(key, namespace);
+  return getStorage(namespacedKey, isSession, defaultValue);
 }
 
 /**
@@ -401,6 +401,6 @@ export function getNamespacedStorage(key, isSession = false, defaultValue = null
  * @returns {boolean} True if successful
  */
 export function removeNamespacedStorage(key, isSession = false, namespace = DEFAULT_NAMESPACE) {
-    const namespacedKey = createNamespacedKey(key, namespace);
-    return removeStorage(namespacedKey, isSession);
+  const namespacedKey = createNamespacedKey(key, namespace);
+  return removeStorage(namespacedKey, isSession);
 }

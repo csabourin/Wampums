@@ -1,12 +1,12 @@
-const express = require("express");
-const http = require("http");
-const { pool } = require("./database");
-const logger = require("./logger");
-const { generalLimiter } = require("./rate-limit");
-const initGlobalMiddleware = require("../middleware/global");
-const initRoutes = require("../routes/index");
-const socketService = require("../services/socket");
-const { liveSyncBroadcaster } = require("../middleware/live-sync");
+const express = require('express');
+const http = require('http');
+const { pool } = require('./database');
+const logger = require('./logger');
+const { generalLimiter } = require('./rate-limit');
+const initGlobalMiddleware = require('../middleware/global');
+const initRoutes = require('../routes/index');
+const socketService = require('../services/socket');
+const { liveSyncBroadcaster } = require('../middleware/live-sync');
 
 /**
  * Create and configure the Express application
@@ -14,91 +14,91 @@ const { liveSyncBroadcaster } = require("../middleware/live-sync");
  * @returns {Object} { app, server, io }
  */
 function createApp() {
-    const app = express();
-    const server = http.createServer(app);
+  const app = express();
+  const server = http.createServer(app);
 
-    // Make pool available to middleware via app.locals
-    app.locals.pool = pool;
+  // Make pool available to middleware via app.locals
+  app.locals.pool = pool;
 
-    // 1. Initialize Global Middleware
-    initGlobalMiddleware(app);
+  // 1. Initialize Global Middleware
+  initGlobalMiddleware(app);
 
-    // 2. Apply Rate Limiting
-    app.use(generalLimiter);
+  // 2. Apply Rate Limiting
+  app.use(generalLimiter);
 
-    // 3. Initialize Socket.IO
-    const io = socketService.init(server, pool);
+  // 3. Initialize Socket.IO
+  const io = socketService.init(server, pool);
 
-    // 4. Initialize Services (WhatsApp, etc.)
-    const serviceManager = require("../services/manager");
-    const { isTestEnvironment } = require("../test/test-helpers");
+  // 4. Initialize Services (WhatsApp, etc.)
+  const serviceManager = require('../services/manager');
+  const { isTestEnvironment } = require('../test/test-helpers');
 
-    if (!isTestEnvironment()) {
-        serviceManager.init(pool).catch((error) => {
-            logger.error("Service initialization failed:", error);
-            process.exit(1);
-        });
-    } else {
-        logger.info("Skipping service initialization in test environment");
+  if (!isTestEnvironment()) {
+    serviceManager.init(pool).catch((error) => {
+      logger.error('Service initialization failed:', error);
+      process.exit(1);
+    });
+  } else {
+    logger.info('Skipping service initialization in test environment');
+  }
+
+  // 5. Announce successful writes to the unit's other open sessions
+  app.use(liveSyncBroadcaster);
+
+  // 6. Initialize Routes
+  initRoutes(app, pool);
+
+  // 7. Global Error Handler
+  app.use((err, req, res, _next) => {
+    const { OrganizationNotFoundError } = require('../utils/api-helpers');
+    const { respondWithOrganizationFallback } = require('../utils/api-helpers');
+
+    if (err instanceof OrganizationNotFoundError) {
+      return respondWithOrganizationFallback(res);
     }
 
-    // 5. Announce successful writes to the unit's other open sessions
-    app.use(liveSyncBroadcaster);
+    if (err instanceof URIError) {
+      return res.status(400).json({
+        success: false,
+        message: 'invalid_url_encoding',
+        timestamp: new Date().toISOString()
+      });
+    }
 
-    // 6. Initialize Routes
-    initRoutes(app, pool);
+    if (err?.type === 'entity.too.large') {
+      return res.status(413).json({
+        success: false,
+        message: 'request_entity_too_large',
+        timestamp: new Date().toISOString()
+      });
+    }
 
-    // 7. Global Error Handler
-    app.use((err, req, res, next) => {
-        const { OrganizationNotFoundError } = require("../utils/api-helpers");
-        const { respondWithOrganizationFallback } = require("../utils/api-helpers");
+    logger.error('Unhandled error:', err);
+    return res.status(500).json({ success: false, message: 'internal_server_error' });
+  });
 
-        if (err instanceof OrganizationNotFoundError) {
-            return respondWithOrganizationFallback(res);
-        }
+  // 8. SPA Catch-all (Express 5 named wildcard)
+  const path = require('path');
+  const isProduction = process.env.NODE_ENV === 'production';
 
-        if (err instanceof URIError) {
-            return res.status(400).json({
-                success: false,
-                message: "invalid_url_encoding",
-                timestamp: new Date().toISOString()
-            });
-        }
-
-        if (err?.type === "entity.too.large") {
-            return res.status(413).json({
-                success: false,
-                message: "request_entity_too_large",
-                timestamp: new Date().toISOString()
-            });
-        }
-
-        logger.error("Unhandled error:", err);
-        return res.status(500).json({ success: false, message: "internal_server_error" });
-    });
-
-    // 8. SPA Catch-all (Express 5 named wildcard)
-    const path = require("path");
-    const isProduction = process.env.NODE_ENV === "production";
-
-    app.get("/*path", (req, res) => {
-        if (req.path.startsWith("/api") || req.path.startsWith("/api-docs") ||
+  app.get('/*path', (req, res) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/api-docs') ||
             /\.(js|css|png|jpg|jpeg|gif|heif|heic|svg|ico|woff|woff2|ttf|eot|webp|json)$/i.test(req.path)) {
-            return res.status(404).json({ success: false, message: "Endpoint not found" });
-        }
+      return res.status(404).json({ success: false, message: 'Endpoint not found' });
+    }
 
-        const indexPath = isProduction
-            ? path.join(process.cwd(), "dist", "index.html")
-            : path.join(process.cwd(), "index.html");
+    const indexPath = isProduction
+      ? path.join(process.cwd(), 'dist', 'index.html')
+      : path.join(process.cwd(), 'index.html');
 
-        // Revalidate on every load (the shell names the current build's
-        // assets) without no-store, which would also bar the page from the
-        // back/forward cache and from 304 answers.
-        res.setHeader("Cache-Control", "no-cache");
-        res.sendFile(indexPath);
-    });
+    // Revalidate on every load (the shell names the current build's
+    // assets) without no-store, which would also bar the page from the
+    // back/forward cache and from 304 answers.
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(indexPath);
+  });
 
-    return { app, server, io };
+  return { app, server, io };
 }
 
 module.exports = createApp;

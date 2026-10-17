@@ -3,11 +3,11 @@
 const DEFAULT_PUBLIC_BASE_URL = 'https://wampums.app';
 
 function normalizeOrigin(value) {
-  if (!value || typeof value !== 'string' || value.includes('*')) return null;
+  if (!value || typeof value !== 'string' || value.includes('*')) {return null;}
   try {
     const candidate = /^https?:\/\//i.test(value) ? value : `https://${value}`;
     const url = new URL(candidate);
-    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return null;
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {return null;}
     return url.origin;
   } catch (_error) {
     return null;
@@ -20,7 +20,7 @@ function normalizeOrigin(value) {
  */
 async function resolveOrganizationBaseUrl(pool, organizationId) {
   const configured = normalizeOrigin(process.env.PUBLIC_BASE_URL || process.env.APP_URL);
-  if (configured) return configured;
+  if (configured) {return configured;}
 
   if (pool && organizationId) {
     const { rows } = await pool.query(
@@ -33,7 +33,7 @@ async function resolveOrganizationBaseUrl(pool, organizationId) {
       [organizationId]
     );
     const organizationOrigin = normalizeOrigin(rows[0]?.domain);
-    if (organizationOrigin) return organizationOrigin;
+    if (organizationOrigin) {return organizationOrigin;}
   }
 
   return DEFAULT_PUBLIC_BASE_URL;

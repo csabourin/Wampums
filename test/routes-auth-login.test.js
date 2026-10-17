@@ -85,7 +85,7 @@ describe('POST /public/login', () => {
   test('returns JWT token on successful login', async () => {
     const { __mClient, __mPool } = require('pg');
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users u')) {
         return Promise.resolve({
           rows: [{
@@ -134,7 +134,7 @@ describe('POST /public/login', () => {
   test('returns 401 on invalid email', async () => {
     const { __mClient, __mPool } = require('pg');
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users u')) {
         return Promise.resolve({ rows: [] }); // User not found
       }
@@ -155,7 +155,7 @@ describe('POST /public/login', () => {
   test('returns 401 on incorrect password', async () => {
     const { __mClient, __mPool } = require('pg');
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users u')) {
         return Promise.resolve({
           rows: [{
@@ -184,7 +184,7 @@ describe('POST /public/login', () => {
   test('returns 403 when account is not verified', async () => {
     const { __mClient, __mPool } = require('pg');
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users u')) {
         return Promise.resolve({
           rows: [{
@@ -245,7 +245,7 @@ describe('POST /public/login', () => {
   test('bypasses 2FA for demo users', async () => {
     const { __mClient, __mPool } = require('pg');
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users u')) {
         return Promise.resolve({
           rows: [{
@@ -295,7 +295,7 @@ describe('POST /public/login', () => {
   test('sends 2FA code for non-demo user without trusted device', async () => {
     const { __mClient, __mPool } = require('pg');
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users u')) {
         return Promise.resolve({
           rows: [{
@@ -363,7 +363,7 @@ describe('POST /public/login', () => {
     // This test is skipped because it would require 100+ requests to test properly
     const { __mClient, __mPool } = require('pg');
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users u')) {
         return Promise.resolve({ rows: [] });
       }
@@ -401,7 +401,7 @@ describe('POST /public/verify-2fa', () => {
     const validCode = '123456';
     const testEmail = '2fa-test@example.com';
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users u') && query.includes('JOIN user_organizations')) {
         return Promise.resolve({
           rows: [{
@@ -455,7 +455,7 @@ describe('POST /public/verify-2fa', () => {
     const { __mClient, __mPool } = require('pg');
     const testEmail = '2fa-wrong@example.com';
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users u') && query.includes('JOIN user_organizations')) {
         return Promise.resolve({
           rows: [{
@@ -486,7 +486,7 @@ describe('POST /public/verify-2fa', () => {
     const { __mClient, __mPool } = require('pg');
     const testEmail = '2fa-used@example.com';
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users u') && query.includes('JOIN user_organizations')) {
         return Promise.resolve({
           rows: [{
@@ -521,7 +521,7 @@ describe('Password reset flow', () => {
   test('POST /api/auth/request-reset accepts valid email and sends reset link', async () => {
     const { __mClient, __mPool } = require('pg');
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users u')) {
         return Promise.resolve({
           rows: [{
@@ -553,7 +553,7 @@ describe('Password reset flow', () => {
     // This test is skipped because it would require 100+ requests to test properly
     const { __mClient, __mPool } = require('pg');
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users u')) {
         return Promise.resolve({
           rows: [{
@@ -587,7 +587,7 @@ describe('Password reset flow', () => {
   test('POST /api/auth/reset-password updates password with valid token', async () => {
     const { __mClient, __mPool } = require('pg');
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users') && query.includes('reset_token')) {
         return Promise.resolve({
           rows: [{
@@ -616,7 +616,7 @@ describe('Password reset flow', () => {
   test('rejects reset with expired token', async () => {
     const { __mClient, __mPool } = require('pg');
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users') && query.includes('reset_token')) {
         return Promise.resolve({ rows: [] });
       }
@@ -643,7 +643,7 @@ describe('POST /public/register', () => {
   test('creates new user account with valid registration data', async () => {
     const { __mClient, __mPool } = require('pg');
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users WHERE email')) {
         return Promise.resolve({ rows: [] }); // Email doesn't exist
       }
@@ -704,7 +704,7 @@ describe('POST /public/register', () => {
   test('rejects registration with existing email', async () => {
     const { __mClient, __mPool } = require('pg');
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('INSERT INTO users')) {
         // Simulate PostgreSQL unique constraint violation
         const error = new Error('duplicate key value violates unique constraint "users_email_key"');

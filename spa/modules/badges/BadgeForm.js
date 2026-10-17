@@ -1,8 +1,5 @@
 import {
-  debugLog,
   debugError,
-  debugWarn,
-  debugInfo,
 } from '../../utils/DebugUtils.js';
 import { translate } from '../../app.js';
 import { setContent } from '../../utils/DOMUtils.js';
@@ -432,7 +429,7 @@ export class BadgeForm {
     const templateSelect = document.getElementById('badge_template_id');
     const submitButton = document.getElementById('submitButton');
 
-    document.getElementById('badge-form').addEventListener('input', (e) => {
+    document.getElementById('badge-form').addEventListener('input', (_e) => {
       this.updateFormData();
     });
 

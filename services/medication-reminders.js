@@ -35,7 +35,7 @@ class MedicationReminderService {
 
   /** Start the polling interval. Safe to call multiple times. */
   start() {
-    if (this._intervalId) return;
+    if (this._intervalId) {return;}
     this.logger.info('[MedicationReminders] Service started (poll every 60s, window: 15 min)');
     // Run immediately, then on each interval tick
     this._tick();
@@ -53,7 +53,7 @@ class MedicationReminderService {
 
   /** Single poll cycle – wrapped so errors never crash the interval. */
   async _tick() {
-    if (this._running) return; // skip if previous tick is still processing
+    if (this._running) {return;} // skip if previous tick is still processing
     this._running = true;
     try {
       await this._checkAndSendReminders();
@@ -116,7 +116,7 @@ class MedicationReminderService {
       [REMINDER_WINDOW_MINUTES]
     );
 
-    if (upcomingResult.rows.length === 0) return;
+    if (upcomingResult.rows.length === 0) {return;}
 
     logger.info(`[MedicationReminders] ${upcomingResult.rows.length} distribution(s) need reminders`);
 
@@ -146,7 +146,7 @@ class MedicationReminderService {
     const byOrg = new Map();
     for (const row of upcomingResult.rows) {
       const orgId = row.organization_id;
-      if (!byOrg.has(orgId)) byOrg.set(orgId, []);
+      if (!byOrg.has(orgId)) {byOrg.set(orgId, []);}
       byOrg.get(orgId).push(row);
     }
 
@@ -206,12 +206,12 @@ class MedicationReminderService {
             // when scheduledFor is present in the data payload
             const body = minutesUntil <= 1
               ? (translations.medication_reminder_push_body_due_now || '{participant} – {medication} is due now')
-                  .replace('{participant}', participantName)
-                  .replace('{medication}', dist.medication_name)
+                .replace('{participant}', participantName)
+                .replace('{medication}', dist.medication_name)
               : (translations.medication_reminder_push_body_due_soon || '{participant} – {medication} ({minutes} min)')
-                  .replace('{participant}', participantName)
-                  .replace('{medication}', dist.medication_name)
-                  .replace('{minutes}', minutesUntil);
+                .replace('{participant}', participantName)
+                .replace('{medication}', dist.medication_name)
+                .replace('{minutes}', minutesUntil);
 
             const payload = JSON.stringify({
               title,
@@ -259,7 +259,7 @@ class MedicationReminderService {
    * @param {number[]} ids
    */
   async _markSent(ids) {
-    if (ids.length === 0) return;
+    if (ids.length === 0) {return;}
     await this.pool.query(
       `UPDATE medication_distributions
        SET reminder_sent_at = NOW()

@@ -1255,7 +1255,7 @@ export class BadgeTracker {
       .map((date) => {
         const items = grouped[date];
         const rowsHtml = items
-          .map((a, index) => {
+          .map((a, _index) => {
             const template = this.templates.find(
               (t) => String(t.id) === String(a.badge_template_id),
             );

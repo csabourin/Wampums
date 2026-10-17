@@ -311,14 +311,9 @@ module.exports = (pool, logger) => {
    * /api/organization-jwt:
    *   get:
    *     summary: Get organization JWT token
-   *     description: Generate a JWT containing only organization ID (no user info)
+   *     description: Generate a JWT containing only the organization ID of the unit the request
+   *       comes from (domain, or a validated x-organization-id header). No user information.
    *     tags: [Organizations]
-   *     parameters:
-   *       - in: query
-   *         name: organization_id
-   *         schema:
-   *           type: integer
-   *         description: Optional organization ID (defaults to current org from request)
    *     responses:
    *       200:
    *         description: JWT generated successfully
@@ -337,9 +332,18 @@ module.exports = (pool, logger) => {
    *         description: Organization ID required
    */
   router.get('/jwt', asyncHandler(async (req, res) => {
-    const organizationId = req.query.organization_id
-      ? parseInt(req.query.organization_id, 10)
-      : await getCurrentOrganizationId(req, pool, logger);  // policy-allow manual-auth: public route resolving the unit from domain/header
+    // The unit comes from where the request was sent, never from a parameter:
+    // a query field would let anyone mint a token naming any unit.
+    let organizationId;
+    try {
+      // policy-allow manual-auth: public route resolving the unit from domain/header
+      organizationId = await getCurrentOrganizationId(req, pool, logger);
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
+      throw error;
+    }
 
     if (!organizationId) {
       return res.status(400).json({
@@ -915,9 +919,11 @@ module.exports = (pool, logger) => {
     try {
       await client.query('BEGIN');
 
-      // Resolve district role ID so the creator is assigned the correct permission-backed role
+      // The creator gets the built-in district role, which holds every permission (migration 016).
+      // This assigns a role; it decides no access.
       const districtRoleResult = await client.query(
-        `SELECT id FROM roles WHERE role_name = 'district' LIMIT 1`
+        // policy-allow role-names: built-in roles may be looked up by name (CLAUDE.md §3)
+        `SELECT id FROM roles WHERE role_name = 'district' AND organization_id IS NULL LIMIT 1`
       );
       if (districtRoleResult.rows.length === 0) {
         throw new Error('District role not found; cannot assign organization owner role');

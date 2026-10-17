@@ -360,7 +360,7 @@ export class MeetingPrep extends BaseModule {
    */
   setupAutosaveLifecycle() {
     this.addWindowEventListener('beforeunload', (event) => {
-      if (!this.meetingAutosave?.hasUnsafeChanges()) return;
+      if (!this.meetingAutosave?.hasUnsafeChanges()) {return;}
       event.preventDefault();
       event.returnValue = '';
     });
@@ -419,7 +419,7 @@ export class MeetingPrep extends BaseModule {
    * @returns {string} HTML, empty when embedded.
    */
   renderHeader() {
-    if (this.embedded) return '';
+    if (this.embedded) {return '';}
     return `<a href="/dashboard" class="button button--ghost button--sm">← ${translate('back')}</a>
             <h1>${translate('tile_preparation_reunions')}</h1>`;
   }
@@ -450,7 +450,7 @@ export class MeetingPrep extends BaseModule {
         this.saveState === MEETING_SAVE_STATES.SAVING ? 'true' : 'false'
       );
       const label = status.querySelector('.meeting-save-status__label');
-      if (label) label.textContent = translate(translationKey);
+      if (label) {label.textContent = translate(translationKey);}
     }
     if (saveButton) {
       saveButton.disabled = this.saveState === MEETING_SAVE_STATES.SAVED ||
@@ -810,7 +810,7 @@ export class MeetingPrep extends BaseModule {
    * @param {boolean} [options.immediate] - Bypass server debounce for structural edits
    */
   scheduleMeetingAutosave({ immediate = false } = {}) {
-    if (!this.canManage || !this.meetingAutosave) return;
+    if (!this.canManage || !this.meetingAutosave) {return;}
     this.meetingAutosave.markDirty({ immediate });
   }
 
@@ -892,7 +892,7 @@ export class MeetingPrep extends BaseModule {
    */
   async applyAutosaveResponse(response, snapshot, { isLatest }) {
     const savedMeeting = response?.data;
-    if (!savedMeeting) return;
+    if (!savedMeeting) {return;}
 
     this.meeting = { ...this.meeting, ...savedMeeting };
     if (isLatest) {

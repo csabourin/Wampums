@@ -7,13 +7,13 @@ import { getSelectedScoutYearId } from '../modules/scout-year/ScoutYearContext.j
  * @returns {Object}
  */
 export function normalizeCacheParams(params = {}) {
-    return Object.entries(params)
-        .filter(([, value]) => value !== null && value !== undefined)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .reduce((acc, [key, value]) => {
-            acc[key] = value;
-            return acc;
-        }, {});
+  return Object.entries(params)
+    .filter(([, value]) => value !== null && value !== undefined)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .reduce((acc, [key, value]) => {
+      acc[key] = value;
+      return acc;
+    }, {});
 }
 
 /**
@@ -29,21 +29,21 @@ export function normalizeCacheParams(params = {}) {
  * @returns {string} Normalized path, without query string
  */
 export function normalizeApiPath(endpointOrUrl) {
-    const baseOrigin = typeof window !== 'undefined'
-        ? window.location.origin
-        : (typeof self !== 'undefined' ? self.location.origin : undefined);
+  const baseOrigin = typeof window !== 'undefined'
+    ? window.location.origin
+    : (typeof self !== 'undefined' ? self.location.origin : undefined);
 
-    let path = String(endpointOrUrl || '');
-    try {
-        path = new URL(path, baseOrigin).pathname;
-    } catch (error) {
-        path = path.split('?')[0];
-    }
+  let path = String(endpointOrUrl || '');
+  try {
+    path = new URL(path, baseOrigin).pathname;
+  } catch (error) {
+    path = path.split('?')[0];
+  }
 
-    if (!path.startsWith('/api/')) {
-        path = `/api/${path.replace(/^\/+/, '')}`;
-    }
-    return path.replace(/\/+$/, '');
+  if (!path.startsWith('/api/')) {
+    path = `/api/${path.replace(/^\/+/, '')}`;
+  }
+  return path.replace(/\/+$/, '');
 }
 
 /**
@@ -62,23 +62,23 @@ export function normalizeApiPath(endpointOrUrl) {
  *   does not identify a resource
  */
 export function cachePathsForMutation(path) {
-    const segments = path.split('/').filter(Boolean);
+  const segments = path.split('/').filter(Boolean);
 
-    // "/api/v1/fundraisers" -> keep api + v1 + collection.
-    // "/api/offline-sync"   -> keep api + collection.
-    const isVersioned = /^v\d+$/i.test(segments[1] || '');
-    const collectionDepth = isVersioned ? 3 : 2;
+  // "/api/v1/fundraisers" -> keep api + v1 + collection.
+  // "/api/offline-sync"   -> keep api + collection.
+  const isVersioned = /^v\d+$/i.test(segments[1] || '');
+  const collectionDepth = isVersioned ? 3 : 2;
 
-    if (segments.length < collectionDepth) {
-        // Not a resource path (e.g. "/api/v1"); nothing safe to invalidate.
-        return [];
-    }
+  if (segments.length < collectionDepth) {
+    // Not a resource path (e.g. "/api/v1"); nothing safe to invalidate.
+    return [];
+  }
 
-    const paths = [];
-    for (let depth = segments.length; depth >= collectionDepth; depth -= 1) {
-        paths.push(`/${segments.slice(0, depth).join('/')}`);
-    }
-    return paths;
+  const paths = [];
+  for (let depth = segments.length; depth >= collectionDepth; depth -= 1) {
+    paths.push(`/${segments.slice(0, depth).join('/')}`);
+  }
+  return paths;
 }
 
 /**
@@ -91,46 +91,46 @@ export function cachePathsForMutation(path) {
  * @returns {string}
  */
 export function buildApiCacheKey(endpointOrUrl, params = {}, organizationId = null) {
-    const normalizedParams = normalizeCacheParams(params);
-    const orgId = organizationId ?? getCurrentOrganizationId();
+  const normalizedParams = normalizeCacheParams(params);
+  const orgId = organizationId ?? getCurrentOrganizationId();
 
-    let path = endpointOrUrl;
-    const mergedParams = { ...normalizedParams };
+  let path = endpointOrUrl;
+  const mergedParams = { ...normalizedParams };
 
-    const baseOrigin = typeof window !== 'undefined'
-        ? window.location.origin
-        : (typeof self !== 'undefined' ? self.location.origin : undefined);
+  const baseOrigin = typeof window !== 'undefined'
+    ? window.location.origin
+    : (typeof self !== 'undefined' ? self.location.origin : undefined);
 
-    try {
-        const parsed = new URL(endpointOrUrl, baseOrigin);
-        path = parsed.pathname;
+  try {
+    const parsed = new URL(endpointOrUrl, baseOrigin);
+    path = parsed.pathname;
 
-        for (const [key, value] of parsed.searchParams.entries()) {
-            if (mergedParams[key] === undefined) {
-                mergedParams[key] = value;
-            }
-        }
-    } catch (error) {
-        path = endpointOrUrl.startsWith('/') ? endpointOrUrl : `/api/${endpointOrUrl}`;
+    for (const [key, value] of parsed.searchParams.entries()) {
+      if (mergedParams[key] === undefined) {
+        mergedParams[key] = value;
+      }
     }
+  } catch (error) {
+    path = endpointOrUrl.startsWith('/') ? endpointOrUrl : `/api/${endpointOrUrl}`;
+  }
 
-    // Path normalization: ensures all of the following resolve to the same cache key:
-    //   "v1/participants"                      -> "/api/v1/participants"
-    //   "/v1/participants"                     -> "/api/v1/participants"
-    //   "/api/v1/participants"                 -> "/api/v1/participants" (no change)
-    //   "https://host/api/v1/participants"     -> "/api/v1/participants" (URL parsed above)
-    if (!path.startsWith('/api/')) {
-        path = `/api/${path.replace(/^\/+/, '')}`;
-    }
+  // Path normalization: ensures all of the following resolve to the same cache key:
+  //   "v1/participants"                      -> "/api/v1/participants"
+  //   "/v1/participants"                     -> "/api/v1/participants"
+  //   "/api/v1/participants"                 -> "/api/v1/participants" (no change)
+  //   "https://host/api/v1/participants"     -> "/api/v1/participants" (URL parsed above)
+  if (!path.startsWith('/api/')) {
+    path = `/api/${path.replace(/^\/+/, '')}`;
+  }
 
-    if (orgId && mergedParams.organization_id === undefined) {
-        mergedParams.organization_id = String(orgId);
-    }
+  if (orgId && mergedParams.organization_id === undefined) {
+    mergedParams.organization_id = String(orgId);
+  }
 
-    const sortedParams = normalizeCacheParams(mergedParams);
-    const query = new URLSearchParams(sortedParams).toString();
+  const sortedParams = normalizeCacheParams(mergedParams);
+  const query = new URLSearchParams(sortedParams).toString();
 
-    return query ? `${path}?${query}` : path;
+  return query ? `${path}?${query}` : path;
 }
 
 /**
@@ -143,21 +143,21 @@ export function buildApiCacheKey(endpointOrUrl, params = {}, organizationId = nu
  * @returns {string} User- and organization-scoped cache key
  */
 export function buildScopedCacheKey(
-    cacheKey,
-    organizationId = null,
-    userId = null,
+  cacheKey,
+  organizationId = null,
+  userId = null,
 ) {
-    const rawKey = String(cacheKey);
-    if (/\|scope:user:[^|]+\|org:[^|]+(\|year:\d+)?$/.test(rawKey)) {
-        return rawKey;
-    }
-    const orgScope = organizationId ?? getCurrentOrganizationId() ?? 'none';
-    const userScope = userId ?? getCurrentUserId() ?? 'anonymous';
-    const base = `${rawKey}|scope:user:${encodeURIComponent(String(userScope))}|org:${encodeURIComponent(String(orgScope))}`;
+  const rawKey = String(cacheKey);
+  if (/\|scope:user:[^|]+\|org:[^|]+(\|year:\d+)?$/.test(rawKey)) {
+    return rawKey;
+  }
+  const orgScope = organizationId ?? getCurrentOrganizationId() ?? 'none';
+  const userScope = userId ?? getCurrentUserId() ?? 'anonymous';
+  const base = `${rawKey}|scope:user:${encodeURIComponent(String(userScope))}|org:${encodeURIComponent(String(orgScope))}`;
 
-    // Archived years get their own entries. The suffix is only appended while
-    // one is selected, so keys for the current season stay byte-identical to
-    // what is already cached and nothing has to be invalidated.
-    const yearScope = getSelectedScoutYearId();
-    return yearScope ? `${base}|year:${yearScope}` : base;
+  // Archived years get their own entries. The suffix is only appended while
+  // one is selected, so keys for the current season stay byte-identical to
+  // what is already cached and nothing has to be invalidated.
+  const yearScope = getSelectedScoutYearId();
+  return yearScope ? `${base}|year:${yearScope}` : base;
 }

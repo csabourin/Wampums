@@ -1,5 +1,4 @@
 import { translate } from '../../app.js';
-import { debugLog, debugError, debugWarn, debugInfo } from '../../utils/DebugUtils.js';
 import * as ajaxFunctions from '../../ajax-functions.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';

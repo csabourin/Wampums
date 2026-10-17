@@ -1,5 +1,5 @@
 import { getParentContactList } from '../../ajax-functions.js';
-import { debugLog, debugError, debugWarn, debugInfo } from '../../utils/DebugUtils.js';
+import { debugError } from '../../utils/DebugUtils.js';
 import { translate } from '../../app.js';
 import { canSendCommunications, canViewParticipants } from '../../utils/PermissionUtils.js';
 import { debounce } from '../../utils/PerformanceUtils.js';

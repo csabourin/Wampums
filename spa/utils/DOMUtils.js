@@ -123,7 +123,7 @@ export function createElement(tag, options = {}) {
       }
       if (['href', 'src', 'action', 'formaction', 'xlink:href'].includes(key.toLowerCase())) {
         const safeUrl = sanitizeURL(String(value), { allowMailto: true });
-        if (!safeUrl) return;
+        if (!safeUrl) {return;}
         element.setAttribute(key, safeUrl);
         return;
       }
@@ -290,7 +290,7 @@ export function insertHTML(element, position, html, options = {}) {
  * @returns {Promise<*>} Callback result
  */
 export async function withFormBusy(form, callback) {
-  if (!form || form.getAttribute('aria-busy') === 'true') return undefined;
+  if (!form || form.getAttribute('aria-busy') === 'true') {return undefined;}
   // form.elements includes submit buttons outside the form that name it with
   // form="…", such as those in a modal footer.
   const submitControls = Array.from(form.elements).filter((control) => control.type === 'submit');

@@ -152,10 +152,10 @@ describe('guardian access is not a persona choice', () => {
 
   test('a parent who is also a leader keeps their child\'s medication pages', () => {
     expect(routerSource).toMatch(
-      /case "medicationPlanningParticipant":\s*if \(!guard\(holdsFamilyRole\(\) \|\| canViewMedication\(\)\)\)/
+      /case ["']medicationPlanningParticipant["']:\s*if \(!guard\(holdsFamilyRole\(\) \|\| canViewMedication\(\)\)\)/
     );
     expect(routerSource).toMatch(
-      /case "medicationAuthorizationsParticipant":\s*if \(!guard\(holdsFamilyRole\(\) \|\| canViewMedication\(\)\)\)/
+      /case ["']medicationAuthorizationsParticipant["']:\s*if \(!guard\(holdsFamilyRole\(\) \|\| canViewMedication\(\)\)\)/
     );
   });
 });

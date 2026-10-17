@@ -1,4 +1,4 @@
-import { translate } from "../app.js";
+import { translate } from '../app.js';
 
 /**
  * Human-readable name for a dynamic form type.
@@ -18,7 +18,7 @@ import { translate } from "../app.js";
  */
 export function formTypeLabel(formType, displayName = null) {
   if (!formType) {
-    return displayName || "";
+    return displayName || '';
   }
 
   const translated = translate(formType);
@@ -26,5 +26,5 @@ export function formTypeLabel(formType, displayName = null) {
     return translated;
   }
 
-  return displayName || formType.replace(/_/g, " ");
+  return displayName || formType.replace(/_/g, ' ');
 }

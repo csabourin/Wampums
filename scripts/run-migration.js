@@ -31,7 +31,7 @@ async function applyMigration(client, migrationFile, context = {}) {
     'SELECT 1 FROM schema_migrations WHERE migration_name = $1',
     [migrationFile],
   );
-  if (applied.rows.length > 0) return false;
+  if (applied.rows.length > 0) {return false;}
 
   let description = null;
   if (path.extname(migrationPath) === '.sql') {
@@ -58,7 +58,7 @@ async function applyMigration(client, migrationFile, context = {}) {
 
 async function runMigration(migrationFile) {
   const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) throw new Error('DATABASE_URL must be configured');
+  if (!databaseUrl) {throw new Error('DATABASE_URL must be configured');}
   const pool = new Pool({
     connectionString: databaseUrl,
     ssl: databaseUrl.includes('sslmode=require') ? { rejectUnauthorized: false } : false

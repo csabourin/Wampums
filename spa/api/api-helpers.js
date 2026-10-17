@@ -1,50 +1,50 @@
 // api-helpers.js
 // Helper utilities for API operations
-import { CONFIG } from "../config.js";
-import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
-import { getOrganizationIdFromJWT, getUserInfoFromJWT } from "../jwt-helper.js";
-import { getSelectedScoutYearId } from "../modules/scout-year/ScoutYearContext.js";
+import { CONFIG } from '../config.js';
+import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
+import { getOrganizationIdFromJWT, getUserInfoFromJWT } from '../jwt-helper.js';
+import { getSelectedScoutYearId } from '../modules/scout-year/ScoutYearContext.js';
 
 /**
  * Get current organization ID from localStorage
  * Handles various storage formats
  */
 export function getCurrentOrganizationId() {
-    // An explicit organization selection is authoritative for the SPA. The
-    // server still validates that the authenticated user belongs to it.
-    let orgId = localStorage.getItem('currentOrganizationId') ||
+  // An explicit organization selection is authoritative for the SPA. The
+  // server still validates that the authenticated user belongs to it.
+  let orgId = localStorage.getItem('currentOrganizationId') ||
                 localStorage.getItem('organizationId');
 
-    if (typeof orgId === 'object' && orgId !== null) {
-        orgId = orgId.organization_id || orgId.organizationId || orgId.id || null;
-    }
+  if (typeof orgId === 'object' && orgId !== null) {
+    orgId = orgId.organization_id || orgId.organizationId || orgId.id || null;
+  }
 
-    // If it's stored as JSON object, parse and extract the ID
-    if (orgId && orgId.startsWith('{')) {
-        try {
-            const parsed = JSON.parse(orgId);
-            orgId = parsed.organization_id || parsed.organizationId || parsed.id || null;
-        } catch (e) {
-            debugWarn('Failed to parse organization ID from localStorage:', e);
-            orgId = null;
-        }
+  // If it's stored as JSON object, parse and extract the ID
+  if (orgId && orgId.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(orgId);
+      orgId = parsed.organization_id || parsed.organizationId || parsed.id || null;
+    } catch (e) {
+      debugWarn('Failed to parse organization ID from localStorage:', e);
+      orgId = null;
     }
+  }
 
-    // Ensure it's a valid number/string, not "[object Object]"
-    if (orgId && orgId !== '[object Object]' && orgId !== 'undefined') {
-        return orgId;
+  // Ensure it's a valid number/string, not "[object Object]"
+  if (orgId && orgId !== '[object Object]' && orgId !== 'undefined') {
+    return orgId;
+  }
+
+  if (orgId === null || orgId === '[object Object]' || orgId === 'undefined') {
+    try {
+      localStorage.removeItem('organizationId');
+      localStorage.removeItem('currentOrganizationId');
+    } catch (error) {
+      debugWarn('Failed to clear invalid organization ID from storage:', error);
     }
+  }
 
-    if (orgId === null || orgId === '[object Object]' || orgId === 'undefined') {
-        try {
-            localStorage.removeItem('organizationId');
-            localStorage.removeItem('currentOrganizationId');
-        } catch (error) {
-            debugWarn('Failed to clear invalid organization ID from storage:', error);
-        }
-    }
-
-    return getOrganizationIdFromJWT();
+  return getOrganizationIdFromJWT();
 }
 
 /**
@@ -52,86 +52,86 @@ export function getCurrentOrganizationId() {
  * @returns {string|null} User identifier or null for an anonymous session
  */
 export function getCurrentUserId() {
-    const jwtUserId = getUserInfoFromJWT()?.userId;
-    const storedUserId = localStorage.getItem('userId');
-    return jwtUserId || storedUserId || null;
+  const jwtUserId = getUserInfoFromJWT()?.userId;
+  const storedUserId = localStorage.getItem('userId');
+  return jwtUserId || storedUserId || null;
 }
 
 /**
  * Get authorization headers for API requests
  */
 export function getAuthHeader() {
-    const token = localStorage.getItem("jwtToken");
-    const organizationId = getCurrentOrganizationId();
+  const token = localStorage.getItem('jwtToken');
+  const organizationId = getCurrentOrganizationId();
 
-    debugLog("Token exists:", !!token);
-    debugLog("Organization ID:", organizationId);
+  debugLog('Token exists:', !!token);
+  debugLog('Organization ID:', organizationId);
 
-    const headers = {};
+  const headers = {};
 
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
 
-    if (organizationId) {
-        headers['x-organization-id'] = organizationId;
-    }
+  if (organizationId) {
+    headers['x-organization-id'] = organizationId;
+  }
 
-    // Only sent while consulting an archived season. On the current year the
-    // header is absent and every endpoint answers exactly as it always did.
-    const scoutYearId = getSelectedScoutYearId();
-    if (scoutYearId) {
-        headers['x-scout-year-id'] = String(scoutYearId);
-    }
+  // Only sent while consulting an archived season. On the current year the
+  // header is absent and every endpoint answers exactly as it always did.
+  const scoutYearId = getSelectedScoutYearId();
+  if (scoutYearId) {
+    headers['x-scout-year-id'] = String(scoutYearId);
+  }
 
-    return headers;
+  return headers;
 }
 
 /**
  * Check if user is logged in
  */
 export function checkLoginStatus() {
-    return { isLoggedIn: !!localStorage.getItem('jwtToken') };
+  return { isLoggedIn: !!localStorage.getItem('jwtToken') };
 }
 
 /**
  * Validate JWT token format and expiration (client-side)
  */
 export async function validateCurrentToken() {
-    const token = localStorage.getItem("jwtToken");
+  const token = localStorage.getItem('jwtToken');
 
-    if (!token) {
-        debugLog("No token to validate");
-        return { isValid: false, reason: "no_token" };
+  if (!token) {
+    debugLog('No token to validate');
+    return { isValid: false, reason: 'no_token' };
+  }
+
+  try {
+    // Try to decode the token client-side first
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      debugLog('Invalid token format');
+      return { isValid: false, reason: 'invalid_format' };
     }
 
-    try {
-        // Try to decode the token client-side first
-        const parts = token.split('.');
-        if (parts.length !== 3) {
-            debugLog("Invalid token format");
-            return { isValid: false, reason: "invalid_format" };
-        }
+    // JWT payloads are base64url-encoded; convert before atob() or
+    // tokens containing '-'/'_' are misjudged as invalid
+    let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    base64 += '='.repeat((4 - (base64.length % 4)) % 4);
+    const payload = JSON.parse(atob(base64));
 
-        // JWT payloads are base64url-encoded; convert before atob() or
-        // tokens containing '-'/'_' are misjudged as invalid
-        let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-        base64 += '='.repeat((4 - (base64.length % 4)) % 4);
-        const payload = JSON.parse(atob(base64));
-
-        // Check if expired
-        const now = Math.floor(Date.now() / 1000);
-        if (payload.exp && payload.exp < now) {
-            debugLog("Token is expired");
-            return { isValid: false, reason: "expired" };
-        }
-
-        debugLog("Token appears valid client-side");
-        return { isValid: true, payload };
-    } catch (error) {
-        debugError("Error validating token:", error);
-        return { isValid: false, reason: "decode_error" };
+    // Check if expired
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < now) {
+      debugLog('Token is expired');
+      return { isValid: false, reason: 'expired' };
     }
+
+    debugLog('Token appears valid client-side');
+    return { isValid: true, payload };
+  } catch (error) {
+    debugError('Error validating token:', error);
+    return { isValid: false, reason: 'decode_error' };
+  }
 }
 
 /**
@@ -142,36 +142,36 @@ export async function validateCurrentToken() {
  * @returns {string} Absolute URL
  */
 export function buildPublicUrl(endpoint, params = {}) {
-    const url = new URL(`/api/v1/${endpoint.replace(/^\/+/, '')}`, CONFIG.API_BASE_URL);
+  const url = new URL(`/api/v1/${endpoint.replace(/^\/+/, '')}`, CONFIG.API_BASE_URL);
 
-    Object.entries(params).forEach(([key, value]) => {
-        if (value !== null && value !== undefined) {
-            url.searchParams.append(key, value);
-        }
-    });
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== null && value !== undefined) {
+      url.searchParams.append(key, value);
+    }
+  });
 
-    return url.toString();
+  return url.toString();
 }
 
 /**
  * Make request to public endpoint (no authentication)
  */
 export async function fetchPublic(endpoint, options = {}) {
-    const url = buildPublicUrl(endpoint);
-    const organizationId = getCurrentOrganizationId();
-    const response = await fetch(url, {
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...(organizationId ? { 'x-organization-id': organizationId } : {}),
-            ...options.headers
-        }
-    });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
+  const url = buildPublicUrl(endpoint);
+  const organizationId = getCurrentOrganizationId();
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(organizationId ? { 'x-organization-id': organizationId } : {}),
+      ...options.headers
     }
+  });
 
-    return response.json();
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errorText}`);
+  }
+
+  return response.json();
 }

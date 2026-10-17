@@ -16,7 +16,7 @@ function token() {
   }, TEST_SECRET);
 }
 
-function createFixture(organizations) {
+function createFixture(organizations, permissions = ['users.edit']) {
   const pool = {
     query: jest.fn(async (query, params = []) => {
       if (query.includes('SELECT organization_id FROM user_organizations')) {
@@ -26,7 +26,7 @@ function createFixture(organizations) {
         return { rows: [] };
       }
       if (query.includes('SELECT DISTINCT p.permission_key')) {
-        return { rows: [{ permission_key: 'users.edit' }] };
+        return { rows: permissions.map((key) => ({ permission_key: key })) };
       }
       if (query.includes('SELECT DISTINCT r.role_name')) {
         return { rows: [{ role_name: 'district', display_name: 'District' }] };
@@ -103,4 +103,30 @@ test('organization listing requires authentication', async () => {
   const response = await request(app).get('/api/v1/users/me/organizations');
 
   expect(response.status).toBe(401);
+});
+
+test('the family picker lists members of family roles, whatever the unit calls them', async () => {
+  const { app, pool } = createFixture([], ['users.view']);
+  const response = await request(app)
+    .get('/api/v1/users/parents')
+    .set('Authorization', `Bearer ${token()}`);
+
+  expect(response.status).toBe(200);
+  const [sql, params] = pool.query.mock.calls.find(([query]) => query.includes('account_display_names'));
+  expect(sql).toContain("r.data_scope = 'linked'");
+  expect(sql).not.toMatch(/role_name/);
+  expect(params).toEqual([ORGANIZATION_ID]);
+});
+
+test('the leader picker lists members of whole-unit roles, whatever the unit calls them', async () => {
+  const { app, pool } = createFixture([], ['users.view']);
+  const response = await request(app)
+    .get('/api/v1/users/animateurs')
+    .set('Authorization', `Bearer ${token()}`);
+
+  expect(response.status).toBe(200);
+  const [sql, params] = pool.query.mock.calls.find(([query]) => query.includes('u.nickname'));
+  expect(sql).toContain("r.data_scope = 'organization'");
+  expect(sql).not.toMatch(/role_name/);
+  expect(params).toEqual([ORGANIZATION_ID]);
 });

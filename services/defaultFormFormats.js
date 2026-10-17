@@ -16,7 +16,7 @@ const INSTALLED_DISPLAY_TYPE = 'public';
  * @returns {Array<Object>} Initial versions to insert
  */
 function getInitialVersions(form, installedStructure, preservedExisting) {
-  if (!preservedExisting && form.versions.length > 0) return form.versions;
+  if (!preservedExisting && form.versions.length > 0) {return form.versions;}
   return [{
     version_number: 1,
     form_structure: installedStructure,

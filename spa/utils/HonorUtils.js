@@ -11,14 +11,14 @@
  * @returns {string} Display-ready honor text.
  */
 export function formatHonorText(honor) {
-        if (!honor) return '';
-        if (typeof honor === 'string') return honor;
+  if (!honor) {return '';}
+  if (typeof honor === 'string') {return honor;}
 
-        const nameParts = [honor.first_name, honor.last_name].filter(Boolean);
-        const name = nameParts.join(' ').trim() || honor.participant_name || '';
-        const reason = typeof honor.reason === 'string' ? honor.reason.trim() : '';
-        if (!name && !reason) return '';
-        return `${name}${reason ? ` — ${reason}` : ''}`.trim();
+  const nameParts = [honor.first_name, honor.last_name].filter(Boolean);
+  const name = nameParts.join(' ').trim() || honor.participant_name || '';
+  const reason = typeof honor.reason === 'string' ? honor.reason.trim() : '';
+  if (!name && !reason) {return '';}
+  return `${name}${reason ? ` — ${reason}` : ''}`.trim();
 }
 
 const ISO_DATE_LENGTH = 'YYYY-MM-DD'.length;

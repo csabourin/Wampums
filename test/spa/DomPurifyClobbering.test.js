@@ -110,9 +110,9 @@ test('no form control name in the SPA is stripped by the sanitiser', () => {
   expect(
     offenders.length === 0
       ? ''
-      : 'DOMPurify strips these control names, so the fields cannot be read back '
-        + '(missing from FormData and from form.elements). Rename them, as\n'
-        + 'inventory.js does with equipment_name:\n' + describe_(offenders),
+      : `DOMPurify strips these control names, so the fields cannot be read back `
+        + `(missing from FormData and from form.elements). Rename them, as\n`
+        + `inventory.js does with equipment_name:\n${  describe_(offenders)}`,
   ).toBe('');
 });
 
@@ -127,8 +127,8 @@ test('no element id in the SPA is stripped by the sanitiser', () => {
   expect(
     offenders.length === 0
       ? ''
-      : 'DOMPurify strips these ids, so getElementById fails and any matching\n'
-        + '<label for="..."> is orphaned. Rename them:\n' + describe_(offenders),
+      : `DOMPurify strips these ids, so getElementById fails and any matching\n`
+        + `<label for="..."> is orphaned. Rename them:\n${  describe_(offenders)}`,
   ).toBe('');
 });
 

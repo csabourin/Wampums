@@ -171,7 +171,7 @@ export class UnitSettings extends BaseModule {
       const users = response?.data?.users || [];
       const uniqueNames = new Map();
       users.forEach((user) => {
-        if (user?.full_name) uniqueNames.set(user.full_name, user);
+        if (user?.full_name) {uniqueNames.set(user.full_name, user);}
       });
       this.leaders = Array.from(uniqueNames.values());
     } catch (error) {
@@ -243,14 +243,14 @@ export class UnitSettings extends BaseModule {
     return `
       <nav class="unit-settings-tabs" role="tablist" aria-label="${escapeHTML(translate('unit_settings_title'))}">
         ${this.getSettingsTabs().map((tab) => {
-          const active = this.activeTab === tab;
-          return `<button type="button" role="tab" class="unit-settings-tab ${active ? 'is-active' : ''}"
+    const active = this.activeTab === tab;
+    return `<button type="button" role="tab" class="unit-settings-tab ${active ? 'is-active' : ''}"
             id="unit-settings-tab-${tab}" data-settings-tab="${tab}"
             aria-controls="unit-settings-tab-panel" aria-selected="${active}"
             tabindex="${active ? '0' : '-1'}">
             ${escapeHTML(translate(`unit_settings_tab_${tab}`))}
           </button>`;
-        }).join('')}
+  }).join('')}
       </nav>`;
   }
 
@@ -404,14 +404,14 @@ export class UnitSettings extends BaseModule {
 
     const groups = orderedDomains.map((domain) => {
       const tiles = Array.from(tilesByFeature.values()).filter((tile) => tile.domain === domain);
-      if (!tiles.length) return '';
+      if (!tiles.length) {return '';}
       return `
         <fieldset class="unit-dashboard-group">
           <legend>${escapeHTML(translate(`domain_${domain}`))}</legend>
           ${tiles.map((tile) => {
-            const required = UNIT_CUSTOMIZATION_CONFIG.requiredDashboardFeatureKeys.includes(tile.featureKey);
-            const checked = required || !hiddenKeys.has(tile.featureKey);
-            return `
+    const required = UNIT_CUSTOMIZATION_CONFIG.requiredDashboardFeatureKeys.includes(tile.featureKey);
+    const checked = required || !hiddenKeys.has(tile.featureKey);
+    return `
               <label class="unit-dashboard-toggle" for="dashboard-feature-${tile.featureKey}">
                 <span>
                   <strong>${escapeHTML(translate(tile.label))}</strong>
@@ -421,7 +421,7 @@ export class UnitSettings extends BaseModule {
                   id="dashboard-feature-${tile.featureKey}" data-feature-key="${tile.featureKey}"
                   ${checked ? 'checked' : ''} ${required || !this.canEditOrg ? 'disabled' : ''}>
               </label>`;
-          }).join('')}
+  }).join('')}
         </fieldset>`;
     }).join('');
 
@@ -680,8 +680,8 @@ export class UnitSettings extends BaseModule {
             <input type="checkbox" id="disable-2fa-toggle" role="switch" ${checked} />
           </label>
           ${this.twoFactorDisabled
-            ? `<p class="warning-text">${translate('two_factor_disabled_warning') || 'Warning: Two-factor authentication is currently disabled for this organization.'}</p>`
-            : ''}
+    ? `<p class="warning-text">${translate('two_factor_disabled_warning') || 'Warning: Two-factor authentication is currently disabled for this organization.'}</p>`
+    : ''}
         </div>
       </section>`;
   }
@@ -720,15 +720,15 @@ export class UnitSettings extends BaseModule {
       },
     ].filter(Boolean);
 
-    if (!links.length) return '';
+    if (!links.length) {return '';}
 
     return `
       <section class="account-section">
         <h2>${translate('unit_settings_more_title') || 'More Settings'}</h2>
         <div class="manage-items manage-items--cards">
           ${links
-            .map(
-              ({ href, icon, label, description }) => `
+    .map(
+      ({ href, icon, label, description }) => `
             <a href="${href}" class="settings-link-card">
               <i class="fa-solid ${icon}"></i>
               <div>
@@ -736,8 +736,8 @@ export class UnitSettings extends BaseModule {
                 <span class="muted-text">${escapeHTML(description)}</span>
               </div>
             </a>`
-            )
-            .join('')}
+    )
+    .join('')}
         </div>
       </section>`;
   }
@@ -745,27 +745,27 @@ export class UnitSettings extends BaseModule {
   attachEventListeners() {
     const tabButtons = Array.from(document.querySelectorAll('[data-settings-tab]'));
     const activateTab = (requestedTab, shouldFocus = false) => {
-      if (!this.getSettingsTabs().includes(requestedTab)) return;
+      if (!this.getSettingsTabs().includes(requestedTab)) {return;}
       if (requestedTab !== this.activeTab) {
         this.activeTab = requestedTab;
         this.render();
         this.attachEventListeners();
       }
-      if (shouldFocus) document.getElementById(`unit-settings-tab-${requestedTab}`)?.focus();
+      if (shouldFocus) {document.getElementById(`unit-settings-tab-${requestedTab}`)?.focus();}
       // Group data is only fetched once the panel is opened so the other tabs
       // are not slowed down by requests most visits never need.
-      if (requestedTab === GROUP_TAB) this.ensureLocalGroupsLoaded();
+      if (requestedTab === GROUP_TAB) {this.ensureLocalGroupsLoaded();}
     };
 
     tabButtons.forEach((button, index) => {
       this.addEventListener(button, 'click', () => activateTab(button.dataset.settingsTab, true));
       this.addEventListener(button, 'keydown', (event) => {
         let targetIndex = null;
-        if (event.key === 'ArrowRight') targetIndex = (index + 1) % tabButtons.length;
-        if (event.key === 'ArrowLeft') targetIndex = (index - 1 + tabButtons.length) % tabButtons.length;
-        if (event.key === 'Home') targetIndex = 0;
-        if (event.key === 'End') targetIndex = tabButtons.length - 1;
-        if (targetIndex === null) return;
+        if (event.key === 'ArrowRight') {targetIndex = (index + 1) % tabButtons.length;}
+        if (event.key === 'ArrowLeft') {targetIndex = (index - 1 + tabButtons.length) % tabButtons.length;}
+        if (event.key === 'Home') {targetIndex = 0;}
+        if (event.key === 'End') {targetIndex = tabButtons.length - 1;}
+        if (targetIndex === null) {return;}
         event.preventDefault();
         activateTab(tabButtons[targetIndex].dataset.settingsTab, true);
       });
@@ -846,8 +846,8 @@ export class UnitSettings extends BaseModule {
    * @returns {Promise<void>} Resolves once the group panel has its data
    */
   ensureLocalGroupsLoaded() {
-    if (this.localGroupsLoaded) return Promise.resolve();
-    if (this.localGroupsRequest) return this.localGroupsRequest;
+    if (this.localGroupsLoaded) {return Promise.resolve();}
+    if (this.localGroupsRequest) {return this.localGroupsRequest;}
 
     this.localGroupsLoading = true;
     this.localGroupsError = false;
@@ -880,7 +880,7 @@ export class UnitSettings extends BaseModule {
    * yank the user out of another tab.
    */
   refreshGroupPanel() {
-    if (this.activeTab !== GROUP_TAB || this.isDestroyed) return;
+    if (this.activeTab !== GROUP_TAB || this.isDestroyed) {return;}
     this.render();
     this.attachEventListeners();
   }
@@ -889,7 +889,7 @@ export class UnitSettings extends BaseModule {
     event.preventDefault();
     const select = document.getElementById('unit-group-select');
     const localGroupId = Number(select?.value);
-    if (!Number.isInteger(localGroupId) || localGroupId <= 0) return;
+    if (!Number.isInteger(localGroupId) || localGroupId <= 0) {return;}
 
     this.localGroupPending = true;
     this.refreshGroupPanel();
@@ -908,7 +908,7 @@ export class UnitSettings extends BaseModule {
   }
 
   async handleLeaveGroup(localGroupId) {
-    if (!Number.isInteger(localGroupId) || localGroupId <= 0) return;
+    if (!Number.isInteger(localGroupId) || localGroupId <= 0) {return;}
 
     const group = this.localGroupMemberships.find((entry) => entry.id === localGroupId);
     const confirmed = await confirmDestructive({
@@ -917,7 +917,7 @@ export class UnitSettings extends BaseModule {
       confirmLabel: translate('unit_group_leave'),
       cancelLabel: translate('cancel'),
     });
-    if (!confirmed) return;
+    if (!confirmed) {return;}
 
     this.localGroupPending = true;
     this.refreshGroupPanel();
@@ -960,7 +960,7 @@ export class UnitSettings extends BaseModule {
     event.preventDefault();
     const form = document.getElementById('unit-details-form');
     const btn = document.getElementById('save-unit-details-btn');
-    if (!form || !btn || !form.reportValidity()) return;
+    if (!form || !btn || !form.reportValidity()) {return;}
 
     const payload = {
       name: String(document.getElementById('unit-organization-name')?.value || '').trim(),
@@ -1013,7 +1013,7 @@ export class UnitSettings extends BaseModule {
     event.preventDefault();
     const form = document.getElementById('unit-vocabulary-form');
     const btn = document.getElementById('save-vocabulary-btn');
-    if (!form || !btn || !form.reportValidity()) return;
+    if (!form || !btn || !form.reportValidity()) {return;}
 
     const locales = { en: {}, fr: {} };
     document.querySelectorAll('.unit-vocabulary-input').forEach((input) => {
@@ -1056,7 +1056,7 @@ export class UnitSettings extends BaseModule {
   async handleSaveDashboard(event) {
     event.preventDefault();
     const btn = document.getElementById('save-dashboard-btn');
-    if (!btn) return;
+    if (!btn) {return;}
 
     const hiddenTileKeys = Array.from(document.querySelectorAll('.unit-dashboard-feature'))
       .filter((input) => !input.checked && !input.disabled)
@@ -1160,7 +1160,7 @@ export class UnitSettings extends BaseModule {
   async handleSaveLanguage() {
     const select = document.getElementById('email-language-select');
     const btn = document.getElementById('save-language-btn');
-    if (!select || !btn) return;
+    if (!select || !btn) {return;}
 
     const language = select.value;
     btn.disabled = true;
@@ -1217,7 +1217,7 @@ export class UnitSettings extends BaseModule {
 
   async handleTwoFactorToggle(disabled) {
     const toggle = document.getElementById('disable-2fa-toggle');
-    if (toggle) toggle.disabled = true;
+    if (toggle) {toggle.disabled = true;}
 
     try {
       await makeApiRequest('v1/organizations/settings', {
@@ -1231,10 +1231,10 @@ export class UnitSettings extends BaseModule {
     } catch (error) {
       debugError('Failed to save 2FA setting:', error);
       this.app?.showMessage?.(this.getLocalizedSaveError(error), 'error');
-      if (toggle) toggle.checked = !disabled;
+      if (toggle) {toggle.checked = !disabled;}
     } finally {
       const t = document.getElementById('disable-2fa-toggle');
-      if (t) t.disabled = false;
+      if (t) {t.disabled = false;}
     }
   }
 }

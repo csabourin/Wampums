@@ -1,4 +1,4 @@
-import { translate } from "../app.js";
+import { translate } from '../app.js';
 
 /**
  * Human-readable name for a badge template or a badge progress entry.
@@ -28,6 +28,6 @@ export function badgeLabel(badge) {
     badge?.name ||
     badge?.badge_name ||
     badge?.territoire_chasse ||
-    translate("badge_unknown_label")
+    translate('badge_unknown_label')
   );
 }

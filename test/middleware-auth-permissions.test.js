@@ -110,7 +110,7 @@ describe('getOrganizationId middleware', () => {
     const { __mPool } = require('pg');
     const token = generateToken({ organizationId: ORG_ID });
 
-    installAuthedPoolMock((query, params) => {
+    installAuthedPoolMock((query, _params) => {
       if (query.includes('permission')) {
         return Promise.resolve({ rows: [{ permission_key: 'users.view' }] });
       }
@@ -204,7 +204,7 @@ describe('getOrganizationId middleware', () => {
   test('throws OrganizationNotFoundError when organization cannot be resolved', async () => {
     const { __mPool } = require('pg');
 
-    installAuthedPoolMock((query, params) => {
+    installAuthedPoolMock((query, _params) => {
       if (query.includes('organization_domains')) {
         return Promise.resolve({ rows: [] }); // No domain mapping found
       }
@@ -248,7 +248,7 @@ describe('requirePermission middleware', () => {
       permissions: ['users.view']
     });
 
-    installAuthedPoolMock((query, params) => {
+    installAuthedPoolMock((query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'users.view' }]
@@ -276,7 +276,7 @@ describe('requirePermission middleware', () => {
       permissions: ['participants.view']
     });
 
-    installAuthedPoolMock((query, params) => {
+    installAuthedPoolMock((query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'participants.view' }]
@@ -305,7 +305,7 @@ describe('requirePermission middleware', () => {
     const token = generateToken();
 
     // Has budget.manage but not budget.delete
-    installAuthedPoolMock((query, params) => {
+    installAuthedPoolMock((query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'budget.manage' }]
@@ -334,7 +334,7 @@ describe('requirePermission middleware', () => {
     const permissions = ['budget.manage', 'budget.view'];
     const roles = ['admin', 'finance'];
 
-    installAuthedPoolMock((query, params) => {
+    installAuthedPoolMock((query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: permissions.map(p => ({ permission_key: p }))
@@ -437,7 +437,7 @@ describe('blockDemoRoles middleware', () => {
 
     let demoCheckCalled = false;
 
-    installAuthedPoolMock((query, params) => {
+    installAuthedPoolMock((query, _params) => {
       if (query.includes('demoadmin') || query.includes('demoparent')) {
         demoCheckCalled = true;
         return Promise.resolve({
@@ -465,7 +465,7 @@ describe('blockDemoRoles middleware', () => {
       roleIds: [1]
     });
 
-    installAuthedPoolMock((query, params) => {
+    installAuthedPoolMock((query, _params) => {
       if (query.includes('demoadmin') || query.includes('demoparent')) {
         return Promise.resolve({ rows: [] }); // No demo roles
       }
@@ -504,7 +504,7 @@ describe('getUserDataScope middleware', () => {
       roleIds: [1]
     });
 
-    installAuthedPoolMock((query, params) => {
+    installAuthedPoolMock((query, _params) => {
       if (query.includes('data_scope')) {
         return Promise.resolve({
           rows: [{ data_scope: 'organization' }]
@@ -538,7 +538,7 @@ describe('getUserDataScope middleware', () => {
       roleIds: [5]
     });
 
-    installAuthedPoolMock((query, params) => {
+    installAuthedPoolMock((query, _params) => {
       if (query.includes('data_scope')) {
         return Promise.resolve({
           rows: [{ data_scope: 'linked' }]
@@ -573,7 +573,7 @@ describe('getUserDataScope middleware', () => {
       roleIds: [5, 2]
     });
 
-    installAuthedPoolMock((query, params) => {
+    installAuthedPoolMock((query, _params) => {
       if (query.includes('data_scope')) {
         // If user has ANY organization role, return that
         return Promise.resolve({

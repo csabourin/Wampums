@@ -15,8 +15,7 @@ import {
   getMedicationReceptions,
   getFicheMedicationDeclarations,
   saveMedicationReception,
-  updateMedicationReception,
-  saveMedicationRequirement
+  saveMedicationRequirement,
 } from '../../api/api-endpoints.js';
 
 /** How long typing in a quantity or a note pauses before it is saved. */

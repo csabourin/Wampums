@@ -3,14 +3,13 @@ import {
   fetchParticipants,
   getParticipantStatement
 } from '../../ajax-functions.js';
-import { createStripePaymentIntent, getStripePaymentStatus } from '../../api/api-endpoints.js';
+import { createStripePaymentIntent } from '../../api/api-endpoints.js';
 import { clearFinanceRelatedCaches } from '../../indexedDB.js';
 import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { translate } from '../../app.js';
 import { CONFIG } from '../../config.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
-import { formatDateShort } from '../../utils/DateUtils.js';
 import { LoadingStateManager, retryWithBackoff } from '../../utils/PerformanceUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';

@@ -7,7 +7,7 @@
  */
 
 import { debugLog } from '../utils/DebugUtils.js';
-import { setContent } from "../utils/DOMUtils.js";
+import { setContent } from '../utils/DOMUtils.js';
 import { offlineManager } from '../modules/OfflineManager.js';
 
 /**
@@ -15,88 +15,88 @@ import { offlineManager } from '../modules/OfflineManager.js';
  * Displays connection status and pending sync count
  */
 export class OfflineIndicator {
-    constructor() {
-        this.element = null;
-        this.pendingCount = 0;
-        this.isOffline = !navigator.onLine;
-        this.isSyncing = false;
-        this.isCampMode = offlineManager?.campMode || false;
-        this.abortController = null;
-    }
+  constructor() {
+    this.element = null;
+    this.pendingCount = 0;
+    this.isOffline = !navigator.onLine;
+    this.isSyncing = false;
+    this.isCampMode = offlineManager?.campMode || false;
+    this.abortController = null;
+  }
 
-    /**
+  /**
      * Initialize the indicator and inject styles
      */
-    init() {
-        debugLog('OfflineIndicator: Initializing');
+  init() {
+    debugLog('OfflineIndicator: Initializing');
 
-        // Abort any previous listeners to prevent duplicates on re-init
-        this.abortController?.abort();
-        this.abortController = new AbortController();
-        const { signal } = this.abortController;
+    // Abort any previous listeners to prevent duplicates on re-init
+    this.abortController?.abort();
+    this.abortController = new AbortController();
+    const { signal } = this.abortController;
 
-        this.injectStyles();
+    this.injectStyles();
 
-        // Remove any existing indicator element to avoid duplicates on re-init
-        if (this.element && this.element.parentNode) {
-            this.element.parentNode.removeChild(this.element);
-            this.element = null;
-        }
-
-        this.createIndicator();
-        this.updateDisplay();
-
-        // Listen for OfflineManager events
-        window.addEventListener('offlineStatusChanged', (e) => {
-            debugLog('OfflineIndicator: Received offlineStatusChanged event', e.detail);
-            this.isOffline = e.detail.isOffline;
-            this.updateDisplay();
-        }, { signal });
-
-        window.addEventListener('pendingCountChanged', (e) => {
-            debugLog('OfflineIndicator: Received pendingCountChanged event', e.detail);
-            this.pendingCount = e.detail.count;
-            this.updateDisplay();
-        }, { signal });
-
-        window.addEventListener('syncStatusChanged', (e) => {
-            debugLog('OfflineIndicator: Received syncStatusChanged event', e.detail);
-            this.isSyncing = e.detail.isSyncing;
-            this.updateDisplay();
-        }, { signal });
-
-        window.addEventListener('campModeChanged', (e) => {
-            debugLog('OfflineIndicator: Received campModeChanged event', e.detail);
-            this.isCampMode = e.detail.enabled;
-            this.updateDisplay();
-        }, { signal });
-
-        // Listen for native online/offline events as fallback
-        window.addEventListener('online', () => {
-            debugLog('OfflineIndicator: Browser online event');
-            this.isOffline = false;
-            this.updateDisplay();
-        }, { signal });
-
-        window.addEventListener('offline', () => {
-            debugLog('OfflineIndicator: Browser offline event');
-            this.isOffline = true;
-            this.updateDisplay();
-        }, { signal });
+    // Remove any existing indicator element to avoid duplicates on re-init
+    if (this.element && this.element.parentNode) {
+      this.element.parentNode.removeChild(this.element);
+      this.element = null;
     }
 
-    /**
+    this.createIndicator();
+    this.updateDisplay();
+
+    // Listen for OfflineManager events
+    window.addEventListener('offlineStatusChanged', (e) => {
+      debugLog('OfflineIndicator: Received offlineStatusChanged event', e.detail);
+      this.isOffline = e.detail.isOffline;
+      this.updateDisplay();
+    }, { signal });
+
+    window.addEventListener('pendingCountChanged', (e) => {
+      debugLog('OfflineIndicator: Received pendingCountChanged event', e.detail);
+      this.pendingCount = e.detail.count;
+      this.updateDisplay();
+    }, { signal });
+
+    window.addEventListener('syncStatusChanged', (e) => {
+      debugLog('OfflineIndicator: Received syncStatusChanged event', e.detail);
+      this.isSyncing = e.detail.isSyncing;
+      this.updateDisplay();
+    }, { signal });
+
+    window.addEventListener('campModeChanged', (e) => {
+      debugLog('OfflineIndicator: Received campModeChanged event', e.detail);
+      this.isCampMode = e.detail.enabled;
+      this.updateDisplay();
+    }, { signal });
+
+    // Listen for native online/offline events as fallback
+    window.addEventListener('online', () => {
+      debugLog('OfflineIndicator: Browser online event');
+      this.isOffline = false;
+      this.updateDisplay();
+    }, { signal });
+
+    window.addEventListener('offline', () => {
+      debugLog('OfflineIndicator: Browser offline event');
+      this.isOffline = true;
+      this.updateDisplay();
+    }, { signal });
+  }
+
+  /**
      * Inject CSS styles for the indicator
      */
-    injectStyles() {
-        const styleId = 'offline-indicator-styles';
+  injectStyles() {
+    const styleId = 'offline-indicator-styles';
         
-        // Don't inject if already present
-        if (document.getElementById(styleId)) {
-            return;
-        }
+    // Don't inject if already present
+    if (document.getElementById(styleId)) {
+      return;
+    }
 
-        const styles = `
+    const styles = `
             .offline-indicator {
                 position: fixed;
                 bottom: 20px;
@@ -200,25 +200,25 @@ export class OfflineIndicator {
             }
         `;
 
-        const styleElement = document.createElement('style');
-        styleElement.id = styleId;
-        styleElement.textContent = styles;
-        document.head.appendChild(styleElement);
+    const styleElement = document.createElement('style');
+    styleElement.id = styleId;
+    styleElement.textContent = styles;
+    document.head.appendChild(styleElement);
         
-        debugLog('OfflineIndicator: Styles injected');
-    }
+    debugLog('OfflineIndicator: Styles injected');
+  }
 
-    /**
+  /**
      * Create the indicator DOM element
      */
-    createIndicator() {
-        this.element = document.createElement('div');
-        this.element.className = 'offline-indicator';
-        this.element.setAttribute('role', 'status');
-        this.element.setAttribute('aria-live', 'polite');
-        this.element.setAttribute('aria-atomic', 'true');
+  createIndicator() {
+    this.element = document.createElement('div');
+    this.element.className = 'offline-indicator';
+    this.element.setAttribute('role', 'status');
+    this.element.setAttribute('aria-live', 'polite');
+    this.element.setAttribute('aria-atomic', 'true');
 
-        setContent(this.element, `
+    setContent(this.element, `
             <span class="offline-indicator-icon" aria-hidden="true">⚠️</span>
             <div class="offline-indicator-text">
                 <span class="offline-indicator-status"></span>
@@ -226,139 +226,139 @@ export class OfflineIndicator {
             </div>
             <span class="offline-indicator-badge"></span>
         `);
-        document.body.appendChild(this.element);
-        debugLog('OfflineIndicator: Element created');
-    }
+    document.body.appendChild(this.element);
+    debugLog('OfflineIndicator: Element created');
+  }
 
-    /**
+  /**
      * Update the indicator display based on current state
      */
-    updateDisplay() {
-        if (!this.element) {
-            return;
-        }
-
-        const statusElement = this.element.querySelector('.offline-indicator-status');
-        const countElement = this.element.querySelector('.offline-indicator-count');
-        const badgeElement = this.element.querySelector('.offline-indicator-badge');
-        const iconElement = this.element.querySelector('.offline-indicator-icon');
-
-        // Show indicator only when offline or actively syncing
-        // Don't show when online with pending items - toast notification handles that
-        const shouldShow = this.isOffline || this.isSyncing;
-        
-        if (shouldShow) {
-            this.element.classList.add('visible');
-        } else {
-            this.element.classList.remove('visible');
-        }
-
-        // Update classes for styling
-        this.element.classList.remove('syncing', 'camp-mode');
-        if (this.isSyncing) {
-            this.element.classList.add('syncing');
-            this.element.style.backgroundColor = '#ff9800';
-            iconElement.textContent = '🔄';
-            statusElement.textContent = this.getTranslation('status.syncing');
-            countElement.textContent = '';
-        } else if (this.isOffline && this.isCampMode) {
-            this.element.classList.add('camp-mode');
-            this.element.style.backgroundColor = '#2e7d32';
-            iconElement.textContent = '🏕️';
-            statusElement.textContent = this.getTranslation('status.camp_mode');
-            if (this.pendingCount > 0) {
-                countElement.textContent = this.getTranslation('sync.pending').replace('{{count}}', this.pendingCount);
-            } else {
-                countElement.textContent = '';
-            }
-        } else if (this.isOffline) {
-            this.element.style.backgroundColor = '#f44336';
-            iconElement.textContent = '⚠️';
-            statusElement.textContent = this.getTranslation('status.offline');
-            if (this.pendingCount > 0) {
-                countElement.textContent = this.getTranslation('sync.pending').replace('{{count}}', this.pendingCount);
-            } else {
-                countElement.textContent = '';
-            }
-        }
-        // When online and not syncing, indicator is hidden (handled by shouldShow)
-
-        // Update badge
-        if (this.pendingCount > 0) {
-            badgeElement.textContent = this.pendingCount;
-            badgeElement.style.display = 'block';
-        } else {
-            badgeElement.style.display = 'none';
-        }
-
-        // Update ARIA label
-        let ariaLabel = statusElement.textContent;
-        if (this.pendingCount > 0) {
-            ariaLabel += `, ${this.getTranslation('sync.pending').replace('{{count}}', this.pendingCount)}`;
-        }
-        this.element.setAttribute('aria-label', ariaLabel);
+  updateDisplay() {
+    if (!this.element) {
+      return;
     }
 
-    /**
+    const statusElement = this.element.querySelector('.offline-indicator-status');
+    const countElement = this.element.querySelector('.offline-indicator-count');
+    const badgeElement = this.element.querySelector('.offline-indicator-badge');
+    const iconElement = this.element.querySelector('.offline-indicator-icon');
+
+    // Show indicator only when offline or actively syncing
+    // Don't show when online with pending items - toast notification handles that
+    const shouldShow = this.isOffline || this.isSyncing;
+        
+    if (shouldShow) {
+      this.element.classList.add('visible');
+    } else {
+      this.element.classList.remove('visible');
+    }
+
+    // Update classes for styling
+    this.element.classList.remove('syncing', 'camp-mode');
+    if (this.isSyncing) {
+      this.element.classList.add('syncing');
+      this.element.style.backgroundColor = '#ff9800';
+      iconElement.textContent = '🔄';
+      statusElement.textContent = this.getTranslation('status.syncing');
+      countElement.textContent = '';
+    } else if (this.isOffline && this.isCampMode) {
+      this.element.classList.add('camp-mode');
+      this.element.style.backgroundColor = '#2e7d32';
+      iconElement.textContent = '🏕️';
+      statusElement.textContent = this.getTranslation('status.camp_mode');
+      if (this.pendingCount > 0) {
+        countElement.textContent = this.getTranslation('sync.pending').replace('{{count}}', this.pendingCount);
+      } else {
+        countElement.textContent = '';
+      }
+    } else if (this.isOffline) {
+      this.element.style.backgroundColor = '#f44336';
+      iconElement.textContent = '⚠️';
+      statusElement.textContent = this.getTranslation('status.offline');
+      if (this.pendingCount > 0) {
+        countElement.textContent = this.getTranslation('sync.pending').replace('{{count}}', this.pendingCount);
+      } else {
+        countElement.textContent = '';
+      }
+    }
+    // When online and not syncing, indicator is hidden (handled by shouldShow)
+
+    // Update badge
+    if (this.pendingCount > 0) {
+      badgeElement.textContent = this.pendingCount;
+      badgeElement.style.display = 'block';
+    } else {
+      badgeElement.style.display = 'none';
+    }
+
+    // Update ARIA label
+    let ariaLabel = statusElement.textContent;
+    if (this.pendingCount > 0) {
+      ariaLabel += `, ${this.getTranslation('sync.pending').replace('{{count}}', this.pendingCount)}`;
+    }
+    this.element.setAttribute('aria-label', ariaLabel);
+  }
+
+  /**
      * Get translation for a key
      * Falls back to English if translation not found
      * @param {string} key - Translation key
      * @returns {string} Translated text
      */
-    getTranslation(key) {
-        // Try to get from global app translations if available
-        if (window.app && typeof window.app.translate === 'function') {
-            return window.app.translate(key);
-        }
-
-        // Fallback translations
-        const fallbacks = {
-            'status.offline': 'Offline',
-            'status.camp_mode': 'Camp Mode',
-            'status.syncing': 'Syncing...',
-            'sync.pending': '{{count}} change(s) pending'
-        };
-
-        return fallbacks[key] || key;
+  getTranslation(key) {
+    // Try to get from global app translations if available
+    if (window.app && typeof window.app.translate === 'function') {
+      return window.app.translate(key);
     }
 
-    /**
+    // Fallback translations
+    const fallbacks = {
+      'status.offline': 'Offline',
+      'status.camp_mode': 'Camp Mode',
+      'status.syncing': 'Syncing...',
+      'sync.pending': '{{count}} change(s) pending'
+    };
+
+    return fallbacks[key] || key;
+  }
+
+  /**
      * Manually update the pending count
      * @param {number} count - Number of pending items
      */
-    setPendingCount(count) {
-        this.pendingCount = count;
-        this.updateDisplay();
-    }
+  setPendingCount(count) {
+    this.pendingCount = count;
+    this.updateDisplay();
+  }
 
-    /**
+  /**
      * Manually set offline status
      * @param {boolean} isOffline - Whether app is offline
      */
-    setOfflineStatus(isOffline) {
-        this.isOffline = isOffline;
-        this.updateDisplay();
-    }
+  setOfflineStatus(isOffline) {
+    this.isOffline = isOffline;
+    this.updateDisplay();
+  }
 
-    /**
+  /**
      * Manually set syncing status
      * @param {boolean} isSyncing - Whether app is syncing
      */
-    setSyncingStatus(isSyncing) {
-        this.isSyncing = isSyncing;
-        this.updateDisplay();
-    }
+  setSyncingStatus(isSyncing) {
+    this.isSyncing = isSyncing;
+    this.updateDisplay();
+  }
 
-    /**
+  /**
      * Destroy the indicator and clean up
      */
-    destroy() {
-        this.abortController?.abort();
-        this.abortController = null;
-        if (this.element && this.element.parentNode) {
-            this.element.parentNode.removeChild(this.element);
-        }
-        this.element = null;
-        debugLog('OfflineIndicator: Destroyed');
+  destroy() {
+    this.abortController?.abort();
+    this.abortController = null;
+    if (this.element && this.element.parentNode) {
+      this.element.parentNode.removeChild(this.element);
     }
+    this.element = null;
+    debugLog('OfflineIndicator: Destroyed');
+  }
 }

@@ -30,11 +30,11 @@ function check() {
 
   if (onlyEn.length > 0) {
     console.error(`Missing in fr.json (${onlyEn.length} keys):`);
-    for (const k of onlyEn) console.error(`  - ${k}`);
+    for (const k of onlyEn) {console.error(`  - ${k}`);}
   }
   if (onlyFr.length > 0) {
     console.error(`Missing in en.json (${onlyFr.length} keys):`);
-    for (const k of onlyFr) console.error(`  - ${k}`);
+    for (const k of onlyFr) {console.error(`  - ${k}`);}
   }
   return 1;
 }

@@ -183,7 +183,7 @@ export function skeletonTable(rows = 5, cols = 4) {
  * @param {boolean} isLoading - Whether button should be in loading state
  */
 export function setButtonLoading(button, isLoading) {
-  if (!button) return;
+  if (!button) {return;}
 
   if (isLoading) {
     button.classList.add('button--loading');

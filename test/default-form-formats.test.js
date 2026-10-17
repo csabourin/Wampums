@@ -56,10 +56,10 @@ describe('standard form catalog', () => {
     const translationKeys = new Set();
     for (const form of defaultFormCatalog.forms) {
       for (const field of form.form_structure.fields) {
-        if (field.label) translationKeys.add(field.label);
-        if (field.infoText) translationKeys.add(field.infoText);
+        if (field.label) {translationKeys.add(field.label);}
+        if (field.infoText) {translationKeys.add(field.infoText);}
         for (const option of field.options || []) {
-          if (option.label) translationKeys.add(option.label);
+          if (option.label) {translationKeys.add(option.label);}
         }
       }
     }

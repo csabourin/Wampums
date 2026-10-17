@@ -98,7 +98,7 @@ describe('POST /api/v1/medication/requirements', () => {
     let requirementInserted = false;
 
     __mPool.connect.mockResolvedValue(__mClient);
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query === 'BEGIN') {
         transactionStarted = true;
         return Promise.resolve({ rows: [] });
@@ -172,7 +172,7 @@ describe('POST /api/v1/medication/requirements', () => {
       permissions: ['medication.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -210,7 +210,7 @@ describe('POST /api/v1/medication/requirements', () => {
       permissions: ['medication.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -248,7 +248,7 @@ describe('POST /api/v1/medication/requirements', () => {
       permissions: ['medication.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -345,7 +345,7 @@ describe('POST /api/v1/medication/requirements', () => {
       permissions: ['medication.view'] // Can view, not manage
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'medication.view' }]
@@ -394,7 +394,7 @@ describe('POST /api/v1/medication/distributions', () => {
 
     let distributionInserted = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -453,7 +453,7 @@ describe('POST /api/v1/medication/distributions', () => {
       permissions: ['medication.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -492,7 +492,7 @@ describe('POST /api/v1/medication/distributions', () => {
       permissions: ['medication.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -555,7 +555,7 @@ describe('POST /api/v1/medication/receptions', () => {
 
     let receptionInserted = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -605,7 +605,7 @@ describe('POST /api/v1/medication/receptions', () => {
       permissions: ['medication.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -720,7 +720,7 @@ describe('GET /api/v1/medication/requirements', () => {
       permissions: ['medication.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -778,7 +778,7 @@ describe('GET /api/v1/medication/requirements', () => {
       permissions: [] // No permissions
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [] });
       }

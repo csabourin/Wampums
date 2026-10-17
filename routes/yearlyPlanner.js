@@ -2563,7 +2563,7 @@ module.exports = (pool, logger) => {
   function generateMeetingDates(startDate, endDate, meetingDay, pattern, blackoutDates, anchors) {
     const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const targetDay = daysOfWeek.indexOf(meetingDay);
-    if (targetDay === -1) return [];
+    if (targetDay === -1) {return [];}
 
     const start = new Date(`${startDate}T00:00:00`);
     const end = new Date(`${endDate}T00:00:00`);
@@ -2635,7 +2635,7 @@ module.exports = (pool, logger) => {
 
     // Add anchor meetings on non-meeting-day dates (special events)
     for (const anchor of (anchors || [])) {
-      if (!anchor.date) continue;
+      if (!anchor.date) {continue;}
       const anchorDate = new Date(`${anchor.date}T00:00:00`);
       if (anchorDate.getDay() !== targetDay && anchor.type !== 'no_meeting') {
         const exists = meetings.some(m => m.date === anchor.date);

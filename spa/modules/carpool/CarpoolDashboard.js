@@ -23,7 +23,7 @@ import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { CONFIG } from '../../config.js';
 import { offlineManager } from '../OfflineManager.js';
 import { getCachedData, setCachedData } from '../../indexedDB.js';
-import { confirm as confirmDialog, confirmDestructive, prompt as promptDialog } from '../../utils/DialogUtils.js';
+import { confirmDestructive, prompt as promptDialog } from '../../utils/DialogUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { buildNotFoundMarkup } from '../../utils/NotFoundUtils.js';

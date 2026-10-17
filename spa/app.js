@@ -1,14 +1,13 @@
 import '@fortawesome/fontawesome-free/css/fontawesome.min.css';
 import '@fortawesome/fontawesome-free/css/solid.min.css';
-import { initRouter, Router } from './router.js';
+import { initRouter } from './router.js';
 import { checkSession } from './utils/SessionUtils.js';
 import { getOrganizationSettings, getPublicOrganizationSettings, fetchOrganizationId, fetchOrganizationJwt } from './ajax-functions.js';
-import { makeApiRequest } from './api/api-core.js';
 import { CONFIG } from './config.js';
 import { debugLog, debugError, debugWarn, isDebugMode } from './utils/DebugUtils.js';
 import { getStorage, setStorage, setStorageMultiple } from './utils/StorageUtils.js';
 import { registerPushSubscription } from './modules/push/PushSubscription.js';
-import updateManager from './pwa-update-manager.js';
+import './pwa-update-manager.js';
 import { initOfflineSupport } from './offline-init.js';
 import { offlineManager } from './modules/OfflineManager.js';
 import { setContent, clearElement, createElement } from './utils/DOMUtils.js';
@@ -345,7 +344,7 @@ export const app = {
       if (!token && this.organizationId) {
         try {
           debugLog('Fetching organization JWT...');
-          const data = await fetchOrganizationJwt(this.organizationId);
+          const data = await fetchOrganizationJwt();
           if (data.success && data.token) {
             setStorage('jwtToken', data.token);
             debugLog('Organization JWT obtained');

@@ -104,8 +104,8 @@ export class ParticipantDuplicates {
         </label>
         <p id="participant-duplicates-status" class="status-message" role="status" hidden></p>
         ${this.candidates.length === 0
-          ? `<p class="empty-state">${translate('participant_duplicates_empty')}</p>`
-          : `<ul class="duplicate-list">${this.candidates.map((candidate) => this.renderCandidate(candidate)).join('')}</ul>`}
+    ? `<p class="empty-state">${translate('participant_duplicates_empty')}</p>`
+    : `<ul class="duplicate-list">${this.candidates.map((candidate) => this.renderCandidate(candidate)).join('')}</ul>`}
       </section>
     `);
 
@@ -213,7 +213,7 @@ export class ParticipantDuplicates {
    */
   showStatus(key, kind = 'success') {
     const element = document.getElementById('participant-duplicates-status');
-    if (!element) return;
+    if (!element) {return;}
     element.textContent = translate(key);
     element.className = `status-message ${kind}`;
     element.hidden = false;
