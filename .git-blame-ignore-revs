@@ -1,0 +1,7 @@
+# Formatting-only commits, skipped by `git blame` (GitHub reads this file;
+# locally: git config blame.ignoreRevsFile .git-blame-ignore-revs).
+
+# ESLint --fix: indent, quotes, curly, prefer-template (SPA, server, scripts/tests/landing)
+369ffabf49133ff07adb87a4467d601acd3f737d
+02a06add34997af5664a460e0f40cf3c62e706f3
+0ebc1ac3ed90c39dbf15a262ebefb85e741cf1e6
