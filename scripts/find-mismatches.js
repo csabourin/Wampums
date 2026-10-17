@@ -3,6 +3,18 @@ const app = require('../api'); // Assuming running from scripts/
 
 const backendRoutes = new Set();
 
+/**
+ * A route pattern as a regex: each placeholder matches one path segment, and
+ * everything else is literal (regex metacharacters, backslashes included, escaped).
+ * @param {string} route - e.g. "GET /v1/things/:id" or "GET v1/things/${id}"
+ * @param {RegExp} placeholder - What marks a path parameter in this notation
+ * @returns {RegExp}
+ */
+function routeRegex(route, placeholder) {
+  const literal = (part) => part.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
+  return new RegExp(`^${route.split(placeholder).map(literal).join('[^/]+')}$`);
+}
+
 function extractRoutes(stack, prefix = '') {
   stack.forEach(middleware => {
     if (middleware.route) {
@@ -91,12 +103,10 @@ console.log('--- MISSING IN BACKEND ---'); // called by SPA but not in backend
 spaEndpoints.forEach(spaE => {
   let found = false;
   // some basic matching because of path params like /:id vs /${id}
-  const spaRegexStr = spaE.replace(/\$\{[^}]+\}/g, '[^/]+').replace(/\?/g, '\\?');
-  const spaRegex = new RegExp(`^${  spaRegexStr  }$`);
+  const spaRegex = routeRegex(spaE, /\$\{[^}]+\}/);
 
   for (const be of endpoints) {
-    const beRegexStr = be.replace(/:[a-zA-Z0-9_]+/g, '[^/]+').replace(/\?/g, '\\?');
-    const beRegex = new RegExp(`^${  beRegexStr  }$`);
+    const beRegex = routeRegex(be, /:[a-zA-Z0-9_]+/);
 
     if (beRegex.test(spaE.split(' ')[1]) && spaE.split(' ')[0] === be.split(' ')[0]) {
       found = true;

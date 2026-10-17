@@ -313,16 +313,19 @@ module.exports = (app) => {
     }
 
     if (req.path === '/en' || req.path === '/fr') {
-      return res.redirect(301, `${req.path}/`);
+      return res.redirect(301, req.path === '/en' ? '/en/' : '/fr/');
     }
 
     if (req.path === '/landing' || req.path === '/landing/' || req.path === '/landing/index.html') {
       return res.redirect(302, getPreferredLandingPath(req));
     }
 
-    // Trailing slash redirect for clean URLs
-    if (req.path.match(/^\/(?:en|fr)\/.+[^/]$/) && !req.path.match(/\.[a-z]{2,4}$/i)) {
-      return res.redirect(301, `${req.path}/`);
+    // Trailing slash redirect for clean URLs. The target is rebuilt behind a
+    // literal /en/ or /fr/, so it can only ever name a page on this site.
+    const cleanUrl = /^\/(en|fr)\/(.+[^/])$/.exec(req.path);
+    if (cleanUrl && !/\.[a-z]{2,4}$/i.test(req.path)) {
+      const langPrefix = cleanUrl[1] === 'en' ? '/en/' : '/fr/';
+      return res.redirect(301, `${langPrefix}${cleanUrl[2]}/`);
     }
 
     // Redirect legacy /fr/comparatif/ URLs to canonical /fr/comparer/

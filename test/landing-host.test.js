@@ -170,6 +170,25 @@ describe('Landing Host Routing - wampums.app', () => {
       expect(res.status).toBe(301);
       expect(res.header.location).toBe('/fr/');
     });
+
+    test('a page without its trailing slash gets one, on the same page', async () => {
+      const res = await request(app)
+        .get('/fr/blogue/premier-article')
+        .set('Host', 'wampums.app');
+
+      expect(res.status).toBe(301);
+      expect(res.header.location).toBe('/fr/blogue/premier-article/');
+    });
+
+    test('a doubled slash cannot turn the trailing-slash redirect into another site', async () => {
+      const res = await request(app)
+        .get('/en//evil.example')
+        .set('Host', 'wampums.app');
+
+      expect(res.status).toBe(301);
+      expect(res.header.location).toBe('/en//evil.example/');
+      expect(res.header.location.startsWith('/en/')).toBe(true);
+    });
   });
 
   describe('Legacy /landing* redirects', () => {
