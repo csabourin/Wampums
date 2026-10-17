@@ -151,13 +151,13 @@ export class IncidentReport {
           <td><span class="badge ${statusClass}">${statusLabel}</span></td>
           <td>
             ${inc.status === 'draft' && this.canManage
-              ? `<button class="button button--small button--secondary incident-edit-btn" data-id="${inc.id}">${translate('edit')}</button>`
-              : `<button class="button button--small button--secondary incident-view-btn" data-id="${inc.id}">${translate('view')}</button>`
-            }
+    ? `<button class="button button--small button--secondary incident-edit-btn" data-id="${inc.id}">${translate('edit')}</button>`
+    : `<button class="button button--small button--secondary incident-view-btn" data-id="${inc.id}">${translate('view')}</button>`
+}
             ${inc.status === 'draft' && this.canManage
-              ? `<button class="button button--small button--danger incident-delete-btn" data-id="${inc.id}">${translate('Delete')}</button>`
-              : ''
-            }
+    ? `<button class="button button--small button--danger incident-delete-btn" data-id="${inc.id}">${translate('Delete')}</button>`
+    : ''
+}
           </td>
         </tr>`;
     }).join('');
@@ -228,7 +228,7 @@ export class IncidentReport {
 
     document.querySelectorAll('.incident-delete-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!(await confirmDestructive(translate('incident_confirm_delete')))) return;
+        if (!(await confirmDestructive(translate('incident_confirm_delete')))) {return;}
         try {
           await deleteIncidentReport(parseInt(btn.dataset.id));
           this.app.showMessage(translate('incident_deleted'), 'success');
@@ -401,7 +401,7 @@ export class IncidentReport {
     // Participant selector -> prefill
     document.getElementById('participant-select')?.addEventListener('change', async (e) => {
       const pid = parseInt(e.target.value);
-      if (!pid) return;
+      if (!pid) {return;}
       this.selectedParticipantId = pid;
       try {
         const prefill = await getIncidentPrefillParticipant(pid);
@@ -415,7 +415,7 @@ export class IncidentReport {
     // User selector -> prefill
     document.getElementById('user-select')?.addEventListener('change', async (e) => {
       const uid = e.target.value;
-      if (!uid) return;
+      if (!uid) {return;}
       this.selectedUserId = uid;
       try {
         const prefill = await getIncidentPrefillUser(uid);
@@ -450,7 +450,7 @@ export class IncidentReport {
 
     // Submit
     document.getElementById('incident-submit-btn')?.addEventListener('click', async () => {
-      if (!(await confirmDialog(translate('incident_confirm_submit')))) return;
+      if (!(await confirmDialog(translate('incident_confirm_submit')))) {return;}
       await this.handleSubmit();
     });
 
@@ -466,7 +466,7 @@ export class IncidentReport {
       const usersResp = await getUsers();
       this.users = usersResp?.data || usersResp || [];
       const select = document.getElementById('user-select');
-      if (!select) return;
+      if (!select) {return;}
 
       const currentVal = this.selectedUserId || '';
       select.textContent = '';
@@ -478,7 +478,7 @@ export class IncidentReport {
         const opt = document.createElement('option');
         opt.value = u.id;
         opt.textContent = u.full_name || u.email;
-        if (u.id === currentVal) opt.selected = true;
+        if (u.id === currentVal) {opt.selected = true;}
         select.appendChild(opt);
       });
     } catch (err) {
@@ -490,12 +490,12 @@ export class IncidentReport {
    * Apply prefill data to form fields
    */
   applyPrefill(prefill) {
-    if (!prefill) return;
+    if (!prefill) {return;}
     const form = document.getElementById('incident-form');
-    if (!form) return;
+    if (!form) {return;}
 
     Object.entries(prefill).forEach(([fieldName, value]) => {
-      if (!value) return;
+      if (!value) {return;}
       const field = form.querySelector(`[name="${fieldName}"]`);
       if (field) {
         field.value = value;
@@ -510,7 +510,7 @@ export class IncidentReport {
    */
   setupDependsOn() {
     const form = document.getElementById('incident-form');
-    if (!form || !this.formStructure?.fields) return;
+    if (!form || !this.formStructure?.fields) {return;}
 
     const dependentFields = this.formStructure.fields.filter(f => f.dependsOn);
     // The report as saved, as the renderer received it
@@ -569,7 +569,7 @@ export class IncidentReport {
    */
   collectFormData() {
     const form = document.getElementById('incident-form');
-    if (!form) return {};
+    if (!form) {return {};}
 
     if (this.formRenderer) {
       return this.formRenderer.getFormData(form);
@@ -668,7 +668,7 @@ export class IncidentReport {
   // ============================================================
 
   async initView(incidentId) {
-    if (!incidentId) return;
+    if (!incidentId) {return;}
     this.currentIncident = await getIncidentReport(incidentId);
     if (!this.currentIncident) {
       this.app.showMessage(translate('error_loading_data'), 'error');
@@ -715,8 +715,8 @@ export class IncidentReport {
           <p><strong>${translate('incident_list_date')}:</strong> ${inc.incident_date ? formatDate(inc.incident_date, lang) : '—'}</p>
           ${inc.activity_name ? `<p><strong>${translate('incident_select_activity')}:</strong> ${escapeHTML(inc.activity_name)}</p>` : ''}
           ${inc.escalation_sent_to && inc.escalation_sent_to.length > 0
-            ? `<p><strong>${translate('incident_escalation_settings')}:</strong> ${inc.escalation_sent_to.map(e => escapeHTML(e)).join(', ')}</p>`
-            : ''}
+    ? `<p><strong>${translate('incident_escalation_settings')}:</strong> ${inc.escalation_sent_to.map(e => escapeHTML(e)).join(', ')}</p>`
+    : ''}
         </div>
 
         <div class="incident-view-form" style="pointer-events: none; opacity: 0.85;">
@@ -805,7 +805,7 @@ export class IncidentReport {
       const role_description = document.getElementById('escalation-new-role')?.value?.trim();
 
       if (!email) {
-        this.app.showMessage(translate('incident_escalation_email') + ' required', 'error');
+        this.app.showMessage(`${translate('incident_escalation_email')  } required`, 'error');
         return;
       }
 
@@ -854,7 +854,7 @@ export class IncidentReport {
   }
 
   injectStyles() {
-    if (document.getElementById('incident-report-styles')) return;
+    if (document.getElementById('incident-report-styles')) {return;}
 
     const style = document.createElement('style');
     style.id = 'incident-report-styles';

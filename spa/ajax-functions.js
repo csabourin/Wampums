@@ -7,31 +7,31 @@
 // - api/api-helpers.js: Helper utilities
 // - api/api-endpoints.js: All endpoint functions
 
-import { CONFIG } from "./config.js";
-import { debugError } from "./utils/DebugUtils.js";
-import { getAuthHeader, getCurrentOrganizationId } from "./api/api-helpers.js";
-import { handleResponse, makeApiRequest } from "./api/api-core.js";
+import { CONFIG } from './config.js';
+import { debugError } from './utils/DebugUtils.js';
+import { getAuthHeader, getCurrentOrganizationId } from './api/api-helpers.js';
+import { handleResponse, makeApiRequest } from './api/api-core.js';
 
 // Re-export core API functionality
 export {
-    API,
-    buildApiUrl,
-    makeApiRequestWithCache,
-    batchApiRequests,
-    withErrorHandling
-} from "./api/api-core.js";
+  API,
+  buildApiUrl,
+  makeApiRequestWithCache,
+  batchApiRequests,
+  withErrorHandling
+} from './api/api-core.js';
 
 // Re-export helper utilities
 export {
-    getCurrentOrganizationId,
-    getAuthHeader,
-    checkLoginStatus,
-    checkLoginStatus as checkAuthStatus,
-    validateCurrentToken,
-    validateCurrentToken as validateToken,
-    buildPublicUrl,
-    fetchPublic
-} from "./api/api-helpers.js";
+  getCurrentOrganizationId,
+  getAuthHeader,
+  checkLoginStatus,
+  checkLoginStatus as checkAuthStatus,
+  validateCurrentToken,
+  validateCurrentToken as validateToken,
+  buildPublicUrl,
+  fetchPublic
+} from './api/api-helpers.js';
 
 
 /**
@@ -50,260 +50,260 @@ export {
  * @returns {Promise<Object>} API response JSON
  */
 export async function ajax({ url, method = 'GET', body = null, headers = {} }) {
-    // Try to convert absolute URLs (e.g., `${CONFIG.API_BASE_URL}/api/...`) to
-    // endpoint + params for makeApiRequest to ensure consistent auth handling.
-    try {
-        const base = new URL(url, typeof window !== 'undefined' ? window.location.origin : undefined);
-        const apiBase = new URL(CONFIG.API_BASE_URL);
+  // Try to convert absolute URLs (e.g., `${CONFIG.API_BASE_URL}/api/...`) to
+  // endpoint + params for makeApiRequest to ensure consistent auth handling.
+  try {
+    const base = new URL(url, typeof window !== 'undefined' ? window.location.origin : undefined);
+    const apiBase = new URL(CONFIG.API_BASE_URL);
 
-        if (base.origin === apiBase.origin && base.pathname.startsWith('/api/')) {
-            const endpoint = base.pathname.replace(/^\/api\//, '');
-            const params = Object.fromEntries(base.searchParams.entries());
+    if (base.origin === apiBase.origin && base.pathname.startsWith('/api/')) {
+      const endpoint = base.pathname.replace(/^\/api\//, '');
+      const params = Object.fromEntries(base.searchParams.entries());
 
-            let parsedBody = body;
-            if (typeof body === 'string' && body.trim()) {
-                try {
-                    parsedBody = JSON.parse(body);
-                } catch (parseError) {
-                    // Fall back to raw string if parsing fails
-                    parsedBody = body;
-                }
-            }
-
-            return makeApiRequest(endpoint, {
-                method,
-                params,
-                body: parsedBody,
-                headers
-            });
+      let parsedBody = body;
+      if (typeof body === 'string' && body.trim()) {
+        try {
+          parsedBody = JSON.parse(body);
+        } catch (parseError) {
+          // Fall back to raw string if parsing fails
+          parsedBody = body;
         }
-    } catch (error) {
-        // If URL parsing fails, fall through to fetch implementation below
-        debugError('ajax URL parse failed, using fetch fallback:', error);
-    }
+      }
 
-    // Fallback: use fetch directly for non-standard URLs while keeping auth
-    // headers consistent with the new API helpers.
-    const requestConfig = {
+      return makeApiRequest(endpoint, {
         method,
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            ...getAuthHeader(),
-            ...headers
-        }
-    };
-
-    if (body && method !== 'GET') {
-        requestConfig.body = typeof body === 'string' ? body : JSON.stringify(body);
+        params,
+        body: parsedBody,
+        headers
+      });
     }
+  } catch (error) {
+    // If URL parsing fails, fall through to fetch implementation below
+    debugError('ajax URL parse failed, using fetch fallback:', error);
+  }
 
-    const response = await fetch(url, requestConfig);
-    return handleResponse(response);
+  // Fallback: use fetch directly for non-standard URLs while keeping auth
+  // headers consistent with the new API helpers.
+  const requestConfig = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...getAuthHeader(),
+      ...headers
+    }
+  };
+
+  if (body && method !== 'GET') {
+    requestConfig.body = typeof body === 'string' ? body : JSON.stringify(body);
+  }
+
+  const response = await fetch(url, requestConfig);
+  return handleResponse(response);
 }
 
 // Re-export all endpoint functions
 export {
-    // Public Endpoints
-    getOrganizationId,
-    fetchOrganizationId,
-    getPublicOrganizationSettings,
-    getPublicNews,
+  // Public Endpoints
+  getOrganizationId,
+  fetchOrganizationId,
+  getPublicOrganizationSettings,
+  getPublicNews,
 
-    // Authentication & Users
-    login,
-    verify2FA,
-    register,
-    requestPasswordReset,
-    resetPassword,
-    logout,
-    getUsers,
-    getRoleCatalog,
-    getRoleBundles,
-    getRolePermissions,
-    getUserOrganizations,
-    getUserRoleAssignments,
-    getRoleAuditLog,
-    updateUserRolesV1,
-    updateUserRoleBundles,
-    getCurrentUser,
-    approveUser,
-    updateUserRole,
-    clearUserCaches,
+  // Authentication & Users
+  login,
+  verify2FA,
+  register,
+  requestPasswordReset,
+  resetPassword,
+  logout,
+  getUsers,
+  getRoleCatalog,
+  getRoleBundles,
+  getRolePermissions,
+  getUserOrganizations,
+  getUserRoleAssignments,
+  getRoleAuditLog,
+  updateUserRolesV1,
+  updateUserRoleBundles,
+  getCurrentUser,
+  approveUser,
+  updateUserRole,
+  clearUserCaches,
 
-    // Participants
-    getParticipants,
-    getParticipant,
-    fetchParticipant,
-    getParticipantDetails,
-    saveParticipant,
-    getParticipantAge,
-    getParticipantAgeReport,
-    getParticipantsWithUsers,
-    linkParticipantToOrganization,
-    removeParticipantFromOrganization,
-    associateUser,
-    linkUserParticipants,
-    fetchParticipants,
+  // Participants
+  getParticipants,
+  getParticipant,
+  fetchParticipant,
+  getParticipantDetails,
+  saveParticipant,
+  getParticipantAge,
+  getParticipantAgeReport,
+  getParticipantsWithUsers,
+  linkParticipantToOrganization,
+  removeParticipantFromOrganization,
+  associateUser,
+  linkUserParticipants,
+  fetchParticipants,
 
-    // Guardians / Parents
-    getGuardians,
-    fetchGuardians,
-    getGuardianInfo,
-    getGuardianCoreInfo,
-    getGuardiansForParticipant,
-    saveParent,
-    saveGuardian,
-    saveGuardianFormSubmission,
-    linkParentToParticipant,
-    linkGuardianToParticipant,
-    removeGuardians,
-    fetchParents,
-    getParentUsers,
-    getParentDashboard,
-    getParentContactList,
-    getUserChildren,
+  // Guardians / Parents
+  getGuardians,
+  fetchGuardians,
+  getGuardianInfo,
+  getGuardianCoreInfo,
+  getGuardiansForParticipant,
+  saveParent,
+  saveGuardian,
+  saveGuardianFormSubmission,
+  linkParentToParticipant,
+  linkGuardianToParticipant,
+  removeGuardians,
+  fetchParents,
+  getParentUsers,
+  getParentDashboard,
+  getParentContactList,
+  getUserChildren,
 
-    // Finance
-    getFeeDefinitions,
-    createFeeDefinition,
-    updateFeeDefinition,
-    deleteFeeDefinition,
-    getParticipantFees,
-    createParticipantFee,
-    updateParticipantFee,
-    getParticipantPayments,
-    createParticipantPayment,
-    updatePayment,
-    getPaymentPlans,
-    createPaymentPlan,
-    updatePaymentPlan,
-    deletePaymentPlan,
-    getFinanceReport,
-    getParticipantStatement,
+  // Finance
+  getFeeDefinitions,
+  createFeeDefinition,
+  updateFeeDefinition,
+  deleteFeeDefinition,
+  getParticipantFees,
+  createParticipantFee,
+  updateParticipantFee,
+  getParticipantPayments,
+  createParticipantPayment,
+  updatePayment,
+  getPaymentPlans,
+  createPaymentPlan,
+  updatePaymentPlan,
+  deletePaymentPlan,
+  getFinanceReport,
+  getParticipantStatement,
 
-    // Groups
-    getGroups,
-    addGroup,
-    removeGroup,
-    updateGroupName,
-    updateParticipantGroup,
-    updatePoints,
-    getPointsReport,
-    getParticipantProgressReport,
-    getPointsLeaderboard,
+  // Groups
+  getGroups,
+  addGroup,
+  removeGroup,
+  updateGroupName,
+  updateParticipantGroup,
+  updatePoints,
+  getPointsReport,
+  getParticipantProgressReport,
+  getPointsLeaderboard,
 
-    // Forms & Documents
-    getFormTypes,
-    getFormStructure,
-    getFormSubmission,
-    getFormSubmissions,
-    saveFormSubmission,
-    getOrganizationFormFormats,
-    getParticipantsWithDocuments,
+  // Forms & Documents
+  getFormTypes,
+  getFormStructure,
+  getFormSubmission,
+  getFormSubmissions,
+  saveFormSubmission,
+  getOrganizationFormFormats,
+  getParticipantsWithDocuments,
 
-    // Badges
-    getBadgeProgress,
-    saveBadgeProgress,
-    getCurrentStars,
-    approveBadge,
-    rejectBadge,
-    getBadgeSummary,
-    getBadgeHistory,
-    updateBadgeStatus,
-    updateBadgeProgress,
-    getBadgeSystemSettings,
-    getProgramProgressStream,
+  // Badges
+  getBadgeProgress,
+  saveBadgeProgress,
+  getCurrentStars,
+  approveBadge,
+  rejectBadge,
+  getBadgeSummary,
+  getBadgeHistory,
+  updateBadgeStatus,
+  updateBadgeProgress,
+  getBadgeSystemSettings,
+  getProgramProgressStream,
 
-    // Honors
-    getHonors,
-    getHonorsAndParticipants,
-    awardHonor,
-    getHonorsReport,
-    getHonorsHistory,
-    getAvailableDates,
+  // Honors
+  getHonors,
+  getHonorsAndParticipants,
+  awardHonor,
+  getHonorsReport,
+  getHonorsHistory,
+  getAvailableDates,
 
-    // Attendance
-    getAttendance,
-    updateAttendance,
-    getAttendanceDates,
-    getAttendanceReport,
-    saveGuest,
-    getGuests as getGuestsByDate,
+  // Attendance
+  getAttendance,
+  updateAttendance,
+  getAttendanceDates,
+  getAttendanceReport,
+  saveGuest,
+  getGuests as getGuestsByDate,
 
-    // Calendar
-    getCalendars,
-    updateCalendar,
-    getParticipantCalendar,
+  // Calendar
+  getCalendars,
+  updateCalendar,
+  getParticipantCalendar,
 
-    // Fundraisers
-    getFundraisers,
-    getFundraiserDetails as getFundraiser,
-    saveFundraiser as createFundraiser,
-    updateFundraiser,
-    archiveFundraiser,
-    deleteFundraiser,
-    getCalendarsForFundraiser,
-    updateCalendarEntry,
-    updateCalendarPayment,
+  // Fundraisers
+  getFundraisers,
+  getFundraiserDetails as getFundraiser,
+  saveFundraiser as createFundraiser,
+  updateFundraiser,
+  archiveFundraiser,
+  deleteFundraiser,
+  getCalendarsForFundraiser,
+  updateCalendarEntry,
+  updateCalendarPayment,
 
-    // Reunions / Meetings
-    getReunionPreparation,
-    saveReunionPreparation,
-    getReunionDates,
-    getMeetingActivities,
-    getActivitesRencontre,
-    saveReminder,
-    getReminder,
-    getNextMeetingInfo,
-    getAnimateurs,
+  // Reunions / Meetings
+  getReunionPreparation,
+  saveReunionPreparation,
+  getReunionDates,
+  getMeetingActivities,
+  getActivitesRencontre,
+  saveReminder,
+  getReminder,
+  getNextMeetingInfo,
+  getAnimateurs,
 
-    // Reports
-    fetchHealthContactReport as getHealthContactReport,
-    fetchHealthReport as getHealthReport,
-    fetchAllergiesReport as getAllergiesReport,
-    fetchMedicationReport as getMedicationReport,
-    getMedicationRequirements,
-    saveMedicationRequirement,
-    getParticipantMedications,
-    getMedicationDistributions,
-    recordMedicationDistribution,
-    markMedicationDistributionAsGiven,
-    getVaccineReport,
-    getLeaveAloneReport,
-    getMediaAuthorizationReport,
-    getMissingDocumentsReport,
-    getMailingList,
-    getAnnouncements,
-    createAnnouncement,
+  // Reports
+  fetchHealthContactReport as getHealthContactReport,
+  fetchHealthReport as getHealthReport,
+  fetchAllergiesReport as getAllergiesReport,
+  fetchMedicationReport as getMedicationReport,
+  getMedicationRequirements,
+  saveMedicationRequirement,
+  getParticipantMedications,
+  getMedicationDistributions,
+  recordMedicationDistribution,
+  markMedicationDistributionAsGiven,
+  getVaccineReport,
+  getLeaveAloneReport,
+  getMediaAuthorizationReport,
+  getMissingDocumentsReport,
+  getMailingList,
+  getAnnouncements,
+  createAnnouncement,
 
-    // Organization
-    getApiOrganizationId,
-    createOrganization,
-    switchOrganization,
-    getOrganizationSettings,
-    getNews,
-    fetchOrganizationJwt,
+  // Organization
+  getApiOrganizationId,
+  createOrganization,
+  switchOrganization,
+  getOrganizationSettings,
+  getNews,
+  fetchOrganizationJwt,
 
-    // Admin / Import
-    importSISC,
+  // Admin / Import
+  importSISC,
 
-    // Utility
-    getInitialData,
-    fetchPushSubscribers as getSubscribers,
-    sendPushNotification as sendNotification,
-    getUnprocessedAchievements
-} from "./api/api-endpoints.js";
+  // Utility
+  getInitialData,
+  fetchPushSubscribers as getSubscribers,
+  sendPushNotification as sendNotification,
+  getUnprocessedAchievements
+} from './api/api-endpoints.js';
 
 // Re-export CONFIG for backward compatibility
-export { CONFIG } from "./config.js";
+export { CONFIG } from './config.js';
 
 // Re-export debug utilities for backward compatibility
-export { debugLog, debugError } from "./utils/DebugUtils.js";
+export { debugLog, debugError } from './utils/DebugUtils.js';
 
 // Backwards compatibility aliases
-import { API, buildApiUrl, batchApiRequests, withErrorHandling } from "./api/api-core.js";
-import { getParticipants, saveParticipant } from "./api/api-endpoints.js";
+import { API, buildApiUrl, batchApiRequests, withErrorHandling } from './api/api-core.js';
+import { getParticipants, saveParticipant } from './api/api-endpoints.js';
 
 export const fetchFromApi = API.get;
 export const getApiUrl = buildApiUrl;
@@ -314,10 +314,10 @@ export const saveParticipantWithErrorHandling = withErrorHandling(saveParticipan
 
 // Default export for backward compatibility
 export default {
-    API,
-    getCurrentOrganizationId,
-    getAuthHeader,
-    buildApiUrl,
-    batchApiRequests,
-    withErrorHandling
+  API,
+  getCurrentOrganizationId,
+  getAuthHeader,
+  buildApiUrl,
+  batchApiRequests,
+  withErrorHandling
 };

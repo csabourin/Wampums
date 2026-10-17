@@ -131,7 +131,7 @@ test('every key built from a state exists for each state the server returns', ()
 
 test('the dashboard tiles have labels in both languages', () => {
   const tiles = fs.readFileSync(path.join(ROOT, 'spa/config/dashboard-tiles.js'), 'utf8');
-  const labels = [...tiles.matchAll(/label: "([a-z0-9_]+)"/g)].map((m) => [m[1], 'dashboard-tiles']);
+  const labels = [...tiles.matchAll(/label: ["']([a-z0-9_]+)["']/g)].map((m) => [m[1], 'dashboard-tiles']);
 
   expect(labels.length).toBeGreaterThan(20);
   expect(missing(labels)).toEqual([]);

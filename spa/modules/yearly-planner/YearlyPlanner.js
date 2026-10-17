@@ -245,8 +245,8 @@ export class YearlyPlanner extends BaseModule {
                   <span class="yp-picker__name">${escapeHTML(item.name)}</span>
                   ${item.category ? `<span class="yp-picker__cat">${escapeHTML(item.category)}</span>` : ''}
                   ${item.estimated_duration_min
-                    ? `<span class="yp-picker__dur">${item.estimated_duration_min} min</span>`
-                    : ''}
+    ? `<span class="yp-picker__dur">${item.estimated_duration_min} min</span>`
+    : ''}
                 </button>
               </li>
             `).join('')}
@@ -649,7 +649,7 @@ export class YearlyPlanner extends BaseModule {
 
   render() {
     const container = document.getElementById('app');
-    if (!container) return;
+    if (!container) {return;}
 
     if (this.isLoading) {
       setContent(container, this.renderLoading());
@@ -764,7 +764,7 @@ export class YearlyPlanner extends BaseModule {
     const rootObjectives = objectives.filter(o => !o.parent_id);
     const subObjectiveMap = {};
     objectives.filter(o => o.parent_id).forEach(o => {
-      if (!subObjectiveMap[o.parent_id]) subObjectiveMap[o.parent_id] = [];
+      if (!subObjectiveMap[o.parent_id]) {subObjectiveMap[o.parent_id] = [];}
       subObjectiveMap[o.parent_id].push(o);
     });
 
@@ -824,16 +824,16 @@ export class YearlyPlanner extends BaseModule {
           ${renderArmBar(this.placement)}
           ${renderYearSummary(this.yearModel)}
           ${renderYearGrid(this.yearModel, {
-            lang: this.lang,
-            canManage: this.canManage,
-            placement: this.placement
-          })}
+    lang: this.lang,
+    canManage: this.canManage,
+    placement: this.placement
+  })}
         </div>
 
         ${renderPrintSheet(plan, {
-          lang: this.lang,
-          organizationName: this.app?.organizationSettings?.organization_info?.name || ''
-        })}
+    lang: this.lang,
+    organizationName: this.app?.organizationSettings?.organization_info?.name || ''
+  })}
 
         <!-- Periods Tab -->
         <div class="yp-tab-content" id="yp-tab-periods" style="display:none;">
@@ -1317,7 +1317,7 @@ export class YearlyPlanner extends BaseModule {
   }
 
   async handleDeletePlan(planId) {
-    if (!(await confirmDestructive(translate('yearly_planner_confirm_delete_plan')))) return;
+    if (!(await confirmDestructive(translate('yearly_planner_confirm_delete_plan')))) {return;}
 
     try {
       await deleteYearPlan(planId);
@@ -1332,7 +1332,7 @@ export class YearlyPlanner extends BaseModule {
   }
 
   async handleDeletePeriod(periodId) {
-    if (!(await confirmDestructive(translate('yearly_planner_confirm_delete_period')))) return;
+    if (!(await confirmDestructive(translate('yearly_planner_confirm_delete_period')))) {return;}
 
     try {
       await deletePeriod(periodId);
@@ -1345,7 +1345,7 @@ export class YearlyPlanner extends BaseModule {
   }
 
   async handleDeleteObjective(objId) {
-    if (!(await confirmDestructive(translate('yearly_planner_confirm_delete_objective')))) return;
+    if (!(await confirmDestructive(translate('yearly_planner_confirm_delete_objective')))) {return;}
 
     try {
       await deleteObjective(objId);
@@ -1358,7 +1358,7 @@ export class YearlyPlanner extends BaseModule {
   }
 
   async handleDeleteLibraryActivity(libId) {
-    if (!(await confirmDestructive(translate('yearly_planner_confirm_delete_library')))) return;
+    if (!(await confirmDestructive(translate('yearly_planner_confirm_delete_library')))) {return;}
 
     try {
       await deleteLibraryActivity(libId);

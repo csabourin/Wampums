@@ -1,4 +1,4 @@
-import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
+import { debugLog, debugError, debugWarn, debugInfo } from './utils/DebugUtils.js';
 
 // jwt-helper.js - Functions for JWT management in the client
 
@@ -9,11 +9,11 @@ import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.j
  * @returns {void}
  */
 export function setUserJWT(userJWT) {
-	// Store the user JWT
-	localStorage.setItem("jwtToken", userJWT);
+  // Store the user JWT
+  localStorage.setItem('jwtToken', userJWT);
 
-	// Remove the anonymous JWT if it exists
-	localStorage.removeItem("anonymousJWT");
+  // Remove the anonymous JWT if it exists
+  localStorage.removeItem('anonymousJWT');
 }
 
 /**
@@ -21,14 +21,14 @@ export function setUserJWT(userJWT) {
  * @returns {string|null} The current JWT string or null if not available
  */
 export function getCurrentJWT() {
-	// First try to get the user JWT
-	const userJWT = localStorage.getItem("jwtToken");
-	if (userJWT) {
-		return userJWT;
-	}
+  // First try to get the user JWT
+  const userJWT = localStorage.getItem('jwtToken');
+  if (userJWT) {
+    return userJWT;
+  }
 
-	// Fall back to anonymous JWT if available
-	return localStorage.getItem("anonymousJWT");
+  // Fall back to anonymous JWT if available
+  return localStorage.getItem('anonymousJWT');
 }
 
 /**
@@ -37,28 +37,28 @@ export function getCurrentJWT() {
  * @returns {object|null} The decoded payload or null if invalid
  */
 export function decodeJWT(jwt) {
-	try {
-		if (!jwt) return null;
+  try {
+    if (!jwt) {return null;}
 
-		// Split the JWT into parts
-		const parts = jwt.split('.');
-		if (parts.length !== 3) return null;
+    // Split the JWT into parts
+    const parts = jwt.split('.');
+    if (parts.length !== 3) {return null;}
 
-		// JWT uses base64url rather than standard base64.
-		let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-		payload += '='.repeat((4 - (payload.length % 4)) % 4);
-		const binaryPayload = atob(payload);
-		const payloadBytes = Uint8Array.from(binaryPayload, char => char.charCodeAt(0));
-		const jsonPayload = typeof globalThis.TextDecoder === 'function'
-			? new globalThis.TextDecoder().decode(payloadBytes)
-			: decodeURIComponent(
-				Array.from(payloadBytes, byte => `%${byte.toString(16).padStart(2, '0')}`).join(''),
-			);
-		return JSON.parse(jsonPayload);
-	} catch (error) {
-		debugError('Error decoding JWT:', error);
-		return null;
-	}
+    // JWT uses base64url rather than standard base64.
+    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    payload += '='.repeat((4 - (payload.length % 4)) % 4);
+    const binaryPayload = atob(payload);
+    const payloadBytes = Uint8Array.from(binaryPayload, char => char.charCodeAt(0));
+    const jsonPayload = typeof globalThis.TextDecoder === 'function'
+      ? new globalThis.TextDecoder().decode(payloadBytes)
+      : decodeURIComponent(
+        Array.from(payloadBytes, byte => `%${byte.toString(16).padStart(2, '0')}`).join(''),
+      );
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    debugError('Error decoding JWT:', error);
+    return null;
+  }
 }
 
 /**
@@ -66,14 +66,14 @@ export function decodeJWT(jwt) {
  * @returns {boolean} True if expired or invalid, false otherwise
  */
 export function isJWTExpired() {
-	const jwt = getCurrentJWT();
-	if (!jwt) return true;
+  const jwt = getCurrentJWT();
+  if (!jwt) {return true;}
 
-	const payload = decodeJWT(jwt);
-	if (!payload || !payload.exp) return true;
+  const payload = decodeJWT(jwt);
+  if (!payload || !payload.exp) {return true;}
 
-	const currentTime = Math.floor(Date.now() / 1000);
-	return payload.exp < currentTime;
+  const currentTime = Math.floor(Date.now() / 1000);
+  return payload.exp < currentTime;
 }
 
 /**
@@ -81,8 +81,8 @@ export function isJWTExpired() {
  * @returns {void}
  */
 export function clearJWTs() {
-	localStorage.removeItem("jwtToken");
-	localStorage.removeItem("anonymousJWT");
+  localStorage.removeItem('jwtToken');
+  localStorage.removeItem('anonymousJWT');
 }
 
 /**
@@ -90,8 +90,8 @@ export function clearJWTs() {
  * @returns {Object} Headers object with Authorization if available
  */
 export function getAuthHeader() {
-	const jwt = getCurrentJWT();
-	return jwt ? { Authorization: `Bearer ${jwt}` } : {};
+  const jwt = getCurrentJWT();
+  return jwt ? { Authorization: `Bearer ${jwt}` } : {};
 }
 
 /**
@@ -99,11 +99,11 @@ export function getAuthHeader() {
  * @returns {string|null} Organization ID or null if not available
  */
 export function getOrganizationIdFromJWT() {
-	const jwt = getCurrentJWT();
-	if (!jwt) return null;
+  const jwt = getCurrentJWT();
+  if (!jwt) {return null;}
 
-	const payload = decodeJWT(jwt);
-	return payload?.organizationId || payload?.organization_id || null;
+  const payload = decodeJWT(jwt);
+  return payload?.organizationId || payload?.organization_id || null;
 }
 
 /**
@@ -111,15 +111,15 @@ export function getOrganizationIdFromJWT() {
  * @returns {object|null} User info object or null if not available
  */
 export function getUserInfoFromJWT() {
-	const jwt = getCurrentJWT();
-	if (!jwt) return null;
+  const jwt = getCurrentJWT();
+  if (!jwt) {return null;}
 
-	const payload = decodeJWT(jwt);
-	if (!payload || payload.is_anonymous) return null;
+  const payload = decodeJWT(jwt);
+  if (!payload || payload.is_anonymous) {return null;}
 
-	return {
-		userId: payload.user_id,
-		userRole: payload.user_role,
-		userFullName: payload.full_name
-	};
+  return {
+    userId: payload.user_id,
+    userRole: payload.user_role,
+    userFullName: payload.full_name
+  };
 }

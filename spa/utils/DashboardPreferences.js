@@ -6,13 +6,13 @@
  * scoped under [data-dashboard-palette] on documentElement.
  */
 
-import { PALETTES, DEFAULT_PALETTE_ID, DOMAINS } from "../config/dashboard-customization.js";
-import { DEFAULT_COLLAPSED_TOOL_GROUPS } from "../config/dashboard-tiles.js";
-import { debugLog } from "./DebugUtils.js";
+import { PALETTES, DEFAULT_PALETTE_ID, DOMAINS } from '../config/dashboard-customization.js';
+import { DEFAULT_COLLAPSED_TOOL_GROUPS } from '../config/dashboard-tiles.js';
+import { debugLog } from './DebugUtils.js';
 
-const STORAGE_KEY = "wampums.dashboard.prefs.v1";
-const LIGHT_TEXT = "#ffffff";
-const DARK_TEXT = "#000000";
+const STORAGE_KEY = 'wampums.dashboard.prefs.v1';
+const LIGHT_TEXT = '#ffffff';
+const DARK_TEXT = '#000000';
 
 /** WCAG 2.1 AA minimum contrast for normal-size text. */
 const MIN_CONTRAST_AA = 4.5;
@@ -39,7 +39,7 @@ const DEFAULT_PREFS = Object.freeze({
 function readPrefs() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_PREFS };
+    if (!raw) {return { ...DEFAULT_PREFS };}
     const parsed = JSON.parse(raw);
     return { ...DEFAULT_PREFS, ...parsed };
   } catch {
@@ -51,7 +51,7 @@ function writePrefs(prefs) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
   } catch (error) {
-    debugLog("Failed to persist dashboard prefs:", error);
+    debugLog('Failed to persist dashboard prefs:', error);
   }
 }
 
@@ -88,7 +88,7 @@ export function setCollapsedToolGroups(groups) {
  */
 function parseHexColor(color) {
   const match = /^#([0-9a-f]{6})$/i.exec(color);
-  if (!match) return null;
+  if (!match) {return null;}
 
   return match[1].match(/.{2}/g).map((channel) => Number.parseInt(channel, 16));
 }
@@ -103,9 +103,9 @@ function toHexColor(channels) {
   return `#${channels
     .map((channel) => {
       const clamped = Math.max(0, Math.min(255, Math.round(channel)));
-      return clamped.toString(16).padStart(2, "0");
+      return clamped.toString(16).padStart(2, '0');
     })
-    .join("")}`;
+    .join('')}`;
 }
 
 /**
@@ -149,7 +149,7 @@ function contrastRatio(a, b) {
  */
 function getAccessibleForeground(backgroundColor) {
   const channels = parseHexColor(backgroundColor);
-  if (!channels) return LIGHT_TEXT;
+  if (!channels) {return LIGHT_TEXT;}
 
   const luminance = relativeLuminance(channels);
   const lightContrast = 1.05 / (luminance + 0.05);

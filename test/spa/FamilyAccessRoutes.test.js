@@ -26,12 +26,12 @@ const routerSource = fs.readFileSync(path.join(__dirname, '../../spa/router.js')
 function loggedOutRoutes() {
   const match = /if \(!this\.app\.isLoggedIn && !\[([^\]]+)\]\.includes\(routeName\)\)/.exec(routerSource);
   if (!match) throw new Error('logged-out allow-list not found in router');
-  return match[1].split(',').map((name) => name.trim().replace(/^"|"$/g, ''));
+  return match[1].split(',').map((name) => name.trim().replace(/^["']|["']$/g, ''));
 }
 
 test('the emailed-link pages have routes', () => {
-  expect(routerSource).toContain('"/complete-registration": "completeRegistration"');
-  expect(routerSource).toContain('"/family-link": "familyLink"');
+  expect(routerSource).toMatch(/["']\/complete-registration["']: ["']completeRegistration["']/);
+  expect(routerSource).toMatch(/["']\/family-link["']: ["']familyLink["']/);
 });
 
 test('the emailed-link pages open without a session', () => {
@@ -45,10 +45,10 @@ test('the admin pages do not', () => {
 
 test('the admin pages are guarded by the permission their endpoints require', () => {
   expect(routerSource).toMatch(
-    /case "parentInvitations":\s*if \(!guard\(hasPermission\('users\.invite'\)\)\)/
+    /case ["']parentInvitations["']:\s*if \(!guard\(hasPermission\('users\.invite'\)\)\)/
   );
   expect(routerSource).toMatch(
-    /case "participantDuplicates":\s*if \(!guard\(hasPermission\('participants\.edit'\)\)\)/
+    /case ["']participantDuplicates["']:\s*if \(!guard\(hasPermission\('participants\.edit'\)\)\)/
   );
 });
 
@@ -64,16 +64,16 @@ test('the parent pages need a session and the permission to register one\'s own 
   expect(loggedOutRoutes()).not.toContain('parentOnboarding');
   expect(loggedOutRoutes()).not.toContain('familyAccess');
   expect(routerSource).toMatch(
-    /case "parentOnboarding":\s*if \(!guard\(hasPermission\('participants\.create_own'\)\)\)/
+    /case ["']parentOnboarding["']:\s*if \(!guard\(hasPermission\('participants\.create_own'\)\)\)/
   );
   expect(routerSource).toMatch(
-    /case "familyAccess":\s*if \(!guard\(hasPermission\('participants\.create_own'\)\)\)/
+    /case ["']familyAccess["']:\s*if \(!guard\(hasPermission\('participants\.create_own'\)\)\)/
   );
 });
 
 test('the walk-in page needs a session and participants.walk_in -- not participants.create', () => {
   expect(loggedOutRoutes()).not.toContain('walkInChildren');
   expect(routerSource).toMatch(
-    /case "walkInChildren":\s*if \(!guard\(hasPermission\('participants\.walk_in'\)\)\)/
+    /case ["']walkInChildren["']:\s*if \(!guard\(hasPermission\('participants\.walk_in'\)\)\)/
   );
 });

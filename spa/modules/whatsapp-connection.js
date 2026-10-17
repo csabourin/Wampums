@@ -7,12 +7,12 @@
  * @module modules/whatsapp-connection
  */
 
-import { makeApiRequest } from "../api/api-core.js";
-import { debugLog, debugError } from "../utils/DebugUtils.js";
-import { translate } from "../app.js";
-import { escapeHTML } from "../utils/SecurityUtils.js";
-import { confirmDestructive } from "../utils/DialogUtils.js";
-import { loadSocketIOClient } from "../utils/SocketIOClient.js";
+import { makeApiRequest } from '../api/api-core.js';
+import { debugLog, debugError } from '../utils/DebugUtils.js';
+import { translate } from '../app.js';
+import { escapeHTML } from '../utils/SecurityUtils.js';
+import { confirmDestructive } from '../utils/DialogUtils.js';
+import { loadSocketIOClient } from '../utils/SocketIOClient.js';
 
 import { apiErrorMessage } from '../utils/ApiErrorUtils.js';
 /**
@@ -31,12 +31,12 @@ export class WhatsAppConnectionModule {
    * Initialize the module
    */
   async init() {
-    debugLog("Initializing WhatsAppConnectionModule");
+    debugLog('Initializing WhatsAppConnectionModule');
     try {
       await this.loadConnectionStatus();
       this.initializeSocket();
     } catch (error) {
-      debugError("Error initializing WhatsApp connection module:", error);
+      debugError('Error initializing WhatsApp connection module:', error);
     }
   }
 
@@ -46,7 +46,7 @@ export class WhatsAppConnectionModule {
   async initializeSocket() {
     const token = localStorage.getItem('jwtToken');
     if (!token) {
-      debugError("No JWT token found for Socket.io authentication");
+      debugError('No JWT token found for Socket.io authentication');
       return;
     }
 
@@ -54,7 +54,7 @@ export class WhatsAppConnectionModule {
       const io = await loadSocketIOClient();
 
       if (!io) {
-        debugError("Socket.io client not available");
+        debugError('Socket.io client not available');
         return;
       }
 
@@ -66,7 +66,7 @@ export class WhatsAppConnectionModule {
         }
       });
     } catch (error) {
-      debugError("Error loading Socket.io client:", error);
+      debugError('Error loading Socket.io client:', error);
       return;
     }
 
@@ -116,19 +116,19 @@ export class WhatsAppConnectionModule {
    */
   async loadConnectionStatus() {
     try {
-      debugLog("Loading WhatsApp connection status");
-      const response = await makeApiRequest("v1/whatsapp/baileys/status", {
-        method: "GET",
+      debugLog('Loading WhatsApp connection status');
+      const response = await makeApiRequest('v1/whatsapp/baileys/status', {
+        method: 'GET',
       });
 
       if (response.success) {
         this.connectionStatus = response.data;
-        debugLog("WhatsApp connection status loaded:", this.connectionStatus);
+        debugLog('WhatsApp connection status loaded:', this.connectionStatus);
       } else {
-        throw new Error(response.message || "Failed to load WhatsApp connection status");
+        throw new Error(response.message || 'Failed to load WhatsApp connection status');
       }
     } catch (error) {
-      debugError("Error loading WhatsApp connection status:", error);
+      debugError('Error loading WhatsApp connection status:', error);
       this.connectionStatus = {
         isConnected: false,
         connectedPhoneNumber: null,
@@ -142,70 +142,70 @@ export class WhatsAppConnectionModule {
    */
   render() {
     const isConnected = this.connectionStatus?.isConnected || false;
-    const phoneNumber = escapeHTML(this.connectionStatus?.connectedPhoneNumber || "Not connected");
+    const phoneNumber = escapeHTML(this.connectionStatus?.connectedPhoneNumber || 'Not connected');
 
     return `
       <section class="account-section whatsapp-connection-section">
-        <h2>${translate("whatsapp_connection_title") || "WhatsApp Connection (Baileys)"}</h2>
+        <h2>${translate('whatsapp_connection_title') || 'WhatsApp Connection (Baileys)'}</h2>
         <p class="section-description">
-          ${translate("whatsapp_connection_description") || "Connect your personal WhatsApp account to send announcements. Scan the QR code with your phone."}
+          ${translate('whatsapp_connection_description') || 'Connect your personal WhatsApp account to send announcements. Scan the QR code with your phone.'}
         </p>
 
         <div class="whatsapp-status-box ${isConnected ? 'connected' : 'disconnected'}">
-          <p><strong>${translate("status") || "Status"}:</strong>
+          <p><strong>${translate('status') || 'Status'}:</strong>
             ${isConnected
-              ? `<span class="status-badge connected">✓ ${translate("connected") || "Connected"}</span>`
-              : `<span class="status-badge disconnected">✗ ${translate("disconnected") || "Disconnected"}</span>`
-            }
+    ? `<span class="status-badge connected">✓ ${translate('connected') || 'Connected'}</span>`
+    : `<span class="status-badge disconnected">✗ ${translate('disconnected') || 'Disconnected'}</span>`
+}
           </p>
           ${isConnected
-            ? `<p><strong>${translate("phone_number") || "Phone Number"}:</strong> ${phoneNumber}</p>`
-            : ''
-          }
+    ? `<p><strong>${translate('phone_number') || 'Phone Number'}:</strong> ${phoneNumber}</p>`
+    : ''
+}
         </div>
 
         ${!isConnected
-          ? `
+    ? `
             <div class="whatsapp-connect-container">
               <button id="whatsapp-connect-btn" class="button button--primary">
-                ${translate("whatsapp_connect_button") || "Connect WhatsApp"}
+                ${translate('whatsapp_connect_button') || 'Connect WhatsApp'}
               </button>
 
               <div id="whatsapp-qr-container" style="display: none; margin-top: 20px;">
-                <h3>${translate("scan_qr_code") || "Scan QR Code with WhatsApp"}</h3>
+                <h3>${translate('scan_qr_code') || 'Scan QR Code with WhatsApp'}</h3>
                 <div id="whatsapp-qr-code" style="text-align: center; padding: 20px; background: white; border-radius: 8px;">
-                  <p>${translate("loading") || "Loading QR code..."}</p>
+                  <p>${translate('loading') || 'Loading QR code...'}</p>
                 </div>
                 <div class="qr-instructions" style="margin-top: 15px; padding: 15px; background: #f5f5f5; border-radius: 8px;">
-                  <h4>${translate("instructions") || "Instructions"}:</h4>
+                  <h4>${translate('instructions') || 'Instructions'}:</h4>
                   <ol style="margin-left: 20px;">
-                    <li>${translate("whatsapp_qr_step1") || "Open WhatsApp on your phone"}</li>
-                    <li>${translate("whatsapp_qr_step2") || "Go to Settings → Linked Devices"}</li>
-                    <li>${translate("whatsapp_qr_step3") || "Tap 'Link a Device'"}</li>
-                    <li>${translate("whatsapp_qr_step4") || "Scan this QR code"}</li>
+                    <li>${translate('whatsapp_qr_step1') || 'Open WhatsApp on your phone'}</li>
+                    <li>${translate('whatsapp_qr_step2') || 'Go to Settings → Linked Devices'}</li>
+                    <li>${translate('whatsapp_qr_step3') || "Tap 'Link a Device'"}</li>
+                    <li>${translate('whatsapp_qr_step4') || 'Scan this QR code'}</li>
                   </ol>
                   <div style="margin-top: 10px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
-                    <strong>⚠️ ${translate("important") || "Important"}:</strong>
+                    <strong>⚠️ ${translate('important') || 'Important'}:</strong>
                     <p style="margin: 5px 0 0 0; font-size: 0.9em;">
-                      ${translate("whatsapp_safety_warning") || "This uses an unofficial API. Only send to contacts who have your number saved. Add 2-5 second delays between messages."}
+                      ${translate('whatsapp_safety_warning') || 'This uses an unofficial API. Only send to contacts who have your number saved. Add 2-5 second delays between messages.'}
                     </p>
                   </div>
                 </div>
               </div>
             </div>
           `
-          : `
+    : `
             <div class="whatsapp-disconnect-container" style="margin-top: 20px;">
               <button id="whatsapp-disconnect-btn" class="button button--danger">
-                ${translate("whatsapp_disconnect_button") || "Disconnect WhatsApp"}
+                ${translate('whatsapp_disconnect_button') || 'Disconnect WhatsApp'}
               </button>
             </div>
 
             <div class="whatsapp-test-container" style="margin-top: 20px;">
-              <h3>${translate("send_test_message") || "Send Test Message"}</h3>
+              <h3>${translate('send_test_message') || 'Send Test Message'}</h3>
               <form id="whatsapp-test-form" class="account-form">
                 <div class="form-group">
-                  <label for="test-phone-number">${translate("phone_number") || "Phone Number"}</label>
+                  <label for="test-phone-number">${translate('phone_number') || 'Phone Number'}</label>
                   <input
                     type="tel"
                     id="test-phone-number"
@@ -214,10 +214,10 @@ export class WhatsAppConnectionModule {
                     pattern="^\\+[1-9]\\d{6,14}$"
                     required
                   />
-                  <small class="form-text">${translate("e164_format") || "Format: +[country code][number]"}</small>
+                  <small class="form-text">${translate('e164_format') || 'Format: +[country code][number]'}</small>
                 </div>
                 <div class="form-group">
-                  <label for="test-message">${translate("message") || "Message"}</label>
+                  <label for="test-message">${translate('message') || 'Message'}</label>
                   <textarea
                     id="test-message"
                     name="message"
@@ -226,12 +226,12 @@ export class WhatsAppConnectionModule {
                   ></textarea>
                 </div>
                 <button type="submit" class="button button--primary" id="test-message-submit">
-                  ${translate("send_test_message_button") || "Send Test Message"}
+                  ${translate('send_test_message_button') || 'Send Test Message'}
                 </button>
               </form>
             </div>
           `
-        }
+}
       </section>
     `;
   }
@@ -240,19 +240,19 @@ export class WhatsAppConnectionModule {
    * Attach event listeners
    */
   attachEventListeners() {
-    const connectBtn = document.getElementById("whatsapp-connect-btn");
+    const connectBtn = document.getElementById('whatsapp-connect-btn');
     if (connectBtn) {
-      connectBtn.addEventListener("click", () => this.handleConnect());
+      connectBtn.addEventListener('click', () => this.handleConnect());
     }
 
-    const disconnectBtn = document.getElementById("whatsapp-disconnect-btn");
+    const disconnectBtn = document.getElementById('whatsapp-disconnect-btn');
     if (disconnectBtn) {
-      disconnectBtn.addEventListener("click", () => this.handleDisconnect());
+      disconnectBtn.addEventListener('click', () => this.handleDisconnect());
     }
 
-    const testForm = document.getElementById("whatsapp-test-form");
+    const testForm = document.getElementById('whatsapp-test-form');
     if (testForm) {
-      testForm.addEventListener("submit", (e) => this.handleTestMessage(e));
+      testForm.addEventListener('submit', (e) => this.handleTestMessage(e));
     }
   }
 
@@ -260,46 +260,46 @@ export class WhatsAppConnectionModule {
    * Handle WhatsApp connection
    */
   async handleConnect() {
-    if (this.isLoading) return;
+    if (this.isLoading) {return;}
 
     try {
       this.isLoading = true;
-      const connectBtn = document.getElementById("whatsapp-connect-btn");
+      const connectBtn = document.getElementById('whatsapp-connect-btn');
       if (connectBtn) {
         connectBtn.disabled = true;
-        connectBtn.textContent = translate("connecting") || "Connecting...";
+        connectBtn.textContent = translate('connecting') || 'Connecting...';
       }
 
-      debugLog("Initiating WhatsApp connection");
+      debugLog('Initiating WhatsApp connection');
 
-      const response = await makeApiRequest("v1/whatsapp/baileys/connect", {
-        method: "POST",
+      const response = await makeApiRequest('v1/whatsapp/baileys/connect', {
+        method: 'POST',
       });
 
       if (response.success) {
         // Show QR code container
-        const qrContainer = document.getElementById("whatsapp-qr-container");
+        const qrContainer = document.getElementById('whatsapp-qr-container');
         if (qrContainer) {
-          qrContainer.style.display = "block";
+          qrContainer.style.display = 'block';
         }
 
         this.app.showMessage(
-          translate("whatsapp_qr_pending") || "QR code will appear shortly. Please wait...",
-          "info"
+          translate('whatsapp_qr_pending') || 'QR code will appear shortly. Please wait...',
+          'info'
         );
 
         // Hide connect button
         if (connectBtn) {
-          connectBtn.style.display = "none";
+          connectBtn.style.display = 'none';
         }
       } else {
-        throw new Error(response.message || "Failed to initiate WhatsApp connection");
+        throw new Error(response.message || 'Failed to initiate WhatsApp connection');
       }
     } catch (error) {
-      debugError("Error connecting WhatsApp:", error);
+      debugError('Error connecting WhatsApp:', error);
       this.app.showMessage(
         apiErrorMessage(error, 'whatsapp_connect_error'),
-        "error"
+        'error'
       );
     } finally {
       this.isLoading = false;
@@ -311,27 +311,27 @@ export class WhatsAppConnectionModule {
    * @param {string} qrDataURL - QR code data URL
    */
   renderQRCode(qrDataURL) {
-    const qrContainer = document.getElementById("whatsapp-qr-container");
-    const qrCodeDiv = document.getElementById("whatsapp-qr-code");
+    const qrContainer = document.getElementById('whatsapp-qr-container');
+    const qrCodeDiv = document.getElementById('whatsapp-qr-code');
 
     if (!qrCodeDiv) {
       return;
     }
 
     // Ensure the container is visible even if the QR arrives after a reconnect
-    if (qrContainer && qrContainer.style.display === "none") {
-      qrContainer.style.display = "block";
+    if (qrContainer && qrContainer.style.display === 'none') {
+      qrContainer.style.display = 'block';
     }
 
     // Rebuild the image node to force a refresh when Baileys rotates the QR
     qrCodeDiv.replaceChildren();
-    const img = document.createElement("img");
+    const img = document.createElement('img');
     img.src = qrDataURL;
-    img.alt = translate("whatsapp_qr_code_alt") || "WhatsApp QR Code";
-    img.style.maxWidth = "300px";
-    img.style.border = "2px solid #25D366";
-    img.style.borderRadius = "8px";
-    img.setAttribute("data-updated-at", Date.now().toString());
+    img.alt = translate('whatsapp_qr_code_alt') || 'WhatsApp QR Code';
+    img.style.maxWidth = '300px';
+    img.style.border = '2px solid #25D366';
+    img.style.borderRadius = '8px';
+    img.setAttribute('data-updated-at', Date.now().toString());
     qrCodeDiv.appendChild(img);
   }
 
@@ -339,46 +339,46 @@ export class WhatsAppConnectionModule {
    * Handle WhatsApp disconnection
    */
   async handleDisconnect() {
-    if (this.isLoading) return;
+    if (this.isLoading) {return;}
 
     const confirmed = await confirmDestructive(
-      translate("whatsapp_disconnect_confirm") ||
-      "Are you sure you want to disconnect WhatsApp? You will need to scan the QR code again to reconnect."
+      translate('whatsapp_disconnect_confirm') ||
+      'Are you sure you want to disconnect WhatsApp? You will need to scan the QR code again to reconnect.'
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {return;}
 
     try {
       this.isLoading = true;
-      const disconnectBtn = document.getElementById("whatsapp-disconnect-btn");
+      const disconnectBtn = document.getElementById('whatsapp-disconnect-btn');
       if (disconnectBtn) {
         disconnectBtn.disabled = true;
-        disconnectBtn.textContent = translate("disconnecting") || "Disconnecting...";
+        disconnectBtn.textContent = translate('disconnecting') || 'Disconnecting...';
       }
 
-      debugLog("Disconnecting WhatsApp");
+      debugLog('Disconnecting WhatsApp');
 
-      const response = await makeApiRequest("v1/whatsapp/baileys/disconnect", {
-        method: "POST",
+      const response = await makeApiRequest('v1/whatsapp/baileys/disconnect', {
+        method: 'POST',
       });
 
       if (response.success) {
         this.app.showMessage(
-          translate("whatsapp_disconnected_success") || "WhatsApp disconnected successfully",
-          "success"
+          translate('whatsapp_disconnected_success') || 'WhatsApp disconnected successfully',
+          'success'
         );
 
         // Reload connection status and re-render
         await this.loadConnectionStatus();
         location.reload(); // Reload page to update UI
       } else {
-        throw new Error(response.message || "Failed to disconnect WhatsApp");
+        throw new Error(response.message || 'Failed to disconnect WhatsApp');
       }
     } catch (error) {
-      debugError("Error disconnecting WhatsApp:", error);
+      debugError('Error disconnecting WhatsApp:', error);
       this.app.showMessage(
         apiErrorMessage(error, 'whatsapp_disconnect_error'),
-        "error"
+        'error'
       );
     } finally {
       this.isLoading = false;
@@ -392,12 +392,12 @@ export class WhatsAppConnectionModule {
   async handleTestMessage(event) {
     event.preventDefault();
 
-    if (this.isLoading) return;
+    if (this.isLoading) {return;}
 
     const form = event.target;
-    const phoneNumberInput = form.querySelector("#test-phone-number");
-    const messageInput = form.querySelector("#test-message");
-    const submitButton = form.querySelector("#test-message-submit");
+    const phoneNumberInput = form.querySelector('#test-phone-number');
+    const messageInput = form.querySelector('#test-message');
+    const submitButton = form.querySelector('#test-message-submit');
 
     const phoneNumber = phoneNumberInput.value.trim();
     const message = messageInput.value.trim();
@@ -405,34 +405,34 @@ export class WhatsAppConnectionModule {
     try {
       this.isLoading = true;
       submitButton.disabled = true;
-      submitButton.textContent = translate("sending") || "Sending...";
+      submitButton.textContent = translate('sending') || 'Sending...';
 
-      debugLog("Sending test WhatsApp message:", { phoneNumber, message });
+      debugLog('Sending test WhatsApp message:', { phoneNumber, message });
 
-      const response = await makeApiRequest("v1/whatsapp/baileys/test", {
-        method: "POST",
+      const response = await makeApiRequest('v1/whatsapp/baileys/test', {
+        method: 'POST',
         body: { phoneNumber, message },
       });
 
       if (response.success) {
         this.app.showMessage(
-          translate("test_message_sent_success") || "Test message sent successfully!",
-          "success"
+          translate('test_message_sent_success') || 'Test message sent successfully!',
+          'success'
         );
         form.reset();
       } else {
-        throw new Error(response.message || "Failed to send test message");
+        throw new Error(response.message || 'Failed to send test message');
       }
     } catch (error) {
-      debugError("Error sending test message:", error);
+      debugError('Error sending test message:', error);
       this.app.showMessage(
         apiErrorMessage(error, 'test_message_error'),
-        "error"
+        'error'
       );
     } finally {
       this.isLoading = false;
       submitButton.disabled = false;
-      submitButton.textContent = translate("send_test_message_button") || "Send Test Message";
+      submitButton.textContent = translate('send_test_message_button') || 'Send Test Message';
     }
   }
 
@@ -443,7 +443,7 @@ export class WhatsAppConnectionModule {
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
-      debugLog("Socket.io disconnected and cleaned up");
+      debugLog('Socket.io disconnected and cleaned up');
     }
   }
 }

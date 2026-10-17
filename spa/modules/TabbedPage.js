@@ -16,13 +16,13 @@
  *   await page.init();
  */
 
-import { translate } from "../app.js";
-import { setContent } from "../utils/DOMUtils.js";
-import { escapeHTML } from "../utils/SecurityUtils.js";
-import { debugLog, debugError } from "../utils/DebugUtils.js";
-import { BaseModule } from "../utils/BaseModule.js";
+import { translate } from '../app.js';
+import { setContent } from '../utils/DOMUtils.js';
+import { escapeHTML } from '../utils/SecurityUtils.js';
+import { debugLog, debugError } from '../utils/DebugUtils.js';
+import { BaseModule } from '../utils/BaseModule.js';
 
-const PANEL_ID = "tabbed-page-panel";
+const PANEL_ID = 'tabbed-page-panel';
 
 /**
  * @param {number} token - Mount activation token.
@@ -68,9 +68,9 @@ export class TabbedPage extends BaseModule {
   resolveInitialTab() {
     let requested = null;
     try {
-      requested = new URL(window.location.href).searchParams.get("tab");
+      requested = new URL(window.location.href).searchParams.get('tab');
     } catch (error) {
-      debugLog("Could not read tab from URL:", error);
+      debugLog('Could not read tab from URL:', error);
     }
 
     if (requested && this.tabs.some((tab) => tab.key === requested)) {
@@ -88,23 +88,23 @@ export class TabbedPage extends BaseModule {
         const isActive = tab.key === this.activeKey;
         return `
           <button type="button"
-                  class="tabbed-page__tab${isActive ? " is-active" : ""}"
+                  class="tabbed-page__tab${isActive ? ' is-active' : ''}"
                   role="tab"
                   id="tabbed-page-tab-${escapeHTML(tab.key)}"
                   aria-selected="${isActive}"
                   aria-controls="${PANEL_ID}"
-                  tabindex="${isActive ? "0" : "-1"}"
+                  tabindex="${isActive ? '0' : '-1'}"
                   data-tab="${escapeHTML(tab.key)}">
             ${escapeHTML(translate(tab.labelKey))}
           </button>
         `;
       })
-      .join("");
+      .join('');
 
     setContent(
-      document.getElementById("app"),
+      document.getElementById('app'),
       `
-      <a href="/dashboard" class="button button--ghost">← ${escapeHTML(translate("back"))}</a>
+      <a href="/dashboard" class="button button--ghost">← ${escapeHTML(translate('back'))}</a>
       <section class="tabbed-page">
         <header class="tabbed-page__header">
           <h1>${escapeHTML(translate(this.config.titleKey))}</h1>
@@ -120,25 +120,25 @@ export class TabbedPage extends BaseModule {
 
   renderEmpty() {
     setContent(
-      document.getElementById("app"),
+      document.getElementById('app'),
       `
-      <a href="/dashboard" class="button button--ghost">← ${escapeHTML(translate("back"))}</a>
+      <a href="/dashboard" class="button button--ghost">← ${escapeHTML(translate('back'))}</a>
       <section class="tabbed-page">
         <header class="tabbed-page__header">
           <h1>${escapeHTML(translate(this.config.titleKey))}</h1>
         </header>
-        <p class="empty-state">${escapeHTML(translate("no_access"))}</p>
+        <p class="empty-state">${escapeHTML(translate('no_access'))}</p>
       </section>
     `,
     );
   }
 
   attachEventListeners() {
-    document.querySelectorAll(".tabbed-page__tab").forEach((button) => {
-      this.addEventListener(button, "click", () => {
+    document.querySelectorAll('.tabbed-page__tab').forEach((button) => {
+      this.addEventListener(button, 'click', () => {
         this.switchTo(button.dataset.tab);
       });
-      this.addEventListener(button, "keydown", (event) => {
+      this.addEventListener(button, 'keydown', (event) => {
         this.handleTabKeydown(event);
       });
     });
@@ -151,7 +151,7 @@ export class TabbedPage extends BaseModule {
    */
   handleTabKeydown(event) {
     const delta = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
-    if (!delta) return;
+    if (!delta) {return;}
 
     event.preventDefault();
     const index = this.tabs.findIndex((tab) => tab.key === this.activeKey);
@@ -164,8 +164,8 @@ export class TabbedPage extends BaseModule {
    * @param {string} key - Tab to activate.
    */
   async switchTo(key) {
-    if (!key || key === this.activeKey) return;
-    if (!this.tabs.some((tab) => tab.key === key)) return;
+    if (!key || key === this.activeKey) {return;}
+    if (!this.tabs.some((tab) => tab.key === key)) {return;}
 
     this.activeKey = key;
     this.syncUrl(key);
@@ -180,10 +180,10 @@ export class TabbedPage extends BaseModule {
    * Reflect `activeKey` on the existing tab buttons.
    */
   updateTabStates() {
-    document.querySelectorAll(".tabbed-page__tab").forEach((button) => {
+    document.querySelectorAll('.tabbed-page__tab').forEach((button) => {
       const isActive = button.dataset.tab === this.activeKey;
-      button.classList.toggle("is-active", isActive);
-      button.setAttribute("aria-selected", String(isActive));
+      button.classList.toggle('is-active', isActive);
+      button.setAttribute('aria-selected', String(isActive));
       button.tabIndex = isActive ? 0 : -1;
     });
   }
@@ -196,10 +196,10 @@ export class TabbedPage extends BaseModule {
   syncUrl(key) {
     try {
       const url = new URL(window.location.href);
-      url.searchParams.set("tab", key);
-      window.history.replaceState({}, "", url);
+      url.searchParams.set('tab', key);
+      window.history.replaceState({}, '', url);
     } catch (error) {
-      debugLog("Could not sync tab to URL:", error);
+      debugLog('Could not sync tab to URL:', error);
     }
   }
 
@@ -218,10 +218,10 @@ export class TabbedPage extends BaseModule {
    */
   async mountActiveTab() {
     const tab = this.tabs.find((t) => t.key === this.activeKey);
-    if (!tab) return;
+    if (!tab) {return;}
 
     const panel = document.getElementById(PANEL_ID);
-    if (!panel) return;
+    if (!panel) {return;}
     // A rapid A -> B -> A switch must not create a second live DOM tree for A.
     // Let its obsolete initialization settle first, then mount a fresh instance.
     const existingPending = this.pendingByKey.get(tab.key);
@@ -253,7 +253,7 @@ export class TabbedPage extends BaseModule {
     try {
       const PageClass = await tab.load();
       // The tab may have changed while the import was in flight.
-      if (!this.isCurrentMount(token)) return;
+      if (!this.isCurrentMount(token)) {return;}
 
       const instance = new PageClass(this.app, {
         ...(tab.options || {}),
@@ -262,14 +262,14 @@ export class TabbedPage extends BaseModule {
       });
       this.activeModule = instance;
       await instance.init();
-      if (!this.isCurrentMount(token)) return;
+      if (!this.isCurrentMount(token)) {return;}
       debugLog(`TabbedPage mounted tab "${tab.key}"`);
     } catch (error) {
       debugError(`Failed to mount tab "${tab.key}":`, error);
-      if (!this.isCurrentMount(token)) return;
+      if (!this.isCurrentMount(token)) {return;}
       const target = document.getElementById(containerId);
       if (target) {
-        setContent(target, `<p class="error-message">${escapeHTML(translate("error_loading_data"))}</p>`);
+        setContent(target, `<p class="error-message">${escapeHTML(translate('error_loading_data'))}</p>`);
       }
     } finally {
       this.pendingMounts.delete(token);
@@ -299,11 +299,11 @@ export class TabbedPage extends BaseModule {
    * @returns {HTMLElement}
    */
   createMount(token, containerId) {
-    const mount = document.createElement("div");
+    const mount = document.createElement('div');
     mount.id = containerId;
-    mount.className = "tabbed-page__mount";
+    mount.className = 'tabbed-page__mount';
     mount.dataset.mountToken = String(token);
-    setContent(mount, `<p class="loading-state">${escapeHTML(translate("loading"))}</p>`);
+    setContent(mount, `<p class="loading-state">${escapeHTML(translate('loading'))}</p>`);
     return mount;
   }
 
@@ -328,11 +328,11 @@ export class TabbedPage extends BaseModule {
   }
 
   destroyActiveModule() {
-    if (!this.activeModule) return;
+    if (!this.activeModule) {return;}
     try {
       this.activeModule.destroy?.();
     } catch (error) {
-      debugError("Error destroying tab module:", error);
+      debugError('Error destroying tab module:', error);
     }
     this.activeModule = null;
   }

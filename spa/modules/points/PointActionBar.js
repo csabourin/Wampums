@@ -113,7 +113,7 @@ export class PointActionBar {
     this.destroy();
     this.root = root;
     this.appRoot = appRoot;
-    if (!this.root) return;
+    if (!this.root) {return;}
 
     this.abortController = new AbortController();
     const { signal } = this.abortController;
@@ -147,7 +147,7 @@ export class PointActionBar {
     }
 
     const actionButton = event.target.closest('[data-points]');
-    if (!actionButton) return;
+    if (!actionButton) {return;}
 
     if (actionButton.closest('[role="menu"]')) {
       this.closeValueMenu({ restoreFocus: true });
@@ -167,10 +167,10 @@ export class PointActionBar {
       const options = [...menu.querySelectorAll('[role="menuitem"]')];
       const currentIndex = options.indexOf(document.activeElement);
       let nextIndex = null;
-      if (event.key === 'ArrowDown') nextIndex = (currentIndex + 1) % options.length;
-      if (event.key === 'ArrowUp') nextIndex = (currentIndex - 1 + options.length) % options.length;
-      if (event.key === 'Home') nextIndex = 0;
-      if (event.key === 'End') nextIndex = options.length - 1;
+      if (event.key === 'ArrowDown') {nextIndex = (currentIndex + 1) % options.length;}
+      if (event.key === 'ArrowUp') {nextIndex = (currentIndex - 1 + options.length) % options.length;}
+      if (event.key === 'Home') {nextIndex = 0;}
+      if (event.key === 'End') {nextIndex = options.length - 1;}
       if (nextIndex !== null) {
         event.preventDefault();
         options[nextIndex]?.focus();
@@ -180,14 +180,14 @@ export class PointActionBar {
   }
 
   handleOutsidePointer(event) {
-    if (!this.activeMenu) return;
-    if (this.activeMenu.contains(event.target) || this.activeMenuTrigger?.contains(event.target)) return;
+    if (!this.activeMenu) {return;}
+    if (this.activeMenu.contains(event.target) || this.activeMenuTrigger?.contains(event.target)) {return;}
     this.closeValueMenu();
   }
 
   toggleValueMenu(trigger) {
     const menu = document.getElementById(trigger.getAttribute('aria-controls'));
-    if (!menu) return;
+    if (!menu) {return;}
     if (this.activeMenu === menu) {
       this.closeValueMenu({ restoreFocus: true });
       return;
@@ -202,10 +202,10 @@ export class PointActionBar {
   }
 
   closeValueMenu({ restoreFocus = false } = {}) {
-    if (!this.activeMenu) return;
+    if (!this.activeMenu) {return;}
     this.activeMenu.hidden = true;
     this.activeMenuTrigger?.setAttribute('aria-expanded', 'false');
-    if (restoreFocus) this.activeMenuTrigger?.focus();
+    if (restoreFocus) {this.activeMenuTrigger?.focus();}
     this.activeMenu = null;
     this.activeMenuTrigger = null;
   }
@@ -217,7 +217,7 @@ export class PointActionBar {
    */
   openGameDialog(trigger) {
     this.closeValueMenu();
-    if (this.gameDialog) return;
+    if (this.gameDialog) {return;}
     this.gameTrigger = trigger;
     trigger.setAttribute('aria-expanded', 'true');
     this.gameDialog = openModal({
@@ -236,21 +236,21 @@ export class PointActionBar {
     });
     this.gameDialog.overlay.addEventListener('click', (event) => {
       const option = event.target.closest('[data-game-result]');
-      if (!option) return;
+      if (!option) {return;}
       this.closeGameDialog();
       this.runAction(Number(option.dataset.points), option);
     });
   }
 
   closeGameDialog({ restoreFocus = true } = {}) {
-    if (!this.gameDialog) return;
+    if (!this.gameDialog) {return;}
     const trigger = this.gameTrigger;
     this.gameDialog.close(true);
-    if (restoreFocus) trigger?.focus();
+    if (restoreFocus) {trigger?.focus();}
   }
 
   async runAction(points, sourceButton) {
-    if (!Number.isFinite(points) || sourceButton.dataset.actionBusy === 'true') return;
+    if (!Number.isFinite(points) || sourceButton.dataset.actionBusy === 'true') {return;}
     sourceButton.dataset.actionBusy = 'true';
     sourceButton.disabled = true;
     sourceButton.setAttribute('aria-busy', 'true');
@@ -265,16 +265,16 @@ export class PointActionBar {
 
   updateSelection(summary) {
     const element = this.root?.querySelector('#points-selection-summary');
-    if (element) element.textContent = summary;
+    if (element) {element.textContent = summary;}
     const feedback = this.root?.querySelector('#points-action-feedback');
     feedback?.classList.remove('points-action-feedback--visible');
     const visual = feedback?.querySelector('.points-action-feedback__visual');
-    if (visual) visual.textContent = '';
+    if (visual) {visual.textContent = '';}
   }
 
   showFeedback(points, announcement) {
     const feedback = this.root?.querySelector('#points-action-feedback');
-    if (!feedback) return;
+    if (!feedback) {return;}
     const visual = feedback.querySelector('.points-action-feedback__visual');
     const liveRegion = feedback.querySelector('.points-action-feedback__announcement');
     visual.textContent = signedValue(points);
@@ -291,7 +291,7 @@ export class PointActionBar {
 
   announce(message) {
     const feedback = this.root?.querySelector('#points-action-feedback');
-    if (!feedback) return;
+    if (!feedback) {return;}
     feedback.querySelector('.points-action-feedback__visual').textContent = message;
     feedback.querySelector('.points-action-feedback__announcement').textContent = message;
     feedback.classList.add('points-action-feedback--visible');
@@ -303,7 +303,7 @@ export class PointActionBar {
   }
 
   reservePageSpace() {
-    if (!this.appRoot || !this.root) return;
+    if (!this.appRoot || !this.root) {return;}
     this.appRoot.style.setProperty('--points-action-bar-height', `${this.root.offsetHeight}px`);
   }
 

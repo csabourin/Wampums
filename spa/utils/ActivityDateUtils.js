@@ -39,7 +39,7 @@ export function formatActivityDateRange(activity = {}, lang = 'en') {
   const startTime = getActivityStartTime(activity);
   const endTime = getActivityEndTime(activity);
 
-  if (!startDate && !endDate) return '';
+  if (!startDate && !endDate) {return '';}
 
   const startLabel = startDate ? formatDateShort(startDate, lang) : '';
   const endLabel = endDate ? formatDateShort(endDate, lang) : '';

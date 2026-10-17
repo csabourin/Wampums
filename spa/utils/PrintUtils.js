@@ -21,7 +21,7 @@ export function openPrintWindow() {
  * @returns {boolean} Whether content was written
  */
 export function setPrintContent(printWindow, html, title = '') {
-  if (!printWindow) return false;
+  if (!printWindow) {return false;}
   const printDocument = printWindow.document;
   printDocument.title = String(title);
   printDocument.body.replaceChildren(

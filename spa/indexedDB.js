@@ -1,10 +1,10 @@
-import { debugLog, debugError, debugWarn } from "./utils/DebugUtils.js";
-import { buildApiCacheKey, buildScopedCacheKey, normalizeApiPath } from "./utils/OfflineCacheKeys.js";
-import { notePageCacheHit, notePageCacheKey } from "./modules/live-sync/LiveSyncState.js";
+import { debugLog, debugError, debugWarn } from './utils/DebugUtils.js';
+import { buildApiCacheKey, buildScopedCacheKey, normalizeApiPath } from './utils/OfflineCacheKeys.js';
+import { notePageCacheHit, notePageCacheKey } from './modules/live-sync/LiveSyncState.js';
 
-const DB_NAME = "WampumsAppDB";
+const DB_NAME = 'WampumsAppDB';
 const DB_VERSION = 12;
-const STORE_NAME = "offlineData";
+const STORE_NAME = 'offlineData';
 
 // Monotonically increasing counter used as tie-breaker when multiple
 // saveOfflineData calls happen within the same millisecond.
@@ -20,29 +20,29 @@ export function deleteIndexedDB() {
     const deleteRequest = indexedDB.deleteDatabase(DB_NAME);
     let settled = false;
     const finish = (callback, value) => {
-      if (settled) return;
+      if (settled) {return;}
       settled = true;
       clearTimeout(blockedTimeout);
       callback(value);
     };
     const blockedTimeout = setTimeout(() => {
-      debugWarn("IndexedDB deletion is still blocked; continuing logout.");
+      debugWarn('IndexedDB deletion is still blocked; continuing logout.');
       finish(resolve);
     }, 2000);
 
     deleteRequest.onsuccess = () => {
-      debugLog("IndexedDB deleted successfully");
+      debugLog('IndexedDB deleted successfully');
       finish(resolve);
     };
 
     deleteRequest.onerror = () => {
-      debugError("Error deleting IndexedDB:", deleteRequest.error);
+      debugError('Error deleting IndexedDB:', deleteRequest.error);
       finish(reject, deleteRequest.error);
     };
 
     deleteRequest.onblocked = () => {
       debugWarn(
-        "IndexedDB deletion blocked. Close other tabs using the app to complete cleanup.",
+        'IndexedDB deletion blocked. Close other tabs using the app to complete cleanup.',
       );
     };
   });
@@ -54,23 +54,23 @@ export function openDB() {
 
     request.onerror = (event) => {
       const err = event.target.error || new Error(`IndexedDB open failed (errorCode ${event.target.errorCode})`);
-      debugError("Error opening IndexedDB:", err);
+      debugError('Error opening IndexedDB:', err);
       reject(err);
     };
 
     request.onsuccess = (event) => {
-      debugLog("IndexedDB opened successfully");
+      debugLog('IndexedDB opened successfully');
       resolve(event.target.result);
     };
 
     request.onupgradeneeded = (event) => {
-      debugLog("Upgrading IndexedDB...");
+      debugLog('Upgrading IndexedDB...');
       const db = event.target.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: "key" });
-        store.createIndex("key_idx", "key", { unique: true });
-        store.createIndex("type_idx", "type", { unique: false });
-        store.createIndex("timestamp_idx", "timestamp", { unique: false });
+        const store = db.createObjectStore(STORE_NAME, { keyPath: 'key' });
+        store.createIndex('key_idx', 'key', { unique: true });
+        store.createIndex('type_idx', 'type', { unique: false });
+        store.createIndex('timestamp_idx', 'timestamp', { unique: false });
       }
     };
   });
@@ -93,13 +93,13 @@ export async function setCachedData(key, data, expirationTime = 2 * 60 * 60 * 10
   notePageCacheKey(scopedKey);
 
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
+    const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
 
     const record = {
       key: scopedKey,
       data: data,
-      type: "cache",
+      type: 'cache',
       timestamp: Date.now(),
       expiration: Date.now() + expirationTime,
     };
@@ -110,12 +110,12 @@ export async function setCachedData(key, data, expirationTime = 2 * 60 * 60 * 10
     const request = store.put(record);
 
     request.onerror = () => {
-      debugError("Error storing data:", request.error);
+      debugError('Error storing data:', request.error);
       reject(request.error);
     };
 
     request.onsuccess = () => {
-      debugLog("Data stored successfully:", record);
+      debugLog('Data stored successfully:', record);
       resolve(request.result);
     };
 
@@ -131,36 +131,36 @@ export async function getCachedData(key) {
   notePageCacheKey(scopedKey);
 
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readonly");
+    const tx = db.transaction(STORE_NAME, 'readonly');
     const store = tx.objectStore(STORE_NAME);
 
     const request = store.get(scopedKey);
 
     request.onerror = () => {
-      debugError("Error retrieving data:", request.error);
+      debugError('Error retrieving data:', request.error);
       reject(request.error);
     };
 
     request.onsuccess = () => {
       const record = request.result;
-      debugLog(request, " Retrieved record:", record);
+      debugLog(request, ' Retrieved record:', record);
 
       if (record && record.expiration > Date.now()) {
-        debugLog("Returning valid cached data:", record.data);
+        debugLog('Returning valid cached data:', record.data);
         notePageCacheHit(scopedKey);
         resolve(record.data);
       } else {
         if (!record) {
-          debugLog("No data found for key:", scopedKey);
+          debugLog('No data found for key:', scopedKey);
         } else {
           debugLog(
-            "Data expired for key:",
+            'Data expired for key:',
             scopedKey,
             Date.now(),
             ` exp:`,
             record.expiration,
           );
-          const cleanupTx = db.transaction(STORE_NAME, "readwrite");
+          const cleanupTx = db.transaction(STORE_NAME, 'readwrite');
           const cleanupStore = cleanupTx.objectStore(STORE_NAME);
           cleanupStore.delete(scopedKey);
         }
@@ -187,24 +187,24 @@ export async function getCachedDataIgnoreExpiration(key) {
   notePageCacheKey(scopedKey);
 
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readonly");
+    const tx = db.transaction(STORE_NAME, 'readonly');
     const store = tx.objectStore(STORE_NAME);
 
     const request = store.get(scopedKey);
 
     request.onerror = () => {
-      debugError("Error retrieving data (ignore expiration):", request.error);
+      debugError('Error retrieving data (ignore expiration):', request.error);
       reject(request.error);
     };
 
     request.onsuccess = () => {
       const record = request.result;
       if (record) {
-        debugLog("Returning cached data (ignoring expiration) for key:", scopedKey);
+        debugLog('Returning cached data (ignoring expiration) for key:', scopedKey);
         notePageCacheHit(scopedKey);
         resolve(record.data);
       } else {
-        debugLog("No data found for key:", scopedKey);
+        debugLog('No data found for key:', scopedKey);
         resolve(null);
       }
     };
@@ -220,7 +220,7 @@ export async function saveOfflineData(action, data, keyOverride = null) {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
 
     const uniqueSuffix = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -230,7 +230,7 @@ export async function saveOfflineData(action, data, keyOverride = null) {
 
     const record = {
       key: recordKey,
-      type: "offline",
+      type: 'offline',
       action,
       data,
       timestamp: Date.now(),
@@ -252,10 +252,10 @@ export async function getOfflineData() {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readonly");
+    const transaction = db.transaction(STORE_NAME, 'readonly');
     const store = transaction.objectStore(STORE_NAME);
-    const index = store.index("type_idx");
-    const request = index.getAll("offline");
+    const index = store.index('type_idx');
+    const request = index.getAll('offline');
 
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
@@ -264,7 +264,7 @@ export async function getOfflineData() {
         if (timeDiff !== 0) { return timeDiff; }
         return (a.sequence || 0) - (b.sequence || 0);
       });
-      debugLog("Retrieved offline data:", offlineData);
+      debugLog('Retrieved offline data:', offlineData);
       resolve(offlineData);
     };
     transaction.oncomplete = () => db.close();
@@ -277,10 +277,10 @@ export async function clearOfflineData() {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-    const index = store.index("type_idx");
-    const request = index.getAll("offline");
+    const index = store.index('type_idx');
+    const request = index.getAll('offline');
 
     request.onsuccess = () => {
       const offlineRecords = request.result || [];
@@ -302,17 +302,17 @@ export async function deleteCachedData(key) {
   const scopedKey = buildScopedCacheKey(key);
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
     const request = store.delete(scopedKey);
 
     request.onerror = () => {
-      debugError("Error deleting cached data:", request.error);
+      debugError('Error deleting cached data:', request.error);
       reject(request.error);
     };
 
     request.onsuccess = () => {
-      debugLog("Cache deleted for key:", scopedKey);
+      debugLog('Cache deleted for key:', scopedKey);
       resolve();
     };
 
@@ -331,7 +331,7 @@ export async function deleteCachedData(key) {
 export async function deleteOfflineData(key) {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
     const request = transaction.objectStore(STORE_NAME).delete(key);
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve();
@@ -343,14 +343,14 @@ export async function deleteOfflineData(key) {
 
 export async function clearPointsRelatedCaches() {
   const keysToDelete = [
-    "participants",
-    "manage_points_data",
-    "points_report",
-    "dashboard_groups",
-    "dashboard_participant_info",
+    'participants',
+    'manage_points_data',
+    'points_report',
+    'dashboard_groups',
+    'dashboard_participant_info',
   ];
 
-  debugLog("Clearing points-related caches:", keysToDelete);
+  debugLog('Clearing points-related caches:', keysToDelete);
 
   for (const key of keysToDelete) {
     try {
@@ -368,10 +368,10 @@ export async function clearPointsRelatedCaches() {
  * the attendance page rewrites those itself after each update.
  */
 export async function clearAttendanceRelatedCaches() {
-  const keysToDelete = ["attendance_dates"];
+  const keysToDelete = ['attendance_dates'];
 
   const db = await openDB();
-  const transaction = db.transaction(STORE_NAME, "readonly");
+  const transaction = db.transaction(STORE_NAME, 'readonly');
   const store = transaction.objectStore(STORE_NAME);
   const allKeys = await new Promise((resolve, reject) => {
     const request = store.getAllKeys();
@@ -380,12 +380,12 @@ export async function clearAttendanceRelatedCaches() {
   });
 
   for (const key of allKeys) {
-    if (typeof key === "string" && key.startsWith("attendance_api_")) {
+    if (typeof key === 'string' && key.startsWith('attendance_api_')) {
       keysToDelete.push(key);
     }
   }
 
-  debugLog("Clearing attendance-related caches:", keysToDelete);
+  debugLog('Clearing attendance-related caches:', keysToDelete);
 
   for (const key of keysToDelete) {
     try {
@@ -398,19 +398,19 @@ export async function clearAttendanceRelatedCaches() {
 
 export async function clearGroupRelatedCaches() {
   const keysToDelete = [
-    "groups",
-    "participants",
-    "participants_v2", // Clear new versioned cache
-    "manage_points_data",
-    "dashboard_groups",
-    "dashboard_participant_info",
+    'groups',
+    'participants',
+    'participants_v2', // Clear new versioned cache
+    'manage_points_data',
+    'dashboard_groups',
+    'dashboard_participant_info',
   ];
 
-  debugLog("Clearing group-related caches:", keysToDelete);
+  debugLog('Clearing group-related caches:', keysToDelete);
 
   // Also clear attendance caches that contain group information
   const db = await openDB();
-  const transaction = db.transaction(STORE_NAME, "readonly");
+  const transaction = db.transaction(STORE_NAME, 'readonly');
   const store = transaction.objectStore(STORE_NAME);
   const allKeys = await new Promise((resolve, reject) => {
     const request = store.getAllKeys();
@@ -420,7 +420,7 @@ export async function clearGroupRelatedCaches() {
 
   // Delete attendance caches which contain group_id
   for (const key of allKeys) {
-    if (key.startsWith("attendance_")) {
+    if (key.startsWith('attendance_')) {
       keysToDelete.push(key);
     }
   }
@@ -440,11 +440,11 @@ export async function clearGroupRelatedCaches() {
  */
 export async function clearBadgeRelatedCaches() {
   const keysToDelete = [
-    "badge_summary", // API-level cache used by getBadgeSummary()
-    "participants", // API-level cache used by getParticipants()
+    'badge_summary', // API-level cache used by getBadgeSummary()
+    'participants', // API-level cache used by getParticipants()
   ];
 
-  debugLog("Clearing badge-related caches:", keysToDelete);
+  debugLog('Clearing badge-related caches:', keysToDelete);
 
   for (const key of keysToDelete) {
     try {
@@ -482,7 +482,7 @@ export async function clearCachedApiPaths(paths = []) {
   }
 
   const db = await openDB();
-  const transaction = db.transaction(STORE_NAME, "readonly");
+  const transaction = db.transaction(STORE_NAME, 'readonly');
   const store = transaction.objectStore(STORE_NAME);
   const allKeys = await new Promise((resolve, reject) => {
     const request = store.getAllKeys();
@@ -510,7 +510,7 @@ export async function clearCachedApiPaths(paths = []) {
   }
 
   if (matches.length > 0) {
-    debugLog("Cleared cached API paths:", normalized, matches);
+    debugLog('Cleared cached API paths:', normalized, matches);
   }
   return matches.length;
 }
@@ -527,9 +527,9 @@ export async function clearCacheEntriesWhere(predicate) {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.index("type_idx").getAll("cache");
+    const request = store.index('type_idx').getAll('cache');
     const deleted = [];
 
     request.onerror = () => reject(request.error);
@@ -545,7 +545,7 @@ export async function clearCacheEntriesWhere(predicate) {
     transaction.oncomplete = () => {
       db.close();
       if (deleted.length > 0) {
-        debugLog("Cleared cache entries:", deleted);
+        debugLog('Cleared cache entries:', deleted);
       }
       resolve(deleted);
     };
@@ -557,7 +557,7 @@ export async function clearCacheEntriesWhere(predicate) {
 }
 
 export async function clearFundraiserRelatedCaches(fundraiserId = null) {
-  const baseKeys = new Set(["fundraisers"]);
+  const baseKeys = new Set(['fundraisers']);
   if (fundraiserId) {
     baseKeys.add(`fundraiser_entries_${fundraiserId}`);
     // Also clear old calendar cache keys for backward compatibility
@@ -565,7 +565,7 @@ export async function clearFundraiserRelatedCaches(fundraiserId = null) {
   }
 
   const db = await openDB();
-  const transaction = db.transaction(STORE_NAME, "readonly");
+  const transaction = db.transaction(STORE_NAME, 'readonly');
   const store = transaction.objectStore(STORE_NAME);
   const allKeys = await new Promise((resolve, reject) => {
     const request = store.getAllKeys();
@@ -574,24 +574,24 @@ export async function clearFundraiserRelatedCaches(fundraiserId = null) {
   });
 
   allKeys.forEach((key) => {
-    if (key.startsWith("fundraisers")) {
+    if (key.startsWith('fundraisers')) {
       baseKeys.add(key);
     }
 
     // Clear both old calendar_ and new fundraiser_entries_ cache keys
-    if (key.startsWith("fundraiser_entries_")) {
+    if (key.startsWith('fundraiser_entries_')) {
       if (!fundraiserId || key === `fundraiser_entries_${fundraiserId}`) {
         baseKeys.add(key);
       }
     }
-    if (key.startsWith("calendars_")) {
+    if (key.startsWith('calendars_')) {
       if (!fundraiserId || key === `calendars_${fundraiserId}`) {
         baseKeys.add(key);
       }
     }
   });
 
-  debugLog("Clearing fundraiser-related caches:", Array.from(baseKeys));
+  debugLog('Clearing fundraiser-related caches:', Array.from(baseKeys));
 
   for (const key of baseKeys) {
     try {
@@ -603,11 +603,11 @@ export async function clearFundraiserRelatedCaches(fundraiserId = null) {
 
   // The logical keys above only exist for endpoints that pass an explicit
   // cacheKey. Campaign reads do not, so their entries are keyed by URL.
-  await clearCachedApiPaths(["/api/v1/fundraisers", "/api/v1/calendars"]);
+  await clearCachedApiPaths(['/api/v1/fundraisers', '/api/v1/calendars']);
 }
 
 export async function clearFinanceRelatedCaches(participantFeeId = null) {
-  const baseKeys = new Set(["participant_fees", "finance_report"]);
+  const baseKeys = new Set(['participant_fees', 'finance_report']);
 
   if (participantFeeId) {
     baseKeys.add(`participant_fee_payments_${participantFeeId}`);
@@ -615,7 +615,7 @@ export async function clearFinanceRelatedCaches(participantFeeId = null) {
   }
 
   const db = await openDB();
-  const transaction = db.transaction(STORE_NAME, "readonly");
+  const transaction = db.transaction(STORE_NAME, 'readonly');
   const store = transaction.objectStore(STORE_NAME);
   const allKeys = await new Promise((resolve, reject) => {
     const request = store.getAllKeys();
@@ -624,7 +624,7 @@ export async function clearFinanceRelatedCaches(participantFeeId = null) {
   });
 
   allKeys.forEach((key) => {
-    if (key.startsWith("participant_fee_payments_")) {
+    if (key.startsWith('participant_fee_payments_')) {
       if (
         !participantFeeId ||
         key === `participant_fee_payments_${participantFeeId}`
@@ -632,14 +632,14 @@ export async function clearFinanceRelatedCaches(participantFeeId = null) {
         baseKeys.add(key);
       }
     }
-    if (key.startsWith("payment_plans_")) {
+    if (key.startsWith('payment_plans_')) {
       if (!participantFeeId || key === `payment_plans_${participantFeeId}`) {
         baseKeys.add(key);
       }
     }
   });
 
-  debugLog("Clearing finance-related caches:", Array.from(baseKeys));
+  debugLog('Clearing finance-related caches:', Array.from(baseKeys));
 
   for (const key of baseKeys) {
     try {
@@ -656,11 +656,11 @@ export async function clearFinanceRelatedCaches(participantFeeId = null) {
  * @returns {Promise<void>} Resolves when the caches have been removed
  */
 export async function clearExternalRevenueCaches() {
-  const keysToDelete = new Set(["external_revenue"]);
+  const keysToDelete = new Set(['external_revenue']);
 
   try {
     const db = await openDB();
-    const transaction = db.transaction(STORE_NAME, "readonly");
+    const transaction = db.transaction(STORE_NAME, 'readonly');
     const store = transaction.objectStore(STORE_NAME);
     const allKeys = await new Promise((resolve, reject) => {
       const request = store.getAllKeys();
@@ -670,15 +670,15 @@ export async function clearExternalRevenueCaches() {
 
     allKeys.forEach((key) => {
       if (
-        typeof key === "string" &&
-        key.startsWith("external_revenue_summary_")
+        typeof key === 'string' &&
+        key.startsWith('external_revenue_summary_')
       ) {
         keysToDelete.add(key);
       }
     });
   } catch (error) {
     debugWarn(
-      "Unable to enumerate external revenue caches for cleanup:",
+      'Unable to enumerate external revenue caches for cleanup:',
       error,
     );
   }
@@ -705,10 +705,10 @@ export async function clearBudgetCaches({
   fiscalYearEnd = null,
 } = {}) {
   const baseKeys = new Set([
-    "budget_categories",
-    "budget_items",
-    "budget_expenses",
-    "budget_plans",
+    'budget_categories',
+    'budget_items',
+    'budget_expenses',
+    'budget_plans',
   ]);
 
   if (categoryId) {
@@ -721,7 +721,7 @@ export async function clearBudgetCaches({
   }
 
   const db = await openDB();
-  const transaction = db.transaction(STORE_NAME, "readonly");
+  const transaction = db.transaction(STORE_NAME, 'readonly');
   const store = transaction.objectStore(STORE_NAME);
   const allKeys = await new Promise((resolve, reject) => {
     const request = store.getAllKeys();
@@ -730,21 +730,21 @@ export async function clearBudgetCaches({
   });
 
   allKeys.forEach((key) => {
-    if (key.startsWith("budget_items")) {
+    if (key.startsWith('budget_items')) {
       baseKeys.add(key);
     }
-    if (key.startsWith("budget_revenue_")) {
+    if (key.startsWith('budget_revenue_')) {
       baseKeys.add(key);
     }
-    if (key.startsWith("budget_summary_")) {
+    if (key.startsWith('budget_summary_')) {
       baseKeys.add(key);
     }
-    if (key.startsWith("budget_plans_")) {
+    if (key.startsWith('budget_plans_')) {
       baseKeys.add(key);
     }
   });
 
-  debugLog("Clearing budget-related caches:", Array.from(baseKeys));
+  debugLog('Clearing budget-related caches:', Array.from(baseKeys));
 
   for (const key of baseKeys) {
     try {
@@ -761,15 +761,15 @@ export async function clearBudgetCaches({
  */
 export async function clearActivityRelatedCaches() {
   const keysToDelete = [
-    "activities",
-    "upcoming_activities",
-    "v1/activities", // API v1 endpoint cache
-    "attendance_dates", // selectable attendance dates include activity ranges
+    'activities',
+    'upcoming_activities',
+    'v1/activities', // API v1 endpoint cache
+    'attendance_dates', // selectable attendance dates include activity ranges
   ];
 
   // Also clear any activity-specific caches
   const db = await openDB();
-  const transaction = db.transaction(STORE_NAME, "readonly");
+  const transaction = db.transaction(STORE_NAME, 'readonly');
   const store = transaction.objectStore(STORE_NAME);
   const allKeys = await new Promise((resolve, reject) => {
     const request = store.getAllKeys();
@@ -780,17 +780,17 @@ export async function clearActivityRelatedCaches() {
   // Find and clear activity-specific caches (e.g., 'activity_123', 'carpool_offers_123', 'v1/activities/123')
   allKeys.forEach((key) => {
     if (
-      typeof key === "string" &&
-      (key.startsWith("activity_") ||
-        key.startsWith("carpool_") ||
-        key.startsWith("v1/activities/") ||
-        key.startsWith("v1/carpools/"))
+      typeof key === 'string' &&
+      (key.startsWith('activity_') ||
+        key.startsWith('carpool_') ||
+        key.startsWith('v1/activities/') ||
+        key.startsWith('v1/carpools/'))
     ) {
       keysToDelete.push(key);
     }
   });
 
-  debugLog("Clearing activity-related caches:", keysToDelete);
+  debugLog('Clearing activity-related caches:', keysToDelete);
 
   for (const key of keysToDelete) {
     try {
@@ -824,7 +824,7 @@ export async function clearYearlyPlannerCaches({
   const keysToDelete = new Set();
 
   const db = await openDB();
-  const transaction = db.transaction(STORE_NAME, "readonly");
+  const transaction = db.transaction(STORE_NAME, 'readonly');
   const store = transaction.objectStore(STORE_NAME);
   const allKeys = await new Promise((resolve, reject) => {
     const request = store.getAllKeys();
@@ -833,28 +833,28 @@ export async function clearYearlyPlannerCaches({
   });
 
   allKeys.forEach((key) => {
-    if (typeof key !== "string") {
+    if (typeof key !== 'string') {
       return;
     }
-    if (key.startsWith("/api/v1/yearly-planner") || key.startsWith("v1/yearly-planner")) {
+    if (key.startsWith('/api/v1/yearly-planner') || key.startsWith('v1/yearly-planner')) {
       keysToDelete.add(key);
       return;
     }
     if (
       includeMeetingPrep &&
-      (key.startsWith("reunion_preparation_") ||
-        key.startsWith("/api/v1/meetings") ||
-        key.startsWith("v1/meetings"))
+      (key.startsWith('reunion_preparation_') ||
+        key.startsWith('/api/v1/meetings') ||
+        key.startsWith('v1/meetings'))
     ) {
       keysToDelete.add(key);
     }
   });
 
   if (includeMeetingPrep) {
-    keysToDelete.add("reunion_dates");
+    keysToDelete.add('reunion_dates');
   }
 
-  debugLog("Clearing yearly-planner caches:", Array.from(keysToDelete));
+  debugLog('Clearing yearly-planner caches:', Array.from(keysToDelete));
 
   for (const key of keysToDelete) {
     try {
@@ -888,8 +888,8 @@ export async function clearActivityPermissionSlipCaches(activityId) {
  */
 export async function clearCarpoolRelatedCaches(activityId = null) {
   const keysToDelete = [
-    "v1/carpools/my-offers",
-    "v1/carpools/my-children-assignments",
+    'v1/carpools/my-offers',
+    'v1/carpools/my-children-assignments',
   ];
 
   // If activityId is provided, clear activity-specific caches
@@ -901,7 +901,7 @@ export async function clearCarpoolRelatedCaches(activityId = null) {
   } else {
     // Clear all carpool caches
     const db = await openDB();
-    const transaction = db.transaction(STORE_NAME, "readonly");
+    const transaction = db.transaction(STORE_NAME, 'readonly');
     const store = transaction.objectStore(STORE_NAME);
     const allKeys = await new Promise((resolve, reject) => {
       const request = store.getAllKeys();
@@ -911,13 +911,13 @@ export async function clearCarpoolRelatedCaches(activityId = null) {
 
     // Find and clear all carpool-specific caches
     allKeys.forEach((key) => {
-      if (typeof key === "string" && key.startsWith("v1/carpools/")) {
+      if (typeof key === 'string' && key.startsWith('v1/carpools/')) {
         keysToDelete.push(key);
       }
     });
   }
 
-  debugLog("Clearing carpool-related caches:", keysToDelete);
+  debugLog('Clearing carpool-related caches:', keysToDelete);
 
   for (const key of keysToDelete) {
     try {
@@ -936,9 +936,9 @@ export async function clearCarpoolRelatedCaches(activityId = null) {
  */
 export async function clearFormRelatedCaches(formType = null, organizationId = null) {
   const keysToDelete = [
-    "v1/form-types",
-    "v1/forms/formats",
-    "v1/form-formats",
+    'v1/form-types',
+    'v1/forms/formats',
+    'v1/form-formats',
   ];
 
   // If formType is provided, clear form-specific caches
@@ -949,7 +949,7 @@ export async function clearFormRelatedCaches(formType = null, organizationId = n
   } else {
     // Clear all form caches
     const db = await openDB();
-    const transaction = db.transaction(STORE_NAME, "readonly");
+    const transaction = db.transaction(STORE_NAME, 'readonly');
     const store = transaction.objectStore(STORE_NAME);
     const allKeys = await new Promise((resolve, reject) => {
       const request = store.getAllKeys();
@@ -960,17 +960,17 @@ export async function clearFormRelatedCaches(formType = null, organizationId = n
     // Find and clear all form-specific caches
     allKeys.forEach((key) => {
       if (
-        typeof key === "string" &&
-        (key.startsWith("v1/form-") ||
-          key.includes("form_type=") ||
-          key.includes("forms/formats"))
+        typeof key === 'string' &&
+        (key.startsWith('v1/form-') ||
+          key.includes('form_type=') ||
+          key.includes('forms/formats'))
       ) {
         keysToDelete.push(key);
       }
     });
   }
 
-  debugLog("Clearing form-related caches:", keysToDelete);
+  debugLog('Clearing form-related caches:', keysToDelete);
 
   for (const key of keysToDelete) {
     try {
@@ -1002,7 +1002,7 @@ export async function clearParticipantFormCaches(participantId, formType = null)
 
   // Clear all form submissions for this participant
   const db = await openDB();
-  const transaction = db.transaction(STORE_NAME, "readonly");
+  const transaction = db.transaction(STORE_NAME, 'readonly');
   const store = transaction.objectStore(STORE_NAME);
   const allKeys = await new Promise((resolve, reject) => {
     const request = store.getAllKeys();
@@ -1013,14 +1013,14 @@ export async function clearParticipantFormCaches(participantId, formType = null)
   // Find and clear participant-specific form caches
   allKeys.forEach((key) => {
     if (
-      typeof key === "string" &&
+      typeof key === 'string' &&
       key.includes(`participant_id=${participantId}`)
     ) {
       keysToDelete.push(key);
     }
   });
 
-  debugLog("Clearing participant form caches:", keysToDelete);
+  debugLog('Clearing participant form caches:', keysToDelete);
 
   for (const key of keysToDelete) {
     try {

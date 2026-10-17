@@ -49,11 +49,11 @@ async function clearAllCaches() {
  * @returns {Promise<void>}
  */
 async function clearServiceWorkerApiCache() {
-  if (!('serviceWorker' in navigator)) return;
+  if (!('serviceWorker' in navigator)) {return;}
   try {
     const registration = await navigator.serviceWorker.getRegistration();
     const sw = registration?.active;
-    if (!sw) return;
+    if (!sw) {return;}
     await new Promise((resolve) => {
       const channel = new MessageChannel();
       const timeout = setTimeout(resolve, 1500);

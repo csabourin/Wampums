@@ -63,9 +63,9 @@ const isProduction = () => {
     return false;
   }
 };
-const debugLog = (...args) => { if (!isProduction()) console.log(...args); };
+const debugLog = (...args) => { if (!isProduction()) {console.log(...args);} };
 const debugError = (...args) => { console.error(...args); };
-const debugWarn = (...args) => { if (!isProduction()) console.warn(...args); };
+const debugWarn = (...args) => { if (!isProduction()) {console.warn(...args);} };
 
 // ==================================================================
 // Section 2: Workbox Precaching
@@ -216,7 +216,7 @@ registerRoute(
 // 4d. API routes (GET only) - custom handler using IndexedDB caching
 registerRoute(
   ({ url, request }) => {
-    if (request.method !== 'GET') return false;
+    if (request.method !== 'GET') {return false;}
     return url.pathname.startsWith('/api/') || url.pathname.startsWith('/public/');
   },
   ({ request }) => fetchAndCacheInIndexedDB(request)
@@ -225,13 +225,13 @@ registerRoute(
 // 4e. Images (CacheFirst, except temporary signed Railway bucket URLs)
 registerRoute(
   ({ request, url }) => {
-    if (request.destination !== 'image') return false;
+    if (request.destination !== 'image') {return false;}
     if (
       url.hostname === 'storage.railway.app' ||
       url.hostname.endsWith('.storage.railway.app') ||
       url.hostname === 'storageapi.dev' ||
       url.hostname.endsWith('.storageapi.dev')
-    ) return false;
+    ) {return false;}
     return true;
   },
   new CacheFirst({
@@ -349,7 +349,7 @@ async function setCachedData(key, data, expirationTime) {
  * @param {string|undefined} scopePrefix
  */
 async function clearApiCache(scopePrefix) {
-  if (indexedDBBlocked) return;
+  if (indexedDBBlocked) {return;}
   try {
     const db = await openIndexedDB();
     await new Promise((resolve, reject) => {
@@ -423,7 +423,7 @@ async function getCachedData(key) {
 function decodeJwtPayload(token) {
   try {
     const parts = token.split('.');
-    if (parts.length !== 3) return null;
+    if (parts.length !== 3) {return null;}
     // base64url → base64
     const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
     const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
@@ -586,17 +586,17 @@ async function invalidateRelatedCaches(request) {
 
   const keysToInvalidate = allKeys.filter((key) => {
     if (url.pathname.includes('/participants'))
-      return key.toString().includes('participants');
+    {return key.toString().includes('participants');}
     if (url.pathname.includes('/groups'))
-      return key.toString().includes('group');
+    {return key.toString().includes('group');}
     if (url.pathname.includes('/attendance'))
-      return key.toString().includes('attendance');
+    {return key.toString().includes('attendance');}
     if (url.pathname.includes('/points'))
-      return key.toString().includes('points');
+    {return key.toString().includes('points');}
     if (url.pathname.includes('/honors'))
-      return key.toString().includes('honors');
+    {return key.toString().includes('honors');}
     if (url.pathname.includes('/badges'))
-      return key.toString().includes('badge');
+    {return key.toString().includes('badge');}
     return false;
   });
 
@@ -642,12 +642,12 @@ async function getPendingMutations() {
  * @returns {Promise<void>}
  */
 async function clearPendingMutations() {
-  if (indexedDBBlocked) return;
+  if (indexedDBBlocked) {return;}
   let db;
   try {
     db = await openIndexedDB();
   } catch (error) {
-    if (isStorageAccessError(error)) indexedDBBlocked = true;
+    if (isStorageAccessError(error)) {indexedDBBlocked = true;}
     return;
   }
   await new Promise((resolve, reject) => {
@@ -674,7 +674,7 @@ self.addEventListener('fetch', (event) => {
 // Section 7: Push Notifications
 // ==================================================================
 
-self.addEventListener('push', function (event) {
+self.addEventListener('push', (event) => {
   let data = {};
 
   if (event.data) {
@@ -904,7 +904,7 @@ self.addEventListener('message', (event) => {
   // New: Get pending count from the Dexie-based outbox (WampumsOfflineDB)
   if (event.data && event.data.type === 'GET_OUTBOX_COUNT') {
     const messagePort = event.ports && event.ports[0];
-    if (!messagePort) return;
+    if (!messagePort) {return;}
     getOutboxPendingCount()
       .then((count) => {
         messagePort.postMessage({ type: 'OUTBOX_COUNT', count });

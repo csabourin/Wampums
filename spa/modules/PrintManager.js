@@ -1,59 +1,59 @@
-import { translate } from "../app.js";
-import { getHonorLabel } from "../utils/meetingSections.js";
-import { openPrintWindow, setPrintContent } from "../utils/PrintUtils.js";
+import { translate } from '../app.js';
+import { getHonorLabel } from '../utils/meetingSections.js';
+import { openPrintWindow, setPrintContent } from '../utils/PrintUtils.js';
 /**
  * PrintManager - Handles printing functionality
  * for the Preparation Reunions page
  */
 export class PrintManager {
-        constructor(activityManager, sectionConfig, organizationName = '') {
-                this.activityManager = activityManager;
-                this.sectionConfig = sectionConfig;
-                this.organizationName = organizationName;
-        }
+  constructor(activityManager, sectionConfig, organizationName = '') {
+    this.activityManager = activityManager;
+    this.sectionConfig = sectionConfig;
+    this.organizationName = organizationName;
+  }
 
-        /**
+  /**
          * Update section configuration used for labels when printing
          * @param {object} sectionConfig - Active section config
          */
-        setSectionConfig(sectionConfig) {
-                this.sectionConfig = sectionConfig;
-        }
+  setSectionConfig(sectionConfig) {
+    this.sectionConfig = sectionConfig;
+  }
 
-        /**
+  /**
          * Print the preparation form
          */
-        printPreparation() {
-                const honorListElement = document.getElementById("youth-of-honor");
-                const honorItems = honorListElement
-                        ? Array.from(honorListElement.querySelectorAll("li")).map((li) => li.textContent)
-                        : [];
-                const selectedActivities = this.activityManager.getSelectedActivities();
-                const honorLabel = getHonorLabel(this.sectionConfig, translate);
+  printPreparation() {
+    const honorListElement = document.getElementById('youth-of-honor');
+    const honorItems = honorListElement
+      ? Array.from(honorListElement.querySelectorAll('li')).map((li) => li.textContent)
+      : [];
+    const selectedActivities = this.activityManager.getSelectedActivities();
+    const honorLabel = getHonorLabel(this.sectionConfig, translate);
 
-                const printContent = `
+    const printContent = `
                         <div class="print-preparation">
                                 <h1>${this.organizationName}</h1>
-                                <h2>${translate("weekly_meeting")}</h2>
+                                <h2>${translate('weekly_meeting')}</h2>
                                 <div class="print-header">
-                                        <p><strong>${translate("responsible_leader")}:</strong> ${document.getElementById("animateur-responsable").options[document.getElementById("animateur-responsable").selectedIndex].text}</p>
-                                        <p><strong>${translate("date")}:</strong> ${document.getElementById("date").value}</p>
+                                        <p><strong>${translate('responsible_leader')}:</strong> ${document.getElementById('animateur-responsable').options[document.getElementById('animateur-responsable').selectedIndex].text}</p>
+                                        <p><strong>${translate('date')}:</strong> ${document.getElementById('date').value}</p>
                                 </div>
                                 <div class="print-header">
                                         <p><strong>${honorLabel}:</strong></p>
                                         <ul>
                                                 ${honorItems.map(item => `<li>${item}</li>`).join('')}
                                         </ul>
-                                        <p><strong>${translate("location")}:</strong> ${document.getElementById("endroit").value}</p>
+                                        <p><strong>${translate('location')}:</strong> ${document.getElementById('endroit').value}</p>
                                 </div>
                                 <table>
                                         <thead>
                                                 <tr>
-                                                        <th>${translate("time")}</th>
-                                                        <th>${translate("duration")}</th>
-                                                        <th>${translate("description")}</th>
-                                                        <th>${translate("responsible")}</th>
-                                                        <th>${translate("equipment")}</th>
+                                                        <th>${translate('time')}</th>
+                                                        <th>${translate('duration')}</th>
+                                                        <th>${translate('description')}</th>
+                                                        <th>${translate('responsible')}</th>
+                                                        <th>${translate('equipment')}</th>
                                                 </tr>
                                         </thead>
                                         <tbody>
@@ -69,15 +69,15 @@ export class PrintManager {
                                         </tbody>
                                 </table>
                                 <div class="print-notes">
-                                        <h3>${translate("notes")}:</h3>
-                                        <p>${document.getElementById("notes").value}</p>
+                                        <h3>${translate('notes')}:</h3>
+                                        <p>${document.getElementById('notes').value}</p>
                                         <div class="handwritten-notes">
                                                 <div class="note-line"></div>
                                                 <div class="note-line"></div>
                                         </div>
                                 </div>
                                 <div class="print-next-week">
-                                        <h3>${translate("next_week")}:</h3>
+                                        <h3>${translate('next_week')}:</h3>
                                         <div class="handwritten-notes">
                                                 <div class="note-line"></div>
                                                 <div class="note-line"></div>
@@ -86,12 +86,12 @@ export class PrintManager {
                         </div>
                 `;
 
-                const printWindow = openPrintWindow();
-                if (!printWindow) return;
-                setPrintContent(printWindow, `
+    const printWindow = openPrintWindow();
+    if (!printWindow) {return;}
+    setPrintContent(printWindow, `
                         <html>
                                 <head>
-                                        <title>${translate("weekly_meeting")}</title>
+                                        <title>${translate('weekly_meeting')}</title>
                                         <style>
                                                 body {
                                                         font-family: Arial, sans-serif;
@@ -144,8 +144,8 @@ export class PrintManager {
                                         ${printContent}
                                 </body>
                         </html>
-                `, translate("weekly_meeting"));
-                printWindow.document.close();
-                printWindow.print();
-        }
+                `, translate('weekly_meeting'));
+    printWindow.document.close();
+    printWindow.print();
+  }
 }

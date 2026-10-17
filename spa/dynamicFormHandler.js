@@ -1,16 +1,16 @@
 // dynamicFormHandler.js
-import { translate } from "./app.js";
-import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
-import { shouldKeepSavedDependency, isControllerAnswerMatching, clearDependentValues, readControllingValue } from "./utils/FormDependencyUtils.js";
-import { JSONFormRenderer } from "./JSONFormRenderer.js";
+import { translate } from './app.js';
+import { debugLog, debugError, debugWarn, debugInfo } from './utils/DebugUtils.js';
+import { shouldKeepSavedDependency, isControllerAnswerMatching, clearDependentValues, readControllingValue } from './utils/FormDependencyUtils.js';
+import { JSONFormRenderer } from './JSONFormRenderer.js';
 import {
-    getOrganizationFormFormats,
-    getFormSubmission,
-    saveFormSubmission,
-} from "./ajax-functions.js";
-import { setContent } from "./utils/DOMUtils.js";
-import { escapeHTML } from "./utils/SecurityUtils.js";
-import { apiErrorMessage } from "./utils/ApiErrorUtils.js";
+  getOrganizationFormFormats,
+  getFormSubmission,
+  saveFormSubmission,
+} from './ajax-functions.js';
+import { setContent } from './utils/DOMUtils.js';
+import { escapeHTML } from './utils/SecurityUtils.js';
+import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 
 /**
  * Every form control carrying a field name within one form.
@@ -23,209 +23,209 @@ import { apiErrorMessage } from "./utils/ApiErrorUtils.js";
  * @returns {HTMLElement[]} Matching controls, in document order
  */
 function getElementsByFieldName(root, name) {
-    return Array.from(root.querySelectorAll('input, select, textarea'))
-        .filter((element) => element.name === name);
+  return Array.from(root.querySelectorAll('input, select, textarea'))
+    .filter((element) => element.name === name);
 }
 
 export class DynamicFormHandler {
-    constructor(app, customSaveHandler = null, useUniqueIds = false, formIndex = null) {
-        this.app = app;
-        this.customSaveHandler = customSaveHandler; 
-        this.formFormats = {};
-        this.formData = {};
-        this.participantId = null;
-        this.formType = null;
-        this.formRenderer = null;
-        this.container = document.getElementById("app"); // Default to #app
-        this.useUniqueIds = false;
-        this.uniqueIdPart = '';
-         this.organizationId = null;
+  constructor(app, customSaveHandler = null, useUniqueIds = false, formIndex = null) {
+    this.app = app;
+    this.customSaveHandler = customSaveHandler; 
+    this.formFormats = {};
+    this.formData = {};
+    this.participantId = null;
+    this.formType = null;
+    this.formRenderer = null;
+    this.container = document.getElementById('app'); // Default to #app
+    this.useUniqueIds = false;
+    this.uniqueIdPart = '';
+    this.organizationId = null;
+  }
+
+  async init(formType, participantId = null, initialData = {}, container = null, useUniqueIds = false, formIndex = null, formStructure = null,organizationId = null) {
+    debugLog('Initializing DynamicFormHandler', { formType, participantId, initialData, container,organizationId});
+    this.formType = formType;
+    this.participantId = participantId;
+
+    // Merge URL query parameters with initialData
+    const queryParams = this.getQueryParams();  // New function to get URL parameters
+    this.formData = { ...initialData, ...queryParams };  // Merge URL parameters into formData
+    this.useUniqueIds = useUniqueIds;
+    this.formIndex = formIndex;
+    this.uniqueIdPart = this.useUniqueIds && this.formIndex !== null ? `-${this.formIndex}` : ''; 
+    this.organizationId = organizationId;
+    this.container = container ? 
+      (typeof container === 'string' ? document.getElementById(container) : container) 
+      : document.getElementById('app'); // Use #app if container is not specified
+
+    if (!this.container) {
+      debugError('Container not found for rendering the form.');
+      this.showError(translate('error_loading_form'));
+      return;
     }
 
-    async init(formType, participantId = null, initialData = {}, container = null, useUniqueIds = false, formIndex = null, formStructure = null,organizationId = null) {
-        debugLog("Initializing DynamicFormHandler", { formType, participantId, initialData, container,organizationId});
-        this.formType = formType;
-        this.participantId = participantId;
-
-        // Merge URL query parameters with initialData
-        const queryParams = this.getQueryParams();  // New function to get URL parameters
-        this.formData = { ...initialData, ...queryParams };  // Merge URL parameters into formData
-        this.useUniqueIds = useUniqueIds;
-        this.formIndex = formIndex;
-        this.uniqueIdPart = this.useUniqueIds && this.formIndex !== null ? `-${this.formIndex}` : ''; 
-        this.organizationId = organizationId;
-        this.container = container ? 
-            (typeof container === 'string' ? document.getElementById(container) : container) 
-            : document.getElementById("app"); // Use #app if container is not specified
-
-        if (!this.container) {
-            debugError("Container not found for rendering the form.");
-            this.showError(translate("error_loading_form"));
-            return;
-        }
-
-        try {
-            await this.fetchFormFormats();
-            if (this.participantId && Object.keys(this.formData).length === 0) {
-                await this.fetchFormData();
-            }
-            this.formRenderer = new JSONFormRenderer(this.formFormats[this.formType], this.formData, this.formType, this.useUniqueIds, this.formIndex);
-            this.render(); // Call render here to display the form
-        } catch (error) {
-            debugError("Error initializing dynamic form:", error);
-            this.showError(translate("error_loading_form"));
-        }
+    try {
+      await this.fetchFormFormats();
+      if (this.participantId && Object.keys(this.formData).length === 0) {
+        await this.fetchFormData();
+      }
+      this.formRenderer = new JSONFormRenderer(this.formFormats[this.formType], this.formData, this.formType, this.useUniqueIds, this.formIndex);
+      this.render(); // Call render here to display the form
+    } catch (error) {
+      debugError('Error initializing dynamic form:', error);
+      this.showError(translate('error_loading_form'));
     }
+  }
 
-    // Function to extract query parameters from the URL
-    getQueryParams() {
-        const queryString = window.location.search;
-        const urlParams = new URLSearchParams(queryString);
-        const params = {};
-        urlParams.forEach((value, key) => {
-            params[key] = value;
-        });
-        return params;
+  // Function to extract query parameters from the URL
+  getQueryParams() {
+    const queryString = window.location.search;
+    const urlParams = new URLSearchParams(queryString);
+    const params = {};
+    urlParams.forEach((value, key) => {
+      params[key] = value;
+    });
+    return params;
+  }
+
+  async fetchFormFormats() {
+    this.formFormats = await getOrganizationFormFormats(this.organizationId);
+    if (!this.formFormats || !this.formFormats[this.formType]) {
+      throw new Error('Failed to fetch form formats or form type not found');
     }
+  }
 
-    async fetchFormFormats() {
-        this.formFormats = await getOrganizationFormFormats(this.organizationId);
-        if (!this.formFormats || !this.formFormats[this.formType]) {
-            throw new Error("Failed to fetch form formats or form type not found");
-        }
-    }
+  async fetchFormData() {
+    if (this.participantId) {
+      try {
+        const response = await getFormSubmission(this.participantId, this.formType);
+        debugLog('Full response from API:', response);
 
-    async fetchFormData() {
-        if (this.participantId) {
-            try {
-                const response = await getFormSubmission(this.participantId, this.formType);
-                debugLog("Full response from API:", response);
-
-                if (response.success && response.form_data) {
-                    this.formData = { ...response.form_data };
-                    debugLog("Fetched form data:", this.formData);
-                } else {
-                    debugWarn(`No form data found for ${this.formType} and participant ${this.participantId}`);
-                    this.formData = {};
-                }
-            } catch (error) {
-                debugError("Error fetching form data:", error);
-                this.formData = {};
-            }
+        if (response.success && response.form_data) {
+          this.formData = { ...response.form_data };
+          debugLog('Fetched form data:', this.formData);
         } else {
-            this.formData = {};
+          debugWarn(`No form data found for ${this.formType} and participant ${this.participantId}`);
+          this.formData = {};
         }
-
-        // Add a check to ensure critical fields are present
-        this.validateFormData();
+      } catch (error) {
+        debugError('Error fetching form data:', error);
+        this.formData = {};
+      }
+    } else {
+      this.formData = {};
     }
 
-    validateFormData() {
-        const criticalFields = ['first_name', 'last_name', 'date_naissance'];
-        for (const field of criticalFields) {
-            if (this.formData[field] === undefined) {
-                debugWarn(`Critical field '${field}' is missing from form data`);
-            }
-        }
+    // Add a check to ensure critical fields are present
+    this.validateFormData();
+  }
+
+  validateFormData() {
+    const criticalFields = ['first_name', 'last_name', 'date_naissance'];
+    for (const field of criticalFields) {
+      if (this.formData[field] === undefined) {
+        debugWarn(`Critical field '${field}' is missing from form data`);
+      }
+    }
+  }
+
+  async saveFormData(formData) {
+    debugLog('Saving form data', { formType: this.formType, participantId: this.participantId, formData });
+
+    try {
+      let result;
+
+      // If a custom save handler is provided, use that instead of the default logic
+      if (this.customSaveHandler) {
+        debugLog('Using custom save handler');
+        result = await this.customSaveHandler(formData); // Use custom save handler
+      } else {
+        // Default save behavior
+        debugLog('Using default save handler');
+        result = await saveFormSubmission(this.formType, this.participantId, formData);
+      }
+
+      debugLog('Form save result:', result);
+      if (result.success) {
+        // The class has no showMessage of its own; the app shows toasts.
+        this.app.showMessage(translate('form_saved_successfully'), 'success');
+        return result;
+      } else {
+        throw new Error(result.message || translate('error_saving_form'));
+      }
+    } catch (error) {
+      debugError('Error saving form:', error);
+      this.showError(apiErrorMessage(error, 'error_saving_data'));
+      throw error;
+    }
+  }
+
+  render() {
+    if (!this.container) {
+      debugError('Container not found for rendering the form.');
+      this.showError(translate('error_loading_form'));
+      return;
     }
 
-    async saveFormData(formData) {
-        debugLog("Saving form data", { formType: this.formType, participantId: this.participantId, formData });
-
-        try {
-            let result;
-
-            // If a custom save handler is provided, use that instead of the default logic
-            if (this.customSaveHandler) {
-                debugLog("Using custom save handler");
-                result = await this.customSaveHandler(formData); // Use custom save handler
-            } else {
-                // Default save behavior
-                debugLog("Using default save handler");
-                result = await saveFormSubmission(this.formType, this.participantId, formData);
-            }
-
-            debugLog("Form save result:", result);
-            if (result.success) {
-                // The class has no showMessage of its own; the app shows toasts.
-                this.app.showMessage(translate("form_saved_successfully"), "success");
-                return result;
-            } else {
-                throw new Error(result.message || translate("error_saving_form"));
-            }
-        } catch (error) {
-            debugError("Error saving form:", error);
-            this.showError(apiErrorMessage(error, "error_saving_data"));
-            throw error;
-        }
+    const formStructure = this.formFormats[this.formType];
+    if (!formStructure) {
+      this.showError(translate('form_not_found'));
+      return;
     }
 
-    render() {
-        if (!this.container) {
-            debugError("Container not found for rendering the form.");
-            this.showError(translate("error_loading_form"));
-            return;
-        }
+    debugLog('Rendering form structure for type:', this.formType);
+    debugLog('Form data:', this.formData);
 
-        const formStructure = this.formFormats[this.formType];
-        if (!formStructure) {
-            this.showError(translate("form_not_found"));
-            return;
-        }
+    let fields = formStructure.fields;
 
-        debugLog("Rendering form structure for type:", this.formType);
-        debugLog("Form data:", this.formData);
+    // If there's a custom form structure, add those fields
+    if (this.formData.custom_form && Array.isArray(this.formData.custom_form.fields)) {
+      // Merge formStructure fields and custom_form fields, removing duplicates
+      fields = [
+        ...fields,
+        ...this.formData.custom_form.fields.filter(customField => 
+          !fields.some(field => field.name === customField.name)
+        )
+      ];
+    }
 
-        let fields = formStructure.fields;
+    const formRenderer = new JSONFormRenderer({ fields }, this.formData, this.formType, this.useUniqueIds, this.formIndex);
 
-        // If there's a custom form structure, add those fields
-        if (this.formData.custom_form && Array.isArray(this.formData.custom_form.fields)) {
-            // Merge formStructure fields and custom_form fields, removing duplicates
-            fields = [
-                ...fields,
-                ...this.formData.custom_form.fields.filter(customField => 
-                    !fields.some(field => field.name === customField.name)
-                )
-            ];
-        }
+    const formContent = formRenderer.render();
 
-        const formRenderer = new JSONFormRenderer({ fields }, this.formData, this.formType, this.useUniqueIds, this.formIndex);
-
-        const formContent = formRenderer.render();
-
-			// Conditionally add formIndex if useUniqueIds is true
-				const uniqueIdPart = this.useUniqueIds && this.formIndex !== null ? `-${this.formIndex}` : '';
+    // Conditionally add formIndex if useUniqueIds is true
+    const uniqueIdPart = this.useUniqueIds && this.formIndex !== null ? `-${this.formIndex}` : '';
 
 
-        // Check if this handler is standalone or embedded within another form
-        const content = this.isStandalone() 
-            ? `
+    // Check if this handler is standalone or embedded within another form
+    const content = this.isStandalone() 
+      ? `
                     <h2>${translate(this.formType)}</h2>
                     <form id="dynamic-form-${this.formType}">
                         ${formContent}
-                        <button type="submit">${translate("save")}</button>
+                        <button type="submit">${translate('save')}</button>
                     </form>
 
-                    <a href="/parent-dashboard" class="button">${translate("back_to_dashboard")}</a>
+                    <a href="/parent-dashboard" class="button">${translate('back_to_dashboard')}</a>
                 `
-            : `
+      : `
                    <fieldset id="dynamic-form-${this.formType}${uniqueIdPart}">
                     <legend>${translate(this.formType)}</legend>
                     ${formContent}
                 </fieldset>`;
 
-          setContent(this.container, content);
+    setContent(this.container, content);
 
-        // Attach event listeners for dependent fields
-        this.attachDependencyListeners();
+    // Attach event listeners for dependent fields
+    this.attachDependencyListeners();
 
-        // Attach event listeners only if it's standalone
-        if (this.isStandalone()) {
-            this.attachEventListeners(uniqueIdPart);
-        }
+    // Attach event listeners only if it's standalone
+    if (this.isStandalone()) {
+      this.attachEventListeners(uniqueIdPart);
     }
+  }
 
-    /**
+  /**
      * Attach listeners to controlling fields after rendering, then bring every
      * dependent field in line with what its controlling field shows right now.
      *
@@ -235,72 +235,72 @@ export class DynamicFormHandler {
      *
      * @returns {void}
      */
-    attachDependencyListeners() {
-        const fields = this.formFormats[this.formType].fields;
-        // Participant registration mounts one handler per guardian, each in its
-        // own container and all sharing field names. Looking fields up across
-        // the whole document let one guardian's answer hide — and clear — the
-        // matching field of every other guardian.
-        const root = this.container || document;
-        // Same unwrapping as JSONFormRenderer.render()
-        const savedAnswers = this.formData?.form_data || this.formData || {};
+  attachDependencyListeners() {
+    const fields = this.formFormats[this.formType].fields;
+    // Participant registration mounts one handler per guardian, each in its
+    // own container and all sharing field names. Looking fields up across
+    // the whole document let one guardian's answer hide — and clear — the
+    // matching field of every other guardian.
+    const root = this.container || document;
+    // Same unwrapping as JSONFormRenderer.render()
+    const savedAnswers = this.formData?.form_data || this.formData || {};
 
-        fields.forEach((field) => {
-            if (field.dependsOn) {
-                const controller = fields.find((candidate) => candidate.name === field.dependsOn.field);
-                const controllingElements = getElementsByFieldName(root, field.dependsOn.field);
-                const sync = () => {
-                    const controllingValue = readControllingValue(controllingElements, controller);
-                    this.toggleDependentFields(field, controllingValue, root, controller);
-                };
+    fields.forEach((field) => {
+      if (field.dependsOn) {
+        const controller = fields.find((candidate) => candidate.name === field.dependsOn.field);
+        const controllingElements = getElementsByFieldName(root, field.dependsOn.field);
+        const sync = () => {
+          const controllingValue = readControllingValue(controllingElements, controller);
+          this.toggleDependentFields(field, controllingValue, root, controller);
+        };
 
-                controllingElements.forEach((element) => {
-                    element.addEventListener(this.getEventType(element.type), sync);
-                });
-
-                // On load, the saved answers outrank the screen (see
-                // shouldKeepSavedDependency).
-                const keepAsRendered = shouldKeepSavedDependency(
-                    controller,
-                    savedAnswers[field.dependsOn.field],
-                    readControllingValue(controllingElements, controller),
-                    field.dependsOn.value
-                );
-                if (controllingElements.length > 0 && !keepAsRendered) {
-                    sync();
-                }
-            }
+        controllingElements.forEach((element) => {
+          element.addEventListener(this.getEventType(element.type), sync);
         });
-    }
 
-    // Get the appropriate event type based on the input type
-    getEventType(type) {
-        switch (type) {
-            case "text":
-            case "textarea":
-                return "input";
-            case "select-one":
-            case "checkbox":
-            case "radio":
-                return "change";
-            default:
-                return "input";
+        // On load, the saved answers outrank the screen (see
+        // shouldKeepSavedDependency).
+        const keepAsRendered = shouldKeepSavedDependency(
+          controller,
+          savedAnswers[field.dependsOn.field],
+          readControllingValue(controllingElements, controller),
+          field.dependsOn.value
+        );
+        if (controllingElements.length > 0 && !keepAsRendered) {
+          sync();
         }
-    }
+      }
+    });
+  }
 
-    // Get the current value of a field based on its type
-    getFieldValue(field) {
-            switch (field.type) {
-                    case 'checkbox':
-                            return field.checked ? 'yes' : 'no'; // Normalizing value for checkboxes
-                    case 'radio':
-                            return field.checked ? field.value : '';
-                    default:
-                            return field.value;
-            }
+  // Get the appropriate event type based on the input type
+  getEventType(type) {
+    switch (type) {
+      case 'text':
+      case 'textarea':
+        return 'input';
+      case 'select-one':
+      case 'checkbox':
+      case 'radio':
+        return 'change';
+      default:
+        return 'input';
     }
+  }
 
-    /**
+  // Get the current value of a field based on its type
+  getFieldValue(field) {
+    switch (field.type) {
+      case 'checkbox':
+        return field.checked ? 'yes' : 'no'; // Normalizing value for checkboxes
+      case 'radio':
+        return field.checked ? field.value : '';
+      default:
+        return field.value;
+    }
+  }
+
+  /**
      * Show, enable and require a dependent field once its controlling question
      * is answered the way the form format asks for — and hide and clear it again
      * otherwise.
@@ -312,104 +312,104 @@ export class DynamicFormHandler {
      *   its own option values are compared exactly
      * @returns {void}
      */
-    toggleDependentFields(dependentField, controllingValue, root = document, controller = undefined) {
-        // Every element carrying the name, not just the first: a dependent field
-        // rendered as a group of radios was otherwise half-toggled.
-        const dependentElements = getElementsByFieldName(root, dependentField.name);
-        if (dependentElements.length === 0) {
-            return;
-        }
-
-        const isMet = isControllerAnswerMatching(controller, controllingValue, dependentField.dependsOn.value);
-
-        dependentElements.forEach((element) => {
-            element.disabled = !isMet;
-            if (isMet && dependentField.required) {
-                element.setAttribute("required", "true");
-            } else {
-                element.removeAttribute("required");
-            }
-        });
-
-        // A hidden field must not keep an answer the form no longer shows.
-        if (!isMet) {
-            clearDependentValues(dependentElements);
-        }
-
-        // Hide the whole group rather than leaving a greyed-out box on screen.
-        const group = dependentElements[0].closest(".form-group");
-        if (group) {
-            group.classList.toggle("form-group--hidden", !isMet);
-        }
+  toggleDependentFields(dependentField, controllingValue, root = document, controller = undefined) {
+    // Every element carrying the name, not just the first: a dependent field
+    // rendered as a group of radios was otherwise half-toggled.
+    const dependentElements = getElementsByFieldName(root, dependentField.name);
+    if (dependentElements.length === 0) {
+      return;
     }
+
+    const isMet = isControllerAnswerMatching(controller, controllingValue, dependentField.dependsOn.value);
+
+    dependentElements.forEach((element) => {
+      element.disabled = !isMet;
+      if (isMet && dependentField.required) {
+        element.setAttribute('required', 'true');
+      } else {
+        element.removeAttribute('required');
+      }
+    });
+
+    // A hidden field must not keep an answer the form no longer shows.
+    if (!isMet) {
+      clearDependentValues(dependentElements);
+    }
+
+    // Hide the whole group rather than leaving a greyed-out box on screen.
+    const group = dependentElements[0].closest('.form-group');
+    if (group) {
+      group.classList.toggle('form-group--hidden', !isMet);
+    }
+  }
     
     
     
-    attachEventListeners() {
-        const formElement = this.container.querySelector(`#dynamic-form-${this.formType}${this.uniqueIdPart}`);
-        if (formElement) {
-            formElement.addEventListener("submit", (e) => this.handleSubmit(e));
-            debugLog(`Event listener attached for form: ${this.formType}`);
-        } else {
-            debugError(`Form element for ${this.formType}${this.uniqueIdPart} not found.`);
+  attachEventListeners() {
+    const formElement = this.container.querySelector(`#dynamic-form-${this.formType}${this.uniqueIdPart}`);
+    if (formElement) {
+      formElement.addEventListener('submit', (e) => this.handleSubmit(e));
+      debugLog(`Event listener attached for form: ${this.formType}`);
+    } else {
+      debugError(`Form element for ${this.formType}${this.uniqueIdPart} not found.`);
+    }
+  }
+
+  async handleSubmit(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const submissionData = Object.fromEntries(formData.entries());
+
+    try {
+      const result = await saveFormSubmission(this.formType, this.participantId, submissionData);
+      if (result.success) {
+        this.app.showMessage(translate('form_saved_successfully'));
+        this.app.router.navigate('/parent-dashboard');
+      } else {
+        throw new Error(result.message || translate('error_saving_form'));
+      }
+    } catch (error) {
+      debugError('Error saving form:', error);
+      this.showError(apiErrorMessage(error, 'error_saving_form'));
+    }
+  }
+
+  showError(message) {
+    this.app.showMessage(message, 'error');
+  }
+  getFormData() {
+    // Select the fieldset (or form) inside the container for this specific formType and formIndex
+    const formElement = this.container.querySelector(`#dynamic-form-${this.formType}${this.uniqueIdPart}`);
+
+    // Check if the form element exists
+    if (!formElement) {
+      debugError(`Form element for ${this.formType}${this.uniqueIdPart} not found or is not a valid form.`);
+      return {}; // Return an empty object if the form element is not found
+    }
+
+    // Collect data directly from input, select, and textarea elements within this specific formElement
+    const filteredData = {};
+    formElement.querySelectorAll('input, select, textarea').forEach(field => {
+      if (field.type === 'checkbox') {
+        filteredData[field.name] = field.checked;
+      } else if (field.type === 'radio') {
+        // Only add the value of the selected radio button
+        if (field.checked) {
+          filteredData[field.name] = field.value;
         }
-    }
+      } else {
+        filteredData[field.name] = field.value;
+      }
+    });
 
-    async handleSubmit(e) {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const submissionData = Object.fromEntries(formData.entries());
-
-        try {
-            const result = await saveFormSubmission(this.formType, this.participantId, submissionData);
-            if (result.success) {
-                this.app.showMessage(translate("form_saved_successfully"));
-                this.app.router.navigate("/parent-dashboard");
-            } else {
-                throw new Error(result.message || translate("error_saving_form"));
-            }
-        } catch (error) {
-            debugError("Error saving form:", error);
-            this.showError(apiErrorMessage(error, "error_saving_form"));
-        }
-    }
-
-    showError(message) {
-        this.app.showMessage(message, "error");
-    }
-	getFormData() {
-		// Select the fieldset (or form) inside the container for this specific formType and formIndex
-		const formElement = this.container.querySelector(`#dynamic-form-${this.formType}${this.uniqueIdPart}`);
-
-		// Check if the form element exists
-		if (!formElement) {
-			debugError(`Form element for ${this.formType}${this.uniqueIdPart} not found or is not a valid form.`);
-			return {}; // Return an empty object if the form element is not found
-		}
-
-		// Collect data directly from input, select, and textarea elements within this specific formElement
-		const filteredData = {};
-		formElement.querySelectorAll('input, select, textarea').forEach(field => {
-			if (field.type === 'checkbox') {
-				filteredData[field.name] = field.checked;
-			} else if (field.type === 'radio') {
-				// Only add the value of the selected radio button
-				if (field.checked) {
-					filteredData[field.name] = field.value;
-				}
-			} else {
-				filteredData[field.name] = field.value;
-			}
-		});
-
-		return filteredData; // Return all the form data as an object
-	}
+    return filteredData; // Return all the form data as an object
+  }
 
 
 
 
-			// Utility method to determine if this instance is standalone
-			isStandalone() {
-					return this.container === document.getElementById("app");
-			}
-	}
+  // Utility method to determine if this instance is standalone
+  isStandalone() {
+    return this.container === document.getElementById('app');
+  }
+}
