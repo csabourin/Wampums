@@ -33,11 +33,11 @@ describe('Service Worker Configuration', () => {
     });
 
     test('should use injectManifest strategy for custom service worker logic', () => {
-      expect(viteConfig).toContain('strategies: "injectManifest"');
+      expect(viteConfig).toMatch(/strategies: ["']injectManifest["']/);
     });
 
     test('should set registerType to prompt for controlled updates', () => {
-      expect(viteConfig).toContain('registerType: "prompt"');
+      expect(viteConfig).toMatch(/registerType: ["']prompt["']/);
     });
 
     test('should cache static assets like JS, CSS, images', () => {
