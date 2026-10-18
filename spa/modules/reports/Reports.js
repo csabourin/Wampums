@@ -1,6 +1,6 @@
 // reports.js
 import { translate } from '../../app.js';
-import { sanitizeHTML, stripHTML } from '../../utils/SecurityUtils.js';
+import { sanitizeHTML } from '../../utils/SecurityUtils.js';
 import {
   debugLog,
   debugError,
@@ -38,6 +38,7 @@ import { formTypeLabel } from '../../utils/FormLabelUtils.js';
 import { getFormStructureByType, getFormSubmissionsByType } from '../../api/api-reports.js';
 import { isSavedAnswerMatching } from '../../utils/FormDependencyUtils.js';
 import { resolveFormText } from '../../utils/FormTextUtils.js';
+import { richTextToPlainText } from '../../utils/RichTextUtils.js';
 const REPORT_CURRENCY = 'CAD';
 // A report card sits under the report's h2, so its own heading is an h3.
 const CARD_HEADING_LEVEL = 3;
@@ -773,7 +774,8 @@ export class Reports {
       hasBundleText: (lang, key) => Boolean(this.app.translations?.[lang]?.[key]),
     };
     const { text } = resolveFormText(field.labelText, field.label || field.name, this.app.lang, translate, reader);
-    return stripHTML(text).trim() || field.name;
+    // Decoded text, on one line: the card and the CSV escape it themselves.
+    return richTextToPlainText(text).replace(/\s+/g, ' ').trim() || field.name;
   }
 
 

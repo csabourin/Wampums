@@ -23,8 +23,6 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
 
 jest.mock('../../spa/utils/SecurityUtils.js', () => ({
   sanitizeHTML: (value) => String(value ?? ''),
-  // The text a browser would show, as the real stripHTML returns.
-  stripHTML: (value) => new globalThis.DOMParser().parseFromString(String(value ?? ''), 'text/html').body.textContent,
   escapeHTML: (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -553,6 +551,19 @@ describe('missing fields report', () => {
 
     expect(reports.getMissingFields({ transport: '1' }, fields)).toEqual([]);
     expect(reports.getMissingFields({ transport: 'yes' }, fields).map((field) => field.name)).toEqual(['details']);
+  });
+
+  test('a label with a "<" or an entity reads as written, escaped once', () => {
+    const { reports } = setup();
+    reports.app.lang = 'fr';
+    const label = reports.formFieldLabel({ name: 'age', labelText: { fr: 'Âge < 18 ans &amp; <b>plus</b>' } });
+    expect(label).toBe('Âge < 18 ans & plus');
+
+    const root = document.createElement('div');
+    root.innerHTML = reports.renderMissingFieldsReport(
+      [{ first_name: 'Alex', last_name: 'Roy', missing: [label] }], 'fiche_sante', 1,
+    );
+    expect(root.querySelector('dd').textContent).toBe('Âge < 18 ans & plus');
   });
 
   test('says so when every submission is complete', async () => {
