@@ -36,7 +36,7 @@ import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { formTypeLabel } from '../../utils/FormLabelUtils.js';
 import { getFormStructureByType, getFormSubmissionsByType } from '../../api/api-reports.js';
-import { isDependencyMet } from '../../utils/FormDependencyUtils.js';
+import { isSavedAnswerMatching } from '../../utils/FormDependencyUtils.js';
 import { resolveFormText } from '../../utils/FormTextUtils.js';
 const REPORT_CURRENCY = 'CAD';
 // A report card sits under the report's h2, so its own heading is an h3.
@@ -952,7 +952,9 @@ export class Reports {
 
   /**
 	 * The required fields a submission leaves unanswered. A field that depends
-	 * on another answer is required only when that answer calls for it.
+	 * on another answer is required only when that answer calls for it, judged
+	 * against the controlling field's own options as the form does: a saved
+	 * "1" does not meet a condition on "yes" when both are options.
 	 *
 	 * @param {Object} submissionData - The submitted answers
 	 * @param {Array<Object>} fields - The form's fields
@@ -962,8 +964,13 @@ export class Reports {
     const isBlank = (value) => value === undefined || value === null || value === false
       || (typeof value === 'string' && value.trim() === '')
       || (Array.isArray(value) && value.length === 0);
+    const applies = (dependsOn) => !dependsOn?.field || isSavedAnswerMatching(
+      fields.find((candidate) => candidate?.name === dependsOn.field),
+      submissionData[dependsOn.field],
+      dependsOn.value,
+    );
     return fields.filter((field) => field?.name && field.required
-      && isDependencyMet(field.dependsOn, submissionData)
+      && applies(field.dependsOn)
       && isBlank(submissionData[field.name]));
   }
 

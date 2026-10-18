@@ -544,6 +544,17 @@ describe('missing fields report', () => {
       .toBe('Autre précision');
   });
 
+  test('a field waiting on one option of a select is not missing when another option was chosen', () => {
+    const { reports } = setup();
+    const fields = [
+      { name: 'transport', type: 'select', options: [{ value: '1' }, { value: 'yes' }], required: true },
+      { name: 'details', required: true, dependsOn: { field: 'transport', value: 'yes' } },
+    ];
+
+    expect(reports.getMissingFields({ transport: '1' }, fields)).toEqual([]);
+    expect(reports.getMissingFields({ transport: 'yes' }, fields).map((field) => field.name)).toEqual(['details']);
+  });
+
   test('says so when every submission is complete', async () => {
     const { reports } = setup();
     mockGetFormStructureByType.mockResolvedValue(STRUCTURE);
