@@ -19,6 +19,54 @@ import {
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
+
+/**
+ * Paper styles for the printed badge application form.
+ * Passed to setPrintContent() as styles: the sanitizer drops a <style> in the markup.
+ */
+const BADGE_FORM_PRINT_STYLES = `
+  @page {
+    size: letter;
+    margin: 0.5in;
+  }
+  body {
+    font-family: Arial, sans-serif;
+    font-size: 14pt;
+  }
+  h1, h2 {
+    text-align: center;
+  }
+  .form-field {
+    margin-bottom: 20px;
+  }
+  .form-field label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+  .form-field .input-line {
+    border-bottom: 1px solid black;
+    min-height: 30px;
+    width: 100%;
+    word-wrap: break-word;
+  }
+  .long-input {
+    min-height: 90px;
+  }
+  .signature-line {
+    border-top: 1px solid black;
+    width: 50%;
+    margin-top: 50px;
+  }
+  .checkbox-field {
+    display: flex;
+    align-items: center;
+  }
+  .checkbox-field input {
+    margin-right: 10px;
+  }
+`;
+
 export class BadgeForm {
   constructor(app) {
     this.app = app;
@@ -224,53 +272,6 @@ export class BadgeForm {
       return;
     }
     setPrintContent(printWindow, `
-      <html>
-        <head>
-          <title>${translate('badge_application_form')}</title>
-          <style>
-            @page {
-              size: letter;
-              margin: 0.5in;
-            }
-            body {
-              font-family: Arial, sans-serif;
-              font-size: 14pt;
-            }
-            h1, h2 {
-              text-align: center;
-            }
-            .form-field {
-              margin-bottom: 20px;
-            }
-            .form-field label {
-              display: block;
-              font-weight: bold;
-              margin-bottom: 5px;
-            }
-            .form-field .input-line {
-              border-bottom: 1px solid black;
-              min-height: 30px;
-              width: 100%;
-              word-wrap: break-word;
-            }
-            .long-input {
-              min-height: 90px;
-            }
-            .signature-line {
-              border-top: 1px solid black;
-              width: 50%;
-              margin-top: 50px;
-            }
-            .checkbox-field {
-              display: flex;
-              align-items: center;
-            }
-            .checkbox-field input {
-              margin-right: 10px;
-            }
-          </style>
-        </head>
-        <body>
           <h1>${translate('badge_application_form')}</h1>
           <h2>${this.participant ? escapeHTML(`${this.participant.first_name} ${this.participant.last_name}`) : translate('participant_name')}</h2>
 
@@ -313,9 +314,7 @@ export class BadgeForm {
             <label>${translate('signature_parent')}:</label>
             <div class="signature-line"></div>
           </div>
-        </body>
-      </html>
-    `, translate('badge_application_form'));
+    `, translate('badge_application_form'), { styles: BADGE_FORM_PRINT_STYLES });
     printWindow.document.close();
     printWindow.print();
   }
