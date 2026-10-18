@@ -32,11 +32,6 @@
       "count": 1
     }
   },
-  "spa/modules/reports/Reports.js": {
-    "no-case-declarations": {
-      "count": 2
-    }
-  },
   "spa/router.js": {
     "no-case-declarations": {
       "count": 69

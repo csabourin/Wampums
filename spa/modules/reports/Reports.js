@@ -1,6 +1,5 @@
 // reports.js
 import { translate } from '../../app.js';
-import { sanitizeHTML } from '../../utils/SecurityUtils.js';
 import {
   debugLog,
   debugError,
@@ -27,10 +26,12 @@ import {
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { badgeLabel } from '../../utils/BadgeLabelUtils.js';
 import { openPrintWindow, setPrintContent } from '../../utils/PrintUtils.js';
-import { formatDateShort, isoToDateString } from '../../utils/DateUtils.js';
+import { formatDateShort, getTodayISO, isoToDateString } from '../../utils/DateUtils.js';
 import { canViewReports, isParent } from '../../utils/PermissionUtils.js';
 import { setContent, setText } from '../../utils/DOMUtils.js';
 import { exportToCSV } from '../../utils/ExportUtils.js';
+import { buildReportExport, isAffirmativeAnswer } from './reportExportDefinitions.js';
+import { buildReportPrintDocument } from '../../utils/ReportPrintUtils.js';
 import { CONFIG } from '../../config.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 
@@ -372,10 +373,12 @@ export class Reports {
         return;
       }
 
+      this.currentReportTitle = reportTitles[reportType] || translate('report');
+
       // Open modal with report title, unless the page shows the report
       // itself (a parent viewing their child's progress)
       if (!retrying && !document.querySelector('#app #report-content')) {
-        this.openReportModal(reportTitles[reportType] || translate('report'));
+        this.openReportModal(this.currentReportTitle);
       }
 
       this.currentReportType = reportType;
@@ -703,176 +706,35 @@ export class Reports {
   }
 
 
+  /**
+	 * Download the report on screen as a CSV file.
+	 *
+	 * The columns of each report are described in `reportExportDefinitions.js`.
+	 * The file is named after the report and the day (`allergies_report_2026-10-18`)
+	 * and its delimiter follows the interface language (a semicolon in French, so
+	 * Excel opens it in columns).
+	 */
   exportCurrentReport() {
-    if (!this.currentReportData) {
-      this.app.showMessage(translate('no_data_to_export'), 'warning');
+    const lang = this.app.lang;
+    const exportDefinition = buildReportExport(this.currentReportType, this.currentReportData, {
+      translate,
+      lang,
+      formatDateShort,
+      isoToDateString,
+    });
+
+    if (exportDefinition.error) {
+      this.app.showMessage(translate(exportDefinition.error), 'warning');
       return;
     }
 
-    const dateStr = formatDateShort(new Date()).replace(/\//g, '-');
-    const filename = `${this.currentReportType}_report_${dateStr}`;
-    let columns = [];
-    let data = this.currentReportData;
-
-    switch (this.currentReportType) {
-      case 'health':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'allergies', label: translate('allergies') },
-          { key: 'epipen', label: translate('epipen'), format: (v) => (v === '1' || v === true || v === 'true') ? translate('yes') : translate('no') },
-          { key: 'medications', label: translate('medication') },
-          { key: 'probleme_sante', label: translate('health_issues') },
-          { key: 'limitations', label: translate('limitations') },
-          { key: 'blessures_operations', label: translate('injuries') },
-          { key: 'niveau_natation', label: translate('swimming_level') },
-          { key: 'doit_porter_vfi', label: translate('doit_porter_vfi'), format: (v) => (v === '1' || v === true || v === 'true') ? translate('yes') : translate('no') },
-          { key: 'vaccins_a_jour', label: translate('vaccines_up_to_date'), format: (v) => (v === '1' || v === true || v === 'true') ? translate('yes') : translate('no') },
-          { key: 'nom_medecin', label: translate('nom_medecin_label') },
-          {
-            key: 'emergency_contacts',
-            label: translate('emergency_contacts'),
-            format: (contacts) => (Array.isArray(contacts) ? contacts : [])
-              .map((contact) => [
-                contact.name,
-                contact.relationship,
-                contact.phone_mobile || contact.phone_home || contact.phone_work,
-              ].filter(Boolean).join(' '))
-              .join(' | '),
-          }
-        ];
-        break;
-      case 'allergies':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'allergies', label: translate('allergies') },
-          { key: 'allergy_severity', label: translate('allergy_severity') },
-          { key: 'allergy_reaction', label: translate('allergy_reaction') },
-          { key: 'allergy_action', label: translate('allergy_action') },
-          { key: 'epipen', label: translate('epipen'), format: (v) => (v === '1' || v === true || v === 'true') ? translate('yes') : translate('no') },
-          { key: 'emergency_medication', label: translate('emergency_medication') },
-          { key: 'notes', label: translate('notes') }
-        ];
-        break;
-      case 'medication':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'medication', label: translate('medication') }
-        ];
-        break;
-      case 'vaccines':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'vaccines_up_to_date', label: translate('vaccines_up_to_date'), format: (v) => (v === true ? translate('yes') : translate('no')) }
-        ];
-        break;
-      case 'leave-alone':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'leave_alone', label: translate('leave_alone'), format: (v) => (v === '1' || v === true || v === 'true') ? translate('yes') : translate('no') }
-        ];
-        break;
-      case 'media-authorization':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'media_consent', label: translate('media_consent'), format: (v) => (v === '1' || v === true || v === 'true') ? translate('yes') : translate('no') }
-        ];
-        break;
-      case 'attendance':
-        // Attendance is special - dynamic columns based on dates
-        // data is { data: [...participants] } - we stored 'reportData' which contains .data
-        // Wait, we stored `this.currentReportData = reportData;` where reportData has .data array
-
-        const attendanceData = data.data || [];
-        if (!attendanceData.length) {
-          this.app.showMessage(translate('no_data_to_export'), 'warning');
-          return;
-        }
-
-        data = attendanceData; // Override data to be the array of participants
-
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'total_days', label: translate('total_days') },
-          { key: 'days_absent', label: translate('days_absent') },
-          { key: 'days_late', label: translate('days_late') }
-        ];
-
-        // Extract unique dates
-        const uniqueDates = new Set();
-        data.forEach(p => {
-          (p.attendance || []).forEach(a => {
-            if (a.date) {uniqueDates.add(isoToDateString(a.date));}
-          });
-        });
-
-        Array.from(uniqueDates).sort().forEach(date => {
-          columns.push({
-            key: `date_${date}`,
-            label: formatDateShort(date),
-            format: (_, row) => {
-              const att = (row.attendance || []).find(a => isoToDateString(a.date) === date);
-              return att ? (translate(att.status) || att.status) : '';
-            }
-          });
-        });
-        break;
-      case 'missing-fields':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'missing_fields', label: translate('missing_fields') }
-        ];
-        break;
-      case 'financial':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'total_billed', label: translate('total_billed'), format: v => Number(v || 0).toFixed(2) },
-          { key: 'total_paid', label: translate('total_paid'), format: v => Number(v || 0).toFixed(2) },
-          { key: 'total_outstanding', label: translate('outstanding_balance'), format: v => Number(v || 0).toFixed(2) }
-        ];
-        break;
-      case 'participant-age':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'date_naissance', label: translate('birthdate'), format: v => v ? formatDateShort(v) : '' },
-          { key: 'age', label: translate('age') }
-        ];
-        break;
-      default:
-        // Fallback for types not explicitly handled or generic types
-        // check if data is array of objects
-        if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object') {
-          // Try to auto-detect columns from first item
-          Object.keys(data[0]).forEach(key => {
-            if (typeof data[0][key] !== 'object' && typeof data[0][key] !== 'function') {
-              columns.push({ key, label: translate(key) || key });
-            }
-          });
-        } else {
-          this.app.showMessage(translate('export_not_supported_for_type'), 'warning');
-          return;
-        }
-    }
-
-    exportToCSV(data, columns, filename);
+    const reportName = String(this.currentReportType).replace(/-/g, '_');
+    exportToCSV(
+      exportDefinition.rows,
+      exportDefinition.columns,
+      `${reportName}_report_${getTodayISO()}`,
+      { lang },
+    );
   }
 
 
@@ -1119,7 +981,7 @@ export class Reports {
 						<tr>
 							<td>${escapeHTML(item.first_name)} ${escapeHTML(item.last_name)}</td>
 							<td>${item.group_name || translate('no_group')}</td>
-							<td>${item.can_leave_alone === 'on' || item.can_leave_alone === 'true' || item.can_leave_alone === true ? translate('yes') : translate('no')}</td>
+							<td>${isAffirmativeAnswer(item.can_leave_alone) ? translate('yes') : translate('no')}</td>
 						</tr>
 					`,
     )
@@ -1151,7 +1013,7 @@ export class Reports {
 						<tr>
 							<td>${escapeHTML(item.first_name)} ${escapeHTML(item.last_name)}</td>
 							<td>${item.group_name || translate('no_group')}</td>
-							<td>${item.media_authorized === 'on' || item.media_authorized === 'true' || item.media_authorized === true ? translate('yes') : translate('no')}</td>
+							<td>${isAffirmativeAnswer(item.media_authorized) ? translate('yes') : translate('no')}</td>
 						</tr>
 					`,
     )
@@ -1799,31 +1661,30 @@ export class Reports {
     }
   }
 
+  /**
+	 * Print the report on screen.
+	 *
+	 * The print copy is prepared by `buildReportPrintDocument`: compact rows,
+	 * columns with no answer left out, the header repeated on each page and a
+	 * sideways page for wide tables, so a report takes as few sheets as it can.
+	 */
   printReport() {
+    const reportContent = document.getElementById('report-content');
+    if (!reportContent) {
+      return;
+    }
+
     const printWindow = openPrintWindow();
     if (!printWindow) {
       this.app.showMessage(translate('popup_blocked'), 'error');
       return;
     }
-    const reportContent = document.getElementById('report-content');
-    const reportMarkup = reportContent ? reportContent.outerHTML : '';
-    const safeReportContent = reportMarkup ? sanitizeHTML(reportMarkup) : '';
-    setPrintContent(printWindow, `
-			<html>
-				<head>
-					<title>${translate('report')}</title>
-					<style>
-						body { font-family: Arial, sans-serif; }
-						table { border-collapse: collapse; width: 100%; }
-						th, td { border: 1px solid black; padding: 8px; text-align: left; }
-						th { background-color: #f2f2f2; }
-					</style>
-				</head>
-				<body>
-					${safeReportContent}
-				</body>
-			</html>
-		`, translate('report'));
+
+    const title = this.currentReportTitle || translate('report');
+    setPrintContent(printWindow, buildReportPrintDocument(reportContent, {
+      title,
+      dateLabel: formatDateShort(new Date(), this.app.lang),
+    }), title);
     printWindow.document.close();
     printWindow.print();
   }

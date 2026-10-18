@@ -4391,12 +4391,16 @@ tr:hover {
    ============================================================================ */
 
 @media print {
+  /* No fixed `size`: the paper is the one chosen in the print dialog. Forcing
+     `letter` made an A4 sheet print scaled or cropped. */
   @page {
-    size: letter;
-    margin: 1cm;
+    margin: 10mm;
   }
 
+  /* The page margin above is the only margin: the screen padding of the body
+     took another 13 mm on each side. */
   body {
+    padding: 0;
     background: white;
     color: black;
   }
@@ -4436,6 +4440,158 @@ tr:hover {
     content: " (" attr(href) ")";
     font-size: 0.8em;
     color: #666;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   Printable den list (`/group-participant-report`)
+
+   On screen it is a plain table, kept as a real table on a phone (the stacked
+   mobile layout of section 5.7 would split each den from its members). On
+   paper it takes as few sheets as it can while staying easy to read: 10pt
+   type, tight rows, no fill, the header repeated on each sheet, and each den
+   kept whole on one sheet. Everything is scoped to this page: the previous
+   version injected global `table`, `th` and `@media print` rules into <head>
+   that outlived the page and blanked every later print.
+   ---------------------------------------------------------------------------- */
+
+.den-list-report__actions {
+  margin-block-start: var(--space-md);
+}
+
+.den-list tr:hover {
+  background-color: transparent;
+}
+
+@media (width <=600px) {
+
+  .den-list {
+    display: table;
+  }
+
+  .den-list thead {
+    display: table-header-group;
+  }
+
+  .den-list tbody {
+    display: table-row-group;
+  }
+
+  .den-list tr,
+  .den-list thead tr {
+    display: table-row;
+    position: static;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .den-list th,
+  .den-list td {
+    display: table-cell;
+    position: static;
+    text-align: start;
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .den-list td::before {
+    content: none;
+  }
+}
+
+@media print {
+
+  body:has(.den-list-report) .skip-link,
+  body:has(.den-list-report) #news-widget,
+  body:has(.den-list-report) .privacy-policy-link,
+  body:has(.den-list-report) #loading-indicator,
+  .den-list-report__actions {
+    display: none !important;
+  }
+
+  body:has(.den-list-report) #app {
+    margin: 0;
+    padding: 0;
+    max-inline-size: none;
+  }
+
+  .den-list-report {
+    margin: 0;
+    padding: 0;
+    max-inline-size: none;
+    font-size: 10pt;
+    line-height: 1.25;
+  }
+
+  .den-list-report h1 {
+    max-inline-size: none;
+    margin: 0 0 4mm;
+    padding-block-end: 1.5mm;
+    border-block-end: 1pt solid #000;
+    font-size: 14pt;
+    text-align: start;
+  }
+
+  /* Two columns of dens: each den is a small table of its own, kept whole in
+     one column, so a unit of a dozen dens still fits on one sheet. The column
+     headings are left out on paper: the den, its youth and "Pisteur" explain
+     themselves. */
+  .den-list {
+    display: block;
+    column-count: 2;
+    column-gap: 8mm;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: none;
+    overflow: visible;
+  }
+
+  .den-list thead {
+    display: none;
+  }
+
+  .den-list tbody {
+    display: table;
+    inline-size: 100%;
+    margin-block-end: 3.5mm;
+    border: 0.75pt solid #000;
+    break-inside: avoid;
+  }
+
+  .den-list tr {
+    break-inside: avoid;
+  }
+
+  .den-list th,
+  .den-list td {
+    padding: 0.8mm 2mm;
+    border: 0;
+    border-block-end: 0.5pt solid #999;
+    background: none;
+    color: #000;
+    vertical-align: top;
+  }
+
+  .den-list tr:last-child > td {
+    border-block-end: 0;
+  }
+
+  /* The den and the role take what they need; the youth's name gets the rest. */
+  .den-list td[rowspan],
+  .den-list td:last-child {
+    inline-size: 1%;
+    white-space: nowrap;
+  }
+
+  /* The den's cell runs the whole height of its block: no rule under it, the
+     block's own border closes it. */
+  .den-list td[rowspan] {
+    border-block-end: 0;
+    border-inline-end: 0.5pt solid #999;
+    font-weight: 700;
   }
 }
 

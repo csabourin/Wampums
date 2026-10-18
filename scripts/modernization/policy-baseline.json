@@ -131,7 +131,7 @@
     "spa/modules/participants/ManageParticipants.js": 4,
     "spa/modules/permission-slips/PermissionSlipDashboard.js": 3,
     "spa/modules/points/PointActionBar.js": 8,
-    "spa/modules/reports/Reports.js": 4,
+    "spa/modules/reports/Reports.js": 1,
     "spa/modules/resources/Inventory.js": 7,
     "spa/modules/resources/MaterialManagement.js": 1,
     "spa/modules/roles/RoleManagement.js": 1,

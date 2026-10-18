@@ -81,6 +81,75 @@ describe('Printable den list', () => {
   });
 });
 
+describe('Printable den list on paper', () => {
+  beforeEach(() => {
+    getGroups.mockResolvedValue({
+      data: [{ id: 1, name: 'Rouge' }, { id: 2, name: 'Bleu' }, { id: 3, name: 'Vide' }],
+    });
+    getParticipants.mockResolvedValue({
+      data: [
+        { id: 10, first_name: 'Maxime', last_name: 'Tremblay', group_id: 1, first_leader: true },
+        { id: 11, first_name: 'Vincent', last_name: 'Tremblay', group_id: 1 },
+        { id: 12, first_name: 'Léa', last_name: 'Roy', group_id: 2, first_leader: true },
+      ],
+    });
+  });
+
+  test('each den is its own table body, so a den is never cut between two sheets', async () => {
+    const root = await renderReport();
+    const bodies = [...root.querySelectorAll('table.den-list tbody')];
+
+    // Dens are listed alphabetically: Bleu, then Rouge.
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0].textContent).toContain('Léa');
+    expect(bodies[0].textContent).not.toContain('Maxime');
+    expect(bodies[1].textContent).toContain('Maxime');
+    expect(bodies[1].textContent).toContain('Vincent');
+    expect(bodies[1].textContent).not.toContain('Léa');
+  });
+
+  test('a den with nobody in it is not printed', async () => {
+    const root = await renderReport();
+
+    expect(root.textContent).not.toContain('Vide');
+  });
+
+  test('the den name is written once, spanning its members', async () => {
+    const root = await renderReport();
+    const rouge = [...root.querySelectorAll('table.den-list tbody')]
+      .find((body) => body.textContent.includes('Maxime'));
+
+    expect(rouge.querySelectorAll('td[rowspan="2"]')).toHaveLength(1);
+    expect(rouge.querySelector('td[rowspan]').textContent).toBe('Rouge');
+  });
+
+  test('the print button and the link back stay together, off the sheet', async () => {
+    const root = await renderReport();
+    const actions = root.querySelector('.den-list-report__actions');
+
+    expect(actions.querySelector('#print-report')).not.toBeNull();
+    expect(actions.querySelector('a[href="/dashboard"]')).not.toBeNull();
+  });
+
+  test('the page adds no styles to the document, however often it is shown', async () => {
+    await renderReport();
+    await renderReport();
+
+    // The old page appended global `table`, `th` and `@media print` rules to <head>
+    // that outlived it: every later table was restyled and every later print blanked.
+    expect(document.head.querySelectorAll('style')).toHaveLength(0);
+  });
+
+  test('the print button prints the page', async () => {
+    window.print = jest.fn();
+    const root = await renderReport();
+
+    root.querySelector('#print-report').click();
+
+    expect(window.print).toHaveBeenCalledTimes(1);
+  });
+});
+
 test('a youth with a nickname is listed by it', async () => {
   getGroups.mockResolvedValue({ data: [{ id: 1, name: 'Rouge' }] });
   getParticipants.mockResolvedValue({

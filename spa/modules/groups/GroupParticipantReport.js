@@ -2,7 +2,7 @@ import { getParticipants, getGroups } from '../../ajax-functions.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { translate } from '../../app.js';
 import { normalizeParticipantList } from '../../utils/ParticipantRoleUtils.js';
-import { setContent, insertHTML } from '../../utils/DOMUtils.js';
+import { setContent } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
@@ -60,40 +60,24 @@ export class PrintableGroupParticipantReport {
 
   render() {
     const content = `
-						<div class="report-container">
+						<div class="den-list-report">
 								${renderBackLink()}
 								<h1>${translate('den_list_report')}</h1>
 								<div id="report-content">
 										${this.renderTable()}
 								</div>
-								<button type="button" class="button button--primary" id="print-report">${translate('print_report')}</button>
-								<p><a href="/dashboard">${translate('back_to_dashboard')}</a></p>
+								<div class="den-list-report__actions">
+										<button type="button" class="button button--primary" id="print-report">${translate('print_report')}</button>
+										<p><a href="/dashboard">${translate('back_to_dashboard')}</a></p>
+								</div>
 						</div>
 				`;
     setContent(document.getElementById('app'), content);
-    const style = `
-						<style>
-								@media print {
-										body * { visibility: hidden; }
-										.report-container, .report-container * { visibility: visible; }
-										.report-container { position: absolute; left: 0; top: 0; }
-										#print-report, a { display: none; }
-								}
-								.report-container { font-family: Arial, sans-serif; font-size: 13px; }
-								table { width: 8.25in; border-collapse: collapse; }
-								th, td { border: 1px solid #ddd; padding: 4px; text-align: left; }
-								th { background-color: #f2f2f2; font-weight: bold; }
-								tr:nth-child(even) { background-color: #f9f9f9; }
-								h1 { font-size: 18px; margin-bottom: 10px; }
-								h2 { font-size: 16px; margin: 10px 0 5px; }
-						</style>
-				`;
-    insertHTML(document.head, 'beforeend', style, { allowStyleTags: true });
   }
 
   renderTable() {
     return `
-						<table>
+						<table class="den-list">
 								<thead>
 										<tr>
 												<th scope="col">${translate('Tannière')}</th>
@@ -101,9 +85,7 @@ export class PrintableGroupParticipantReport {
 												<th scope="col">${translate('role')}</th>
 										</tr>
 								</thead>
-								<tbody>
-										${this.renderTableRows()}
-								</tbody>
+								${this.renderTableRows()}
 						</table>
 				`;
   }
@@ -119,16 +101,20 @@ export class PrintableGroupParticipantReport {
         return youthFirstName(a).localeCompare(youthFirstName(b));
       });
 
-      return groupParticipants.map((participant, index) => `
-								<tr>
-										${index === 0 ? `<td rowspan="${groupParticipants.length}">${escapeHTML(group.name)}</td>` : ''}
-										<td>${escapeHTML(youthDisplayName(participant))}</td>
-										<td>
-												${participant.first_leader ? `<strong>${translate('first_leader')}</strong>` : 
+      if (groupParticipants.length === 0) {
+        return '';
+      }
+
+      return `<tbody>${groupParticipants.map((participant, index) => `
+									<tr>
+											${index === 0 ? `<td rowspan="${groupParticipants.length}">${escapeHTML(group.name)}</td>` : ''}
+											<td>${escapeHTML(youthDisplayName(participant))}</td>
+											<td>
+													${participant.first_leader ? `<strong>${translate('first_leader')}</strong>` :
     participant.second_leader ? `<strong>${translate('second_leader')}</strong>` : ''}
-										</td>
-								</tr>
-						`).join('');
+											</td>
+									</tr>
+							`).join('')}</tbody>`;
     }).join('');
   }
 
