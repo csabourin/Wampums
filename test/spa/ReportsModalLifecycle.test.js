@@ -39,6 +39,7 @@ jest.mock('../../spa/utils/DateUtils.js', () => ({
 jest.mock('../../spa/utils/PrintUtils.js', () => ({
   openPrintWindow: jest.fn(),
   setPrintContent: jest.fn(),
+  REPORT_PRINT_STYLES: '.print-styles {}',
 }));
 
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
@@ -73,6 +74,7 @@ jest.mock('../../spa/ajax-functions.js', () => ({
 
 import axe from 'axe-core';
 import { Reports } from '../../spa/modules/reports/Reports.js';
+import { openPrintWindow, setPrintContent } from '../../spa/utils/PrintUtils.js';
 import { isBodyScrollLocked, releaseAllScrollLocks } from '../../spa/utils/ScrollLockUtils.js';
 
 const AXE_OPTIONS = {
@@ -227,6 +229,59 @@ describe('allergy report', () => {
     expect(html).toContain('Administrer EpiPen');
     expect(html).toContain('EpiPen Jr');
     expect(html).toContain('Toujours garder deux auto-injecteurs');
+  });
+
+  test('each youth is a card naming only what is filled in, readable on a phone', async () => {
+    const { reports } = setup();
+    mockGetAllergiesReport.mockResolvedValue({
+      success: true,
+      data: [
+        { id: 1, first_name: 'Alex', last_name: 'Tremblay', group_name: 'Roux', allergies: 'Arachides', epipen: true },
+        { id: 2, first_name: 'Noa', last_name: 'Roy', group_name: 'Gris', allergies: 'Chat Chien Pollen', epipen: false },
+      ],
+    });
+
+    await reports.loadReport('allergies');
+    const content = document.getElementById('report-content');
+    const cards = [...content.querySelectorAll('article.health-record')];
+
+    // No eight-column table, which a phone stacks into unlabelled boxes.
+    expect(content.querySelector('table')).toBeNull();
+    expect(cards).toHaveLength(2);
+    expect(cards[0].querySelector('h3').textContent).toBe('Alex Tremblay');
+    expect(cards[0].querySelector('.badge-epipen').textContent).toBe('epipen');
+    expect(cards[1].querySelector('.badge-epipen')).toBeNull();
+    // A field left blank is left out, not drawn as a dash.
+    expect([...content.querySelectorAll('dd')].map((dd) => dd.textContent)).not.toContain('—');
+    expect([...cards[1].querySelectorAll('dt')].map((dt) => dt.textContent)).toEqual(['allergies']);
+    expect(cards[1].querySelector('dd').textContent).toBe('Chat Chien Pollen');
+
+    const results = await axe.run(content, AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+
+  test('printing sends the report with the compact paper styles, named after the report', async () => {
+    const { reports } = setup();
+    mockGetAllergiesReport.mockResolvedValue({
+      success: true,
+      data: [{ id: 1, first_name: 'Alex', last_name: 'Tremblay', allergies: 'Arachides', epipen: true }],
+    });
+    const printWindow = {
+      document: { documentElement: {}, close: jest.fn() },
+      print: jest.fn(),
+    };
+    openPrintWindow.mockReturnValue(printWindow);
+
+    await reports.loadReport('allergies');
+    reports.printReport();
+
+    const [, html, title] = setPrintContent.mock.calls[0];
+    expect(title).toBe('allergies_report_title');
+    expect(html).toContain('<style>.print-styles {}</style>');
+    expect(html).toContain('printed_on');
+    expect(html).toContain('Arachides');
+    expect(printWindow.document.documentElement.lang).toBe('fr');
+    expect(printWindow.print).toHaveBeenCalled();
   });
 
   test('does not leak unrelated medical data into the allergy report', () => {

@@ -1084,24 +1084,29 @@ tr:hover {
   background-color: rgb(24 178 154 / 0.08);
 }
 
-/* Responsive Table - Stack on Mobile */
+/* Responsive Table - Stack on Mobile
+
+   A table that scrolls in its own container (`.table-scroll`, a report dialog)
+   keeps its columns: stacking it hides its header and, without a `data-label`
+   on each cell, leaves values in boxes no one can name. The `:where()` keeps
+   each selector's specificity what it was before the exclusion. */
 @media (width <=600px) {
 
-  table,
-  thead,
-  tbody,
-  th,
-  td {
+  table:where(:not(.table-scroll table, .report-modal-content table)),
+  thead:where(:not(.table-scroll thead, .report-modal-content thead)),
+  tbody:where(:not(.table-scroll tbody, .report-modal-content tbody)),
+  th:where(:not(.table-scroll th, .report-modal-content th)),
+  td:where(:not(.table-scroll td, .report-modal-content td)) {
     display: block;
   }
 
-  thead tr {
+  thead tr:where(:not(.table-scroll tr, .report-modal-content tr)) {
     position: absolute;
     inset-block-start: -9999px;
     inset-inline-start: -9999px;
   }
 
-  tr {
+  tr:where(:not(.table-scroll tr, .report-modal-content tr)) {
     margin-block-end: var(--space-lg);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
@@ -1110,13 +1115,13 @@ tr:hover {
     flex-wrap: wrap;
   }
 
-  td {
+  td:where(:not(.table-scroll td, .report-modal-content td)) {
     border: none;
     position: relative;
     text-align: end;
   }
 
-  td::before {
+  td:where(:not(.table-scroll td, .report-modal-content td))::before {
     content: attr(data-label);
     position: absolute;
     inset-inline-start: var(--space-md);
@@ -4416,7 +4421,11 @@ tr:hover {
   .dashboard-button,
   .toast,
   #offline-indicator,
-  #loading-indicator {
+  #loading-indicator,
+  .settings-icon,
+  .skip-link,
+  .privacy-policy-link,
+  #news-widget {
     display: none !important;
   }
 
@@ -8242,6 +8251,11 @@ details p {
   background: var(--color-background);
 }
 
+/* A report table wider than a phone scrolls here, not the whole page. */
+.report-modal-content {
+  overflow-x: auto;
+}
+
 /* Button variants for modal */
 .button--secondary {
   background: var(--color-secondary);
@@ -9151,6 +9165,7 @@ details p {
 
 .health-record__field dd {
   margin: 0 0 var(--space-xs);
+  overflow-wrap: anywhere;
 }
 
 .health-record__contacts {
@@ -9190,6 +9205,134 @@ details p {
 @media (min-width: 640px) {
   .health-record__fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Den list (printable)
+
+   One card per den. On paper the cards flow in two columns at 10.5pt and a
+   den is never split between pages, so a pack fits on one sheet without
+   becoming hard to read. The leader's role is a word, not a colour.
+--------------------------------------------------------------------------- */
+.den-list-report__actions {
+  margin-block-end: var(--space-md);
+}
+
+.den-list-report__printed {
+  display: none;
+}
+
+.den-list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: var(--space-md);
+}
+
+.den-list-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  box-shadow: var(--shadow-base);
+}
+
+.den-list-card__title {
+  margin: 0 0 var(--space-sm);
+  padding-block-end: var(--space-xs);
+  font-size: var(--font-size-lg);
+  border-block-end: 1px solid var(--color-border-light);
+}
+
+.den-list-card__count {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+}
+
+.den-list-card__members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.den-list-card__member {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 var(--space-sm);
+  padding-block: var(--space-xs);
+  border-block-end: 1px solid var(--color-border-light);
+  overflow-wrap: anywhere;
+}
+
+.den-list-card__member:last-child {
+  border-block-end: none;
+}
+
+.den-list-card__role {
+  font-size: var(--font-size-sm);
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  .den-list-report {
+    font-size: 10.5pt;
+    line-height: 1.3;
+    padding: 0;
+  }
+
+  .den-list-report h1 {
+    font-size: 15pt;
+    margin: 0 0 2pt;
+  }
+
+  .den-list-report__printed {
+    display: block;
+    margin: 0 0 6pt;
+    font-size: 8.5pt;
+  }
+
+  .den-list-grid {
+    display: block;
+    column-count: 2;
+    column-gap: 6mm;
+  }
+
+  .den-list-card {
+    display: block;
+    box-sizing: border-box;
+    margin: 0 0 4mm;
+    padding: 3pt 6pt;
+    border: 0.75pt solid #777;
+    border-radius: 0;
+    box-shadow: none;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .den-list-card__title {
+    font-size: 11.5pt;
+    margin: 0 0 2pt;
+    padding-block-end: 2pt;
+    border-block-end: 0.75pt solid #777;
+  }
+
+  .den-list-card__count {
+    color: #000;
+    font-size: 9pt;
+  }
+
+  .den-list-card__member {
+    padding-block: 1.5pt;
+    border-block-end: 0.5pt solid #ccc;
+  }
+
+  .den-list-card__role {
+    font-size: 9.5pt;
   }
 }
 

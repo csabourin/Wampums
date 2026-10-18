@@ -26,7 +26,7 @@ import {
 } from '../../ajax-functions.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { badgeLabel } from '../../utils/BadgeLabelUtils.js';
-import { openPrintWindow, setPrintContent } from '../../utils/PrintUtils.js';
+import { openPrintWindow, setPrintContent, REPORT_PRINT_STYLES } from '../../utils/PrintUtils.js';
 import { formatDateShort, isoToDateString } from '../../utils/DateUtils.js';
 import { canViewReports, isParent } from '../../utils/PermissionUtils.js';
 import { setContent, setText } from '../../utils/DOMUtils.js';
@@ -374,8 +374,9 @@ export class Reports {
 
       // Open modal with report title, unless the page shows the report
       // itself (a parent viewing their child's progress)
+      this.currentReportTitle = reportTitles[reportType] || translate('report');
       if (!retrying && !document.querySelector('#app #report-content')) {
-        this.openReportModal(reportTitles[reportType] || translate('report'));
+        this.openReportModal(this.currentReportTitle);
       }
 
       this.currentReportType = reportType;
@@ -941,46 +942,33 @@ export class Reports {
     }
 
     const epipenCount = data.filter((item) => item.epipen === true).length;
-    const cell = (value) => escapeHTML(value || '—');
 
+    // One card per youth, like the health record report: eight columns do not
+    // fit a phone, and a card leaves out what is not filled in instead of a
+    // row of dashes.
     return `
 			<h2>${translate('allergies_report')}</h2>
 			<p class="report-meta">
 				${translate('participants')}: ${data.length} — ${translate('epipen')}: ${epipenCount}
 			</p>
-			<div class="table-scroll">
-				<table class="data-table">
-					<caption class="visually-hidden">${translate('allergies_report')}</caption>
-					<thead>
-						<tr>
-							<th scope="col">${translate('name')}</th>
-							<th scope="col">${translate('group')}</th>
-							<th scope="col">${translate('allergies')}</th>
-							<th scope="col">${translate('allergy_severity')}</th>
-							<th scope="col">${translate('allergy_reaction')}</th>
-							<th scope="col">${translate('allergy_action')}</th>
-							<th scope="col">${translate('emergency_medication')}</th>
-							<th scope="col">${translate('notes')}</th>
-						</tr>
-					</thead>
-					<tbody>
-						${data.map((item) => `
-							<tr>
-								<th scope="row">${escapeHTML(`${item.first_name || ''} ${item.last_name || ''}`.trim())}</th>
-								<td>${escapeHTML(item.group_name || translate('no_group'))}</td>
-								<td>${cell(item.allergies)}</td>
-								<td>${cell(item.allergy_severity)}</td>
-								<td>${cell(item.allergy_reaction)}</td>
-								<td>${cell(item.allergy_action)}</td>
-								<td>
-									${item.epipen ? `<strong class="badge-epipen">${translate('epipen')}</strong>` : ''}
-									${cell(item.emergency_medication)}
-								</td>
-								<td>${cell(item.notes || item.limitations)}</td>
-							</tr>
-						`).join('')}
-					</tbody>
-				</table>
+			<div class="health-records">
+				${data.map((item) => `
+					<article class="health-record">
+						<header class="health-record__header">
+							<h3>${escapeHTML(`${item.first_name || ''} ${item.last_name || ''}`.trim())}</h3>
+							<span class="health-record__group">${escapeHTML(item.group_name || translate('no_group'))}</span>
+							${item.epipen ? `<span class="badge-epipen">${translate('epipen')}</span>` : ''}
+						</header>
+						<dl class="health-record__fields">
+							${this.renderHealthField(translate('allergies'), item.allergies)}
+							${this.renderHealthField(translate('allergy_severity'), item.allergy_severity)}
+							${this.renderHealthField(translate('allergy_reaction'), item.allergy_reaction)}
+							${this.renderHealthField(translate('allergy_action'), item.allergy_action)}
+							${this.renderHealthField(translate('emergency_medication'), item.emergency_medication)}
+							${this.renderHealthField(translate('notes'), item.notes || item.limitations)}
+						</dl>
+					</article>
+				`).join('')}
 			</div>
 		`;
   }
@@ -1806,24 +1794,19 @@ export class Reports {
       return;
     }
     const reportContent = document.getElementById('report-content');
-    const reportMarkup = reportContent ? reportContent.outerHTML : '';
+    const reportMarkup = reportContent ? reportContent.innerHTML : '';
     const safeReportContent = reportMarkup ? sanitizeHTML(reportMarkup) : '';
+    // The report's title names the saved PDF; the date says how current the paper is.
+    const title = this.currentReportTitle || translate('report');
+    const printedOn = translate('printed_on').replace('{date}', formatDateShort(new Date(), this.app.lang));
+    if (this.app.lang) {
+      printWindow.document.documentElement.lang = this.app.lang;
+    }
     setPrintContent(printWindow, `
-			<html>
-				<head>
-					<title>${translate('report')}</title>
-					<style>
-						body { font-family: Arial, sans-serif; }
-						table { border-collapse: collapse; width: 100%; }
-						th, td { border: 1px solid black; padding: 8px; text-align: left; }
-						th { background-color: #f2f2f2; }
-					</style>
-				</head>
-				<body>
-					${safeReportContent}
-				</body>
-			</html>
-		`, translate('report'));
+			<style>${REPORT_PRINT_STYLES}</style>
+			<p class="print-date">${escapeHTML(printedOn)}</p>
+			${safeReportContent}
+		`, title);
     printWindow.document.close();
     printWindow.print();
   }
