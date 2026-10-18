@@ -1086,27 +1086,27 @@ tr:hover {
 
 /* Responsive Table - Stack on Mobile
 
-   A table that scrolls in its own container (`.table-scroll`, a report dialog)
-   keeps its columns: stacking it hides its header and, without a `data-label`
-   on each cell, leaves values in boxes no one can name. The `:where()` keeps
-   each selector's specificity what it was before the exclusion. */
+   A table in the reports dialog keeps its columns and scrolls in a focusable
+   region instead: stacking it hides its header and, without a `data-label` on
+   each cell, leaves values in boxes no one can name. The `:where()` keeps each
+   selector's specificity what it was before the exclusion. */
 @media (width <=600px) {
 
-  table:where(:not(.table-scroll table, .report-modal-content table)),
-  thead:where(:not(.table-scroll thead, .report-modal-content thead)),
-  tbody:where(:not(.table-scroll tbody, .report-modal-content tbody)),
-  th:where(:not(.table-scroll th, .report-modal-content th)),
-  td:where(:not(.table-scroll td, .report-modal-content td)) {
+  table:where(:not(.report-modal-content table)),
+  thead:where(:not(.report-modal-content thead)),
+  tbody:where(:not(.report-modal-content tbody)),
+  th:where(:not(.report-modal-content th)),
+  td:where(:not(.report-modal-content td)) {
     display: block;
   }
 
-  thead tr:where(:not(.table-scroll tr, .report-modal-content tr)) {
+  thead tr:where(:not(.report-modal-content tr)) {
     position: absolute;
     inset-block-start: -9999px;
     inset-inline-start: -9999px;
   }
 
-  tr:where(:not(.table-scroll tr, .report-modal-content tr)) {
+  tr:where(:not(.report-modal-content tr)) {
     margin-block-end: var(--space-lg);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
@@ -1115,13 +1115,13 @@ tr:hover {
     flex-wrap: wrap;
   }
 
-  td:where(:not(.table-scroll td, .report-modal-content td)) {
+  td:where(:not(.report-modal-content td)) {
     border: none;
     position: relative;
     text-align: end;
   }
 
-  td:where(:not(.table-scroll td, .report-modal-content td))::before {
+  td:where(:not(.report-modal-content td))::before {
     content: attr(data-label);
     position: absolute;
     inset-inline-start: var(--space-md);
@@ -8251,8 +8251,9 @@ details p {
   background: var(--color-background);
 }
 
-/* A report table wider than a phone scrolls here, not the whole page. */
-.report-modal-content {
+/* A report table wider than a phone scrolls in its own region, which takes
+   keyboard focus so it can be scrolled without a pointer. */
+.report-table-scroll {
   overflow-x: auto;
 }
 
@@ -9099,26 +9100,37 @@ details p {
    ============================================================================ */
 
 /* ---------------------------------------------------------------------------
-   Health record report
+   Report cards
 
-   A health record carries far more fields than fit legibly in table columns on
-   a phone, so each participant is a card. The EpiPen marker uses a text label,
-   not colour alone, so it survives greyscale printing and colour blindness.
+   Every report in the reports dialog lists one card per youth or entry: the
+   columns of a table do not fit a phone, and a card leaves out what is not
+   filled in. Cards share the width on a wide screen. The EpiPen marker uses a
+   text label, not colour alone, so it survives greyscale printing and colour
+   blindness.
 --------------------------------------------------------------------------- */
-.health-records {
+.report-records {
   display: grid;
-  gap: var(--space-lg);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  gap: var(--space-md);
 }
 
-.health-record {
+.report-records-group + .report-records-group {
+  margin-block-start: var(--space-lg);
+}
+
+.report-records-group h3 {
+  margin: 0 0 var(--space-sm);
+}
+
+.report-record {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  padding: var(--space-lg);
+  padding: var(--space-md);
   box-shadow: var(--shadow-base);
 }
 
-.health-record__header {
+.report-record__header {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
@@ -9128,12 +9140,12 @@ details p {
   border-bottom: 1px solid var(--color-border-light);
 }
 
-.health-record__header h3 {
+.report-record__header :is(h3, h4) {
   margin: 0;
   font-size: var(--font-size-lg);
 }
 
-.health-record__group {
+.report-record__group {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
@@ -9150,63 +9162,67 @@ details p {
   letter-spacing: 0.03em;
 }
 
-.health-record__fields {
+.report-record__fields {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--space-sm) var(--space-lg);
+  gap: var(--space-xs);
   margin: 0;
 }
 
-.health-record__field dt {
+/* A short answer sits on the label's line, at its end; a long one wraps to
+   the full width below it. */
+.report-record__field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-md);
+}
+
+.report-record__field dt {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
 }
 
-.health-record__field dd {
-  margin: 0 0 var(--space-xs);
+.report-record__field dd {
+  margin: 0 0 0 auto;
   overflow-wrap: anywhere;
 }
 
-.health-record__contacts {
+.report-record__contacts {
   margin-top: var(--space-md);
   padding-top: var(--space-md);
   border-top: 1px solid var(--color-border-light);
 }
 
-.health-record__contacts h4 {
+.report-record__contacts h4 {
   margin: 0 0 var(--space-sm);
   font-size: var(--font-size-base);
 }
 
-.health-record__contacts ul {
+.report-record__contacts ul {
   margin: 0;
   padding-left: var(--space-lg);
 }
 
-.health-record__contacts li {
+.report-record__contacts li {
   margin-bottom: var(--space-xs);
 }
 
-.health-record__contacts .contact-relationship,
-.health-record__contacts .contact-phone,
-.health-record__contacts .contact-email {
+.report-record__contacts .contact-relationship,
+.report-record__contacts .contact-phone,
+.report-record__contacts .contact-email {
   margin-left: var(--space-sm);
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
 
-.health-record__no-contacts {
+.report-record__no-contacts {
   margin: var(--space-md) 0 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
 
-@media (min-width: 640px) {
-  .health-record__fields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
 
 /* ---------------------------------------------------------------------------
    Den list (printable)

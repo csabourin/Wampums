@@ -47,16 +47,16 @@ function mediaBlock(condition, after = '') {
 describe('tables on a phone', () => {
   const stacking = mediaBlock(/width\s*<=\s*600px/);
 
-  test('a table that scrolls in its own container keeps its columns and headers', () => {
+  test('a table in the reports dialog keeps its columns and headers', () => {
     const displayBlock = stacking.match(/([^{}]+)\{\s*display:\s*block;\s*\}/)[1];
     for (const element of ['table', 'thead', 'tbody', 'th', 'td']) {
-      expect(displayBlock).toMatch(new RegExp(`${element}:where\\(:not\\(\\.table-scroll ${element}, \\.report-modal-content ${element}\\)\\)`));
+      expect(displayBlock).toMatch(new RegExp(`${element}:where\\(:not\\(\\.report-modal-content ${element}\\)\\)`));
     }
-    expect(stacking).toMatch(/thead tr:where\(:not\(\.table-scroll tr, \.report-modal-content tr\)\)/);
+    expect(stacking).toMatch(/thead tr:where\(:not\(\.report-modal-content tr\)\)/);
   });
 
-  test('a report dialog scrolls a wide table itself instead of the page', () => {
-    expect(STYLES).toMatch(/\.report-modal-content\s*\{[^}]*overflow-x:\s*auto/);
+  test('a wide report table scrolls in its own region, not the page', () => {
+    expect(STYLES).toMatch(/\.report-table-scroll\s*\{[^}]*overflow-x:\s*auto/);
   });
 });
 
@@ -81,12 +81,12 @@ describe('a report printed from its own window', () => {
   test('repeats the column headers on each page and never cuts a row or card', () => {
     expect(REPORT_PRINT_STYLES).toMatch(/thead\s*\{\s*display:\s*table-header-group;/);
     expect(REPORT_PRINT_STYLES).toMatch(/tr\s*\{[^}]*break-inside:\s*avoid/);
-    expect(REPORT_PRINT_STYLES).toMatch(/\.health-record\s*\{[^}]*break-inside:\s*avoid/);
+    expect(REPORT_PRINT_STYLES).toMatch(/\.report-record\s*\{[^}]*break-inside:\s*avoid/);
   });
 
   test('uses compact type and flows cards in two columns', () => {
     expect(REPORT_PRINT_STYLES).toMatch(/body\s*\{[^}]*font:\s*10pt/);
-    expect(REPORT_PRINT_STYLES).toMatch(/\.health-records\s*\{[^}]*column-count:\s*2/);
+    expect(REPORT_PRINT_STYLES).toMatch(/\.report-records\s*\{[^}]*column-count:\s*2/);
   });
 
   test('keeps a visually hidden caption off the paper and controls out of it', () => {

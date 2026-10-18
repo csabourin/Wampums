@@ -38,6 +38,8 @@ import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { formTypeLabel } from '../../utils/FormLabelUtils.js';
 const REPORT_CURRENCY = 'CAD';
+// A report card sits under the report's h2, so its own heading is an h3.
+const CARD_HEADING_LEVEL = 3;
 
 /** Owner key for the report modal's body scroll lock. */
 
@@ -577,31 +579,75 @@ export class Reports {
     return `
 			<h2>${translate('health_report_title')}</h2>
 			<p class="report-meta">${translate('participants')}: ${participants.length}</p>
-			<div class="health-records">
-				${participants.map((participant) => `
-					<article class="health-record">
-						<header class="health-record__header">
-							<h3>${escapeHTML(`${participant.first_name || ''} ${participant.last_name || ''}`.trim())}</h3>
-							<span class="health-record__group">${escapeHTML(participant.group_name || translate('no_group'))}</span>
-							${participant.epipen ? `<span class="badge-epipen">${translate('epipen')}</span>` : ''}
-						</header>
-						<dl class="health-record__fields">
-							${this.renderHealthField(translate('birthdate'), participant.date_naissance ? formatDateShort(participant.date_naissance, this.app.lang) : null)}
-							${this.renderHealthField(translate('allergies'), participant.allergies)}
-							${this.renderHealthField(translate('medication'), participant.medications)}
-							${this.renderHealthField(translate('health_issues'), participant.probleme_sante)}
-							${this.renderHealthField(translate('limitations'), participant.limitations)}
-							${this.renderHealthField(translate('injuries'), participant.blessures_operations)}
-							${this.renderHealthField(translate('swimming_level'), participant.niveau_natation ? translate(participant.niveau_natation) : null)}
-							${this.renderHealthField(translate('doit_porter_vfi'), participant.doit_porter_vfi ? translate('yes') : null)}
-							${this.renderHealthField(translate('vaccines_up_to_date'), yesNo(participant.vaccins_a_jour))}
-							${this.renderHealthField(translate('nom_medecin_label'), participant.nom_medecin)}
-							${this.renderHealthField(translate('health_form_on_file'), yesNo(participant.has_health_form))}
-						</dl>
-						${this.renderEmergencyContacts(participant.emergency_contacts)}
-					</article>
-				`).join('')}
-			</div>
+			${this.renderRecordCards(participants.map((participant) => this.renderRecordCard({
+    title: this.participantName(participant),
+    subtitle: participant.group_name || translate('no_group'),
+    badge: participant.epipen ? translate('epipen') : '',
+    fields: [
+      [translate('birthdate'), participant.date_naissance ? formatDateShort(participant.date_naissance, this.app.lang) : null],
+      [translate('allergies'), participant.allergies],
+      [translate('medication'), participant.medications],
+      [translate('health_issues'), participant.probleme_sante],
+      [translate('limitations'), participant.limitations],
+      [translate('injuries'), participant.blessures_operations],
+      [translate('swimming_level'), participant.niveau_natation ? translate(participant.niveau_natation) : null],
+      [translate('doit_porter_vfi'), participant.doit_porter_vfi ? translate('yes') : null],
+      [translate('vaccines_up_to_date'), yesNo(participant.vaccins_a_jour)],
+      [translate('nom_medecin_label'), participant.nom_medecin],
+      [translate('health_form_on_file'), yesNo(participant.has_health_form)],
+    ],
+    extra: this.renderEmergencyContacts(participant.emergency_contacts),
+  })))}
+		`;
+  }
+
+  /**
+	 * The name a report shows for a youth.
+	 *
+	 * @param {{first_name?: string, last_name?: string}} item - Report row
+	 * @returns {string} Plain text name
+	 */
+  participantName(item) {
+    return `${item?.first_name || ''} ${item?.last_name || ''}`.trim();
+  }
+
+  /**
+	 * Report cards, one per youth or entry, in the grid every report shares.
+	 *
+	 * @param {Array<string>} cards - HTML from renderRecordCard()
+	 * @returns {string} HTML
+	 */
+  renderRecordCards(cards) {
+    return `<div class="report-records">${cards.join('')}</div>`;
+  }
+
+  /**
+	 * One report card: a heading, what it belongs to, an optional label, then
+	 * each field that has a value. Reports are cards rather than tables because
+	 * columns do not fit a phone, and a card leaves out what is not filled in
+	 * instead of a row of dashes. On paper they flow in two columns.
+	 *
+	 * @param {Object} card
+	 * @param {string} card.title - Heading (plain text)
+	 * @param {string} [card.subtitle] - Den, date… (plain text)
+	 * @param {string} [card.badge] - Label beside the heading (plain text), never colour alone
+	 * @param {Array<Array>} [card.fields] - [label, value] pairs (plain text)
+	 * @param {string} [card.extra] - Markup already escaped, placed after the fields
+	 * @param {number} [card.level] - Heading level, one below the section the card sits in
+	 * @returns {string} HTML
+	 */
+  renderRecordCard({ title, subtitle = '', badge = '', fields = [], extra = '', level = CARD_HEADING_LEVEL }) {
+    const fieldMarkup = fields.map(([label, value]) => this.renderHealthField(label, value)).join('');
+    return `
+			<article class="report-record">
+				<header class="report-record__header">
+					<h${level}>${escapeHTML(title)}</h${level}>
+					${subtitle ? `<span class="report-record__group">${escapeHTML(subtitle)}</span>` : ''}
+					${badge ? `<span class="badge-epipen">${escapeHTML(badge)}</span>` : ''}
+				</header>
+				${fieldMarkup ? `<dl class="report-record__fields">${fieldMarkup}</dl>` : ''}
+				${extra}
+			</article>
 		`;
   }
 
@@ -618,7 +664,7 @@ export class Reports {
       return '';
     }
     return `
-			<div class="health-record__field">
+			<div class="report-record__field">
 				<dt>${escapeHTML(label)}</dt>
 				<dd>${escapeHTML(String(value))}</dd>
 			</div>
@@ -633,11 +679,11 @@ export class Reports {
 	 */
   renderEmergencyContacts(contacts) {
     if (!Array.isArray(contacts) || contacts.length === 0) {
-      return `<p class="health-record__no-contacts">${translate('no_emergency_contacts')}</p>`;
+      return `<p class="report-record__no-contacts">${translate('no_emergency_contacts')}</p>`;
     }
 
     return `
-			<div class="health-record__contacts">
+			<div class="report-record__contacts">
 				<h4>${translate('emergency_contacts')}</h4>
 				<ul>
 					${contacts.map((contact) => {
@@ -943,106 +989,78 @@ export class Reports {
 
     const epipenCount = data.filter((item) => item.epipen === true).length;
 
-    // One card per youth, like the health record report: eight columns do not
-    // fit a phone, and a card leaves out what is not filled in instead of a
-    // row of dashes.
     return `
 			<h2>${translate('allergies_report')}</h2>
 			<p class="report-meta">
 				${translate('participants')}: ${data.length} — ${translate('epipen')}: ${epipenCount}
 			</p>
-			<div class="health-records">
-				${data.map((item) => `
-					<article class="health-record">
-						<header class="health-record__header">
-							<h3>${escapeHTML(`${item.first_name || ''} ${item.last_name || ''}`.trim())}</h3>
-							<span class="health-record__group">${escapeHTML(item.group_name || translate('no_group'))}</span>
-							${item.epipen ? `<span class="badge-epipen">${translate('epipen')}</span>` : ''}
-						</header>
-						<dl class="health-record__fields">
-							${this.renderHealthField(translate('allergies'), item.allergies)}
-							${this.renderHealthField(translate('allergy_severity'), item.allergy_severity)}
-							${this.renderHealthField(translate('allergy_reaction'), item.allergy_reaction)}
-							${this.renderHealthField(translate('allergy_action'), item.allergy_action)}
-							${this.renderHealthField(translate('emergency_medication'), item.emergency_medication)}
-							${this.renderHealthField(translate('notes'), item.notes || item.limitations)}
-						</dl>
-					</article>
-				`).join('')}
-			</div>
+			${this.renderRecordCards(data.map((item) => this.renderRecordCard({
+    title: this.participantName(item),
+    subtitle: item.group_name || translate('no_group'),
+    badge: item.epipen ? translate('epipen') : '',
+    fields: [
+      [translate('allergies'), item.allergies],
+      [translate('allergy_severity'), item.allergy_severity],
+      [translate('allergy_reaction'), item.allergy_reaction],
+      [translate('allergy_action'), item.allergy_action],
+      [translate('emergency_medication'), item.emergency_medication],
+      [translate('notes'), item.notes || item.limitations],
+    ],
+  })))}
 		`;
+  }
+
+  /**
+	 * A report of one fact per youth: who they are, their den, then the fact.
+	 *
+	 * @param {Array<Object>} data - Report rows
+	 * @param {string} titleKey - Translation key of the report heading
+	 * @param {function(Object): Array<Array>} fields - The card's [label, value] pairs
+	 * @returns {string} HTML report
+	 */
+  renderParticipantCardsReport(data, titleKey, fields) {
+    if (!Array.isArray(data) || data.length === 0) {
+      return `<p class="no-data">${translate('no_data_available')}</p>`;
+    }
+    return `
+			<h2>${translate(titleKey)}</h2>
+			<p class="report-meta">${translate('participants')}: ${data.length}</p>
+			${this.renderRecordCards(data.map((item) => this.renderRecordCard({
+    title: this.participantName(item),
+    subtitle: item.group_name || translate('no_group'),
+    fields: fields(item),
+  })))}
+		`;
+  }
+
+  /**
+	 * Whether a form's checkbox answer is yes: forms store 'on', 'true' or true.
+	 *
+	 * @param {*} value - Stored answer
+	 * @returns {string} Translated yes or no
+	 */
+  yesNoAnswer(value) {
+    return value === 'on' || value === 'true' || value === true ? translate('yes') : translate('no');
   }
 
   renderMedicationReport(data) {
-    if (!Array.isArray(data) || data.length === 0) {
-      return `<p>${translate('no_data_available')} for medication report.</p>`;
-    }
-
-    return `
-			<h2>${translate('medication_report')}</h2>
-			<table>
-				<thead>
-					<tr>
-						<th>${translate('name')}</th>
-						<th>${translate('group')}</th>
-						<th>${translate('medication')}</th>
-					</tr>
-				</thead>
-				<tbody>
-					${data
-    .map(
-      (item) => `
-						<tr>
-							<td>${escapeHTML(item.first_name)} ${escapeHTML(item.last_name)}</td>
-							<td>${item.group_name || translate('no_group')}</td>
-							<td>${item.medication || '-'}</td>
-						</tr>
-					`,
-    )
-    .join('')}
-				</tbody>
-			</table>
-		`;
+    return this.renderParticipantCardsReport(data, 'medication_report', (item) => [
+      [translate('medication'), item.medication],
+    ]);
   }
 
   renderVaccineReport(data) {
-    if (!Array.isArray(data) || data.length === 0) {
-      return `<p>${translate('no_data_available')} report.</p>`;
-    }
-
-    return `
-			<h2>${translate('vaccine_report')}</h2>
-			<table>
-				<thead>
-					<tr>
-						<th>${translate('name')}</th>
-						<th>${translate('group')}</th>
-						<th>${translate('vaccines_up_to_date')}</th>
-					</tr>
-				</thead>
-				<tbody>
-					${data
-    .map(
-      (item) => `
-						<tr>
-							<td>${escapeHTML(`${item.first_name || ''} ${item.last_name || ''}`.trim())}</td>
-							<td>${escapeHTML(item.group_name || translate('no_group'))}</td>
-							<td>${item.vaccines_up_to_date === true ? translate('yes') : translate('no')}</td>
-						</tr>
-					`,
-    )
-    .join('')}
-				</tbody>
-			</table>
-		`;
+    return this.renderParticipantCardsReport(data, 'vaccine_report', (item) => [
+      [translate('vaccines_up_to_date'), item.vaccines_up_to_date === true ? translate('yes') : translate('no')],
+    ]);
   }
 
   /**
 	 * Render the participant age report.
 	 *
-	 * Participants without a birth date are kept in the table with an explicit
-	 * "unknown" age rather than being silently dropped, so the roster count in
-	 * the report matches the roster the user sees elsewhere.
+	 * Participants without a birth date are kept with an explicit "unknown" age
+	 * rather than being silently dropped, so the roster count in the report
+	 * matches the roster the user sees elsewhere.
 	 *
 	 * @param {Array<Object>} data - Participant age rows from the API
 	 * @returns {string} HTML report
@@ -1053,132 +1071,38 @@ export class Reports {
     }
 
     const withBirthdate = data.filter((item) => Boolean(item.date_naissance));
+    const hasAge = (item) => item.age !== null && item.age !== undefined && item.age !== '';
 
     return `
 			<h2>${translate('participant_age_report')}</h2>
 			<p class="report-meta">${translate('participants')}: ${data.length} — ${translate('birthdate')}: ${withBirthdate.length}</p>
-			<div class="table-scroll">
-				<table class="data-table">
-					<thead>
-						<tr>
-							<th scope="col">${translate('name')}</th>
-							<th scope="col">${translate('group')}</th>
-							<th scope="col">${translate('birthdate')}</th>
-							<th scope="col" class="text-right">${translate('age')}</th>
-						</tr>
-					</thead>
-					<tbody>
-						${data.map((item) => {
-    const hasAge = item.age !== null && item.age !== undefined && item.age !== '';
-    return `
-								<tr>
-									<td>${escapeHTML(`${item.first_name || ''} ${item.last_name || ''}`.trim())}</td>
-									<td>${escapeHTML(item.group_name || translate('no_group'))}</td>
-									<td>${item.date_naissance ? formatDateShort(item.date_naissance, this.app.lang) : translate('unknown')}</td>
-									<td class="text-right">${hasAge ? Number(item.age) : translate('unknown')}</td>
-								</tr>
-							`;
-  }).join('')}
-					</tbody>
-				</table>
-			</div>
+			${this.renderRecordCards(data.map((item) => this.renderRecordCard({
+    title: this.participantName(item),
+    subtitle: item.group_name || translate('no_group'),
+    fields: [
+      [translate('birthdate'), item.date_naissance ? formatDateShort(item.date_naissance, this.app.lang) : translate('unknown')],
+      [translate('age'), hasAge(item) ? String(Number(item.age)) : translate('unknown')],
+    ],
+  })))}
 		`;
   }
 
   renderLeaveAloneReport(data) {
-    if (!Array.isArray(data) || data.length === 0) {
-      return `<p>${translate('no_data_available')}</p>`;
-    }
-
-    return `
-			<h2>${translate('leave_alone_report')}</h2>
-			<table>
-				<thead>
-					<tr>
-						<th>${translate('name')}</th>
-						<th>${translate('group')}</th>
-						<th>${translate('can_leave_alone')}</th>
-					</tr>
-				</thead>
-				<tbody>
-					${data
-    .map(
-      (item) => `
-						<tr>
-							<td>${escapeHTML(item.first_name)} ${escapeHTML(item.last_name)}</td>
-							<td>${item.group_name || translate('no_group')}</td>
-							<td>${item.can_leave_alone === 'on' || item.can_leave_alone === 'true' || item.can_leave_alone === true ? translate('yes') : translate('no')}</td>
-						</tr>
-					`,
-    )
-    .join('')}
-				</tbody>
-			</table>
-		`;
+    return this.renderParticipantCardsReport(data, 'leave_alone_report', (item) => [
+      [translate('can_leave_alone'), this.yesNoAnswer(item.can_leave_alone)],
+    ]);
   }
 
   renderMediaAuthorizationReport(data) {
-    if (!Array.isArray(data) || data.length === 0) {
-      return `<p>${translate('no_data_available')}</p>`;
-    }
-
-    return `
-			<h2>${translate('media_authorization_report')}</h2>
-			<table>
-				<thead>
-					<tr>
-						<th>${translate('name')}</th>
-						<th>${translate('group')}</th>
-						<th>${translate('media_authorized')}</th>
-					</tr>
-				</thead>
-				<tbody>
-					${data
-    .map(
-      (item) => `
-						<tr>
-							<td>${escapeHTML(item.first_name)} ${escapeHTML(item.last_name)}</td>
-							<td>${item.group_name || translate('no_group')}</td>
-							<td>${item.media_authorized === 'on' || item.media_authorized === 'true' || item.media_authorized === true ? translate('yes') : translate('no')}</td>
-						</tr>
-					`,
-    )
-    .join('')}
-				</tbody>
-			</table>
-		`;
+    return this.renderParticipantCardsReport(data, 'media_authorization_report', (item) => [
+      [translate('media_authorized'), this.yesNoAnswer(item.media_authorized)],
+    ]);
   }
 
   renderMissingDocumentsReport(reportData) {
-    if (!Array.isArray(reportData) || reportData.length === 0) {
-      return `<p>${translate('no_data_available')}</p>`;
-    }
-
-    return `
-			<h2>${translate('missing_documents_report')}</h2>
-			<table>
-				<thead>
-					<tr>
-						<th>${translate('name')}</th>
-						<th>${translate('group')}</th>
-						<th>${translate('missing_documents')}</th>
-					</tr>
-				</thead>
-				<tbody>
-					${reportData
-    .map(
-      (item) => `
-						<tr>
-							<td>${escapeHTML(item.first_name)} ${escapeHTML(item.last_name)}</td>
-							<td>${item.group_name || translate('no_group')}</td>
-							<td>${this.formatMissingDocuments(item.missing_documents)}</td>
-						</tr>
-					`,
-    )
-    .join('')}
-				</tbody>
-			</table>
-		`;
+    return this.renderParticipantCardsReport(reportData, 'missing_documents_report', (item) => [
+      [translate('missing_documents'), this.formatMissingDocuments(item.missing_documents)],
+    ]);
   }
 
   formatMissingDocuments(missingDocs) {
@@ -1256,6 +1180,7 @@ export class Reports {
     // Create the header
     const header = `
 					<h2>${translate('attendance_report')}</h2>
+					<div class="report-table-scroll" role="region" tabindex="0" aria-label="${translate('attendance_report')}">
 					<table class="attendance-table">
 							<thead>
 									<tr>
@@ -1307,6 +1232,7 @@ export class Reports {
     const footer = `
 							</tbody>
 					</table>
+					</div>
 			`;
 
     return header + rows + footer;
@@ -1314,39 +1240,24 @@ export class Reports {
 
   renderHonorsReport(data) {
     if (!Array.isArray(data) || data.length === 0) {
-      return `<p>${translate('no_data_available')}</p>`;
+      return `<p class="no-data">${translate('no_data_available')}</p>`;
     }
 
     return `
 			<h2>${translate('honors_report')}</h2>
-			<table>
-				<thead>
-					<tr>
-						<th>${translate('date')}</th>
-						<th>${translate('count')}</th>
-						<th>${translate('recipients')}</th>
-					</tr>
-				</thead>
-				<tbody>
-					${data
-    .map(
-      (item) => `
-						<tr>
-							<td>${escapeHTML(formatDateShort(item.date, this.app.lang))}</td>
-							<td>${escapeHTML(String(item.count))}</td>
-							<td>${escapeHTML(Array.isArray(item.recipients) ? item.recipients.join(', ') : String(item.recipients || ''))}</td>
-						</tr>
-					`,
-    )
-    .join('')}
-				</tbody>
-			</table>
+			${this.renderRecordCards(data.map((item) => this.renderRecordCard({
+    title: formatDateShort(item.date, this.app.lang),
+    fields: [
+      [translate('count'), String(item.count ?? '')],
+      [translate('recipients'), Array.isArray(item.recipients) ? item.recipients.join(', ') : String(item.recipients || '')],
+    ],
+  })))}
 		`;
   }
 
   renderPointsReport(data) {
     if (!Array.isArray(data) || data.length === 0) {
-      return `<p>${translate('no_data_available')} for points report.</p>`;
+      return `<p class="no-data">${translate('no_data_available')}</p>`;
     }
 
     // Group participants by group name
@@ -1361,35 +1272,19 @@ export class Reports {
 
     return `
 			<h2>${translate('points_report')}</h2>
-			${Object.entries(groupedData)
-    .map(
-      ([group, participants]) => `
-				<h3>${group}</h3>
-				<table>
-					<thead>
-						<tr>
-							<th>${translate('name')}</th>
-							<th>${translate('points')}</th>
-							<th>${translate('honors_count')}</th>
-						</tr>
-					</thead>
-					<tbody>
-						${participants
-    .map(
-      (participant) => `
-							<tr>
-								<td>${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}</td>
-								<td>${participant.total_points}</td>
-								<td>${participant.honors_count}</td>
-							</tr>
-						`,
-    )
-    .join('')}
-					</tbody>
-				</table>
-			`,
-    )
-    .join('')}
+			${Object.entries(groupedData).map(([group, participants]) => `
+				<section class="report-records-group">
+					<h3>${escapeHTML(group)}</h3>
+					${this.renderRecordCards(participants.map((participant) => this.renderRecordCard({
+    title: this.participantName(participant),
+    level: CARD_HEADING_LEVEL + 1,
+    fields: [
+      [translate('points'), String(participant.total_points ?? 0)],
+      [translate('honors_count'), String(participant.honors_count ?? 0)],
+    ],
+  })))}
+				</section>
+			`).join('')}
 		`;
   }
 
@@ -1652,57 +1547,36 @@ export class Reports {
       0,
     );
 
-    const definitionRows = definitions
-      .map(
-        (row) => `
-                        <div class="finance-list__row">
-                                <div>
-                                        <p class="finance-meta">${formatDateShort(row.year_start)} → ${formatDateShort(row.year_end)}</p>
-                                </div>
-                                <div class="finance-row-values">
-                                        <span>${this.formatCurrency(row.total_billed)}</span>
-                                        <span>${this.formatCurrency(row.total_paid)}</span>
-                                        <span class="finance-stat__value--alert">${this.formatCurrency(row.total_outstanding)}</span>
-                                </div>
-                        </div>
-                `,
-      )
-      .join('');
+    const money = (row) => [
+      [translate('total_billed'), this.formatCurrency(row.total_billed)],
+      [translate('total_paid'), this.formatCurrency(row.total_paid)],
+      [translate('outstanding_balance'), this.formatCurrency(row.total_outstanding)],
+    ];
+    const subsection = CARD_HEADING_LEVEL + 1;
 
-    const participantRows = participants
-      .map(
-        (p) => `
-                        <div class="finance-list__row">
-                                <div>
-                                        <p class="finance-meta">${escapeHTML(p.first_name || '')} ${escapeHTML(p.last_name || '')}</p>
-                                </div>
-                                <div class="finance-row-values">
-                                        <span>${this.formatCurrency(p.total_billed)}</span>
-                                        <span>${this.formatCurrency(p.total_paid)}</span>
-                                        <span class="finance-stat__value--alert">${this.formatCurrency(p.total_outstanding)}</span>
-                                </div>
-                        </div>
-                `,
-      )
-      .join('');
+    const definitionRows = definitions.map((row) => this.renderRecordCard({
+      title: `${formatDateShort(row.year_start, this.app.lang)} → ${formatDateShort(row.year_end, this.app.lang)}`,
+      level: subsection,
+      fields: money(row),
+    }));
 
-    const paymentMethodRows = paymentMethods
-      .map((methodRow) => {
-        const methodKey = methodRow.method || 'unknown';
-        const methodLabel = translate(methodKey) || translate('unknown');
-        return `
-                        <div class="finance-list__row">
-                                <div>
-                                        <p class="finance-meta">${methodLabel}</p>
-                                </div>
-                                <div class="finance-row-values">
-                                        <span>${this.formatCurrency(methodRow.total_paid)}</span>
-                                        <span>${this.formatPercent(methodRow.total_paid, paymentMethodsTotal)}</span>
-                                </div>
-                        </div>
-                `;
-      })
-      .join('');
+    const participantRows = participants.map((row) => this.renderRecordCard({
+      title: this.participantName(row),
+      level: subsection,
+      fields: money(row),
+    }));
+
+    const paymentMethodRows = paymentMethods.map((methodRow) => this.renderRecordCard({
+      title: translate(methodRow.method || 'unknown') || translate('unknown'),
+      level: subsection,
+      fields: [
+        [translate('total_paid'), this.formatCurrency(methodRow.total_paid)],
+        [translate('percentage'), this.formatPercent(methodRow.total_paid, paymentMethodsTotal)],
+      ],
+    }));
+    const cardsOr = (cards, emptyKey) => (cards.length
+      ? this.renderRecordCards(cards)
+      : `<p class="finance-helper">${translate(emptyKey)}</p>`);
 
     return `
                         <div class="report-surface financial-report">
@@ -1723,15 +1597,15 @@ export class Reports {
                                 <div class="finance-grid">
                                         <section class="finance-card">
                                                 <h3>${translate('by_payment_method')}</h3>
-                                                ${paymentMethodRows || `<p class="finance-helper">${translate('no_payments')}</p>`}
+                                                ${cardsOr(paymentMethodRows, 'no_payments')}
                                         </section>
                                         <section class="finance-card">
                                                 <h3>${translate('by_year')}</h3>
-                                                ${definitionRows || `<p class="finance-helper">${translate('no_definitions')}</p>`}
+                                                ${cardsOr(definitionRows, 'no_definitions')}
                                         </section>
                                         <section class="finance-card">
                                                 <h3>${translate('by_participant')}</h3>
-                                                ${participantRows || `<p class="finance-helper">${translate('no_participant_fees')}</p>`}
+                                                ${cardsOr(participantRows, 'no_participant_fees')}
                                         </section>
                                 </div>
                         </div>

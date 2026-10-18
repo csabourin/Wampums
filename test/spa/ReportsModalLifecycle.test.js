@@ -243,7 +243,7 @@ describe('allergy report', () => {
 
     await reports.loadReport('allergies');
     const content = document.getElementById('report-content');
-    const cards = [...content.querySelectorAll('article.health-record')];
+    const cards = [...content.querySelectorAll('article.report-record')];
 
     // No eight-column table, which a phone stacks into unlabelled boxes.
     expect(content.querySelector('table')).toBeNull();
@@ -374,6 +374,105 @@ describe('complete health record report', () => {
     expect(html).not.toContain('<img');
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+  });
+});
+
+describe('reports listing youth', () => {
+  const HOSTILE = '<img src=x onerror=alert(1)>';
+
+  /**
+   * Render report markup into the page and return its root.
+   * @param {string} html - Report markup
+   * @returns {HTMLElement} Container
+   */
+  function mount(html) {
+    document.body.innerHTML = `<div id="report-content">${html}</div>`;
+    return document.getElementById('report-content');
+  }
+
+  const row = { first_name: 'Alex', last_name: 'Tremblay', group_name: HOSTILE };
+
+  test.each([
+    ['medication', 'renderMedicationReport', { ...row, medication: 'Ventolin' }, 'medication', 'Ventolin'],
+    ['vaccines', 'renderVaccineReport', { ...row, vaccines_up_to_date: true }, 'vaccines_up_to_date', 'yes'],
+    ['leave alone', 'renderLeaveAloneReport', { ...row, can_leave_alone: 'on' }, 'can_leave_alone', 'yes'],
+    ['media', 'renderMediaAuthorizationReport', { ...row, media_authorized: false }, 'media_authorized', 'no'],
+    ['missing documents', 'renderMissingDocumentsReport', { ...row, missing_documents: ['fiche_sante'] }, 'missing_documents', 'fiche_sante'],
+    ['age', 'renderParticipantAgeReport', { ...row, date_naissance: '2015-01-01', age: 11 }, 'age', '11'],
+  ])('the %s report is one labelled card per youth, with names shown as text', async (_name, method, item, label, value) => {
+    const { reports } = setup();
+    const root = mount(reports[method]([item]));
+
+    expect(root.querySelector('table')).toBeNull();
+    const card = root.querySelector('article.report-record');
+    expect(card.querySelector('h3').textContent).toBe('Alex Tremblay');
+    expect(card.querySelector('.report-record__group').textContent).toBe(HOSTILE);
+    expect(root.querySelector('img')).toBeNull();
+    const field = [...card.querySelectorAll('.report-record__field')]
+      .find((entry) => entry.querySelector('dt').textContent === label);
+    expect(field.querySelector('dd').textContent).toBe(value);
+
+    const results = await axe.run(root, AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+
+  test('a report with nothing to list says so in the user\'s language', () => {
+    const { reports } = setup();
+    expect(reports.renderMedicationReport([])).toContain('no_data_available');
+    expect(reports.renderMedicationReport([])).not.toContain('for medication report');
+  });
+
+  test('the points report groups cards under each den, with headings one level below', async () => {
+    const { reports } = setup();
+    const root = mount(`<h2>x</h2>${reports.renderPointsReport([
+      { first_name: 'Alex', last_name: 'Roy', group_name: HOSTILE, total_points: 12, honors_count: 2 },
+      { first_name: 'Noa', last_name: 'Roy', group_name: 'Gris', total_points: 3, honors_count: 0 },
+    ])}`);
+
+    const groups = [...root.querySelectorAll('.report-records-group')];
+    expect(groups).toHaveLength(2);
+    expect(groups[0].querySelector('h3').textContent).toBe(HOSTILE);
+    expect(groups[0].querySelector('article h4').textContent).toBe('Alex Roy');
+    expect(groups[0].querySelector('dd').textContent).toBe('12');
+    expect(root.querySelector('img')).toBeNull();
+    const results = await axe.run(root, AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+
+  test('the honors report is one card per date', () => {
+    const { reports } = setup();
+    const root = mount(reports.renderHonorsReport([{ date: '2026-10-01', count: 2, recipients: ['Alex', 'Noa'] }]));
+    const card = root.querySelector('article.report-record');
+    expect(card.querySelector('h3').textContent).toBe('DATE(2026-10-01)');
+    expect(card.textContent).toContain('Alex, Noa');
+  });
+
+  test('the attendance grid scrolls in a named region a keyboard can reach', () => {
+    const { reports } = setup();
+    const root = mount(reports.renderAttendanceReport({
+      success: true,
+      data: [{ first_name: 'Alex', last_name: 'Roy', attendance: [{ date: '2026-10-01', status: 'present' }] }],
+    }));
+    const region = root.querySelector('.report-table-scroll');
+    expect(region.getAttribute('role')).toBe('region');
+    expect(region.getAttribute('tabindex')).toBe('0');
+    expect(region.getAttribute('aria-label')).toBe('attendance_report');
+    expect(region.querySelector('table')).not.toBeNull();
+  });
+
+  test('every amount in the financial report is named, not a bare figure', () => {
+    const { reports } = setup();
+    const root = mount(reports.renderFinancialReport({
+      totals: {},
+      participants: [{ first_name: 'Alex', last_name: 'Roy', total_billed: 100, total_paid: 40, total_outstanding: 60 }],
+      definitions: [],
+      payment_methods: [],
+    }));
+    const card = root.querySelector('article.report-record');
+    expect(card.querySelector('h4').textContent).toBe('Alex Roy');
+    expect([...card.querySelectorAll('dt')].map((dt) => dt.textContent))
+      .toEqual(['total_billed', 'total_paid', 'outstanding_balance']);
+    expect(root.textContent).toContain('no_payments');
   });
 });
 

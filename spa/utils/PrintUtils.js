@@ -16,8 +16,7 @@ export const REPORT_PRINT_STYLES = `
   body { margin: 0; font: 10pt/1.3 Arial, Helvetica, sans-serif; }
   h1 { font-size: 14pt; margin: 0 0 4pt; }
   h2 { font-size: 13pt; margin: 0 0 4pt; }
-  h3 { font-size: 10.5pt; margin: 0; }
-  h4 { font-size: 10pt; margin: 4pt 0 2pt; }
+  h3, h4 { font-size: 10.5pt; margin: 0; }
   p { margin: 0 0 6pt; }
   button, select, input, .no-print { display: none !important; }
   .visually-hidden {
@@ -32,22 +31,24 @@ export const REPORT_PRINT_STYLES = `
   th, td { border: 0.5pt solid #777; padding: 2pt 4pt; text-align: start; vertical-align: top; }
   thead th { background: #e8e8e8; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .text-right { text-align: end; }
-  .health-records { column-count: 2; column-gap: 6mm; }
-  .health-record {
+  .report-records { column-count: 2; column-gap: 6mm; }
+  .report-record {
     break-inside: avoid; page-break-inside: avoid; display: block;
     box-sizing: border-box; margin: 0 0 4pt; padding: 3pt 5pt; border: 0.5pt solid #777;
   }
-  .health-record__header {
+  .report-records-group > h3 { font-size: 11.5pt; margin: 6pt 0 3pt; }
+  .report-record__header {
     display: flex; flex-wrap: wrap; align-items: baseline; gap: 2pt 6pt;
     padding-block-end: 2pt; margin-block-end: 2pt; border-bottom: 0.5pt solid #bbb;
   }
-  .health-record__group { font-size: 9pt; }
-  .health-record__fields { margin: 0; }
-  .health-record__field { display: grid; grid-template-columns: 35% 1fr; gap: 4pt; margin: 0 0 1pt; }
-  .health-record__field dt { font-weight: bold; }
-  .health-record__field dd { margin: 0; overflow-wrap: anywhere; }
-  .health-record__contacts ul { margin: 0; padding-inline-start: 12pt; }
-  .health-record__no-contacts { margin: 2pt 0 0; font-size: 9pt; }
+  .report-record__group { font-size: 9pt; }
+  .report-record__fields { margin: 0; }
+  .report-record__field { display: grid; grid-template-columns: 35% 1fr; gap: 4pt; margin: 0 0 1pt; }
+  .report-record__field dt { font-weight: bold; }
+  .report-record__field dd { margin: 0; overflow-wrap: anywhere; }
+  .report-record__contacts h4 { margin: 3pt 0 1pt; }
+  .report-record__contacts ul { margin: 0; padding-inline-start: 12pt; }
+  .report-record__no-contacts { margin: 2pt 0 0; font-size: 9pt; }
   .badge-epipen {
     border: 1pt solid #000; padding: 0 3pt; font-size: 8.5pt; font-weight: bold;
     text-transform: uppercase;
