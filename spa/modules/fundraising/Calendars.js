@@ -16,6 +16,64 @@ import {
   resolveEntryAmount,
 } from './campaignModel.js';
 
+/**
+ * Paper styles for the printed fundraiser sales sheet.
+ * Passed to setPrintContent() as styles: the sanitizer drops a <style> in the markup.
+ */
+const FUNDRAISER_PRINT_STYLES = `
+  @page {
+    size: letter;
+    margin: 0.5in;
+  }
+  body {
+    font-family: Arial, sans-serif;
+    font-size: 12pt;
+  }
+  h1 {
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  .fundraiser-info {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 11pt;
+    color: #666;
+  }
+  .print-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .print-table th, .print-table td {
+    border: 1px solid black;
+    padding: 5px;
+    text-align: left;
+  }
+  .print-table th {
+    background-color: #f2f2f2;
+  }
+  .amount-box, .amount-paid-box {
+    width: 50px;
+    height: 25px;
+    border: 1px solid black;
+    display: inline-block;
+    text-align: center;
+    line-height: 30px;
+    font-size: 16px;
+  }
+  .paid-box {
+    width: 30px;
+    height: 25px;
+    border: 1px solid black;
+    display: inline-block;
+    text-align: center;
+    line-height: 25px;
+    font-size: 16px;
+  }
+  .total-row {
+    font-weight: bold;
+  }
+`;
+
 /** The answer for a fundraiser that does not exist in this unit. */
 const HTTP_NOT_FOUND = 404;
 
@@ -544,64 +602,6 @@ export class Calendars {
       return;
     }
     setPrintContent(printWindow, `
-			<html>
-				<head>
-					<title>${escapeHTML(this.fundraiser.name)} - ${translate('fundraiser_sales_title')}</title>
-					<style>
-						@page {
-							size: letter;
-							margin: 0.5in;
-						}
-						body {
-							font-family: Arial, sans-serif;
-							font-size: 12pt;
-						}
-						h1 {
-							text-align: center;
-							margin-bottom: 10px;
-						}
-						.fundraiser-info {
-							text-align: center;
-							margin-bottom: 20px;
-							font-size: 11pt;
-							color: #666;
-						}
-						.print-table {
-							width: 100%;
-							border-collapse: collapse;
-						}
-						.print-table th, .print-table td {
-							border: 1px solid black;
-							padding: 5px;
-							text-align: left;
-						}
-						.print-table th {
-							background-color: #f2f2f2;
-						}
-						.amount-box, .amount-paid-box {
-							width: 50px;
-							height: 25px;
-							border: 1px solid black;
-							display: inline-block;
-							text-align: center;
-							line-height: 30px;
-							font-size: 16px;
-						}
-						.paid-box {
-							width: 30px;
-							height: 25px;
-							border: 1px solid black;
-							display: inline-block;
-							text-align: center;
-							line-height: 25px;
-							font-size: 16px;
-						}
-						.total-row {
-							font-weight: bold;
-						}
-					</style>
-				</head>
-				<body>
 					<h1>${escapeHTML(this.fundraiser.name)}</h1>
 					<div class="fundraiser-info">${startDate} - ${endDate}</div>
 					<table class="print-table">
@@ -638,9 +638,7 @@ export class Calendars {
 							</tr>
 						</tbody>
 					</table>
-				</body>
-			</html>
-			`, `${this.fundraiser.name} - ${translate('fundraiser_sales_title')}`);
+    `, `${this.fundraiser.name} - ${translate('fundraiser_sales_title')}`, { styles: FUNDRAISER_PRINT_STYLES });
     printWindow.document.close();
     printWindow.print();
   }
