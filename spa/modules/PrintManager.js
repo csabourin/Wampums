@@ -1,6 +1,7 @@
 import { translate } from '../app.js';
 import { getHonorLabel } from '../utils/meetingSections.js';
 import { openPrintWindow, setPrintContent } from '../utils/PrintUtils.js';
+import { escapeHTML } from '../utils/SecurityUtils.js';
 
 /**
  * Paper styles for the printed meeting preparation.
@@ -35,6 +36,9 @@ const MEETING_PRINT_STYLES = `
   }
   .print-notes, .print-next-week {
     margin-top: 20px;
+  }
+  .print-notes__text {
+    white-space: pre-wrap;
   }
   .handwritten-notes {
     margin-top: 10px;
@@ -83,61 +87,67 @@ export class PrintManager {
       : [];
     const selectedActivities = this.activityManager.getSelectedActivities();
     const honorLabel = getHonorLabel(this.sectionConfig, translate);
+    const leaderSelect = document.getElementById('animateur-responsable');
+    const leader = leaderSelect?.options[leaderSelect.selectedIndex]?.text || '';
+    // What leaders typed is text: a "<" in a note or an activity is printed
+    // as written, never read as markup.
+    const text = (value) => escapeHTML(String(value ?? ''));
+    const fieldValue = (id) => text(document.getElementById(id)?.value);
 
     const printContent = `
-                        <div class="print-preparation">
-                                <h1>${this.organizationName}</h1>
-                                <h2>${translate('weekly_meeting')}</h2>
-                                <div class="print-header">
-                                        <p><strong>${translate('responsible_leader')}:</strong> ${document.getElementById('animateur-responsable').options[document.getElementById('animateur-responsable').selectedIndex].text}</p>
-                                        <p><strong>${translate('date')}:</strong> ${document.getElementById('date').value}</p>
-                                </div>
-                                <div class="print-header">
-                                        <p><strong>${honorLabel}:</strong></p>
-                                        <ul>
-                                                ${honorItems.map(item => `<li>${item}</li>`).join('')}
-                                        </ul>
-                                        <p><strong>${translate('location')}:</strong> ${document.getElementById('endroit').value}</p>
-                                </div>
-                                <table>
-                                        <thead>
-                                                <tr>
-                                                        <th>${translate('time')}</th>
-                                                        <th>${translate('duration')}</th>
-                                                        <th>${translate('description')}</th>
-                                                        <th>${translate('responsible')}</th>
-                                                        <th>${translate('equipment')}</th>
-                                                </tr>
-                                        </thead>
-                                        <tbody>
-                                                ${selectedActivities.map(a => `
-                                                        <tr>
-                                                                <td>${a.time}</td>
-                                                                <td>${a.duration}</td>
-                                                                <td>${a.activity}</td>
-                                                                <td>${a.responsable || ''}</td>
-                                                                <td>${a.materiel || ''}</td>
-                                                        </tr>
-                                                `).join('')}
-                                        </tbody>
-                                </table>
-                                <div class="print-notes">
-                                        <h3>${translate('notes')}:</h3>
-                                        <p>${document.getElementById('notes').value}</p>
-                                        <div class="handwritten-notes">
-                                                <div class="note-line"></div>
-                                                <div class="note-line"></div>
-                                        </div>
-                                </div>
-                                <div class="print-next-week">
-                                        <h3>${translate('next_week')}:</h3>
-                                        <div class="handwritten-notes">
-                                                <div class="note-line"></div>
-                                                <div class="note-line"></div>
-                                        </div>
-                                </div>
-                        </div>
-                `;
+      <div class="print-preparation">
+        <h1>${text(this.organizationName)}</h1>
+        <h2>${translate('weekly_meeting')}</h2>
+        <div class="print-header">
+          <p><strong>${translate('responsible_leader')}:</strong> ${text(leader)}</p>
+          <p><strong>${translate('date')}:</strong> ${fieldValue('date')}</p>
+        </div>
+        <div class="print-header">
+          <p><strong>${text(honorLabel)}:</strong></p>
+          <ul>
+            ${honorItems.map((item) => `<li>${text(item)}</li>`).join('')}
+          </ul>
+          <p><strong>${translate('location')}:</strong> ${fieldValue('endroit')}</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">${translate('time')}</th>
+              <th scope="col">${translate('duration')}</th>
+              <th scope="col">${translate('description')}</th>
+              <th scope="col">${translate('responsible')}</th>
+              <th scope="col">${translate('equipment')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${selectedActivities.map((a) => `
+              <tr>
+                <td>${text(a.time)}</td>
+                <td>${text(a.duration)}</td>
+                <td>${text(a.activity)}</td>
+                <td>${text(a.responsable)}</td>
+                <td>${text(a.materiel)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <div class="print-notes">
+          <h3>${translate('notes')}:</h3>
+          <p class="print-notes__text">${fieldValue('notes')}</p>
+          <div class="handwritten-notes">
+            <div class="note-line"></div>
+            <div class="note-line"></div>
+          </div>
+        </div>
+        <div class="print-next-week">
+          <h3>${translate('next_week')}:</h3>
+          <div class="handwritten-notes">
+            <div class="note-line"></div>
+            <div class="note-line"></div>
+          </div>
+        </div>
+      </div>
+    `;
 
     const printWindow = openPrintWindow();
     if (!printWindow) {return;}
