@@ -39,6 +39,7 @@ jest.mock('../../spa/utils/DateUtils.js', () => ({
 jest.mock('../../spa/utils/PrintUtils.js', () => ({
   openPrintWindow: jest.fn(),
   setPrintContent: jest.fn(),
+  REPORT_PRINT_STYLES: '.print-styles {}',
 }));
 
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
@@ -73,6 +74,7 @@ jest.mock('../../spa/ajax-functions.js', () => ({
 
 import axe from 'axe-core';
 import { Reports } from '../../spa/modules/reports/Reports.js';
+import { openPrintWindow, setPrintContent } from '../../spa/utils/PrintUtils.js';
 import { isBodyScrollLocked, releaseAllScrollLocks } from '../../spa/utils/ScrollLockUtils.js';
 
 const AXE_OPTIONS = {
@@ -229,6 +231,59 @@ describe('allergy report', () => {
     expect(html).toContain('Toujours garder deux auto-injecteurs');
   });
 
+  test('each youth is a card naming only what is filled in, readable on a phone', async () => {
+    const { reports } = setup();
+    mockGetAllergiesReport.mockResolvedValue({
+      success: true,
+      data: [
+        { id: 1, first_name: 'Alex', last_name: 'Tremblay', group_name: 'Roux', allergies: 'Arachides', epipen: true },
+        { id: 2, first_name: 'Noa', last_name: 'Roy', group_name: 'Gris', allergies: 'Chat Chien Pollen', epipen: false },
+      ],
+    });
+
+    await reports.loadReport('allergies');
+    const content = document.getElementById('report-content');
+    const cards = [...content.querySelectorAll('article.report-record')];
+
+    // No eight-column table, which a phone stacks into unlabelled boxes.
+    expect(content.querySelector('table')).toBeNull();
+    expect(cards).toHaveLength(2);
+    expect(cards[0].querySelector('h3').textContent).toBe('Alex Tremblay');
+    expect(cards[0].querySelector('.badge-epipen').textContent).toBe('epipen');
+    expect(cards[1].querySelector('.badge-epipen')).toBeNull();
+    // A field left blank is left out, not drawn as a dash.
+    expect([...content.querySelectorAll('dd')].map((dd) => dd.textContent)).not.toContain('—');
+    expect([...cards[1].querySelectorAll('dt')].map((dt) => dt.textContent)).toEqual(['allergies']);
+    expect(cards[1].querySelector('dd').textContent).toBe('Chat Chien Pollen');
+
+    const results = await axe.run(content, AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+
+  test('printing sends the report with the compact paper styles, named after the report', async () => {
+    const { reports } = setup();
+    mockGetAllergiesReport.mockResolvedValue({
+      success: true,
+      data: [{ id: 1, first_name: 'Alex', last_name: 'Tremblay', allergies: 'Arachides', epipen: true }],
+    });
+    const printWindow = {
+      document: { documentElement: {}, close: jest.fn() },
+      print: jest.fn(),
+    };
+    openPrintWindow.mockReturnValue(printWindow);
+
+    await reports.loadReport('allergies');
+    reports.printReport();
+
+    const [, html, title, options] = setPrintContent.mock.calls[0];
+    expect(title).toBe('allergies_report_title');
+    expect(options).toEqual({ styles: '.print-styles {}' });
+    expect(html).toContain('printed_on');
+    expect(html).toContain('Arachides');
+    expect(printWindow.document.documentElement.lang).toBe('fr');
+    expect(printWindow.print).toHaveBeenCalled();
+  });
+
   test('does not leak unrelated medical data into the allergy report', () => {
     const { reports } = setup();
 
@@ -319,6 +374,105 @@ describe('complete health record report', () => {
     expect(html).not.toContain('<img');
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+  });
+});
+
+describe('reports listing youth', () => {
+  const HOSTILE = '<img src=x onerror=alert(1)>';
+
+  /**
+   * Render report markup into the page and return its root.
+   * @param {string} html - Report markup
+   * @returns {HTMLElement} Container
+   */
+  function mount(html) {
+    document.body.innerHTML = `<div id="report-content">${html}</div>`;
+    return document.getElementById('report-content');
+  }
+
+  const row = { first_name: 'Alex', last_name: 'Tremblay', group_name: HOSTILE };
+
+  test.each([
+    ['medication', 'renderMedicationReport', { ...row, medication: 'Ventolin' }, 'medication', 'Ventolin'],
+    ['vaccines', 'renderVaccineReport', { ...row, vaccines_up_to_date: true }, 'vaccines_up_to_date', 'yes'],
+    ['leave alone', 'renderLeaveAloneReport', { ...row, can_leave_alone: 'on' }, 'can_leave_alone', 'yes'],
+    ['media', 'renderMediaAuthorizationReport', { ...row, media_authorized: false }, 'media_authorized', 'no'],
+    ['missing documents', 'renderMissingDocumentsReport', { ...row, missing_documents: ['fiche_sante'] }, 'missing_documents', 'fiche_sante'],
+    ['age', 'renderParticipantAgeReport', { ...row, date_naissance: '2015-01-01', age: 11 }, 'age', '11'],
+  ])('the %s report is one labelled card per youth, with names shown as text', async (_name, method, item, label, value) => {
+    const { reports } = setup();
+    const root = mount(reports[method]([item]));
+
+    expect(root.querySelector('table')).toBeNull();
+    const card = root.querySelector('article.report-record');
+    expect(card.querySelector('h3').textContent).toBe('Alex Tremblay');
+    expect(card.querySelector('.report-record__group').textContent).toBe(HOSTILE);
+    expect(root.querySelector('img')).toBeNull();
+    const field = [...card.querySelectorAll('.report-record__field')]
+      .find((entry) => entry.querySelector('dt').textContent === label);
+    expect(field.querySelector('dd').textContent).toBe(value);
+
+    const results = await axe.run(root, AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+
+  test('a report with nothing to list says so in the user\'s language', () => {
+    const { reports } = setup();
+    expect(reports.renderMedicationReport([])).toContain('no_data_available');
+    expect(reports.renderMedicationReport([])).not.toContain('for medication report');
+  });
+
+  test('the points report groups cards under each den, with headings one level below', async () => {
+    const { reports } = setup();
+    const root = mount(`<h2>x</h2>${reports.renderPointsReport([
+      { first_name: 'Alex', last_name: 'Roy', group_name: HOSTILE, total_points: 12, honors_count: 2 },
+      { first_name: 'Noa', last_name: 'Roy', group_name: 'Gris', total_points: 3, honors_count: 0 },
+    ])}`);
+
+    const groups = [...root.querySelectorAll('.report-records-group')];
+    expect(groups).toHaveLength(2);
+    expect(groups[0].querySelector('h3').textContent).toBe(HOSTILE);
+    expect(groups[0].querySelector('article h4').textContent).toBe('Alex Roy');
+    expect(groups[0].querySelector('dd').textContent).toBe('12');
+    expect(root.querySelector('img')).toBeNull();
+    const results = await axe.run(root, AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+
+  test('the honors report is one card per date', () => {
+    const { reports } = setup();
+    const root = mount(reports.renderHonorsReport([{ date: '2026-10-01', count: 2, recipients: ['Alex', 'Noa'] }]));
+    const card = root.querySelector('article.report-record');
+    expect(card.querySelector('h3').textContent).toBe('DATE(2026-10-01)');
+    expect(card.textContent).toContain('Alex, Noa');
+  });
+
+  test('the attendance grid scrolls in a named region a keyboard can reach', () => {
+    const { reports } = setup();
+    const root = mount(reports.renderAttendanceReport({
+      success: true,
+      data: [{ first_name: 'Alex', last_name: 'Roy', attendance: [{ date: '2026-10-01', status: 'present' }] }],
+    }));
+    const region = root.querySelector('.report-table-scroll');
+    expect(region.getAttribute('role')).toBe('region');
+    expect(region.getAttribute('tabindex')).toBe('0');
+    expect(region.getAttribute('aria-label')).toBe('attendance_report');
+    expect(region.querySelector('table')).not.toBeNull();
+  });
+
+  test('every amount in the financial report is named, not a bare figure', () => {
+    const { reports } = setup();
+    const root = mount(reports.renderFinancialReport({
+      totals: {},
+      participants: [{ first_name: 'Alex', last_name: 'Roy', total_billed: 100, total_paid: 40, total_outstanding: 60 }],
+      definitions: [],
+      payment_methods: [],
+    }));
+    const card = root.querySelector('article.report-record');
+    expect(card.querySelector('h4').textContent).toBe('Alex Roy');
+    expect([...card.querySelectorAll('dt')].map((dt) => dt.textContent))
+      .toEqual(['total_billed', 'total_paid', 'outstanding_balance']);
+    expect(root.textContent).toContain('no_payments');
   });
 });
 
