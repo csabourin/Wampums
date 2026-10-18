@@ -23,6 +23,7 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
 
 jest.mock('../../spa/utils/SecurityUtils.js', () => ({
   sanitizeHTML: (value) => String(value ?? ''),
+  stripHTML: (value) => String(value ?? '').replace(/<[^>]*>/g, ''),
   escapeHTML: (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -70,6 +71,14 @@ jest.mock('../../spa/ajax-functions.js', () => ({
   getFormSubmissions: jest.fn(),
   getFormTypes: jest.fn(),
   getFinanceReport: jest.fn(),
+}));
+
+const mockGetFormSubmissionsByType = jest.fn();
+const mockGetFormStructureByType = jest.fn();
+jest.mock('../../spa/api/api-reports.js', () => ({
+  getFormSubmissionsByType: (...args) => mockGetFormSubmissionsByType(...args),
+  getFormStructureByType: (...args) => mockGetFormStructureByType(...args),
+  getTimeSinceRegistration: jest.fn(),
 }));
 
 import axe from 'axe-core';
@@ -473,6 +482,78 @@ describe('reports listing youth', () => {
     expect([...card.querySelectorAll('dt')].map((dt) => dt.textContent))
       .toEqual(['total_billed', 'total_paid', 'outstanding_balance']);
     expect(root.textContent).toContain('no_payments');
+  });
+});
+
+describe('missing fields report', () => {
+  const STRUCTURE = {
+    success: true,
+    data: {
+      fields: [
+        { name: 'nom_medecin', label: 'nom_medecin_label', required: true },
+        { name: 'has_allergies', label: 'has_allergies', required: true },
+        { name: 'allergies', label: 'allergies', required: true, dependsOn: { field: 'has_allergies', value: 'yes' } },
+        { name: 'commentaires', label: 'notes' },
+        { name: 'autre', labelText: { fr: '<b>Autre</b> précision' }, required: true },
+      ],
+    },
+  };
+
+  test('lists, for one form, each youth missing a required answer and which ones', async () => {
+    const { reports } = setup();
+    mockGetFormStructureByType.mockResolvedValue(STRUCTURE);
+    mockGetFormSubmissionsByType.mockResolvedValue({
+      success: true,
+      data: [
+        { participant_id: 1, first_name: 'Alex', last_name: 'Roy', submission_data: { nom_medecin: 'Dre Roy', has_allergies: 'oui', autre: 'x' } },
+        { participant_id: 2, first_name: 'Noa', last_name: 'Roy', submission_data: { nom_medecin: '  ', has_allergies: 'no', autre: 'x' } },
+        { participant_id: 3, first_name: 'Léa', last_name: 'Roy', submission_data: { nom_medecin: 'Dr X', has_allergies: 'no', autre: 'x' } },
+        { participant_id: 4, first_name: 'Max', last_name: 'Roy', submission_data: { nom_medecin: 'Dr X', has_allergies: 'no' } },
+      ],
+    });
+
+    await reports.loadReport('missing-fields', 'fiche_sante');
+
+    expect(mockGetFormSubmissionsByType).toHaveBeenCalledWith('fiche_sante');
+    expect(mockGetFormStructureByType).toHaveBeenCalledWith('fiche_sante');
+    const content = document.getElementById('report-content');
+    const cards = [...content.querySelectorAll('article.report-record')];
+    // Alex answered allergies yes and left them blank; Noa left the doctor
+    // blank; Max left the unit's own question blank; Léa answered everything.
+    expect(cards.map((card) => card.querySelector('h3').textContent)).toEqual(['Alex Roy', 'Noa Roy', 'Max Roy']);
+    expect(cards[0].querySelector('dd').textContent).toBe('allergies');
+    expect(cards[1].querySelector('dd').textContent).toBe('nom_medecin_label');
+    // A label the unit wrote is shown as plain text in the reader's language.
+    expect(cards[2].querySelector('dd').textContent).toBe('Autre précision');
+    expect(content.querySelector('b')).toBeNull();
+    expect(content.querySelector('.report-meta').textContent).toContain('3 / 4');
+    expect(reports.currentReportData.map((row) => row.missing_fields)).toEqual(['allergies', 'nom_medecin_label', 'Autre précision']);
+
+    const results = await axe.run(content, AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+
+  test('says so when every submission is complete', async () => {
+    const { reports } = setup();
+    mockGetFormStructureByType.mockResolvedValue(STRUCTURE);
+    mockGetFormSubmissionsByType.mockResolvedValue({ success: true, data: [] });
+
+    await reports.loadReport('missing-fields', 'fiche_sante');
+
+    expect(document.getElementById('report-content').textContent).toContain('no_missing_fields');
+  });
+
+  test('a failed load is explained with a retry, not shown as a complete form', async () => {
+    const { reports } = setup();
+    mockGetFormStructureByType.mockRejectedValue(Object.assign(new Error('nope'), { status: 500 }));
+    mockGetFormSubmissionsByType.mockResolvedValue({ success: true, data: [] });
+
+    await reports.loadReport('missing-fields', 'fiche_sante');
+
+    const content = document.getElementById('report-content');
+    expect(content.querySelector('[role="alert"]')).not.toBeNull();
+    expect(content.querySelector('#report-retry')).not.toBeNull();
+    expect(content.textContent).not.toContain('no_missing_fields');
   });
 });
 

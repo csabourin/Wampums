@@ -1,6 +1,6 @@
 // reports.js
 import { translate } from '../../app.js';
-import { sanitizeHTML } from '../../utils/SecurityUtils.js';
+import { sanitizeHTML, stripHTML } from '../../utils/SecurityUtils.js';
 import {
   debugLog,
   debugError,
@@ -19,8 +19,6 @@ import {
   getPointsReport,
   getParticipantProgressReport,
   getParticipantAgeReport,
-  getFormStructure,
-  getFormSubmissions,
   getFormTypes,
   getFinanceReport,
 } from '../../ajax-functions.js';
@@ -37,6 +35,9 @@ import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { formTypeLabel } from '../../utils/FormLabelUtils.js';
+import { getFormStructureByType, getFormSubmissionsByType } from '../../api/api-reports.js';
+import { isDependencyMet } from '../../utils/FormDependencyUtils.js';
+import { resolveFormText } from '../../utils/FormTextUtils.js';
 const REPORT_CURRENCY = 'CAD';
 // A report card sits under the report's h2, so its own heading is an h3.
 const CARD_HEADING_LEVEL = 3;
@@ -705,48 +706,68 @@ export class Reports {
 		`;
   }
 
+  /**
+	 * Which submissions of a form lack a required answer, and which ones.
+	 *
+	 * Reads every submission of the form in the unit and the unit's structure
+	 * of that form; a field that depends on another answer counts only once
+	 * that answer calls for it. A failed call is left to loadReport(), which
+	 * shows it with a retry rather than as an empty report.
+	 *
+	 * @param {string} formType - The form, e.g. `fiche_sante`
+	 * @returns {Promise<string>} HTML report
+	 */
   async fetchAndRenderMissingFieldsReport(formType) {
-    try {
-      if (!formType) {
-        throw new Error('Form type is required');
-      }
+    const [submissionsResponse, structureResponse] = await Promise.all([
+      getFormSubmissionsByType(formType),
+      getFormStructureByType(formType),
+    ]);
+    const fields = Array.isArray(structureResponse?.data?.fields) ? structureResponse.data.fields : [];
+    const submissions = Array.isArray(submissionsResponse?.data) ? submissionsResponse.data : [];
 
-      // Parallelize independent API calls for better performance
-      const [response, formStructure] = await Promise.all([
-        getFormSubmissions(null, formType), // Fetch submissions for all participants for the selected form type
-        getFormStructure() // Get all form structures
-      ]);
+    const rows = submissions
+      .map((submission) => ({
+        first_name: submission.first_name,
+        last_name: submission.last_name,
+        missing: this.getMissingFields(submission.submission_data || {}, fields)
+          .map((field) => this.formFieldLabel(field)),
+      }))
+      .filter((row) => row.missing.length > 0);
 
-      if (!response || !response.data) {
-        throw new Error('No form submissions found');
-      }
+    this.currentReportData = rows.map((row) => ({ ...row, missing_fields: row.missing.join(', ') }));
+    return this.renderMissingFieldsReport(rows, formType, submissions.length);
+  }
 
-      if (!formStructure || !formStructure.data) {
-        throw new Error('No form structure found');
-      }
-
-      // Store data for export - we need to calculate missing fields per submission
-      this.currentReportData = response.data.map(submission => {
-        const formTypeData = formStructure.data[formType];
-        const structure = formTypeData?.form_structure;
-        const missing = structure ? this.getMissingFields(submission.submission_data, structure) : [];
-        return {
-          ...submission,
-          missing_fields: missing.join(', ')
-        };
-      }).filter(item => item.missing_fields); // Only keep items with missing fields
-
-      const missingFieldsReport = this.generateMissingFieldsReport(
-        response.data,
-        formStructure.data,
-        formType,
-      );
-
-      return missingFieldsReport;
-    } catch (error) {
-      debugError('Error fetching or rendering missing fields report:', error);
-      throw error;
+  /**
+	 * @param {Array<{first_name: string, last_name: string, missing: string[]}>} rows - Submissions lacking an answer
+	 * @param {string} formType - The form
+	 * @param {number} submittedCount - How many submissions the form has
+	 * @returns {string} HTML report
+	 */
+  renderMissingFieldsReport(rows, formType, submittedCount) {
+    const heading = `<h2>${translate('missing_fields_report')} — ${escapeHTML(formTypeLabel(formType))}</h2>`;
+    if (rows.length === 0) {
+      return `${heading}<p class="no-data">${translate('no_missing_fields')}</p>`;
     }
+    return `
+			${heading}
+			<p class="report-meta">${translate('participants')}: ${rows.length} / ${submittedCount}</p>
+			${this.renderRecordCards(rows.map((row) => this.renderRecordCard({
+    title: this.participantName(row),
+    fields: [[translate('missing_fields'), row.missing.join(', ')]],
+  })))}
+		`;
+  }
+
+  /**
+	 * A form field's label as plain text, in the reader's language.
+	 *
+	 * @param {Object} field - Form field from the unit's structure
+	 * @returns {string} Label
+	 */
+  formFieldLabel(field) {
+    const { text } = resolveFormText(field.labelText, field.label || field.name, this.app.lang, translate);
+    return stripHTML(text).trim() || field.name;
   }
 
 
@@ -923,52 +944,21 @@ export class Reports {
   }
 
 
-  getMissingFields(submissionData, formStructure) {
-    const missingFields = [];
-
-    formStructure.fields.forEach((field) => {
-      // Check if the field is required and missing in the submission data
-      if (field.required && !submissionData[field.name]) {
-        // If the field has a dependency, only add it if the dependency condition is met
-        if (field.dependsOn) {
-          const dependencyField = submissionData[field.dependsOn.field];
-          if (dependencyField === field.dependsOn.value) {
-            missingFields.push(field.name);
-          }
-        } else {
-          // If no dependency, simply add it as missing
-          missingFields.push(field.name);
-        }
-      }
-    });
-
-    return missingFields;
-  }
-
-  checkRequiredFields(formStructure, submissionData) {
-    const missingFields = [];
-
-    formStructure.fields.forEach((field) => {
-      const fieldName = field.name;
-      const required = field.required;
-
-      // Check if field depends on another field
-      if (field.dependsOn) {
-        const dependsOnField = field.dependsOn.field;
-        const dependsOnValue = field.dependsOn.value;
-        // If the condition is not met, the field is not required
-        if (submissionData[dependsOnField] !== dependsOnValue) {
-          return;
-        }
-      }
-
-      // Check if required field is missing in submission
-      if (required && !submissionData[fieldName]) {
-        missingFields.push(fieldName);
-      }
-    });
-
-    return missingFields;
+  /**
+	 * The required fields a submission leaves unanswered. A field that depends
+	 * on another answer is required only when that answer calls for it.
+	 *
+	 * @param {Object} submissionData - The submitted answers
+	 * @param {Array<Object>} fields - The form's fields
+	 * @returns {Array<Object>} The unanswered required fields
+	 */
+  getMissingFields(submissionData, fields) {
+    const isBlank = (value) => value === undefined || value === null || value === false
+      || (typeof value === 'string' && value.trim() === '')
+      || (Array.isArray(value) && value.length === 0);
+    return fields.filter((field) => field?.name && field.required
+      && isDependencyMet(field.dependsOn, submissionData)
+      && isBlank(submissionData[field.name]));
   }
 
   /**

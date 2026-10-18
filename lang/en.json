@@ -1463,6 +1463,7 @@
   "missing_documents_report": "Missing Documents Report",
   "missing_fields": "Missing fields",
   "missing_fields_report": "Missing fields report",
+  "no_missing_fields": "Every submitted form has all its required answers.",
   "missing_required_fields": "Missing required fields",
   "missing_subscription_data": "Missing subscription data",
   "modifier": "Modify",
