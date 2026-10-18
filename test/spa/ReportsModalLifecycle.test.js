@@ -23,7 +23,8 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
 
 jest.mock('../../spa/utils/SecurityUtils.js', () => ({
   sanitizeHTML: (value) => String(value ?? ''),
-  stripHTML: (value) => String(value ?? '').replace(/<[^>]*>/g, ''),
+  // The text a browser would show, as the real stripHTML returns.
+  stripHTML: (value) => new globalThis.DOMParser().parseFromString(String(value ?? ''), 'text/html').body.textContent,
   escapeHTML: (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -531,6 +532,16 @@ describe('missing fields report', () => {
 
     const results = await axe.run(content, AXE_OPTIONS);
     expect(results.violations).toEqual([]);
+  });
+
+  test('in an optional language, a field the unit labelled only in its fallback language shows that label', () => {
+    const { reports } = setup();
+    reports.app.lang = 'uk';
+    reports.app.fallbackLang = 'fr';
+    reports.app.translations = { uk: {} };
+
+    expect(reports.formFieldLabel({ name: 'autre', label: 'autre_key', labelText: { fr: 'Autre précision' } }))
+      .toBe('Autre précision');
   });
 
   test('says so when every submission is complete', async () => {

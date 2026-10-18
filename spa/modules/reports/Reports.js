@@ -766,7 +766,13 @@ export class Reports {
 	 * @returns {string} Label
 	 */
   formFieldLabel(field) {
-    const { text } = resolveFormText(field.labelText, field.label || field.name, this.app.lang, translate);
+    // An optional language is partial: its missing texts come from the unit's
+    // fallback language, as on the form itself (JSONFormRenderer).
+    const reader = {
+      fallbackLang: this.app.fallbackLang || null,
+      hasBundleText: (lang, key) => Boolean(this.app.translations?.[lang]?.[key]),
+    };
+    const { text } = resolveFormText(field.labelText, field.label || field.name, this.app.lang, translate, reader);
     return stripHTML(text).trim() || field.name;
   }
 
