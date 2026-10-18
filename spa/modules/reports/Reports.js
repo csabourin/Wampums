@@ -1677,10 +1677,9 @@ export class Reports {
       printWindow.document.documentElement.lang = this.app.lang;
     }
     setPrintContent(printWindow, `
-			<style>${REPORT_PRINT_STYLES}</style>
 			<p class="print-date">${escapeHTML(printedOn)}</p>
 			${safeReportContent}
-		`, title);
+		`, title, { styles: REPORT_PRINT_STYLES });
     printWindow.document.close();
     printWindow.print();
   }

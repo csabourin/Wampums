@@ -275,9 +275,9 @@ describe('allergy report', () => {
     await reports.loadReport('allergies');
     reports.printReport();
 
-    const [, html, title] = setPrintContent.mock.calls[0];
+    const [, html, title, options] = setPrintContent.mock.calls[0];
     expect(title).toBe('allergies_report_title');
-    expect(html).toContain('<style>.print-styles {}</style>');
+    expect(options).toEqual({ styles: '.print-styles {}' });
     expect(html).toContain('printed_on');
     expect(html).toContain('Arachides');
     expect(printWindow.document.documentElement.lang).toBe('fr');

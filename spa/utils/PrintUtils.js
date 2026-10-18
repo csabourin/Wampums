@@ -70,15 +70,25 @@ export function openPrintWindow() {
 /**
  * Replace a print window's body with sanitized markup.
  *
+ * Styles go in `options.styles`, not in the markup: the sanitizer drops a
+ * `<style>` that opens a fragment, so a report would print without them.
+ * They are the app's own constants, set as text in the print document's head.
+ *
  * @param {Window|null} printWindow - Window returned by openPrintWindow()
  * @param {string} html - Print markup
  * @param {string} title - Plain-text document title
+ * @param {{styles?: string}} [options] - Trusted print styles
  * @returns {boolean} Whether content was written
  */
-export function setPrintContent(printWindow, html, title = '') {
+export function setPrintContent(printWindow, html, title = '', { styles = '' } = {}) {
   if (!printWindow) {return false;}
   const printDocument = printWindow.document;
   printDocument.title = String(title);
+  if (styles) {
+    const style = printDocument.createElement('style');
+    style.textContent = styles;
+    printDocument.head.appendChild(style);
+  }
   printDocument.body.replaceChildren(
     sanitizeToFragment(html, printDocument, { allowStyleTags: true }),
   );
