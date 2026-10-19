@@ -86,6 +86,13 @@ export const TABBED_PAGES = {
           import('../modules/district/DistrictManagement.js').then((m) => m.DistrictManagement),
       },
       {
+        key: 'roles',
+        labelKey: 'tab_district_roles',
+        gate: () => hasPermission('roles.manage_district') && hasPermission('roles.manage'),
+        options: { district: true },
+        load: () => import('../modules/roles/RolePermissionMatrix.js').then((m) => m.RolePermissionMatrix),
+      },
+      {
         key: 'outils',
         labelKey: 'tab_district_tools',
         gate: () => canAccessAdminPanel(),
