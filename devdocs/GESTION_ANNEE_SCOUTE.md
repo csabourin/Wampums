@@ -129,6 +129,10 @@ soit le jeton, l'issue étant dans `state`, pour ne pas servir d'oracle.
   compte qui détient un autre rôle n'est jamais touché.
 - L'inscription d'origine est close (`transferred`), celle de destination ouverte dans l'année active
   de la cible, avec la **date d'inscription conservée** : l'ancienneté appartient au jeune.
+- Les badges déjà approuvés suivent l'enfant lorsqu'un modèle correspondant existe dans l'unité
+  d'arrivée. Les étoiles sont recopiées dans le dossier de destination comme historique, sans points
+  additionnels ni remise physique marquée. Les demandes en attente restent à l'origine. Les badges
+  sans modèle correspondant ne sont pas copiés et sont comptés dans `badges_unmatched`.
 - Ne suivent pas : les formulaires (remplis pour l'autre unité, leur nombre est indiqué), la tanière,
   les points, les présences, les honneurs, les frais et soldes (dus à l'unité qui les a facturés).
 - Le serveur est complet ; l'écran appartiendra à l'espace district. `spa/api/api-transfers.js` est
@@ -158,5 +162,9 @@ détruit vraiment des données : masquer les lignes ne serait pas un effacement.
   faudrait versionner les soumissions.
 - **Frais** : `participant_fees` et `payment_plans` ne sont pas rattachés à l'année ; les soldes impayés
   restent tels quels. Voulu.
+- **Historique de badges** : dans le suivi des badges, ouvrir la fiche d'un jeune et choisir « Mettre à
+  jour l'historique » pour cocher plusieurs niveaux déjà obtenus. La date est facultative. Ces entrées
+  sont approuvées comme historique, sans points; les niveaux déjà au dossier sont désactivés. Le rôle
+  système `leader` peut gérer les badges; l'approbation demeure une permission distincte.
 - **Conservation (Loi 25)** : pas de purge automatique après N ans. Une famille sans consentement alumni
   et sans enfant inscrit en serait candidate ; un alumnus consentant ne l'est pas.

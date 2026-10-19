@@ -21,7 +21,9 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
 
 jest.mock('../../spa/config.js', () => ({ CONFIG: {}, getStorageKey: (key) => key }));
 
-jest.mock('../../spa/api/api-endpoints.js', () => ({}));
+jest.mock('../../spa/api/api-endpoints.js', () => ({
+  saveBadgeHistory: jest.fn()
+}));
 
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   canApproveBadges: jest.fn(() => true),
@@ -30,6 +32,7 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
 }));
 
 import { BadgeTracker } from '../../spa/modules/badges/BadgeTracker.js';
+import { saveBadgeHistory } from '../../spa/api/api-endpoints.js';
 
 const TEMPLATE_ID = 5;
 const ON_ROSTER_ID = 1;
@@ -68,5 +71,42 @@ describe('Badge tracker backlog', () => {
 
     const checkbox = row.querySelector('.award-confirm-checkbox');
     expect(JSON.parse(checkbox.dataset.participants)).toEqual([ON_ROSTER_ID]);
+  });
+
+  test('backfills multiple selected badge levels for one youth in a single history save', async () => {
+    tracker.templates = [
+      { id: TEMPLATE_ID, name: 'Akela', level_count: 3 },
+      { id: 6, name: 'Baloo', level_count: 2 }
+    ];
+    tracker.canManage = true;
+    tracker.badges = [{ participant_id: ON_ROSTER_ID, badge_template_id: TEMPLATE_ID, etoiles: 1, status: 'approved' }];
+    tracker.loadData = jest.fn().mockResolvedValue(true);
+    tracker.render = jest.fn();
+    tracker.attachSearchListener = jest.fn();
+    tracker.showToast = jest.fn();
+    saveBadgeHistory.mockResolvedValue({ success: true, data: { inserted: [{}, {}], skipped: [] } });
+
+    tracker.openBadgeHistoryModal(ON_ROSTER_ID);
+
+    const modal = document.querySelector('#badge-history-modal');
+    expect(modal.textContent).toContain('badge_update_history_help');
+    expect(modal.querySelector('input[value="5:1"]').disabled).toBe(true);
+    modal.querySelector('input[value="5:2"]').checked = true;
+    modal.querySelector('input[value="6:1"]').checked = true;
+    modal.querySelector('#badge-history-date').value = '2025-05-10';
+    modal.querySelector('#badge-history-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(saveBadgeHistory).toHaveBeenCalledWith({
+      participant_id: ON_ROSTER_ID,
+      date: '2025-05-10',
+      star_type: 'proie',
+      entries: [
+        { badge_template_id: TEMPLATE_ID, level: 2 },
+        { badge_template_id: 6, level: 1 }
+      ]
+    });
+    expect(tracker.loadData).toHaveBeenCalledWith(true);
   });
 });

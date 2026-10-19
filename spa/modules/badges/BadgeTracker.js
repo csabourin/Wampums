@@ -28,6 +28,7 @@ import {
   markBadgeDelivered,
   markBadgesDeliveredBulk,
   saveBadgeProgress,
+  saveBadgeHistory,
   getUnprocessedAchievements,
   markMeetingActivitiesProcessed,
   getAttendance,
@@ -448,6 +449,7 @@ export class BadgeTracker {
   isExpanded
     ? `
         <div id="badges-${participant.id}" class="badge-tracker__badge-details">
+          ${this.canManage ? `<button class="button button--secondary button--small" data-action="update-badge-history" data-participant-id="${participant.id}">${translate('badge_update_history')}</button>` : ''}
           ${
   badges.length === 0
     ? this.renderEmptyState('no-badges')
@@ -969,6 +971,10 @@ export class BadgeTracker {
         this.renderModal();
         break;
 
+      case 'update-badge-history':
+        await this.openBadgeHistoryModal(parseInt(participantId, 10));
+        break;
+
       case 'open-retroactive-modal':
         await this.openRetroactiveAwardModal();
         break;
@@ -1235,6 +1241,85 @@ export class BadgeTracker {
       debugError('[BadgeTracker] Add star error:', error);
       this.showToast(translate('error'), 'error');
     }
+  }
+
+  /** Open the bulk form used to backfill badges already earned by this youth. */
+  openBadgeHistoryModal(participantId) {
+    const participant = this.participants.find((p) => p.id === participantId);
+    if (!participant || !this.canManage) {return;}
+    const existingByTemplate = new Map();
+    this.badges.filter((badge) => badge.participant_id === participantId)
+      .forEach((badge) => {
+        if (!existingByTemplate.has(badge.badge_template_id)) {existingByTemplate.set(badge.badge_template_id, new Set());}
+        existingByTemplate.get(badge.badge_template_id).add(Number(badge.etoiles));
+      });
+
+    const { overlay } = openModal({
+      id: 'badge-history-modal',
+      title: translate('badge_update_history'),
+      className: 'badge-tracker__modal',
+      size: 'large',
+      body: `
+        <form id="badge-history-form" class="badge-tracker__modal-body">
+          <p>${translate('badge_update_history_help')} <strong>${escapeHTML(`${participant.first_name} ${participant.last_name}`)}</strong></p>
+          <div class="form-group">
+            <label for="badge-history-date">${translate('badge_history_date')}</label>
+            <input id="badge-history-date" name="date" type="date">
+          </div>
+          <fieldset class="form-group badge-tracker__fieldset">
+            <legend class="form-label">${translate('badge_history_levels')}</legend>
+            ${this.templates.map((template) => {
+    const existing = existingByTemplate.get(template.id) || new Set();
+    const levels = this.getTemplateLevelCount(template);
+    const levelOptions = Array.from({ length: levels }, (_, index) => {
+      const level = index + 1;
+      const recorded = existing.has(level);
+      return `<label><input type="checkbox" name="level" value="${template.id}:${level}" ${recorded ? 'disabled' : ''}> ${translate('badge_star_label')} ${level}${recorded ? ` (${translate('badge_history_already_recorded')})` : ''}</label>`;
+    }).join('');
+    return `<fieldset class="form-group badge-tracker__fieldset"><legend>${escapeHTML(template.name)}</legend><div class="badge-history-levels">${levelOptions}</div></fieldset>`;
+  }).join('')}
+          </fieldset>
+          <div class="form-group">
+            <label for="badge-history-type">${translate('achievement_type')}</label>
+            <select id="badge-history-type" name="star_type"><option value="proie">${translate('badge_type_proie')}</option><option value="battue">${translate('badge_type_battue')}</option></select>
+          </div>
+        </form>`,
+      footer: `<button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button><button type="submit" class="button button--primary" form="badge-history-form">${translate('badge_save_history')}</button>`
+    });
+
+    const form = overlay.querySelector('#badge-history-form');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const entries = Array.from(form.querySelectorAll('input[name="level"]:checked')).map((input) => {
+        const [badgeTemplateId, level] = input.value.split(':').map(Number);
+        return { 'badge_template_id': badgeTemplateId, level };
+      });
+      if (!entries.length) {
+        this.showToast(translate('badge_history_select_level'), 'info');
+        return;
+      }
+      const submit = overlay.querySelector('button[form="badge-history-form"]');
+      submit.disabled = true;
+      try {
+        const result = await saveBadgeHistory({
+          participant_id: participantId,
+          date: form.elements.date.value || null,
+          star_type: form.elements.star_type.value,
+          entries
+        });
+        if (!result?.success) {throw new Error('badge_history_save_failed');}
+        const count = result.data?.inserted?.length || 0;
+        this.showToast(`${count} ${translate('badge_history_saved')}`, 'success');
+        closeModal('badge-history-modal');
+        await this.loadData(true);
+        this.render();
+        this.attachSearchListener();
+      } catch (error) {
+        debugError('[BadgeTracker] Historical badge save error:', error);
+        this.showToast(translate('error'), 'error');
+        submit.disabled = false;
+      }
+    });
   }
 
   async openUnprocessedModal() {

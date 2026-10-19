@@ -23,6 +23,9 @@
  *   count left behind is reported so nobody assumes the health form followed.
  * - **Den assignment, points, attendance, honours.** They describe a season
  *   inside the origin unit and remain part of its history.
+ * - **Approved badge progress follows the child.** It is copied to matching
+ *   destination templates as historical progress, without awarding points or
+ *   marking a physical badge as delivered a second time.
  * - **Fees and unpaid balances.** Money owed is owed to the unit that billed it
  *   (§9, "not year-scoped"); a transfer does not move a debt between tenants.
  *
@@ -115,6 +118,43 @@ async function findLinkedUsers(client, participantId) {
   return result.rows.map((row) => row.user_id);
 }
 
+/** Match approved source badges to destination templates without writing. */
+async function planBadgeTransfer(client, participantId, organizationId, targetOrganizationId) {
+  const source = await client.query(
+    `SELECT bp.*, bt.official_key, bt.template_key
+       FROM badge_progress bp
+       LEFT JOIN badge_templates bt ON bt.id = bp.badge_template_id
+      WHERE bp.participant_id = $1 AND bp.organization_id = $2
+        AND bp.status = 'approved'
+      ORDER BY bp.id`,
+    [participantId, organizationId]
+  );
+  const target = await client.query(
+    `SELECT id, official_key, template_key FROM badge_templates WHERE organization_id = $1`,
+    [targetOrganizationId]
+  );
+  const targetLevels = await client.query(
+    `SELECT badge_template_id, etoiles FROM badge_progress
+      WHERE participant_id = $1 AND organization_id = $2`,
+    [participantId, targetOrganizationId]
+  );
+  const byOfficialKey = new Map(target.rows.filter((row) => row.official_key).map((row) => [row.official_key, row]));
+  const byTemplateKey = new Map(target.rows.filter((row) => row.template_key).map((row) => [row.template_key, row]));
+  const existing = new Set(targetLevels.rows.map((row) => `${row.badge_template_id}:${row.etoiles}`));
+  const matches = [];
+  let unmatched = 0;
+  for (const badge of source.rows) {
+    const template = (badge.official_key && byOfficialKey.get(badge.official_key))
+      || (badge.template_key && byTemplateKey.get(badge.template_key));
+    if (!template) {
+      unmatched += 1;
+    } else if (!existing.has(`${template.id}:${badge.etoiles}`)) {
+      matches.push({ badge, template });
+    }
+  }
+  return { matches, unmatched };
+}
+
 /**
  * Describe what a transfer would do, without doing it.
  *
@@ -193,6 +233,7 @@ async function previewTransfer(pool, { participantId, organizationId, targetOrga
       WHERE participant_id = $1 AND organization_id = $2`,
     [participantId, organizationId]
   );
+  const badgePlan = await planBadgeTransfer(pool, participantId, organizationId, targetOrganizationId);
 
   return {
     blocked: null,
@@ -208,6 +249,8 @@ async function previewTransfer(pool, { participantId, organizationId, targetOrga
       keeps_origin_membership: Number(row.other_children_in_origin) > 0,
     })),
     forms_left_behind: formsLeftBehind.rows[0].count,
+    badges_to_transfer: badgePlan.matches.length,
+    badges_unmatched: badgePlan.unmatched,
   };
 }
 
@@ -295,6 +338,33 @@ async function transferParticipant(client, {
      DO UPDATE SET status = 'active', ended_on = NULL, exit_reason = NULL`,
     [participantId, targetOrganizationId, targetYearId, inscriptionDate]
   );
+
+  // Carry completed badge progress into the destination tenant. Match by the
+  // stable catalog key where possible, then the legacy template key. Pending
+  // submissions stay with the unit that reviewed them. A missing destination
+  // template is reported rather than silently attaching a badge to the wrong
+  // program.
+  const badgePlan = await planBadgeTransfer(client, participantId, organizationId, targetOrganizationId);
+  let badgesTransferred = 0;
+  const badgesUnmatched = badgePlan.unmatched;
+  // Each source badge is checked and copied sequentially inside the transfer transaction.
+  /* eslint-disable no-await-in-loop */
+  for (const { badge, template } of badgePlan.matches) {
+    await client.query(
+      `INSERT INTO badge_progress
+         (participant_id, organization_id, badge_template_id, territoire_chasse,
+          section, objectif, description, fierte, raison, date_obtention, etoiles,
+          status, approval_date, star_type, source_type, source_id, attempt_no, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+               'approved', $12, $13, 'transfer', $14, 1, $15)`,
+      [participantId, targetOrganizationId, template.id, badge.territoire_chasse,
+        badge.section, badge.objectif, badge.description, badge.fierte, badge.raison,
+        badge.date_obtention, badge.etoiles, badge.approval_date, badge.star_type,
+        badge.id, userId]
+    );
+    badgesTransferred += 1;
+  }
+  /* eslint-enable no-await-in-loop */
 
   // Take the parents along.
   const userIds = await findLinkedUsers(client, participantId);
@@ -398,6 +468,8 @@ async function transferParticipant(client, {
     memberships_reactivated: membershipsReactivated,
     memberships_deactivated: membershipsDeactivated,
     forms_left_behind: formsLeftBehind.rows[0].count,
+    badges_transferred: badgesTransferred,
+    badges_unmatched: badgesUnmatched,
   };
 }
 
