@@ -354,13 +354,13 @@ async function transferParticipant(client, {
       `INSERT INTO badge_progress
          (participant_id, organization_id, badge_template_id, territoire_chasse,
           section, objectif, description, fierte, raison, date_obtention, etoiles,
-          status, approval_date, star_type, source_type, source_id, attempt_no, created_by)
+          status, approval_date, delivered_at, star_type, source_type, source_id, attempt_no, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-               'approved', $12, $13, 'transfer', $14, 1, $15)`,
+               'approved', $12, $13, $14, 'transfer', $15, 1, $16)`,
       [participantId, targetOrganizationId, template.id, badge.territoire_chasse,
         badge.section, badge.objectif, badge.description, badge.fierte, badge.raison,
-        badge.date_obtention, badge.etoiles, badge.approval_date, badge.star_type,
-        badge.id, userId]
+        badge.date_obtention, badge.etoiles, badge.approval_date, badge.delivered_at,
+        badge.star_type, badge.id, userId]
     );
     badgesTransferred += 1;
   }

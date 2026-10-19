@@ -353,8 +353,8 @@ describe.skipIf(!DATABASE_URL)('Transfer to a sister unit', () => {
     await pool.query(
       `INSERT INTO badge_progress
          (participant_id, organization_id, badge_template_id, territoire_chasse,
-          section, etoiles, status, approval_date, date_obtention)
-       VALUES ($1, $2, $3, 'Badge test', 'general', 2, 'approved', now(), '2025-02-01')`,
+          section, etoiles, status, approval_date, delivered_at, date_obtention)
+       VALUES ($1, $2, $3, 'Badge test', 'general', 2, 'approved', now(), now(), '2025-02-01')`,
       [ids.movingChildId, ids.originId, sourceTemplateId]
     );
     await pool.query(
@@ -373,7 +373,8 @@ describe.skipIf(!DATABASE_URL)('Transfer to a sister unit', () => {
     expect(await one(
       `SELECT COUNT(*)::int FROM badge_progress
         WHERE participant_id = $1 AND organization_id = $2 AND badge_template_id = $3
-          AND etoiles = 2 AND status = 'approved' AND source_type = 'transfer'`,
+          AND etoiles = 2 AND status = 'approved' AND source_type = 'transfer'
+          AND delivered_at IS NOT NULL`,
       [ids.movingChildId, ids.targetId, targetTemplateId]
     )).toBe(1);
     expect(await one('SELECT COUNT(*)::int FROM points WHERE participant_id = $1', [ids.movingChildId])).toBe(pointsBefore);
