@@ -18,6 +18,9 @@ require('./jest-conditional-helpers');
 
 const DATABASE_URL = process.env.SCOUT_YEAR_TEST_DATABASE_URL || process.env.TEST_DATABASE_URL;
 
+// The route module loads the auth middleware, which needs a secret even here.
+process.env.JWT_SECRET_KEY = process.env.JWT_SECRET_KEY || 'announcement-interrupted-send-secret';
+
 const { processScheduledAnnouncementsForTests } = require('../routes/announcements');
 
 const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
