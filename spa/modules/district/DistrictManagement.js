@@ -31,7 +31,7 @@ import {
   detectRoleConflicts,
   getLocalGroupEligibleRoles,
 } from '../../utils/RoleValidationUtils.js';
-import { setStorageMultiple } from '../../utils/StorageUtils.js';
+import { switchActiveUnit } from '../session/UnitSwitch.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
@@ -80,6 +80,14 @@ export class DistrictManagement {
     this.userMeta = {};
     this.mfaAcknowledged = false;
     this.organizationId = getCurrentOrganizationId();
+    // Bumped when the session moves to another unit: a response to a request
+    // made before then belongs to the previous unit and is dropped.
+    this.unitGeneration = 0;
+    // The unit being switched to, while the switch is under way.
+    this.switchingTo = null;
+    // Role and membership changes sent and not yet answered. They act on the
+    // unit they were sent in, so the unit cannot change until they settle.
+    this.writesInFlight = 0;
     this.organizations = [];
     this.rolePermissions = {};
     this.roleBundleIndex = { list: [], byId: new Map(), byName: new Map() };
@@ -221,10 +229,34 @@ export class DistrictManagement {
   }
 
   /**
+   * Asked by the router and the tabs before this screen is left. A screen
+   * opened while the switch is under way would load with the previous unit's
+   * token and keep it on screen once the new one is installed.
+   *
+   * @param {{refresh?: boolean}} [options] - refresh: a redraw nobody asked for
+   * @returns {boolean} Whether the screen may be left now
+   */
+  beforeLeave({ refresh = false } = {}) {
+    if (!this.switchingTo) {
+      return true;
+    }
+    if (!refresh) {
+      this.app.showMessage('district_management_leave_wait', 'info');
+    }
+    return false;
+  }
+
+  /**
    * Fetch users and roles with caching and offline fallback.
    * @param {boolean} forceRefresh - When true, bypass caches.
    */
   async refreshData(forceRefresh = false) {
+    // Mid-switch the token may still name the previous unit; the switch
+    // loads the new unit itself once it ends.
+    if (this.switchingTo) {
+      return;
+    }
+    const generation = this.unitGeneration;
     this.syncing = true;
     this.loadFailed = false;
     this.renderSyncBadge();
@@ -248,10 +280,16 @@ export class DistrictManagement {
         getRoleBundles({ forceRefresh, organizationId }),
         getUsers(organizationId, { forceRefresh }),
       ]);
+      if (generation !== this.unitGeneration) {
+        return;
+      }
 
       if (roleResponse?.success) {
         const roleCatalog = roleResponse.data || [];
         await this.hydrateRoleBundles(roleCatalog, forceRefresh);
+        if (generation !== this.unitGeneration) {
+          return;
+        }
       }
 
       if (usersResponse?.success) {
@@ -268,9 +306,11 @@ export class DistrictManagement {
       debugError('district_management: failed to refresh data', error);
       this.loadFailed = true;
     } finally {
-      this.syncing = false;
+      if (generation === this.unitGeneration) {
+        this.syncing = false;
+      }
     }
-    if (this.destroyed) {
+    if (this.destroyed || generation !== this.unitGeneration) {
       return;
     }
     // With members cached, they stay shown under "last synced"; without, the
@@ -282,7 +322,12 @@ export class DistrictManagement {
   }
 
   async hydrateRoleBundles(roleCatalog = [], forceRefresh = false) {
-    this.rolePermissions = await this.fetchRolePermissionsForCatalog(roleCatalog, forceRefresh);
+    const generation = this.unitGeneration;
+    const rolePermissions = await this.fetchRolePermissionsForCatalog(roleCatalog, forceRefresh);
+    if (generation !== this.unitGeneration) {
+      return;
+    }
+    this.rolePermissions = rolePermissions;
     this.roleBundleIndex = buildRoleBundleIndex(roleCatalog, this.rolePermissions);
     this.roles = this.roleBundleIndex.list;
   }
@@ -409,21 +454,127 @@ export class DistrictManagement {
   }
 
   async handleOrganizationChange(newOrgId) {
+    // One switch at a time. The selector stays focusable meanwhile, so a
+    // keyboard change is possible: put back the unit being switched to.
+    if (this.switchingTo) {
+      const select = document.getElementById('dm-org-select');
+      if (select) {
+        select.value = String(this.switchingTo);
+      }
+      return;
+    }
     if (!newOrgId || String(newOrgId) === String(this.organizationId || '')) {
       return;
     }
+    if (this.writesInFlight > 0) {
+      const select = document.getElementById('dm-org-select');
+      if (select) {
+        select.value = String(this.organizationId);
+      }
+      this.app.showMessage('district_management_switch_wait', 'info');
+      return;
+    }
 
+    // The server reads the unit from the token. From the moment the switch
+    // starts, nothing of the previous unit may stay on screen, where a save
+    // would apply its roles to whichever unit the token names by then, and no
+    // answer to a request made before may land here.
+    const previous = this.unitState();
+    this.unitGeneration += 1;
+    this.switchingTo = newOrgId;
+    this.resetUnitState();
+    this.syncing = true;
+    this.loadFailed = false;
+    this.renderAndBind();
+    this.focusOrganizationSelect();
+    try {
+      await switchActiveUnit(this.app, newOrgId);
+    } catch (error) {
+      debugError('district_management: unit switch failed', error);
+      this.switchingTo = null;
+      if (this.destroyed) {
+        return;
+      }
+      // The session is still in the previous unit: show it again as it was.
+      Object.assign(this, previous);
+      this.syncing = false;
+      this.app.showMessage(apiErrorMessage(error, 'district_management_switch_failed'), 'error');
+      this.renderAndBind();
+      this.focusOrganizationSelect();
+      return;
+    }
+    if (this.destroyed) {
+      return;
+    }
+
+    // Start from what this unit's own cache holds, if anything.
+    await this.hydrateFromCache();
+    if (this.destroyed) {
+      return;
+    }
     this.organizationId = newOrgId;
-    this.selectedUserId = null;
-    this.selectedRoleIds = new Set();
+    this.switchingTo = null;
 
-    setStorageMultiple({
-      currentOrganizationId: newOrgId,
-      organizationId: newOrgId,
-    });
+    if (!canViewRoles()) {
+      this.app.router.navigate('/dashboard');
+      return;
+    }
 
     await clearUserCaches(newOrgId);
     await this.refreshData(true);
+    if (!this.destroyed) {
+      this.focusOrganizationSelect();
+    }
+  }
+
+  /**
+   * Everything on this screen that belongs to the active unit.
+   *
+   * @returns {Object} The unit's members, roles, history and waiting changes
+   */
+  unitState() {
+    return {
+      users: this.users,
+      filteredUsers: this.filteredUsers,
+      roles: this.roles,
+      rolePermissions: this.rolePermissions,
+      roleBundleIndex: this.roleBundleIndex,
+      userMeta: this.userMeta,
+      auditLogByUser: this.auditLogByUser,
+      queuedChanges: this.queuedChanges,
+      lastSyncedAt: this.lastSyncedAt,
+      loadFailed: this.loadFailed,
+      selectedUserId: this.selectedUserId,
+      selectedRoleIds: this.selectedRoleIds,
+    };
+  }
+
+  /**
+   * Forget everything that belongs to the unit the session is leaving.
+   */
+  resetUnitState() {
+    Object.assign(this, {
+      users: [],
+      filteredUsers: [],
+      roles: [],
+      rolePermissions: {},
+      roleBundleIndex: buildRoleBundleIndex([], {}),
+      userMeta: {},
+      auditLogByUser: {},
+      queuedChanges: [],
+      lastSyncedAt: null,
+      loadFailed: false,
+      selectedUserId: null,
+      selectedRoleIds: new Set(),
+    });
+  }
+
+  /**
+   * The selector was disabled and redrawn while the unit changed, which drops
+   * keyboard focus; give it back so the person keeps their place.
+   */
+  focusOrganizationSelect() {
+    document.getElementById('dm-org-select')?.focus();
   }
 
   render() {
@@ -557,7 +708,7 @@ export class DistrictManagement {
 
   renderOrganizationSelector() {
     if (!this.organizations.length) {return '';}
-    const currentId = String(this.organizationId || getCurrentOrganizationId() || '');
+    const currentId = String(this.switchingTo || this.organizationId || getCurrentOrganizationId() || '');
     const hasMultiple = this.organizations.length > 1;
     const options = this.organizations
       .map((org) => {
@@ -574,7 +725,7 @@ export class DistrictManagement {
 
     const selector = hasMultiple
       ? `<label class="dm-section-title" for="dm-org-select">${label}</label>
-         <select id="dm-org-select" aria-label="${label}">${options}</select>`
+         <select id="dm-org-select" aria-label="${label}" ${this.switchingTo ? 'aria-disabled="true"' : ''}>${options}</select>`
       : `<p class="dm-section-title">${label}</p><p class="dm-helper">${activeName}</p>`;
 
     return `
@@ -900,6 +1051,7 @@ export class DistrictManagement {
       }
     }
 
+    this.writesInFlight += 1;
     try {
       await setUserMembershipStatus(user.id, deactivating ? 'inactive' : 'active', this.auditNote.trim() || undefined);
       user.status = deactivating ? 'inactive' : 'active';
@@ -915,6 +1067,8 @@ export class DistrictManagement {
         type: 'error',
         message: translate(error?.status === FORBIDDEN ? 'member_access_forbidden' : 'member_access_error'),
       };
+    } finally {
+      this.writesInFlight -= 1;
     }
     this.filteredUsers = this.getFilteredUsers();
     await this.persistCache();
@@ -1175,6 +1329,7 @@ export class DistrictManagement {
   }
 
   async loadAuditLog(userId, forceRefresh = false) {
+    const generation = this.unitGeneration;
     this.loadingAuditUserId = userId;
     this.auditPanelError = '';
     this.renderAndBind();
@@ -1185,6 +1340,10 @@ export class DistrictManagement {
         organizationId: this.organizationId,
         forceRefresh,
       });
+      // The previous unit's history has no place in this one.
+      if (generation !== this.unitGeneration) {
+        return;
+      }
       if (response?.success) {
         this.auditLogByUser[userId] = response.data || response.audit || [];
       } else {
@@ -1192,11 +1351,16 @@ export class DistrictManagement {
         this.auditLogByUser[userId] = [];
       }
     } catch (error) {
+      if (generation !== this.unitGeneration) {
+        return;
+      }
       debugError('district_management: failed to load audit log', error);
       this.auditPanelError = apiErrorMessage(error, 'district_management_audit_error');
     } finally {
-      this.loadingAuditUserId = null;
-      this.renderAndBind();
+      if (generation === this.unitGeneration) {
+        this.loadingAuditUserId = null;
+        this.renderAndBind();
+      }
     }
   }
 
@@ -1412,6 +1576,7 @@ export class DistrictManagement {
     this.applyOptimisticRoles(user, selectedRoleIds);
     this.filteredUsers = this.getFilteredUsers();
     this.savingUserId = user.id;
+    this.writesInFlight += 1;
     this.formStatus = { type: 'info', message: translate('district_management_saving') };
     this.renderAndBind();
 
@@ -1453,6 +1618,7 @@ export class DistrictManagement {
       this.renderAndBind();
     } finally {
       this.savingUserId = null;
+      this.writesInFlight -= 1;
       await this.persistCache();
       this.renderAndBind();
     }
@@ -1601,51 +1767,58 @@ export class DistrictManagement {
       return;
     }
 
-    await this.refreshData(true);
-    const remaining = [];
+    // The changes are sent in this unit and the queue is saved in its cache:
+    // the unit cannot change until both are done.
+    this.writesInFlight += 1;
     let staleCount = 0;
     let errorCount = 0;
+    try {
+      await this.refreshData(true);
+      const remaining = [];
 
-    for (const change of this.queuedChanges) {
-      if (change.organizationId && String(change.organizationId) !== String(this.organizationId)) {
-        remaining.push({ ...change, reason: 'organization_mismatch' });
-        continue;
+      for (const change of this.queuedChanges) {
+        if (change.organizationId && String(change.organizationId) !== String(this.organizationId)) {
+          remaining.push({ ...change, reason: 'organization_mismatch' });
+          continue;
+        }
+
+        const user = this.users.find((u) => u.id === change.userId);
+        if (!user) {
+          continue;
+        }
+
+        // Stale only when the member's roles changed since the change was made.
+        // Comparing sync times made every change stale: the refresh above
+        // marks every member as just synced, so none could ever be sent.
+        if (!this.hasSameRoles(change.baseRoleIds, user.role_ids)) {
+          remaining.push({ ...change, reason: 'stale' });
+          staleCount += 1;
+          continue;
+        }
+
+        try {
+          await updateUserRolesV1(user.id, change.roleIds, {
+            audit_note: change.auditNote,
+            bundles: this.describeSelectedBundles(change.roleIds),
+            organizationId: change.organizationId || this.organizationId,
+          });
+          this.applyOptimisticRoles(user, change.roleIds);
+          this.userMeta[user.id] = { lastSyncedAt: Date.now(), roleCount: change.roleIds.length };
+          this.app.showMessage('district_management_assignment_saved', 'success');
+        } catch (error) {
+          debugError('district_management: queued change failed', error);
+          remaining.push({ ...change, reason: error?.message || 'error' });
+          errorCount += 1;
+        }
       }
 
-      const user = this.users.find((u) => u.id === change.userId);
-      if (!user) {
-        continue;
-      }
-
-      // Stale only when the member's roles changed since the change was made.
-      // Comparing sync times made every change stale: the refresh above
-      // marks every member as just synced, so none could ever be sent.
-      if (!this.hasSameRoles(change.baseRoleIds, user.role_ids)) {
-        remaining.push({ ...change, reason: 'stale' });
-        staleCount += 1;
-        continue;
-      }
-
-      try {
-        await updateUserRolesV1(user.id, change.roleIds, {
-          audit_note: change.auditNote,
-          bundles: this.describeSelectedBundles(change.roleIds),
-          organizationId: change.organizationId || this.organizationId,
-        });
-        this.applyOptimisticRoles(user, change.roleIds);
-        this.userMeta[user.id] = { lastSyncedAt: Date.now(), roleCount: change.roleIds.length };
-        this.app.showMessage('district_management_assignment_saved', 'success');
-      } catch (error) {
-        debugError('district_management: queued change failed', error);
-        remaining.push({ ...change, reason: error?.message || 'error' });
-        errorCount += 1;
-      }
+      this.queuedChanges = remaining;
+      this.filteredUsers = this.getFilteredUsers();
+      await this.persistCache();
+      this.renderAndBind();
+    } finally {
+      this.writesInFlight -= 1;
     }
-
-    this.queuedChanges = remaining;
-    this.filteredUsers = this.getFilteredUsers();
-    await this.persistCache();
-    this.renderAndBind();
 
     if (staleCount > 0) {
       this.app.showMessage('district_management_stale_queue', 'info');
