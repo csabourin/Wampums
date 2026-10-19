@@ -5,18 +5,30 @@
  * unobscured focus, and a dialog driven from the keyboard.
  */
 import { test, expect } from '@playwright/test';
-import { ACCOUNTS, APP_NAME, storageStateFor, openScreen, settleScreen, axeViolations, seededActivityId, seededParticipantId, seededProgrammeDate } from './helpers.mjs';
+import { ACCOUNTS, APP_NAME, storageStateFor, openScreen, settleScreen, axeViolations, seededActivityId, seededParticipantId, seededProgrammeDate, seededRecord } from './helpers.mjs';
 
-/** Screens each person reaches from their dashboard. Paths are canonical (no redirects). */
+/**
+ * Screens each person reaches from their dashboard or from an emailed link.
+ * Paths are canonical (no redirects); a query names a tab or the record a
+ * screen opens on.
+ */
 const SCREENS = {
-  public: ['/login', '/register', '/reset-password'],
+  public: [
+    '/login', '/register', '/reset-password',
+    // Opened from emails. Without a token each shows its "invalid link" state.
+    '/alumni-consent', '/alumni-unsubscribe', '/reactivate-account', '/complete-registration', '/family-link',
+    `/permission-slip/${seededRecord('slipToken')}`,
+  ],
   parent: [
     '/parent-dashboard', '/parent-finance', '/parent-fundraisers', '/family-access',
     '/messages', '/account-info', '/parent-program-progress', '/activities',
+    '/parent-onboarding', `/messages/${seededRecord('messageId')}`,
+    `/medication-authorizations/${seededParticipantId()}`,
   ],
   leader: [
     '/dashboard', '/attendance', '/manage-points', '/progression', '/walk-in-children',
-    '/activities', '/manage-honors', '/reunions',
+    '/activities', '/manageHonors', '/reunions',
+    '/progression?tab=programme', '/reunions?tab=preparation',
   ],
   admin: [
     '/dashboard', '/manage-participants', '/parent-invitations', '/leader-invitations',
@@ -33,6 +45,17 @@ const SCREENS = {
     '/create-organization',
     `/badge-form/${seededParticipantId()}`,
     '/prepare-offline', '/communications',
+    '/main-dashboard', '/manage-users-participants', '/group-participant-report',
+    `/guardian-management?participant_id=${seededParticipantId()}&participant_name=Lea`,
+    '/district?tab=outils',
+    '/incident-reports/new',
+    `/incident-reports/${seededRecord('incidentId')}`,
+    `/incident-reports/${seededRecord('incidentId')}/edit`,
+    `/medication-planning/${seededParticipantId()}`,
+    `/medication-authorizations/${seededParticipantId()}`,
+    `/preparation-reunions/${seededProgrammeDate()}`,
+    `/yearly-planner/${seededRecord('yearPlanId')}`,
+    `/calendars/${seededRecord('fundraiserId')}`,
   ],
 };
 
@@ -68,7 +91,14 @@ for (const [who, paths] of Object.entries(SCREENS)) {
         page.on('pageerror', (error) => pageErrors.push(error.message));
         await openScreen(page, target);
 
-        expect(new URL(page.url()).pathname, 'the screen is reachable, not redirected').toBe(target);
+        const expected = new URL(target, page.url());
+        const reached = new URL(page.url());
+        expect(reached.pathname, 'the screen is reachable, not redirected').toBe(expected.pathname);
+        for (const [name, value] of expected.searchParams) {
+          expect(reached.searchParams.get(name), `the screen keeps ?${name}`).toBe(value);
+        }
+        // A 404 or 403 page passes axe too: the screen itself must be what was audited.
+        await expect(page.locator('#app .not-found-state'), 'the screen opens, not a 404 or 403 page').toHaveCount(0);
 
         const known = KNOWN_VIOLATIONS[target] || {};
         const violations = await axeViolations(page);

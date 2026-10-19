@@ -182,6 +182,8 @@ description, sharing the active-membership check with `authenticate`.
 - Format: `{resource}.{action}`
 - Examples: `users.view`, `users.manage`, `finance.manage`, `reports.view`, `carpools.view`
 - Common actions: `view`, `manage`, `create`, `edit`, `delete`, `assign_roles`
+- ✅ A new key is created by a migration in the same change that first checks it. A key no migration
+  creates refuses everyone, admins included (`test/permission-catalog.integration.test.js`).
 
 #### Roles Belong to Units
 - ✅ **Built-in roles** (`organization_id IS NULL`, `is_system_role`) are shared by every unit and read-only
@@ -675,8 +677,9 @@ before changing it.
 - ✅ **Accessibility in a real browser** (`e2e/accessibility.spec.mjs`, `npm run test:a11y`): Playwright
   and axe at phone and desktop size, signed out and as a parent, a leader and an admin. It fails on any
   WCAG 2.2 A/AA violation (contrast included), sideways scroll at 390px, a screen left `aria-busy`, a
-  title not named after the screen's `<h1>`, and focus that is invisible, hidden, or lost after a
-  navigation or in a dialog. A new screen joins `SCREENS` there. `KNOWN_VIOLATIONS` only shrinks: fix
+  title not named after the screen's `<h1>`, a screen that shows the 404 or 403 page instead of
+  itself, and focus that is invisible, hidden, or lost after a navigation or in a dialog. A new
+  screen joins `SCREENS` there; a detail screen opens on a record `seed.mjs` creates (`seededRecord`). `KNOWN_VIOLATIONS` only shrinks: fix
   an entry when you touch its screen. It needs a running seeded app
   (`run-wampums` skill: `db.sh`, `seed.mjs`, `start.sh`).
 - ✅ CI runs `npm run lint:all`, `npm run build`, `npm run test:quality` (every Jest suite; the

@@ -191,6 +191,35 @@ try {
     formsClient.release();
   }
 
+  // One of each record a detail screen opens, so the browser checks see each
+  // screen with content rather than its "not found" state.
+  const fundraiserId = await one(
+    `INSERT INTO fundraisers (name, start_date, end_date, organization, campaign_type, unit_price, unit_label)
+     VALUES ('Vente de calendriers', '2026-11-01', '2026-12-15', $1, 'fixed_price_sale', 15, 'calendrier')
+     RETURNING id`,
+    [organizationId]
+  );
+  const yearPlanId = await one(
+    `INSERT INTO year_plans (organization_id, title, start_date, end_date, created_by)
+     VALUES ($1, 'Année 2026-2027', '2026-09-01', '2027-06-30', $2) RETURNING id`,
+    [organizationId, adminId]
+  );
+  const messageId = await one(
+    `INSERT INTO user_messages (organization_id, user_id, title, body)
+     VALUES ($1, $2, 'Sortie canot', 'Apportez un lunch et des vêtements de rechange.') RETURNING id`,
+    [organizationId, parentId]
+  );
+  const incidentId = await one(
+    `INSERT INTO incident_reports (organization_id, status, victim_type, victim_participant_id, victim_name,
+                                   activity_id, incident_date, incident_location, created_by)
+     VALUES ($1, 'draft', 'participant', $2, 'Léa Parent', $3, $4, 'Local scout', $5) RETURNING id`,
+    [organizationId, childId, activityId, programmeDate, adminId]
+  );
+  const slipToken = await one(
+    'SELECT access_token AS id FROM permission_slips WHERE organization_id = $1 AND activity_id = $2',
+    [organizationId, activityId]
+  );
+
   const seed = {
     organizationId,
     database: `postgresql:///${DB}?host=/var/run/postgresql`,
@@ -198,6 +227,11 @@ try {
     activityId,
     participantId: childId,
     programmeDate,
+    fundraiserId,
+    yearPlanId,
+    messageId,
+    incidentId,
+    slipToken,
     password: PASSWORD,
   };
   mkdirSync(CACHE, { recursive: true });
