@@ -435,9 +435,15 @@ export class DistrictManagement {
       return;
     }
 
+    // Requests now act on the new unit: nothing of the previous one may stay
+    // on screen, where a save would apply its roles to the new unit. Start
+    // from what this unit's own cache holds, if anything.
+    this.resetUnitState();
+    await this.hydrateFromCache();
+    if (this.destroyed) {
+      return;
+    }
     this.organizationId = newOrgId;
-    this.selectedUserId = null;
-    this.selectedRoleIds = new Set();
 
     if (!canViewRoles()) {
       this.app.router.navigate('/dashboard');
@@ -449,6 +455,23 @@ export class DistrictManagement {
     if (!this.destroyed) {
       this.focusOrganizationSelect();
     }
+  }
+
+  /**
+   * Forget everything that belongs to the unit the session just left.
+   */
+  resetUnitState() {
+    this.users = [];
+    this.filteredUsers = [];
+    this.roles = [];
+    this.rolePermissions = {};
+    this.roleBundleIndex = buildRoleBundleIndex([], {});
+    this.userMeta = {};
+    this.auditLogByUser = {};
+    this.queuedChanges = [];
+    this.lastSyncedAt = null;
+    this.selectedUserId = null;
+    this.selectedRoleIds = new Set();
   }
 
   /**

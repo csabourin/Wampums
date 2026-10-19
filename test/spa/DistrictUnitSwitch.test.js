@@ -156,6 +156,22 @@ test('a failed switch says so and keeps showing the unit the session is still in
   expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);
 });
 
+test('when the new unit\'s members cannot be loaded, the previous unit\'s are not left to edit', async () => {
+  getUsers.mockRejectedValue(new Error('offline'));
+  // Opening the screen cached the first unit's members, as it should.
+  setCachedData.mockClear();
+  await chooseUnit('2');
+
+  expect(document.getElementById('app').textContent).not.toContain('Akela');
+  expect(document.getElementById('dm-load-retry')).not.toBeNull();
+  expect(appInstance.showMessage).toHaveBeenCalledWith('district_management_load_error', 'error');
+  expect(setCachedData).not.toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ users: [expect.objectContaining({ id: FIRST_UNIT_MEMBER.id })] }),
+    expect.anything(),
+  );
+});
+
 test('a unit where the person cannot see roles sends them to the dashboard', async () => {
   switchActiveUnit.mockImplementation(() => {
     canViewRoles.mockReturnValue(false);
