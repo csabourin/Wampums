@@ -140,4 +140,25 @@ describe('Badge tracker backlog', () => {
     expect(document.querySelector('#badge-history-modal')).toBeNull();
     expect(tracker.showToast).toHaveBeenLastCalledWith('1 badge_history_saved', 'success');
   });
+
+  test('explains a refused history save and keeps the form open to retry', async () => {
+    tracker.canManage = true;
+    tracker.templates = [{ id: TEMPLATE_ID, name: 'Akela', level_count: 2 }];
+    tracker.loadData = jest.fn();
+    tracker.showToast = jest.fn();
+    saveBadgeHistory.mockRejectedValue(Object.assign(new Error('Forbidden'), { status: 403 }));
+
+    tracker.openBadgeHistoryModal(ON_ROSTER_ID);
+    const modal = document.querySelector('#badge-history-modal');
+    modal.querySelector('input[value="5:1"]').checked = true;
+    modal.querySelector('#badge-history-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(modal.isConnected).toBe(true);
+    expect(tracker.loadData).not.toHaveBeenCalled();
+    expect(tracker.showToast).toHaveBeenCalledWith(expect.not.stringMatching(/Forbidden/), 'error');
+    expect(tracker.showToast).not.toHaveBeenCalledWith('error', 'error');
+    expect(modal.querySelector('button[form="badge-history-form"]').disabled).toBe(false);
+  });
 });

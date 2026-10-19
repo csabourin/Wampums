@@ -2861,6 +2861,7 @@
   "badge_save_history": "Enregistrer l’historique",
   "badge_history_select_level": "Sélectionnez au moins un niveau.",
   "badge_history_saved": "niveau(x) ajouté(s) à l’historique",
+  "badge_history_save_failed": "L’historique des badges n’a pas pu être enregistré.",
   "badge_search_placeholder": "Rechercher un louveteau...",
   "badge_statistics": "Statistiques",
   "results": "résultats",

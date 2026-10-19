@@ -2867,6 +2867,7 @@
   "badge_save_history": "Save history",
   "badge_history_select_level": "Select at least one level.",
   "badge_history_saved": "level(s) added to badge history",
+  "badge_history_save_failed": "Badge history could not be saved.",
   "badge_search_placeholder": "Search a scout...",
   "badge_statistics": "Statistics",
   "results": "results",

@@ -36,6 +36,7 @@ import {
 } from '../../api/api-endpoints.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 
 /** Owner key for the badge tracker modal's body scroll lock. */
@@ -1332,7 +1333,7 @@ export class BadgeTracker {
         this.attachSearchListener();
       } catch (error) {
         debugError('[BadgeTracker] Historical badge save error:', error);
-        this.showToast(translate('error'), 'error');
+        this.showToast(apiErrorMessage(error, 'badge_history_save_failed'), 'error');
         submit.disabled = false;
       }
     });
