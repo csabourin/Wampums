@@ -127,6 +127,7 @@ export async function handleResponse(response) {
     // the reason instead of parsing the message.
     let errorCode = null;
     let errorDetails = null;
+    let validationErrors = null;
 
     try {
       if (contentType && contentType.includes('application/json')) {
@@ -136,6 +137,7 @@ export async function handleResponse(response) {
         errorDetails = errorData.data || null;
         // Log detailed validation errors if present
         if (errorData.errors && Array.isArray(errorData.errors)) {
+          validationErrors = errorData.errors;
           debugError('Validation errors:', errorData.errors);
           // Create a detailed error message
           const errorDetails = errorData.errors.map(e => `${e.path || e.param || e.field}: ${e.msg}`).join(', ');
@@ -153,6 +155,7 @@ export async function handleResponse(response) {
     httpError.status = response.status;
     httpError.code = errorCode;
     httpError.data = errorDetails;
+    httpError.errors = validationErrors;
     httpError.isNetworkError = getHeader('X-Network-Error') === 'true';
     throw httpError;
   }
@@ -376,7 +379,7 @@ async function sendApiRequest(endpoint, options = {}) {
       // (e.g. timeout after the server processed the request), and
       // retrying 4xx responses just delays user-facing feedback.
       const isTransient = !error.status || error.status >= 500;
-      const isRetryable = method === 'GET' && isTransient;
+      const isRetryable = method === 'GET' && isTransient && error.name !== 'AbortError';
 
       if (!isRetryable) {
         break;
@@ -414,6 +417,8 @@ async function sendApiRequest(endpoint, options = {}) {
   finalError.code = method !== 'GET' && isNetworkError && requiresOnline
     ? 'operation_unconfirmed' : lastError.code ?? null;
   finalError.data = lastError.data ?? null;
+  finalError.errors = lastError.errors ?? null;
+  finalError.name = lastError.name;
   finalError.isNetworkError = isNetworkError;
   throw finalError;
 }
@@ -482,7 +487,7 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
   recordPageRead(cacheKey, endpoint, options, cacheOptions);
 
   // Create a unique request key for deduplication
-  const requestKey = `${endpoint}-${JSON.stringify(options)}`;
+  const requestKey = `${cacheKey}-${JSON.stringify(options)}`;
 
   // Check for in-flight request (deduplication). A forced refresh must not
   // reuse an in-flight request it was explicitly asked to bypass.
@@ -505,6 +510,11 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
     } catch (cacheError) {
       debugError('Cache retrieval failed:', cacheError);
     }
+  }
+
+  // Cache reads yield: another caller may have started the same request meanwhile.
+  if (!forceRefresh && pendingRequests.has(requestKey)) {
+    return pendingRequests.get(requestKey);
   }
 
   // Create the request promise
@@ -545,7 +555,10 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
       throw requestError;
     } finally {
       // Remove from pending requests after completion
-      pendingRequests.delete(requestKey);
+      // An older request must not remove a newer forced refresh.
+      if (pendingRequests.get(requestKey) === requestPromise) {
+        pendingRequests.delete(requestKey);
+      }
     }
   })();
 

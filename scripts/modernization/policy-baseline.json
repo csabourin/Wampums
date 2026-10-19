@@ -8,7 +8,7 @@
     "landing/landing.js": 4,
     "middleware/auth.js": 5,
     "middleware/global.js": 15,
-    "middleware/response.js": 5,
+    "middleware/response.js": 3,
     "middleware/validation.js": 2,
     "migrations/001_seed_default_form_formats.js": 1,
     "migrations/002_fix_parent_guardian_email_label.js": 4,

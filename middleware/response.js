@@ -1,6 +1,7 @@
 // Standardized API response middleware
 
 const INTERNAL_SERVER_ERROR_MESSAGE = 'internal_server_error';
+const INTERNAL_SERVER_ERROR_STATUS = 500;
 
 /**
  * Success response wrapper
@@ -28,11 +29,11 @@ exports.success = (res, data = null, message = 'Success', statusCode = 200) => {
 exports.error = (res, message = 'An error occurred', statusCode = 400, errors = null) => {
   const response = {
     success: false,
-    message: statusCode === 500 ? INTERNAL_SERVER_ERROR_MESSAGE : message,
+    message: statusCode === INTERNAL_SERVER_ERROR_STATUS ? INTERNAL_SERVER_ERROR_MESSAGE : message,
     timestamp: new Date().toISOString()
   };
 
-  if (errors) {
+  if (errors && statusCode !== INTERNAL_SERVER_ERROR_STATUS) {
     response.errors = errors;
   }
 
@@ -74,7 +75,7 @@ exports.sanitizeServerErrorResponses = (req, res, next) => {
   const sendJson = res.json.bind(res);
 
   res.json = (body) => {
-    if (res.statusCode === 500) {
+    if (res.statusCode === INTERNAL_SERVER_ERROR_STATUS) {
       return sendJson({
         success: false,
         message: INTERNAL_SERVER_ERROR_MESSAGE,

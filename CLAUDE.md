@@ -426,6 +426,8 @@ const result = await pool.query(
 - ✅ A failed call: `apiErrorMessage(error, 'screen_fallback_key')` (§1), never `error.message`. A
   refused action reads as a refusal, not as a generic error. A failed request is never reported as
   success, and a write that committed but whose reload failed says it was saved and offers a retry.
+- ✅ The API client preserves structured field errors on `error.errors`, alongside `status`, `code`
+  and `data`, so forms can associate failures with their fields.
 - ✅ Form errors: check what you can before sending, show server field errors next to their field
   (`aria-describedby`), and clear a message as soon as its field changes.
 - ✅ A form disables its submit while saving (`withFormBusy`), so a double click sends one request.
@@ -468,7 +470,9 @@ const result = await pool.query(
   clears only the resource it touched, not the screens derived from it. Queued after a network error,
   it clears nothing, and replaying the queue clears nothing either, so reload with `forceRefresh: true`
   once it is sent.
-- ✅ Cache keys are scoped by user and unit (`spa/utils/OfflineCacheKeys.js`); never build one by hand.
+- ✅ Cache keys and in-flight read deduplication are scoped by user, unit and selected scout year
+  (`spa/utils/OfflineCacheKeys.js`); never build one by hand. Simultaneous reads share one request;
+  a forced refresh starts a new one. An aborted read is never retried.
 - ✅ Offline, writes are queued and answer `{ queued: true }`. Resources listed in
   `CONFIG.ONLINE_REQUIRED_MUTATION_RESOURCES` (invitations, parent onboarding, walk-ins, family links)
   refuse instead, with the code `online_required`. Do not report a queued or unconfirmed write as delivered.
@@ -531,6 +535,7 @@ router.get('/data', authenticate, asyncHandler(async (req, res) => {
 }));
 ```
 
+- ✅ A 500 response from `error()` omits validation details (`errors`) as well as the internal message.
 - ✅ A 5xx never sends `error.message`, a provider's error, or a database error to the client
   (`test/server-error-leaks.test.js` checks every route file). Log it and answer a generic message.
 - ✅ Bad input is a 400, never a 500: a malformed id, a non-array where an array is expected, an id
