@@ -1749,56 +1749,58 @@ export class DistrictManagement {
       return;
     }
 
-    const generation = this.unitGeneration;
-    await this.refreshData(true);
-    const remaining = [];
+    // The changes are sent in this unit and the queue is saved in its cache:
+    // the unit cannot change until both are done.
+    this.writesInFlight += 1;
     let staleCount = 0;
     let errorCount = 0;
+    try {
+      await this.refreshData(true);
+      const remaining = [];
 
-    for (const change of this.queuedChanges) {
-      // The session moved to another unit: the rest would be sent there.
-      if (generation !== this.unitGeneration) {
-        return;
-      }
-      if (change.organizationId && String(change.organizationId) !== String(this.organizationId)) {
-        remaining.push({ ...change, reason: 'organization_mismatch' });
-        continue;
+      for (const change of this.queuedChanges) {
+        if (change.organizationId && String(change.organizationId) !== String(this.organizationId)) {
+          remaining.push({ ...change, reason: 'organization_mismatch' });
+          continue;
+        }
+
+        const user = this.users.find((u) => u.id === change.userId);
+        if (!user) {
+          continue;
+        }
+
+        // Stale only when the member's roles changed since the change was made.
+        // Comparing sync times made every change stale: the refresh above
+        // marks every member as just synced, so none could ever be sent.
+        if (!this.hasSameRoles(change.baseRoleIds, user.role_ids)) {
+          remaining.push({ ...change, reason: 'stale' });
+          staleCount += 1;
+          continue;
+        }
+
+        try {
+          await updateUserRolesV1(user.id, change.roleIds, {
+            audit_note: change.auditNote,
+            bundles: this.describeSelectedBundles(change.roleIds),
+            organizationId: change.organizationId || this.organizationId,
+          });
+          this.applyOptimisticRoles(user, change.roleIds);
+          this.userMeta[user.id] = { lastSyncedAt: Date.now(), roleCount: change.roleIds.length };
+          this.app.showMessage('district_management_assignment_saved', 'success');
+        } catch (error) {
+          debugError('district_management: queued change failed', error);
+          remaining.push({ ...change, reason: error?.message || 'error' });
+          errorCount += 1;
+        }
       }
 
-      const user = this.users.find((u) => u.id === change.userId);
-      if (!user) {
-        continue;
-      }
-
-      // Stale only when the member's roles changed since the change was made.
-      // Comparing sync times made every change stale: the refresh above
-      // marks every member as just synced, so none could ever be sent.
-      if (!this.hasSameRoles(change.baseRoleIds, user.role_ids)) {
-        remaining.push({ ...change, reason: 'stale' });
-        staleCount += 1;
-        continue;
-      }
-
-      try {
-        await updateUserRolesV1(user.id, change.roleIds, {
-          audit_note: change.auditNote,
-          bundles: this.describeSelectedBundles(change.roleIds),
-          organizationId: change.organizationId || this.organizationId,
-        });
-        this.applyOptimisticRoles(user, change.roleIds);
-        this.userMeta[user.id] = { lastSyncedAt: Date.now(), roleCount: change.roleIds.length };
-        this.app.showMessage('district_management_assignment_saved', 'success');
-      } catch (error) {
-        debugError('district_management: queued change failed', error);
-        remaining.push({ ...change, reason: error?.message || 'error' });
-        errorCount += 1;
-      }
+      this.queuedChanges = remaining;
+      this.filteredUsers = this.getFilteredUsers();
+      await this.persistCache();
+      this.renderAndBind();
+    } finally {
+      this.writesInFlight -= 1;
     }
-
-    this.queuedChanges = remaining;
-    this.filteredUsers = this.getFilteredUsers();
-    await this.persistCache();
-    this.renderAndBind();
 
     if (staleCount > 0) {
       this.app.showMessage('district_management_stale_queue', 'info');

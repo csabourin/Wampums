@@ -67,6 +67,7 @@ import {
   getUserRoleAssignments,
   getUsers,
   updateUserRoleBundles,
+  updateUserRolesV1,
 } from '../../spa/ajax-functions.js';
 import { getCachedData, setCachedData } from '../../spa/indexedDB.js';
 import { switchActiveUnit } from '../../spa/modules/session/UnitSwitch.js';
@@ -246,6 +247,26 @@ test('the unit cannot change while a role change is being saved, and can once it
 
   save.resolve({ success: true });
   await saving;
+  await chooseUnit('2');
+  expect(switchActiveUnit).toHaveBeenCalledWith(appInstance, '2');
+});
+
+test('the unit cannot change while waiting changes are being resent', async () => {
+  const resend = deferred();
+  updateUserRolesV1.mockReturnValue(resend.promise);
+  view.queuedChanges = [{
+    userId: FIRST_UNIT_MEMBER.id, roleIds: [LEADER.id], baseRoleIds: [LEADER.id], organizationId: 1,
+  }];
+  const retrying = view.retryQueuedChanges();
+  await flush();
+
+  await chooseUnit('2');
+  expect(switchActiveUnit).not.toHaveBeenCalled();
+  expect(appInstance.showMessage).toHaveBeenCalledWith('district_management_switch_wait', 'info');
+
+  resend.resolve({ success: true });
+  await retrying;
+  expect(view.queuedChanges).toEqual([]);
   await chooseUnit('2');
   expect(switchActiveUnit).toHaveBeenCalledWith(appInstance, '2');
 });
