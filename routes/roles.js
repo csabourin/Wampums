@@ -491,9 +491,9 @@ module.exports = (pool, logger) => {
    *     responses:
    *       200:
    *         description: Role changes, newest first
-   *       HTTP.BAD_REQUEST:
+   *       400:
    *         description: Invalid user_id or limit
-   *       HTTP.FORBIDDEN:
+   *       403:
    *         description: Insufficient permissions
    */
   router.get('/api/v1/audit/roles',
