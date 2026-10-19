@@ -37,6 +37,9 @@ export class RoleManagement {
     this.selectedUserId = null;
     this.selectedRoleId = null;
     this.activeTab = 'roles'; // 'roles' or 'users'
+    // The deactivated accounts' section stays open or closed across renders.
+    this.inactiveExpanded = false;
+    this.searchTerm = '';
   }
 
   async init() {
@@ -269,33 +272,55 @@ export class RoleManagement {
     `;
   }
 
+  /**
+   * Active accounts first; deactivated ones folded in a section at the bottom,
+   * open when the person opened it or is editing one of them.
+   *
+   * @returns {string} The list markup
+   */
   renderUserList() {
     if (this.users.length === 0) {
       return `<p class="empty-state">${translate('no_users_found')}</p>`;
     }
 
-    return this.users.map(user => {
-      const roleNames = (user.roles || []).map(r => roleLabel(r)).join(', ');
-      const isSelected = this.selectedUserId === user.id;
+    const active = this.users.filter((user) => user.status !== 'inactive');
+    const inactive = this.users.filter((user) => user.status === 'inactive');
+    const open = this.inactiveExpanded || inactive.some((user) => user.id === this.selectedUserId);
+    const inactiveSection = inactive.length
+      ? `<details class="inactive-accounts" id="role-inactive-accounts"${open ? ' open' : ''}>
+          <summary>${escapeHTML(translate('district_management_inactive_accounts').replace('{count}', String(inactive.length)))}</summary>
+          ${inactive.map((user) => this.renderUserItem(user)).join('')}
+        </details>`
+      : '';
 
-      return `
-        <div class="user-item ${isSelected ? 'selected' : ''}" data-user-id="${user.id}">
-          <div class="user-info">
-            <div class="user-name">
-              ${this.escapeHtml(user.full_name || user.email)}
-              ${user.status === 'inactive' ? `<span class="member-inactive-badge">${translate('member_access_inactive_badge')}</span>` : ''}
-            </div>
-            <div class="user-email">${this.escapeHtml(user.email)}</div>
-            ${roleNames ? `<div class="user-roles-summary">${this.escapeHtml(roleNames)}</div>` : ''}
+    return `${active.map((user) => this.renderUserItem(user)).join('')}${inactiveSection}`;
+  }
+
+  /**
+   * @param {Object} user - Member of the unit
+   * @returns {string} The member's row
+   */
+  renderUserItem(user) {
+    const roleNames = (user.roles || []).map(r => roleLabel(r)).join(', ');
+    const isSelected = this.selectedUserId === user.id;
+
+    return `
+      <div class="user-item ${isSelected ? 'selected' : ''}" data-user-id="${user.id}">
+        <div class="user-info">
+          <div class="user-name">
+            ${this.escapeHtml(user.full_name || user.email)}
+            ${user.status === 'inactive' ? `<span class="member-inactive-badge">${translate('member_access_inactive_badge')}</span>` : ''}
           </div>
-          <div class="user-action">
-            <button class="button button--small btn-manage-roles" data-user-id="${user.id}"${isSelected ? ' aria-current="true"' : ''}>
-              ${translate('manage_roles')}
-            </button>
-          </div>
+          <div class="user-email">${this.escapeHtml(user.email)}</div>
+          ${roleNames ? `<div class="user-roles-summary">${this.escapeHtml(roleNames)}</div>` : ''}
         </div>
-      `;
-    }).join('');
+        <div class="user-action">
+          <button class="button button--small btn-manage-roles" data-user-id="${user.id}"${isSelected ? ' aria-current="true"' : ''}>
+            ${translate('manage_roles')}
+          </button>
+        </div>
+      </div>
+    `;
   }
 
   renderUserAssignmentPlaceholder() {
@@ -529,6 +554,12 @@ export class RoleManagement {
    * form a second time, which made the next save send the request twice.
    */
   attachUserListListeners() {
+    // Remember the person's choice, not the opening a search does for them.
+    document.getElementById('role-inactive-accounts')?.addEventListener('toggle', (event) => {
+      if (!this.searchTerm) {
+        this.inactiveExpanded = event.target.open;
+      }
+    });
     document.querySelectorAll('.btn-manage-roles').forEach(button => {
       button.addEventListener('click', async (e) => {
         e.preventDefault();
@@ -710,6 +741,7 @@ export class RoleManagement {
   filterUsers(searchTerm) {
     const userItems = document.querySelectorAll('.user-item');
     const term = searchTerm.toLowerCase();
+    this.searchTerm = term.trim();
 
     userItems.forEach(item => {
       const name = item.querySelector('.user-name')?.textContent.toLowerCase() || '';
@@ -721,6 +753,16 @@ export class RoleManagement {
         item.style.display = 'none';
       }
     });
+
+    // A search that finds a deactivated account opens their section; one that
+    // finds none hides it. Without a search, it is as the person left it.
+    const section = document.getElementById('role-inactive-accounts');
+    if (section) {
+      const found = Array.from(section.querySelectorAll('.user-item')).some((item) => item.style.display !== 'none');
+      section.hidden = Boolean(this.searchTerm) && !found;
+      section.open = this.searchTerm ? found : this.inactiveExpanded
+        || Boolean(section.querySelector('.user-item.selected'));
+    }
   }
 
   showAssignmentMessage(message, type = 'info') {
