@@ -338,4 +338,75 @@ describe('Badge tracker backlog', () => {
 
     expect(values).toEqual(['5:1', '6:1']);
   });
+
+  describe('a queued history save the server refuses on replay', () => {
+    async function queueHistory(mutationId) {
+      tracker.canManage = true;
+      tracker.templates = [{ id: TEMPLATE_ID, name: 'Akela', level_count: 3 }];
+      tracker.badges = [{ participant_id: ON_ROSTER_ID, badge_template_id: TEMPLATE_ID, etoiles: 1 }];
+      tracker.loadData = jest.fn().mockResolvedValue(true);
+      tracker.render = jest.fn();
+      tracker.attachSearchListener = jest.fn();
+      tracker.showToast = jest.fn();
+      saveBadgeHistory.mockResolvedValue({ success: true, queued: true, mutationId });
+
+      tracker.openBadgeHistoryModal(ON_ROSTER_ID);
+      const modal = document.querySelector('#badge-history-modal');
+      modal.querySelector('input[value="5:2"]').checked = true;
+      modal.querySelector('#badge-history-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+      return modal;
+    }
+
+    const refuse = (mutationId) => window.dispatchEvent(new CustomEvent('offlineMutationRejected', {
+      detail: { url: '/api/v1/badges/history', method: 'POST', kind: 'badges', mutationId, status: 400 },
+    }));
+
+    test('hands the form back as ticked, says nothing was recorded, and moves focus to save', async () => {
+      const modal = await queueHistory('mutation-r');
+      const submit = modal.querySelector('button[form="badge-history-form"]');
+      expect(submit.disabled).toBe(true);
+
+      refuse('mutation-r');
+
+      expect(modal.isConnected).toBe(true);
+      expect(modal.querySelector('input[value="5:2"]').checked).toBe(true);
+      expect(modal.querySelector('input[value="5:2"]').disabled).toBe(false);
+      expect(modal.querySelector('#badge-history-date').disabled).toBe(false);
+      // A level recorded before stays unavailable.
+      expect(modal.querySelector('input[value="5:1"]').disabled).toBe(true);
+      expect(submit.disabled).toBe(false);
+      expect(document.activeElement).toBe(submit);
+      expect(tracker.showToast).toHaveBeenLastCalledWith('badge_history_replay_rejected', 'error');
+      expect(tracker.loadData).not.toHaveBeenCalled();
+    });
+
+    test('ignores the refusal of another queued change', async () => {
+      const modal = await queueHistory('mutation-s');
+
+      refuse('mutation-other');
+
+      expect(modal.querySelector('input[value="5:2"]').disabled).toBe(true);
+      expect(tracker.showToast).not.toHaveBeenCalledWith('badge_history_replay_rejected', 'error');
+    });
+
+    test('the reopened form has no WCAG A/AA violations', async () => {
+      const modal = await queueHistory('mutation-t');
+
+      refuse('mutation-t');
+      const results = await axe.run(modal, AXE_OPTIONS);
+
+      expect(results.violations).toEqual([]);
+    });
+
+    test('says nothing once the person has left the screen', async () => {
+      await queueHistory('mutation-u');
+      tracker.destroy();
+
+      refuse('mutation-u');
+
+      expect(tracker.showToast).not.toHaveBeenCalledWith('badge_history_replay_rejected', 'error');
+    });
+  });
 });

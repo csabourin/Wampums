@@ -7,7 +7,7 @@
  * Implements: US-ATT-001, US-ATT-002, US-ATT-004, US-ATT-005, US-ATT-006,
  *             US-ATT-007, US-ATT-008, US-ATT-009, US-ATT-010, US-ATT-011,
  *             US-ATT-012, US-ATT-017, US-ATT-018, US-ATT-019, US-ATT-020,
- *             US-NAV-002
+ *             US-ATT-021, US-NAV-002
  */
 
 'use strict';
@@ -121,9 +121,13 @@ function seedStandardData({ attendanceToday = [] } = {}) {
   getActivities.mockResolvedValue([]);
 }
 
+// Pages listen on window; destroy them so one test's page cannot react to the next test's events.
+const openedPages = [];
+
 async function initPage() {
   const appStub = makeAppStub();
   const page = new Attendance(appStub);
+  openedPages.push(page);
   await page.init();
   await flushPromises();
   return { page, appStub };
@@ -146,6 +150,10 @@ beforeEach(() => {
   setOnline(true);
   global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ success: true, data: {} }) }));
   mockGlobalApp.userPermissions = ['attendance.view', 'attendance.manage'];
+});
+
+afterEach(() => {
+  openedPages.splice(0).forEach((page) => page.destroy());
 });
 
 describe('US-ATT-001 — See my unit grouped, with honest statuses', () => {
@@ -554,6 +562,76 @@ describe('US-ATT-020 — Navigating away mid-load never paints over the next pag
     await initPage();
 
     expect(document.body.textContent).toContain(tr('error_loading_attendance'));
+  });
+});
+
+describe('US-ATT-021 — A status saved offline and refused on replay does not stay on screen', () => {
+  const refuse = (kind) => window.dispatchEvent(new CustomEvent('offlineMutationRejected', {
+    detail: { url: 'http://localhost:3000/api/v1/attendance', method: 'POST', kind, mutationId: 'm-1', status: 403 },
+  }));
+
+  async function markPresentOffline() {
+    seedStandardData();
+    ajax.updateAttendance.mockResolvedValue({ success: true, queued: true });
+    const opened = await initPage();
+    document.querySelector('.participant-row[data-participant-id="3"]')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await opened.page.updateStatus('present');
+    await flushPromises();
+    expect(statusChip(3)).toBe(tr('present'));
+    return opened;
+  }
+
+  it('reloads the date from the server, which never recorded the status', async () => {
+    const { page } = await markPresentOffline();
+    const loadsBefore = ajax.getAttendance.mock.calls.length;
+    const reload = jest.spyOn(page, 'reloadAfterRejectedChange');
+
+    refuse('attendance');
+    await reload.mock.results[0].value;
+
+    expect(ajax.getAttendance.mock.calls.length).toBeGreaterThan(loadsBefore);
+    expect(statusChip(3)).toBe(tr('unmarked'));
+    expect(await getCachedData(`attendance_${TODAY}`)).not.toEqual(
+      expect.objectContaining({ attendanceData: expect.objectContaining({ 3: 'present' }) }),
+    );
+  });
+
+  it('on a camp day, the reload only reads: it does not carry the refused statuses forward again', async () => {
+    seedCampContext({ day1Attendance: [{ participant_id: 1, status: 'present' }] });
+    const { page } = await initPage();
+    expect(statusChip(1)).toBe(tr('present'));
+    const carryCalls = () => global.fetch.mock.calls.filter(([url]) => url.includes('v1/attendance/carry-forward')).length;
+    const carriedBefore = carryCalls();
+    const reload = jest.spyOn(page, 'reloadAfterRejectedChange');
+
+    refuse('attendance');
+    await reload.mock.results[0].value;
+
+    expect(carryCalls()).toBe(carriedBefore);
+    expect(statusChip(1)).toBe(tr('unmarked'));
+  });
+
+  it('ignores a refused change of another kind', async () => {
+    await markPresentOffline();
+    const loadsBefore = ajax.getAttendance.mock.calls.length;
+
+    refuse('medication');
+    await flushPromises();
+
+    expect(ajax.getAttendance.mock.calls.length).toBe(loadsBefore);
+    expect(statusChip(3)).toBe(tr('present'));
+  });
+
+  it('does nothing once the person has left the page', async () => {
+    const { page } = await markPresentOffline();
+    const loadsBefore = ajax.getAttendance.mock.calls.length;
+    page.destroy();
+
+    refuse('attendance');
+    await flushPromises();
+
+    expect(ajax.getAttendance.mock.calls.length).toBe(loadsBefore);
   });
 });
 

@@ -68,6 +68,8 @@ export class Attendance {
       return;
     }
 
+    this.listenForRejectedChanges();
+
     try {
       this.renderSkeleton();
       this.isLoading = true;
@@ -919,6 +921,41 @@ export class Attendance {
     this.searchHandler?.cancel?.();
     this.searchHandler = null;
     this.pendingDateChange = null;
+    if (this.rejectedChangeHandler) {
+      window.removeEventListener('offlineMutationRejected', this.rejectedChangeHandler);
+      this.rejectedChangeHandler = null;
+    }
+  }
+
+  /**
+   * An attendance change saved offline can be refused on replay; the list
+   * on screen (and its cached copy) then shows a status that was never
+   * recorded. Reload the date shown from the server.
+   */
+  listenForRejectedChanges() {
+    if (this.rejectedChangeHandler) {
+      return;
+    }
+    this.rejectedChangeHandler = (event) => {
+      if (event.detail?.kind === 'attendance') {
+        this.reloadAfterRejectedChange();
+      }
+    };
+    window.addEventListener('offlineMutationRejected', this.rejectedChangeHandler);
+  }
+
+  /**
+   * Load the date shown again through the serialized date loader. The offline
+   * queue has already dropped the cached copies holding the refused status.
+   * @returns {Promise<void>}
+   */
+  async reloadAfterRejectedChange() {
+    // Not yet initialized: init() is loading, and changeDate must not race it.
+    if (!this.isInitialized || !document.querySelector('.attendance-container')) {
+      return;
+    }
+    this.readOnlyReload = true;
+    await this.changeDate(this.currentDate);
   }
 
   // Fix the selection toggle methods
@@ -1250,6 +1287,10 @@ export class Attendance {
   async loadDate(targetDate) {
     const previousDate = this.currentDate;
     this.currentDate = targetDate;
+    // A reload after a refused change only reads: carrying forward again could
+    // put back the very statuses the server just refused.
+    const carryForward = !this.readOnlyReload;
+    this.readOnlyReload = false;
     debugLog(`Changing date to ${targetDate}`);
 
     try {
@@ -1271,7 +1312,9 @@ export class Attendance {
       // The activity context (camp banner, carry-forward source dates)
       // depends on the selected date
       await this.detectActivityContext();
-      await this.autoCarryForward();
+      if (carryForward) {
+        await this.autoCarryForward();
+      }
 
       if (this.pendingDateChange !== null) {
         return;

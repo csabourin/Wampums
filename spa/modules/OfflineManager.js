@@ -12,10 +12,16 @@ import {
   setCachedData,
   getOfflineData,
   saveOfflineData,
-  deleteOfflineData
+  deleteOfflineData,
+  clearCacheEntriesWhere
 } from '../indexedDB.js';
 import { CONFIG } from '../config.js';
-import { buildApiCacheKey } from '../utils/OfflineCacheKeys.js';
+import {
+  buildApiCacheKey,
+  buildScopedCacheKey,
+  cachePathsForMutation,
+  normalizeApiPath
+} from '../utils/OfflineCacheKeys.js';
 import {
   getAuthHeader,
   getCurrentOrganizationId,
@@ -46,13 +52,45 @@ const PREPARED_ACTIVITIES_KEY = 'wampums_prepared_activities';
 // Only operations with server-side set/upsert semantics may be replayed.
 // Additive creates (points, honors, payments, roles, etc.) remain online-only
 // until their endpoints implement transactional idempotency.
+// `kind` names the change in the message that reports a refused replay
+// (`sync.rejected_kind_<kind>`).
 const SAFE_OFFLINE_MUTATIONS = [
-  { method: 'POST', path: /^\/api\/v1\/attendance(?:\/carry-forward)?$/ },
-  { method: 'PATCH', path: /^\/api\/v1\/medication\/(?:distributions|receptions)\/\d+$/ },
-  { method: 'DELETE', path: /^\/api\/v1\/medication\/receptions\/\d+$/ },
+  { method: 'POST', path: /^\/api\/v1\/attendance(?:\/carry-forward)?$/, kind: 'attendance' },
+  { method: 'PATCH', path: /^\/api\/v1\/medication\/(?:distributions|receptions)\/\d+$/, kind: 'medication' },
+  { method: 'DELETE', path: /^\/api\/v1\/medication\/receptions\/\d+$/, kind: 'medication' },
   // Replaying badge history is safe: the server skips levels already recorded.
-  { method: 'POST', path: /^\/api\/v1\/badges\/history$/ },
+  { method: 'POST', path: /^\/api\/v1\/badges\/history$/, kind: 'badges' },
 ];
+
+/**
+ * Cache keys a screen stores under its own name, by kind of change: they hold
+ * the optimistic copy of a refused change too, whether or not the screen is
+ * open. Attendance is narrowed to the refused date (see rejectedCachePrefixes),
+ * so a camp's other prepared days survive.
+ */
+const SCREEN_CACHE_PREFIXES = {
+  medication: [
+    'medication_', 'participant_medications', 'fiche_medications',
+    '/api/medication_', '/api/participant_medications', '/api/fiche_medications'
+  ],
+  badges: ['badge_', '/api/badge']
+};
+
+/** Replay answers that will never succeed: the change is dropped, and said so. */
+const NON_RETRIABLE_STATUSES = new Set([400, 403, 404, 409, 410, 422]);
+
+/**
+ * What kind of change a queued request was, for the message that reports it.
+ * @param {string} url - Queued request URL
+ * @param {string} method - HTTP method
+ * @returns {string} A `kind` from SAFE_OFFLINE_MUTATIONS, or 'other'
+ */
+function mutationKind(url, method) {
+  const pathname = normalizeApiPath(url);
+  const rule = SAFE_OFFLINE_MUTATIONS.find((candidate) =>
+    candidate.method === String(method).toUpperCase() && candidate.path.test(pathname));
+  return rule?.kind || 'other';
+}
 
 /**
  * Critical endpoints to pre-cache
@@ -349,15 +387,18 @@ export class OfflineManager {
       // Replay only in the open, authenticated SPA. A service worker
       // cannot safely obtain a fresh bearer token or verify the active
       // account, so it must never replay authenticated writes.
-      const replayed = await this.replayPendingMutations();
+      const { replayed, rejected } = await this.replayPendingMutations();
 
       // Check pending count
       await this.updatePendingCount();
 
-      // Announce a sync only when changes made offline were sent. This
-      // runs on every page load; announcing it with nothing to send put
-      // the same message over each page, twice.
-      if (replayed > 0 && this.pendingMutations.length === 0) {
+      // A refused change is never reported as synced. Otherwise, announce a
+      // sync only when changes made offline were sent: this runs on every
+      // page load, and announcing it with nothing to send put the same
+      // message over each page, twice.
+      if (rejected.length > 0) {
+        this.showToast(this.describeRejected(rejected), 'error');
+      } else if (replayed > 0 && this.pendingMutations.length === 0) {
         this.showToast(this.getTranslation('sync.complete'), 'success');
       }
 
@@ -374,14 +415,19 @@ export class OfflineManager {
   /**
      * Replay pending mutations with a freshly obtained authorization header.
      * Unscoped legacy records are discarded instead of crossing accounts.
+     * A change the server refuses for good is dropped, announced with
+     * `offlineMutationRejected` and its cached resource forgotten, so the
+     * screens stop showing what was never saved.
      *
-     * @returns {Promise<number>} How many changes the server accepted
+     * @returns {Promise<{replayed: number, rejected: Array<{url: string, method: string, kind: string, mutationId: string, status: number}>}>}
+     *   How many changes the server accepted, and the ones it refused
      */
   async replayPendingMutations() {
+    const nothing = { replayed: 0, rejected: [] };
     const pendingData = await getOfflineData();
     if (!pendingData || pendingData.length === 0) {
       debugLog('OfflineManager: No pending mutations to replay');
-      return 0;
+      return nothing;
     }
 
     debugLog('OfflineManager: Replaying', pendingData.length, 'pending mutations');
@@ -391,15 +437,18 @@ export class OfflineManager {
     const currentOrganizationId = getCurrentOrganizationId();
     if (!currentUserId || !localStorage.getItem('jwtToken')) {
       debugWarn('OfflineManager: No auth token, cannot replay mutations');
-      return 0;
+      return nothing;
     }
 
     const authHeaders = {
       ...getAuthHeader(),
       'Content-Type': 'application/json'
     };
-    const nonRetriableStatuses = new Set([400, 403, 404, 409, 410, 422]);
     let replayed = 0;
+    const rejected = [];
+    // Kept apart from `rejected`, which is announced: a body is never broadcast.
+    const refusedBodies = [];
+    const refusedScopes = [];
 
     for (const record of pendingData) {
       try {
@@ -425,18 +474,28 @@ export class OfflineManager {
             body: record.data.body
           });
 
+          const method = record.data.method || record.action || 'POST';
           if (response.ok) {
             await deleteOfflineData(record.key);
             replayed += 1;
             this.dispatchEvent('offlineMutationReplayed', {
               url: record.data.url,
-              method: record.data.method || record.action || 'POST',
+              method,
               mutationId: record.data.idempotencyKey
             });
             debugLog('OfflineManager: Mutation replayed successfully', record.key);
-          } else if (nonRetriableStatuses.has(response.status)) {
-            // Non-retryable client errors — discard
+          } else if (NON_RETRIABLE_STATUSES.has(response.status)) {
+            // Refused for good: retrying cannot help, so drop it and say so.
             await deleteOfflineData(record.key);
+            refusedScopes.push(this.currentSeasonScope(record.data.userId, record.data.organizationId));
+            rejected.push({
+              url: record.data.url,
+              method,
+              kind: mutationKind(record.data.url, method),
+              mutationId: record.data.idempotencyKey,
+              status: response.status
+            });
+            refusedBodies.push(record.data.body);
             debugWarn('OfflineManager: Server rejected mutation, discarding', response.status);
           } else {
             // 401/429/5xx — leave for retry on next sync
@@ -459,7 +518,88 @@ export class OfflineManager {
       }
     }
 
-    return replayed;
+    // Forget the refused changes' cached copies first, so the screens that
+    // reload on the announcement read what the server holds. The screen that
+    // queued a change recognizes it by its mutationId.
+    await Promise.all(rejected.map((change, index) =>
+      this.forgetRejectedResource(change, refusedBodies[index], refusedScopes[index])));
+    rejected.forEach((change) => this.dispatchEvent('offlineMutationRejected', change));
+
+    return { replayed, rejected };
+  }
+
+  /**
+   * Drop every cached copy of a refused change, so the next read, by an open
+   * screen or one opened later, shows what the server holds. Only that
+   * resource goes: in camp mode the cache is the only copy of everything else.
+   * Other users, units and archived years keep theirs: they cannot hold it.
+   * @param {{url: string, kind: string}} change - The refused change
+   * @param {string|null} body - The request body it carried
+   * @param {string} scope - Cache-key suffix of the account and unit that queued it
+   * @returns {Promise<void>}
+   */
+  async forgetRejectedResource(change, body, scope) {
+    const prefixes = this.rejectedCachePrefixes(change, body);
+    try {
+      await clearCacheEntriesWhere((record) => {
+        const key = String(record.key);
+        if (!key.endsWith(scope)) {
+          return false;
+        }
+        const name = key.slice(0, key.length - scope.length);
+        return prefixes.some((prefix) => name.startsWith(prefix));
+      });
+    } catch (error) {
+      debugWarn('OfflineManager: Could not clear the cache of a refused change', error);
+    }
+  }
+
+  /**
+   * The cache-key suffix of a user and unit in the current season. Writes are
+   * refused while an archived year is consulted, so a queued change only ever
+   * touched current-season entries, which carry no year.
+   * @param {string} userId - Who queued the change
+   * @param {string|null} organizationId - The unit it was queued in
+   * @returns {string} e.g. `|scope:user:u1|org:1`
+   */
+  currentSeasonScope(userId, organizationId) {
+    return buildScopedCacheKey('', organizationId ?? 'none', userId).replace(/\|year:\d+$/, '');
+  }
+
+  /**
+   * The cache keys that may hold a refused change: its API resource, and the
+   * keys its screen stores under its own name.
+   * @param {{url: string, kind: string}} change - The refused change
+   * @param {string|null} body - The request body it carried
+   * @returns {string[]} Key prefixes, compared without the user/unit scope
+   */
+  rejectedCachePrefixes(change, body) {
+    const prefixes = [...cachePathsForMutation(normalizeApiPath(change.url))];
+    if (change.kind === 'attendance') {
+      let date = null;
+      try {
+        const payload = JSON.parse(body || '{}');
+        date = payload.date || payload.toDate || null;
+      } catch (_error) {
+        date = null;
+      }
+      prefixes.push(...(date ? [`attendance_${date}`, `attendance_api_${date}`] : ['attendance_']));
+    }
+    prefixes.push(...(SCREEN_CACHE_PREFIXES[change.kind] || []));
+    return prefixes;
+  }
+
+  /**
+   * The message reporting changes the server refused on replay.
+   * @param {Array<{kind: string}>} rejected - The refused changes
+   * @returns {string} Translated message naming how many, and of what kind
+   */
+  describeRejected(rejected) {
+    const kinds = [...new Set(rejected.map((change) => change.kind))]
+      .map((kind) => this.getTranslation(`sync.rejected_kind_${kind}`));
+    return this.getTranslation('sync.rejected')
+      .replace('{count}', String(rejected.length))
+      .replace('{kinds}', kinds.join(', '));
   }
 
   /**
@@ -622,6 +762,11 @@ export class OfflineManager {
       'sync.pending': '{{count}} change(s) pending',
       'sync.complete': 'All changes synced',
       'sync.failed': 'Some changes failed to sync',
+      'sync.rejected': '{count} change(s) made offline were refused and not saved: {kinds}',
+      'sync.rejected_kind_attendance': 'attendance',
+      'sync.rejected_kind_medication': 'medication',
+      'sync.rejected_kind_badges': 'badge history',
+      'sync.rejected_kind_other': 'other changes',
       'offline.dataUnavailable': 'This data is not available offline',
       'offline.savedLocally': 'Saved locally - will sync when online',
       'offline.writeUnavailable': 'This action requires an internet connection',

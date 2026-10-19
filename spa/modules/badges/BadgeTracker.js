@@ -1324,9 +1324,16 @@ export class BadgeTracker {
           this.showToast(translate('offline.savedLocally'), 'info');
           // The queued request is a snapshot: freeze the form so nothing ticked
           // afterwards is lost when the replay closes it.
-          form.querySelectorAll('input, select').forEach((control) => { control.disabled = true; });
+          const frozen = [...form.querySelectorAll('input:not([disabled]), select:not([disabled])'), submit];
+          frozen.forEach((control) => { control.disabled = true; });
           overlay.querySelector('[data-modal-close]')?.focus();
-          this.awaitHistoryReplay(result.mutationId, closeDialog, entries.length);
+          // Refused on replay, nothing was recorded: hand the form back, as ticked.
+          const reopen = () => {
+            if (!overlay.isConnected) {return;}
+            frozen.forEach((control) => { control.disabled = false; });
+            submit.focus();
+          };
+          this.awaitHistoryReplay(result.mutationId, { close: closeDialog, reopen }, entries.length);
           return;
         }
         if (!result?.success) {throw new Error('badge_history_save_failed');}
@@ -1354,29 +1361,43 @@ export class BadgeTracker {
   }
 
   /**
-   * Confirm a queued history save only when its own mutation is replayed.
+   * Settle a queued history save when its own mutation is replayed: close the
+   * dialog once the server accepted it, or hand the form back if it refused it.
    * @param {string|undefined} mutationId - Id the offline queue gave the request
-   * @param {Function} closeDialog - Closes the history dialog that queued it, if still open
+   * @param {{close: Function, reopen: Function}} dialog - Closes the dialog that
+   *   queued it, or makes its form editable again, if it is still open
    * @param {number} levelCount - Levels the request records
    */
-  awaitHistoryReplay(mutationId, closeDialog, levelCount) {
+  awaitHistoryReplay(mutationId, dialog, levelCount) {
     this.stopAwaitingHistoryReplay();
     if (!mutationId) {return;}
     this.historyReplayListener = async (syncEvent) => {
       if (syncEvent.detail?.mutationId !== mutationId) {return;}
       this.stopAwaitingHistoryReplay();
       if (this.destroyed) {return;}
-      closeDialog(true);
+      dialog.close(true);
       this.showToast(`${levelCount} ${translate('badge_history_saved')}`, 'success');
       await this.refreshAfterHistorySave();
     };
+    this.historyRejectionListener = (syncEvent) => {
+      if (syncEvent.detail?.mutationId !== mutationId) {return;}
+      this.stopAwaitingHistoryReplay();
+      if (this.destroyed) {return;}
+      dialog.reopen();
+      this.showToast(translate('badge_history_replay_rejected'), 'error');
+    };
     window.addEventListener('offlineMutationReplayed', this.historyReplayListener);
+    window.addEventListener('offlineMutationRejected', this.historyRejectionListener);
   }
 
   stopAwaitingHistoryReplay() {
     if (this.historyReplayListener) {
       window.removeEventListener('offlineMutationReplayed', this.historyReplayListener);
       this.historyReplayListener = null;
+    }
+    if (this.historyRejectionListener) {
+      window.removeEventListener('offlineMutationRejected', this.historyRejectionListener);
+      this.historyRejectionListener = null;
     }
   }
 

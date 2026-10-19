@@ -351,3 +351,53 @@ describe('medication reception', () => {
     screen.destroy();
   });
 });
+
+describe('a dose or reception saved offline and refused on replay', () => {
+  const refuse = (kind) => window.dispatchEvent(new CustomEvent('offlineMutationRejected', {
+    detail: { url: '/api/v1/medication/distributions/9', method: 'PATCH', kind, mutationId: 'm-1', status: 409 },
+  }));
+
+  async function openDispensing() {
+    loadAll();
+    const screen = new MedicationManagement(makeApp(), { view: 'dispensing' });
+    await screen.init();
+    return screen;
+  }
+
+  test('the dispensing view drops its copy and reloads what the server recorded', async () => {
+    const screen = await openDispensing();
+    const loadsBefore = api.getMedicationDistributions.mock.calls.length;
+    const reload = jest.spyOn(screen, 'reloadAfterRejectedChange');
+
+    refuse('medication');
+    await reload.mock.results[0].value;
+
+    expect(api.getMedicationDistributions.mock.calls.length).toBeGreaterThan(loadsBefore);
+    expect(page().querySelector('h1').textContent).toBe('medication_dispensing_title');
+    screen.destroy();
+  });
+
+  test('a refused change of another kind reloads nothing', async () => {
+    const screen = await openDispensing();
+    const loadsBefore = api.getMedicationDistributions.mock.calls.length;
+
+    refuse('attendance');
+    await flush();
+
+    expect(api.getMedicationDistributions.mock.calls.length).toBe(loadsBefore);
+    screen.destroy();
+  });
+
+  test('once the person has left, a refusal draws nothing over the next page', async () => {
+    const screen = await openDispensing();
+    screen.destroy();
+    page().textContent = 'next page';
+    const loadsBefore = api.getMedicationDistributions.mock.calls.length;
+
+    refuse('medication');
+    await flush();
+
+    expect(api.getMedicationDistributions.mock.calls.length).toBe(loadsBefore);
+    expect(page().textContent).toBe('next page');
+  });
+});
