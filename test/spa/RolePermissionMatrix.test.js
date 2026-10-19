@@ -159,6 +159,15 @@ test('a cancelled district switch preserves the active unit and pending permissi
   await screen.changeUnit(4);
   expect(switchOrganization).not.toHaveBeenCalled(); expect(screen.pending.size).toBe(1);
 });
+test('a failed district switch restores the displayed unit and unlocks the preserved edits', async () => {
+  await open({ district: true }); box(1).click();
+  switchOrganization.mockRejectedValue(new Error('offline'));
+  document.getElementById('role-matrix-unit').value = '4';
+  await screen.changeUnit(4);
+  expect(document.getElementById('role-matrix-unit').value).toBe('3');
+  expect(screen.pending.size).toBe(1); expect(box(1).checked).toBe(true);
+  expect(box(1).disabled).toBe(false);
+});
 test.each(['en', 'fr'])('the screen has no untranslated permission or lock keys in %s', async (language) => {
   mockLanguage = language; await open();
   expect(document.body.textContent).not.toMatch(/role_(?:matrix|permission|category)_[a-z_]+/);

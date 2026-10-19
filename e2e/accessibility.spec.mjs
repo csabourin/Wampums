@@ -47,7 +47,7 @@ const SCREENS = {
     '/prepare-offline', '/communications',
     '/main-dashboard', '/manage-users-participants', '/group-participant-report',
     `/guardian-management?participant_id=${seededParticipantId()}&participant_name=Lea`,
-    '/district?tab=outils',
+    '/district?tab=outils', '/district?tab=roles', '/roles/permissions',
     '/incident-reports/new',
     `/incident-reports/${seededRecord('incidentId')}`,
     `/incident-reports/${seededRecord('incidentId')}/edit`,

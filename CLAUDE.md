@@ -214,6 +214,31 @@ description, sharing the active-membership check with `authenticate`.
 - ✅ `GET /api/v1/roles` lists every role with `assignable`. Forms show the others disabled, keeping their
   state, so saving sends them back unchanged.
 
+#### Role Permission Matrices
+
+`/roles/permissions` requires `roles.manage`. The Roles tab of `/district` requires
+`roles.manage_district` as well as unit management rights. It switches the active authenticated
+unit using `/api/v1/organizations/switch`; matrix requests never accept a target unit ID.
+Built-in roles remain read-only. Customization copies their permissions, data scope and this
+unit's per-form rights into an ordinary unit role, without the automatic-all-permissions flags.
+An explicit `reassign_members` option transfers this unit's members, retaining their other
+roles and recording each assignment in the same transaction.
+
+`services/roleAssignment.js` shares the permission-change policy between single-cell and bulk
+writes: Manage requires its catalogued View; linked roles cannot receive unit financial rights;
+added and removed permissions must be held by the caller, with the existing self-scoped exception.
+Scope changes check the authority exposed by both scopes. District-only permissions also require
+`roles.manage_district`. Complete replacements can include `expected_permission_ids`; a stale
+editor receives 409 instead of overwriting a concurrent change. Each role mutation locks its row.
+Create, metadata, permission and deletion snapshots are stored in `role_permission_audit` in the
+mutation's transaction. Deletion also removes and audits member references to the deleted role.
+
+Edits remain local until Save, and roles save sequentially; an earlier successful save stays saved
+when a later role fails. Role writes require an online connection and are never queued for replay.
+Navigation, tab changes and active-unit changes confirm abandoning unsaved permission changes;
+a live refresh cannot replace an editor's pending work. Phone controls and the desktop table share
+one state. Built-in roles can be inspected from either layout.
+
 #### Protecting Write Operations
 - ✅ Use `blockDemoRoles` middleware for write operations to prevent demo accounts from making changes
 ```javascript

@@ -307,6 +307,7 @@ export class RolePermissionMatrix {
   async changeUnit(unitId) {
     if (!(await this.beforeLeave())) { this.root().querySelector('#role-matrix-unit').value = this.organizationId; return; }
     this.saving = true;
+    this.root().querySelectorAll('input, select, button').forEach((control) => { control.disabled = true; });
     try {
       const response = await switchOrganization(unitId);
       const token = response.data?.token || response.token;
@@ -325,6 +326,11 @@ export class RolePermissionMatrix {
       }
       await this.reload();
     } catch (error) { this.app.showMessage(apiErrorMessage(error, 'role_matrix_load_failed'), 'error'); }
-    finally { this.saving = false; }
+    finally {
+      this.saving = false;
+      // Restore the old selector after a failed switch, and unlock the new
+      // unit after a successful one. A failed load keeps its retry state.
+      if (!this.destroyed && this.root()?.querySelector('#role-matrix-unit')) { this.render(); }
+    }
   }
 }
