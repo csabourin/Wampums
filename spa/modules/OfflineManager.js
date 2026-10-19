@@ -16,7 +16,12 @@ import {
   clearCacheEntriesWhere
 } from '../indexedDB.js';
 import { CONFIG } from '../config.js';
-import { buildApiCacheKey, cachePathsForMutation, normalizeApiPath } from '../utils/OfflineCacheKeys.js';
+import {
+  buildApiCacheKey,
+  buildScopedCacheKey,
+  cachePathsForMutation,
+  normalizeApiPath
+} from '../utils/OfflineCacheKeys.js';
 import {
   getAuthHeader,
   getCurrentOrganizationId,
@@ -443,6 +448,7 @@ export class OfflineManager {
     const rejected = [];
     // Kept apart from `rejected`, which is announced: a body is never broadcast.
     const refusedBodies = [];
+    const refusedScopes = [];
 
     for (const record of pendingData) {
       try {
@@ -481,6 +487,7 @@ export class OfflineManager {
           } else if (NON_RETRIABLE_STATUSES.has(response.status)) {
             // Refused for good: retrying cannot help, so drop it and say so.
             await deleteOfflineData(record.key);
+            refusedScopes.push(this.currentSeasonScope(record.data.userId, record.data.organizationId));
             rejected.push({
               url: record.data.url,
               method,
@@ -514,7 +521,8 @@ export class OfflineManager {
     // Forget the refused changes' cached copies first, so the screens that
     // reload on the announcement read what the server holds. The screen that
     // queued a change recognizes it by its mutationId.
-    await Promise.all(rejected.map((change, index) => this.forgetRejectedResource(change, refusedBodies[index])));
+    await Promise.all(rejected.map((change, index) =>
+      this.forgetRejectedResource(change, refusedBodies[index], refusedScopes[index])));
     rejected.forEach((change) => this.dispatchEvent('offlineMutationRejected', change));
 
     return { replayed, rejected };
@@ -524,20 +532,38 @@ export class OfflineManager {
    * Drop every cached copy of a refused change, so the next read, by an open
    * screen or one opened later, shows what the server holds. Only that
    * resource goes: in camp mode the cache is the only copy of everything else.
+   * Other users, units and archived years keep theirs: they cannot hold it.
    * @param {{url: string, kind: string}} change - The refused change
    * @param {string|null} body - The request body it carried
+   * @param {string} scope - Cache-key suffix of the account and unit that queued it
    * @returns {Promise<void>}
    */
-  async forgetRejectedResource(change, body) {
+  async forgetRejectedResource(change, body, scope) {
     const prefixes = this.rejectedCachePrefixes(change, body);
     try {
       await clearCacheEntriesWhere((record) => {
-        const key = String(record.key).split('|scope:')[0];
-        return prefixes.some((prefix) => key.startsWith(prefix));
+        const key = String(record.key);
+        if (!key.endsWith(scope)) {
+          return false;
+        }
+        const name = key.slice(0, key.length - scope.length);
+        return prefixes.some((prefix) => name.startsWith(prefix));
       });
     } catch (error) {
       debugWarn('OfflineManager: Could not clear the cache of a refused change', error);
     }
+  }
+
+  /**
+   * The cache-key suffix of a user and unit in the current season. Writes are
+   * refused while an archived year is consulted, so a queued change only ever
+   * touched current-season entries, which carry no year.
+   * @param {string} userId - Who queued the change
+   * @param {string|null} organizationId - The unit it was queued in
+   * @returns {string} e.g. `|scope:user:u1|org:1`
+   */
+  currentSeasonScope(userId, organizationId) {
+    return buildScopedCacheKey('', organizationId ?? 'none', userId).replace(/\|year:\d+$/, '');
   }
 
   /**

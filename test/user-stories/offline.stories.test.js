@@ -482,6 +482,10 @@ describe('US-OFF-008 — A change refused on replay is never reported as saved',
     await setCachedData('medication_distributions', { success: true, data: { distributions: [{ id: 9, status: 'given' }] } });
     await setCachedData(apiDistributionsKey, { success: true, data: { distributions: [{ id: 9, status: 'given' }] } });
     await setCachedData('honors_2026-07-15', { success: true, data: [] });
+    // The same screen's copy in another unit cannot hold this refused dose.
+    localStorage.setItem('currentOrganizationId', '2');
+    await setCachedData('medication_distributions', { success: true, data: { distributions: [{ id: 4 }] } });
+    localStorage.setItem('currentOrganizationId', '1');
     global.fetch.mockResolvedValue(makeJsonResponse({ success: false }, { status: 409 }));
 
     await manager.replayPendingMutations();
@@ -489,6 +493,9 @@ describe('US-OFF-008 — A change refused on replay is never reported as saved',
     expect(await getCachedData('medication_distributions')).toBeNull();
     expect(await getCachedData(apiDistributionsKey)).toBeNull();
     expect(await getCachedData('honors_2026-07-15')).not.toBeNull();
+    localStorage.setItem('currentOrganizationId', '2');
+    expect(await getCachedData('medication_distributions')).not.toBeNull();
+    localStorage.setItem('currentOrganizationId', '1');
   });
 
   it('forgets only the refused day\'s attendance, keeping a camp\'s other prepared days', async () => {
