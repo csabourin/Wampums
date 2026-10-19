@@ -113,6 +113,8 @@ export const ROLE_BUNDLES = {
       'communications.send',
       'reports.view',
       'badges.view',
+      'badges.manage',
+      'badges.approve',
       'meetings.view',
       'meetings.manage',
       'permission_slips.sign',

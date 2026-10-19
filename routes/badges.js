@@ -13,13 +13,25 @@ const router = express.Router();
 // Import utilities
 const { getPointSystemRules } = require('../utils/api-helpers');
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
-const { asyncHandler } = require('../middleware/response');
+const { asyncHandler, success, error: errorResponse } = require('../middleware/response');
+const { validateIdBody, checkValidation } = require('../middleware/validation');
 
 const DEFAULT_LEVELS = [
   { level: 1, label_key: 'badge_level_1' },
   { level: 2, label_key: 'badge_level_2' },
   { level: 3, label_key: 'badge_level_3' }
 ];
+const BAD_REQUEST_STATUS = 400;
+const NOT_FOUND_STATUS = 404;
+const MAX_HISTORY_ENTRIES = 100;
+const ISO_DATE_LENGTH = 10;
+const POSTGRES_INT_MAX = 2147483647;
+
+/** A positive PostgreSQL integer id, or null: `Number`, unlike `parseInt`, refuses `12abc`. */
+const toIntegerId = (value) => {
+  const id = Number(value);
+  return Number.isInteger(id) && id >= 1 && id <= POSTGRES_INT_MAX ? id : null;
+};
 
 const normalizeLevels = (levels, fallbackCount = DEFAULT_LEVELS.length) => {
   if (Array.isArray(levels) && levels.length > 0) {
@@ -385,6 +397,100 @@ module.exports = (pool, logger) => {
         template_levels: templateLevels
       };
       res.json({ success: true, data: inserted, message: 'Badge progress submitted for approval' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }));
+
+  // Historical entry is intentionally separate from the normal approval flow:
+  // it records already-earned levels without creating point awards.
+  router.post('/history', authenticate, blockDemoRoles, requirePermission('badges.manage'), validateIdBody('participant_id'), checkValidation, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const participantId = Number(req.body.participant_id);
+    const entries = req.body?.entries;
+    const date = req.body?.date || null;
+    const starType = ['proie', 'battue'].includes(req.body?.star_type) ? req.body.star_type : 'proie';
+    if (!Array.isArray(entries) || entries.length === 0 || entries.length > MAX_HISTORY_ENTRIES) {
+      return errorResponse(res, `Between 1 and ${MAX_HISTORY_ENTRIES} badge levels are required`, BAD_REQUEST_STATUS);
+    }
+    if (entries.some((entry) => toIntegerId(entry?.badge_template_id) === null || !Number.isInteger(Number(entry?.level)))) {
+      return errorResponse(res, 'Each badge level needs a badge template id and a level', BAD_REQUEST_STATUS);
+    }
+    if (date !== null) {
+      const parsedDate = typeof date === 'string' ? new Date(`${date}T00:00:00.000Z`) : null;
+      if (
+        !parsedDate || Number.isNaN(parsedDate.getTime()) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+        parsedDate.toISOString().slice(0, ISO_DATE_LENGTH) !== date
+      ) {
+        return errorResponse(res, 'Date must be a valid calendar date', BAD_REQUEST_STATUS);
+      }
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const participantOrg = await client.query(
+        // FOR UPDATE serializes concurrent history saves for this child, so two
+        // leaders cannot both pass the duplicate check below for the same level.
+        'SELECT 1 FROM participant_organizations WHERE participant_id = $1 AND organization_id = $2 FOR UPDATE',
+        [participantId, organizationId]
+      );
+      if (!participantOrg.rowCount) {
+        await client.query('ROLLBACK');
+        return errorResponse(res, 'Participant not found in organization', NOT_FOUND_STATUS);
+      }
+
+      const participantSection = await getParticipantSection(client, participantId, organizationId);
+      const inserted = [];
+      const skipped = [];
+      // Sequential inserts keep duplicate checks and writes consistent in this transaction.
+      /* eslint-disable no-await-in-loop */
+      for (const entry of entries) {
+        const templateId = toIntegerId(entry.badge_template_id);
+        const level = Number(entry.level);
+        const template = await fetchTemplate(client, templateId, organizationId);
+        if (!template) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 'Badge template not found', BAD_REQUEST_STATUS);
+        }
+        if (!Number.isInteger(level) || level < 1 || level > getLevelCount(normalizeLevels(template.levels, template.level_count), template.level_count)) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 'Invalid badge level', BAD_REQUEST_STATUS);
+        }
+        if (template.section && participantSection && template.section !== 'general' && template.section !== participantSection) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 'Badge template section does not match participant section', BAD_REQUEST_STATUS);
+        }
+
+        const exists = await client.query(
+          `SELECT 1 FROM badge_progress
+            WHERE participant_id = $1 AND organization_id = $2
+              AND badge_template_id = $3 AND etoiles = $4 LIMIT 1`,
+          [participantId, organizationId, template.id, level]
+        );
+        if (exists.rowCount) {
+          skipped.push({ badge_template_id: template.id, level });
+          continue;
+        }
+        const result = await client.query(
+          `INSERT INTO badge_progress
+             (participant_id, organization_id, badge_template_id, territoire_chasse,
+              section, objectif, date_obtention, etoiles, status, approval_date,
+              star_type, source_type, attempt_no, created_by)
+           VALUES ($1, $2, $3, $4::text, $5, $4::text, $6, $7, 'approved', NOW(), $8, 'historical', 1, $9)
+           RETURNING id, badge_template_id, etoiles`,
+          [participantId, organizationId, template.id, template.name,
+            template.section || participantSection || 'general', date, level, starType, req.user.id]
+        );
+        inserted.push(result.rows[0]);
+      }
+      /* eslint-enable no-await-in-loop */
+      await client.query('COMMIT');
+      return success(res, { inserted, skipped }, 'Historical badge progress recorded');
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;

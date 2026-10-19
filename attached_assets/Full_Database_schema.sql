@@ -1138,6 +1138,7 @@ CREATE TABLE public.badge_progress (
     source_type character varying(30),
     source_id bigint,
     attempt_no integer DEFAULT 1 NOT NULL,
+    created_by uuid,
     CONSTRAINT badge_progress_star_type_check CHECK (((star_type)::text = ANY (ARRAY[('proie'::character varying)::text, ('battue'::character varying)::text])))
 );
 
@@ -1167,7 +1168,7 @@ COMMENT ON COLUMN public.badge_progress.star_type IS 'Achievement type: proie (i
 -- Name: COLUMN badge_progress.source_type; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.badge_progress.source_type IS 'Origin type for badge progress record: oas_stage, pab_plan, top_award, manual';
+COMMENT ON COLUMN public.badge_progress.source_type IS 'Origin type for badge progress record: oas_stage, pab_plan, top_award, manual, historical, transfer';
 
 
 --
@@ -1182,6 +1183,13 @@ COMMENT ON COLUMN public.badge_progress.source_id IS 'Origin record identifier f
 --
 
 COMMENT ON COLUMN public.badge_progress.attempt_no IS 'Attempt number for repeatable source-driven badge submissions';
+
+
+--
+-- Name: COLUMN badge_progress.created_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.badge_progress.created_by IS 'Account that entered or copied this badge progress record';
 
 
 --
@@ -10343,6 +10351,14 @@ ALTER TABLE ONLY public.badge_progress
 
 ALTER TABLE ONLY public.badge_progress
     ADD CONSTRAINT badge_progress_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id);
+
+
+--
+-- Name: badge_progress badge_progress_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.badge_progress
+    ADD CONSTRAINT badge_progress_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --

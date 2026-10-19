@@ -319,7 +319,7 @@ async function sendApiRequest(endpoint, options = {}) {
     }
     debugLog(`[Offline] Queueing ${method} ${url}`);
     try {
-      await offlineManager.queueMutation(url, {
+      const mutationId = await offlineManager.queueMutation(url, {
         method,
         headers: requestConfig.headers,
         body: requestConfig.body
@@ -330,6 +330,7 @@ async function sendApiRequest(endpoint, options = {}) {
       return {
         success: true,
         queued: true,
+        mutationId,
         message: offlineManager.getTranslation('offline.savedLocally')
       };
     } catch (error) {
@@ -398,7 +399,7 @@ async function sendApiRequest(endpoint, options = {}) {
   );
 
   if (method !== 'GET' && isNetworkError && !requiresOnline) {
-    await offlineManager.queueMutation(url, {
+    const mutationId = await offlineManager.queueMutation(url, {
       method,
       headers: requestConfig.headers,
       body: requestConfig.body
@@ -406,6 +407,7 @@ async function sendApiRequest(endpoint, options = {}) {
     return {
       success: true,
       queued: true,
+      mutationId,
       message: offlineManager.getTranslation('offline.savedLocally')
     };
   }

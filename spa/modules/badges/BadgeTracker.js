@@ -35,6 +35,9 @@ import {
 } from '../../api/api-endpoints.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { badgeLabel } from '../../utils/BadgeLabelUtils.js';
+import { saveBadgeHistory } from '../../api/api-badges.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 
 /** Owner key for the badge tracker modal's body scroll lock. */
@@ -448,6 +451,7 @@ export class BadgeTracker {
   isExpanded
     ? `
         <div id="badges-${participant.id}" class="badge-tracker__badge-details">
+          ${this.canManage ? `<button class="button button--secondary button--small" data-action="update-badge-history" data-participant-id="${participant.id}">${translate('badge_update_history')}</button>` : ''}
           ${
   badges.length === 0
     ? this.renderEmptyState('no-badges')
@@ -879,6 +883,7 @@ export class BadgeTracker {
    */
   destroy() {
     this.destroyed = true;
+    this.stopAwaitingHistoryReplay();
     if (this.delegationRoot && this.boundClickHandler) {
       this.delegationRoot.removeEventListener('click', this.boundClickHandler);
     }
@@ -967,6 +972,10 @@ export class BadgeTracker {
         };
         this.isModalOpen = true;
         this.renderModal();
+        break;
+
+      case 'update-badge-history':
+        await this.openBadgeHistoryModal(parseInt(participantId, 10));
         break;
 
       case 'open-retroactive-modal':
@@ -1235,6 +1244,148 @@ export class BadgeTracker {
       debugError('[BadgeTracker] Add star error:', error);
       this.showToast(translate('error'), 'error');
     }
+  }
+
+  /** Open the bulk form used to backfill badges already earned by this youth. */
+  openBadgeHistoryModal(participantId) {
+    const participant = this.participants.find((p) => p.id === participantId);
+    if (!participant || !this.canManage) {return;}
+    // POST /badges/history refuses a badge of another section, as a youth without a den is in 'general'.
+    const participantSection = participant.section || 'general';
+    const existingByTemplate = new Map();
+    this.badges.filter((badge) => badge.participant_id === participantId)
+      .forEach((badge) => {
+        if (!existingByTemplate.has(badge.badge_template_id)) {existingByTemplate.set(badge.badge_template_id, new Set());}
+        existingByTemplate.get(badge.badge_template_id).add(Number(badge.etoiles));
+      });
+
+    // While a save is in flight the dialog stays open, so its answer cannot
+    // land on a dialog opened since for another youth.
+    let saving = false;
+    const { overlay, close: closeDialog } = openModal({
+      id: 'badge-history-modal',
+      canClose: () => !saving,
+      // A stray click outside must not discard the levels already ticked.
+      closeOnBackdrop: false,
+      title: translate('badge_update_history'),
+      className: 'badge-tracker__modal',
+      size: 'large',
+      body: `
+        <form id="badge-history-form" class="badge-tracker__modal-body">
+          <p>${translate('badge_update_history_help')} <strong>${escapeHTML(`${participant.first_name} ${participant.last_name}`)}</strong></p>
+          <div class="form-group">
+            <label for="badge-history-date">${translate('badge_history_date')}</label>
+            <input id="badge-history-date" name="date" type="date">
+          </div>
+          <fieldset class="form-group badge-tracker__fieldset">
+            <legend class="form-label">${translate('badge_history_levels')}</legend>
+            ${this.templates.filter((template) => this.isTemplateForSection(template, participantSection)).map((template) => {
+    const existing = existingByTemplate.get(template.id) || new Set();
+    const levels = this.getTemplateLevelCount(template);
+    const levelOptions = Array.from({ length: levels }, (_, index) => {
+      const level = index + 1;
+      const recorded = existing.has(level);
+      return `<label><input type="checkbox" name="level" value="${template.id}:${level}" ${recorded ? 'disabled' : ''}> ${translate('badge_star_label')} ${level}${recorded ? ` (${translate('badge_history_already_recorded')})` : ''}</label>`;
+    }).join('');
+    return `<fieldset class="form-group badge-tracker__fieldset"><legend>${escapeHTML(badgeLabel(template))}</legend><div class="badge-history-levels">${levelOptions}</div></fieldset>`;
+  }).join('')}
+          </fieldset>
+          <div class="form-group">
+            <label for="badge-history-type">${translate('achievement_type')}</label>
+            <select id="badge-history-type" name="star_type"><option value="proie">${translate('badge_type_proie')}</option><option value="battue">${translate('badge_type_battue')}</option></select>
+          </div>
+        </form>`,
+      footer: `<button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button><button type="submit" class="button button--primary" form="badge-history-form">${translate('badge_save_history')}</button>`
+    });
+
+    const form = overlay.querySelector('#badge-history-form');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const entries = Array.from(form.querySelectorAll('input[name="level"]:checked')).map((input) => {
+        const [badgeTemplateId, level] = input.value.split(':').map(Number);
+        return { 'badge_template_id': badgeTemplateId, level };
+      });
+      if (!entries.length) {
+        this.showToast(translate('badge_history_select_level'), 'info');
+        return;
+      }
+      const submit = overlay.querySelector('button[form="badge-history-form"]');
+      submit.disabled = true;
+      saving = true;
+      try {
+        const result = await saveBadgeHistory({
+          participant_id: participantId,
+          date: form.elements.date.value || null,
+          star_type: form.elements.star_type.value,
+          entries
+        });
+        saving = false;
+        if (result?.queued) {
+          this.showToast(translate('offline.savedLocally'), 'info');
+          // The queued request is a snapshot: freeze the form so nothing ticked
+          // afterwards is lost when the replay closes it.
+          form.querySelectorAll('input, select').forEach((control) => { control.disabled = true; });
+          overlay.querySelector('[data-modal-close]')?.focus();
+          this.awaitHistoryReplay(result.mutationId, closeDialog, entries.length);
+          return;
+        }
+        if (!result?.success) {throw new Error('badge_history_save_failed');}
+        const count = result.data?.inserted?.length || 0;
+        this.showToast(`${count} ${translate('badge_history_saved')}`, 'success');
+        closeDialog(true);
+        await this.refreshAfterHistorySave();
+      } catch (error) {
+        saving = false;
+        debugError('[BadgeTracker] Historical badge save error:', error);
+        this.showToast(apiErrorMessage(error, 'badge_history_save_failed'), 'error');
+        submit.disabled = false;
+      }
+    });
+  }
+
+  /**
+   * Whether a badge may be recorded for a youth of this section (same rule as the server).
+   * @param {Object} template - Badge template
+   * @param {string} participantSection - The youth's section, 'general' without a den
+   * @returns {boolean}
+   */
+  isTemplateForSection(template, participantSection) {
+    return !template.section || template.section === 'general' || template.section === participantSection;
+  }
+
+  /**
+   * Confirm a queued history save only when its own mutation is replayed.
+   * @param {string|undefined} mutationId - Id the offline queue gave the request
+   * @param {Function} closeDialog - Closes the history dialog that queued it, if still open
+   * @param {number} levelCount - Levels the request records
+   */
+  awaitHistoryReplay(mutationId, closeDialog, levelCount) {
+    this.stopAwaitingHistoryReplay();
+    if (!mutationId) {return;}
+    this.historyReplayListener = async (syncEvent) => {
+      if (syncEvent.detail?.mutationId !== mutationId) {return;}
+      this.stopAwaitingHistoryReplay();
+      if (this.destroyed) {return;}
+      closeDialog(true);
+      this.showToast(`${levelCount} ${translate('badge_history_saved')}`, 'success');
+      await this.refreshAfterHistorySave();
+    };
+    window.addEventListener('offlineMutationReplayed', this.historyReplayListener);
+  }
+
+  stopAwaitingHistoryReplay() {
+    if (this.historyReplayListener) {
+      window.removeEventListener('offlineMutationReplayed', this.historyReplayListener);
+      this.historyReplayListener = null;
+    }
+  }
+
+  /** Reload after a confirmed history save, unless the person has left the screen. */
+  async refreshAfterHistorySave() {
+    await this.loadData(true);
+    if (this.destroyed) {return;}
+    this.render();
+    this.attachSearchListener();
   }
 
   async openUnprocessedModal() {

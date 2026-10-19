@@ -50,6 +50,8 @@ const SAFE_OFFLINE_MUTATIONS = [
   { method: 'POST', path: /^\/api\/v1\/attendance(?:\/carry-forward)?$/ },
   { method: 'PATCH', path: /^\/api\/v1\/medication\/(?:distributions|receptions)\/\d+$/ },
   { method: 'DELETE', path: /^\/api\/v1\/medication\/receptions\/\d+$/ },
+  // Replaying badge history is safe: the server skips levels already recorded.
+  { method: 'POST', path: /^\/api\/v1\/badges\/history$/ },
 ];
 
 /**
@@ -298,6 +300,8 @@ export class OfflineManager {
         userId: mutation.userId,
         organizationId: mutation.organizationId
       });
+      // The idempotency key also names this mutation in its replay event.
+      return idempotencyKey;
     } catch (error) {
       debugError('OfflineManager: Failed to queue mutation', error);
       throw error;
@@ -424,6 +428,11 @@ export class OfflineManager {
           if (response.ok) {
             await deleteOfflineData(record.key);
             replayed += 1;
+            this.dispatchEvent('offlineMutationReplayed', {
+              url: record.data.url,
+              method: record.data.method || record.action || 'POST',
+              mutationId: record.data.idempotencyKey
+            });
             debugLog('OfflineManager: Mutation replayed successfully', record.key);
           } else if (nonRetriableStatuses.has(response.status)) {
             // Non-retryable client errors — discard
