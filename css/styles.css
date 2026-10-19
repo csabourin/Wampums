@@ -7994,13 +7994,15 @@ details p {
   font-size: var(--font-size-sm);
 }
 
-/* Deactivated accounts, folded below the active ones, across the whole grid. */
-.dm-inactive-accounts {
+/* Deactivated accounts, folded below the active ones (district and unit member lists). */
+.dm-inactive-accounts,
+.inactive-accounts {
   grid-column: 1 / -1;
   margin-top: var(--space-md);
 }
 
-.dm-inactive-accounts > summary {
+.dm-inactive-accounts > summary,
+.inactive-accounts > summary {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
@@ -8011,12 +8013,14 @@ details p {
   list-style: none;
 }
 
-.dm-inactive-accounts > summary::-webkit-details-marker {
+.dm-inactive-accounts > summary::-webkit-details-marker,
+.inactive-accounts > summary::-webkit-details-marker {
   display: none;
 }
 
 /* The flex summary loses the native triangle: draw one that turns when open. */
-.dm-inactive-accounts > summary::before {
+.dm-inactive-accounts > summary::before,
+.inactive-accounts > summary::before {
   content: '';
   width: 0.5em;
   height: 0.5em;
@@ -8025,17 +8029,20 @@ details p {
   transform: rotate(-45deg);
 }
 
-.dm-inactive-accounts[open] > summary::before {
+.dm-inactive-accounts[open] > summary::before,
+.inactive-accounts[open] > summary::before {
   transform: rotate(45deg);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .dm-inactive-accounts > summary::before {
+  .dm-inactive-accounts > summary::before,
+  .inactive-accounts > summary::before {
     transition: transform 0.15s ease;
   }
 }
 
-.dm-inactive-accounts > summary:focus-visible {
+.dm-inactive-accounts > summary:focus-visible,
+.inactive-accounts > summary:focus-visible {
   outline: 3px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
