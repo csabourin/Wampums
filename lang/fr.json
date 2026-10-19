@@ -2758,6 +2758,7 @@
   "optional": "Facultatif",
   "district_management_title": "Gestion de district",
   "district_management_switch_failed": "Impossible de passer à cette unité. Vous travaillez toujours dans la précédente.",
+  "district_management_switch_wait": "Un changement est en cours d'enregistrement. Choisissez une autre unité une fois qu'il est terminé.",
   "district_management_subtitle": "Attribuez des ensembles de rôles avec des garde-fous et la prise en charge hors ligne.",
   "district_management_search_label": "Rechercher des utilisateurs",
   "district_management_search_placeholder": "Recherche par nom ou courriel",

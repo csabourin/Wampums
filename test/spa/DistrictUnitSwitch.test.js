@@ -60,10 +60,13 @@ jest.mock('../../spa/utils/PageMount.js', () => ({
 import { DistrictManagement } from '../../spa/modules/district/DistrictManagement.js';
 import {
   clearUserCaches,
+  getRoleAuditLog,
   getRoleBundles,
   getRolePermissions,
   getUserOrganizations,
+  getUserRoleAssignments,
   getUsers,
+  updateUserRoleBundles,
 } from '../../spa/ajax-functions.js';
 import { getCachedData, setCachedData } from '../../spa/indexedDB.js';
 import { switchActiveUnit } from '../../spa/modules/session/UnitSwitch.js';
@@ -118,7 +121,7 @@ beforeEach(async () => {
   getRolePermissions.mockResolvedValue({ success: true, data: [] });
   getUsers.mockResolvedValue({ success: true, data: [FIRST_UNIT_MEMBER] });
   switchActiveUnit.mockResolvedValue();
-  appInstance = { lang: 'fr', showMessage: jest.fn(), router: { navigate: jest.fn() } };
+  appInstance = { lang: 'fr', userRoles: ['district'], showMessage: jest.fn(), router: { navigate: jest.fn() } };
   view = new DistrictManagement(appInstance);
   await view.init();
 });
@@ -226,6 +229,37 @@ test('a refresh of the previous unit that answers after the switch is dropped', 
   expect(document.getElementById('app').textContent).toContain('Bagheera');
   expect(document.getElementById('app').textContent).not.toContain('Akela');
   expect(setCachedData).not.toHaveBeenCalled();
+});
+
+test('the unit cannot change while a role change is being saved, and can once it is done', async () => {
+  const save = deferred();
+  updateUserRoleBundles.mockReturnValue(save.promise);
+  getUserRoleAssignments.mockResolvedValue({ success: true, data: [LEADER] });
+  view.selectedUserId = FIRST_UNIT_MEMBER.id;
+  view.selectedRoleIds = new Set([LEADER.id]);
+  const saving = view.handleSaveRoles();
+
+  await chooseUnit('2');
+  expect(switchActiveUnit).not.toHaveBeenCalled();
+  expect(appInstance.showMessage).toHaveBeenCalledWith('district_management_switch_wait', 'info');
+  expect(select().value).toBe('1');
+
+  save.resolve({ success: true });
+  await saving;
+  await chooseUnit('2');
+  expect(switchActiveUnit).toHaveBeenCalledWith(appInstance, '2');
+});
+
+test('a member\'s history from the previous unit that answers after the switch is dropped', async () => {
+  const late = deferred();
+  getRoleAuditLog.mockReturnValue(late.promise);
+  const loading = view.loadAuditLog(FIRST_UNIT_MEMBER.id);
+  getUsers.mockResolvedValue({ success: true, data: [SECOND_UNIT_MEMBER] });
+  await chooseUnit('2');
+
+  late.resolve({ success: true, data: [{ id: 9, note: 'unité A' }] });
+  await loading;
+  expect(view.auditLogByUser).toEqual({});
 });
 
 test('a unit where the person cannot see roles sends them to the dashboard', async () => {

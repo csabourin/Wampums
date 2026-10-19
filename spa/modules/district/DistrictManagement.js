@@ -85,6 +85,9 @@ export class DistrictManagement {
     this.unitGeneration = 0;
     // The unit being switched to, while the switch is under way.
     this.switchingTo = null;
+    // Role and membership changes sent and not yet answered. They act on the
+    // unit they were sent in, so the unit cannot change until they settle.
+    this.writesInFlight = 0;
     this.organizations = [];
     this.rolePermissions = {};
     this.roleBundleIndex = { list: [], byId: new Map(), byName: new Map() };
@@ -443,6 +446,14 @@ export class DistrictManagement {
       return;
     }
     if (!newOrgId || String(newOrgId) === String(this.organizationId || '')) {
+      return;
+    }
+    if (this.writesInFlight > 0) {
+      const select = document.getElementById('dm-org-select');
+      if (select) {
+        select.value = String(this.organizationId);
+      }
+      this.app.showMessage('district_management_switch_wait', 'info');
       return;
     }
 
@@ -1022,6 +1033,7 @@ export class DistrictManagement {
       }
     }
 
+    this.writesInFlight += 1;
     try {
       await setUserMembershipStatus(user.id, deactivating ? 'inactive' : 'active', this.auditNote.trim() || undefined);
       user.status = deactivating ? 'inactive' : 'active';
@@ -1037,6 +1049,8 @@ export class DistrictManagement {
         type: 'error',
         message: translate(error?.status === FORBIDDEN ? 'member_access_forbidden' : 'member_access_error'),
       };
+    } finally {
+      this.writesInFlight -= 1;
     }
     this.filteredUsers = this.getFilteredUsers();
     await this.persistCache();
@@ -1297,6 +1311,7 @@ export class DistrictManagement {
   }
 
   async loadAuditLog(userId, forceRefresh = false) {
+    const generation = this.unitGeneration;
     this.loadingAuditUserId = userId;
     this.auditPanelError = '';
     this.renderAndBind();
@@ -1307,6 +1322,10 @@ export class DistrictManagement {
         organizationId: this.organizationId,
         forceRefresh,
       });
+      // The previous unit's history has no place in this one.
+      if (generation !== this.unitGeneration) {
+        return;
+      }
       if (response?.success) {
         this.auditLogByUser[userId] = response.data || response.audit || [];
       } else {
@@ -1314,11 +1333,16 @@ export class DistrictManagement {
         this.auditLogByUser[userId] = [];
       }
     } catch (error) {
+      if (generation !== this.unitGeneration) {
+        return;
+      }
       debugError('district_management: failed to load audit log', error);
       this.auditPanelError = apiErrorMessage(error, 'district_management_audit_error');
     } finally {
-      this.loadingAuditUserId = null;
-      this.renderAndBind();
+      if (generation === this.unitGeneration) {
+        this.loadingAuditUserId = null;
+        this.renderAndBind();
+      }
     }
   }
 
@@ -1534,6 +1558,7 @@ export class DistrictManagement {
     this.applyOptimisticRoles(user, selectedRoleIds);
     this.filteredUsers = this.getFilteredUsers();
     this.savingUserId = user.id;
+    this.writesInFlight += 1;
     this.formStatus = { type: 'info', message: translate('district_management_saving') };
     this.renderAndBind();
 
@@ -1575,6 +1600,7 @@ export class DistrictManagement {
       this.renderAndBind();
     } finally {
       this.savingUserId = null;
+      this.writesInFlight -= 1;
       await this.persistCache();
       this.renderAndBind();
     }
