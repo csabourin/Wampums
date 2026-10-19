@@ -2144,8 +2144,9 @@ tr:hover {
   padding: 2px 8px;
   font-size: 0.8rem;
   border-radius: var(--radius-sm, 4px);
-  background-color: var(--color-primary-light, #e0e7ff);
-  color: var(--color-primary-dark, #1e40af);
+  /* 7:1; --color-primary-light is a mid green, under 3:1 with this text. */
+  background-color: var(--color-secondary);
+  color: var(--color-primary-dark);
   white-space: nowrap;
 }
 
@@ -5417,13 +5418,19 @@ body.online .pending-update {
   box-shadow: inset 0 0 0 2px var(--color-primary-light);
 }
 
+/* A suggested row is told apart by its stripes, side bar and italics, not by
+   fading: faded text would fall below 4.5:1 (WCAG 1.4.3). */
 .activity-row[data-default="true"] {
-  opacity: 0.6;
   background: repeating-linear-gradient(-45deg,
       var(--color-surface),
       var(--color-surface) 8px,
       rgba(15, 122, 90, 0.03) 8px,
       rgba(15, 122, 90, 0.03) 16px);
+}
+
+.activity-row[data-default="true"] input,
+.activity-row[data-default="true"] select {
+  font-style: italic;
 }
 
 .activity-row[data-default="true"]::before {
@@ -5830,6 +5837,11 @@ body.online .pending-update {
   padding: var(--space-xs) var(--space-sm);
   background: var(--color-secondary);
   border-block-end: 1px solid var(--color-border-light);
+}
+
+/* The muted text of a ghost button falls just under 4.5:1 on this toolbar. */
+.activities-grid__toolbar .button--ghost {
+  color: var(--color-text-light);
 }
 
 .activities-grid__toolbar .button--ghost.active {

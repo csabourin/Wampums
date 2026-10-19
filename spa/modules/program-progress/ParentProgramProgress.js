@@ -4,8 +4,7 @@ export class ParentProgramProgress extends ProgramProgressDashboard {
   constructor(app) {
     super(app, {
       viewOnly: true,
-      returnUrl: '/parent-dashboard',
-      returnLabelKey: 'back_to_parent_dashboard'
+      returnUrl: '/parent-dashboard'
     });
   }
 }

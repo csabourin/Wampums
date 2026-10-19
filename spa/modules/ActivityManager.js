@@ -266,6 +266,8 @@ export class ActivityManager {
     const time = a.time || '18:30';
     const duration = safeDuration || '00:00';
     const materiel = a.materiel || '';
+    // Each field is named after the activity, so the rows stay distinct to a screen reader.
+    const fieldLabel = (key) => escapeAttribute(`${translate(key)} — ${activityName}`);
 
     debugLog(`[renderActivityRow ${index}] Rendering:`, {
       activityName,
@@ -284,7 +286,7 @@ export class ActivityManager {
                         );
     const responsableField = responsableExists
       ? `
-                        <select class="activity-responsable" data-default="${a.isDefault}">
+                        <select class="activity-responsable" data-default="${a.isDefault}" aria-label="${fieldLabel('responsable')}">
                                 <option value="">${translate('select_animateur')}</option>
                                 ${this.animateurs
     .map(
@@ -297,7 +299,7 @@ export class ActivityManager {
                         </select>
                 `
       : `
-                        <input type="text" value="${a.responsable}" class="responsable-input" data-default="${a.isDefault}">
+                        <input type="text" value="${escapeAttribute(a.responsable)}" class="responsable-input" data-default="${a.isDefault}" aria-label="${fieldLabel('responsable')}">
                 `;
 
     const hasAchievement = !!a.badge_template_id;
@@ -308,7 +310,7 @@ export class ActivityManager {
     const badgeOptions = this.badgeTemplates
       .map(
         (t) =>
-          `<option value="${t.id}" ${parseInt(t.id) === parseInt(a.badge_template_id) ? 'selected' : ''}>${t.name}</option>`,
+          `<option value="${Number(t.id)}" ${parseInt(t.id) === parseInt(a.badge_template_id) ? 'selected' : ''}>${escapeHTML(t.name)}</option>`,
       )
       .join('');
 
@@ -318,7 +320,7 @@ export class ActivityManager {
       )
       .map(
         (p) =>
-          `<option value="${p.id}" ${participantIds.includes(String(p.id)) || participantIds.includes(p.id) ? 'selected' : ''}>${p.first_name} ${p.last_name}</option>`,
+          `<option value="${Number(p.id)}" ${participantIds.includes(String(p.id)) || participantIds.includes(p.id) ? 'selected' : ''}>${escapeHTML(p.first_name)} ${escapeHTML(p.last_name)}</option>`,
       )
       .join('');
 
@@ -330,22 +332,22 @@ export class ActivityManager {
                                         </button>
                                         <span class="activity-row__drag-title">${escapeHTML(activityName)}</span>
                                         <div class="activity-row__time">
-                                                <input type="time" value="${time}" class="activity-time">
-                                                <input type="text" value="${duration}" class="activity-duration" placeholder="00:00">
+                                                <input type="time" value="${escapeAttribute(time)}" class="activity-time" aria-label="${fieldLabel('time')}">
+                                                <input type="text" value="${escapeAttribute(duration)}" class="activity-duration" placeholder="00:00" aria-label="${fieldLabel('duration')}">
                                         </div>
                                         <div class="activity-row__activity">
-                                                <select class="activity-select" data-default="${a.isDefault}">
-                                                        ${isCustomActivity ? `<option value="${activityName}" selected>${activityName}</option>` : ''}
+                                                <select class="activity-select" data-default="${a.isDefault}" aria-label="${fieldLabel('activity')}">
+                                                        ${isCustomActivity ? `<option value="${escapeAttribute(activityName)}" selected>${escapeHTML(activityName)}</option>` : ''}
                                                         <option value="">${translate('select_activity')}</option>
-                                                        ${this.activities.map((act) => `<option data-id="${act.id}" value="${act.activity}" ${act.activity === a.activity ? 'selected' : ''}>${act.activity}</option>`).join('')}
+                                                        ${this.activities.map((act) => `<option data-id="${Number(act.id)}" value="${escapeAttribute(act.activity)}" ${act.activity === a.activity ? 'selected' : ''}>${escapeHTML(act.activity)}</option>`).join('')}
                                                 </select>
-                                                <button type="button" class="edit-activity-btn" title="${translate('edit')}">✎</button>
+                                                <button type="button" class="edit-activity-btn" title="${translate('edit')}" aria-label="${fieldLabel('edit')}">✎</button>
                                         </div>
                                         <div class="activity-row__responsable">
                                                 ${responsableField}
                                         </div>
                                         <div class="activity-row__materiel">
-                                                <input type="text" value="${materiel}" class="activity-materiel" placeholder="${translate('materiel')}" data-default="${a.isDefault}">
+                                                <input type="text" value="${escapeAttribute(materiel)}" class="activity-materiel" placeholder="${translate('materiel')}" data-default="${a.isDefault}" aria-label="${fieldLabel('materiel')}">
                                         </div>
                                         <div class="activity-row__actions">
                                                 <button type="button" class="toggle-achievement-btn ${hasAchievement ? 'active' : ''}" title="${translate('badge_add_star') || 'Achievement'}" data-activity-index="${index}">★</button>

@@ -220,7 +220,8 @@ export class ManageUsersParticipants {
                 ${translate('remove_from_organization')}
               </button>
               <small class="action-help">${translate('remove_from_organization_help')}</small>
-              <select class="user-select" data-participant-id="${participant.id}">
+              <select class="user-select" data-participant-id="${participant.id}"
+                      aria-label="${escapeAttribute(`${translate('select_parent')} — ${`${participant.first_name || ''} ${participant.last_name || ''}`.trim()}`)}">
                 <option value="">${translate('select_parent')}</option>
                 ${this.renderParentUserOptions()}
               </select>

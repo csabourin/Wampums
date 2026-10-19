@@ -171,54 +171,56 @@
   gap: 8px;
 }
 
-.role-badge {
+.role-badges .role-badge {
   display: inline-block;
   padding: 6px 12px;
   border-radius: 16px;
   font-size: 0.85rem;
   font-weight: 500;
   color: #fff;
-  background: #4CAF50;
+  background: #2E7D32;
 }
 
-.role-badge-district {
+/* White text on each colour reaches 4.5:1 (WCAG 1.4.3). Scoped to
+   .role-badges: the admin tools tab has role badges of its own. */
+.role-badges .role-badge-district {
   background: #9C27B0;
 }
 
-.role-badge-unitadmin {
+.role-badges .role-badge-unitadmin {
   background: #673AB7;
 }
 
-.role-badge-leader {
-  background: #2196F3;
+.role-badges .role-badge-leader {
+  background: #1565C0;
 }
 
-.role-badge-parent {
-  background: #4CAF50;
+.role-badges .role-badge-parent {
+  background: #2E7D32;
 }
 
-.role-badge-finance {
-  background: #FF9800;
+.role-badges .role-badge-finance {
+  background: #A84300;
 }
 
-.role-badge-equipment {
+.role-badges .role-badge-equipment {
   background: #795548;
 }
 
-.role-badge-administration {
-  background: #607D8B;
+.role-badges .role-badge-administration {
+  background: #455A64;
 }
 
-.role-badge-demoadmin {
-  background: #9E9E9E;
+.role-badges .role-badge-demoadmin {
+  background: #616161;
 }
 
-.role-badge-demoparent {
-  background: #BDBDBD;
+.role-badges .role-badge-demoparent {
+  background: #6D6D6D;
 }
 
 .empty-badge {
-  color: #999;
+  color: #6b6b6b;
   font-style: italic;
 }
 

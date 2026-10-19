@@ -54,6 +54,20 @@ export function seededProgrammeDate() {
   return readSeed().programmeDate;
 }
 
+/**
+ * A record seed.mjs creates so a detail screen opens with content.
+ *
+ * @param {'fundraiserId'|'yearPlanId'|'messageId'|'incidentId'|'slipToken'} key - Its name in seed.json
+ * @returns {number|string} Its id, or the slip's link token
+ */
+export function seededRecord(key) {
+  const value = readSeed()[key];
+  if (value === undefined) {
+    throw new Error(`seed.json has no ${key}: run .claude/skills/run-wampums/seed.mjs again`);
+  }
+  return value;
+}
+
 /** @returns {Object} What seed.mjs recorded in seed.json */
 function readSeed() {
   const cache = process.env.WAMPUMS_RUN_CACHE || path.join(homedir(), '.cache', 'wampums-run');

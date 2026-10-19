@@ -6,6 +6,10 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { formatDateShort, parseDate } from '../../utils/DateUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+
+/** Columns of the stream table, for a row that spans it. */
+const STREAM_COLUMNS = 5;
 
 const SOURCE_LABEL_KEYS = {
   badge_presentation: 'program_progress_source_badge_presentation',
@@ -29,31 +33,73 @@ export class ProgramProgressDashboard extends BaseModule {
     this.selectedParticipantId = options.participantId ? Number(options.participantId) : null;
     this.viewOnly = !!options.viewOnly;
     this.returnUrl = options.returnUrl || '/dashboard';
-    this.returnLabelKey = options.returnLabelKey || 'back_to_dashboard';
     Object.assign(this, resolveMountOptions(options));
   }
 
   async init() {
-    await this.loadData();
+    this.renderLoading();
+    await this.reload();
+  }
+
+  /**
+   * Load the stream and draw it, or the error state. A failed load is never
+   * shown as an empty stream.
+   *
+   * @returns {Promise<void>}
+   */
+  async reload() {
+    try {
+      await this.loadData();
+    } catch (error) {
+      debugError('Error loading program progress stream', error);
+      this.renderError();
+      return;
+    }
+    // A late answer must not draw over the screen the person moved to.
+    if (this.isDestroyed) {
+      return;
+    }
     this.render();
     this.attachEventListeners();
   }
 
   async loadData() {
-    try {
-      const params = this.selectedParticipantId ? { participant_id: this.selectedParticipantId } : {};
-      const response = await getProgramProgressStream(params);
-      const data = response?.data || response || {};
-      this.items = Array.isArray(data.items) ? data.items : [];
-      this.participants = Array.isArray(data.participants) ? data.participants : [];
-      this.summary = data.summary || { total: this.items.length, by_source: {} };
-    } catch (error) {
-      debugError('Error loading program progress stream', error);
-      this.app.showMessage(translate('error_loading_data'), 'error');
-      this.items = [];
-      this.participants = [];
-      this.summary = { total: 0, by_source: {} };
+    const params = this.selectedParticipantId ? { participant_id: this.selectedParticipantId } : {};
+    const response = await getProgramProgressStream(params);
+    const data = response?.data || response || {};
+    this.items = Array.isArray(data.items) ? data.items : [];
+    this.participants = Array.isArray(data.participants) ? data.participants : [];
+    this.summary = data.summary || { total: this.items.length, by_source: {} };
+  }
+
+  /** @returns {string} Back link and heading, unless the tabbed page draws them */
+  renderChrome() {
+    return this.embedded
+      ? ''
+      : `${renderBackLink(this.returnUrl)}<h1>${translate('program_progress_dashboard_title')}</h1>`;
+  }
+
+  renderLoading() {
+    setContent(getMountPoint(this), `
+      <div class="container" aria-busy="true">
+        ${this.renderChrome()}
+        <p role="status">${translate('loading')}</p>
+      </div>
+    `);
+  }
+
+  renderError() {
+    if (this.isDestroyed) {
+      return;
     }
+    setContent(getMountPoint(this), `
+      <div class="container">
+        ${this.renderChrome()}
+        <p class="status-message error" role="alert">${translate('error_loading_data')}</p>
+        <button type="button" class="button button--secondary" id="program-progress-retry">${translate('retry')}</button>
+      </div>
+    `);
+    document.getElementById('program-progress-retry')?.addEventListener('click', () => this.init());
   }
 
   getSourceLabel(sourceKey) {
@@ -78,7 +124,7 @@ export class ProgramProgressDashboard extends BaseModule {
 
   renderRows() {
     if (!Array.isArray(this.items) || this.items.length === 0) {
-      return `<p class="muted-text">${translate('program_progress_empty')}</p>`;
+      return `<tr><td colspan="${STREAM_COLUMNS}" class="muted-text">${translate('program_progress_empty')}</td></tr>`;
     }
 
     return this.items
@@ -120,18 +166,11 @@ export class ProgramProgressDashboard extends BaseModule {
 
     // When embedded in a TabbedPage the host already draws the back link and
     // the page title; repeating them would stack two headings.
-    const heading = this.embedded
-      ? ''
-      : `<h1>${translate('program_progress_dashboard_title')}</h1>`;
-    const backLink = this.embedded
-      ? ''
-      : `<a href="${this.returnUrl}" class="back-link">${translate(this.returnLabelKey)}</a>`;
-
     const content = `
       <div class="container">
-        ${backLink}
+        ${this.embedded ? '' : renderBackLink(this.returnUrl)}
         <section class="card" style="margin-top: 1rem;">
-          ${heading}
+          ${this.embedded ? '' : `<h1>${translate('program_progress_dashboard_title')}</h1>`}
           <p class="muted-text">${translate('program_progress_dashboard_subtitle')}</p>
           ${participantFilter}
           <div class="program-progress__summary" style="margin: 1rem 0; display:flex; gap:.5rem; flex-wrap:wrap;">
@@ -174,9 +213,7 @@ export class ProgramProgressDashboard extends BaseModule {
     participantFilter.addEventListener('change', async (event) => {
       const selectedValue = event.target.value;
       this.selectedParticipantId = selectedValue ? Number(selectedValue) : null;
-      await this.loadData();
-      this.render();
-      this.attachEventListeners();
+      await this.reload();
     });
   }
 }

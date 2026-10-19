@@ -33,7 +33,8 @@ const STATE_MESSAGES = {
   already_consented: 'alumni_consent_already',
   membership_active: 'alumni_consent_membership_active',
   unsubscribed: 'alumni_unsubscribe_done',
-  invalid: 'alumni_consent_invalid'
+  invalid: 'alumni_consent_invalid',
+  unreachable: 'alumni_link_unreachable'
 };
 
 export class AlumniLink {
@@ -59,6 +60,7 @@ export class AlumniLink {
       return;
     }
 
+    this.renderLoading();
     if (this.action === UNSUBSCRIBE_ACTION) {
       await this.submit('unsubscribe');
       return;
@@ -67,36 +69,67 @@ export class AlumniLink {
     await this.renderInvitation();
   }
 
+  /** @returns {string} The page's heading */
+  heading() {
+    const titleKey = this.action === UNSUBSCRIBE_ACTION
+      ? 'alumni_unsubscribe_page_title'
+      : 'alumni_consent_page_title';
+    return this.organizationName ? escapeHTML(this.organizationName) : translate(titleKey);
+  }
+
+  /** Shown while the link is being checked. */
+  renderLoading() {
+    setContent(document.getElementById('app'), `
+      <section class="page alumni-link" aria-busy="true">
+        <h1>${this.heading()}</h1>
+        <p role="status">${translate('loading')}</p>
+      </section>
+    `);
+  }
+
+  /**
+   * Ask the API about this link. A failure to reach it is 'unreachable', never
+   * 'invalid': the link may well be fine.
+   *
+   * @param {string} url - Endpoint
+   * @param {RequestInit} [options] - fetch options
+   * @returns {Promise<string>} The state the API reported
+   */
+  async requestState(url, options) {
+    try {
+      const response = await fetch(url, options);
+      // These endpoints answer every link, valid or not, with 200 and a state.
+      // Anything else (too many tries, a server error) says nothing about the link.
+      if (!response.ok) {
+        return 'unreachable';
+      }
+      const body = await response.json();
+      this.organizationName = body?.data?.organization_name || this.organizationName;
+      return body?.data?.state || 'invalid';
+    } catch (error) {
+      debugError('Failed to reach the alumni link endpoint:', error);
+      return 'unreachable';
+    }
+  }
+
   /**
    * Ask the API what this opt-in link is about, then offer the button.
    *
    * @returns {Promise<void>}
    */
   async renderInvitation() {
-    let state = 'invalid';
-    try {
-      const response = await fetch(
-        `${getApiUrl('/api/v1/public/alumni/invitation')}?token=${encodeURIComponent(this.token)}`
-      );
-      const body = await response.json();
-      state = body?.data?.state || 'invalid';
-      this.organizationName = body?.data?.organization_name || '';
-    } catch (error) {
-      debugError('Failed to read the alumni invitation:', error);
-    }
+    const state = await this.requestState(
+      `${getApiUrl('/api/v1/public/alumni/invitation')}?token=${encodeURIComponent(this.token)}`
+    );
 
     if (state !== 'ready') {
       this.renderOutcome(state);
       return;
     }
 
-    const heading = this.organizationName
-      ? escapeHTML(this.organizationName)
-      : translate('alumni_consent_page_title');
-
     setContent(document.getElementById('app'), `
       <section class="page alumni-link">
-        <h1>${heading}</h1>
+        <h1>${this.heading()}</h1>
         <p>${translate('alumni_invite_offer')}</p>
         <button type="button" id="alumni-consent-btn" class="button button--primary">
           ${translate('alumni_consent_confirm')}
@@ -118,19 +151,11 @@ export class AlumniLink {
    * @returns {Promise<void>}
    */
   async submit(endpoint) {
-    let state = 'invalid';
-    try {
-      const response = await fetch(getApiUrl(`/api/v1/public/alumni/${endpoint}`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: this.token })
-      });
-      const body = await response.json();
-      state = body?.data?.state || 'invalid';
-      this.organizationName = body?.data?.organization_name || this.organizationName;
-    } catch (error) {
-      debugError('Failed to submit the alumni link:', error);
-    }
+    const state = await this.requestState(getApiUrl(`/api/v1/public/alumni/${endpoint}`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: this.token })
+    });
 
     this.renderOutcome(state);
   }
@@ -143,16 +168,16 @@ export class AlumniLink {
    * @returns {void}
    */
   renderOutcome(state) {
-    const titleKey = this.action === UNSUBSCRIBE_ACTION
-      ? 'alumni_unsubscribe_page_title'
-      : 'alumni_consent_page_title';
     const messageKey = STATE_MESSAGES[state] || STATE_MESSAGES.invalid;
+    const unreachable = state === 'unreachable';
 
     setContent(document.getElementById('app'), `
       <section class="page alumni-link">
-        <h1>${this.organizationName ? escapeHTML(this.organizationName) : translate(titleKey)}</h1>
-        <p role="status">${translate(messageKey)}</p>
+        <h1>${this.heading()}</h1>
+        <p role="${unreachable ? 'alert' : 'status'}">${translate(messageKey)}</p>
+        ${unreachable ? `<button type="button" id="alumni-link-retry" class="button button--secondary">${translate('retry')}</button>` : ''}
       </section>
     `);
+    document.getElementById('alumni-link-retry')?.addEventListener('click', () => this.init());
   }
 }
