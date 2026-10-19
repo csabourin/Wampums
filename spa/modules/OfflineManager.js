@@ -13,7 +13,7 @@ import {
   getOfflineData,
   saveOfflineData,
   deleteOfflineData,
-  clearCachedApiPaths
+  clearCacheEntriesWhere
 } from '../indexedDB.js';
 import { CONFIG } from '../config.js';
 import { buildApiCacheKey, cachePathsForMutation, normalizeApiPath } from '../utils/OfflineCacheKeys.js';
@@ -56,6 +56,20 @@ const SAFE_OFFLINE_MUTATIONS = [
   // Replaying badge history is safe: the server skips levels already recorded.
   { method: 'POST', path: /^\/api\/v1\/badges\/history$/, kind: 'badges' },
 ];
+
+/**
+ * Cache keys a screen stores under its own name, by kind of change: they hold
+ * the optimistic copy of a refused change too, whether or not the screen is
+ * open. Attendance is narrowed to the refused date (see rejectedCachePrefixes),
+ * so a camp's other prepared days survive.
+ */
+const SCREEN_CACHE_PREFIXES = {
+  medication: [
+    'medication_', 'participant_medications', 'fiche_medications',
+    '/api/medication_', '/api/participant_medications', '/api/fiche_medications'
+  ],
+  badges: ['badge_', '/api/badge']
+};
 
 /** Replay answers that will never succeed: the change is dropped, and said so. */
 const NON_RETRIABLE_STATUSES = new Set([400, 403, 404, 409, 410, 422]);
@@ -427,6 +441,8 @@ export class OfflineManager {
     };
     let replayed = 0;
     const rejected = [];
+    // Kept apart from `rejected`, which is announced: a body is never broadcast.
+    const refusedBodies = [];
 
     for (const record of pendingData) {
       try {
@@ -472,6 +488,7 @@ export class OfflineManager {
               mutationId: record.data.idempotencyKey,
               status: response.status
             });
+            refusedBodies.push(record.data.body);
             debugWarn('OfflineManager: Server rejected mutation, discarding', response.status);
           } else {
             // 401/429/5xx — leave for retry on next sync
@@ -497,28 +514,53 @@ export class OfflineManager {
     // Forget the refused changes' cached copies first, so the screens that
     // reload on the announcement read what the server holds. The screen that
     // queued a change recognizes it by its mutationId.
-    await Promise.all(rejected.map((change) => this.forgetRejectedResource(change.url)));
+    await Promise.all(rejected.map((change, index) => this.forgetRejectedResource(change, refusedBodies[index])));
     rejected.forEach((change) => this.dispatchEvent('offlineMutationRejected', change));
 
     return { replayed, rejected };
   }
 
   /**
-   * Drop the cached copy of a resource whose offline change was refused, so
-   * the next read shows what the server holds. Only the resource itself goes:
-   * in camp mode the cache is the only copy of everything else.
-   * @param {string} url - URL of the refused request
+   * Drop every cached copy of a refused change, so the next read, by an open
+   * screen or one opened later, shows what the server holds. Only that
+   * resource goes: in camp mode the cache is the only copy of everything else.
+   * @param {{url: string, kind: string}} change - The refused change
+   * @param {string|null} body - The request body it carried
    * @returns {Promise<void>}
    */
-  async forgetRejectedResource(url) {
+  async forgetRejectedResource(change, body) {
+    const prefixes = this.rejectedCachePrefixes(change, body);
     try {
-      const paths = cachePathsForMutation(normalizeApiPath(url));
-      if (paths.length > 0) {
-        await clearCachedApiPaths(paths);
-      }
+      await clearCacheEntriesWhere((record) => {
+        const key = String(record.key).split('|scope:')[0];
+        return prefixes.some((prefix) => key.startsWith(prefix));
+      });
     } catch (error) {
       debugWarn('OfflineManager: Could not clear the cache of a refused change', error);
     }
+  }
+
+  /**
+   * The cache keys that may hold a refused change: its API resource, and the
+   * keys its screen stores under its own name.
+   * @param {{url: string, kind: string}} change - The refused change
+   * @param {string|null} body - The request body it carried
+   * @returns {string[]} Key prefixes, compared without the user/unit scope
+   */
+  rejectedCachePrefixes(change, body) {
+    const prefixes = [...cachePathsForMutation(normalizeApiPath(change.url))];
+    if (change.kind === 'attendance') {
+      let date = null;
+      try {
+        const payload = JSON.parse(body || '{}');
+        date = payload.date || payload.toDate || null;
+      } catch (_error) {
+        date = null;
+      }
+      prefixes.push(...(date ? [`attendance_${date}`, `attendance_api_${date}`] : ['attendance_']));
+    }
+    prefixes.push(...(SCREEN_CACHE_PREFIXES[change.kind] || []));
+    return prefixes;
   }
 
   /**

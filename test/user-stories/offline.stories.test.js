@@ -470,6 +470,42 @@ describe('US-OFF-008 — A change refused on replay is never reported as saved',
     expect(await getCachedData(participantsKey)).not.toBeNull();
   });
 
+  it('forgets a refused dose from the medication screen\'s own copies, even with the screen closed', async () => {
+    const manager = new OfflineManager();
+    manager.isOffline = true;
+    await manager.queueMutation('http://localhost:3000/api/v1/medication/distributions/9', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'given' }),
+    });
+    const apiDistributionsKey = buildApiCacheKey('medication_distributions', { upcoming_only: true });
+    await setCachedData('medication_distributions', { success: true, data: { distributions: [{ id: 9, status: 'given' }] } });
+    await setCachedData(apiDistributionsKey, { success: true, data: { distributions: [{ id: 9, status: 'given' }] } });
+    await setCachedData('honors_2026-07-15', { success: true, data: [] });
+    global.fetch.mockResolvedValue(makeJsonResponse({ success: false }, { status: 409 }));
+
+    await manager.replayPendingMutations();
+
+    expect(await getCachedData('medication_distributions')).toBeNull();
+    expect(await getCachedData(apiDistributionsKey)).toBeNull();
+    expect(await getCachedData('honors_2026-07-15')).not.toBeNull();
+  });
+
+  it('forgets only the refused day\'s attendance, keeping a camp\'s other prepared days', async () => {
+    const manager = new OfflineManager();
+    await queue(manager, ATTENDANCE, { participant_id: 1, date: '2026-07-15', status: 'present' });
+    await setCachedData('attendance_2026-07-15', { attendanceData: { 1: 'present' } });
+    await setCachedData('attendance_api_2026-07-15', { success: true, data: [] });
+    await setCachedData('attendance_2026-07-16', { attendanceData: { 1: 'absent' } });
+    global.fetch.mockResolvedValue(makeJsonResponse({ success: false }, { status: 400 }));
+
+    await manager.replayPendingMutations();
+
+    expect(await getCachedData('attendance_2026-07-15')).toBeNull();
+    expect(await getCachedData('attendance_api_2026-07-15')).toBeNull();
+    expect(await getCachedData('attendance_2026-07-16')).not.toBeNull();
+  });
+
   it('keeps a change the server could not handle yet (503) queued, and announces nothing', async () => {
     const manager = new OfflineManager();
     await queue(manager, ATTENDANCE, { participant_id: 1, date: '2026-07-15', status: 'present' });

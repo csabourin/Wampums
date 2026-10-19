@@ -297,7 +297,8 @@ export class MedicationManagement {
   /**
    * A dose or reception saved offline was refused on replay: what the page
    * shows (and its cached copy) includes a change the server never recorded.
-   * Reload from the server; the offline queue has already said what was lost.
+   * Reload from the server; the offline queue has already dropped the cached
+   * copies and said what was lost.
    *
    * @returns {Promise<void>}
    */
@@ -306,7 +307,6 @@ export class MedicationManagement {
       return;
     }
     try {
-      await this.invalidateCaches();
       await this.refreshData(true);
     } catch (error) {
       debugError('Error reloading medication data after a refused change', error);

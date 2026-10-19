@@ -945,8 +945,8 @@ export class Attendance {
   }
 
   /**
-   * Drop the date's cached copies, which hold the refused status, and load
-   * it again through the serialized date loader.
+   * Load the date shown again through the serialized date loader. The offline
+   * queue has already dropped the cached copies holding the refused status.
    * @returns {Promise<void>}
    */
   async reloadAfterRejectedChange() {
@@ -954,10 +954,6 @@ export class Attendance {
     if (!this.isInitialized || !document.querySelector('.attendance-container')) {
       return;
     }
-    await Promise.all([
-      deleteCachedData(`attendance_${this.currentDate}`),
-      deleteCachedData(`attendance_api_${this.currentDate}`),
-    ]);
     await this.changeDate(this.currentDate);
   }
 

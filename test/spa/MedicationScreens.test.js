@@ -69,7 +69,6 @@ jest.mock('../../spa/api/api-endpoints.js', () => ({
 }));
 
 import * as api from '../../spa/api/api-endpoints.js';
-import * as cache from '../../spa/indexedDB.js';
 import { MedicationManagement } from '../../spa/modules/medication/MedicationManagement.js';
 import { MedicationReception } from '../../spa/modules/medication/MedicationReception.js';
 
@@ -373,7 +372,6 @@ describe('a dose or reception saved offline and refused on replay', () => {
     refuse('medication');
     await reload.mock.results[0].value;
 
-    expect(cache.deleteCachedData).toHaveBeenCalledWith('medication_distributions');
     expect(api.getMedicationDistributions.mock.calls.length).toBeGreaterThan(loadsBefore);
     expect(page().querySelector('h1').textContent).toBe('medication_dispensing_title');
     screen.destroy();
