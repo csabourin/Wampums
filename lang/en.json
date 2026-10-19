@@ -2763,6 +2763,7 @@
   "creating": "Creating",
   "optional": "Optional",
   "district_management_title": "District Management",
+  "district_management_switch_failed": "Could not switch to this unit. You are still working in the previous one.",
   "district_management_subtitle": "Assign role bundles with safeguards and offline awareness.",
   "district_management_search_label": "Search users",
   "district_management_search_placeholder": "Search by name or email",

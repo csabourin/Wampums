@@ -31,7 +31,7 @@ import {
   detectRoleConflicts,
   getLocalGroupEligibleRoles,
 } from '../../utils/RoleValidationUtils.js';
-import { setStorageMultiple } from '../../utils/StorageUtils.js';
+import { switchActiveUnit } from '../session/UnitSwitch.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
@@ -413,17 +413,50 @@ export class DistrictManagement {
       return;
     }
 
+    // The server reads the unit from the token: until it issues one for the
+    // chosen unit, every list and role change here is still the previous one's.
+    const select = document.getElementById('dm-org-select');
+    if (select) {
+      select.disabled = true;
+    }
+    try {
+      await switchActiveUnit(this.app, newOrgId);
+    } catch (error) {
+      debugError('district_management: unit switch failed', error);
+      this.app.showMessage(apiErrorMessage(error, 'district_management_switch_failed'), 'error');
+      // Show the unit the session is still in, with the selector usable again.
+      if (!this.destroyed) {
+        this.renderAndBind();
+        this.focusOrganizationSelect();
+      }
+      return;
+    }
+    if (this.destroyed) {
+      return;
+    }
+
     this.organizationId = newOrgId;
     this.selectedUserId = null;
     this.selectedRoleIds = new Set();
 
-    setStorageMultiple({
-      currentOrganizationId: newOrgId,
-      organizationId: newOrgId,
-    });
+    if (!canViewRoles()) {
+      this.app.router.navigate('/dashboard');
+      return;
+    }
 
     await clearUserCaches(newOrgId);
     await this.refreshData(true);
+    if (!this.destroyed) {
+      this.focusOrganizationSelect();
+    }
+  }
+
+  /**
+   * The selector was disabled and redrawn while the unit changed, which drops
+   * keyboard focus; give it back so the person keeps their place.
+   */
+  focusOrganizationSelect() {
+    document.getElementById('dm-org-select')?.focus();
   }
 
   render() {

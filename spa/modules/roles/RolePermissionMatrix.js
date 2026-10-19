@@ -12,10 +12,8 @@ import { confirm, confirmDestructive } from '../../utils/DialogUtils.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { hasPermission, isDemoUser } from '../../utils/PermissionUtils.js';
 import { getRoleMatrix, replaceRolePermissions, createUnitRole, updateUnitRole, deleteUnitRole } from '../../api/api-roles.js';
-import { getUserOrganizations, switchOrganization } from '../../api/api-endpoints.js';
-import { setStorageMultiple } from '../../utils/StorageUtils.js';
-import { decodeJWT } from '../../jwt-helper.js';
-import { refreshAccess } from '../session/AccessRefresh.js';
+import { getUserOrganizations } from '../../api/api-endpoints.js';
+import { switchActiveUnit } from '../session/UnitSwitch.js';
 
 /** Keys are translated rather than displaying the catalog's English names. */
 function permissionLabel(permission) {
@@ -312,18 +310,8 @@ export class RolePermissionMatrix {
     this.saving = true;
     this.root().querySelectorAll('input, select, button').forEach((control) => { control.disabled = true; });
     try {
-      const response = await switchOrganization(unitId);
-      const token = response.data?.token || response.token;
-      if (!token) { throw new Error('Missing switch result'); }
-      const claims = decodeJWT(token);
-      setStorageMultiple({ jwtToken: token, currentOrganizationId: unitId, organizationId: unitId,
-        userPermissions: claims.permissions, userRoles: claims.roleNames, userRoleIds: claims.roleIds });
+      await switchActiveUnit(this.app, unitId);
       this.pending.clear();
-      this.app.userPermissions = claims.permissions;
-      this.app.userRoles = claims.roleNames;
-      await refreshAccess(this.app);
-      // Later screens read the unit's id and settings from the app.
-      await this.app.useOrganization(unitId);
       if (!hasPermission('roles.manage_district') || !hasPermission('roles.manage')) {
         this.saving = false;
         this.app.router.navigate('/dashboard');

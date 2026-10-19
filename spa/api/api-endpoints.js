@@ -2711,10 +2711,11 @@ export async function saveOrganization(organizationData) {
 
 
 /**
- * Switch active organization
+ * Switch active organization. Never queued offline: the new token is needed
+ * now, and a switch replayed later would change nothing.
  */
 export async function switchOrganization(organizationId) {
-  return API.post('v1/organizations/switch', { organization_id: organizationId });
+  return API.post('v1/organizations/switch', { organization_id: organizationId }, {}, { queueOffline: false });
 }
 
 // An account without org.view (e.g. a parent) is refused the full settings;

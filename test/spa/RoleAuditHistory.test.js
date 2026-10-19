@@ -43,6 +43,7 @@ jest.mock('../../spa/ajax-functions.js', () => ({
   updateUserRolesV1: jest.fn(),
 }));
 
+jest.mock('../../spa/modules/session/UnitSwitch.js', () => ({ switchActiveUnit: jest.fn() }));
 jest.mock('../../spa/api/api-members.js', () => ({ setUserMembershipStatus: jest.fn() }));
 jest.mock('../../spa/utils/DialogUtils.js', () => ({ confirmDestructive: jest.fn() }));
 jest.mock('../../spa/indexedDB.js', () => ({ getCachedData: jest.fn(), setCachedData: jest.fn() }));
