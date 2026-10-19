@@ -1,174 +1,177 @@
 // api-core.js
 // Core API request infrastructure for the Wampums application
 import {
-    setCachedData,
-    getCachedData,
-    getCachedDataIgnoreExpiration,
-    clearCachedApiPaths
-} from "../indexedDB.js";
-import { CONFIG } from "../config.js";
-import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
-import { getCurrentOrganizationId, getAuthHeader } from "./api-helpers.js";
-import { PerformanceMonitor } from "../utils/PerformanceUtils.js";
+  setCachedData,
+  getCachedData,
+  getCachedDataIgnoreExpiration,
+  clearCachedApiPaths
+} from '../indexedDB.js';
+import { CONFIG } from '../config.js';
+import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
+import { getCurrentOrganizationId, getAuthHeader } from './api-helpers.js';
+import { PerformanceMonitor } from '../utils/PerformanceUtils.js';
 import {
-    buildApiCacheKey,
-    buildScopedCacheKey,
-    cachePathsForMutation,
-    normalizeApiPath
-} from "../utils/OfflineCacheKeys.js";
-import { invalidateForWrite } from "../utils/CacheInvalidation.js";
-import { getLiveSyncClientId, notePageRequestPath } from "../modules/live-sync/LiveSyncState.js";
+  buildApiCacheKey,
+  buildScopedCacheKey,
+  cachePathsForMutation,
+  normalizeApiPath
+} from '../utils/OfflineCacheKeys.js';
+import { invalidateForWrite } from '../utils/CacheInvalidation.js';
+import { getLiveSyncClientId, notePageRequestPath } from '../modules/live-sync/LiveSyncState.js';
 
 /**
  * Add cache buster parameter to URL
  */
 function addCacheBuster(url) {
-    const separator = url.includes("?") ? "&" : "?";
-    return `${url}${separator}_=${Date.now()}`;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}_=${Date.now()}`;
 }
 
 /**
  * Build API URL with parameters
  */
 export function buildApiUrl(endpoint, params = {}) {
-    const normalizedEndpoint = String(endpoint || '').replace(/^\/+/, '');
+  const normalizedEndpoint = String(endpoint || '').replace(/^\/+/, '');
 
-    let requestPath;
-    if (normalizedEndpoint.startsWith('public/')) {
-        requestPath = `/${normalizedEndpoint}`;
-    } else if (normalizedEndpoint.startsWith('api/')) {
-        requestPath = `/${normalizedEndpoint}`;
-    } else if (normalizedEndpoint.startsWith('v1/')) {
-        requestPath = `/api/${normalizedEndpoint}`;
-    } else {
-        requestPath = `/api/v1/${normalizedEndpoint}`;
+  let requestPath;
+  if (normalizedEndpoint.startsWith('public/')) {
+    requestPath = `/${normalizedEndpoint}`;
+  } else if (normalizedEndpoint.startsWith('api/')) {
+    requestPath = `/${normalizedEndpoint}`;
+  } else if (normalizedEndpoint.startsWith('v1/')) {
+    requestPath = `/api/${normalizedEndpoint}`;
+  } else {
+    requestPath = `/api/v1/${normalizedEndpoint}`;
+  }
+
+  const url = new URL(requestPath, CONFIG.API_BASE_URL);
+
+  // Guard: ensure params is a plain object, and copy it so the caller's
+  // object is never mutated (organization_id is injected below)
+  if (typeof params !== 'object' || params === null || Array.isArray(params)) {
+    debugWarn('buildApiUrl received non-object params, ignoring:', params);
+    params = {};
+  } else {
+    params = { ...params };
+  }
+
+  // Add organization ID if not already present
+  const organizationId = getCurrentOrganizationId();
+  const shouldSkipOrgId = endpoint.includes('organizations/get_organization_id');
+  if (organizationId && !params.organization_id && !shouldSkipOrgId) {
+    params.organization_id = organizationId;
+  }
+
+  // Add all parameters to URL
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== null && value !== undefined) {
+      url.searchParams.append(key, value);
     }
+  });
 
-    const url = new URL(requestPath, CONFIG.API_BASE_URL);
-
-    // Guard: ensure params is a plain object, and copy it so the caller's
-    // object is never mutated (organization_id is injected below)
-    if (typeof params !== 'object' || params === null || Array.isArray(params)) {
-        debugWarn('buildApiUrl received non-object params, ignoring:', params);
-        params = {};
-    } else {
-        params = { ...params };
-    }
-
-    // Add organization ID if not already present
-    const organizationId = getCurrentOrganizationId();
-    const shouldSkipOrgId = endpoint.includes('organizations/get_organization_id');
-    if (organizationId && !params.organization_id && !shouldSkipOrgId) {
-        params.organization_id = organizationId;
-    }
-
-    // Add all parameters to URL
-    Object.entries(params).forEach(([key, value]) => {
-        if (value !== null && value !== undefined) {
-            url.searchParams.append(key, value);
-        }
-    });
-
-    return url.toString();
+  return url.toString();
 }
 
 /**
  * Handle API response with error handling
  */
 export async function handleResponse(response) {
-    const getHeader = (name) => response.headers?.get?.(name) || null;
-    const contentType = getHeader("content-type");
+  const getHeader = (name) => response.headers?.get?.(name) || null;
+  const contentType = getHeader('content-type');
 
-    if (!response.ok) {
-        // Handle 401 Unauthorized specifically
-        if (response.status === 401) {
-            const hadAuthenticatedSession = Boolean(localStorage.getItem("jwtToken"));
-            if (hadAuthenticatedSession) {
-                try {
-                    const { clearAllClientData } = await import("../utils/ClientCleanupUtils.js");
-                    await clearAllClientData();
-                } catch (cleanupError) {
-                    debugError('Failed to clear client data after 401:', cleanupError);
-                    localStorage.removeItem("jwtToken");
-                    localStorage.removeItem("userRole");
-                    localStorage.removeItem("userFullName");
-                    localStorage.removeItem("userId");
-                }
-            }
-
-            // Only redirect when actually online to avoid redirect on offline cached responses
-            if (navigator.onLine) {
-                // '/permission-slip/' keeps its trailing slash so the staff
-                // dashboard at /permission-slips still redirects on 401.
-                const publicPages = ['/login', '/reset-password', '/register', '/permission-slip/', '/public/'];
-                const isPublicPage = publicPages.some(page => window.location.pathname.startsWith(page));
-
-                if (!isPublicPage) {
-                    window.location.href = '/login';
-                } else {
-                    debugWarn('[API] 401 error on public page, skipping automatic redirect');
-                }
-            } else {
-                debugWarn('[API] 401 while offline, deferring redirect until online');
-            }
-        }
-
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        // A refusal can carry a machine-readable reason and the facts behind it
-        // (a 409 that names what it conflicts with). Kept so a screen can act on
-        // the reason instead of parsing the message.
-        let errorCode = null;
-        let errorDetails = null;
-
+  if (!response.ok) {
+    // Handle 401 Unauthorized specifically
+    if (response.status === 401) {
+      const hadAuthenticatedSession = Boolean(localStorage.getItem('jwtToken'));
+      if (hadAuthenticatedSession) {
         try {
-            if (contentType && contentType.includes("application/json")) {
-                const errorData = await response.json();
-                errorMessage = errorData.message || errorMessage;
-                errorCode = errorData.code || null;
-                errorDetails = errorData.data || null;
-                // Log detailed validation errors if present
-                if (errorData.errors && Array.isArray(errorData.errors)) {
-                    debugError('Validation errors:', errorData.errors);
-                    // Create a detailed error message
-                    const errorDetails = errorData.errors.map(e => `${e.path || e.param || e.field}: ${e.msg}`).join(', ');
-                    errorMessage = `${errorMessage}: ${errorDetails}`;
-                }
-            } else {
-                const textError = await response.text();
-                errorMessage = textError || errorMessage;
-            }
-        } catch (parseError) {
-            debugError('Error parsing error response:', parseError);
+          const { clearAllClientData } = await import('../utils/ClientCleanupUtils.js');
+          await clearAllClientData();
+        } catch (cleanupError) {
+          debugError('Failed to clear client data after 401:', cleanupError);
+          localStorage.removeItem('jwtToken');
+          localStorage.removeItem('userRole');
+          localStorage.removeItem('userFullName');
+          localStorage.removeItem('userId');
         }
+      }
 
-        const httpError = new Error(errorMessage);
-        httpError.status = response.status;
-        httpError.code = errorCode;
-        httpError.data = errorDetails;
-        httpError.isNetworkError = getHeader('X-Network-Error') === 'true';
-        throw httpError;
+      // Only redirect when actually online to avoid redirect on offline cached responses
+      if (navigator.onLine) {
+        // '/permission-slip/' keeps its trailing slash so the staff
+        // dashboard at /permission-slips still redirects on 401.
+        const publicPages = ['/login', '/reset-password', '/register', '/permission-slip/', '/public/'];
+        const isPublicPage = publicPages.some(page => window.location.pathname.startsWith(page));
+
+        if (!isPublicPage) {
+          window.location.href = '/login';
+        } else {
+          debugWarn('[API] 401 error on public page, skipping automatic redirect');
+        }
+      } else {
+        debugWarn('[API] 401 while offline, deferring redirect until online');
+      }
     }
 
-    if (response.status === 204) {
-        return { success: true, data: null };
+    let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+    // A refusal can carry a machine-readable reason and the facts behind it
+    // (a 409 that names what it conflicts with). Kept so a screen can act on
+    // the reason instead of parsing the message.
+    let errorCode = null;
+    let errorDetails = null;
+    let validationErrors = null;
+
+    try {
+      if (contentType && contentType.includes('application/json')) {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+        errorCode = errorData.code || null;
+        errorDetails = errorData.data || null;
+        // Log detailed validation errors if present
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          validationErrors = errorData.errors;
+          debugError('Validation errors:', errorData.errors);
+          // Create a detailed error message
+          const errorDetails = errorData.errors.map(e => `${e.path || e.param || e.field}: ${e.msg}`).join(', ');
+          errorMessage = `${errorMessage}: ${errorDetails}`;
+        }
+      } else {
+        const textError = await response.text();
+        errorMessage = textError || errorMessage;
+      }
+    } catch (parseError) {
+      debugError('Error parsing error response:', parseError);
     }
 
-    if (
-        (contentType && contentType.includes("application/json"))
-        || (!contentType && typeof response.json === "function")
-    ) {
-        return response.json();
-    } else {
-        throw new Error(`Unexpected response type: ${contentType}`);
-    }
+    const httpError = new Error(errorMessage);
+    httpError.status = response.status;
+    httpError.code = errorCode;
+    httpError.data = errorDetails;
+    httpError.errors = validationErrors;
+    httpError.isNetworkError = getHeader('X-Network-Error') === 'true';
+    throw httpError;
+  }
+
+  if (response.status === 204) {
+    return { success: true, data: null };
+  }
+
+  if (
+    (contentType && contentType.includes('application/json'))
+        || (!contentType && typeof response.json === 'function')
+  ) {
+    return response.json();
+  } else {
+    throw new Error(`Unexpected response type: ${contentType}`);
+  }
 }
 
 /**
  * Core API request function
  */
-import { offlineManager } from "../modules/OfflineManager.js";
-import { isArchiveMode } from "../modules/scout-year/ScoutYearContext.js";
-import { isLiveSyncActive } from "../modules/live-sync/LiveDataSync.js";
+import { offlineManager } from '../modules/OfflineManager.js';
+import { isArchiveMode } from '../modules/scout-year/ScoutYearContext.js';
+import { isLiveSyncActive } from '../modules/live-sync/LiveDataSync.js';
 
 /** Header naming the live-sync connection that made a write, so it is not echoed back. */
 const LIVE_SYNC_CLIENT_HEADER = 'X-Live-Sync-Client';
@@ -194,194 +197,196 @@ const LIVE_SYNC_CLIENT_HEADER = 'X-Live-Sync-Client';
  * @returns {Promise<void>} Resolves once matching entries are removed
  */
 async function invalidateCachedResource(endpoint) {
-    try {
-        if (isLiveSyncActive()) {
-            await invalidateForWrite(endpoint);
-            return;
-        }
-        const paths = cachePathsForMutation(normalizeApiPath(endpoint));
-        if (paths.length === 0) {
-            return;
-        }
-        await clearCachedApiPaths(paths);
-    } catch (error) {
-        // A failed invalidation must never fail the mutation the user just made.
-        debugWarn('Cache invalidation after mutation failed:', error);
+  try {
+    if (isLiveSyncActive()) {
+      await invalidateForWrite(endpoint);
+      return;
     }
+    const paths = cachePathsForMutation(normalizeApiPath(endpoint));
+    if (paths.length === 0) {
+      return;
+    }
+    await clearCachedApiPaths(paths);
+  } catch (error) {
+    // A failed invalidation must never fail the mutation the user just made.
+    debugWarn('Cache invalidation after mutation failed:', error);
+  }
 }
 
 export async function makeApiRequest(endpoint, options = {}) {
-    const {
-        method = 'GET',
-        params = {},
-        body = null,
-        headers = {},
-        cacheBuster = false,
-        retries = 1,
+  const {
+    method = 'GET',
+    params = {},
+    body = null,
+    headers = {},
+    cacheBuster = false,
+    retries = 1,
     queueOffline = true,
-        signal = null
-    } = options;
+    signal = null
+  } = options;
 
-    let url = buildApiUrl(endpoint, params);
-    if (cacheBuster) {
-        url = addCacheBuster(url);
+  let url = buildApiUrl(endpoint, params);
+  if (cacheBuster) {
+    url = addCacheBuster(url);
+  }
+
+  // Consulting an archived year is read-only. The guard sits here rather than
+  // only in the interface because every screen goes through this function:
+  // one forgotten disabled button would otherwise write last year's data into
+  // the current season.
+  if (method !== 'GET' && isArchiveMode()) {
+    // Translated here so the toast a caller shows stays in the page's
+    // language rather than dropping an English sentence into a French UI.
+    const archiveError = new Error(offlineManager.getTranslation('scout_year_read_only'));
+    archiveError.status = 403;
+    archiveError.isArchiveReadOnly = true;
+    debugWarn(`[Archive] Blocked ${method} ${url} while consulting an archived year`);
+    throw archiveError;
+  }
+
+  if (method === 'GET') {
+    notePageRequestPath(normalizeApiPath(endpoint));
+  }
+
+  const liveSyncClientId = getLiveSyncClientId();
+  const isFormData = body instanceof FormData;
+  const requestConfig = {
+    method,
+    headers: {
+      'Accept': 'application/json',
+      ...getAuthHeader(),
+      ...(liveSyncClientId && method !== 'GET' ? { [LIVE_SYNC_CLIENT_HEADER]: liveSyncClientId } : {}),
+      ...headers
+    },
+    signal
+  };
+
+  if (body && method !== 'GET') {
+    if (isFormData) {
+      requestConfig.body = body;
+      // browser sets proper boundary
+    } else {
+      requestConfig.headers['Content-Type'] = 'application/json';
+      requestConfig.body = JSON.stringify(body);
     }
-
-    // Consulting an archived year is read-only. The guard sits here rather than
-    // only in the interface because every screen goes through this function:
-    // one forgotten disabled button would otherwise write last year's data into
-    // the current season.
-    if (method !== 'GET' && isArchiveMode()) {
-        // Translated here so the toast a caller shows stays in the page's
-        // language rather than dropping an English sentence into a French UI.
-        const archiveError = new Error(offlineManager.getTranslation('scout_year_read_only'));
-        archiveError.status = 403;
-        archiveError.isArchiveReadOnly = true;
-        debugWarn(`[Archive] Blocked ${method} ${url} while consulting an archived year`);
-        throw archiveError;
-    }
-
-    if (method === 'GET') {
-        notePageRequestPath(normalizeApiPath(endpoint));
-    }
-
-    const liveSyncClientId = getLiveSyncClientId();
-    const isFormData = body instanceof FormData;
-    const requestConfig = {
-        method,
-        headers: {
-            'Accept': 'application/json',
-            ...getAuthHeader(),
-            ...(liveSyncClientId && method !== 'GET' ? { [LIVE_SYNC_CLIENT_HEADER]: liveSyncClientId } : {}),
-            ...headers
-        },
-        signal
-    };
-
-    if (body && method !== 'GET') {
-        if (isFormData) {
-            requestConfig.body = body;
-            // browser sets proper boundary
-        } else {
-            requestConfig.headers['Content-Type'] = 'application/json';
-            requestConfig.body = JSON.stringify(body);
-        }
-    }
+  }
 
   const requestPath = normalizeApiPath(endpoint);
   const requiresOnline = !queueOffline || (CONFIG.ONLINE_REQUIRED_MUTATION_RESOURCES || []).some((resource) =>
     requestPath === `/api/v1/${resource}` || requestPath.startsWith(`/api/v1/${resource}/`)
   );
 
-    // Family authority and mail delivery must be confirmed before reporting success.
-    if ((offlineManager.isOffline || navigator.onLine === false) && method !== 'GET') {
+  // Family authority and mail delivery must be confirmed before reporting success.
+  if ((offlineManager.isOffline || navigator.onLine === false) && method !== 'GET') {
     if (requiresOnline) {
       const offlineError = new Error(offlineManager.getTranslation('family_operation_online_required'));
       offlineError.code = 'online_required';
       throw offlineError;
     }
-        debugLog(`[Offline] Queueing ${method} ${url}`);
-        try {
-            await offlineManager.queueMutation(url, {
-                method,
-                headers: requestConfig.headers,
-                body: requestConfig.body
-            });
+    debugLog(`[Offline] Queueing ${method} ${url}`);
+    try {
+      await offlineManager.queueMutation(url, {
+        method,
+        headers: requestConfig.headers,
+        body: requestConfig.body
+      });
 
-            await invalidateCachedResource(endpoint);
+      await invalidateCachedResource(endpoint);
 
-            return {
-                success: true,
-                queued: true,
-                message: offlineManager.getTranslation('offline.savedLocally')
-            };
-        } catch (error) {
-            debugError('Failed to queue offline mutation:', error);
-            throw new Error('Failed to save offline: ' + error.message);
-        }
+      return {
+        success: true,
+        queued: true,
+        message: offlineManager.getTranslation('offline.savedLocally')
+      };
+    } catch (error) {
+      debugError('Failed to queue offline mutation:', error);
+      throw new Error(`Failed to save offline: ${  error.message}`);
     }
+  }
 
-    let lastError;
-    const startTime = performance.now();
+  let lastError;
+  const startTime = performance.now();
 
-    for (let attempt = 0; attempt <= retries; attempt++) {
-        try {
-            debugLog(`API Request (attempt ${attempt + 1}):`, method, url);
-            debugLog('Request config:', {
-                method: requestConfig.method,
-                hasAuthorization: Boolean(requestConfig.headers.Authorization),
-                hasBody: Boolean(requestConfig.body)
-            });
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      debugLog(`API Request (attempt ${attempt + 1}):`, method, url);
+      debugLog('Request config:', {
+        method: requestConfig.method,
+        hasAuthorization: Boolean(requestConfig.headers.Authorization),
+        hasBody: Boolean(requestConfig.body)
+      });
 
-            const response = await fetch(url, requestConfig);
-            const result = await handleResponse(response);
+      const response = await fetch(url, requestConfig);
+      const result = await handleResponse(response);
 
-            // Log API call performance
-            const duration = performance.now() - startTime;
-            PerformanceMonitor.logAPICall(endpoint, duration, false);
+      // Log API call performance
+      const duration = performance.now() - startTime;
+      PerformanceMonitor.logAPICall(endpoint, duration, false);
 
-            debugLog('API response received:', {
-                success: result?.success,
-                queued: result?.queued,
-            });
+      debugLog('API response received:', {
+        success: result?.success,
+        queued: result?.queued,
+      });
 
-            // A write invalidates whatever the screens cached for this
-            // resource, so the next read reflects the change immediately.
-            if (method !== 'GET' && result?.success) {
-                await invalidateCachedResource(endpoint);
-            }
+      // A write invalidates whatever the screens cached for this
+      // resource, so the next read reflects the change immediately.
+      if (method !== 'GET' && result?.success) {
+        await invalidateCachedResource(endpoint);
+      }
 
-            return result;
+      return result;
 
-        } catch (error) {
-            lastError = error;
-            debugError(`API request failed (attempt ${attempt + 1}):`, error);
+    } catch (error) {
+      lastError = error;
+      debugError(`API request failed (attempt ${attempt + 1}):`, error);
 
-            // Only retry idempotent GETs, and only for transient failures
-            // (network errors or 5xx). Retrying writes can duplicate them
-            // (e.g. timeout after the server processed the request), and
-            // retrying 4xx responses just delays user-facing feedback.
-            const isTransient = !error.status || error.status >= 500;
-            const isRetryable = method === 'GET' && isTransient;
+      // Only retry idempotent GETs, and only for transient failures
+      // (network errors or 5xx). Retrying writes can duplicate them
+      // (e.g. timeout after the server processed the request), and
+      // retrying 4xx responses just delays user-facing feedback.
+      const isTransient = !error.status || error.status >= 500;
+      const isRetryable = method === 'GET' && isTransient && error.name !== 'AbortError';
 
-            if (!isRetryable) {
-                break;
-            }
+      if (!isRetryable) {
+        break;
+      }
 
-            if (attempt < retries) {
-                // Wait before retry with exponential backoff
-                await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-            }
-        }
+      if (attempt < retries) {
+        // Wait before retry with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+      }
     }
+  }
 
-    const isNetworkError = Boolean(
-        lastError?.isNetworkError ||
+  const isNetworkError = Boolean(
+    lastError?.isNetworkError ||
         (!lastError?.status && lastError?.name !== 'AbortError')
-    );
+  );
 
-    if (method !== 'GET' && isNetworkError && !requiresOnline) {
-        await offlineManager.queueMutation(url, {
-            method,
-            headers: requestConfig.headers,
-            body: requestConfig.body
-        });
-        return {
-            success: true,
-            queued: true,
-            message: offlineManager.getTranslation('offline.savedLocally')
-        };
-    }
-
-    const finalError = new Error(`API request failed: ${lastError.message}`, {
-        cause: lastError
+  if (method !== 'GET' && isNetworkError && !requiresOnline) {
+    await offlineManager.queueMutation(url, {
+      method,
+      headers: requestConfig.headers,
+      body: requestConfig.body
     });
-    finalError.status = lastError.status;
-    finalError.code = method !== 'GET' && isNetworkError && requiresOnline
+    return {
+      success: true,
+      queued: true,
+      message: offlineManager.getTranslation('offline.savedLocally')
+    };
+  }
+
+  const finalError = new Error(`API request failed: ${lastError.message}`, {
+    cause: lastError
+  });
+  finalError.status = lastError.status;
+  finalError.code = method !== 'GET' && isNetworkError && requiresOnline
     ? 'operation_unconfirmed' : lastError.code ?? null;
-    finalError.data = lastError.data ?? null;
-    finalError.isNetworkError = isNetworkError;
-    throw finalError;
+  finalError.data = lastError.data ?? null;
+  finalError.errors = lastError.errors ?? null;
+  finalError.name = lastError.name;
+  finalError.isNetworkError = isNetworkError;
+  throw finalError;
 }
 
 // Request deduplication: Track in-flight requests to prevent duplicate API calls
@@ -391,196 +396,204 @@ const pendingRequests = new Map();
  * Make API request with caching support and request deduplication
  */
 export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptions = {}) {
-    const {
-        cacheKey: requestedCacheKey = buildApiCacheKey(endpoint, options.params || {}),
-        cacheDuration = CONFIG.CACHE_DURATION.MEDIUM,
-        forceRefresh = false
-    } = cacheOptions;
-    const cacheKey = buildScopedCacheKey(requestedCacheKey);
+  const {
+    cacheKey: requestedCacheKey = buildApiCacheKey(endpoint, options.params || {}),
+    cacheDuration = CONFIG.CACHE_DURATION.MEDIUM,
+    forceRefresh = false
+  } = cacheOptions;
+  const cacheKey = buildScopedCacheKey(requestedCacheKey);
 
-    // Create a unique request key for deduplication
-    const requestKey = `${endpoint}-${JSON.stringify(options)}`;
+  // Create a unique request key for deduplication
+  const requestKey = `${cacheKey}-${JSON.stringify(options)}`;
 
-    // Check for in-flight request (deduplication). A forced refresh must not
-    // reuse an in-flight request it was explicitly asked to bypass.
-    if (!forceRefresh && pendingRequests.has(requestKey)) {
-        debugLog('Reusing in-flight request:', requestKey);
-        return pendingRequests.get(requestKey);
+  // Check for in-flight request (deduplication). A forced refresh must not
+  // reuse an in-flight request it was explicitly asked to bypass.
+  if (!forceRefresh && pendingRequests.has(requestKey)) {
+    debugLog('Reusing in-flight request:', requestKey);
+    return pendingRequests.get(requestKey);
+  }
+
+  // Try cache first (unless force refresh)
+  const startTime = performance.now();
+  if (!forceRefresh) {
+    try {
+      const cachedData = await getCachedData(cacheKey);
+      if (cachedData) {
+        const duration = performance.now() - startTime;
+        PerformanceMonitor.logAPICall(endpoint, duration, true);
+        debugLog('Cache hit for:', cacheKey);
+        return cachedData;
+      }
+    } catch (cacheError) {
+      debugError('Cache retrieval failed:', cacheError);
     }
+  }
 
-    // Try cache first (unless force refresh)
-    const startTime = performance.now();
-    if (!forceRefresh) {
+  // Cache reads yield: another caller may have started the same request meanwhile.
+  if (!forceRefresh && pendingRequests.has(requestKey)) {
+    return pendingRequests.get(requestKey);
+  }
+
+  // Create the request promise
+  const requestPromise = (async () => {
+    try {
+      // Make API request
+      const result = await makeApiRequest(endpoint, options);
+
+      // Cache successful results
+      if (result.success) {
         try {
-            const cachedData = await getCachedData(cacheKey);
-            if (cachedData) {
-                const duration = performance.now() - startTime;
-                PerformanceMonitor.logAPICall(endpoint, duration, true);
-                debugLog('Cache hit for:', cacheKey);
-                return cachedData;
-            }
+          await setCachedData(cacheKey, result, cacheDuration, {
+            sources: [normalizeApiPath(endpoint)]
+          });
+          debugLog('Data cached for:', cacheKey);
         } catch (cacheError) {
-            debugError('Cache retrieval failed:', cacheError);
+          debugError('Failed to cache data:', cacheError);
         }
-    }
+      }
 
-    // Create the request promise
-    const requestPromise = (async () => {
+      return result;
+    } catch (requestError) {
+      // Only connectivity failures may use expired data. HTTP 4xx/5xx
+      // responses must reach callers so authorization and validation
+      // failures cannot be hidden by stale cache entries.
+      if (navigator.onLine === false || requestError.isNetworkError === true) {
         try {
-            // Make API request
-            const result = await makeApiRequest(endpoint, options);
-
-            // Cache successful results
-            if (result.success) {
-                try {
-                    await setCachedData(cacheKey, result, cacheDuration, {
-                        sources: [normalizeApiPath(endpoint)]
-                    });
-                    debugLog('Data cached for:', cacheKey);
-                } catch (cacheError) {
-                    debugError('Failed to cache data:', cacheError);
-                }
-            }
-
-            return result;
-        } catch (requestError) {
-            // Only connectivity failures may use expired data. HTTP 4xx/5xx
-            // responses must reach callers so authorization and validation
-            // failures cannot be hidden by stale cache entries.
-            if (navigator.onLine === false || requestError.isNetworkError === true) {
-                try {
-                    const fallbackCachedData = await getCachedDataIgnoreExpiration(cacheKey);
-                    if (fallbackCachedData) {
-                        debugWarn('Offline request failed, serving stale cached fallback for:', cacheKey);
-                        return fallbackCachedData;
-                    }
-                } catch (cacheFallbackError) {
-                    debugError('Cache fallback retrieval failed:', cacheFallbackError);
-                }
-            }
-
-            throw requestError;
-        } finally {
-            // Remove from pending requests after completion
-            pendingRequests.delete(requestKey);
+          const fallbackCachedData = await getCachedDataIgnoreExpiration(cacheKey);
+          if (fallbackCachedData) {
+            debugWarn('Offline request failed, serving stale cached fallback for:', cacheKey);
+            return fallbackCachedData;
+          }
+        } catch (cacheFallbackError) {
+          debugError('Cache fallback retrieval failed:', cacheFallbackError);
         }
-    })();
+      }
 
-    // Store the promise to enable deduplication
-    pendingRequests.set(requestKey, requestPromise);
+      throw requestError;
+    } finally {
+      // Remove from pending requests after completion
+      // An older request must not remove a newer forced refresh.
+      if (pendingRequests.get(requestKey) === requestPromise) {
+        pendingRequests.delete(requestKey);
+      }
+    }
+  })();
 
-    return requestPromise;
+  // Store the promise to enable deduplication
+  pendingRequests.set(requestKey, requestPromise);
+
+  return requestPromise;
 }
 
 /**
  * Main API object with HTTP methods
  */
 export const API = {
-    /**
+  /**
      * GET request with optional caching
      */
-    async get(endpoint, params = {}, cacheOptions = {}) {
-        const mergedCacheOptions = {
-            cacheKey: cacheOptions.cacheKey || buildApiCacheKey(endpoint, params),
-            ...cacheOptions
-        };
-        return makeApiRequestWithCache(endpoint, { params }, mergedCacheOptions);
-    },
+  async get(endpoint, params = {}, cacheOptions = {}) {
+    const mergedCacheOptions = {
+      cacheKey: cacheOptions.cacheKey || buildApiCacheKey(endpoint, params),
+      ...cacheOptions
+    };
+    return makeApiRequestWithCache(endpoint, { params }, mergedCacheOptions);
+  },
 
-    /**
+  /**
      * GET request without caching
      */
-    async getNoCache(endpoint, params = {}) {
-        return makeApiRequest(endpoint, { params, cacheBuster: true });
-    },
+  async getNoCache(endpoint, params = {}) {
+    return makeApiRequest(endpoint, { params, cacheBuster: true });
+  },
 
-    /**
+  /**
      * POST request
      */
-    async post(endpoint, body = {}, params = {}, options = {}) {
-        return makeApiRequest(endpoint, {
+  async post(endpoint, body = {}, params = {}, options = {}) {
+    return makeApiRequest(endpoint, {
       ...options,
-            method: 'POST',
-            body,
-            params
-        });
-    },
+      method: 'POST',
+      body,
+      params
+    });
+  },
 
-    /**
+  /**
      * PUT request
      */
-    async put(endpoint, body = {}, params = {}) {
-        return makeApiRequest(endpoint, {
-            method: 'PUT',
-            body,
-            params
-        });
-    },
+  async put(endpoint, body = {}, params = {}) {
+    return makeApiRequest(endpoint, {
+      method: 'PUT',
+      body,
+      params
+    });
+  },
 
-    /**
+  /**
      * PATCH request
      */
-    async patch(endpoint, body = {}, params = {}) {
-        return makeApiRequest(endpoint, {
-            method: 'PATCH',
-            body,
-            params
-        });
-    },
+  async patch(endpoint, body = {}, params = {}) {
+    return makeApiRequest(endpoint, {
+      method: 'PATCH',
+      body,
+      params
+    });
+  },
 
-    /**
+  /**
      * DELETE request
      *
      * Takes an optional body for the rare deletion that needs the caller to
      * confirm what they are destroying rather than just name it in the URL.
      */
-    async delete(endpoint, params = {}, body = null) {
-        return makeApiRequest(endpoint, {
-            method: 'DELETE',
-            params,
-            body
-        });
-    }
+  async delete(endpoint, params = {}, body = null) {
+    return makeApiRequest(endpoint, {
+      method: 'DELETE',
+      params,
+      body
+    });
+  }
 };
 
 /**
  * Batch API requests with concurrency control
  */
 export async function batchApiRequests(requests, concurrency = 3) {
-    const results = [];
+  const results = [];
 
-    for (let i = 0; i < requests.length; i += concurrency) {
-        const batch = requests.slice(i, i + concurrency);
-        const batchPromises = batch.map(request => {
-            const { endpoint, options } = request;
-            return makeApiRequest(endpoint, options);
-        });
+  for (let i = 0; i < requests.length; i += concurrency) {
+    const batch = requests.slice(i, i + concurrency);
+    const batchPromises = batch.map(request => {
+      const { endpoint, options } = request;
+      return makeApiRequest(endpoint, options);
+    });
 
-        const batchResults = await Promise.allSettled(batchPromises);
-        results.push(...batchResults);
-    }
+    const batchResults = await Promise.allSettled(batchPromises);
+    results.push(...batchResults);
+  }
 
-    return results;
+  return results;
 }
 
 /**
  * Error handling wrapper for functions
  */
 export function withErrorHandling(fn) {
-    return async function (...args) {
-        try {
-            return await fn.apply(this, args);
-        } catch (error) {
-            debugError(`Error in ${fn.name}:`, error);
+  return async function (...args) {
+    try {
+      return await fn.apply(this, args);
+    } catch (error) {
+      debugError(`Error in ${fn.name}:`, error);
 
-            // Optionally show user-friendly error messages
-            if (error.message.includes('401') || error.message.includes('Unauthorized')) {
-                debugWarn('Authentication required - redirecting to login');
-            }
+      // Optionally show user-friendly error messages
+      if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+        debugWarn('Authentication required - redirecting to login');
+      }
 
-            throw error;
-        }
-    };
+      throw error;
+    }
+  };
 }
 
 // Offline sync is handled by OfflineManager.syncPendingData(), which clears
