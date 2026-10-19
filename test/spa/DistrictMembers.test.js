@@ -285,6 +285,18 @@ describe('changes waiting to be sent', () => {
     view.destroy();
   });
 
+  test('removing a change keeps the roles a refresh already brought back', async () => {
+    const view = await openScreen([{ ...stuck, userId: 'u-parent', roleIds: [LEADER.id], baseRoleIds: [LEADER.id] }]);
+    // The refresh at opening shows the server's roles: Parent, not the change.
+    getUsers.mockRejectedValue(new Error('offline'));
+
+    app().querySelector('button[data-discard-queued="u-parent"]').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(view.users.find((user) => user.id === 'u-parent').role_ids).toEqual([PARENT.id]);
+    view.destroy();
+  });
+
   test('a second change for the same member keeps the roles the first one started from', async () => {
     const view = await openScreen();
 

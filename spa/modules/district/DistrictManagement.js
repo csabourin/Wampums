@@ -1565,9 +1565,10 @@ export class DistrictManagement {
   async discardQueuedChange(userId) {
     const user = this.users.find((candidate) => candidate.id === userId);
     const dropped = this.queuedChanges.find((change) => change.userId === userId);
-    // Put back the roles the change started from now, so the screen is right
-    // even when the reload below cannot reach the server.
-    if (user && Array.isArray(dropped?.baseRoleIds)) {
+    // While the member still shows the dropped change, put back the roles it
+    // started from now, so the screen is right even when the reload below
+    // cannot reach the server. Roles a refresh already brought back stay.
+    if (user && Array.isArray(dropped?.baseRoleIds) && this.hasSameRoles(dropped.roleIds, user.role_ids)) {
       this.applyOptimisticRoles(user, dropped.baseRoleIds);
       this.filteredUsers = this.getFilteredUsers();
     }
