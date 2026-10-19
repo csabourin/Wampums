@@ -7988,6 +7988,86 @@ details p {
   font-size: var(--font-size-sm);
 }
 
+.dm-user-children {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+}
+
+/* Deactivated accounts, folded below the active ones, across the whole grid. */
+.dm-inactive-accounts {
+  grid-column: 1 / -1;
+  margin-top: var(--space-md);
+}
+
+.dm-inactive-accounts > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--touch-target-min);
+  padding: 0 var(--space-sm);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.dm-inactive-accounts > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* The flex summary loses the native triangle: draw one that turns when open. */
+.dm-inactive-accounts > summary::before {
+  content: '';
+  width: 0.5em;
+  height: 0.5em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+}
+
+.dm-inactive-accounts[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dm-inactive-accounts > summary::before {
+    transition: transform 0.15s ease;
+  }
+}
+
+.dm-inactive-accounts > summary:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.dm-inactive-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.dm-queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.dm-queue-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dm-queue-item p {
+  margin: 0;
+}
+
 .dm-role-stack {
   display: flex;
   flex-wrap: wrap;
@@ -8006,6 +8086,7 @@ details p {
   margin-inline: -var(--space-md);
   box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: var(--space-sm);
@@ -8014,12 +8095,14 @@ details p {
 
 .dm-action-bar__left {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-sm);
   align-items: center;
 }
 
 .dm-action-bar__right {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-sm);
 }
 
@@ -8151,7 +8234,8 @@ details p {
     justify-content: space-between;
   }
 
-  .dm-user-list {
+  .dm-user-list,
+  .dm-inactive-list {
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   }
 

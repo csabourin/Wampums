@@ -4054,5 +4054,14 @@
   "ai_unavailable": "L’assistant IA n’est pas disponible pour le moment.",
   "ai_rate_limited": "L’assistant IA est occupé. Réessayez dans une minute.",
   "ai_service_error": "L’assistant IA n’a pas pu répondre. Réessayez.",
-  "announcement_groups_not_found": "La sélection parmi les {subgroup_plural} n’existe plus. Rechargez la page et choisissez de nouveau."
+  "announcement_groups_not_found": "La sélection parmi les {subgroup_plural} n’existe plus. Rechargez la page et choisissez de nouveau.",
+  "district_management_children": "Enfants : {names}",
+  "district_management_inactive_accounts": "Comptes désactivés ({count})",
+  "district_management_unknown_member": "Membre qui n’est plus dans la liste",
+  "district_management_queue_discard": "Retirer de la file",
+  "district_management_queue_discard_for": "Retirer de la file le changement pour {name}",
+  "district_management_queue_discarded": "Le changement pour {name} a été retiré de la file.",
+  "district_management_queue_reason_stale": "Les rôles ont changé depuis ce changement. Retirez-le, ou refaites-le.",
+  "district_management_queue_reason_other_unit": "Ce changement concerne une autre unité.",
+  "district_management_queue_reason_failed": "Ce changement n’a pas pu être enregistré."
 }

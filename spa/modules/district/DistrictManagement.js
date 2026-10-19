@@ -20,6 +20,7 @@ import { debugError } from '../../utils/DebugUtils.js';
 import { canAssignRoles, canViewRoles, hasPermission } from '../../utils/PermissionUtils.js';
 import { roleDescription, roleLabel } from '../../utils/RoleLabelUtils.js';
 import {
+  escapeAttribute,
   escapeHTML,
   sanitizeHTML,
   sanitizeURL,
@@ -37,6 +38,7 @@ import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { youthDisplayName } from '../../utils/DisplayNameUtils.js';
 const CACHE_KEY = 'district_management_state';
 const CACHE_DURATION = CONFIG.CACHE_DURATION.SHORT;
 const ADMIN_ROLES = ['district', 'unitadmin', 'demoadmin'];
@@ -86,6 +88,8 @@ export class DistrictManagement {
     this.loadingAuditUserId = null;
     this.savingUserId = null;
     this.formStatus = { type: '', message: '' };
+    // The deactivated accounts' section stays open or closed across renders.
+    this.inactiveExpanded = false;
     this.debouncedSearch = debounce((event) => {
       this.searchTerm = event.target.value || '';
       this.renderAndBind();
@@ -436,12 +440,13 @@ export class DistrictManagement {
 
     const queuedBadge =
       queuedCount > 0
-        ? `<div class="dm-queued" role="status">
-            <span class="chip chip--primary">${escapeHTML(queuedLabel)}</span>
+        ? `<section class="dm-queued" aria-labelledby="dm-queue-title">
+            <h2 id="dm-queue-title" class="dm-section-title" tabindex="-1">${escapeHTML(queuedLabel)}</h2>
+            <ul class="dm-queue-list">${this.queuedChanges.map((change) => this.renderQueuedChange(change)).join('')}</ul>
             <button id="dm-retry" class="button button--secondary" ${this.isOffline ? 'disabled' : ''}>
               ${translate('district_management_retry_sync')}
             </button>
-          </div>`
+          </section>`
         : '';
 
     const actionBar = `
@@ -613,51 +618,117 @@ export class DistrictManagement {
       return `<p class="muted-text">${translate('district_management_no_results')}</p>`;
     }
 
-    return this.filteredUsers
-      .map((user) => {
-        const roles = this.getUserRoles(user);
-        const roleBadges =
-          roles.length > 0
-            ? roles
-              .map(
-                (role) => `
-                    <span class="chip dm-role-chip" role="listitem">
-                      ${escapeHTML(roleLabel(role))}
-                    </span>
-                  `,
-              )
-              .join('')
-            : `<span class="chip">${translate('no_roles_assigned')}</span>`;
+    // Deactivated accounts wait at the bottom, folded, so the people the unit
+    // works with now are not lost among them.
+    const active = this.filteredUsers.filter((user) => user.status !== 'inactive');
+    const inactive = this.filteredUsers.filter((user) => user.status === 'inactive');
+    const inactiveSection = inactive.length
+      ? `<details class="dm-inactive-accounts" id="dm-inactive-accounts"${this.inactiveExpanded || this.searchTerm.trim() ? ' open' : ''}>
+          <summary>${escapeHTML(translate('district_management_inactive_accounts').replace('{count}', String(inactive.length)))}</summary>
+          <div class="dm-inactive-list">${inactive.map((user) => this.renderUserCard(user)).join('')}</div>
+        </details>`
+      : '';
 
-        const inactive = user.status === 'inactive';
-        const inactiveLabel = inactive
-          ? `<span class="status-pill dm-inactive-pill">${translate('member_access_inactive_badge')}</span>`
-          : '';
-        const cardName = inactive
-          ? `${user.full_name || user.email}, ${translate('member_access_inactive_badge')}`
-          : user.full_name || user.email;
+    return `${active.map((user) => this.renderUserCard(user)).join('')}${inactiveSection}`;
+  }
 
-        const queued = this.queuedChanges.find((item) => item.userId === user.id);
-        const queuedLabel = queued
-          ? `<span class="status-pill status-pill--pending">${translate('district_management_pending_sync')}</span>`
-          : '';
+  /**
+   * The names of the unit's children linked to a member, for telling parents apart.
+   *
+   * @param {Object} user - Member, with `children` from the API
+   * @returns {string} Names joined with commas; empty without children
+   */
+  childNames(user) {
+    const children = Array.isArray(user.children) ? user.children : [];
+    return children.map((child) => youthDisplayName(child)).filter(Boolean).join(', ');
+  }
 
-        return `
-          <button class="dm-user-card${inactive ? ' dm-user-card--inactive' : ''}" data-user-id="${user.id}" aria-label="${escapeHTML(cardName)}">
-            <div class="dm-card-header">
-              <div>
-                <p class="dm-user-name">${escapeHTML(user.full_name || user.email)}</p>
-                <p class="dm-user-email">${escapeHTML(user.email || '')}</p>
-              </div>
-              ${inactiveLabel}${queuedLabel}
-            </div>
-            <div class="dm-role-stack" role="list" aria-label="${translate('district_management_assigned_roles')}">
-              ${roleBadges}
-            </div>
-          </button>
-        `;
-      })
-      .join('');
+  /**
+   * One member, as a button opening their roles.
+   *
+   * @param {Object} user - Member
+   * @returns {string} HTML
+   */
+  renderUserCard(user) {
+    const roles = this.getUserRoles(user);
+    const roleBadges =
+      roles.length > 0
+        ? roles
+          .map(
+            (role) => `
+                <span class="chip dm-role-chip" role="listitem">
+                  ${escapeHTML(roleLabel(role))}
+                </span>
+              `,
+          )
+          .join('')
+        : `<span class="chip">${translate('no_roles_assigned')}</span>`;
+
+    const inactive = user.status === 'inactive';
+    const inactiveLabel = inactive
+      ? `<span class="status-pill dm-inactive-pill">${translate('member_access_inactive_badge')}</span>`
+      : '';
+    const children = this.childNames(user);
+    const childrenLine = children
+      ? `<p class="dm-user-children">${escapeHTML(translate('district_management_children').replace('{names}', children))}</p>`
+      : '';
+    const cardName = [
+      user.full_name || user.email,
+      inactive ? translate('member_access_inactive_badge') : '',
+      children ? translate('district_management_children').replace('{names}', children) : '',
+    ].filter(Boolean).join(', ');
+
+    const queued = this.queuedChanges.find((item) => item.userId === user.id);
+    const queuedLabel = queued
+      ? `<span class="status-pill status-pill--pending">${translate('district_management_pending_sync')}</span>`
+      : '';
+
+    return `
+      <button class="dm-user-card${inactive ? ' dm-user-card--inactive' : ''}" data-user-id="${escapeAttribute(user.id)}" aria-label="${escapeAttribute(cardName)}">
+        <div class="dm-card-header">
+          <div>
+            <p class="dm-user-name">${escapeHTML(user.full_name || user.email)}</p>
+            <p class="dm-user-email">${escapeHTML(user.email || '')}</p>
+            ${childrenLine}
+          </div>
+          ${inactiveLabel}${queuedLabel}
+        </div>
+        <div class="dm-role-stack" role="list" aria-label="${translate('district_management_assigned_roles')}">
+          ${roleBadges}
+        </div>
+      </button>
+    `;
+  }
+
+  /**
+   * A change waiting to be sent, with the way to drop it.
+   *
+   * @param {Object} change - Queued change
+   * @returns {string} HTML
+   */
+  renderQueuedChange(change) {
+    const user = this.users.find((candidate) => candidate.id === change.userId);
+    const name = user?.full_name || user?.email || translate('district_management_unknown_member');
+    const roles = this.describeSelectedBundles(change.roleIds || []).join(', ')
+      || translate('no_roles_assigned');
+    const reasonKey = {
+      stale: 'district_management_queue_reason_stale',
+      organization_mismatch: 'district_management_queue_reason_other_unit',
+    }[change.reason] || (change.reason ? 'district_management_queue_reason_failed' : '');
+    const discardLabel = translate('district_management_queue_discard_for').replace('{name}', name);
+    return `
+      <li class="dm-queue-item">
+        <div>
+          <p class="dm-user-name">${escapeHTML(name)}</p>
+          <p class="dm-helper">${escapeHTML(roles)}</p>
+          ${reasonKey ? `<p class="dm-helper">${escapeHTML(translate(reasonKey))}</p>` : ''}
+        </div>
+        <button type="button" class="button button--small button--secondary" data-discard-queued="${escapeAttribute(change.userId)}"
+          aria-label="${escapeAttribute(discardLabel)}">
+          ${translate('district_management_queue_discard')}
+        </button>
+      </li>
+    `;
   }
 
   /**
@@ -999,6 +1070,14 @@ export class DistrictManagement {
     const retryButton = document.getElementById('dm-retry');
     retryButton?.addEventListener('click', () => this.retryQueuedChanges());
 
+    document.querySelectorAll('[data-discard-queued]').forEach((button) => {
+      button.addEventListener('click', () => this.discardQueuedChange(button.dataset.discardQueued));
+    });
+
+    document.getElementById('dm-inactive-accounts')?.addEventListener('toggle', (event) => {
+      this.inactiveExpanded = event.target.open;
+    });
+
     document.querySelectorAll('.dm-bundle-checkbox').forEach((checkbox) => {
       checkbox.addEventListener('change', (event) => {
         const roleId = parseInt(event.target.getAttribute('data-role-id'), 10);
@@ -1061,7 +1140,8 @@ export class DistrictManagement {
       const matchesSearch =
         !term ||
         (user.full_name || '').toLowerCase().includes(term) ||
-        (user.email || '').toLowerCase().includes(term);
+        (user.email || '').toLowerCase().includes(term) ||
+        this.childNames(user).toLowerCase().includes(term);
 
       const matchesFilter =
         this.activeRoleFilters.size === 0 ||
@@ -1362,7 +1442,7 @@ export class DistrictManagement {
     } catch (error) {
       debugError('district_management: save failed', error);
       this.rollbackRoles(user, previousRoleIds);
-      this.queueChange(user.id, selectedRoleIds, error?.message);
+      this.queueChange(user.id, selectedRoleIds, 'error', previousRoleIds);
       this.formStatus = { type: 'error', message: apiErrorMessage(error, 'district_management_assignment_failed') };
       this.recordLocalAuditEntry(user.id, selectedRoleIds, 'error');
       this.userMeta[user.id] = {
@@ -1391,7 +1471,7 @@ export class DistrictManagement {
       return;
     }
     const selectedRoleIds = Array.from(this.selectedRoleIds);
-    this.queueChange(user.id, selectedRoleIds, null);
+    this.queueChange(user.id, selectedRoleIds, null, user.role_ids || []);
     this.applyOptimisticRoles(user, selectedRoleIds);
     this.filteredUsers = this.getFilteredUsers();
     await this.persistCache();
@@ -1399,10 +1479,20 @@ export class DistrictManagement {
     this.closeModal();
   }
 
-  queueChange(userId, roleIds, reason = null) {
+  /**
+   * Keep a role change to send later.
+   *
+   * @param {string} userId - Member
+   * @param {number[]} roleIds - Roles to give them
+   * @param {string|null} reason - Why it waits: null, 'error', 'stale', 'organization_mismatch'
+   * @param {number[]} baseRoleIds - Their roles when the change was made, so a
+   *   retry can tell whether someone changed them since
+   */
+  queueChange(userId, roleIds, reason = null, baseRoleIds = []) {
     const change = {
       userId,
       roleIds,
+      baseRoleIds: [...baseRoleIds],
       auditNote: this.auditNote.trim(),
       createdAt: Date.now(),
       lastSyncedAt: this.lastSyncedAt,
@@ -1443,7 +1533,48 @@ export class DistrictManagement {
   }
 
   /**
-   * Attempt to reapply queued updates, respecting newer sync timestamps to avoid overwriting fresh data.
+   * Whether two sets of role ids are the same. A change queued before the
+   * roles it started from were recorded has nothing to compare: it counts as
+   * stale, to be sent again or dropped by a person.
+   *
+   * @param {number[]|undefined} before - Roles when the change was queued
+   * @param {number[]} now - Roles now
+   * @returns {boolean} True when they match
+   */
+  hasSameRoles(before, now = []) {
+    if (!Array.isArray(before)) {
+      return false;
+    }
+    const current = new Set(now);
+    return before.length === current.size && before.every((id) => current.has(id));
+  }
+
+  /**
+   * Drop a waiting change. The member's roles are reloaded from the server,
+   * which undoes what the screen showed in advance.
+   *
+   * @param {string} userId - Member whose change to drop
+   * @returns {Promise<void>}
+   */
+  async discardQueuedChange(userId) {
+    const user = this.users.find((candidate) => candidate.id === userId);
+    this.queuedChanges = this.queuedChanges.filter((change) => change.userId !== userId);
+    await this.persistCache();
+    this.app.showMessage(
+      translate('district_management_queue_discarded')
+        .replace('{name}', user?.full_name || user?.email || translate('district_management_unknown_member')),
+      'success',
+    );
+    await this.refreshData(true);
+    if (this.destroyed) {
+      return;
+    }
+    const next = document.getElementById(this.queuedChanges.length ? 'dm-queue-title' : 'dm-refresh');
+    next?.focus();
+  }
+
+  /**
+   * Attempt to reapply queued updates, unless the member's roles changed since.
    */
   async retryQueuedChanges() {
     if (!this.queuedChanges.length) {
@@ -1472,8 +1603,10 @@ export class DistrictManagement {
         continue;
       }
 
-      const lastSynced = this.userMeta[user.id]?.lastSyncedAt || 0;
-      if (lastSynced > change.createdAt) {
+      // Stale only when the member's roles changed since the change was made.
+      // Comparing sync times made every change stale: the refresh above
+      // marks every member as just synced, so none could ever be sent.
+      if (!this.hasSameRoles(change.baseRoleIds, user.role_ids)) {
         remaining.push({ ...change, reason: 'stale' });
         staleCount += 1;
         continue;

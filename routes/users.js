@@ -164,7 +164,20 @@ module.exports = (pool, logger) => {
             FROM roles r
             WHERE r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)),
            '[]'::json
-         ) as roles
+         ) as roles,
+         -- The unit's children this account can see, so a parent can be told
+         -- apart from another with a similar name.
+         COALESCE(
+           (SELECT json_agg(json_build_object('id', p.id, 'first_name', p.first_name, 'last_name', p.last_name,
+                                              'nickname', p.nickname)
+                            ORDER BY p.first_name, p.last_name)
+            FROM user_participants up
+            JOIN participants p ON p.id = up.participant_id
+            WHERE up.user_id = u.id
+              AND EXISTS (SELECT 1 FROM participant_enrollments pe
+                           WHERE pe.participant_id = p.id AND pe.organization_id = $1)),
+           '[]'::json
+         ) as children
        FROM users u
        JOIN user_organizations uo ON u.id = uo.user_id
        WHERE uo.organization_id = $1
