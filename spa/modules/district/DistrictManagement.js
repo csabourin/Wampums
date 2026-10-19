@@ -1489,10 +1489,13 @@ export class DistrictManagement {
    *   retry can tell whether someone changed them since
    */
   queueChange(userId, roleIds, reason = null, baseRoleIds = []) {
+    // A change replacing one still waiting starts from the same server roles:
+    // the screen's roles meanwhile showed the first change, not the server.
+    const waiting = this.queuedChanges.find((item) => item.userId === userId);
     const change = {
       userId,
       roleIds,
-      baseRoleIds: [...baseRoleIds],
+      baseRoleIds: [...(waiting?.baseRoleIds || baseRoleIds)],
       auditNote: this.auditNote.trim(),
       createdAt: Date.now(),
       lastSyncedAt: this.lastSyncedAt,
@@ -1550,14 +1553,21 @@ export class DistrictManagement {
   }
 
   /**
-   * Drop a waiting change. The member's roles are reloaded from the server,
-   * which undoes what the screen showed in advance.
+   * Drop a waiting change. The member gets back the roles it started from,
+   * then their roles are reloaded from the server.
    *
    * @param {string} userId - Member whose change to drop
    * @returns {Promise<void>}
    */
   async discardQueuedChange(userId) {
     const user = this.users.find((candidate) => candidate.id === userId);
+    const dropped = this.queuedChanges.find((change) => change.userId === userId);
+    // Put back the roles the change started from now, so the screen is right
+    // even when the reload below cannot reach the server.
+    if (user && Array.isArray(dropped?.baseRoleIds)) {
+      this.applyOptimisticRoles(user, dropped.baseRoleIds);
+      this.filteredUsers = this.getFilteredUsers();
+    }
     this.queuedChanges = this.queuedChanges.filter((change) => change.userId !== userId);
     await this.persistCache();
     this.app.showMessage(

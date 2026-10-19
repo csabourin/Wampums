@@ -265,6 +265,38 @@ describe('changes waiting to be sent', () => {
     view.destroy();
   });
 
+  test('removing one puts back the member\'s roles even when the server cannot be reached', async () => {
+    const view = await openScreen([{ ...stuck, userId: 'u-parent', baseRoleIds: [PARENT.id] }]);
+    view.applyOptimisticRoles(view.users.find((user) => user.id === 'u-parent'), [LEADER.id]);
+    getUsers.mockRejectedValue(new Error('offline'));
+
+    app().querySelector('button[data-discard-queued="u-parent"]').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(view.users.find((user) => user.id === 'u-parent').role_ids).toEqual([PARENT.id]);
+    expect(setCachedData).toHaveBeenCalledWith(
+      'district_management_state',
+      expect.objectContaining({
+        queuedChanges: [],
+        users: expect.arrayContaining([expect.objectContaining({ id: 'u-parent', role_ids: [PARENT.id] })]),
+      }),
+      1,
+    );
+    view.destroy();
+  });
+
+  test('a second change for the same member keeps the roles the first one started from', async () => {
+    const view = await openScreen();
+
+    view.queueChange('u-parent', [LEADER.id], null, [PARENT.id]);
+    view.queueChange('u-parent', [LEADER.id, PARENT.id], null, [LEADER.id]);
+
+    expect(view.queuedChanges).toEqual([
+      expect.objectContaining({ roleIds: [LEADER.id, PARENT.id], baseRoleIds: [PARENT.id] }),
+    ]);
+    view.destroy();
+  });
+
   test('a change is sent when the member\'s roles have not changed since it was made', async () => {
     const view = await openScreen([{ ...stuck, userId: 'u-parent', reason: 'error', baseRoleIds: [PARENT.id] }]);
 
