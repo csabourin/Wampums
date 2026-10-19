@@ -317,6 +317,13 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
     ].sort());
   });
 
+  test('writing to the parents reaches a family account whatever its role is called', async () => {
+    const recipients = await buildRecipientsForTests(pool, ids.unit, ['parent'], [], 'members');
+
+    expect(recipients.emails).toEqual(expect.arrayContaining([emails['parent-red'], emails['parent-blue']]));
+    expect(recipients.emails).not.toContain(emails.leader);
+  });
+
   test('a leader can send a message to one den without ticking a role', async () => {
     const response = await request(app).post('/api/v1/announcements').send({
       subject: 'Sortie',
