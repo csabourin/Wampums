@@ -138,6 +138,10 @@ describe('Badge tracker backlog', () => {
     expect(modal.isConnected).toBe(true);
     expect(tracker.loadData).not.toHaveBeenCalled();
     expect(tracker.showToast).toHaveBeenCalledWith('offline.savedLocally', 'info');
+    // The queued snapshot cannot be edited, so nothing ticked now would be lost on replay.
+    expect(modal.querySelector('input[value="5:2"]').disabled).toBe(true);
+    expect(modal.querySelector('button[form="badge-history-form"]').disabled).toBe(true);
+    expect(document.activeElement).toBe(modal.querySelector('[data-modal-close]'));
 
     window.dispatchEvent(new CustomEvent('offlineMutationReplayed', {
       detail: { url: '/api/v1/badges/history', method: 'POST', mutationId: 'mutation-other' }
@@ -318,5 +322,20 @@ describe('Badge tracker backlog', () => {
       expect(overlay.isConnected).toBe(true);
       expect(overlay.querySelector('input[value="5:2"]').checked).toBe(true);
     });
+  });
+
+  test('offers only the badges of the youth\'s section, and general ones', () => {
+    tracker.canManage = true;
+    tracker.participants = [{ id: ON_ROSTER_ID, first_name: 'Alix', last_name: 'Tremblay', section: 'louveteaux' }];
+    tracker.templates = [
+      { id: TEMPLATE_ID, name: 'Akela', section: 'louveteaux', level_count: 1 },
+      { id: 6, name: 'Campfire', section: 'general', level_count: 1 },
+      { id: 7, name: 'Kayak', section: 'eclaireurs', level_count: 1 },
+    ];
+
+    tracker.openBadgeHistoryModal(ON_ROSTER_ID);
+    const values = Array.from(document.querySelectorAll('#badge-history-modal input[name="level"]')).map((input) => input.value);
+
+    expect(values).toEqual(['5:1', '6:1']);
   });
 });

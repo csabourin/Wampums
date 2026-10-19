@@ -1250,6 +1250,8 @@ export class BadgeTracker {
   openBadgeHistoryModal(participantId) {
     const participant = this.participants.find((p) => p.id === participantId);
     if (!participant || !this.canManage) {return;}
+    // POST /badges/history refuses a badge of another section, as a youth without a den is in 'general'.
+    const participantSection = participant.section || 'general';
     const existingByTemplate = new Map();
     this.badges.filter((badge) => badge.participant_id === participantId)
       .forEach((badge) => {
@@ -1277,7 +1279,7 @@ export class BadgeTracker {
           </div>
           <fieldset class="form-group badge-tracker__fieldset">
             <legend class="form-label">${translate('badge_history_levels')}</legend>
-            ${this.templates.map((template) => {
+            ${this.templates.filter((template) => this.isTemplateForSection(template, participantSection)).map((template) => {
     const existing = existingByTemplate.get(template.id) || new Set();
     const levels = this.getTemplateLevelCount(template);
     const levelOptions = Array.from({ length: levels }, (_, index) => {
@@ -1320,7 +1322,10 @@ export class BadgeTracker {
         saving = false;
         if (result?.queued) {
           this.showToast(translate('offline.savedLocally'), 'info');
-          submit.disabled = false;
+          // The queued request is a snapshot: freeze the form so nothing ticked
+          // afterwards is lost when the replay closes it.
+          form.querySelectorAll('input, select').forEach((control) => { control.disabled = true; });
+          overlay.querySelector('[data-modal-close]')?.focus();
           this.awaitHistoryReplay(result.mutationId, closeDialog, entries.length);
           return;
         }
@@ -1336,6 +1341,16 @@ export class BadgeTracker {
         submit.disabled = false;
       }
     });
+  }
+
+  /**
+   * Whether a badge may be recorded for a youth of this section (same rule as the server).
+   * @param {Object} template - Badge template
+   * @param {string} participantSection - The youth's section, 'general' without a den
+   * @returns {boolean}
+   */
+  isTemplateForSection(template, participantSection) {
+    return !template.section || template.section === 'general' || template.section === participantSection;
   }
 
   /**
