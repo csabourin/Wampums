@@ -12558,3 +12558,18 @@ ALTER TABLE ONLY public.year_plans
 
 \unrestrict qILYfGSeqbVL9GAwjX5rViFL6UuA0Pk5YfJHVxeefgPs3zlKb1J3pY3La249X7r
 
+
+-- Role definition history (migration 036).
+CREATE TABLE IF NOT EXISTS public.role_permission_audit (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  changed_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  role_id INTEGER REFERENCES public.roles(id) ON DELETE SET NULL,
+  previous_state JSONB,
+  new_state JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_role_permission_audit_unit
+  ON public.role_permission_audit (organization_id, created_at DESC);
+COMMENT ON TABLE public.role_permission_audit IS
+  'Role definition snapshots, including permission keys, scope, name and description, before and after each mutation.';
