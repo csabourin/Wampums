@@ -18,6 +18,7 @@ const WEBHOOK_SECRET = 'whsec_test_signature_suite';
 const STRIPE_KEY = 'sk_test_signature_suite';
 const PAYMENT_INTENT_ID = 'pi_signature_suite';
 const FEE_ID = 42;
+const ORG_ID = 1;
 
 jest.mock('stripe', () => {
   const Stripe = jest.requireActual('stripe');
@@ -73,7 +74,11 @@ afterAll((done) => {
 beforeEach(() => {
   const { __mClient } = require('pg');
   __mClient.query.mockReset();
-  __mClient.query.mockImplementation((sql) => {
+  __mClient.query.mockImplementation((sql, params) => {
+    if (/FROM participant_fees WHERE id = \$1 AND organization_id = \$2 FOR UPDATE/.test(sql)) {
+      const inUnit = String(params[0]) === String(FEE_ID) && String(params[1]) === String(ORG_ID);
+      return Promise.resolve({ rows: inUnit ? [{ id: FEE_ID }] : [] });
+    }
     if (/INSERT INTO payments/.test(sql)) {
       return Promise.resolve({ rows: [{ id: 7 }] });
     }
@@ -115,7 +120,7 @@ describe('POST /api/v1/stripe/webhook', () => {
           amount: 5000,
           currency: 'cad',
           payment_method: 'pm_test',
-          metadata: { participant_fee_id: String(FEE_ID), participant_id: '3', organization_id: '1' },
+          metadata: { participant_fee_id: String(FEE_ID), participant_id: '3', organization_id: String(ORG_ID) },
         },
       },
     });
@@ -138,15 +143,34 @@ describe('POST /api/v1/stripe/webhook', () => {
           id: PAYMENT_INTENT_ID,
           amount: 5000,
           currency: 'cad',
-          metadata: { participant_fee_id: String(FEE_ID) },
+          metadata: { participant_fee_id: String(FEE_ID), organization_id: String(ORG_ID) },
         },
       },
     });
 
     const sql = clientSql();
-    const lock = sql.findIndex((s) => /FROM participant_fees WHERE id = \$1 FOR UPDATE/.test(s));
+    const lock = sql.findIndex((s) => /FROM participant_fees WHERE id = \$1 AND organization_id = \$2 FOR UPDATE/.test(s));
     const duplicateCheck = sql.findIndex((s) => /FROM payments WHERE stripe_payment_intent_id = \$1/.test(s));
     expect(lock).toBeGreaterThan(-1);
     expect(lock).toBeLessThan(duplicateCheck);
+  });
+
+  test('a payment naming a fee outside its unit is not recorded', async () => {
+    const res = await sendSigned({
+      id: 'evt_wrong_unit',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: PAYMENT_INTENT_ID,
+          amount: 5000,
+          currency: 'cad',
+          metadata: { participant_fee_id: String(FEE_ID), organization_id: '999' },
+        },
+      },
+    });
+
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(clientSql().some((s) => /INSERT INTO payments/.test(s))).toBe(false);
+    expect(clientSql()).toContain('ROLLBACK');
   });
 });

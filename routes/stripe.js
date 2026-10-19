@@ -232,10 +232,14 @@ async function handlePaymentSuccess(paymentIntent, pool, logger) {
 
     // Stripe may deliver the same event twice at once. Locking the fee makes
     // the second delivery wait, then find the payment the first one recorded.
-    await client.query(
-      'SELECT id FROM participant_fees WHERE id = $1 FOR UPDATE',
-      [participant_fee_id]
+    // The fee must belong to the unit the payment was made for.
+    const lockedFee = await client.query(
+      'SELECT id FROM participant_fees WHERE id = $1 AND organization_id = $2 FOR UPDATE',
+      [metadata.participant_fee_id, metadata.organization_id]
     );
+    if (lockedFee.rows.length === 0) {
+      throw new Error(`No fee ${metadata.participant_fee_id} in organization ${metadata.organization_id} for PaymentIntent ${paymentIntentId}`);
+    }
 
     // Check if payment already recorded
     const existingPayment = await client.query(
