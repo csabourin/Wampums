@@ -2,12 +2,13 @@
 // Responsive editor for the per-day programme of a multi-day planner block.
 import { translate } from '../../app.js';
 import { BaseModule } from '../../utils/BaseModule.js';
-import { setContent } from '../../utils/DOMUtils.js';
+import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import {
   getMeetingSchedule,
   updateMeetingDay,
@@ -51,7 +52,7 @@ export class CampSchedule extends BaseModule {
     this.modal = openModal({
       id: 'yp-camp-schedule',
       title: escapeHTML(translate('yearly_planner_camp_schedule')),
-      body: '<div class="loading-spinner" role="status"></div>',
+      body: `<div class="loading-spinner" role="status"><span class="sr-only">${escapeHTML(translate('loading'))}</span></div>`,
       footer: `<button type="button" class="button button--secondary" data-modal-close>${escapeHTML(translate('close'))}</button>`,
       onClose: () => {
         this.destroy();
@@ -73,7 +74,7 @@ export class CampSchedule extends BaseModule {
       this.render();
     } catch (err) {
       debugError('Error loading camp schedule:', err);
-      this.app.showMessage(translate('yearly_planner_schedule_load_error'), 'error');
+      this.app.showMessage(apiErrorMessage(err, 'yearly_planner_schedule_load_error'), 'error');
       this.modal?.close();
     }
   }
@@ -254,7 +255,7 @@ export class CampSchedule extends BaseModule {
       await this.reload();
     } catch (err) {
       debugError('Error saving camp day:', err);
-      this.app.showMessage(translate('yearly_planner_error_saving'), 'error');
+      this.app.showMessage(apiErrorMessage(err, 'yearly_planner_error_saving'), 'error');
     }
   }
 
@@ -267,43 +268,71 @@ export class CampSchedule extends BaseModule {
       id: 'yp-schedule-activity',
       title: escapeHTML(translate('add_activity')),
       body: `
-        <div class="yp-schedule-form">
+        <form class="yp-schedule-form" id="yp-schedule-new-form" novalidate>
           <label class="form-group"><span>${escapeHTML(translate('time'))}</span><input type="time" id="yp-schedule-new-time" value="${suggestedTime}"></label>
-          <label class="form-group"><span>${escapeHTML(translate('activity_label'))}</span><input type="text" id="yp-schedule-new-name" maxlength="255" required></label>
+          <label class="form-group"><span>${escapeHTML(translate('activity_label'))}</span><input type="text" id="yp-schedule-new-name" maxlength="255" required aria-required="true"></label>
+          <p class="field-error" id="yp-schedule-new-name-error" role="alert" hidden></p>
           <label class="form-group"><span>${escapeHTML(translate('duration_minutes'))}</span><input type="number" id="yp-schedule-new-duration" min="1" max="1440"></label>
           <label class="form-group"><span>${escapeHTML(translate('yearly_planner_responsible'))}</span><input type="text" id="yp-schedule-new-responsible" maxlength="255"></label>
           <label class="form-group"><span>${escapeHTML(translate('yearly_planner_material'))}</span><textarea id="yp-schedule-new-material" rows="2"></textarea></label>
-        </div>
+        </form>
       `,
       footer: `
         <button type="button" class="button button--secondary" data-modal-close>${escapeHTML(translate('cancel'))}</button>
-        <button type="button" class="button button--primary" id="yp-schedule-create">${escapeHTML(translate('save'))}</button>
+        <button type="submit" form="yp-schedule-new-form" class="button button--primary" id="yp-schedule-create">${escapeHTML(translate('save'))}</button>
       `
     });
-    modal.overlay.querySelector('#yp-schedule-create')?.addEventListener('click', async () => {
-      const name = modal.overlay.querySelector('#yp-schedule-new-name')?.value.trim();
+    const form = modal.overlay.querySelector('#yp-schedule-new-form');
+    const nameInput = modal.overlay.querySelector('#yp-schedule-new-name');
+    const nameError = modal.overlay.querySelector('#yp-schedule-new-name-error');
+    const clearNameError = () => {
+      nameError.hidden = true;
+      nameError.textContent = '';
+      nameInput.removeAttribute('aria-invalid');
+      nameInput.removeAttribute('aria-describedby');
+    };
+    nameInput.addEventListener('input', clearNameError);
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const name = nameInput.value.trim();
       if (!name) {
-        this.app.showMessage(translate('plan_fields_required'), 'error');
+        nameError.textContent = translate('plan_fields_required');
+        nameError.hidden = false;
+        nameInput.setAttribute('aria-invalid', 'true');
+        nameInput.setAttribute('aria-describedby', nameError.id);
+        nameInput.focus();
         return;
       }
-      try {
-        await addMeetingActivity(this.chip.meetingId, {
-          day_offset: this.dayOffset,
-          sort_order: position,
-          start_time: modal.overlay.querySelector('#yp-schedule-new-time')?.value || null,
-          name,
-          duration_minutes: parseInt(modal.overlay.querySelector('#yp-schedule-new-duration')?.value, 10) || null,
-          responsable: modal.overlay.querySelector('#yp-schedule-new-responsible')?.value.trim() || null,
-          material: modal.overlay.querySelector('#yp-schedule-new-material')?.value.trim() || null
-        });
-        modal.close();
-        this.changed = true;
-        await this.reload();
-      } catch (err) {
-        debugError('Error adding camp activity:', err);
-        this.app.showMessage(translate('yearly_planner_error_saving'), 'error');
-      }
+      withFormBusy(form, () => this.createActivity(modal, position, name));
     });
+  }
+
+  /**
+   * Save the activity the add form describes, then reload the day.
+   *
+   * @param {{overlay: HTMLElement, close: Function}} modal - The add form's dialog
+   * @param {number} position - Where the activity goes in the day
+   * @param {string} name - Its name, already checked
+   * @returns {Promise<void>}
+   */
+  async createActivity(modal, position, name) {
+    try {
+      await addMeetingActivity(this.chip.meetingId, {
+        day_offset: this.dayOffset,
+        sort_order: position,
+        start_time: modal.overlay.querySelector('#yp-schedule-new-time')?.value || null,
+        name,
+        duration_minutes: parseInt(modal.overlay.querySelector('#yp-schedule-new-duration')?.value, 10) || null,
+        responsable: modal.overlay.querySelector('#yp-schedule-new-responsible')?.value.trim() || null,
+        material: modal.overlay.querySelector('#yp-schedule-new-material')?.value.trim() || null
+      });
+      modal.close();
+      this.changed = true;
+      await this.reload();
+    } catch (err) {
+      debugError('Error adding camp activity:', err);
+      this.app.showMessage(apiErrorMessage(err, 'yearly_planner_error_saving'), 'error');
+    }
   }
 
   async saveActivity(activityId) {
@@ -329,7 +358,7 @@ export class CampSchedule extends BaseModule {
       await this.reload();
     } catch (err) {
       debugError('Error updating camp activity:', err);
-      this.app.showMessage(translate('yearly_planner_error_saving'), 'error');
+      this.app.showMessage(apiErrorMessage(err, 'yearly_planner_error_saving'), 'error');
     }
   }
 
@@ -347,7 +376,7 @@ export class CampSchedule extends BaseModule {
       await this.reload();
     } catch (err) {
       debugError('Error deleting camp activity:', err);
-      this.app.showMessage(translate('yearly_planner_error_deleting'), 'error');
+      this.app.showMessage(apiErrorMessage(err, 'yearly_planner_error_deleting'), 'error');
     }
   }
 
@@ -363,7 +392,7 @@ export class CampSchedule extends BaseModule {
       await this.reload();
     } catch (err) {
       debugError('Error copying camp schedule:', err);
-      this.app.showMessage(translate('yearly_planner_schedule_copy_error'), 'error');
+      this.app.showMessage(apiErrorMessage(err, 'yearly_planner_schedule_copy_error'), 'error');
     }
   }
 }

@@ -3558,6 +3558,7 @@
   "alumni_consent_already": "You are already on this list. Nothing to do.",
   "alumni_consent_membership_active": "Your account is active again, so there is nothing to accept.",
   "alumni_consent_invalid": "This link is no longer valid. It may have expired.",
+  "alumni_link_unreachable": "We could not reach your unit. Check your connection and try again.",
   "alumni_unsubscribe_page_title": "Unsubscribe",
   "alumni_unsubscribe_done": "Done. You will not receive any further messages from us.",
   "alumni_audience": "Audience",

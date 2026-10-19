@@ -162,7 +162,7 @@ function renderSheetStatus(chip) {
       <li>
         <i class="fas fa-file-signature" aria-hidden="true"></i>
         ${escapeHTML(translate('yearly_planner_consent_signed'))}:
-        <strong>${chip.consent.signed}/${chip.consent.total}</strong>
+        <strong>${Number(chip.consent.signed) || 0}/${Number(chip.consent.total) || 0}</strong>
         <a href="/permission-slips">${escapeHTML(translate('view'))}</a>
       </li>
     `);
@@ -172,8 +172,8 @@ function renderSheetStatus(chip) {
       <li>
         <i class="fas fa-car" aria-hidden="true"></i>
         ${escapeHTML(translate('yearly_planner_transport_offers'))}:
-        <strong>${chip.carpool.offers}</strong>
-        <a href="/carpool/${chip.activityId}">${escapeHTML(translate('view'))}</a>
+        <strong>${Number(chip.carpool.offers) || 0}</strong>
+        <a href="/carpool/${Number(chip.activityId)}">${escapeHTML(translate('view'))}</a>
       </li>
     `);
   }
