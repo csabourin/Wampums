@@ -317,6 +317,10 @@ describe.skipIf(!DATABASE_URL)('Family links', () => {
       `DELETE FROM guardian_users
         WHERE guardian_id IN (SELECT id FROM parents_guardians WHERE courriel LIKE '%@family-links.example.org')`
     );
+    await pool.query(
+      `DELETE FROM participant_guardians
+        WHERE guardian_id IN (SELECT id FROM parents_guardians WHERE courriel LIKE '%@family-links.example.org')`
+    );
     await pool.query("DELETE FROM parents_guardians WHERE courriel LIKE '%@family-links.example.org'");
     await pool.query("DELETE FROM users WHERE email LIKE '%@family-links.example.org'");
 
@@ -406,6 +410,23 @@ describe.skipIf(!DATABASE_URL)('Family links', () => {
     expect(await one('SELECT user_uuid FROM parents_guardians WHERE courriel = $1', ['new.coparent@family-links.example.org']))
       .toBe(newId);
     expect(await sees(newId, ids.aliceChild)).toBe(true);
+  });
+
+  test('a co-parent who joins through a link is among the shared child\'s guardians', async () => {
+    const token = await askToLink(ids.a.id, 'guardian.coparent@family-links.example.org');
+
+    await accept(token, { first_name: 'Gabriel', last_name: 'Roy', password: GOOD_PASSWORD });
+
+    // Access alone left the second parent off the child's file and listed them
+    // under "unknown child" in the unit's mailing list.
+    const guardians = await pool.query(
+      `SELECT pg.courriel
+         FROM participant_guardians rel
+         JOIN parents_guardians pg ON pg.id = rel.guardian_id
+        WHERE rel.participant_id = $1`,
+      [ids.aliceChild]
+    );
+    expect(guardians.rows.map((row) => row.courriel)).toContain('guardian.coparent@family-links.example.org');
   });
 
   test('declining shares nothing, and the link cannot be accepted afterwards', async () => {

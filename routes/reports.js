@@ -168,10 +168,18 @@ module.exports = (pool, _logger) => {
       return acc;
     }, {});
 
-    // Guardian emails linked to participants in the current organization
+    // Family addresses, each with the children on the year's roster it belongs to.
+    //
+    // A family is known two ways, and both count. A guardian contact record is
+    // tied to a child through participant_guardians; a family account is tied
+    // to a child through user_participants. A second parent who joined through a
+    // family link, or whose contact record carries another address than their
+    // login, has the second tie only. Reading the contact records alone listed
+    // that parent under the right child (through the address the first parent
+    // typed) and again, by their own login, under "unknown child".
     const guardianEmailsResult = await pool.query(
       `WITH guardian_children AS (
-           SELECT DISTINCT LOWER(pg.courriel) AS email,
+           SELECT DISTINCT LOWER(TRIM(pg.courriel)) AS email,
                   p.first_name || ' ' || p.last_name AS participant_name
            FROM parents_guardians pg
            JOIN participant_guardians pg_rel ON pg_rel.guardian_id = pg.id
@@ -180,7 +188,27 @@ module.exports = (pool, _logger) => {
            JOIN participants p ON p.id = pg_rel.participant_id
            WHERE po.organization_id = $1
              AND pg.courriel IS NOT NULL
-             AND pg.courriel <> ''
+             AND TRIM(pg.courriel) <> ''
+           UNION
+           SELECT LOWER(TRIM(u.email)) AS email,
+                  p.first_name || ' ' || p.last_name AS participant_name
+           FROM user_organizations uo
+           JOIN users u ON u.id = uo.user_id
+           JOIN user_participants up ON up.user_id = u.id
+           JOIN participant_enrollments po ON po.participant_id = up.participant_id
+             AND po.organization_id = $1
+             AND po.scout_year_id = $2 AND po.status = ANY($3::text[])
+           JOIN participants p ON p.id = up.participant_id
+           WHERE uo.organization_id = $1
+             AND uo.status = 'active'
+             AND u.email IS NOT NULL
+             AND TRIM(u.email) <> ''
+             AND EXISTS (
+               SELECT 1
+                 FROM roles r
+                WHERE r.id IN (SELECT jsonb_array_elements_text(uo.role_ids)::integer)
+                  AND r.data_scope = 'linked'
+             )
          )
          SELECT email,
                 string_agg(participant_name, ', ' ORDER BY participant_name) AS participants

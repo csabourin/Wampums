@@ -2126,13 +2126,14 @@ export async function getMissingDocumentsReport() {
 }
 
 /**
- * Get mailing list
+ * Get mailing list.
+ *
+ * Read fresh: the families on it are written by other people (a parent
+ * accepting an invitation or a family link), which no write of the reader's
+ * own would invalidate, so a cached copy kept showing yesterday's families.
  */
 export async function getMailingList() {
-  return API.get('v1/reports/mailing-list', {}, {
-    cacheKey: 'mailing_list',
-    cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
-  });
+  return API.getNoCache('v1/reports/mailing-list');
 }
 
 /**
