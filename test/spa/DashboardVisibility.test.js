@@ -192,6 +192,7 @@ describe('tool groups separate weekly work from unit set-up', () => {
       '/parent-invitations',
       '/participant-duplicates',
       '/role-management',
+      '/roles/permissions',
       '/unit-settings',
     ]);
   });

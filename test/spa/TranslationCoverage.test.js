@@ -146,3 +146,16 @@ test('the dashboard tiles have labels in both languages', () => {
   expect(labels.length).toBeGreaterThan(20);
   expect(missing(labels)).toEqual([]);
 });
+
+
+test('the role matrix has translated names for the permission catalog and all lock reasons', () => {
+  const files = [path.join(ROOT, 'attached_assets/permissions_list.sql'),
+    ...fs.readdirSync(path.join(ROOT, 'migrations')).filter((name) => name.endsWith('.sql')).map((name) => path.join(ROOT, 'migrations', name))];
+  const keys = new Set(files.flatMap((file) => [...fs.readFileSync(file, 'utf8').matchAll(/'([a-z_]+\.[a-z_]+)'/g)]
+    .map((match) => match[1]).filter((key) => !key.startsWith('public.'))));
+  const uses = [...keys].map((key) => [`role_permission_${key.replaceAll('.', '_')}`, 'role matrix catalog']);
+  for (const reason of ['system_role', 'district_only', 'linked_finance', 'not_held', 'view_required', 'demo']) {
+    uses.push([`role_matrix_lock_${reason}`, 'role matrix locks']);
+  }
+  expect(missing(uses)).toEqual([]);
+});

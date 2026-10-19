@@ -1,0 +1,25 @@
+.role-matrix { max-width: 100%; min-width: 0; overflow-wrap: anywhere; }
+.role-matrix select, .role-matrix input:not([type="checkbox"]), .role-matrix textarea { width: 100%; max-width: 100%; min-height: var(--touch-target-min, 44px); }
+.role-matrix fieldset { min-width: 0; padding: 0.75rem; }
+.role-matrix summary { min-height: var(--touch-target-min, 44px); padding: 0.75rem; cursor: pointer; }
+.role-matrix-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-block: 0.75rem; }
+.role-matrix-check-label { display: flex; align-items: center; gap: 0.65rem; min-height: var(--touch-target-min, 44px); cursor: pointer; }
+.role-matrix input[type="checkbox"] { width: 24px; height: 24px; flex: 0 0 24px; margin: 0; }
+.role-matrix-cell { padding-block: 0.4rem; }
+.role-matrix-reason, .role-matrix-scope { font-size: 0.875rem; line-height: 1.5; font-weight: normal; }
+.role-matrix-desktop { display: none; }
+.role-matrix-save { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-block: 1rem; }
+.role-matrix-save p { flex: 1 0 100%; }
+#role-matrix-definition { display: grid; gap: 0.75rem; }
+#role-matrix-definition :is(input:not([type="checkbox"]), textarea, select) { width: 100%; min-height: var(--touch-target-min, 44px); }
+#role-matrix-definition input[type="checkbox"] { width: 24px; height: 24px; flex: 0 0 24px; }
+@media (min-width: 768px) {
+  .role-matrix-mobile { display: none; }
+  .role-matrix-desktop { display: block; }
+  .role-matrix-scroll { overflow-x: auto; max-width: 100%; }
+  .role-matrix table { border-collapse: separate; border-spacing: 0; width: 100%; }
+  .role-matrix th, .role-matrix td { padding: 0.75rem; border: 1px solid var(--color-border, #767676); min-width: 12rem; vertical-align: top; }
+  .role-matrix th:first-child { position: sticky; left: 0; z-index: 1; background: var(--color-background, #fff); }
+  .role-matrix th[scope="rowgroup"] { background: var(--color-background, #fff); }
+  .role-matrix td .role-matrix-check-label { justify-content: center; }
+}

@@ -151,6 +151,7 @@ export class RoleManagement {
       <div class="role-management-container">
         <div class="page-header">
           <h1>${translate('role_management')}</h1>
+          ${hasPermission('roles.manage') ? `<a class="button button--secondary" href="/roles/permissions">${translate('role_matrix_title')}</a>` : ''}
         </div>
 
         <!-- Tab Navigation -->

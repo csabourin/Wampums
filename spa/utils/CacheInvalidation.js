@@ -102,7 +102,7 @@ const DERIVED_RESOURCES = {
   revenue: ['revenue', 'budget'],
   resources: ['resources', 'activities'],
   // The announcement composer lists the unit's roles.
-  roles: ['roles', 'announcements']
+  roles: ['roles', 'announcements', 'users', 'forms']
 };
 
 /**
