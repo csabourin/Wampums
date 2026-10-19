@@ -1360,7 +1360,9 @@ export async function saveBadgeProgress(progressData) {
 /** Record previously earned badge levels without adding new-achievement points. */
 export async function saveBadgeHistory(historyData) {
   const result = await API.post('v1/badges/history', historyData);
-  await clearBadgeRelatedCaches();
+  if (!result?.queued) {
+    await clearBadgeRelatedCaches();
+  }
   return result;
 }
 

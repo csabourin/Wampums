@@ -134,13 +134,19 @@ async function planBadgeTransfer(client, participantId, organizationId, targetOr
     [targetOrganizationId]
   );
   const targetLevels = await client.query(
-    `SELECT badge_template_id, etoiles FROM badge_progress
+    `SELECT id, badge_template_id, etoiles, status FROM badge_progress
       WHERE participant_id = $1 AND organization_id = $2`,
     [participantId, targetOrganizationId]
   );
   const byOfficialKey = new Map(target.rows.filter((row) => row.official_key).map((row) => [row.official_key, row]));
   const byTemplateKey = new Map(target.rows.filter((row) => row.template_key).map((row) => [row.template_key, row]));
-  const existing = new Set(targetLevels.rows.map((row) => `${row.badge_template_id}:${row.etoiles}`));
+  const existingApproved = new Set(targetLevels.rows
+    .filter((row) => row.status === 'approved')
+    .map((row) => `${row.badge_template_id}:${row.etoiles}`));
+  const existingUnapproved = new Map(targetLevels.rows
+    .filter((row) => row.status !== 'approved')
+    .map((row) => [`${row.badge_template_id}:${row.etoiles}`, row]));
+  const planned = new Set();
   const matches = [];
   let unmatched = 0;
   for (const badge of source.rows) {
@@ -148,8 +154,11 @@ async function planBadgeTransfer(client, participantId, organizationId, targetOr
       || (badge.template_key && byTemplateKey.get(badge.template_key));
     if (!template) {
       unmatched += 1;
-    } else if (!existing.has(`${template.id}:${badge.etoiles}`)) {
-      matches.push({ badge, template });
+    } else {
+      const key = `${template.id}:${badge.etoiles}`;
+      if (existingApproved.has(key) || planned.has(key)) {continue;}
+      matches.push({ badge, template, existingId: existingUnapproved.get(key)?.id || null });
+      planned.add(key);
     }
   }
   return { matches, unmatched };
@@ -349,19 +358,35 @@ async function transferParticipant(client, {
   const badgesUnmatched = badgePlan.unmatched;
   // Each source badge is checked and copied sequentially inside the transfer transaction.
   /* eslint-disable no-await-in-loop */
-  for (const { badge, template } of badgePlan.matches) {
-    await client.query(
-      `INSERT INTO badge_progress
-         (participant_id, organization_id, badge_template_id, territoire_chasse,
-          section, objectif, description, fierte, raison, date_obtention, etoiles,
-          status, approval_date, delivered_at, star_type, source_type, source_id, attempt_no, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-               'approved', $12, $13, $14, 'transfer', $15, 1, $16)`,
-      [participantId, targetOrganizationId, template.id, badge.territoire_chasse,
-        badge.section, badge.objectif, badge.description, badge.fierte, badge.raison,
-        badge.date_obtention, badge.etoiles, badge.approval_date, badge.delivered_at,
-        badge.star_type, badge.id, userId]
-    );
+  for (const { badge, template, existingId } of badgePlan.matches) {
+    if (existingId) {
+      await client.query(
+        `UPDATE badge_progress
+            SET territoire_chasse = $1, section = $2, objectif = $3, description = $4,
+                fierte = $5, raison = $6, date_obtention = $7, etoiles = $8,
+                status = 'approved', approval_date = $9, delivered_at = $10,
+                star_type = $11, source_type = 'transfer', source_id = $12, created_by = $13
+          WHERE id = $14 AND participant_id = $15 AND organization_id = $16
+            AND status <> 'approved'`,
+        [badge.territoire_chasse, badge.section, badge.objectif, badge.description,
+          badge.fierte, badge.raison, badge.date_obtention, badge.etoiles,
+          badge.approval_date, badge.delivered_at, badge.star_type, badge.id, userId,
+          existingId, participantId, targetOrganizationId]
+      );
+    } else {
+      await client.query(
+        `INSERT INTO badge_progress
+           (participant_id, organization_id, badge_template_id, territoire_chasse,
+            section, objectif, description, fierte, raison, date_obtention, etoiles,
+            status, approval_date, delivered_at, star_type, source_type, source_id, attempt_no, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+                 'approved', $12, $13, $14, 'transfer', $15, 1, $16)`,
+        [participantId, targetOrganizationId, template.id, badge.territoire_chasse,
+          badge.section, badge.objectif, badge.description, badge.fierte, badge.raison,
+          badge.date_obtention, badge.etoiles, badge.approval_date, badge.delivered_at,
+          badge.star_type, badge.id, userId]
+      );
+    }
     badgesTransferred += 1;
   }
   /* eslint-enable no-await-in-loop */

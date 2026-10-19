@@ -1307,6 +1307,22 @@ export class BadgeTracker {
           star_type: form.elements.star_type.value,
           entries
         });
+        if (result?.queued) {
+          this.showToast(translate('offline.savedLocally'), 'info');
+          submit.disabled = false;
+          const onHistoryReplayed = async (syncEvent) => {
+            if (!syncEvent.detail?.url?.includes('/api/v1/badges/history')) {return;}
+            window.removeEventListener('offlineMutationReplayed', onHistoryReplayed);
+            if (!overlay.isConnected) {return;}
+            closeModal('badge-history-modal');
+            this.showToast(`${entries.length} ${translate('badge_history_saved')}`, 'success');
+            await this.loadData(true);
+            this.render();
+            this.attachSearchListener();
+          };
+          window.addEventListener('offlineMutationReplayed', onHistoryReplayed);
+          return;
+        }
         if (!result?.success) {throw new Error('badge_history_save_failed');}
         const count = result.data?.inserted?.length || 0;
         this.showToast(`${count} ${translate('badge_history_saved')}`, 'success');

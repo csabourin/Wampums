@@ -424,6 +424,10 @@ export class OfflineManager {
           if (response.ok) {
             await deleteOfflineData(record.key);
             replayed += 1;
+            this.dispatchEvent('offlineMutationReplayed', {
+              url: record.data.url,
+              method: record.data.method || record.action || 'POST'
+            });
             debugLog('OfflineManager: Mutation replayed successfully', record.key);
           } else if (nonRetriableStatuses.has(response.status)) {
             // Non-retryable client errors — discard

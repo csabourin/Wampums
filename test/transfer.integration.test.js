@@ -380,6 +380,49 @@ describe.skipIf(!DATABASE_URL)('Transfer to a sister unit', () => {
     expect(await one('SELECT COUNT(*)::int FROM points WHERE participant_id = $1', [ids.movingChildId])).toBe(pointsBefore);
   });
 
+  test('reconciles an unapproved destination badge with transferred approved history', async () => {
+    const sourceTemplateId = await one(
+      `INSERT INTO badge_templates (organization_id, template_key, official_key, name, section)
+       VALUES ($1, 'transfer-pending-test', 'transfer-pending-test', 'Pending test', 'general') RETURNING id`,
+      [ids.originId]
+    );
+    const targetTemplateId = await one(
+      `INSERT INTO badge_templates (organization_id, template_key, official_key, name, section)
+       VALUES ($1, 'transfer-pending-test', 'transfer-pending-test', 'Pending test', 'general') RETURNING id`,
+      [ids.targetId]
+    );
+    await pool.query(
+      `INSERT INTO badge_progress
+         (participant_id, organization_id, badge_template_id, territoire_chasse,
+          section, etoiles, status)
+       VALUES ($1, $2, $3, 'Pending test', 'general', 1, 'pending')`,
+      [ids.movingChildId, ids.targetId, targetTemplateId]
+    );
+    await pool.query(
+      `INSERT INTO badge_progress
+         (participant_id, organization_id, badge_template_id, territoire_chasse,
+          section, etoiles, status, approval_date)
+       VALUES ($1, $2, $3, 'Pending test', 'general', 1, 'approved', now())`,
+      [ids.movingChildId, ids.originId, sourceTemplateId]
+    );
+
+    const response = await transfer(ids.movingChildId, ids.targetId);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({ badges_transferred: 1, badges_unmatched: 0 });
+    expect(await one(
+      `SELECT COUNT(*)::int FROM badge_progress
+        WHERE participant_id = $1 AND organization_id = $2 AND badge_template_id = $3
+          AND etoiles = 1 AND status = 'approved' AND source_type = 'transfer'`,
+      [ids.movingChildId, ids.targetId, targetTemplateId]
+    )).toBe(1);
+    expect(await one(
+      `SELECT COUNT(*)::int FROM badge_progress
+        WHERE participant_id = $1 AND organization_id = $2 AND badge_template_id = $3 AND etoiles = 1`,
+      [ids.movingChildId, ids.targetId, targetTemplateId]
+    )).toBe(1);
+  });
+
   test('closes the origin membership of a parent with nobody left there', async () => {
     await transfer(ids.onlyChildId, ids.targetId);
 
@@ -425,7 +468,7 @@ describe.skipIf(!DATABASE_URL)('Transfer to a sister unit', () => {
     const response = await transfer(ids.movingChildId, ids.targetId);
 
     expect(response.body.data.forms_left_behind).toBe(1);
-    expect(response.body.data).toMatchObject({ badges_to_transfer: 0, badges_unmatched: 0 });
+    expect(response.body.data).toMatchObject({ badges_transferred: 0, badges_unmatched: 0 });
     expect(await one(
       'SELECT COUNT(*)::int FROM form_submissions WHERE participant_id = $1 AND organization_id = $2',
       [ids.movingChildId, ids.originId]

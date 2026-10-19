@@ -109,4 +109,35 @@ describe('Badge tracker backlog', () => {
     });
     expect(tracker.loadData).toHaveBeenCalledWith(true);
   });
+
+  test('keeps queued history open until offline replay confirms the save', async () => {
+    tracker.canManage = true;
+    tracker.templates = [{ id: TEMPLATE_ID, name: 'Akela', level_count: 2 }];
+    tracker.loadData = jest.fn().mockResolvedValue(true);
+    tracker.render = jest.fn();
+    tracker.attachSearchListener = jest.fn();
+    tracker.showToast = jest.fn();
+    saveBadgeHistory.mockResolvedValue({ success: true, queued: true });
+
+    tracker.openBadgeHistoryModal(ON_ROSTER_ID);
+    const modal = document.querySelector('#badge-history-modal');
+    modal.querySelector('input[value="5:1"]').checked = true;
+    modal.querySelector('#badge-history-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(modal.isConnected).toBe(true);
+    expect(tracker.loadData).not.toHaveBeenCalled();
+    expect(tracker.showToast).toHaveBeenCalledWith('offline.savedLocally', 'info');
+
+    window.dispatchEvent(new CustomEvent('offlineMutationReplayed', {
+      detail: { url: '/api/v1/badges/history', method: 'POST' }
+    }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(tracker.loadData).toHaveBeenCalledWith(true);
+    expect(document.querySelector('#badge-history-modal')).toBeNull();
+    expect(tracker.showToast).toHaveBeenLastCalledWith('1 badge_history_saved', 'success');
+  });
 });
