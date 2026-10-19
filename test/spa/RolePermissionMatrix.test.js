@@ -145,6 +145,17 @@ test('deleting requires the destructive confirmation and a refusal leaves the ro
   await open(); confirmDestructive.mockResolvedValue(false); await screen.removeRole(screen.roles[0]);
   expect(deleteUnitRole).not.toHaveBeenCalled();
 });
+test('after a role is deleted, the remaining editable cells can be changed again', async () => {
+  await open(); await screen.removeRole(screen.roles[0]);
+  expect(deleteUnitRole).toHaveBeenCalledWith(20);
+  expect(box(1).disabled).toBe(false); expect(box(1, 'table').disabled).toBe(false);
+});
+test('a refused deletion keeps the matrix editable and says why', async () => {
+  await open(); deleteUnitRole.mockRejectedValue(Object.assign(new Error('x'), { status: 403 }));
+  await screen.removeRole(screen.roles[0]);
+  expect(app.showMessage).toHaveBeenCalledWith(expect.any(String), 'error');
+  expect(box(1).disabled).toBe(false);
+});
 test('the district selector switches authenticated context before loading any target-unit data', async () => {
   await open({ district: true });
   const token = `${btoa('{}')}.${btoa(JSON.stringify({ permissions: ['roles.manage', 'roles.manage_district'], roleIds: [1], roleNames: ['district'] }))}.x`;

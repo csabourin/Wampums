@@ -297,11 +297,14 @@ export class RolePermissionMatrix {
     this.saving = true;
     try {
       await deleteUnitRole(role.id);
-      this.pending.clear();
-      this.app.showMessage(translate('role_matrix_saved'), 'success');
-      await this.reload();
-    } catch (error) { this.app.showMessage(apiErrorMessage(error, 'role_matrix_save_failed'), 'error'); }
-    finally { this.saving = false; }
+    } catch (error) {
+      this.app.showMessage(apiErrorMessage(error, 'role_matrix_save_failed'), 'error');
+      return;
+    } finally { this.saving = false; }
+    // The deletion is done: the reloaded matrix must draw its cells editable.
+    this.pending.clear();
+    this.app.showMessage(translate('role_matrix_saved'), 'success');
+    await this.reload();
   }
   /** Change authenticated context via a new token; never pass a tenant ID to the matrix. */
   async changeUnit(unitId) {
