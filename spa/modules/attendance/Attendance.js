@@ -954,6 +954,7 @@ export class Attendance {
     if (!this.isInitialized || !document.querySelector('.attendance-container')) {
       return;
     }
+    this.readOnlyReload = true;
     await this.changeDate(this.currentDate);
   }
 
@@ -1286,6 +1287,10 @@ export class Attendance {
   async loadDate(targetDate) {
     const previousDate = this.currentDate;
     this.currentDate = targetDate;
+    // A reload after a refused change only reads: carrying forward again could
+    // put back the very statuses the server just refused.
+    const carryForward = !this.readOnlyReload;
+    this.readOnlyReload = false;
     debugLog(`Changing date to ${targetDate}`);
 
     try {
@@ -1307,7 +1312,9 @@ export class Attendance {
       // The activity context (camp banner, carry-forward source dates)
       // depends on the selected date
       await this.detectActivityContext();
-      await this.autoCarryForward();
+      if (carryForward) {
+        await this.autoCarryForward();
+      }
 
       if (this.pendingDateChange !== null) {
         return;

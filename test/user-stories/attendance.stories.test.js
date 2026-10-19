@@ -597,6 +597,21 @@ describe('US-ATT-021 — A status saved offline and refused on replay does not s
     );
   });
 
+  it('on a camp day, the reload only reads: it does not carry the refused statuses forward again', async () => {
+    seedCampContext({ day1Attendance: [{ participant_id: 1, status: 'present' }] });
+    const { page } = await initPage();
+    expect(statusChip(1)).toBe(tr('present'));
+    const carryCalls = () => global.fetch.mock.calls.filter(([url]) => url.includes('v1/attendance/carry-forward')).length;
+    const carriedBefore = carryCalls();
+    const reload = jest.spyOn(page, 'reloadAfterRejectedChange');
+
+    refuse('attendance');
+    await reload.mock.results[0].value;
+
+    expect(carryCalls()).toBe(carriedBefore);
+    expect(statusChip(1)).toBe(tr('unmarked'));
+  });
+
   it('ignores a refused change of another kind', async () => {
     await markPresentOffline();
     const loadsBefore = ajax.getAttendance.mock.calls.length;
