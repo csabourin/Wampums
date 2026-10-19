@@ -273,6 +273,46 @@ describe('writes that are not announced', () => {
   });
 });
 
+describe('a signed-out write its route attributed to one unit', () => {
+  const PAYMENT_PATH = '/api/v1/finance/participant-fees/42/payments';
+
+  test('is counted for that unit and announced there, under the path the route named', async () => {
+    await runRequest({
+      url: '/api/v1/stripe/webhook',
+      user: null,
+      locals: { liveSyncAnnouncement: { organizationId: 7, path: PAYMENT_PATH } },
+    });
+
+    expect(mockTo).toHaveBeenCalledWith('org-7');
+    expect(mockEmit).toHaveBeenCalledWith('data-changed', { path: PAYMENT_PATH, version: 1 });
+    expect(versionOf(7)).toBe(1);
+    expect(versionOf(0)).toBe(0);
+  });
+
+  test.each([
+    ['no unit', { path: PAYMENT_PATH }],
+    ['a unit that is not an id', { organizationId: 'org-7', path: PAYMENT_PATH }],
+    ['a path outside the API', { organizationId: 7, path: '/dashboard' }],
+  ])('with %s is only counted as a shared change, announcing nothing', async (_case, announcement) => {
+    await runRequest({ url: '/api/v1/stripe/webhook', user: null, locals: { liveSyncAnnouncement: announcement } });
+
+    expect(mockEmit).not.toHaveBeenCalled();
+    expect(versionOf(0)).toBe(1);
+  });
+
+  test('cannot redirect a signed-in write to another unit', async () => {
+    await runRequest({
+      url: '/api/v1/points',
+      user: { organizationId: 12 },
+      locals: { liveSyncAnnouncement: { organizationId: 7, path: PAYMENT_PATH } },
+    });
+
+    expect(mockTo).toHaveBeenCalledWith('org-12');
+    expect(mockTo).not.toHaveBeenCalledWith('org-7');
+    expect(mockEmit).toHaveBeenCalledWith('data-changed', { path: '/api/v1/points', version: 1 });
+  });
+});
+
 describe('announcedPath', () => {
   test('drops the query string and a trailing slash', () => {
     expect(announcedPath({ originalUrl: '/api/v1/groups/3/?x=1' })).toBe('/api/v1/groups/3');

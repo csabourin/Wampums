@@ -18,6 +18,11 @@
  * `res.locals.liveSyncOrganizationIds` (that unit's version moves on), and a
  * write no unit can be named for, such as a public page, moves the shared
  * version every unit compares.
+ *
+ * A signed-out write that a trusted source attributes to one unit (a payment
+ * Stripe has signed for) names that unit and the path a member's equivalent
+ * write would have in `res.locals.liveSyncAnnouncement`; it is then counted
+ * and announced as if a member had made it.
  */
 const logger = require('../config/logger');
 const socketService = require('../services/socket');
@@ -73,6 +78,22 @@ function isSharedChange(req) {
 }
 
 /**
+ * The unit and path a signed-out route attributed its write to, when well formed.
+ * @param {import('express').Response} res
+ * @returns {{ organizationId: number, path: string }|null}
+ */
+function verifiedAnnouncement(res) {
+  const announcement = res.locals?.liveSyncAnnouncement;
+  const organizationId = Number(announcement?.organizationId);
+  const path = announcement?.path;
+  if (!Number.isInteger(organizationId) || organizationId <= 0
+    || typeof path !== 'string' || !path.startsWith(API_V1_PREFIX)) {
+    return null;
+  }
+  return { organizationId, path };
+}
+
+/**
  * Count changes a route made to units other than the writer's.
  * @param {import('pg').Pool} pool - Database pool
  * @param {import('express').Response} res
@@ -102,9 +123,11 @@ async function countAndAnnounce(req, res) {
   if (!pool) {
     return;
   }
-  // Set by `authenticate`: public and unauthenticated writes are not announced.
-  const organizationId = req.user?.organizationId;
-  const path = announcedPath(req);
+  // Set by `authenticate`. A signed-out write is announced only when its route
+  // verified which unit it changed.
+  const attributed = req.user ? null : verifiedAnnouncement(res);
+  const organizationId = req.user?.organizationId ?? attributed?.organizationId;
+  const path = attributed ? attributed.path : announcedPath(req);
   await countOtherUnits(pool, res, organizationId);
   if (!organizationId) {
     if (isSharedChange(req)) {

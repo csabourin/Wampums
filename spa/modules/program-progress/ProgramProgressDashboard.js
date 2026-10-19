@@ -24,6 +24,16 @@ const SOURCE_LABEL_KEYS = {
   top_award_review: 'program_progress_source_top_award_review'
 };
 
+/**
+ * Every status the progress tables hold (their CHECK constraints, and what the
+ * badge routes write), each shown as `program_progress_status_<status>`.
+ * Anything else shows as "other", never as the raw value.
+ */
+export const PROGRAM_PROGRESS_STATUSES = [
+  'recorded', 'pending', 'approved', 'rejected', 'in_progress', 'awarded', 'revoked', 'active',
+  'expired', 'planned', 'completed', 'cancelled', 'submitted', 'logged', 'draft', 'revisions_required',
+];
+
 export class ProgramProgressDashboard extends BaseModule {
   constructor(app, options = {}) {
     super(app);
@@ -106,6 +116,30 @@ export class ProgramProgressDashboard extends BaseModule {
     return translate(SOURCE_LABEL_KEYS[sourceKey] || 'program_progress_source_generic');
   }
 
+  /**
+   * @param {string} status - Status as the progress table stores it
+   * @returns {string} Its label in the page's language
+   */
+  getStatusLabel(status) {
+    return translate(PROGRAM_PROGRESS_STATUSES.includes(status)
+      ? `program_progress_status_${status}`
+      : 'program_progress_status_other');
+  }
+
+  /**
+   * A record with no title of its own is given its source's key by the server:
+   * name the source instead.
+   *
+   * @param {Object} item - Stream item
+   * @returns {string} Text for the description column
+   */
+  getItemTitle(item) {
+    if (!item.title || item.title === item.source_key) {
+      return this.getSourceLabel(item.source_key);
+    }
+    return item.title;
+  }
+
   renderSummaryChips() {
     const entries = Object.entries(this.summary?.by_source || {});
     if (entries.length === 0) {
@@ -134,8 +168,8 @@ export class ProgramProgressDashboard extends BaseModule {
           <tr>
             <td>${escapeHTML(item.participant_name || '-')}</td>
             <td>${escapeHTML(this.getSourceLabel(item.source_key))}</td>
-            <td>${escapeHTML(item.title || '-')}</td>
-            <td>${escapeHTML(item.status || '-')}</td>
+            <td>${escapeHTML(this.getItemTitle(item))}</td>
+            <td>${escapeHTML(this.getStatusLabel(item.status))}</td>
             <td>${escapeHTML(eventDate)}</td>
           </tr>
         `;

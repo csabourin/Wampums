@@ -191,3 +191,46 @@ test('the stream meets WCAG A/AA', async () => {
 
   expect(results.violations).toEqual([]);
 });
+
+test('statuses are shown in the page\'s language, and an unknown one as "other", never raw', async () => {
+  getProgramProgressStream.mockResolvedValueOnce({
+    success: true,
+    data: {
+      items: [
+        { participant_name: 'Léa', source_key: 'oas_competency', title: 'Camping 3', status: 'in_progress' },
+        { participant_name: 'Léa', source_key: 'top_award_review', title: 'Revue', status: 'revisions_required' },
+        { participant_name: 'Léa', source_key: 'credential', title: 'Premiers soins', status: 'surprise_value' },
+      ],
+      participants: [],
+      summary: { total: 3, by_source: {} },
+    },
+  });
+
+  await new ProgramProgressDashboard({ showMessage: jest.fn() }).init();
+
+  const statuses = [...app().querySelectorAll('tbody tr')].map((row) => row.children[3].textContent.trim());
+  expect(statuses).toEqual([
+    'program_progress_status_in_progress',
+    'program_progress_status_revisions_required',
+    'program_progress_status_other',
+  ]);
+});
+
+test('a record without a title of its own is described by its source, not by an internal key', async () => {
+  getProgramProgressStream.mockResolvedValueOnce({
+    success: true,
+    data: {
+      items: [
+        { participant_name: 'Léa', source_key: 'pab_review', title: 'pab_review', status: 'recorded' },
+        { participant_name: 'Léa', source_key: 'credential', title: null, status: 'active' },
+      ],
+      participants: [],
+      summary: { total: 2, by_source: {} },
+    },
+  });
+
+  await new ProgramProgressDashboard({ showMessage: jest.fn() }).init();
+
+  const titles = [...app().querySelectorAll('tbody tr')].map((row) => row.children[2].textContent.trim());
+  expect(titles).toEqual(['program_progress_source_pab_review', 'program_progress_source_credential']);
+});

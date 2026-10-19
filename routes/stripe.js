@@ -147,9 +147,17 @@ module.exports = (pool, logger) => {
 
     // Handle the event
     switch (event.type) {
-      case 'payment_intent.succeeded':
-        await handlePaymentSuccess(event.data.object, pool, logger);
+      case 'payment_intent.succeeded': {
+        const recorded = await handlePaymentSuccess(event.data.object, pool, logger);
+        // Open finance screens of the unit refresh as if a leader had entered the payment.
+        if (recorded) {
+          res.locals.liveSyncAnnouncement = {
+            organizationId: recorded.organizationId,
+            path: `/api/v1/finance/participant-fees/${recorded.participantFeeId}/payments`,
+          };
+        }
         break;
+      }
 
       case 'payment_intent.payment_failed':
         await handlePaymentFailure(event.data.object, pool, logger);
@@ -206,7 +214,10 @@ module.exports = (pool, logger) => {
 };
 
 /**
- * Handle successful payment
+ * Record a payment Stripe confirmed, once however often the event is delivered.
+ *
+ * @returns {Promise<{organizationId: number, participantFeeId: number}|null>}
+ *   The unit and fee paid, or null when the payment was already recorded
  */
 async function handlePaymentSuccess(paymentIntent, pool, logger) {
   const client = await pool.connect();
@@ -250,7 +261,7 @@ async function handlePaymentSuccess(paymentIntent, pool, logger) {
     if (existingPayment.rows.length > 0) {
       logger.info(`Payment already recorded for PaymentIntent: ${paymentIntentId}`);
       await client.query('COMMIT');
-      return;
+      return null;
     }
 
     // Create payment record
@@ -320,6 +331,7 @@ async function handlePaymentSuccess(paymentIntent, pool, logger) {
     await client.query('COMMIT');
 
     logger.info(`Payment recorded successfully: payment_id=${paymentId}, amount=$${paymentAmount}, participant_fee_id=${participant_fee_id}`);
+    return { organizationId: Number(metadata.organization_id), participantFeeId: Number(metadata.participant_fee_id) };
 
   } catch (err) {
     await client.query('ROLLBACK');

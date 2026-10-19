@@ -119,12 +119,22 @@ test('every key held in a lookup table by the family-access screens and emails e
   expect(missing(uses)).toEqual([]);
 });
 
+/** @returns {string[]} The statuses ProgramProgressDashboard labels, read from its source */
+function programProgressStatuses() {
+  const source = code(path.join(ROOT, 'spa/modules/program-progress/ProgramProgressDashboard.js'));
+  const list = source.match(/PROGRAM_PROGRESS_STATUSES = \[([^\]]*)\]/)[1];
+  return [...list.matchAll(/'([a-z_]+)'/g)].map((match) => match[1]);
+}
+
 test('every key built from a state exists for each state the server returns', () => {
   const built = [
     ...['pending', 'expired', 'accepted', 'revoked', 'invalid'].map((s) => [`parent_invitation_state_${s}`, 'ParentInvitations']),
     ...['pending', 'expired', 'accepted', 'declined', 'revoked'].map((s) => [`family_request_state_${s}`, 'FamilyAccess']),
     ...['same', 'different'].map((s) => [`participant_duplicates_decided_${s}`, 'ParticipantDuplicates']),
+    ...[...programProgressStatuses(), 'other'].map((s) => [`program_progress_status_${s}`, 'ProgramProgressDashboard']),
   ];
+
+  expect(programProgressStatuses().length).toBeGreaterThan(10);
 
   expect(missing(built)).toEqual([]);
 });
