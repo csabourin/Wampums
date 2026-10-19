@@ -165,6 +165,6 @@ détruit vraiment des données : masquer les lignes ne serait pas un effacement.
 - **Historique de badges** : dans le suivi des badges, ouvrir la fiche d'un jeune et choisir « Mettre à
   jour l'historique » pour cocher plusieurs niveaux déjà obtenus. La date est facultative. Ces entrées
   sont approuvées comme historique, sans points; les niveaux déjà au dossier sont désactivés. Le rôle
-  système `leader` peut gérer les badges; l'approbation demeure une permission distincte.
+  système `leader` peut gérer et approuver les badges; ces capacités restent des permissions distinctes.
 - **Conservation (Loi 25)** : pas de purge automatique après N ans. Une famille sans consentement alumni
   et sans enfant inscrit en serait candidate ; un alumnus consentant ne l'est pas.
