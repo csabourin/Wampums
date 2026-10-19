@@ -3,7 +3,8 @@
  *
  * A leader may write to the families of one den alone, without picking a
  * role, and a den chosen with roles narrows the families reached to that den
- * while leaders stay reached as their role was chosen. Who receives a message
+ * while leaders stay reached as their role was chosen. A family account whose
+ * invitation the unit withdrew is neither listed nor written to. Who receives a message
  * is a property of the recipient queries, so it is tested against a real
  * PostgreSQL rather than a mocked pool.
  *
@@ -187,7 +188,7 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
     const youth = [ids.redYouth, ids.blueYouth].filter(Boolean);
     const participantIds = youth.map((entry) => entry.participantId);
     const guardianIds = youth.map((entry) => entry.guardianId);
-    const userIds = [ids.leader, ids.redParent, ids.blueParent].filter(Boolean);
+    const userIds = [ids.leader, ids.redParent, ids.blueParent, ...(ids.extraUsers || [])].filter(Boolean);
     try {
       await client.query('BEGIN');
       await client.query("SET LOCAL session_replication_role = 'replica'");
@@ -196,7 +197,7 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
         [ids.unit]
       );
       for (const table of [
-        'announcements', 'subscribers', 'participant_groups', 'groups',
+        'announcements', 'subscribers', 'participant_groups', 'groups', 'parent_invitations',
         'participant_organizations', 'user_organizations', 'user_messages', 'roles',
         'scout_years', 'organization_program_sections',
       ]) {
@@ -229,6 +230,7 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
     app = express();
     app.use(express.json());
     app.use('/api', require('../routes/announcements')(pool, quiet));
+    app.use('/api/v1/reports', require('../routes/reports')(pool, quiet));
   });
 
   afterAll(async () => {
@@ -241,6 +243,53 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
     await seed();
     sendEmail.mockClear();
   });
+
+  /**
+   * Record a family invitation from the unit to an address.
+   *
+   * @param {string} email - Invited address
+   * @param {string} status - `pending`, `accepted` or `revoked`
+   * @param {string} createdAt - When it was sent
+   * @returns {Promise<void>}
+   */
+  async function recordInvitation(email, status, createdAt) {
+    await pool.query(
+      `INSERT INTO parent_invitations (organization_id, email, token_digest, status, expires_at, created_at,
+                                       revoked_at, accepted_at)
+       VALUES ($1, $2, encode(sha256(gen_random_uuid()::text::bytea), 'hex'), $3, now() + interval '7 days',
+               $4::timestamptz,
+               CASE WHEN $3 = 'revoked' THEN now() END,
+               CASE WHEN $3 = 'accepted' THEN now() END)`,
+      [ids.unit, email.toLowerCase(), status, createdAt]
+    );
+  }
+
+  /**
+   * A family account of the unit with no child linked to it: someone who
+   * signed up on their own.
+   *
+   * @param {string} label - Address label
+   * @returns {Promise<string>} User id
+   */
+  async function makeChildlessFamily(label) {
+    const userId = await makeUser(label);
+    await addMember(userId, [ids.familyRoleId]);
+    ids.extraUsers = [...(ids.extraUsers || []), userId];
+    return userId;
+  }
+
+  /**
+   * The family addresses "Écrire aux familles" lists.
+   *
+   * @returns {Promise<string[]>} Addresses
+   */
+  async function listedFamilyAddresses() {
+    const response = await request(app).get('/api/v1/reports/mailing-list');
+    expect(response.status).toBe(200);
+    return (response.body.emails_by_role[ids.familyRole] || []).map((entry) => (
+      typeof entry === 'string' ? entry : entry.email
+    ));
+  }
 
   test('a den chosen alone reaches its families, and only them', async () => {
     const recipients = await buildRecipientsForTests(pool, ids.unit, [], [ids.red], 'members');
@@ -312,5 +361,60 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
     expect(response.status).toBe(400);
     expect(response.body.message).toMatch(/announcement_recipients_required/);
     expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  describe('a withdrawn family invitation', () => {
+    test('takes a family account with no child off the list and out of messages', async () => {
+      await makeChildlessFamily('withdrawn');
+      await recordInvitation(emails.withdrawn, 'revoked', '2026-09-10');
+
+      const recipients = await buildRecipientsForTests(pool, ids.unit, ['parent', ids.familyRole], [], 'members');
+
+      expect(recipients.emails).not.toContain(emails.withdrawn.toLowerCase());
+      expect(await listedFamilyAddresses()).not.toContain(emails.withdrawn.toLowerCase());
+    });
+
+    test('a family account with no child and no withdrawn invitation stays reached', async () => {
+      await makeChildlessFamily('signed-up');
+
+      const recipients = await buildRecipientsForTests(pool, ids.unit, ['parent', ids.familyRole], [], 'members');
+
+      expect(recipients.emails).toContain(emails['signed-up'].toLowerCase());
+      expect(await listedFamilyAddresses()).toContain(emails['signed-up'].toLowerCase());
+    });
+
+    test('an address invited again after the withdrawal is reached', async () => {
+      await makeChildlessFamily('reinvited');
+      await recordInvitation(emails.reinvited, 'revoked', '2026-09-10');
+      await recordInvitation(emails.reinvited, 'accepted', '2026-09-20');
+
+      const recipients = await buildRecipientsForTests(pool, ids.unit, ['parent', ids.familyRole], [], 'members');
+
+      expect(recipients.emails).toContain(emails.reinvited.toLowerCase());
+      expect(await listedFamilyAddresses()).toContain(emails.reinvited.toLowerCase());
+    });
+
+    test('a parent with a child in the unit stays reached', async () => {
+      await recordInvitation(emails['parent-red'], 'revoked', '2026-09-10');
+
+      const recipients = await buildRecipientsForTests(pool, ids.unit, ['parent', ids.familyRole], [], 'members');
+
+      expect(recipients.emails).toContain(emails['parent-red'].toLowerCase());
+      expect(await listedFamilyAddresses()).toContain(emails['parent-red'].toLowerCase());
+    });
+
+    test('a leader stays reached through the team role', async () => {
+      await pool.query(
+        'UPDATE user_organizations SET role_ids = to_jsonb($2::text[]) WHERE user_id = $1 AND organization_id = $3',
+        [ids.leader, [String(ids.leaderRoleId), String(ids.familyRoleId)], ids.unit]
+      );
+      await recordInvitation(emails.leader, 'revoked', '2026-09-10');
+
+      const recipients = await buildRecipientsForTests(
+        pool, ids.unit, ['parent', ids.familyRole, ids.leaderRole], [], 'members'
+      );
+
+      expect(recipients.emails).toContain(emails.leader.toLowerCase());
+    });
   });
 });

@@ -4054,5 +4054,14 @@
   "ai_unavailable": "The AI assistant is not available right now.",
   "ai_rate_limited": "The AI assistant is busy. Try again in a minute.",
   "ai_service_error": "The AI assistant could not answer. Try again.",
-  "announcement_groups_not_found": "The selected {subgroup_plural} no longer exist. Reload the page and choose again."
+  "announcement_groups_not_found": "The selected {subgroup_plural} no longer exist. Reload the page and choose again.",
+  "district_management_children": "Children: {names}",
+  "district_management_inactive_accounts": "Deactivated accounts ({count})",
+  "district_management_unknown_member": "Member no longer listed",
+  "district_management_queue_discard": "Remove from queue",
+  "district_management_queue_discard_for": "Remove {name}'s change from the queue",
+  "district_management_queue_discarded": "{name}'s change was removed from the queue.",
+  "district_management_queue_reason_stale": "Their roles changed since this change was made. Remove it, or make it again.",
+  "district_management_queue_reason_other_unit": "This change is for another unit.",
+  "district_management_queue_reason_failed": "This change could not be saved."
 }

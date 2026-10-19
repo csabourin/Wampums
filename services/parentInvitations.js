@@ -78,6 +78,32 @@ function invitationRoleIds(invitation) {
 }
 
 /**
+ * SQL condition, true for a family account the unit has withdrawn: no child of
+ * the unit is linked to it, and the last family invitation the unit sent to
+ * its address was withdrawn. Such an account exists only because its owner
+ * signed up on their own, so withdrawing the invitation must also take the
+ * address out of the family mailing list and its sends. Reads `$1` as the unit
+ * and `u` as the `users` row.
+ */
+const WITHDRAWN_FAMILY_ACCOUNT_SQL = `(
+  NOT EXISTS (
+    SELECT 1
+      FROM user_participants up
+      JOIN participant_enrollments pe ON pe.participant_id = up.participant_id AND pe.organization_id = $1
+     WHERE up.user_id = u.id
+  )
+  AND (
+    SELECT pi.status
+      FROM parent_invitations pi
+     WHERE pi.organization_id = $1
+       AND LOWER(pi.email) = LOWER(u.email)
+       AND jsonb_array_length(COALESCE(pi.role_ids, '[]'::jsonb)) = 0
+     ORDER BY pi.created_at DESC
+     LIMIT 1
+  ) IS NOT DISTINCT FROM 'revoked'
+)`;
+
+/**
  * Pick the language the invitation will be written in.
  *
  * There is no user row to read a preference from — that is the whole point of
@@ -292,11 +318,12 @@ function invitationAdminState(invitation, now = new Date()) {
 }
 
 /**
- * Every invitation ever issued by one unit, newest first.
+ * A unit's invitations, newest first, except those it withdrew.
  *
- * Accepted and revoked rows are not hidden. An admin asking "did I already
- * invite this family?" is asking about history, and an invitation that vanished
- * on acceptance would make the answer look like no.
+ * Accepted rows stay: an admin asking "did I already invite this family?" is
+ * asking about history, and an invitation that vanished on acceptance would
+ * make the answer look like no. A withdrawn invitation is one the admin chose
+ * to drop; the row is kept in the database, but it leaves the list.
  *
  * @param {Object} pool - Database pool
  * @param {number} organizationId - Unit whose invitations to list
@@ -342,6 +369,7 @@ async function listInvitations(pool, organizationId, { now = new Date(), kind = 
        FROM parent_invitations pi
        LEFT JOIN users inviter ON inviter.id = pi.invited_by
       WHERE pi.organization_id = $1
+        AND pi.status <> 'revoked'
         AND (jsonb_array_length(COALESCE(pi.role_ids, '[]'::jsonb)) > 0) = ($2::text = 'leader')
       ORDER BY pi.created_at DESC`,
     [organizationId, kind === INVITATION_KIND.LEADER ? INVITATION_KIND.LEADER : INVITATION_KIND.FAMILY]
@@ -1087,6 +1115,7 @@ async function acceptInvitation(pool, params, { now = new Date(), logger } = {})
 
 module.exports = {
   INVITATION_KIND,
+  WITHDRAWN_FAMILY_ACCOUNT_SQL,
   invitationRoleIds,
   resolveInvitationLanguage,
   INVITATION_STATE,

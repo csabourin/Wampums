@@ -399,7 +399,7 @@ describe.skipIf(!DATABASE_URL)('Parent invitations', () => {
     expect(sentEmails).toHaveLength(1);
   });
 
-  test('lists a unit\'s invitations with their current state', async () => {
+  test('lists a unit\'s invitations with their current state, leaving out the ones it withdrew', async () => {
     await invite({ email: 'listed.pending@example.org' });
     await invite({ email: 'listed.revoked@example.org' });
     const revokedId = await one('SELECT id FROM parent_invitations WHERE email = $1', ['listed.revoked@example.org']);
@@ -410,7 +410,7 @@ describe.skipIf(!DATABASE_URL)('Parent invitations', () => {
     expect(response.status).toBe(200);
     const byEmail = Object.fromEntries(response.body.data.map((row) => [row.email, row]));
     expect(byEmail['listed.pending@example.org'].state).toBe('pending');
-    expect(byEmail['listed.revoked@example.org'].state).toBe('revoked');
+    expect(byEmail['listed.revoked@example.org']).toBeUndefined();
     expect(byEmail['listed.pending@example.org'].invited_by_name).toBe('Unit Admin');
     expect(JSON.stringify(response.body)).not.toContain('token_digest');
   });

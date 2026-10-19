@@ -16,6 +16,7 @@ const { asyncHandler } = require('../middleware/response');
 
 // Import utilities
 const { handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { WITHDRAWN_FAMILY_ACCOUNT_SQL } = require('../services/parentInvitations');
 const {
   isAffirmative,
   allergyText,
@@ -138,8 +139,9 @@ module.exports = (pool, _logger) => {
     // reality every year. The join to `roles` is inner rather than outer on
     // purpose too — a role_ids entry pointing at a deleted role used to yield a
     // NULL role_name, which became a section literally headed "null".
-    const usersEmailsResult = await pool.query(
-      `SELECT LOWER(u.email) AS email, r.role_name AS role, r.display_name AS role_display_name
+    // A family account whose invitation the unit withdrew is left out too.
+    const usersEmailsQuery = `
+      SELECT LOWER(u.email) AS email, r.role_name AS role, r.display_name AS role_display_name
          FROM user_organizations uo
          JOIN users u ON u.id = uo.user_id
          CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
@@ -147,9 +149,9 @@ module.exports = (pool, _logger) => {
          WHERE uo.organization_id = $1
          AND uo.status = 'active'
          AND u.email IS NOT NULL
-         AND u.email != ''`,
-      [organizationId]
-    );
+         AND u.email != ''
+         AND NOT (r.data_scope IS NOT DISTINCT FROM 'linked' AND ${WITHDRAWN_FAMILY_ACCOUNT_SQL})`;
+    const usersEmailsResult = await pool.query(usersEmailsQuery, [organizationId]);
 
     const roleDisplayNames = {};
     const emailsByRole = usersEmailsResult.rows.reduce((acc, user) => {
