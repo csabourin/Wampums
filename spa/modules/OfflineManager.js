@@ -298,6 +298,8 @@ export class OfflineManager {
         userId: mutation.userId,
         organizationId: mutation.organizationId
       });
+      // The idempotency key also names this mutation in its replay event.
+      return idempotencyKey;
     } catch (error) {
       debugError('OfflineManager: Failed to queue mutation', error);
       throw error;
@@ -426,7 +428,8 @@ export class OfflineManager {
             replayed += 1;
             this.dispatchEvent('offlineMutationReplayed', {
               url: record.data.url,
-              method: record.data.method || record.action || 'POST'
+              method: record.data.method || record.action || 'POST',
+              mutationId: record.data.idempotencyKey
             });
             debugLog('OfflineManager: Mutation replayed successfully', record.key);
           } else if (nonRetriableStatuses.has(response.status)) {

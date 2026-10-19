@@ -9,7 +9,7 @@
  */
 
 jest.mock('../../spa/app.js', () => ({
-  translate: (key) => key
+  translate: (key) => (key === 'badge_baloo' ? 'True like Baloo' : key)
 }));
 
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
@@ -117,7 +117,7 @@ describe('Badge tracker backlog', () => {
     tracker.render = jest.fn();
     tracker.attachSearchListener = jest.fn();
     tracker.showToast = jest.fn();
-    saveBadgeHistory.mockResolvedValue({ success: true, queued: true });
+    saveBadgeHistory.mockResolvedValue({ success: true, queued: true, mutationId: 'mutation-a' });
 
     tracker.openBadgeHistoryModal(ON_ROSTER_ID);
     const modal = document.querySelector('#badge-history-modal');
@@ -131,7 +131,14 @@ describe('Badge tracker backlog', () => {
     expect(tracker.showToast).toHaveBeenCalledWith('offline.savedLocally', 'info');
 
     window.dispatchEvent(new CustomEvent('offlineMutationReplayed', {
-      detail: { url: '/api/v1/badges/history', method: 'POST' }
+      detail: { url: '/api/v1/badges/history', method: 'POST', mutationId: 'mutation-other' }
+    }));
+    await Promise.resolve();
+    expect(modal.isConnected).toBe(true);
+    expect(tracker.loadData).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new CustomEvent('offlineMutationReplayed', {
+      detail: { url: '/api/v1/badges/history', method: 'POST', mutationId: 'mutation-a' }
     }));
     await Promise.resolve();
     await Promise.resolve();
@@ -160,5 +167,64 @@ describe('Badge tracker backlog', () => {
     expect(tracker.showToast).toHaveBeenCalledWith(expect.not.stringMatching(/Forbidden/), 'error');
     expect(tracker.showToast).not.toHaveBeenCalledWith('error', 'error');
     expect(modal.querySelector('button[form="badge-history-form"]').disabled).toBe(false);
+  });
+
+  test('a replay confirmed after leaving the screen does not draw over the next one', async () => {
+    tracker.canManage = true;
+    tracker.templates = [{ id: TEMPLATE_ID, name: 'Akela', level_count: 2 }];
+    tracker.loadData = jest.fn().mockResolvedValue(true);
+    tracker.render = jest.fn();
+    tracker.attachSearchListener = jest.fn();
+    tracker.showToast = jest.fn();
+    saveBadgeHistory.mockResolvedValue({ success: true, queued: true, mutationId: 'mutation-b' });
+
+    tracker.openBadgeHistoryModal(ON_ROSTER_ID);
+    const modal = document.querySelector('#badge-history-modal');
+    modal.querySelector('input[value="5:1"]').checked = true;
+    modal.querySelector('#badge-history-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+    tracker.destroy();
+
+    window.dispatchEvent(new CustomEvent('offlineMutationReplayed', {
+      detail: { url: '/api/v1/badges/history', method: 'POST', mutationId: 'mutation-b' }
+    }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(tracker.loadData).not.toHaveBeenCalled();
+    expect(tracker.render).not.toHaveBeenCalled();
+  });
+
+  test('a confirmed save that completes after leaving the screen does not render it again', async () => {
+    tracker.canManage = true;
+    tracker.templates = [{ id: TEMPLATE_ID, name: 'Akela', level_count: 2 }];
+    tracker.loadData = jest.fn(() => { tracker.destroy(); return Promise.resolve(true); });
+    tracker.render = jest.fn();
+    tracker.attachSearchListener = jest.fn();
+    tracker.showToast = jest.fn();
+    saveBadgeHistory.mockResolvedValue({ success: true, data: { inserted: [{ id: 1 }] } });
+
+    tracker.openBadgeHistoryModal(ON_ROSTER_ID);
+    const modal = document.querySelector('#badge-history-modal');
+    modal.querySelector('input[value="5:1"]').checked = true;
+    modal.querySelector('#badge-history-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(tracker.loadData).toHaveBeenCalledWith(true);
+    expect(tracker.render).not.toHaveBeenCalled();
+  });
+
+  test('names each badge in the history dialog in the interface language', () => {
+    tracker.canManage = true;
+    tracker.templates = [{ id: TEMPLATE_ID, name: 'Vrai comme Baloo', translation_key: 'badge_baloo', level_count: 1 }];
+
+    tracker.openBadgeHistoryModal(ON_ROSTER_ID);
+    const legends = Array.from(document.querySelectorAll('#badge-history-modal legend')).map((node) => node.textContent);
+
+    expect(legends).toContain('True like Baloo');
+    expect(legends).not.toContain('Vrai comme Baloo');
   });
 });

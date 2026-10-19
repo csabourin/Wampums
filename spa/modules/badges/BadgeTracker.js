@@ -37,6 +37,7 @@ import {
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { badgeLabel } from '../../utils/BadgeLabelUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 
 /** Owner key for the badge tracker modal's body scroll lock. */
@@ -882,6 +883,7 @@ export class BadgeTracker {
    */
   destroy() {
     this.destroyed = true;
+    this.stopAwaitingHistoryReplay();
     if (this.delegationRoot && this.boundClickHandler) {
       this.delegationRoot.removeEventListener('click', this.boundClickHandler);
     }
@@ -1277,7 +1279,7 @@ export class BadgeTracker {
       const recorded = existing.has(level);
       return `<label><input type="checkbox" name="level" value="${template.id}:${level}" ${recorded ? 'disabled' : ''}> ${translate('badge_star_label')} ${level}${recorded ? ` (${translate('badge_history_already_recorded')})` : ''}</label>`;
     }).join('');
-    return `<fieldset class="form-group badge-tracker__fieldset"><legend>${escapeHTML(template.name)}</legend><div class="badge-history-levels">${levelOptions}</div></fieldset>`;
+    return `<fieldset class="form-group badge-tracker__fieldset"><legend>${escapeHTML(badgeLabel(template))}</legend><div class="badge-history-levels">${levelOptions}</div></fieldset>`;
   }).join('')}
           </fieldset>
           <div class="form-group">
@@ -1311,32 +1313,55 @@ export class BadgeTracker {
         if (result?.queued) {
           this.showToast(translate('offline.savedLocally'), 'info');
           submit.disabled = false;
-          const onHistoryReplayed = async (syncEvent) => {
-            if (!syncEvent.detail?.url?.includes('/api/v1/badges/history')) {return;}
-            window.removeEventListener('offlineMutationReplayed', onHistoryReplayed);
-            if (!overlay.isConnected) {return;}
-            closeModal('badge-history-modal');
-            this.showToast(`${entries.length} ${translate('badge_history_saved')}`, 'success');
-            await this.loadData(true);
-            this.render();
-            this.attachSearchListener();
-          };
-          window.addEventListener('offlineMutationReplayed', onHistoryReplayed);
+          this.awaitHistoryReplay(result.mutationId, overlay, entries.length);
           return;
         }
         if (!result?.success) {throw new Error('badge_history_save_failed');}
         const count = result.data?.inserted?.length || 0;
         this.showToast(`${count} ${translate('badge_history_saved')}`, 'success');
         closeModal('badge-history-modal');
-        await this.loadData(true);
-        this.render();
-        this.attachSearchListener();
+        await this.refreshAfterHistorySave();
       } catch (error) {
         debugError('[BadgeTracker] Historical badge save error:', error);
         this.showToast(apiErrorMessage(error, 'badge_history_save_failed'), 'error');
         submit.disabled = false;
       }
     });
+  }
+
+  /**
+   * Confirm a queued history save only when its own mutation is replayed.
+   * @param {string|undefined} mutationId - Id the offline queue gave the request
+   * @param {HTMLElement} overlay - The history dialog that queued it
+   * @param {number} levelCount - Levels the request records
+   */
+  awaitHistoryReplay(mutationId, overlay, levelCount) {
+    this.stopAwaitingHistoryReplay();
+    if (!mutationId) {return;}
+    this.historyReplayListener = async (syncEvent) => {
+      if (syncEvent.detail?.mutationId !== mutationId) {return;}
+      this.stopAwaitingHistoryReplay();
+      if (this.destroyed) {return;}
+      if (overlay.isConnected) {closeModal('badge-history-modal');}
+      this.showToast(`${levelCount} ${translate('badge_history_saved')}`, 'success');
+      await this.refreshAfterHistorySave();
+    };
+    window.addEventListener('offlineMutationReplayed', this.historyReplayListener);
+  }
+
+  stopAwaitingHistoryReplay() {
+    if (this.historyReplayListener) {
+      window.removeEventListener('offlineMutationReplayed', this.historyReplayListener);
+      this.historyReplayListener = null;
+    }
+  }
+
+  /** Reload after a confirmed history save, unless the person has left the screen. */
+  async refreshAfterHistorySave() {
+    await this.loadData(true);
+    if (this.destroyed) {return;}
+    this.render();
+    this.attachSearchListener();
   }
 
   async openUnprocessedModal() {
