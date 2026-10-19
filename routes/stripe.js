@@ -2,6 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, blockDemoRoles, userHasPermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { check } = require('express-validator');
+const { validateIdBody, checkValidation } = require('../middleware/validation');
+
+const CENTS_PER_DOLLAR = 100;
 
 // Initialize Stripe with secret key
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
@@ -12,116 +16,114 @@ module.exports = (pool, logger) => {
    * @desc Create a Stripe payment intent for a participant fee
    * @access Parents and staff (authenticated)
    */
-  router.post('/v1/stripe/create-payment-intent', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
-    const userId = req.user.id;
-    const organizationId = await getOrganizationId(req, pool);
-    const { participant_fee_id, amount } = req.body;
+  router.post('/v1/stripe/create-payment-intent',
+    authenticate,
+    blockDemoRoles,
+    validateIdBody('participant_fee_id'),
+    check('amount').isFloat({ gt: 0 }).withMessage('amount must be greater than 0'),
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const userId = req.user.id;
+      const organizationId = await getOrganizationId(req, pool);
+      const participantFeeId = Number(req.body.participant_fee_id);
+      const amount = Number(req.body.amount);
 
-    // Validate input
-    if (!participant_fee_id) {
-      return error(res, 'participant_fee_id is required', 400);
-    }
+      // Verify the user has permission to pay this fee
+      // Parents can only pay for their own children; whoever manages the unit's
+      // finances can pay any fee. Read from the database, not the JWT, so a
+      // permission taken away since sign-in no longer counts.
+      const isStaff = await userHasPermission(req, pool, organizationId, 'finance.manage');
 
-    if (!amount || amount <= 0) {
-      return error(res, 'amount must be greater than 0', 400);
-    }
+      let feeQuery;
+      let feeParams;
 
-    // Verify the user has permission to pay this fee
-    // Parents can only pay for their own children; whoever manages the unit's
-    // finances can pay any fee. Read from the database, not the JWT, so a
-    // permission taken away since sign-in no longer counts.
-    const isStaff = await userHasPermission(req, pool, organizationId, 'finance.manage');
+      if (isStaff) {
+        // Staff can pay any fee in their organization
+        feeQuery = `
+          SELECT
+            pf.id,
+            pf.participant_id,
+            pf.total_amount,
+            pf.status,
+            p.first_name,
+            p.last_name,
+            COALESCE(SUM(pay.amount), 0) as total_paid
+          FROM participant_fees pf
+          JOIN participants p ON pf.participant_id = p.id
+          LEFT JOIN payments pay ON pf.id = pay.participant_fee_id
+          WHERE pf.id = $1 AND pf.organization_id = $2
+          GROUP BY pf.id, pf.participant_id, pf.total_amount, pf.status, p.first_name, p.last_name
+        `;
+        feeParams = [participantFeeId, organizationId];
+      } else {
+        // Parents can only pay for their children
+        feeQuery = `
+          SELECT
+            pf.id,
+            pf.participant_id,
+            pf.total_amount,
+            pf.status,
+            p.first_name,
+            p.last_name,
+            COALESCE(SUM(pay.amount), 0) as total_paid
+          FROM participant_fees pf
+          JOIN participants p ON pf.participant_id = p.id
+          JOIN user_participants up ON p.id = up.participant_id
+          LEFT JOIN payments pay ON pf.id = pay.participant_fee_id
+          WHERE pf.id = $1
+            AND up.user_id = $2
+            AND pf.organization_id = $3
+          GROUP BY pf.id, pf.participant_id, pf.total_amount, pf.status, p.first_name, p.last_name
+        `;
+        feeParams = [participantFeeId, userId, organizationId];
+      }
 
-    let feeQuery;
-    let feeParams;
+      const feeResult = await pool.query(feeQuery, feeParams);
 
-    if (isStaff) {
-      // Staff can pay any fee in their organization
-      feeQuery = `
-        SELECT
-          pf.id,
-          pf.participant_id,
-          pf.total_amount,
-          pf.status,
-          p.first_name,
-          p.last_name,
-          COALESCE(SUM(pay.amount), 0) as total_paid
-        FROM participant_fees pf
-        JOIN participants p ON pf.participant_id = p.id
-        LEFT JOIN payments pay ON pf.id = pay.participant_fee_id
-        WHERE pf.id = $1 AND pf.organization_id = $2
-        GROUP BY pf.id, pf.participant_id, pf.total_amount, pf.status, p.first_name, p.last_name
-      `;
-      feeParams = [participant_fee_id, organizationId];
-    } else {
-      // Parents can only pay for their children
-      feeQuery = `
-        SELECT
-          pf.id,
-          pf.participant_id,
-          pf.total_amount,
-          pf.status,
-          p.first_name,
-          p.last_name,
-          COALESCE(SUM(pay.amount), 0) as total_paid
-        FROM participant_fees pf
-        JOIN participants p ON pf.participant_id = p.id
-        JOIN user_participants up ON p.id = up.participant_id
-        LEFT JOIN payments pay ON pf.id = pay.participant_fee_id
-        WHERE pf.id = $1
-          AND up.user_id = $2
-          AND pf.organization_id = $3
-        GROUP BY pf.id, pf.participant_id, pf.total_amount, pf.status, p.first_name, p.last_name
-      `;
-      feeParams = [participant_fee_id, userId, organizationId];
-    }
+      if (feeResult.rows.length === 0) {
+        return error(res, 'Fee not found or you do not have permission to pay this fee', 404);
+      }
 
-    const feeResult = await pool.query(feeQuery, feeParams);
+      const fee = feeResult.rows[0];
+      const outstanding = parseFloat(fee.total_amount) - parseFloat(fee.total_paid);
 
-    if (feeResult.rows.length === 0) {
-      return error(res, 'Fee not found or you do not have permission to pay this fee', 404);
-    }
+      // Verify the payment amount doesn't exceed outstanding balance
+      if (Math.round(amount * CENTS_PER_DOLLAR) > Math.round(outstanding * CENTS_PER_DOLLAR)) {
+        return error(res, 'Payment amount exceeds outstanding balance', 400);
+      }
 
-    const fee = feeResult.rows[0];
-    const outstanding = parseFloat(fee.total_amount) - parseFloat(fee.total_paid);
+      try {
+        // Create a PaymentIntent with Stripe
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: Math.round(amount * CENTS_PER_DOLLAR),
+          currency: 'cad',
+          automatic_payment_methods: {
+            enabled: true,
+          },
+          metadata: {
+            participant_fee_id: participantFeeId.toString(),
+            participant_id: fee.participant_id.toString(),
+            participant_name: `${fee.first_name} ${fee.last_name}`,
+            organization_id: organizationId.toString(),
+            user_id: userId.toString(),
+          },
+          description: `Payment for ${fee.first_name} ${fee.last_name} - Fee #${participantFeeId}`,
+        });
 
-    // Verify the payment amount doesn't exceed outstanding balance
-    if (amount > outstanding) {
-      return error(res, `Payment amount ($${amount}) exceeds outstanding balance ($${outstanding.toFixed(2)})`, 400);
-    }
+        logger.info(`Created Stripe PaymentIntent: ${paymentIntent.id} for participant_fee_id: ${participantFeeId}, amount: $${amount}`);
 
-    try {
-      // Create a PaymentIntent with Stripe
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(amount * 100), // Convert to cents
-        currency: 'cad',
-        automatic_payment_methods: {
-          enabled: true,
-        },
-        metadata: {
-          participant_fee_id: participant_fee_id.toString(),
-          participant_id: fee.participant_id.toString(),
-          participant_name: `${fee.first_name} ${fee.last_name}`,
-          organization_id: organizationId.toString(),
-          user_id: userId.toString(),
-        },
-        description: `Payment for ${fee.first_name} ${fee.last_name} - Fee #${participant_fee_id}`,
-      });
+        return success(res, {
+          clientSecret: paymentIntent.client_secret,
+          paymentIntentId: paymentIntent.id,
+          amount: amount,
+          participantName: `${fee.first_name} ${fee.last_name}`,
+        }, 'Payment intent created successfully');
 
-      logger.info(`Created Stripe PaymentIntent: ${paymentIntent.id} for participant_fee_id: ${participant_fee_id}, amount: $${amount}`);
-
-      return success(res, {
-        clientSecret: paymentIntent.client_secret,
-        paymentIntentId: paymentIntent.id,
-        amount: amount,
-        participantName: `${fee.first_name} ${fee.last_name}`,
-      }, 'Payment intent created successfully');
-
-    } catch (stripeError) {
-      logger.error('Stripe PaymentIntent creation failed:', stripeError);
-      return error(res, `Payment processing error: ${stripeError.message}`, 500);
-    }
-  }));
+      } catch (stripeError) {
+        logger.error('Stripe PaymentIntent creation failed:', stripeError);
+        return error(res, `Payment processing error: ${stripeError.message}`, 500);
+      }
+    }));
 
   /**
    * @route POST /v1/stripe/webhook
@@ -227,6 +229,13 @@ async function handlePaymentSuccess(paymentIntent, pool, logger) {
     if (!participant_fee_id) {
       throw new Error('Missing participant_fee_id in PaymentIntent metadata');
     }
+
+    // Stripe may deliver the same event twice at once. Locking the fee makes
+    // the second delivery wait, then find the payment the first one recorded.
+    await client.query(
+      'SELECT id FROM participant_fees WHERE id = $1 FOR UPDATE',
+      [participant_fee_id]
+    );
 
     // Check if payment already recorded
     const existingPayment = await client.query(

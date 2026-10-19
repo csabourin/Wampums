@@ -51,7 +51,7 @@
     "routes/resources.js": 208,
     "routes/roles.js": 19,
     "routes/scoutYears.js": 17,
-    "routes/stripe.js": 36,
+    "routes/stripe.js": 27,
     "routes/transfers.js": 6,
     "routes/userProfile.js": 26,
     "routes/users.js": 45,

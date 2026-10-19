@@ -48,6 +48,10 @@ const HTTP_NOT_FOUND = 404;
 const HTTP_CONFLICT = 409;
 /** Statuses of a message that is still to go out: it cannot leave the history yet. */
 const PENDING_STATUSES = ['scheduled', 'sending'];
+// A send still marked 'sending' this long after it started was cut off by a
+// restart. It is marked failed rather than resent: some recipients may
+// already have it, and a failed message stays visible for a leader to resend.
+const STALE_SENDING_MINUTES = 60;
 /** Messages listed per page of the history, and the last page number accepted. */
 const HISTORY_PAGE_SIZE = 50;
 const MAX_HISTORY_PAGE = 100000;
@@ -631,6 +635,18 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
  * Claim and send due scheduled announcements
  */
 async function processScheduledAnnouncements(pool, logger, whatsappService = null, googleChatService = null) {
+  const stale = await pool.query(
+    `UPDATE announcements
+     SET status = 'failed', updated_at = NOW()
+     WHERE status = 'sending'
+       AND updated_at < NOW() - make_interval(mins => $1)
+     RETURNING id`,
+    [STALE_SENDING_MINUTES],
+  );
+  if (stale.rows.length > 0) {
+    logger.warn('Marked interrupted announcements as failed:', stale.rows.map((row) => row.id));
+  }
+
   const dueQuery = `
     UPDATE announcements
     SET status = 'sending', updated_at = NOW()
@@ -1192,3 +1208,4 @@ module.exports.shutdownListenerForTests = async function() {
 };
 module.exports.normalizeAnnouncementPayloadForTests = normalizeAnnouncementPayload;
 module.exports.buildAnnouncementEmailForTests = buildAnnouncementEmail;
+module.exports.processScheduledAnnouncementsForTests = processScheduledAnnouncements;

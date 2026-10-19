@@ -13,6 +13,9 @@ const { setStaticHeaders } = require('../utils/static-cache');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const REQUEST_BODY_LIMIT = '20mb';
+// Stripe signs the exact bytes it sends; its route reads them with express.raw(),
+// which finds nothing left once the JSON parser has consumed the body.
+const RAW_BODY_PATHS = new Set(['/api/v1/stripe/webhook']);
 
 /**
  * Resolve the preferred localized landing route from the incoming request.
@@ -115,7 +118,8 @@ module.exports = (app) => {
   }
 
   // Body Parsing
-  app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
+  const jsonParser = express.json({ limit: REQUEST_BODY_LIMIT });
+  app.use((req, res, next) => (RAW_BODY_PATHS.has(req.path) ? next() : jsonParser(req, res, next)));
   app.use(express.urlencoded({ limit: REQUEST_BODY_LIMIT, extended: true }));
   app.use(sanitizeServerErrorResponses);
 

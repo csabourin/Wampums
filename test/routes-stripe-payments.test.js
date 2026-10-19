@@ -22,7 +22,8 @@ const { closeServerResources } = require('./test-helpers');
 
 
 jest.mock('stripe', () => {
-  return () => ({
+  // One instance, so a test can see what the route asked Stripe to do.
+  const instance = {
     paymentIntents: {
       create: jest.fn(async ({ amount }) => ({
         id: 'pi_test_123',
@@ -36,7 +37,8 @@ jest.mock('stripe', () => {
     webhooks: {
       constructEvent: jest.fn(() => { throw new Error('Unable to extract timestamp and signatures from header'); })
     }
-  });
+  };
+  return () => instance;
 });
 
 // Mock pg module before requiring app
@@ -316,6 +318,42 @@ describe('POST /api/v1/stripe/create-payment-intent', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/required|participant_fee_id/i);
+  });
+
+  test('a malformed fee id is refused as bad input, not read as a number', async () => {
+    const token = generateToken({ roleNames: ['district'], permissions: ['payment.manage'], user_id: 1 });
+    const feeQueries = [];
+    installAuthedPoolMock((query) => {
+      if (query.includes('FROM participant_fees pf')) {
+        feeQueries.push(query);
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .post('/api/v1/stripe/create-payment-intent')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ participant_fee_id: '12abc', amount: 10 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/participant_fee_id/);
+    expect(feeQueries).toHaveLength(0);
+  });
+
+  test('an amount that is not a number is refused before Stripe is called', async () => {
+    const token = generateToken({ roleNames: ['district'], permissions: ['payment.manage'], user_id: 1 });
+    installAuthedPoolMock(() => undefined);
+    const stripe = require('stripe')();
+    stripe.paymentIntents.create.mockClear();
+
+    const res = await request(app)
+      .post('/api/v1/stripe/create-payment-intent')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ participant_fee_id: 100, amount: 'abc' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/amount/);
+    expect(stripe.paymentIntents.create).not.toHaveBeenCalled();
   });
 
   test('returns 404 when fee not found', async () => {
