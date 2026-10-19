@@ -6,7 +6,7 @@
  * IndexedDB queue (fake-indexeddb).
  *
  * Implements: US-OFF-001, US-OFF-002, US-OFF-003, US-OFF-004, US-OFF-005,
- *             US-OFF-007
+ *             US-OFF-007, US-OFF-008
  */
 
 'use strict';
@@ -57,8 +57,9 @@ if (typeof global.Response === 'undefined') {
 }
 
 const { OfflineManager } = require('../../spa/modules/OfflineManager.js');
-const { saveOfflineData, getOfflineData, setCachedData } = require('../../spa/indexedDB.js');
+const { saveOfflineData, getOfflineData, setCachedData, getCachedData } = require('../../spa/indexedDB.js');
 const { flushPromises } = require('./helpers/story-helpers');
+const { buildApiCacheKey } = require('../../spa/utils/OfflineCacheKeys.js');
 
 function makeJsonResponse(data, { status = 200 } = {}) {
   return new global.Response(JSON.stringify(data), {
@@ -377,5 +378,109 @@ describe('US-OFF-007 — The app announces connection changes', () => {
     expect(status.seen).toContainEqual({ isOffline: false });
     expect(sync.seen).toContainEqual({ isSyncing: true });
     expect(sync.seen).toContainEqual({ isSyncing: false });
+  });
+});
+
+describe('US-OFF-008 — A change refused on replay is never reported as saved', () => {
+  const ATTENDANCE = 'http://localhost:3000/api/v1/attendance';
+  const HISTORY = 'http://localhost:3000/api/v1/badges/history';
+
+  function queue(manager, url, body) {
+    manager.isOffline = true;
+    return manager.queueMutation(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** The server accepts attendance and refuses badge history. */
+  function serverRefusesHistory() {
+    global.fetch.mockImplementation((url) => Promise.resolve(url === HISTORY
+      ? makeJsonResponse({ success: false }, { status: 400 })
+      : makeJsonResponse({ success: true })));
+  }
+
+  it('announces the refused change, with the id the queue gave it', async () => {
+    const manager = new OfflineManager();
+    const mutationId = await queue(manager, HISTORY, { participant_id: 1, entries: [] });
+    serverRefusesHistory();
+    const refused = captureWindowEvents('offlineMutationRejected');
+
+    const outcome = await manager.replayPendingMutations();
+
+    refused.stop();
+    expect(outcome).toEqual({ replayed: 0, rejected: [expect.objectContaining({ kind: 'badges', mutationId })] });
+    expect(refused.seen).toEqual([{ url: HISTORY, method: 'POST', kind: 'badges', mutationId, status: 400 }]);
+    expect(await getOfflineData()).toHaveLength(0);
+  });
+
+  it('says which changes were refused instead of "all changes synced"', async () => {
+    const manager = new OfflineManager();
+    await queue(manager, ATTENDANCE, { participant_id: 1, date: '2026-07-15', status: 'present' });
+    await queue(manager, HISTORY, { participant_id: 1, entries: [] });
+    manager.isOffline = false;
+    serverRefusesHistory();
+    const toasts = captureWindowEvents('showToast');
+
+    await manager.syncPendingData();
+
+    toasts.stop();
+    expect(toasts.seen).toEqual([{
+      message: '1 change(s) made offline were refused and not saved: badge history',
+      type: 'error',
+    }]);
+  });
+
+  it('reports refusals even when nothing else was sent', async () => {
+    const manager = new OfflineManager();
+    await queue(manager, ATTENDANCE, { participant_id: 1, date: '2026-07-15', status: 'present' });
+    await queue(manager, ATTENDANCE, { participant_id: 2, date: '2026-07-15', status: 'absent' });
+    manager.isOffline = false;
+    global.fetch.mockResolvedValue(makeJsonResponse({ success: false }, { status: 403 }));
+    const toasts = captureWindowEvents('showToast');
+
+    await manager.syncPendingData();
+
+    toasts.stop();
+    expect(toasts.seen).toEqual([{
+      message: '2 change(s) made offline were refused and not saved: attendance',
+      type: 'error',
+    }]);
+  });
+
+  it('forgets the cached copy of the refused resource before announcing it', async () => {
+    const manager = new OfflineManager();
+    await queue(manager, ATTENDANCE, { participant_id: 1, date: '2026-07-15', status: 'present' });
+    const attendanceKey = buildApiCacheKey('v1/attendance', { date: '2026-07-15' });
+    const participantsKey = buildApiCacheKey('v1/participants', {});
+    await setCachedData(attendanceKey, { success: true, data: [{ participant_id: 1, status: 'present' }] });
+    await setCachedData(participantsKey, { success: true, data: [] });
+    global.fetch.mockResolvedValue(makeJsonResponse({ success: false }, { status: 422 }));
+    // A screen reloading on the announcement reads the cache at that moment.
+    let readOnAnnouncement = Promise.resolve('not announced');
+    const onRefused = () => { readOnAnnouncement = getCachedData(attendanceKey); };
+    window.addEventListener('offlineMutationRejected', onRefused);
+
+    await manager.replayPendingMutations();
+
+    window.removeEventListener('offlineMutationRejected', onRefused);
+    expect(await readOnAnnouncement).toBeNull();
+    // Only the refused resource goes: in camp mode the cache is the only copy of the rest.
+    expect(await getCachedData(participantsKey)).not.toBeNull();
+  });
+
+  it('keeps a change the server could not handle yet (503) queued, and announces nothing', async () => {
+    const manager = new OfflineManager();
+    await queue(manager, ATTENDANCE, { participant_id: 1, date: '2026-07-15', status: 'present' });
+    global.fetch.mockResolvedValue(makeJsonResponse({ success: false }, { status: 503 }));
+    const refused = captureWindowEvents('offlineMutationRejected');
+
+    const outcome = await manager.replayPendingMutations();
+
+    refused.stop();
+    expect(outcome).toEqual({ replayed: 0, rejected: [] });
+    expect(refused.seen).toEqual([]);
+    expect(await getOfflineData()).toHaveLength(1);
   });
 });

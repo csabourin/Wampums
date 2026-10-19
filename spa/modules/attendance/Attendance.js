@@ -68,6 +68,8 @@ export class Attendance {
       return;
     }
 
+    this.listenForRejectedChanges();
+
     try {
       this.renderSkeleton();
       this.isLoading = true;
@@ -919,6 +921,44 @@ export class Attendance {
     this.searchHandler?.cancel?.();
     this.searchHandler = null;
     this.pendingDateChange = null;
+    if (this.rejectedChangeHandler) {
+      window.removeEventListener('offlineMutationRejected', this.rejectedChangeHandler);
+      this.rejectedChangeHandler = null;
+    }
+  }
+
+  /**
+   * An attendance change saved offline can be refused on replay; the list
+   * on screen (and its cached copy) then shows a status that was never
+   * recorded. Reload the date shown from the server.
+   */
+  listenForRejectedChanges() {
+    if (this.rejectedChangeHandler) {
+      return;
+    }
+    this.rejectedChangeHandler = (event) => {
+      if (event.detail?.kind === 'attendance') {
+        this.reloadAfterRejectedChange();
+      }
+    };
+    window.addEventListener('offlineMutationRejected', this.rejectedChangeHandler);
+  }
+
+  /**
+   * Drop the date's cached copies, which hold the refused status, and load
+   * it again through the serialized date loader.
+   * @returns {Promise<void>}
+   */
+  async reloadAfterRejectedChange() {
+    // Not yet initialized: init() is loading, and changeDate must not race it.
+    if (!this.isInitialized || !document.querySelector('.attendance-container')) {
+      return;
+    }
+    await Promise.all([
+      deleteCachedData(`attendance_${this.currentDate}`),
+      deleteCachedData(`attendance_api_${this.currentDate}`),
+    ]);
+    await this.changeDate(this.currentDate);
   }
 
   // Fix the selection toggle methods

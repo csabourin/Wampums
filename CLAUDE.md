@@ -495,8 +495,15 @@ const result = await pool.query(
   cache keys after such a write. To reload after one, call the read again with `forceRefresh: true`.
   A write that was only **queued** (`{ queued: true }`) gets less. Queued while known to be offline, it
   clears only the resource it touched, not the screens derived from it. Queued after a network error,
-  it clears nothing, and replaying the queue clears nothing either, so reload with `forceRefresh: true`
-  once it is sent.
+  it clears nothing, and a replay the server accepts clears nothing either, so reload with
+  `forceRefresh: true` once it is sent.
+- ✅ **A queued write the server refuses on replay is never reported as saved.** A 400, 403, 404, 409,
+  410 or 422 drops it from the queue, clears the cached copy of its resource, and announces
+  `offlineMutationRejected` (`{ url, method, kind, mutationId, status }`; `queueMutation` returns the
+  `mutationId`, and `api-core` hands it back as `result.mutationId`). The sync then says what was
+  refused (`sync.rejected`) instead of "all changes synced". A screen that queues writes reloads when
+  its `kind` is refused, and a form waiting on its own `mutationId` hands itself back for correction.
+  A new queueable write gets a `kind` in `SAFE_OFFLINE_MUTATIONS` and a `sync.rejected_kind_<kind>` key.
 - ✅ Cache keys and in-flight read deduplication are scoped by user, unit and selected scout year
   (`spa/utils/OfflineCacheKeys.js`); never build one by hand. Simultaneous reads share one request;
   a forced refresh starts a new one. An aborted read is never retried.

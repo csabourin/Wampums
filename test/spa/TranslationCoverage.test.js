@@ -126,15 +126,24 @@ function programProgressStatuses() {
   return [...list.matchAll(/'([a-z_]+)'/g)].map((match) => match[1]);
 }
 
+/** @returns {string[]} The kinds of offline change OfflineManager names when one is refused */
+function offlineMutationKinds() {
+  const source = code(path.join(ROOT, 'spa/modules/OfflineManager.js'));
+  return [...new Set([...source.matchAll(/kind: '([a-z_]+)'/g)].map((match) => match[1]))];
+}
+
 test('every key built from a state exists for each state the server returns', () => {
   const built = [
     ...['pending', 'expired', 'accepted', 'revoked', 'invalid'].map((s) => [`parent_invitation_state_${s}`, 'ParentInvitations']),
     ...['pending', 'expired', 'accepted', 'declined', 'revoked'].map((s) => [`family_request_state_${s}`, 'FamilyAccess']),
     ...['same', 'different'].map((s) => [`participant_duplicates_decided_${s}`, 'ParticipantDuplicates']),
     ...[...programProgressStatuses(), 'other'].map((s) => [`program_progress_status_${s}`, 'ProgramProgressDashboard']),
+    ['sync.rejected', 'OfflineManager'],
+    ...[...offlineMutationKinds(), 'other'].map((kind) => [`sync.rejected_kind_${kind}`, 'OfflineManager']),
   ];
 
   expect(programProgressStatuses().length).toBeGreaterThan(10);
+  expect(offlineMutationKinds()).toEqual(expect.arrayContaining(['attendance', 'medication', 'badges']));
 
   expect(missing(built)).toEqual([]);
 });

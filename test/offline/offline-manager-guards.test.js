@@ -85,7 +85,7 @@ describe('OfflineManager guardrails', () => {
   test('syncPendingData always replays in the authenticated SPA', async () => {
     const manager = new OfflineManager();
 
-    const replaySpy = jest.spyOn(manager, 'replayPendingMutations').mockResolvedValue(undefined);
+    const replaySpy = jest.spyOn(manager, 'replayPendingMutations').mockResolvedValue({ replayed: 0, rejected: [] });
     jest.spyOn(manager, 'updatePendingCount').mockResolvedValue(undefined);
 
     await manager.syncPendingData();
@@ -101,7 +101,7 @@ describe('OfflineManager guardrails', () => {
       sync: { register: jest.fn().mockRejectedValue(swRegistrationError) },
     });
 
-    const replaySpy = jest.spyOn(manager, 'replayPendingMutations').mockResolvedValue(undefined);
+    const replaySpy = jest.spyOn(manager, 'replayPendingMutations').mockResolvedValue({ replayed: 0, rejected: [] });
     jest.spyOn(manager, 'updatePendingCount').mockResolvedValue(undefined);
 
     await manager.syncPendingData();
@@ -116,7 +116,7 @@ describe('OfflineManager guardrails', () => {
     [2, true],
   ])('with %i changes sent, announces the sync: %s', async (replayed, announced) => {
     const manager = new OfflineManager();
-    jest.spyOn(manager, 'replayPendingMutations').mockResolvedValue(replayed);
+    jest.spyOn(manager, 'replayPendingMutations').mockResolvedValue({ replayed, rejected: [] });
     jest.spyOn(manager, 'updatePendingCount').mockImplementation(async () => {
       manager.pendingMutations = [];
     });
@@ -126,6 +126,21 @@ describe('OfflineManager guardrails', () => {
 
     const syncedToasts = toastSpy.mock.calls.filter(([, type]) => type === 'success');
     expect(syncedToasts).toHaveLength(announced ? 1 : 0);
+  });
+
+  test('with a change refused, never announces "all changes synced"', async () => {
+    const manager = new OfflineManager();
+    jest.spyOn(manager, 'replayPendingMutations')
+      .mockResolvedValue({ replayed: 2, rejected: [{ kind: 'attendance' }] });
+    jest.spyOn(manager, 'updatePendingCount').mockImplementation(() => {
+      manager.pendingMutations = [];
+      return Promise.resolve();
+    });
+    const toastSpy = jest.spyOn(manager, 'showToast').mockImplementation(() => {});
+
+    await manager.syncPendingData();
+
+    expect(toastSpy.mock.calls.map(([, type]) => type)).toEqual(['error']);
   });
 
 });

@@ -286,6 +286,43 @@ export class MedicationManagement {
 
     this.offlineStatusHandler = (event) => this.handleOfflineStatusChange(event);
     window.addEventListener('offlineStatusChanged', this.offlineStatusHandler);
+    this.rejectedChangeHandler = (event) => {
+      if (event.detail?.kind === 'medication') {
+        this.reloadAfterRejectedChange();
+      }
+    };
+    window.addEventListener('offlineMutationRejected', this.rejectedChangeHandler);
+  }
+
+  /**
+   * A dose or reception saved offline was refused on replay: what the page
+   * shows (and its cached copy) includes a change the server never recorded.
+   * Reload from the server; the offline queue has already said what was lost.
+   *
+   * @returns {Promise<void>}
+   */
+  async reloadAfterRejectedChange() {
+    if (this.destroyed) {
+      return;
+    }
+    try {
+      await this.invalidateCaches();
+      await this.refreshData(true);
+    } catch (error) {
+      debugError('Error reloading medication data after a refused change', error);
+      if (!this.destroyed) {
+        this.app.showMessage(apiErrorMessage(error, 'error_loading_data'), 'error');
+      }
+      return;
+    }
+    if (this.destroyed) {
+      return;
+    }
+    this.render();
+    this.attachEventListeners();
+    if (this.enableAlerts) {
+      this.renderAlertArea();
+    }
   }
 
   /**
@@ -302,6 +339,10 @@ export class MedicationManagement {
     if (this.offlineStatusHandler) {
       window.removeEventListener('offlineStatusChanged', this.offlineStatusHandler);
       this.offlineStatusHandler = null;
+    }
+    if (this.rejectedChangeHandler) {
+      window.removeEventListener('offlineMutationRejected', this.rejectedChangeHandler);
+      this.rejectedChangeHandler = null;
     }
   }
 
