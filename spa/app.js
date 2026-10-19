@@ -181,6 +181,20 @@ export const app = {
     return this.organizationSettings;
   },
 
+  /**
+   * Make another unit the active one: screens read its id and settings from
+   * here, so both change with the session's token.
+   *
+   * @param {number|string} organizationId - The unit now in the session's token
+   * @returns {Promise<void>}
+   */
+  async useOrganization(organizationId) {
+    this.organizationId = organizationId;
+    // The settings held so far are the previous unit's.
+    this.organizationSettings = null;
+    await refreshOrganizationSettings(this);
+  },
+
   async init() {
     debugLog('App init started');
     // Apply user's saved dashboard palette so colors are right before first paint.

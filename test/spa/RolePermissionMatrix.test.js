@@ -38,7 +38,7 @@ async function open(extra = {}) { screen = new RolePermissionMatrix(app, extra);
 beforeEach(() => {
   document.body.innerHTML = '<main id="app"></main>';
   jest.clearAllMocks(); mockLanguage = 'fr';
-  app = { showMessage: jest.fn(), router: { navigate: jest.fn() } };
+  app = { showMessage: jest.fn(), router: { navigate: jest.fn() }, useOrganization: jest.fn(() => Promise.resolve()) };
   getRoleMatrix.mockResolvedValue(matrix());
   getUserOrganizations.mockResolvedValue({ data: [{ id: 3, name: 'Notre unité' }, { id: 4, name: 'Autre unité' }] });
   replaceRolePermissions.mockResolvedValue({ success: true });
@@ -153,6 +153,20 @@ test('the district selector switches authenticated context before loading any ta
   expect(switchOrganization).toHaveBeenCalledWith(4); expect(localStorage.getItem('jwtToken')).toBe(token);
   expect(getRoleMatrix).toHaveBeenCalledWith();
   expect(switchOrganization.mock.invocationCallOrder[0]).toBeLessThan(getRoleMatrix.mock.invocationCallOrder[0]);
+});
+test('after a district switch, the app holds the chosen unit and its settings before the matrix reloads', async () => {
+  await open({ district: true });
+  const token = `${btoa('{}')}.${btoa(JSON.stringify({ permissions: ['roles.manage', 'roles.manage_district'], roleIds: [1], roleNames: ['district'] }))}.x`;
+  switchOrganization.mockResolvedValue({ data: { token } }); getRoleMatrix.mockClear();
+  await screen.changeUnit(4);
+  expect(app.useOrganization).toHaveBeenCalledWith(4);
+  expect(app.useOrganization.mock.invocationCallOrder[0]).toBeLessThan(getRoleMatrix.mock.invocationCallOrder[0]);
+});
+test('a failed district switch leaves the app on its current unit', async () => {
+  await open({ district: true });
+  switchOrganization.mockRejectedValue(new Error('offline'));
+  await screen.changeUnit(4);
+  expect(app.useOrganization).not.toHaveBeenCalled();
 });
 test('a cancelled district switch preserves the active unit and pending permissions', async () => {
   await open({ district: true }); box(1).click(); confirm.mockResolvedValue(false);

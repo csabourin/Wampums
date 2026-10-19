@@ -319,6 +319,8 @@ export class RolePermissionMatrix {
       this.app.userPermissions = claims.permissions;
       this.app.userRoles = claims.roleNames;
       await refreshAccess(this.app);
+      // Later screens read the unit's id and settings from the app.
+      await this.app.useOrganization(unitId);
       if (!hasPermission('roles.manage_district') || !hasPermission('roles.manage')) {
         this.saving = false;
         this.app.router.navigate('/dashboard');
