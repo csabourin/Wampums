@@ -17,6 +17,8 @@
  */
 
 
+const { UNIT_FINANCE_PERMISSIONS } = require('../config/constants');
+
 /**
  * Load the given roles that a unit may use: the built-in roles, which are
  * shared and read-only (organization_id IS NULL, is_system_role), and the
@@ -192,7 +194,75 @@ async function recordRoleChange(client, { organizationId, userId, changedBy, pre
   );
 }
 
+/** Return the catalogued View key paired with Manage, when one exists. */
+function pairedViewKey(key, catalog) {
+  const view = key.endsWith('.manage') ? `${key.slice(0, -'.manage'.length)}.view` : null;
+  return view && catalog.some((p) => p.permission_key === view) ? view : null;
+}
+
+/**
+ * Validate one complete desired state. Unchanged permissions need not be held;
+ * additions and removals do. Changing scope checks the authority newly exposed.
+ * The same policy drives the matrix and both single and bulk writes.
+ */
+function checkPermissionChange({ role, catalog, currentKeys, requestedKeys, heldPermissions, previousScope, requireComplete = true }) {
+  if (role.is_system_role) {
+    return { status: 403, message: 'Cannot modify system roles', required: [], missing: [] };
+  }
+  const current = new Set(currentKeys);
+  const requested = new Set(requestedKeys);
+  const financial = catalog.find((p) => requested.has(p.permission_key)
+    && role.data_scope === 'linked' && UNIT_FINANCE_PERMISSIONS.includes(p.permission_key));
+  if (financial) {
+    return { status: 409, message: `A role limited to its own children cannot hold ${financial.permission_key}` };
+  }
+  const incomplete = catalog.find((p) => requested.has(p.permission_key)
+    && pairedViewKey(p.permission_key, catalog) && !requested.has(pairedViewKey(p.permission_key, catalog))
+    && (requireComplete || !current.has(p.permission_key) || current.has(pairedViewKey(p.permission_key, catalog))));
+  if (incomplete) {
+    return { status: 409, message: 'Manage requires the matching View permission' };
+  }
+  const changed = catalog.filter((p) => current.has(p.permission_key) !== requested.has(p.permission_key)
+    || (previousScope && previousScope !== role.data_scope && requested.has(p.permission_key)));
+  const required = changed.filter((p) => permissionCountsAgainstGrantor(p, role)
+    || (previousScope && permissionCountsAgainstGrantor(p, { data_scope: previousScope })))
+    .map((p) => p.permission_key);
+  // A district permission is delegable only from the district management space.
+  if (changed.some((p) => p.district_only)) {
+    required.push('roles.manage_district');
+  }
+  const missing = missingPermissions(required, heldPermissions);
+  return missing.length ? { status: 403, message: 'You can only change permissions you hold', required: [...new Set(required)].sort(), missing } : null;
+}
+
+/** Explain the static constraint on a matrix cell; dependency locks are dynamic. */
+function permissionLockReason(role, permission, heldPermissions, catalog = []) {
+  if (role.is_system_role) { return 'system_role'; }
+  if (permission.district_only && !heldPermissions.includes('roles.manage_district')) { return 'district_only'; }
+  if (role.data_scope === 'linked' && UNIT_FINANCE_PERMISSIONS.includes(permission.permission_key)) { return 'linked_finance'; }
+  if (permissionCountsAgainstGrantor(permission, role) && !heldPermissions.includes(permission.permission_key)) { return 'not_held'; }
+  const view = pairedViewKey(permission.permission_key, catalog);
+  const paired = catalog.find((p) => p.permission_key === view);
+  if (paired && !(role.permission_ids || []).map(Number).includes(Number(paired.id))
+    && permissionCountsAgainstGrantor(paired, role) && !heldPermissions.includes(view)) { return 'not_held'; }
+  return null;
+}
+
+/** Store a role definition snapshot in the same transaction as its mutation. */
+async function recordRoleDefinitionChange(client, { organizationId, changedBy, roleId, before, after }) {
+  if (JSON.stringify(before) === JSON.stringify(after)) { return; }
+  await client.query(
+    `INSERT INTO role_permission_audit (organization_id, changed_by, role_id, previous_state, new_state)
+     VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)`,
+    [organizationId, changedBy, roleId, JSON.stringify(before), JSON.stringify(after)]
+  );
+}
+
 module.exports = {
+  pairedViewKey,
+  checkPermissionChange,
+  permissionLockReason,
+  recordRoleDefinitionChange,
   recordRoleChange,
   findRolesInUnit,
   checkRoleChange,

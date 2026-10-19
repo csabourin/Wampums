@@ -125,6 +125,7 @@ const lazyModules = {
   Activities: () => import('./modules/activities/Activities.js').then(m => m.Activities),
   CarpoolLanding: () => import('./modules/carpool/CarpoolLanding.js').then(m => m.CarpoolLanding),
   CarpoolDashboard: () => import('./modules/carpool/CarpoolDashboard.js').then(m => m.CarpoolDashboard),
+  RolePermissionMatrix: () => import('./modules/roles/RolePermissionMatrix.js').then(m => m.RolePermissionMatrix),
   RoleManagement: () => import('./modules/roles/RoleManagement.js').then(m => m.RoleManagement),
   DistrictManagement: () => import('./modules/district/DistrictManagement.js').then(m => m.DistrictManagement),
   FormPermissions: () => import('./modules/forms/FormPermissions.js').then(m => m.initFormPermissions),
@@ -232,6 +233,7 @@ const routes = {
   '/carpool': 'carpoolLanding',
   '/carpool/:id': 'carpool',
   '/role-management': 'roleManagement',
+  '/roles/permissions': 'rolePermissionMatrix',
   '/district-management': 'districtManagement',
   '/form-permissions': 'formPermissions',
   '/communications': 'communications',
@@ -360,6 +362,12 @@ export class Router {
    * @returns {Promise<void>}
    */
   async route(path, { refresh = false, firstScreen } = {}) {
+    if (this.currentModuleInstance?.beforeLeave
+      && !(await this.currentModuleInstance.beforeLeave({ refresh }))) {
+      if (this.currentPath) { history.replaceState(null, '', this.currentPath); }
+      return;
+    }
+    this.currentPath = path;
     const sequence = ++this.routeSequence;
     const previousFocus = document.activeElement;
     // Settled now, not once drawn: a link followed while the first screen
@@ -932,7 +940,7 @@ export class Router {
           await this.loadTabbedPage('reunions');
           break;
         case 'district':
-          if (!guard(canViewRoles() || canAccessAdminPanel())) {
+          if (!guard(canViewRoles() || canAccessAdminPanel() || hasPermission('roles.manage_district'))) {
             break;
           }
           await this.loadTabbedPage('district');
@@ -1015,6 +1023,13 @@ export class Router {
           this.currentModuleInstance = carpoolDashboard;
           await carpoolDashboard.init();
           break;
+        case 'rolePermissionMatrix': {
+          if (!guard(hasPermission('roles.manage'))) { break; }
+          const RolePermissionMatrix = await this.loadModule('RolePermissionMatrix');
+          this.currentModuleInstance = new RolePermissionMatrix(this.app);
+          await this.currentModuleInstance.init();
+          break;
+        }
         case 'roleManagement':
           // Only accessible by users with role management permissions
           // Permission check is done within the RoleManagement component

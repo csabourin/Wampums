@@ -457,6 +457,16 @@ export const DASHBOARD_TILES = [
     gate: { check: 'member' },
   },
   {
+    featureKey: 'role_permission_matrix',
+    href: '/roles/permissions',
+    icon: 'fa-table-cells',
+    label: 'tile_role_permission_matrix',
+    aliases: 'tile_role_permission_matrix_aliases',
+    moment: 'tools',
+    domain: 'admin',
+    gate: { permission: 'roles.manage' },
+  },
+  {
     featureKey: 'role_management',
     href: '/role-management',
     icon: 'fa-user-tag',

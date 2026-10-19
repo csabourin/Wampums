@@ -287,6 +287,6 @@ describe.skipIf(!DATABASE_URL)('Granting only what one holds', () => {
     expect(await held(districtKey)).toBe(0);
     expect(await one(
       "SELECT array_agg(permission_key ORDER BY permission_key) FROM permissions WHERE district_only AND permission_key NOT LIKE 'grants_test.%'"
-    )).toEqual(['org.create', 'org.delete', 'users.assign_district']);
+    )).toEqual(['org.create', 'org.delete', 'roles.manage_district', 'users.assign_district']);
   });
 });

@@ -167,6 +167,7 @@ export class TabbedPage extends BaseModule {
     if (!key || key === this.activeKey) {return;}
     if (!this.tabs.some((tab) => tab.key === key)) {return;}
 
+    if (!(await this.beforeLeave())) { return; }
     this.activeKey = key;
     this.syncUrl(key);
     // Update the tab bar in place rather than re-rendering the shell: the panel
@@ -174,6 +175,11 @@ export class TabbedPage extends BaseModule {
     // would lose its mount point and fall back to rendering over #app.
     this.updateTabStates();
     await this.mountActiveTab();
+  }
+
+  /** Delegate navigation protection to the currently mounted editor. */
+  beforeLeave(options = {}) {
+    return this.activeModule?.beforeLeave ? this.activeModule.beforeLeave(options) : true;
   }
 
   /**
@@ -198,6 +204,7 @@ export class TabbedPage extends BaseModule {
       const url = new URL(window.location.href);
       url.searchParams.set('tab', key);
       window.history.replaceState({}, '', url);
+      if (this.app.router) { this.app.router.currentPath = url.pathname + url.search; }
     } catch (error) {
       debugLog('Could not sync tab to URL:', error);
     }
@@ -232,7 +239,8 @@ export class TabbedPage extends BaseModule {
       existingPending.element.hidden = false;
       await existingPending.completion;
       if (this.isCurrentMount(waitToken) && this.activeKey === tab.key) {
-        return this.mountActiveTab();
+        await this.mountActiveTab();
+        return;
       }
       return;
     }

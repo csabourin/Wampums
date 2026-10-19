@@ -275,7 +275,7 @@ describe('Manage permissions include their matching view permission', () => {
     mockDatabase({
       permissions: permissionHolder,
       handle: (sql, params) => {
-        if (sql.startsWith('SELECT id, role_name, is_system_role, organization_id, data_scope FROM roles')) {
+        if (sql.startsWith('SELECT * FROM roles WHERE id = $1')) {
           return {
             rows: [{
               id: roleId,
@@ -286,14 +286,11 @@ describe('Manage permissions include their matching view permission', () => {
             }],
           };
         }
-        if (sql === 'SELECT permission_key, self_scoped FROM permissions WHERE id = $1') {
-          return { rows: [{ permission_key: params[0] === 39 ? 'points.manage' : 'points.view', self_scoped: false }] };
+        if (sql.startsWith('SELECT * FROM permissions')) {
+          return { rows: [{ id: 38, permission_key: 'points.view', self_scoped: false }, { id: 39, permission_key: 'points.manage', self_scoped: false }] };
         }
-        if (sql === 'SELECT id, self_scoped FROM permissions WHERE permission_key = $1') {
-          return { rows: [{ id: 38, self_scoped: false }] };
-        }
-        if (sql.startsWith('SELECT 1 FROM permissions p')) {
-          return { rows: manageAlreadyAssigned ? [{ '?column?': 1 }] : [] };
+        if (sql.startsWith('SELECT permission_id FROM role_permissions')) {
+          return { rows: manageAlreadyAssigned ? [{ permission_id: 38 }, { permission_id: 39 }] : [] };
         }
         if (sql.startsWith('INSERT INTO role_permissions')) {
           writes.push(params);
