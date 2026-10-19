@@ -41,6 +41,7 @@ const {
   ACCEPTANCE_RESULT,
   insertParentMembership,
   upsertGuardianContact,
+  linkGuardianContactToChildren,
   attachExistingAccount,
   createVerifiedAccount,
   isHandDeactivatedMembership,
@@ -459,6 +460,13 @@ async function shareChildrenAcrossLink(client, { organizationId, linkId, a, b })
       sourceId: linkId,
     });
   }
+
+  // A family link says these two are one family: each parent becomes one of
+  // the other's children's guardians, not merely someone who may see the file.
+  // Without this the second parent was missing from the child's contacts and
+  // from "Écrire aux familles" (migration 011 repaired the links made before).
+  await linkGuardianContactToChildren(client, { userId: b, participantIds: aChildren });
+  await linkGuardianContactToChildren(client, { userId: a, participantIds: bChildren });
 }
 
 /**

@@ -244,6 +244,37 @@ async function upsertGuardianContact(client, {
 }
 
 /**
+ * Name an account's contact record among these children's guardians.
+ *
+ * Access to a child (user_participants) and being one of its guardians
+ * (participant_guardians) are separate records. The guardian list is what the
+ * child's file, its emergency contacts and "Écrire aux familles" read, so a
+ * parent given access without it is a parent the unit cannot see. The record
+ * attached is the one the account owns (user_uuid); an account without one is
+ * left alone, as the Parent/Guardian form offers it pre-filled from the account.
+ *
+ * @param {Object} client - Client inside the caller's transaction
+ * @param {Object} params - Account and children
+ * @param {string} params.userId - User UUID
+ * @param {number[]} params.participantIds - Children to attach the record to
+ * @returns {Promise<void>} Resolves once linked
+ */
+async function linkGuardianContactToChildren(client, { userId, participantIds }) {
+  if (!participantIds.length) {
+    return;
+  }
+  await client.query(
+    `INSERT INTO participant_guardians (guardian_id, participant_id)
+     SELECT pg.id, child.id
+       FROM parents_guardians pg
+       CROSS JOIN unnest($2::int[]) AS child(id)
+      WHERE pg.user_uuid = $1
+     ON CONFLICT (guardian_id, participant_id) DO NOTHING`,
+    [userId, participantIds]
+  );
+}
+
+/**
  * Bring an existing account into the unit.
  *
  * Three situations, and the difference between the last two is the whole reason
@@ -361,6 +392,7 @@ module.exports = {
   ensureFamilyRole,
   splitFullName,
   upsertGuardianContact,
+  linkGuardianContactToChildren,
   attachExistingAccount,
   createVerifiedAccount,
   isHandDeactivatedMembership,

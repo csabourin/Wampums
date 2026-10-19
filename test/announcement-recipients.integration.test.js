@@ -317,6 +317,13 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
     ].sort());
   });
 
+  test('writing to the parents reaches a family account whatever its role is called', async () => {
+    const recipients = await buildRecipientsForTests(pool, ids.unit, ['parent'], [], 'members');
+
+    expect(recipients.emails).toEqual(expect.arrayContaining([emails['parent-red'], emails['parent-blue']]));
+    expect(recipients.emails).not.toContain(emails.leader);
+  });
+
   test('a leader can send a message to one den without ticking a role', async () => {
     const response = await request(app).post('/api/v1/announcements').send({
       subject: 'Sortie',
@@ -415,6 +422,66 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
       );
 
       expect(recipients.emails).toContain(emails.leader.toLowerCase());
+    });
+  });
+
+  describe('"Écrire aux familles" lists each family under its children', () => {
+    /**
+     * The parent entries the mailing list shows, for one address.
+     *
+     * @param {string} email - Address
+     * @returns {Promise<Array<Object>>} `{ email, participants }` entries
+     */
+    async function familyEntriesFor(email) {
+      const response = await request(app).get('/api/v1/reports/mailing-list');
+      expect(response.status).toBe(200);
+      return (response.body.emails_by_role.parent || []).filter((entry) => entry.email === email.toLowerCase());
+    }
+
+    // The built-in parent role, which is what fills the families section. It is
+    // limited to the holder's own children in a real unit; other suites create
+    // it without a scope, so it is set for these tests and put back after.
+    let previousParentScope;
+
+    beforeEach(async () => {
+      ids.parentRoleId = await one(
+        `INSERT INTO roles (role_name, display_name) VALUES ('parent', 'Parent')
+         ON CONFLICT (role_name) DO UPDATE SET display_name = roles.display_name RETURNING id`
+      );
+      previousParentScope = await one('SELECT data_scope FROM roles WHERE id = $1', [ids.parentRoleId]);
+      await pool.query("UPDATE roles SET data_scope = 'linked' WHERE id = $1", [ids.parentRoleId]);
+    });
+
+    afterEach(async () => {
+      await pool.query('UPDATE roles SET data_scope = $2 WHERE id = $1', [ids.parentRoleId, previousParentScope]);
+    });
+
+    test('a co-parent seen through a family link is listed under the child, not as an unknown child', async () => {
+      // The first parent typed the second one's address on the form; the
+      // second parent signed up with another one, and was linked as family.
+      const coParent = await makeUser('coparent-red');
+      ids.extraUsers = [...(ids.extraUsers || []), coParent];
+      await addMember(coParent, [ids.parentRoleId]);
+      await grantParticipantAccess(pool, {
+        participantId: ids.redYouth.participantId, userId: coParent, sourceType: ACCESS_SOURCE.FAMILY_LINK,
+      });
+
+      expect(await familyEntriesFor(emails['coparent-red'])).toEqual([
+        { email: emails['coparent-red'].toLowerCase(), participants: 'Rouge Test' },
+      ]);
+      expect(await familyEntriesFor(emails['guardian-red'])).toEqual([
+        { email: emails['guardian-red'].toLowerCase(), participants: 'Rouge Test' },
+      ]);
+    });
+
+    test('a parent account with no child this year is still listed, without a child', async () => {
+      const lone = await makeUser('lone-parent');
+      ids.extraUsers = [...(ids.extraUsers || []), lone];
+      await addMember(lone, [ids.parentRoleId]);
+
+      expect(await familyEntriesFor(emails['lone-parent'])).toEqual([
+        { email: emails['lone-parent'].toLowerCase(), participants: null },
+      ]);
     });
   });
 });

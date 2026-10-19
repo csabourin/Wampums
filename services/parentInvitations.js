@@ -49,6 +49,7 @@ const {
   ACCEPTANCE_RESULT,
   insertParentMembership,
   upsertGuardianContact,
+  linkGuardianContactToChildren,
   attachExistingAccount,
   createVerifiedAccount,
   isHandDeactivatedMembership,
@@ -864,15 +865,7 @@ async function linkInvitationChildren(client, { invitation, userId }) {
     });
   }
 
-  await client.query(
-    `INSERT INTO participant_guardians (guardian_id, participant_id)
-     SELECT pg.id, child.id
-       FROM parents_guardians pg
-       CROSS JOIN unnest($2::int[]) AS child(id)
-      WHERE pg.user_uuid = $1
-     ON CONFLICT (guardian_id, participant_id) DO NOTHING`,
-    [userId, participantIds]
-  );
+  await linkGuardianContactToChildren(client, { userId, participantIds });
 
   await flagDuplicatesAmong(client, {
     organizationId: invitation.organization_id,

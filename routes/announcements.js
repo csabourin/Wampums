@@ -266,6 +266,8 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
   // (roles that see only their own children) to those linked to a youth of
   // the den; leaders belong to no den and stay reached as their role was chosen.
   // A family account whose invitation the unit withdrew is not reached.
+  // Writing to the families reaches every family account, whatever its role is
+  // called: "Écrire aux familles" lists them all among the parents.
   const userRoleQuery = `
     SELECT DISTINCT LOWER(u.email) AS email, u.id AS user_id, u.whatsapp_phone_number
     FROM user_organizations uo
@@ -288,7 +290,7 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
         )
       )
   `;
-  const userRoleResult = await pool.query(userRoleQuery, [organizationId, groupIds, roleFilter, familiesOnly]);
+  const userRoleResult = await pool.query(userRoleQuery, [organizationId, groupIds, roleFilter, includeParents]);
 
   // Guardian emails per participant (optional group filter)
   const guardianEmails = [];
