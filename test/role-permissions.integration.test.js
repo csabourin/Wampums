@@ -128,7 +128,7 @@ describe.skipIf(!DATABASE_URL)('Role permissions', () => {
     await pool.query(
       `INSERT INTO role_permissions (role_id, permission_id)
        SELECT $1, id FROM permissions WHERE permission_key = ANY($2::text[])`,
-      [ids.managerRole, ['roles.manage', 'carpools.view', ...UNIT_FINANCE_PERMISSIONS]]
+      [ids.managerRole, ['roles.manage', 'carpools.view', 'points.view', 'points.manage', ...UNIT_FINANCE_PERMISSIONS]]
     );
     ids.manager = await one(
       `INSERT INTO users (email, password, full_name)
@@ -179,6 +179,27 @@ describe.skipIf(!DATABASE_URL)('Role permissions', () => {
 
     expect(response.status).toBe(200);
     expect(await holds(ids.treasurerRole, 'finance.view')).toBe(true);
+  });
+
+  test('granting a manage permission also grants its matching view permission', async () => {
+    const response = await grant(ids.treasurerRole, 'points.manage');
+
+    expect(response.status).toBe(200);
+    expect(await holds(ids.treasurerRole, 'points.manage')).toBe(true);
+    expect(await holds(ids.treasurerRole, 'points.view')).toBe(true);
+  });
+
+  test('a role cannot lose view while its matching manage permission remains', async () => {
+    await grant(ids.treasurerRole, 'points.manage');
+    const viewPermissionId = await one('SELECT id FROM permissions WHERE permission_key = $1', ['points.view']);
+
+    const blocked = await request(app).delete(`/api/v1/roles/${ids.treasurerRole}/permissions/${viewPermissionId}`);
+    expect(blocked.status).toBe(409);
+    expect(await holds(ids.treasurerRole, 'points.view')).toBe(true);
+
+    const managePermissionId = await one('SELECT id FROM permissions WHERE permission_key = $1', ['points.manage']);
+    expect((await request(app).delete(`/api/v1/roles/${ids.treasurerRole}/permissions/${managePermissionId}`)).status).toBe(200);
+    expect((await request(app).delete(`/api/v1/roles/${ids.treasurerRole}/permissions/${viewPermissionId}`)).status).toBe(200);
   });
 
   test('an unknown permission is reported as not found', async () => {

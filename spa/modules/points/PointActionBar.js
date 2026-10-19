@@ -2,8 +2,8 @@ import { translate } from '../../app.js';
 import { CONFIG } from '../../config.js';
 import { openModal } from '../../utils/ModalUtils.js';
 
-const REWARD_VALUES = [1, 2, 3, 4, 5];
-const CORRECTION_VALUES = [-1, -2, -3, -4, -5];
+const REWARD_VALUES = [2, 3, 4, 5];
+const CORRECTION_VALUES = [-2, -3, -4, -5];
 const GAME_RESULTS = [
   { placeKey: 'points_game_first_place', points: 5 },
   { placeKey: 'points_game_second_place', points: 4 },

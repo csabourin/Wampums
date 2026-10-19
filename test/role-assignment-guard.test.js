@@ -264,3 +264,66 @@ describe('POST /api/v1/roles', () => {
     expect(res.body.success).toBe(false);
   });
 });
+
+describe('Manage permissions include their matching view permission', () => {
+  const permissionHolder = ['roles.manage', 'points.manage', 'points.view'];
+  const roleId = 900;
+  let writes;
+
+  function rolePermissionDatabase({ manageAlreadyAssigned = false } = {}) {
+    writes = [];
+    mockDatabase({
+      permissions: permissionHolder,
+      handle: (sql, params) => {
+        if (sql.startsWith('SELECT id, role_name, is_system_role, organization_id, data_scope FROM roles')) {
+          return {
+            rows: [{
+              id: roleId,
+              role_name: 'custom_points',
+              is_system_role: false,
+              organization_id: ORG_ID,
+              data_scope: 'organization',
+            }],
+          };
+        }
+        if (sql === 'SELECT permission_key, self_scoped FROM permissions WHERE id = $1') {
+          return { rows: [{ permission_key: params[0] === 39 ? 'points.manage' : 'points.view', self_scoped: false }] };
+        }
+        if (sql === 'SELECT id, self_scoped FROM permissions WHERE permission_key = $1') {
+          return { rows: [{ id: 38, self_scoped: false }] };
+        }
+        if (sql.startsWith('SELECT 1 FROM permissions p')) {
+          return { rows: manageAlreadyAssigned ? [{ '?column?': 1 }] : [] };
+        }
+        if (sql.startsWith('INSERT INTO role_permissions')) {
+          writes.push(params);
+          return { rows: [] };
+        }
+        return undefined;
+      },
+    });
+  }
+
+  test('adding a manage permission inserts the view permission with it', async () => {
+    rolePermissionDatabase();
+
+    const res = await request(app)
+      .post(`/api/v1/roles/${roleId}/permissions`)
+      .set('Authorization', `Bearer ${tokenFor(permissionHolder)}`)
+      .send({ permissionId: 39 });
+
+    expect(res.status).toBe(200);
+    expect(writes).toEqual([[roleId, [39, 38]]]);
+  });
+
+  test('removing view is refused while the matching manage permission remains', async () => {
+    rolePermissionDatabase({ manageAlreadyAssigned: true });
+
+    const res = await request(app)
+      .delete(`/api/v1/roles/${roleId}/permissions/38`)
+      .set('Authorization', `Bearer ${tokenFor(permissionHolder)}`);
+
+    expect(res.status).toBe(409);
+    expect(writes).toHaveLength(0);
+  });
+});

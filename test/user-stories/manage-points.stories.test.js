@@ -422,7 +422,7 @@ describe('Modern points action bar', () => {
 
     expect(menu.hidden).toBe(false);
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    expect(document.activeElement).toBe(menu.querySelector('[data-points="1"]'));
+    expect(document.activeElement).toBe(menu.querySelector('[data-points="2"]'));
 
     document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {
       key: 'Escape',
@@ -446,7 +446,7 @@ describe('Modern points action bar', () => {
     document.querySelector('[data-point-menu-toggle="correction"]').click();
     const menu = document.getElementById('correction-values-menu');
     expect([...menu.querySelectorAll('[data-points]')].map((button) => Number(button.dataset.points)))
-      .toEqual([-1, -2, -3, -4, -5]);
+      .toEqual([-2, -3, -4, -5]);
 
     menu.querySelector('[data-points="-5"]').click();
     expect(participantTotalText(1)).toBe('5');
@@ -524,8 +524,7 @@ describe('Modern points action bar', () => {
 
     selectParticipant(1);
     reward.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    document.querySelector('#reward-values-menu [data-points="1"]')
-      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    reward.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(participantTotalText(1)).toBe('11');
     expect(ajax.updatePoints).toHaveBeenCalledTimes(1);
 

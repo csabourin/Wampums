@@ -203,6 +203,18 @@ describe('US-PTS-013 — Group award, server side: attendance decides who gets p
 
     expect(res.body.success).toBe(false);
   });
+
+  it('rejects point targets outside the group and individual contract', async () => {
+    installHandler((query) => (query.includes('demoadmin') ? { rows: [] } : undefined));
+
+    const res = await request(app)
+      .post('/api/v1/points')
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send([{ type: 'participant_group', id: GROUP_ID, points: 3 }])
+      .expect(400);
+
+    expect(res.body.success).toBe(false);
+  });
 });
 
 describe('US-PTS-014 — Group and member ledgers never mix (server)', () => {
@@ -247,7 +259,7 @@ describe('US-PTS-015 — You can\'t score another org\'s kid (server)', () => {
       .post('/api/v1/points')
       .set('Authorization', `Bearer ${generateToken()}`)
       .send([{ type: 'individual', id: 999, points: 5 }])
-      .expect(500);
+      .expect(404);
 
     expect(res.body.success).toBe(false);
     expect(JSON.stringify(res.body)).not.toContain('node_modules');

@@ -82,6 +82,16 @@ afterEach(() => {
 });
 
 describe('awarding points', () => {
+  test('the other-value menus omit the one-point values already on the main buttons', () => {
+    const rewardValues = [...root().querySelectorAll('#reward-values-menu [data-points]')]
+      .map((button) => Number(button.dataset.points));
+    const correctionValues = [...root().querySelectorAll('#correction-values-menu [data-points]')]
+      .map((button) => Number(button.dataset.points));
+
+    expect(rewardValues).toEqual([2, 3, 4, 5]);
+    expect(correctionValues).toEqual([-2, -3, -4, -5]);
+  });
+
   test('the main buttons award one point and take one back', async () => {
     const [reward, correction] = root().querySelectorAll('.point-split-action__main');
 
