@@ -297,6 +297,16 @@ describe('changes waiting to be sent', () => {
     view.destroy();
   });
 
+  test('a change made after a refresh brought other roles back starts from those roles', async () => {
+    const view = await openScreen();
+
+    view.queueChange('u-parent', [LEADER.id], null, [PARENT.id]);
+    view.queueChange('u-parent', [PARENT.id], null, [LEADER.id, PARENT.id]);
+
+    expect(view.queuedChanges[0].baseRoleIds).toEqual([LEADER.id, PARENT.id]);
+    view.destroy();
+  });
+
   test('a change is sent when the member\'s roles have not changed since it was made', async () => {
     const view = await openScreen([{ ...stuck, userId: 'u-parent', reason: 'error', baseRoleIds: [PARENT.id] }]);
 

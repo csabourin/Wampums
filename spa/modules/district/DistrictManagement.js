@@ -1489,13 +1489,16 @@ export class DistrictManagement {
    *   retry can tell whether someone changed them since
    */
   queueChange(userId, roleIds, reason = null, baseRoleIds = []) {
-    // A change replacing one still waiting starts from the same server roles:
-    // the screen's roles meanwhile showed the first change, not the server.
+    // A change made over one still waiting, while the screen shows that first
+    // change rather than the server, starts from the first one's roles. Made
+    // after a refresh brought the server's roles back, it starts from those.
     const waiting = this.queuedChanges.find((item) => item.userId === userId);
+    const overWaiting = waiting && this.hasSameRoles(waiting.roleIds, baseRoleIds)
+      && Array.isArray(waiting.baseRoleIds);
     const change = {
       userId,
       roleIds,
-      baseRoleIds: [...(waiting?.baseRoleIds || baseRoleIds)],
+      baseRoleIds: [...(overWaiting ? waiting.baseRoleIds : baseRoleIds)],
       auditNote: this.auditNote.trim(),
       createdAt: Date.now(),
       lastSyncedAt: this.lastSyncedAt,

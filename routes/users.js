@@ -10,7 +10,14 @@
 const express = require('express');
 
 // Import auth middleware
-const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
+const {
+  authenticate,
+  requirePermission,
+  blockDemoRoles,
+  getOrganizationId,
+  getUserDataScope,
+  userHasPermission,
+} = require('../middleware/auth');
 const { asyncHandler, success, error, forbidden } = require('../middleware/response');
 const {
   ACCESS_SOURCE,
@@ -150,6 +157,10 @@ module.exports = (pool, logger) => {
    */
   router.get('/', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
+    // Children are named only to someone who may see every child of the unit:
+    // participants.view, in a role that sees the whole unit.
+    const showChildren = await userHasPermission(req, pool, organizationId, 'participants.view')
+      && await getUserDataScope(req, pool) === 'organization';
 
     const result = await pool.query(
       `SELECT
@@ -167,7 +178,7 @@ module.exports = (pool, logger) => {
          ) as roles,
          -- The unit's children this account can see, so a parent can be told
          -- apart from another with a similar name.
-         COALESCE(
+         CASE WHEN $2::boolean THEN COALESCE(
            (SELECT json_agg(json_build_object('id', p.id, 'first_name', p.first_name, 'last_name', p.last_name,
                                               'nickname', p.nickname)
                             ORDER BY p.first_name, p.last_name)
@@ -177,12 +188,12 @@ module.exports = (pool, logger) => {
               AND EXISTS (SELECT 1 FROM participant_enrollments pe
                            WHERE pe.participant_id = p.id AND pe.organization_id = $1)),
            '[]'::json
-         ) as children
+         ) ELSE '[]'::json END as children
        FROM users u
        JOIN user_organizations uo ON u.id = uo.user_id
        WHERE uo.organization_id = $1
        ORDER BY u.full_name`,
-      [organizationId]
+      [organizationId, showChildren]
     );
 
     return success(res, result.rows);

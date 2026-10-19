@@ -3,7 +3,9 @@
  *
  * The district space shows a parent with the names of their children, so two
  * parents with similar names can be told apart. Only the unit's own children
- * are named: a child the same account can see in another unit stays out.
+ * are named: a child the same account can see in another unit stays out. And
+ * only to someone who may see every child of the unit: participants.view, in
+ * a role whose scope is the whole unit.
  *
  * Skipped unless TEST_DATABASE_URL points at a disposable database holding the
  * project schema and migrations.
@@ -21,7 +23,7 @@ const DATABASE_URL = process.env.TEST_DATABASE_URL;
 
 process.env.JWT_SECRET_KEY = process.env.JWT_SECRET_KEY || 'users-children-integration-secret';
 
-const mockContext = { userId: null, organizationId: null };
+const mockContext = { userId: null, organizationId: null, permissions: [], dataScope: 'organization' };
 
 jest.mock('../middleware/auth', () => {
   const actual = jest.requireActual('../middleware/auth');
@@ -34,6 +36,8 @@ jest.mock('../middleware/auth', () => {
     requirePermission: () => (_req, _res, next) => next(),
     blockDemoRoles: (_req, _res, next) => next(),
     getOrganizationId: () => Promise.resolve(mockContext.organizationId),
+    userHasPermission: (_req, _pool, _unit, key) => Promise.resolve(mockContext.permissions.includes(key)),
+    getUserDataScope: () => Promise.resolve(mockContext.dataScope),
   };
 });
 
@@ -168,6 +172,18 @@ describe.skipIf(!DATABASE_URL)('Members listed with their children', () => {
     await pool.end();
   });
 
+  beforeEach(() => {
+    mockContext.permissions = ['users.view', 'participants.view'];
+    mockContext.dataScope = 'organization';
+  });
+
+  /** @returns {Promise<Array<Object>>} The children listed with the parent */
+  async function parentChildren() {
+    const response = await request(app).get('/api/v1/users');
+    expect(response.status).toBe(200);
+    return response.body.data.find((user) => user.id === ids.parent).children;
+  }
+
   test('a parent is listed with the unit\'s children linked to their account, and only those', async () => {
     const response = await request(app).get('/api/v1/users');
 
@@ -182,5 +198,17 @@ describe.skipIf(!DATABASE_URL)('Members listed with their children', () => {
 
     const leader = response.body.data.find((user) => user.id === ids.leader);
     expect(leader.children).toEqual([]);
+  });
+
+  test('someone who may not see the unit\'s youth gets the members without their children', async () => {
+    mockContext.permissions = ['users.view'];
+
+    expect(await parentChildren()).toEqual([]);
+  });
+
+  test('a role that sees only its own children gets the members without their children', async () => {
+    mockContext.dataScope = 'linked';
+
+    expect(await parentChildren()).toEqual([]);
   });
 });
