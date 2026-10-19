@@ -1357,15 +1357,6 @@ export async function saveBadgeProgress(progressData) {
   return result;
 }
 
-/** Record previously earned badge levels without adding new-achievement points. */
-export async function saveBadgeHistory(historyData) {
-  const result = await API.post('v1/badges/history', historyData);
-  if (!result?.queued) {
-    await clearBadgeRelatedCaches();
-  }
-  return result;
-}
-
 /**
  * Get current stars for participant
  */

@@ -13,7 +13,8 @@ const router = express.Router();
 // Import utilities
 const { getPointSystemRules } = require('../utils/api-helpers');
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
-const { asyncHandler } = require('../middleware/response');
+const { asyncHandler, success, error: errorResponse } = require('../middleware/response');
+const { validateIdBody, checkValidation } = require('../middleware/validation');
 
 const DEFAULT_LEVELS = [
   { level: 1, label_key: 'badge_level_1' },
@@ -23,8 +24,14 @@ const DEFAULT_LEVELS = [
 const BAD_REQUEST_STATUS = 400;
 const NOT_FOUND_STATUS = 404;
 const MAX_HISTORY_ENTRIES = 100;
-const DECIMAL_RADIX = 10;
 const ISO_DATE_LENGTH = 10;
+const POSTGRES_INT_MAX = 2147483647;
+
+/** A positive PostgreSQL integer id, or null: `Number`, unlike `parseInt`, refuses `12abc`. */
+const toIntegerId = (value) => {
+  const id = Number(value);
+  return Number.isInteger(id) && id >= 1 && id <= POSTGRES_INT_MAX ? id : null;
+};
 
 const normalizeLevels = (levels, fallbackCount = DEFAULT_LEVELS.length) => {
   if (Array.isArray(levels) && levels.length > 0) {
@@ -400,14 +407,17 @@ module.exports = (pool, logger) => {
 
   // Historical entry is intentionally separate from the normal approval flow:
   // it records already-earned levels without creating point awards.
-  router.post('/history', authenticate, blockDemoRoles, requirePermission('badges.manage'), asyncHandler(async (req, res) => {
+  router.post('/history', authenticate, blockDemoRoles, requirePermission('badges.manage'), validateIdBody('participant_id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const participantId = parseInt(req.body?.participant_id, DECIMAL_RADIX);
+    const participantId = Number(req.body.participant_id);
     const entries = req.body?.entries;
     const date = req.body?.date || null;
     const starType = ['proie', 'battue'].includes(req.body?.star_type) ? req.body.star_type : 'proie';
-    if (!Number.isInteger(participantId) || !Array.isArray(entries) || entries.length === 0 || entries.length > MAX_HISTORY_ENTRIES) {
-      return res.status(BAD_REQUEST_STATUS).json({ success: false, message: `A participant and 1–${MAX_HISTORY_ENTRIES} badge levels are required` });
+    if (!Array.isArray(entries) || entries.length === 0 || entries.length > MAX_HISTORY_ENTRIES) {
+      return errorResponse(res, `Between 1 and ${MAX_HISTORY_ENTRIES} badge levels are required`, BAD_REQUEST_STATUS);
+    }
+    if (entries.some((entry) => toIntegerId(entry?.badge_template_id) === null || !Number.isInteger(Number(entry?.level)))) {
+      return errorResponse(res, 'Each badge level needs a badge template id and a level', BAD_REQUEST_STATUS);
     }
     if (date !== null) {
       const parsedDate = typeof date === 'string' ? new Date(`${date}T00:00:00.000Z`) : null;
@@ -416,7 +426,7 @@ module.exports = (pool, logger) => {
         !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
         parsedDate.toISOString().slice(0, ISO_DATE_LENGTH) !== date
       ) {
-        return res.status(BAD_REQUEST_STATUS).json({ success: false, message: 'Date must be a valid calendar date' });
+        return errorResponse(res, 'Date must be a valid calendar date', BAD_REQUEST_STATUS);
       }
     }
 
@@ -431,7 +441,7 @@ module.exports = (pool, logger) => {
       );
       if (!participantOrg.rowCount) {
         await client.query('ROLLBACK');
-        return res.status(NOT_FOUND_STATUS).json({ success: false, message: 'Participant not found in organization' });
+        return errorResponse(res, 'Participant not found in organization', NOT_FOUND_STATUS);
       }
 
       const participantSection = await getParticipantSection(client, participantId, organizationId);
@@ -440,20 +450,20 @@ module.exports = (pool, logger) => {
       // Sequential inserts keep duplicate checks and writes consistent in this transaction.
       /* eslint-disable no-await-in-loop */
       for (const entry of entries) {
-        const templateId = parseInt(entry?.badge_template_id, DECIMAL_RADIX);
-        const level = parseInt(entry?.level, DECIMAL_RADIX);
+        const templateId = toIntegerId(entry.badge_template_id);
+        const level = Number(entry.level);
         const template = await fetchTemplate(client, templateId, organizationId);
         if (!template) {
           await client.query('ROLLBACK');
-          return res.status(BAD_REQUEST_STATUS).json({ success: false, message: 'Badge template not found' });
+          return errorResponse(res, 'Badge template not found', BAD_REQUEST_STATUS);
         }
         if (!Number.isInteger(level) || level < 1 || level > getLevelCount(normalizeLevels(template.levels, template.level_count), template.level_count)) {
           await client.query('ROLLBACK');
-          return res.status(BAD_REQUEST_STATUS).json({ success: false, message: 'Invalid badge level' });
+          return errorResponse(res, 'Invalid badge level', BAD_REQUEST_STATUS);
         }
         if (template.section && participantSection && template.section !== 'general' && template.section !== participantSection) {
           await client.query('ROLLBACK');
-          return res.status(BAD_REQUEST_STATUS).json({ success: false, message: 'Badge template section does not match participant section' });
+          return errorResponse(res, 'Badge template section does not match participant section', BAD_REQUEST_STATUS);
         }
 
         const exists = await client.query(
@@ -471,7 +481,7 @@ module.exports = (pool, logger) => {
              (participant_id, organization_id, badge_template_id, territoire_chasse,
               section, objectif, date_obtention, etoiles, status, approval_date,
               star_type, source_type, attempt_no, created_by)
-           VALUES ($1, $2, $3, $4, $5, $4, $6, $7, 'approved', NOW(), $8, 'historical', 1, $9)
+           VALUES ($1, $2, $3, $4::text, $5, $4::text, $6, $7, 'approved', NOW(), $8, 'historical', 1, $9)
            RETURNING id, badge_template_id, etoiles`,
           [participantId, organizationId, template.id, template.name,
             template.section || participantSection || 'general', date, level, starType, req.user.id]
@@ -480,7 +490,7 @@ module.exports = (pool, logger) => {
       }
       /* eslint-enable no-await-in-loop */
       await client.query('COMMIT');
-      return res.json({ success: true, data: { inserted, skipped }, message: 'Historical badge progress recorded' });
+      return success(res, { inserted, skipped }, 'Historical badge progress recorded');
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;

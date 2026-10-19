@@ -28,7 +28,6 @@ import {
   markBadgeDelivered,
   markBadgesDeliveredBulk,
   saveBadgeProgress,
-  saveBadgeHistory,
   getUnprocessedAchievements,
   markMeetingActivitiesProcessed,
   getAttendance,
@@ -38,6 +37,7 @@ import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { badgeLabel } from '../../utils/BadgeLabelUtils.js';
+import { saveBadgeHistory } from '../../api/api-badges.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 
 /** Owner key for the badge tracker modal's body scroll lock. */
@@ -1257,8 +1257,12 @@ export class BadgeTracker {
         existingByTemplate.get(badge.badge_template_id).add(Number(badge.etoiles));
       });
 
-    const { overlay } = openModal({
+    // While a save is in flight the dialog stays open, so its answer cannot
+    // land on a dialog opened since for another youth.
+    let saving = false;
+    const { overlay, close: closeDialog } = openModal({
       id: 'badge-history-modal',
+      canClose: () => !saving,
       title: translate('badge_update_history'),
       className: 'badge-tracker__modal',
       size: 'large',
@@ -1303,6 +1307,7 @@ export class BadgeTracker {
       }
       const submit = overlay.querySelector('button[form="badge-history-form"]');
       submit.disabled = true;
+      saving = true;
       try {
         const result = await saveBadgeHistory({
           participant_id: participantId,
@@ -1310,18 +1315,20 @@ export class BadgeTracker {
           star_type: form.elements.star_type.value,
           entries
         });
+        saving = false;
         if (result?.queued) {
           this.showToast(translate('offline.savedLocally'), 'info');
           submit.disabled = false;
-          this.awaitHistoryReplay(result.mutationId, overlay, entries.length);
+          this.awaitHistoryReplay(result.mutationId, closeDialog, entries.length);
           return;
         }
         if (!result?.success) {throw new Error('badge_history_save_failed');}
         const count = result.data?.inserted?.length || 0;
         this.showToast(`${count} ${translate('badge_history_saved')}`, 'success');
-        closeModal('badge-history-modal');
+        closeDialog(true);
         await this.refreshAfterHistorySave();
       } catch (error) {
+        saving = false;
         debugError('[BadgeTracker] Historical badge save error:', error);
         this.showToast(apiErrorMessage(error, 'badge_history_save_failed'), 'error');
         submit.disabled = false;
@@ -1332,17 +1339,17 @@ export class BadgeTracker {
   /**
    * Confirm a queued history save only when its own mutation is replayed.
    * @param {string|undefined} mutationId - Id the offline queue gave the request
-   * @param {HTMLElement} overlay - The history dialog that queued it
+   * @param {Function} closeDialog - Closes the history dialog that queued it, if still open
    * @param {number} levelCount - Levels the request records
    */
-  awaitHistoryReplay(mutationId, overlay, levelCount) {
+  awaitHistoryReplay(mutationId, closeDialog, levelCount) {
     this.stopAwaitingHistoryReplay();
     if (!mutationId) {return;}
     this.historyReplayListener = async (syncEvent) => {
       if (syncEvent.detail?.mutationId !== mutationId) {return;}
       this.stopAwaitingHistoryReplay();
       if (this.destroyed) {return;}
-      if (overlay.isConnected) {closeModal('badge-history-modal');}
+      closeDialog(true);
       this.showToast(`${levelCount} ${translate('badge_history_saved')}`, 'success');
       await this.refreshAfterHistorySave();
     };

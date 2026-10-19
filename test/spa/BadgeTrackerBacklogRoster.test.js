@@ -21,7 +21,9 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
 
 jest.mock('../../spa/config.js', () => ({ CONFIG: {}, getStorageKey: (key) => key }));
 
-jest.mock('../../spa/api/api-endpoints.js', () => ({
+jest.mock('../../spa/api/api-endpoints.js', () => ({}));
+
+jest.mock('../../spa/api/api-badges.js', () => ({
   saveBadgeHistory: jest.fn()
 }));
 
@@ -32,7 +34,7 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
 }));
 
 import { BadgeTracker } from '../../spa/modules/badges/BadgeTracker.js';
-import { saveBadgeHistory } from '../../spa/api/api-endpoints.js';
+import { saveBadgeHistory } from '../../spa/api/api-badges.js';
 
 const TEMPLATE_ID = 5;
 const ON_ROSTER_ID = 1;
@@ -226,5 +228,31 @@ describe('Badge tracker backlog', () => {
 
     expect(legends).toContain('True like Baloo');
     expect(legends).not.toContain('Vrai comme Baloo');
+  });
+
+  test('the history dialog cannot be dismissed while its save is in flight', async () => {
+    tracker.canManage = true;
+    tracker.templates = [{ id: TEMPLATE_ID, name: 'Akela', level_count: 2 }];
+    tracker.loadData = jest.fn().mockResolvedValue(true);
+    tracker.render = jest.fn();
+    tracker.attachSearchListener = jest.fn();
+    tracker.showToast = jest.fn();
+    let answer;
+    saveBadgeHistory.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+
+    tracker.openBadgeHistoryModal(ON_ROSTER_ID);
+    const modal = document.querySelector('#badge-history-modal');
+    modal.querySelector('input[value="5:1"]').checked = true;
+    modal.querySelector('#badge-history-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await Promise.resolve();
+
+    modal.querySelector('[data-modal-close]').click();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(modal.isConnected).toBe(true);
+
+    answer({ success: true, data: { inserted: [{ id: 1 }] } });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(modal.isConnected).toBe(false);
   });
 });
