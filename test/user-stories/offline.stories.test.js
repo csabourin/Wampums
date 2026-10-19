@@ -111,6 +111,31 @@ describe('US-OFF-001 — Saving offline says "saved locally", not "error"', () =
     expect(queued[0].data.headers.Authorization).toBeUndefined();
   });
 
+  it('queues badge history, and its replay names the queued request', async () => {
+    const manager = new OfflineManager();
+    manager.isOffline = true;
+    const mutationId = await manager.queueMutation('http://localhost:3000/api/v1/badges/history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participant_id: 1, entries: [{ badge_template_id: 5, level: 1 }] }),
+    });
+    expect(mutationId).toEqual(expect.any(String));
+    expect(await getOfflineData()).toHaveLength(1);
+
+    const replayed = [];
+    const onReplayed = (event) => replayed.push(event.detail);
+    window.addEventListener('offlineMutationReplayed', onReplayed);
+    localStorage.setItem('jwtToken', 'fresh-token');
+    global.fetch.mockResolvedValue(makeJsonResponse({ success: true }));
+
+    await manager.replayPendingMutations();
+    window.removeEventListener('offlineMutationReplayed', onReplayed);
+
+    expect(global.fetch.mock.calls[0][1].headers['Idempotency-Key']).toBe(mutationId);
+    expect(replayed).toEqual([expect.objectContaining({ mutationId })]);
+    expect(await getOfflineData()).toHaveLength(0);
+  });
+
   it('keeps additive point awards online-only', async () => {
     const manager = new OfflineManager();
     manager.isOffline = true;

@@ -50,6 +50,8 @@ const SAFE_OFFLINE_MUTATIONS = [
   { method: 'POST', path: /^\/api\/v1\/attendance(?:\/carry-forward)?$/ },
   { method: 'PATCH', path: /^\/api\/v1\/medication\/(?:distributions|receptions)\/\d+$/ },
   { method: 'DELETE', path: /^\/api\/v1\/medication\/receptions\/\d+$/ },
+  // Replaying badge history is safe: the server skips levels already recorded.
+  { method: 'POST', path: /^\/api\/v1\/badges\/history$/ },
 ];
 
 /**

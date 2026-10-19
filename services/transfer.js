@@ -134,7 +134,7 @@ async function planBadgeTransfer(client, participantId, organizationId, targetOr
     [targetOrganizationId]
   );
   const targetLevels = await client.query(
-    `SELECT id, badge_template_id, etoiles, status FROM badge_progress
+    `SELECT id, badge_template_id, etoiles, status, delivered_at FROM badge_progress
       WHERE participant_id = $1 AND organization_id = $2`,
     [participantId, targetOrganizationId]
   );
@@ -143,14 +143,15 @@ async function planBadgeTransfer(client, participantId, organizationId, targetOr
   const byOfficialVersion = new Map(target.rows.filter((row) => row.official_key)
     .map((row) => [`${row.official_key}:${row.version}`, row]));
   const byTemplateKey = new Map(target.rows.filter((row) => row.template_key).map((row) => [row.template_key, row]));
-  const existingApproved = new Set(targetLevels.rows
+  const existingApproved = new Map(targetLevels.rows
     .filter((row) => row.status === 'approved')
-    .map((row) => `${row.badge_template_id}:${row.etoiles}`));
+    .map((row) => [`${row.badge_template_id}:${row.etoiles}`, row]));
   const existingUnapproved = new Map(targetLevels.rows
     .filter((row) => row.status !== 'approved')
     .map((row) => [`${row.badge_template_id}:${row.etoiles}`, row]));
   const planned = new Set();
   const matches = [];
+  const deliveries = [];
   let unmatched = 0;
   for (const badge of source.rows) {
     const template = badge.official_key && officialKeys.has(badge.official_key)
@@ -160,12 +161,19 @@ async function planBadgeTransfer(client, participantId, organizationId, targetOr
       unmatched += 1;
     } else {
       const key = `${template.id}:${badge.etoiles}`;
-      if (existingApproved.has(key) || planned.has(key)) {continue;}
+      const approved = existingApproved.get(key);
+      // A child coming back may have been handed the badge in the other unit:
+      // the record already here is then delivered too, not queued again.
+      if (approved && !approved.delivered_at && badge.delivered_at) {
+        deliveries.push({ id: approved.id, deliveredAt: badge.delivered_at });
+        approved.delivered_at = badge.delivered_at;
+      }
+      if (approved || planned.has(key)) {continue;}
       matches.push({ badge, template, existingId: existingUnapproved.get(key)?.id || null });
       planned.add(key);
     }
   }
-  return { matches, unmatched };
+  return { matches, deliveries, unmatched };
 }
 
 /**
@@ -360,6 +368,11 @@ async function transferParticipant(client, {
   const badgePlan = await planBadgeTransfer(client, participantId, organizationId, targetOrganizationId);
   let badgesTransferred = 0;
   const badgesUnmatched = badgePlan.unmatched;
+  await Promise.all(badgePlan.deliveries.map(({ id, deliveredAt }) => client.query(
+    `UPDATE badge_progress SET delivered_at = $1
+      WHERE id = $2 AND organization_id = $3 AND delivered_at IS NULL`,
+    [deliveredAt, id, targetOrganizationId]
+  )));
   // Each source badge is checked and copied sequentially inside the transfer transaction.
   /* eslint-disable no-await-in-loop */
   for (const { badge, template, existingId } of badgePlan.matches) {

@@ -423,6 +423,50 @@ describe.skipIf(!DATABASE_URL)('Transfer to a sister unit', () => {
     )).toBe(1);
   });
 
+  test('a child coming back keeps as delivered a badge handed out in the other unit', async () => {
+    const sourceTemplateId = await one(
+      `INSERT INTO badge_templates (organization_id, template_key, official_key, name, section)
+       VALUES ($1, 'transfer-return-test', 'transfer-return-test', 'Return test', 'general') RETURNING id`,
+      [ids.originId]
+    );
+    const targetTemplateId = await one(
+      `INSERT INTO badge_templates (organization_id, template_key, official_key, name, section)
+       VALUES ($1, 'transfer-return-test', 'transfer-return-test', 'Return test', 'general') RETURNING id`,
+      [ids.targetId]
+    );
+    // Approved at the destination long ago, never handed out there; handed out at the origin since.
+    await pool.query(
+      `INSERT INTO badge_progress
+         (participant_id, organization_id, badge_template_id, territoire_chasse,
+          section, etoiles, status, approval_date)
+       VALUES ($1, $2, $3, 'Return test', 'general', 1, 'approved', now())`,
+      [ids.movingChildId, ids.targetId, targetTemplateId]
+    );
+    await pool.query(
+      `INSERT INTO badge_progress
+         (participant_id, organization_id, badge_template_id, territoire_chasse,
+          section, etoiles, status, approval_date, delivered_at)
+       VALUES ($1, $2, $3, 'Return test', 'general', 1, 'approved', now(), '2026-03-01')`,
+      [ids.movingChildId, ids.originId, sourceTemplateId]
+    );
+
+    const response = await transfer(ids.movingChildId, ids.targetId);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({ badges_transferred: 0, badges_unmatched: 0 });
+    expect(await one(
+      `SELECT COUNT(*)::int FROM badge_progress
+        WHERE participant_id = $1 AND organization_id = $2 AND badge_template_id = $3`,
+      [ids.movingChildId, ids.targetId, targetTemplateId]
+    )).toBe(1);
+    expect(await one(
+      `SELECT COUNT(*)::int FROM badge_progress
+        WHERE participant_id = $1 AND organization_id = $2 AND badge_template_id = $3
+          AND delivered_at IS NOT NULL`,
+      [ids.movingChildId, ids.targetId, targetTemplateId]
+    )).toBe(1);
+  });
+
   test('does not credit badge progress to another version of the same catalog badge', async () => {
     const sourceTemplateId = await one(
       `INSERT INTO badge_templates (organization_id, template_key, official_key, version, name, section)
