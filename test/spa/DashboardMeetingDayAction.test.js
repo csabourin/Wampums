@@ -228,6 +228,19 @@ test('without an end time, the meeting ends after its start time plus its durati
   dashboard.destroy();
 });
 
+test('a meeting crossing midnight is not over before it starts', async () => {
+  getNextMeetingInfo.mockResolvedValue({
+    data: todaysMeeting({ start_time: '23:30', end_time: '00:30' }),
+  });
+  getAttendance.mockResolvedValue({ data: [{ participant_id: 1, status: 'present' }] });
+  atTime(18, 0);
+
+  const dashboard = await openDashboard();
+
+  expect(primaryAction().getAttribute('href')).toBe('/managePoints');
+  dashboard.destroy();
+});
+
 test('without any time, the meeting ends with its last planned activity', async () => {
   getNextMeetingInfo.mockResolvedValue({
     data: todaysMeeting({

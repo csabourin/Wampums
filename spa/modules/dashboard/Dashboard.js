@@ -738,12 +738,18 @@ export class Dashboard extends BaseModule {
    */
   _hasMeetingEnded(meeting, now) {
     const date = String(meeting.date).slice(0, ISO_DATE_LENGTH);
+    const meetingStart = meeting.start_time
+      ? this._parseLocalActivityDateTime(date, meeting.start_time)
+      : null;
     let end = meeting.end_time ? this._parseLocalActivityDateTime(date, meeting.end_time) : null;
+    // A meeting crossing midnight (23:30–00:30) ends on the following day.
+    if (end && meetingStart && end.getTime() <= meetingStart.getTime()) {
+      end.setDate(end.getDate() + 1);
+    }
 
     const duration = meeting.duration_override || meeting.duration_minutes;
-    if (!end && meeting.start_time && duration) {
-      const start = this._parseLocalActivityDateTime(date, meeting.start_time);
-      end = start ? new Date(start.getTime() + duration * MS_PER_MINUTE) : null;
+    if (!end && meetingStart && duration) {
+      end = new Date(meetingStart.getTime() + duration * MS_PER_MINUTE);
     }
 
     const activities = Array.isArray(meeting.activities) ? meeting.activities : [];
