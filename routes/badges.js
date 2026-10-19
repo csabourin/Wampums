@@ -36,7 +36,7 @@ const getLevelCount = (levels, levelCount) => {
 };
 
 async function fetchTemplate(client, templateId, organizationId) {
-  if (!templateId) return null;
+  if (!templateId) {return null;}
   const templateResult = await client.query(
     `SELECT id, name, template_key, translation_key, section, level_count, levels, image,
             program_type, official_key, version, requirements

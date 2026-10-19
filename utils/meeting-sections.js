@@ -8,7 +8,7 @@ const defaultMeetingSections = require('../config/meeting_sections.json');
  * @returns {object|null} Parsed object or null
  */
 function parseSettingValue(rawValue, logger) {
-  if (!rawValue) return null;
+  if (!rawValue) {return null;}
 
   if (typeof rawValue === 'object') {
     return rawValue;

@@ -1,330 +1,331 @@
-import { translate } from "../app.js";
-import { CONFIG } from "../config.js";
-import { getSectionActivityTemplates } from "../utils/meetingSections.js";
-import { setContent } from "../utils/DOMUtils.js";
-import { debugLog, debugWarn } from "../utils/DebugUtils.js";
-import { escapeAttribute, escapeHTML } from "../utils/SecurityUtils.js";
-import { badgeLabel } from "../utils/BadgeLabelUtils.js";
-import { AchievementModal } from "./AchievementModal.js";
+import { translate } from '../app.js';
+import { CONFIG } from '../config.js';
+import { getSectionActivityTemplates } from '../utils/meetingSections.js';
+import { setContent } from '../utils/DOMUtils.js';
+import { debugLog, debugWarn } from '../utils/DebugUtils.js';
+import { escapeAttribute, escapeHTML } from '../utils/SecurityUtils.js';
+import { badgeLabel } from '../utils/BadgeLabelUtils.js';
+import { memberDisplayName } from '../utils/DisplayNameUtils.js';
+import { AchievementModal } from './AchievementModal.js';
 
 /**
  * ActivityManager - Handles all activity-related operations
  * for the Preparation Reunions page
  */
 export class ActivityManager {
-        constructor(
-                app,
-                animateurs,
-                activities,
-                sectionConfig,
-                badgeTemplates = [],
-                participants = [],
-        ) {
-                this.app = app;
-                this.animateurs = animateurs;
-                this.activities = activities;
-                this.selectedActivities = [];
-                this.sectionConfig = sectionConfig;
-                this.badgeTemplates = badgeTemplates;
-                this.participants = participants;
-                this.meetingLengthMinutes = 120; // Default: 2 hours
-                this.durationOverride = null; // Optional override for special meetings
-                this.achievementModal = null; // Will hold the AchievementModal instance
-                this.quickEditActive = false;
-                this.reorderAbortController = null;
-                this.reorderState = null;
-        }
+  constructor(
+    app,
+    animateurs,
+    activities,
+    sectionConfig,
+    badgeTemplates = [],
+    participants = [],
+  ) {
+    this.app = app;
+    this.animateurs = animateurs;
+    this.activities = activities;
+    this.selectedActivities = [];
+    this.sectionConfig = sectionConfig;
+    this.badgeTemplates = badgeTemplates;
+    this.participants = participants;
+    this.meetingLengthMinutes = 120; // Default: 2 hours
+    this.durationOverride = null; // Optional override for special meetings
+    this.achievementModal = null; // Will hold the AchievementModal instance
+    this.quickEditActive = false;
+    this.reorderAbortController = null;
+    this.reorderState = null;
+  }
 
-        /**
+  /**
          * Update section configuration after initialization
          * @param {object} sectionConfig - Active section configuration
          */
-        setSectionConfig(sectionConfig) {
-                this.sectionConfig = sectionConfig;
-        }
+  setSectionConfig(sectionConfig) {
+    this.sectionConfig = sectionConfig;
+  }
 
-        /**
+  /**
          * Set meeting length and optional duration override
          * @param {number} lengthMinutes - Planned meeting duration in minutes (e.g., 120 for 2 hours)
          * @param {number|null} durationOverride - Optional override for special meetings
          */
-        setMeetingLength(lengthMinutes, durationOverride = null) {
-                this.meetingLengthMinutes = lengthMinutes || 120;
-                this.durationOverride = durationOverride;
-        }
+  setMeetingLength(lengthMinutes, durationOverride = null) {
+    this.meetingLengthMinutes = lengthMinutes || 120;
+    this.durationOverride = durationOverride;
+  }
 
-        /**
+  /**
          * Calculate actual meeting duration based on activities
          * @param {Array} activities - Activities to analyze
          * @returns {number} Total duration in minutes
          */
-        calculateMeetingDuration(activities) {
-                if (!Array.isArray(activities) || activities.length === 0) {
-                        return 0;
-                }
+  calculateMeetingDuration(activities) {
+    if (!Array.isArray(activities) || activities.length === 0) {
+      return 0;
+    }
 
-                // Get start time from first activity and end time from last
-                const times = activities
-                        .filter((a) => a.time && a.duration)
-                        .map((a) => {
-                                const [hours, minutes] = (a.time || "")
-                                        .split(":")
-                                        .map(Number);
-                                const [durHours, durMinutes] = (
-                                        a.duration || "00:00"
-                                )
-                                        .split(":")
-                                        .map(Number);
-                                const startMinutes =
+    // Get start time from first activity and end time from last
+    const times = activities
+      .filter((a) => a.time && a.duration)
+      .map((a) => {
+        const [hours, minutes] = (a.time || '')
+          .split(':')
+          .map(Number);
+        const [durHours, durMinutes] = (
+          a.duration || '00:00'
+        )
+          .split(':')
+          .map(Number);
+        const startMinutes =
                                         (hours || 0) * 60 + (minutes || 0);
-                                const duration =
+        const duration =
                                         (durHours || 0) * 60 +
                                         (durMinutes || 0);
-                                return { start: startMinutes, duration };
-                        });
+        return { start: startMinutes, duration };
+      });
 
-                if (times.length === 0) {
-                        return 0;
-                }
+    if (times.length === 0) {
+      return 0;
+    }
 
-                // Total duration = last activity end time - first activity start time
-                const firstStart = Math.min(...times.map((t) => t.start));
-                const lastEnd = Math.max(
-                        ...times.map((t) => t.start + t.duration),
-                );
-                return Math.max(0, lastEnd - firstStart);
-        }
+    // Total duration = last activity end time - first activity start time
+    const firstStart = Math.min(...times.map((t) => t.start));
+    const lastEnd = Math.max(
+      ...times.map((t) => t.start + t.duration),
+    );
+    return Math.max(0, lastEnd - firstStart);
+  }
 
-        /**
+  /**
          * Initialize placeholder activities with default values
          * Only includes templates if actual meeting duration < planned duration
          * @param {Array} existingActivities - Current activities (if any)
          * @returns {Array} Placeholder activities
          */
-        initializePlaceholderActivities(existingActivities = null) {
-                // Determine the planned duration (use override if special meeting, otherwise use default)
-                const plannedDuration =
+  initializePlaceholderActivities(existingActivities = null) {
+    // Determine the planned duration (use override if special meeting, otherwise use default)
+    const plannedDuration =
                         this.durationOverride || this.meetingLengthMinutes;
 
-                // Calculate actual duration if we have existing activities
-                let actualDuration = 0;
-                if (
-                        existingActivities &&
+    // Calculate actual duration if we have existing activities
+    let actualDuration = 0;
+    if (
+      existingActivities &&
                         Array.isArray(existingActivities) &&
                         existingActivities.length > 0
-                ) {
-                        actualDuration =
+    ) {
+      actualDuration =
                                 this.calculateMeetingDuration(
-                                        existingActivities,
+                                  existingActivities,
                                 );
-                }
+    }
 
-                // Only add template placeholders if actual duration < planned duration
-                // This prevents re-adding templates when the user has already filled the time
-                if (actualDuration >= plannedDuration) {
-                        return existingActivities || [];
-                }
+    // Only add template placeholders if actual duration < planned duration
+    // This prevents re-adding templates when the user has already filled the time
+    if (actualDuration >= plannedDuration) {
+      return existingActivities || [];
+    }
 
-                // Create templates for remaining time
-                const templates = getSectionActivityTemplates(
-                        this.sectionConfig,
-                );
+    // Create templates for remaining time
+    const templates = getSectionActivityTemplates(
+      this.sectionConfig,
+    );
 
-                const placeholders = templates.map((template, index) => {
-                        const activityKey = template.activityKey;
-                        const typeKey = template.typeKey;
-                        return {
-                                position: template.position ?? index,
-                                time: template.time || "",
-                                duration: template.duration || "00:00",
-                                activityKey,
-                                typeKey,
-                                activity:
+    const placeholders = templates.map((template, index) => {
+      const activityKey = template.activityKey;
+      const typeKey = template.typeKey;
+      return {
+        position: template.position ?? index,
+        time: template.time || '',
+        duration: template.duration || '00:00',
+        activityKey,
+        typeKey,
+        activity:
                                         template.activity ||
                                         (activityKey
-                                                ? translate(activityKey)
-                                                : translate(
-                                                          "default_activity_name",
-                                                  )),
-                                type:
+                                          ? translate(activityKey)
+                                          : translate(
+                                            'default_activity_name',
+                                          )),
+        type:
                                         template.type ||
                                         (typeKey
-                                                ? translate(typeKey)
-                                                : translate(
-                                                          "activity_type_preparation",
-                                                  )),
-                        };
-                });
+                                          ? translate(typeKey)
+                                          : translate(
+                                            'activity_type_preparation',
+                                          )),
+      };
+    });
 
-                const defaultActivities = placeholders.map((ph, index) => {
-                        const matchingActivity =
+    const defaultActivities = placeholders.map((ph, index) => {
+      const matchingActivity =
                                 this.activities.find(
-                                        (a) => a.type === ph.type,
+                                  (a) => a.type === ph.type,
                                 ) || {};
-                        return {
-                                ...matchingActivity,
-                                ...ph,
-                                id: `default-${index}`,
-                                responsable: "",
-                                materiel: "",
-                                isDefault: true,
-                                position: index,
-                        };
-                });
+      return {
+        ...matchingActivity,
+        ...ph,
+        id: `default-${index}`,
+        responsable: '',
+        materiel: '',
+        isDefault: true,
+        position: index,
+      };
+    });
 
-                // If there are existing activities, merge them
-                if (
-                        existingActivities &&
+    // If there are existing activities, merge them
+    if (
+      existingActivities &&
                         Array.isArray(existingActivities) &&
                         existingActivities.length > 0
-                ) {
-                        // Mark existing non-default activities and append templates
-                        const nonDefaultActivities = existingActivities.filter(
-                                (a) => !a.isDefault,
-                        );
-                        return [...nonDefaultActivities, ...defaultActivities];
-                }
+    ) {
+      // Mark existing non-default activities and append templates
+      const nonDefaultActivities = existingActivities.filter(
+        (a) => !a.isDefault,
+      );
+      return [...nonDefaultActivities, ...defaultActivities];
+    }
 
-                return defaultActivities;
-        }
+    return defaultActivities;
+  }
 
-        /**
+  /**
          * Set quick edit mode active state
          * @param {boolean} active - Whether quick edit mode is active
          */
-        setQuickEditActive(active) {
-                this.quickEditActive = active;
-        }
+  setQuickEditActive(active) {
+    this.quickEditActive = active;
+  }
 
-        /**
+  /**
          * Render an insert-here divider between activity rows
          * @param {number} position - The position where a new row would be inserted
          * @returns {string} HTML for the insert divider
          */
-        renderInsertDivider(position) {
-                const hiddenClass = this.quickEditActive ? "" : "hidden";
-                return `
+  renderInsertDivider(position) {
+    const hiddenClass = this.quickEditActive ? '' : 'hidden';
+    return `
                         <div class="insert-here-divider ${hiddenClass}" data-position="${position}">
                                 <button type="button" class="insert-here-btn" data-position="${position}">
-                                        ${translate("insert_row_here")}
+                                        ${translate('insert_row_here')}
                                 </button>
                         </div>
                 `;
-        }
+  }
 
-        /**
+  /**
          * Render the activities table
          */
-        renderActivitiesTable() {
-                // Simply render the current selectedActivities array
-                // No merging with defaults - defaults should only be used when initializing
-                const activitiesToRender = this.selectedActivities.map(
-                        (activity, index) => ({
-                                ...activity,
-                                position: index,
-                        }),
-                );
+  renderActivitiesTable() {
+    // Simply render the current selectedActivities array
+    // No merging with defaults - defaults should only be used when initializing
+    const activitiesToRender = this.selectedActivities.map(
+      (activity, index) => ({
+        ...activity,
+        position: index,
+      }),
+    );
 
-                // Build HTML with insert dividers interleaved between rows
-                let activitiesHtml = this.renderInsertDivider(0);
-                activitiesToRender.forEach((activity, index) => {
-                        activitiesHtml += this.renderActivityRow(activity, index);
-                        activitiesHtml += this.renderInsertDivider(index + 1);
-                });
+    // Build HTML with insert dividers interleaved between rows
+    let activitiesHtml = this.renderInsertDivider(0);
+    activitiesToRender.forEach((activity, index) => {
+      activitiesHtml += this.renderActivityRow(activity, index);
+      activitiesHtml += this.renderInsertDivider(index + 1);
+    });
 
-                // Get the activities list container
-                const container = document.getElementById("activities-list");
+    // Get the activities list container
+    const container = document.getElementById('activities-list');
 
-                if (container) {
-                        setContent(container, activitiesHtml);
-                }
+    if (container) {
+      setContent(container, activitiesHtml);
+    }
 
-                this.addDurationListeners();
-                this.addAchievementListeners();
-                this.addReorderListeners();
-        }
+    this.addDurationListeners();
+    this.addAchievementListeners();
+    this.addReorderListeners();
+  }
 
-        /**
+  /**
          * Render a single activity row using div-based grid layout
          */
-        renderActivityRow(a, index) {
-                const safeDuration =
-                        typeof a.duration === "string" &&
-                        a.duration.includes(":")
-                                ? a.duration
-                                : "00:00";
+  renderActivityRow(a, index) {
+    const safeDuration =
+                        typeof a.duration === 'string' &&
+                        a.duration.includes(':')
+                          ? a.duration
+                          : '00:00';
 
-                const isCustomActivity = !this.activities.some(
-                        (activity) => activity.activity === a.activity,
-                );
-                const activityName =
+    const isCustomActivity = !this.activities.some(
+      (activity) => activity.activity === a.activity,
+    );
+    const activityName =
                         a.activity ||
                         (a.activityKey
-                                ? translate(a.activityKey)
-                                : translate("default_activity_name"));
-                const time = a.time || "18:30";
-                const duration = safeDuration || "00:00";
-                const materiel = a.materiel || "";
+                          ? translate(a.activityKey)
+                          : translate('default_activity_name'));
+    const time = a.time || '18:30';
+    const duration = safeDuration || '00:00';
+    const materiel = a.materiel || '';
 
-                debugLog(`[renderActivityRow ${index}] Rendering:`, {
-                        activityName,
-                        time,
-                        duration,
-                        responsable: a.responsable,
-                        materiel,
-                        isDefault: a.isDefault,
-                });
+    debugLog(`[renderActivityRow ${index}] Rendering:`, {
+      activityName,
+      time,
+      duration,
+      responsable: a.responsable,
+      materiel,
+      isDefault: a.isDefault,
+    });
 
-                const responsableExists =
+    const responsableExists =
                         !a.responsable ||
                         this.animateurs.some(
-                                (animateur) =>
-                                        animateur.full_name === a.responsable,
+                          (animateur) =>
+                            animateur.full_name === a.responsable,
                         );
-                const responsableField = responsableExists
-                        ? `
+    const responsableField = responsableExists
+      ? `
                         <select class="activity-responsable" data-default="${a.isDefault}">
-                                <option value="">${translate("select_animateur")}</option>
+                                <option value="">${translate('select_animateur')}</option>
                                 ${this.animateurs
-                                        .map(
-                                                (animateur) => `
-                                        <option value="${escapeAttribute(animateur.full_name)}" ${animateur.full_name === a.responsable ? "selected" : ""}>${escapeHTML(animateur.full_name)}</option>
+    .map(
+      (animateur) => `
+                                        <option value="${escapeAttribute(animateur.full_name)}" ${animateur.full_name === a.responsable ? 'selected' : ''}>${escapeHTML(memberDisplayName(animateur))}</option>
                                 `,
-                                        )
-                                        .join("")}
-                                <option value="other">${translate("other")}</option>
+    )
+    .join('')}
+                                <option value="other">${translate('other')}</option>
                         </select>
                 `
-                        : `
+      : `
                         <input type="text" value="${a.responsable}" class="responsable-input" data-default="${a.isDefault}">
                 `;
 
-                const hasAchievement = !!a.badge_template_id;
-                const starType = a.star_type || "proie";
-                const participantIds = a.participant_ids || [];
+    const hasAchievement = !!a.badge_template_id;
+    const starType = a.star_type || 'proie';
+    const participantIds = a.participant_ids || [];
 
-                const userLanguage = this.app.lang || "fr"; // Default to French if language not set
-                const badgeOptions = this.badgeTemplates
-                        .map(
-                                (t) =>
-                                        `<option value="${t.id}" ${parseInt(t.id) === parseInt(a.badge_template_id) ? "selected" : ""}>${t.name}</option>`,
-                        )
-                        .join("");
+    const userLanguage = this.app.lang || 'fr'; // Default to French if language not set
+    const badgeOptions = this.badgeTemplates
+      .map(
+        (t) =>
+          `<option value="${t.id}" ${parseInt(t.id) === parseInt(a.badge_template_id) ? 'selected' : ''}>${t.name}</option>`,
+      )
+      .join('');
 
-                const participantOptions = this.participants
-                        .sort((p1, p2) =>
-                                p1.first_name.localeCompare(p2.first_name),
-                        )
-                        .map(
-                                (p) =>
-                                        `<option value="${p.id}" ${participantIds.includes(String(p.id)) || participantIds.includes(p.id) ? "selected" : ""}>${p.first_name} ${p.last_name}</option>`,
-                        )
-                        .join("");
+    const participantOptions = this.participants
+      .sort((p1, p2) =>
+        p1.first_name.localeCompare(p2.first_name),
+      )
+      .map(
+        (p) =>
+          `<option value="${p.id}" ${participantIds.includes(String(p.id)) || participantIds.includes(p.id) ? 'selected' : ''}>${p.first_name} ${p.last_name}</option>`,
+      )
+      .join('');
 
-                return `
+    return `
                         <div class="activity-row-container" data-position="${a.position || index}">
                                 <div class="activity-row" data-id="${a.id || index}" data-position="${a.position || index}" data-default="${a.isDefault}">
-                                        <button type="button" class="activity-drag-handle" title="${translate("drag_handle")}" aria-label="${translate("drag_handle")}" aria-keyshortcuts="ArrowUp ArrowDown" aria-grabbed="false">
+                                        <button type="button" class="activity-drag-handle" title="${translate('drag_handle')}" aria-label="${translate('drag_handle')}" aria-keyshortcuts="ArrowUp ArrowDown" aria-grabbed="false">
                                                 <span class="activity-drag-handle__dots" aria-hidden="true"></span>
                                         </button>
                                         <span class="activity-row__drag-title">${escapeHTML(activityName)}</span>
@@ -334,963 +335,963 @@ export class ActivityManager {
                                         </div>
                                         <div class="activity-row__activity">
                                                 <select class="activity-select" data-default="${a.isDefault}">
-                                                        ${isCustomActivity ? `<option value="${activityName}" selected>${activityName}</option>` : ""}
-                                                        <option value="">${translate("select_activity")}</option>
-                                                        ${this.activities.map((act) => `<option data-id="${act.id}" value="${act.activity}" ${act.activity === a.activity ? "selected" : ""}>${act.activity}</option>`).join("")}
+                                                        ${isCustomActivity ? `<option value="${activityName}" selected>${activityName}</option>` : ''}
+                                                        <option value="">${translate('select_activity')}</option>
+                                                        ${this.activities.map((act) => `<option data-id="${act.id}" value="${act.activity}" ${act.activity === a.activity ? 'selected' : ''}>${act.activity}</option>`).join('')}
                                                 </select>
-                                                <button type="button" class="edit-activity-btn" title="${translate("edit")}">✎</button>
+                                                <button type="button" class="edit-activity-btn" title="${translate('edit')}">✎</button>
                                         </div>
                                         <div class="activity-row__responsable">
                                                 ${responsableField}
                                         </div>
                                         <div class="activity-row__materiel">
-                                                <input type="text" value="${materiel}" class="activity-materiel" placeholder="${translate("materiel")}" data-default="${a.isDefault}">
+                                                <input type="text" value="${materiel}" class="activity-materiel" placeholder="${translate('materiel')}" data-default="${a.isDefault}">
                                         </div>
                                         <div class="activity-row__actions">
-                                                <button type="button" class="toggle-achievement-btn ${hasAchievement ? "active" : ""}" title="${translate("badge_add_star") || "Achievement"}" data-activity-index="${index}">★</button>
-                                                <button type="button" class="delete-row-btn ${this.quickEditActive ? "" : "hidden"}" data-position="${index}" title="${translate("delete_row")}" aria-label="${translate("delete_row")}">🗑️</button>
+                                                <button type="button" class="toggle-achievement-btn ${hasAchievement ? 'active' : ''}" title="${translate('badge_add_star') || 'Achievement'}" data-activity-index="${index}">★</button>
+                                                <button type="button" class="delete-row-btn ${this.quickEditActive ? '' : 'hidden'}" data-position="${index}" title="${translate('delete_row')}" aria-label="${translate('delete_row')}">🗑️</button>
                                         </div>
                                 </div>
                                 <!-- Achievement summary display -->
-                                <div class="achievement-summary ${hasAchievement ? "" : "hidden"}" 
-                                     data-badge-id="${a.badge_template_id || ""}" 
+                                <div class="achievement-summary ${hasAchievement ? '' : 'hidden'}" 
+                                     data-badge-id="${a.badge_template_id || ''}" 
                                      data-type="${starType}" 
-                                     data-participants="${participantIds.join(",")}">
+                                     data-participants="${participantIds.join(',')}">
                                         ${this.renderAchievementSummary(a.badge_template_id, starType, participantIds)}
                                 </div>
                         </div>
                 `;
-        }
+  }
 
-        /**
+  /**
          * Update activity details when an activity is selected
          */
-        updateActivityDetails(selectElement) {
-                const selectedOption =
+  updateActivityDetails(selectElement) {
+    const selectedOption =
                         selectElement.options[selectElement.selectedIndex];
-                const activityId = selectedOption?.getAttribute("data-id");
-                const activity = this.activities.find(
-                        (a) => String(a.id) === String(activityId),
-                );
+    const activityId = selectedOption?.getAttribute('data-id');
+    const activity = this.activities.find(
+      (a) => String(a.id) === String(activityId),
+    );
 
-                const row = selectElement.closest(".activity-row");
-                if (!row) return;
+    const row = selectElement.closest('.activity-row');
+    if (!row) {return;}
 
-                if (activity) {
-                        const durationInput =
-                                row.querySelector(".activity-duration");
-                        let descriptionButton =
-                                row.querySelector(".description-btn");
+    if (activity) {
+      const durationInput =
+                                row.querySelector('.activity-duration');
+      let descriptionButton =
+                                row.querySelector('.description-btn');
 
-                        const totalMinutes = activity.estimated_time_max || 0;
-                        durationInput.value =
+      const totalMinutes = activity.estimated_time_max || 0;
+      durationInput.value =
                                 this.formatMinutesToHHMM(totalMinutes);
 
-                        // Handle description button
-                        if (activity.description) {
-                                if (!descriptionButton) {
-                                        descriptionButton =
+      // Handle description button
+      if (activity.description) {
+        if (!descriptionButton) {
+          descriptionButton =
                                                 document.createElement(
-                                                        "button",
+                                                  'button',
                                                 );
-                                        descriptionButton.classList.add(
-                                                "description-btn",
-                                        );
-                                        descriptionButton.textContent = "?";
-                                        descriptionButton.setAttribute(
-                                                "data-description",
-                                                activity.description,
-                                        );
-                                        selectElement.insertAdjacentElement(
-                                                "afterend",
-                                                descriptionButton,
-                                        );
-                                } else {
-                                        descriptionButton.setAttribute(
-                                                "data-description",
-                                                activity.description,
-                                        );
-                                        descriptionButton.style.display =
-                                                "inline";
-                                }
-                        } else if (descriptionButton) {
-                                descriptionButton.style.display = "none";
-                        }
-                }
-
-                row.setAttribute("data-default", "false");
-                selectElement.setAttribute("data-default", "false");
+          descriptionButton.classList.add(
+            'description-btn',
+          );
+          descriptionButton.textContent = '?';
+          descriptionButton.setAttribute(
+            'data-description',
+            activity.description,
+          );
+          selectElement.insertAdjacentElement(
+            'afterend',
+            descriptionButton,
+          );
+        } else {
+          descriptionButton.setAttribute(
+            'data-description',
+            activity.description,
+          );
+          descriptionButton.style.display =
+                                                'inline';
         }
+      } else if (descriptionButton) {
+        descriptionButton.style.display = 'none';
+      }
+    }
 
-        /**
+    row.setAttribute('data-default', 'false');
+    selectElement.setAttribute('data-default', 'false');
+  }
+
+  /**
          * Add a new activity row at the specified position
          * @param {number|string} position - Position to insert at
          */
-        addActivityRow(position) {
-                // Sync from DOM first to preserve any unsaved changes
-                this.selectedActivities = this.getSelectedActivitiesFromDOM();
+  addActivityRow(position) {
+    // Sync from DOM first to preserve any unsaved changes
+    this.selectedActivities = this.getSelectedActivitiesFromDOM();
 
-                const insertAt = parseInt(position);
-                const defaultDuration = "00:30";
+    const insertAt = parseInt(position);
+    const defaultDuration = '00:30';
 
-                // Calculate start time from the preceding activity's end time
-                let startTime = "";
-                if (insertAt > 0 && this.selectedActivities.length > 0) {
-                        const prevActivity =
+    // Calculate start time from the preceding activity's end time
+    let startTime = '';
+    if (insertAt > 0 && this.selectedActivities.length > 0) {
+      const prevActivity =
                                 this.selectedActivities[insertAt - 1];
-                        const prevTime = prevActivity.time || "";
-                        const prevDuration =
-                                prevActivity.duration || "00:00";
-                        if (prevTime) {
-                                startTime = this.addDurationToTime(
-                                        prevTime,
-                                        prevDuration,
-                                );
-                        }
-                } else if (
-                        insertAt === 0 &&
+      const prevTime = prevActivity.time || '';
+      const prevDuration =
+                                prevActivity.duration || '00:00';
+      if (prevTime) {
+        startTime = this.addDurationToTime(
+          prevTime,
+          prevDuration,
+        );
+      }
+    } else if (
+      insertAt === 0 &&
                         this.selectedActivities.length > 0
-                ) {
-                        // Inserting before the first row: use its start time
-                        startTime = this.selectedActivities[0].time || "";
-                }
+    ) {
+      // Inserting before the first row: use its start time
+      startTime = this.selectedActivities[0].time || '';
+    }
 
-                const newActivity = {
-                        position: insertAt,
-                        time: startTime,
-                        duration: defaultDuration,
-                        activity: "",
-                        responsable: "",
-                        materiel: "",
-                        isDefault: false,
-                };
+    const newActivity = {
+      position: insertAt,
+      time: startTime,
+      duration: defaultDuration,
+      activity: '',
+      responsable: '',
+      materiel: '',
+      isDefault: false,
+    };
 
-                this.selectedActivities.splice(insertAt, 0, newActivity);
-                this.recalculatePositions();
-                this.renderActivitiesTable();
+    this.selectedActivities.splice(insertAt, 0, newActivity);
+    this.recalculatePositions();
+    this.renderActivitiesTable();
 
-                // Recalculate following times from the newly inserted row
-                this.updateFollowingTimes(insertAt);
-                this.notifyActivitiesChanged();
-        }
+    // Recalculate following times from the newly inserted row
+    this.updateFollowingTimes(insertAt);
+    this.notifyActivitiesChanged();
+  }
 
-        /**
+  /**
          * Delete an activity row at the specified position
          * @param {number|string} position - Position of the row to delete
          */
-        deleteActivityRow(position) {
-                // Sync from DOM first to preserve any unsaved changes
-                this.selectedActivities = this.getSelectedActivitiesFromDOM();
+  deleteActivityRow(position) {
+    // Sync from DOM first to preserve any unsaved changes
+    this.selectedActivities = this.getSelectedActivitiesFromDOM();
 
-                const deleteAt = parseInt(position);
-                this.selectedActivities.splice(deleteAt, 1);
-                this.recalculatePositions();
-                this.renderActivitiesTable();
+    const deleteAt = parseInt(position);
+    this.selectedActivities.splice(deleteAt, 1);
+    this.recalculatePositions();
+    this.renderActivitiesTable();
 
-                // Recalculate times starting from the row before the deleted one
-                if (this.selectedActivities.length > 0) {
-                        const recalcFrom = Math.max(0, deleteAt - 1);
-                        this.updateFollowingTimes(recalcFrom);
-                }
-                this.notifyActivitiesChanged();
-        }
+    // Recalculate times starting from the row before the deleted one
+    if (this.selectedActivities.length > 0) {
+      const recalcFrom = Math.max(0, deleteAt - 1);
+      this.updateFollowingTimes(recalcFrom);
+    }
+    this.notifyActivitiesChanged();
+  }
 
-        /**
+  /**
          * Recalculate positions after adding/deleting rows
          */
-        recalculatePositions() {
-                this.selectedActivities.forEach((activity, index) => {
-                        activity.position = index;
-                });
-        }
+  recalculatePositions() {
+    this.selectedActivities.forEach((activity, index) => {
+      activity.position = index;
+    });
+  }
 
-        /**
+  /**
          * Toggle activity edit mode (switch from select to input)
          */
-        toggleActivityEdit(row) {
-                const container = row.querySelector(".activity-row__activity");
-                const select = container?.querySelector(".activity-select");
-                if (select) {
-                        const input = document.createElement("input");
-                        input.type = "text";
-                        input.className = "activity-input";
-                        input.value = select.options[select.selectedIndex].text;
-                        input.setAttribute("data-default", "false");
-                        container.replaceChild(input, select);
-                        row.setAttribute("data-default", "false");
-                }
-        }
+  toggleActivityEdit(row) {
+    const container = row.querySelector('.activity-row__activity');
+    const select = container?.querySelector('.activity-select');
+    if (select) {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'activity-input';
+      input.value = select.options[select.selectedIndex].text;
+      input.setAttribute('data-default', 'false');
+      container.replaceChild(input, select);
+      row.setAttribute('data-default', 'false');
+    }
+  }
 
-        /**
+  /**
          * Switch responsable from select to input
          */
-        switchResponsableToInput(select) {
-                const container = select.closest(".activity-row__responsable");
-                if (!container) return;
+  switchResponsableToInput(select) {
+    const container = select.closest('.activity-row__responsable');
+    if (!container) {return;}
 
-                const input = document.createElement("input");
-                input.type = "text";
-                input.className = "responsable-input";
-                input.setAttribute("data-default", "false");
-                input.placeholder = translate("enter_responsable_name");
-                container.replaceChild(input, select);
-                input.focus();
-                container
-                        .closest(".activity-row")
-                        .setAttribute("data-default", "false");
-        }
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'responsable-input';
+    input.setAttribute('data-default', 'false');
+    input.placeholder = translate('enter_responsable_name');
+    container.replaceChild(input, select);
+    input.focus();
+    container
+      .closest('.activity-row')
+      .setAttribute('data-default', 'false');
+  }
 
-        /**
+  /**
          * Format minutes to HH:MM
          */
-        formatMinutesToHHMM(minutes) {
-                const hours = Math.floor(minutes / 60);
-                const mins = minutes % 60;
-                return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
-        }
+  formatMinutesToHHMM(minutes) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  }
 
-        /**
+  /**
          * Parse time string (HH:MM)
          */
-        parseTime(timeString) {
-                const [hours, minutes] = timeString.split(":").map(Number);
-                return { hours, minutes };
-        }
+  parseTime(timeString) {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    return { hours, minutes };
+  }
 
-        /**
+  /**
          * Format time back into HH:MM
          */
-        formatTime(hours, minutes) {
-                return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-        }
+  formatTime(hours, minutes) {
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  }
 
-        /**
+  /**
          * Add duration to a start time
          */
-        addDurationToTime(startTime, duration) {
-                const timeParts = this.parseTime(startTime);
-                const durationParts = this.parseTime(duration);
+  addDurationToTime(startTime, duration) {
+    const timeParts = this.parseTime(startTime);
+    const durationParts = this.parseTime(duration);
 
-                let totalMinutes = timeParts.minutes + durationParts.minutes;
-                let totalHours =
+    let totalMinutes = timeParts.minutes + durationParts.minutes;
+    let totalHours =
                         timeParts.hours +
                         durationParts.hours +
                         Math.floor(totalMinutes / 60);
 
-                totalMinutes = totalMinutes % 60;
-                totalHours = totalHours % 24;
+    totalMinutes = totalMinutes % 60;
+    totalHours = totalHours % 24;
 
-                return this.formatTime(totalHours, totalMinutes);
-        }
+    return this.formatTime(totalHours, totalMinutes);
+  }
 
-        /**
+  /**
          * Update times for following rows based on the duration of the current row
          */
-        updateFollowingTimes(rowIndex) {
-                const rows = document.querySelectorAll(".activity-row");
+  updateFollowingTimes(rowIndex) {
+    const rows = document.querySelectorAll('.activity-row');
 
-                for (let i = rowIndex; i < rows.length - 1; i++) {
-                        const currentRow = rows[i];
-                        const nextRow = rows[i + 1];
+    for (let i = rowIndex; i < rows.length - 1; i++) {
+      const currentRow = rows[i];
+      const nextRow = rows[i + 1];
 
-                        const currentEndTime = this.addDurationToTime(
-                                currentRow.querySelector(".activity-time")
-                                        .value,
-                                currentRow.querySelector(".activity-duration")
-                                        .value,
-                        );
+      const currentEndTime = this.addDurationToTime(
+        currentRow.querySelector('.activity-time')
+          .value,
+        currentRow.querySelector('.activity-duration')
+          .value,
+      );
 
-                        const nextTimeInput =
-                                nextRow.querySelector(".activity-time");
-                        nextTimeInput.value = currentEndTime;
-                }
-        }
+      const nextTimeInput =
+                                nextRow.querySelector('.activity-time');
+      nextTimeInput.value = currentEndTime;
+    }
+  }
 
-        /**
+  /**
          * Add event listeners for duration changes
          */
-        addDurationListeners(newRow = null) {
-                const rows = newRow
-                        ? [newRow]
-                        : document.querySelectorAll(".activity-row");
+  addDurationListeners(newRow = null) {
+    const rows = newRow
+      ? [newRow]
+      : document.querySelectorAll('.activity-row');
 
-                rows.forEach((row) => {
-                        const durationInput =
-                                row.querySelector(".activity-duration");
-                        const timeInput = row.querySelector(".activity-time");
+    rows.forEach((row) => {
+      const durationInput =
+                                row.querySelector('.activity-duration');
+      const timeInput = row.querySelector('.activity-time');
 
-                        durationInput.addEventListener("input", (event) => {
-                                let inputValue = event.target.value;
-                                let minutes = 0;
+      durationInput.addEventListener('input', (event) => {
+        const inputValue = event.target.value;
+        let minutes = 0;
 
-                                if (inputValue.includes(":")) {
-                                        const [hours, mins] = inputValue
-                                                .split(":")
-                                                .map(Number);
-                                        minutes = hours * 60 + mins;
-                                } else {
-                                        minutes = parseInt(inputValue, 10);
-                                }
-
-                                if (!isNaN(minutes)) {
-                                        event.target.value =
-                                                this.formatMinutesToHHMM(
-                                                        minutes,
-                                                );
-                                        const rowIndex = Array.from(
-                                                document.querySelectorAll(
-                                                        ".activity-row",
-                                                ),
-                                        ).indexOf(row);
-                                        this.updateFollowingTimes(rowIndex);
-                                }
-                        });
-
-                        timeInput.addEventListener("input", (event) => {
-                                const rowIndex = Array.from(
-                                        document.querySelectorAll(
-                                                ".activity-row",
-                                        ),
-                                ).indexOf(row);
-                                this.updateFollowingTimes(rowIndex);
-                        });
-                });
+        if (inputValue.includes(':')) {
+          const [hours, mins] = inputValue
+            .split(':')
+            .map(Number);
+          minutes = hours * 60 + mins;
+        } else {
+          minutes = parseInt(inputValue, 10);
         }
 
-        /**
+        if (!isNaN(minutes)) {
+          event.target.value =
+                                                this.formatMinutesToHHMM(
+                                                  minutes,
+                                                );
+          const rowIndex = Array.from(
+            document.querySelectorAll(
+              '.activity-row',
+            ),
+          ).indexOf(row);
+          this.updateFollowingTimes(rowIndex);
+        }
+      });
+
+      timeInput.addEventListener('input', (_event) => {
+        const rowIndex = Array.from(
+          document.querySelectorAll(
+            '.activity-row',
+          ),
+        ).indexOf(row);
+        this.updateFollowingTimes(rowIndex);
+      });
+    });
+  }
+
+  /**
          * Attach pointer and keyboard controls to the agenda drag handles.
          * Mouse dragging starts immediately; touch and pen input require a long press.
          */
-        addReorderListeners() {
-                this.cancelReorder();
-                this.reorderAbortController?.abort();
-                this.reorderAbortController = new AbortController();
-                const signal = this.reorderAbortController.signal;
-                const handles = document.querySelectorAll(
-                        "#activities-list .activity-drag-handle",
-                );
+  addReorderListeners() {
+    this.cancelReorder();
+    this.reorderAbortController?.abort();
+    this.reorderAbortController = new AbortController();
+    const signal = this.reorderAbortController.signal;
+    const handles = document.querySelectorAll(
+      '#activities-list .activity-drag-handle',
+    );
 
-                handles.forEach((handle) => {
-                        handle.addEventListener(
-                                "pointerdown",
-                                (event) => this.handleReorderPointerDown(event),
-                                { signal },
-                        );
-                        handle.addEventListener(
-                                "keydown",
-                                (event) => this.handleReorderKeyDown(event),
-                                { signal },
-                        );
-                });
+    handles.forEach((handle) => {
+      handle.addEventListener(
+        'pointerdown',
+        (event) => this.handleReorderPointerDown(event),
+        { signal },
+      );
+      handle.addEventListener(
+        'keydown',
+        (event) => this.handleReorderKeyDown(event),
+        { signal },
+      );
+    });
 
-                window.addEventListener(
-                        "pointermove",
-                        (event) => this.handleReorderPointerMove(event),
-                        { signal },
-                );
-                window.addEventListener(
-                        "pointerup",
-                        (event) => this.handleReorderPointerEnd(event, true),
-                        { signal },
-                );
-                window.addEventListener(
-                        "pointercancel",
-                        (event) => this.handleReorderPointerEnd(event, false),
-                        { signal },
-                );
-        }
+    window.addEventListener(
+      'pointermove',
+      (event) => this.handleReorderPointerMove(event),
+      { signal },
+    );
+    window.addEventListener(
+      'pointerup',
+      (event) => this.handleReorderPointerEnd(event, true),
+      { signal },
+    );
+    window.addEventListener(
+      'pointercancel',
+      (event) => this.handleReorderPointerEnd(event, false),
+      { signal },
+    );
+  }
 
-        /**
+  /**
          * Begin or schedule a row reorder from its dedicated handle.
          * @param {PointerEvent} event - Pointer-down event from a drag handle
          */
-        handleReorderPointerDown(event) {
-                if (event.pointerType === "mouse" && event.button !== 0) {
-                        return;
-                }
+  handleReorderPointerDown(event) {
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+      return;
+    }
 
-                const row = event.currentTarget.closest(".activity-row");
-                const sourceIndex = Number(row?.dataset.position);
-                if (!row || !Number.isInteger(sourceIndex)) {
-                        return;
-                }
+    const row = event.currentTarget.closest('.activity-row');
+    const sourceIndex = Number(row?.dataset.position);
+    if (!row || !Number.isInteger(sourceIndex)) {
+      return;
+    }
 
-                event.preventDefault();
-                this.cancelReorder();
-                this.reorderState = {
-                        pointerId: event.pointerId,
-                        pointerType: event.pointerType,
-                        handle: event.currentTarget,
-                        rowContainer: row.closest(".activity-row-container"),
-                        sourceIndex,
-                        targetPosition: sourceIndex,
-                        startX: event.clientX,
-                        startY: event.clientY,
-                        lastY: event.clientY,
-                        rowCenter: row.getBoundingClientRect().top +
+    event.preventDefault();
+    this.cancelReorder();
+    this.reorderState = {
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      handle: event.currentTarget,
+      rowContainer: row.closest('.activity-row-container'),
+      sourceIndex,
+      targetPosition: sourceIndex,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastY: event.clientY,
+      rowCenter: row.getBoundingClientRect().top +
                                 row.getBoundingClientRect().height / 2,
-                        active: false,
-                        longPressTimer: null,
-                };
+      active: false,
+      longPressTimer: null,
+    };
 
-                if (typeof event.currentTarget.setPointerCapture === "function") {
-                        event.currentTarget.setPointerCapture(event.pointerId);
-                }
+    if (typeof event.currentTarget.setPointerCapture === 'function') {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
 
-                if (event.pointerType === "mouse") {
-                        this.startReorder();
-                        return;
-                }
+    if (event.pointerType === 'mouse') {
+      this.startReorder();
+      return;
+    }
 
-                this.reorderState.longPressTimer = window.setTimeout(
-                        () => this.startReorder(),
-                        CONFIG.UI.MEETING_REORDER_LONG_PRESS_DELAY,
-                );
-        }
+    this.reorderState.longPressTimer = window.setTimeout(
+      () => this.startReorder(),
+      CONFIG.UI.MEETING_REORDER_LONG_PRESS_DELAY,
+    );
+  }
 
-        /**
+  /**
          * Activate visual reorder mode after the pointer gesture is accepted.
          */
-        startReorder() {
-                const state = this.reorderState;
-                if (!state || state.active) {
-                        return;
-                }
+  startReorder() {
+    const state = this.reorderState;
+    if (!state || state.active) {
+      return;
+    }
 
-                state.longPressTimer = null;
-                state.active = true;
-                this.selectedActivities = this.getSelectedActivitiesFromDOM();
-                const list = document.getElementById("activities-list");
-                list?.querySelectorAll(".activity-row-container")
-                        .forEach((container, index) => {
-                                const title = container.querySelector(
-                                        ".activity-row__drag-title",
-                                );
-                                if (title) {
-                                        title.textContent =
+    state.longPressTimer = null;
+    state.active = true;
+    this.selectedActivities = this.getSelectedActivitiesFromDOM();
+    const list = document.getElementById('activities-list');
+    list?.querySelectorAll('.activity-row-container')
+      .forEach((container, index) => {
+        const title = container.querySelector(
+          '.activity-row__drag-title',
+        );
+        if (title) {
+          title.textContent =
                                                 this.selectedActivities[index]?.activity ||
-                                                translate("default_activity_name");
-                                }
-                        });
-                list?.classList.add("is-reordering");
-                list?.classList.toggle(
-                        "is-touch-reordering",
-                        state.pointerType !== "mouse",
-                );
-                document.body.classList.add("activity-reorder-active");
-                state.rowContainer?.classList.add("is-dragging");
-                state.handle.setAttribute("aria-grabbed", "true");
-
-                window.requestAnimationFrame(() => {
-                        if (this.reorderState?.active) {
-                                const activeRow = this.reorderState.rowContainer
-                                        ?.querySelector(".activity-row");
-                                const rect = activeRow?.getBoundingClientRect();
-                                const currentCenter = rect
-                                        ? rect.top + rect.height / 2
-                                        : this.reorderState.rowCenter;
-                                const scrollDelta = currentCenter -
-                                        this.reorderState.rowCenter;
-                                if (scrollDelta) {
-                                        window.scrollBy(0, scrollDelta);
-                                }
-                                this.updateReorderTarget(this.reorderState.lastY);
-                        }
-                });
+                                                translate('default_activity_name');
         }
+      });
+    list?.classList.add('is-reordering');
+    list?.classList.toggle(
+      'is-touch-reordering',
+      state.pointerType !== 'mouse',
+    );
+    document.body.classList.add('activity-reorder-active');
+    state.rowContainer?.classList.add('is-dragging');
+    state.handle.setAttribute('aria-grabbed', 'true');
 
-        /**
+    window.requestAnimationFrame(() => {
+      if (this.reorderState?.active) {
+        const activeRow = this.reorderState.rowContainer
+          ?.querySelector('.activity-row');
+        const rect = activeRow?.getBoundingClientRect();
+        const currentCenter = rect
+          ? rect.top + rect.height / 2
+          : this.reorderState.rowCenter;
+        const scrollDelta = currentCenter -
+                                        this.reorderState.rowCenter;
+        if (scrollDelta) {
+          window.scrollBy(0, scrollDelta);
+        }
+        this.updateReorderTarget(this.reorderState.lastY);
+      }
+    });
+  }
+
+  /**
          * Track a pending long press or update the active insertion marker.
          * @param {PointerEvent} event - Pointer movement event
          */
-        handleReorderPointerMove(event) {
-                const state = this.reorderState;
-                if (!state || event.pointerId !== state.pointerId) {
-                        return;
-                }
+  handleReorderPointerMove(event) {
+    const state = this.reorderState;
+    if (!state || event.pointerId !== state.pointerId) {
+      return;
+    }
 
-                state.lastY = event.clientY;
-                if (!state.active) {
-                        const distance = Math.hypot(
-                                event.clientX - state.startX,
-                                event.clientY - state.startY,
-                        );
-                        if (distance > CONFIG.UI.MEETING_REORDER_MOVE_TOLERANCE) {
-                                this.cancelReorder();
-                        }
-                        return;
-                }
+    state.lastY = event.clientY;
+    if (!state.active) {
+      const distance = Math.hypot(
+        event.clientX - state.startX,
+        event.clientY - state.startY,
+      );
+      if (distance > CONFIG.UI.MEETING_REORDER_MOVE_TOLERANCE) {
+        this.cancelReorder();
+      }
+      return;
+    }
 
-                event.preventDefault();
-                this.updateReorderTarget(event.clientY);
-        }
+    event.preventDefault();
+    this.updateReorderTarget(event.clientY);
+  }
 
-        /**
+  /**
          * Position the dark insertion marker at the closest row boundary.
          * @param {number} clientY - Current pointer Y coordinate
          */
-        updateReorderTarget(clientY) {
-                const list = document.getElementById("activities-list");
-                const state = this.reorderState;
-                if (!list || !state) {
-                        return;
-                }
+  updateReorderTarget(clientY) {
+    const list = document.getElementById('activities-list');
+    const state = this.reorderState;
+    if (!list || !state) {
+      return;
+    }
 
-                const rows = Array.from(
-                        list.querySelectorAll(".activity-row-container"),
-                );
-                let targetPosition = rows.length;
-                for (let index = 0; index < rows.length; index += 1) {
-                        const rect = rows[index].getBoundingClientRect();
-                        if (clientY < rect.top + rect.height / 2) {
-                                targetPosition = index;
-                                break;
-                        }
-                }
+    const rows = Array.from(
+      list.querySelectorAll('.activity-row-container'),
+    );
+    let targetPosition = rows.length;
+    for (let index = 0; index < rows.length; index += 1) {
+      const rect = rows[index].getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) {
+        targetPosition = index;
+        break;
+      }
+    }
 
-                state.targetPosition = targetPosition;
-                list.querySelectorAll(".insert-here-divider").forEach((divider) => {
-                        divider.classList.toggle(
-                                "is-drop-target",
-                                Number(divider.dataset.position) === targetPosition,
-                        );
-                });
-        }
+    state.targetPosition = targetPosition;
+    list.querySelectorAll('.insert-here-divider').forEach((divider) => {
+      divider.classList.toggle(
+        'is-drop-target',
+        Number(divider.dataset.position) === targetPosition,
+      );
+    });
+  }
 
-        /**
+  /**
          * Complete or cancel the active pointer reorder.
          * @param {PointerEvent} event - Pointer end event
          * @param {boolean} commit - Whether to apply the indicated move
          */
-        handleReorderPointerEnd(event, commit) {
-                const state = this.reorderState;
-                if (!state || event.pointerId !== state.pointerId) {
-                        return;
-                }
+  handleReorderPointerEnd(event, commit) {
+    const state = this.reorderState;
+    if (!state || event.pointerId !== state.pointerId) {
+      return;
+    }
 
-                const wasActive = state.active;
-                const sourceIndex = state.sourceIndex;
-                const targetPosition = state.targetPosition;
-                this.cancelReorder();
+    const wasActive = state.active;
+    const sourceIndex = state.sourceIndex;
+    const targetPosition = state.targetPosition;
+    this.cancelReorder();
 
-                if (commit && wasActive) {
-                        const targetIndex = targetPosition > sourceIndex
-                                ? targetPosition - 1
-                                : targetPosition;
-                        this.moveActivity(sourceIndex, targetIndex);
-                }
-        }
+    if (commit && wasActive) {
+      const targetIndex = targetPosition > sourceIndex
+        ? targetPosition - 1
+        : targetPosition;
+      this.moveActivity(sourceIndex, targetIndex);
+    }
+  }
 
-        /**
+  /**
          * Support precise, accessible one-row moves from the focused handle.
          * @param {KeyboardEvent} event - Handle key event
          */
-        handleReorderKeyDown(event) {
-                if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
-                        return;
-                }
+  handleReorderKeyDown(event) {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
+      return;
+    }
 
-                event.preventDefault();
-                const row = event.currentTarget.closest(".activity-row");
-                const sourceIndex = Number(row?.dataset.position);
-                const offset = event.key === "ArrowUp" ? -1 : 1;
-                this.selectedActivities = this.getSelectedActivitiesFromDOM();
-                this.moveActivity(sourceIndex, sourceIndex + offset);
-        }
+    event.preventDefault();
+    const row = event.currentTarget.closest('.activity-row');
+    const sourceIndex = Number(row?.dataset.position);
+    const offset = event.key === 'ArrowUp' ? -1 : 1;
+    this.selectedActivities = this.getSelectedActivitiesFromDOM();
+    this.moveActivity(sourceIndex, sourceIndex + offset);
+  }
 
-        /**
+  /**
          * Move one activity and rebuild all agenda start times from the original
          * meeting start. Durations travel with their activity.
          * @param {number} sourceIndex - Current array index
          * @param {number} targetIndex - Desired final array index
          */
-        moveActivity(sourceIndex, targetIndex) {
-                if (!Number.isInteger(sourceIndex) || !Number.isInteger(targetIndex)) {
-                        return;
-                }
+  moveActivity(sourceIndex, targetIndex) {
+    if (!Number.isInteger(sourceIndex) || !Number.isInteger(targetIndex)) {
+      return;
+    }
 
-                const lastIndex = this.selectedActivities.length - 1;
-                const boundedTarget = Math.max(0, Math.min(targetIndex, lastIndex));
-                if (sourceIndex < 0 || sourceIndex > lastIndex || sourceIndex === boundedTarget) {
-                        return;
-                }
+    const lastIndex = this.selectedActivities.length - 1;
+    const boundedTarget = Math.max(0, Math.min(targetIndex, lastIndex));
+    if (sourceIndex < 0 || sourceIndex > lastIndex || sourceIndex === boundedTarget) {
+      return;
+    }
 
-                const meetingStart = this.selectedActivities[0]?.time || "";
-                const [movedActivity] = this.selectedActivities.splice(sourceIndex, 1);
-                this.selectedActivities.splice(boundedTarget, 0, movedActivity);
-                this.recalculateTimes(meetingStart);
-                this.renderActivitiesTable();
-                this.notifyActivitiesChanged();
+    const meetingStart = this.selectedActivities[0]?.time || '';
+    const [movedActivity] = this.selectedActivities.splice(sourceIndex, 1);
+    this.selectedActivities.splice(boundedTarget, 0, movedActivity);
+    this.recalculateTimes(meetingStart);
+    this.renderActivitiesTable();
+    this.notifyActivitiesChanged();
 
-                window.requestAnimationFrame(() => {
-                        document.querySelector(
-                                `#activities-list .activity-row[data-position="${boundedTarget}"] .activity-drag-handle`,
-                        )?.focus();
-                });
-        }
+    window.requestAnimationFrame(() => {
+      document.querySelector(
+        `#activities-list .activity-row[data-position="${boundedTarget}"] .activity-drag-handle`,
+      )?.focus();
+    });
+  }
 
-        /**
+  /**
          * Recalculate positions and sequential start times after a reorder.
          * @param {string} meetingStart - Start time that remains fixed for row zero
          */
-        recalculateTimes(meetingStart) {
-                this.selectedActivities.forEach((activity, index) => {
-                        activity.position = index;
-                        if (index === 0) {
-                                activity.time = meetingStart;
-                                return;
-                        }
+  recalculateTimes(meetingStart) {
+    this.selectedActivities.forEach((activity, index) => {
+      activity.position = index;
+      if (index === 0) {
+        activity.time = meetingStart;
+        return;
+      }
 
-                        const previous = this.selectedActivities[index - 1];
-                        activity.time = previous.time
-                                ? this.addDurationToTime(
-                                          previous.time,
-                                          previous.duration || "00:00",
-                                  )
-                                : "";
-                });
-        }
+      const previous = this.selectedActivities[index - 1];
+      activity.time = previous.time
+        ? this.addDurationToTime(
+          previous.time,
+          previous.duration || '00:00',
+        )
+        : '';
+    });
+  }
 
-        /**
+  /**
          * Clear timers and visual state for the current reorder gesture.
          */
-        cancelReorder() {
-                const state = this.reorderState;
-                if (state?.longPressTimer) {
-                        window.clearTimeout(state.longPressTimer);
-                }
-                if (
-                        state?.handle &&
-                        typeof state.handle.releasePointerCapture === "function" &&
+  cancelReorder() {
+    const state = this.reorderState;
+    if (state?.longPressTimer) {
+      window.clearTimeout(state.longPressTimer);
+    }
+    if (
+      state?.handle &&
+                        typeof state.handle.releasePointerCapture === 'function' &&
                         state.handle.hasPointerCapture?.(state.pointerId)
-                ) {
-                        state.handle.releasePointerCapture(state.pointerId);
-                }
-                state?.handle?.setAttribute("aria-grabbed", "false");
-                state?.rowContainer?.classList.remove("is-dragging");
-                document.getElementById("activities-list")?.classList.remove("is-reordering");
-                document.getElementById("activities-list")?.classList.remove("is-touch-reordering");
-                document.querySelectorAll(".insert-here-divider.is-drop-target")
-                        .forEach((divider) => divider.classList.remove("is-drop-target"));
-                document.body.classList.remove("activity-reorder-active");
-                this.reorderState = null;
-        }
+    ) {
+      state.handle.releasePointerCapture(state.pointerId);
+    }
+    state?.handle?.setAttribute('aria-grabbed', 'false');
+    state?.rowContainer?.classList.remove('is-dragging');
+    document.getElementById('activities-list')?.classList.remove('is-reordering');
+    document.getElementById('activities-list')?.classList.remove('is-touch-reordering');
+    document.querySelectorAll('.insert-here-divider.is-drop-target')
+      .forEach((divider) => divider.classList.remove('is-drop-target'));
+    document.body.classList.remove('activity-reorder-active');
+    this.reorderState = null;
+  }
 
-        /**
+  /**
          * Release reorder and modal resources when meeting preparation closes.
          */
-        destroy() {
-                this.cancelReorder();
-                this.reorderAbortController?.abort();
-                this.reorderAbortController = null;
-                this.achievementModal?.close();
-                this.achievementModal = null;
-        }
+  destroy() {
+    this.cancelReorder();
+    this.reorderAbortController?.abort();
+    this.reorderAbortController = null;
+    this.achievementModal?.close();
+    this.achievementModal = null;
+  }
 
-        /**
+  /**
          * Add listeners for achievement UI interactions
          */
-        addAchievementListeners() {
-                const containers = document.querySelectorAll(
-                        ".activity-row-container",
-                );
+  addAchievementListeners() {
+    const containers = document.querySelectorAll(
+      '.activity-row-container',
+    );
 
-                containers.forEach((container) => {
-                        const toggleBtn = container.querySelector(
-                                ".toggle-achievement-btn",
-                        );
-                        const activityIndex = toggleBtn?.dataset.activityIndex;
+    containers.forEach((container) => {
+      const toggleBtn = container.querySelector(
+        '.toggle-achievement-btn',
+      );
+      const activityIndex = toggleBtn?.dataset.activityIndex;
 
-                        // Open Modal on Click
-                        if (toggleBtn) {
-                                // Remove existing listener to avoid duplicates if called multiple times
-                                const newBtn = toggleBtn.cloneNode(true);
-                                toggleBtn.parentNode.replaceChild(
-                                        newBtn,
-                                        toggleBtn,
-                                );
+      // Open Modal on Click
+      if (toggleBtn) {
+        // Remove existing listener to avoid duplicates if called multiple times
+        const newBtn = toggleBtn.cloneNode(true);
+        toggleBtn.parentNode.replaceChild(
+          newBtn,
+          toggleBtn,
+        );
 
-                                newBtn.addEventListener("click", () => {
-                                        this.openAchievementModal(
-                                                parseInt(activityIndex, 10),
-                                                container,
-                                        );
-                                });
-                        }
-                });
-        }
+        newBtn.addEventListener('click', () => {
+          this.openAchievementModal(
+            parseInt(activityIndex, 10),
+            container,
+          );
+        });
+      }
+    });
+  }
 
-        /**
+  /**
          * Render achievement summary for display under activity row
          * @param {string|number} badgeId - Selected badge template ID
          * @param {string} starType - 'proie' or 'battue'
          * @param {Array} participantIds - Array of selected participant IDs
          * @returns {string} HTML string for the summary
          */
-        renderAchievementSummary(badgeId, starType, participantIds = []) {
-                const badge = this.badgeTemplates.find(
-                        (t) => String(t.id) === String(badgeId),
-                );
-                const badgeName = badge
-                        ? badgeLabel(badge)
-                        : translate("no_badge_selected") || "No badge selected";
-                const badgeImage = badge?.image || badge?.image_url || "";
+  renderAchievementSummary(badgeId, starType, participantIds = []) {
+    const badge = this.badgeTemplates.find(
+      (t) => String(t.id) === String(badgeId),
+    );
+    const badgeName = badge
+      ? badgeLabel(badge)
+      : translate('no_badge_selected') || 'No badge selected';
+    const badgeImage = badge?.image || badge?.image_url || '';
 
-                const typeLabel =
-                        starType === "battue"
-                                ? translate("badge_type_battue") || "Battue"
-                                : translate("badge_type_proie") || "Proie";
+    const typeLabel =
+                        starType === 'battue'
+                          ? translate('badge_type_battue') || 'Battue'
+                          : translate('badge_type_proie') || 'Proie';
 
-                let participantNames = "";
-                if (starType !== "battue" && participantIds.length > 0) {
-                        const names = participantIds
-                                .map((id) => {
-                                        const p = this.participants.find(
-                                                (p) =>
-                                                        String(p.id) ===
+    let participantNames = '';
+    if (starType !== 'battue' && participantIds.length > 0) {
+      const names = participantIds
+        .map((id) => {
+          const p = this.participants.find(
+            (p) =>
+              String(p.id) ===
                                                         String(id),
-                                        );
-                                        return p
-                                                ? `${p.first_name} ${p.last_name}`
-                                                : "";
-                                })
-                                .filter(Boolean);
-                        participantNames = names.join(", ");
-                }
+          );
+          return p
+            ? `${p.first_name} ${p.last_name}`
+            : '';
+        })
+        .filter(Boolean);
+      participantNames = names.join(', ');
+    }
 
-                return `
+    return `
                         <div class="achievement-summary__content">
-                                ${badgeImage ? `<img src="/assets/images/${badgeImage}" alt="${escapeAttribute(badgeName)}" class="achievement-summary__image" />` : ""}
+                                ${badgeImage ? `<img src="/assets/images/${badgeImage}" alt="${escapeAttribute(badgeName)}" class="achievement-summary__image" />` : ''}
                                 <div class="achievement-summary__details">
                                         <span class="achievement-summary__badge">${escapeHTML(badgeName)}</span>
                                         <span class="achievement-summary__type">(${typeLabel})</span>
-                                        ${participantNames ? `<span class="achievement-summary__participants">→ ${escapeHTML(participantNames)}</span>` : ""}
+                                        ${participantNames ? `<span class="achievement-summary__participants">→ ${escapeHTML(participantNames)}</span>` : ''}
                                 </div>
                         </div>
                 `;
-        }
+  }
 
-        /**
+  /**
          * Open achievement modal for a specific activity
          * @param {number} activityIndex - Index of the activity row
          * @param {HTMLElement} container - The activity row container element
          */
-        openAchievementModal(activityIndex, container) {
-                // Get current values from summary panel data attributes
-                const summaryPanel = container.querySelector(
-                        ".achievement-summary",
-                );
+  openAchievementModal(activityIndex, container) {
+    // Get current values from summary panel data attributes
+    const summaryPanel = container.querySelector(
+      '.achievement-summary',
+    );
 
-                const existingData = {
-                        badge_template_id:
+    const existingData = {
+      badge_template_id:
                                 summaryPanel?.dataset.badgeId || null,
-                        star_type: summaryPanel?.dataset.type || "proie",
-                        participant_ids: summaryPanel?.dataset.participants
-                                ? summaryPanel.dataset.participants
-                                          .split(",")
-                                          .filter(Boolean)
-                                : [],
-                        activityIndex,
-                };
+      star_type: summaryPanel?.dataset.type || 'proie',
+      participant_ids: summaryPanel?.dataset.participants
+        ? summaryPanel.dataset.participants
+          .split(',')
+          .filter(Boolean)
+        : [],
+      activityIndex,
+    };
 
-                debugLog("Opening achievement modal with data:", existingData);
-                debugLog("Badge templates available:", this.badgeTemplates);
-                debugLog("Participants available:", this.participants);
+    debugLog('Opening achievement modal with data:', existingData);
+    debugLog('Badge templates available:', this.badgeTemplates);
+    debugLog('Participants available:', this.participants);
 
-                // Create and open the modal
-                this.achievementModal?.close();
-                this.achievementModal = new AchievementModal(
-                        this.badgeTemplates,
-                        this.participants,
-                        (data) => this.handleAchievementSave(data, container),
-                );
+    // Create and open the modal
+    this.achievementModal?.close();
+    this.achievementModal = new AchievementModal(
+      this.badgeTemplates,
+      this.participants,
+      (data) => this.handleAchievementSave(data, container),
+    );
 
-                this.achievementModal.open(existingData);
-        }
+    this.achievementModal.open(existingData);
+  }
 
-        /**
+  /**
          * Handle save from achievement modal
          * @param {Object} data - Modal save data
          * @param {HTMLElement} container - The activity row container element
          */
-        handleAchievementSave(data, container) {
-                debugLog("Achievement modal save data:", data);
+  handleAchievementSave(data, container) {
+    debugLog('Achievement modal save data:', data);
 
-                // Update summary panel data attributes and content
-                const summaryPanel = container.querySelector(
-                        ".achievement-summary",
-                );
-                const toggleBtn = container.querySelector(
-                        ".toggle-achievement-btn",
-                );
+    // Update summary panel data attributes and content
+    const summaryPanel = container.querySelector(
+      '.achievement-summary',
+    );
+    const toggleBtn = container.querySelector(
+      '.toggle-achievement-btn',
+    );
 
-                if (summaryPanel) {
-                        summaryPanel.dataset.badgeId =
-                                data.badge_template_id || "";
-                        summaryPanel.dataset.type = data.star_type || "proie";
-                        summaryPanel.dataset.participants = (
-                                data.participant_ids || []
-                        ).join(",");
+    if (summaryPanel) {
+      summaryPanel.dataset.badgeId =
+                                data.badge_template_id || '';
+      summaryPanel.dataset.type = data.star_type || 'proie';
+      summaryPanel.dataset.participants = (
+        data.participant_ids || []
+      ).join(',');
 
-                        // Update visual content
-                        setContent(
-                                summaryPanel,
-                                this.renderAchievementSummary(
-                                        data.badge_template_id,
-                                        data.star_type,
-                                        data.participant_ids,
-                                )
-                        );
+      // Update visual content
+      setContent(
+        summaryPanel,
+        this.renderAchievementSummary(
+          data.badge_template_id,
+          data.star_type,
+          data.participant_ids,
+        )
+      );
 
-                        // Show/hide based on whether a badge is selected
-                        if (data.badge_template_id) {
-                                summaryPanel.classList.remove("hidden");
-                        } else {
-                                summaryPanel.classList.add("hidden");
-                        }
-                }
+      // Show/hide based on whether a badge is selected
+      if (data.badge_template_id) {
+        summaryPanel.classList.remove('hidden');
+      } else {
+        summaryPanel.classList.add('hidden');
+      }
+    }
 
-                // Update star button appearance
-                if (toggleBtn) {
-                        if (data.badge_template_id) {
-                                toggleBtn.classList.add("active");
-                        } else {
-                                toggleBtn.classList.remove("active");
-                        }
-                }
-                this.notifyActivitiesChanged();
-        }
+    // Update star button appearance
+    if (toggleBtn) {
+      if (data.badge_template_id) {
+        toggleBtn.classList.add('active');
+      } else {
+        toggleBtn.classList.remove('active');
+      }
+    }
+    this.notifyActivitiesChanged();
+  }
 
-        /**
+  /**
          * Notify the preparation form after a structural activity change that
          * does not naturally emit an input or change event.
          */
-        notifyActivitiesChanged() {
-                document.getElementById("activities-list")?.dispatchEvent(
-                        new CustomEvent("activitieschange", { bubbles: true }),
-                );
-        }
+  notifyActivitiesChanged() {
+    document.getElementById('activities-list')?.dispatchEvent(
+      new CustomEvent('activitieschange', { bubbles: true }),
+    );
+  }
 
-        /**
+  /**
          * Get all activities from the DOM for saving
          * Returns all activities, reading their current state from the DOM
          */
-        getSelectedActivitiesFromDOM() {
-                debugLog("=== GET ACTIVITIES FROM DOM ===");
+  getSelectedActivitiesFromDOM() {
+    debugLog('=== GET ACTIVITIES FROM DOM ===');
 
-                const activitiesContainer =
-                        document.getElementById("activities-list");
-                if (!activitiesContainer) {
-                        debugWarn("No activities container found");
-                        return [];
-                }
+    const activitiesContainer =
+                        document.getElementById('activities-list');
+    if (!activitiesContainer) {
+      debugWarn('No activities container found');
+      return [];
+    }
 
-                const rows = Array.from(
-                        activitiesContainer.querySelectorAll(".activity-row"),
-                );
-                debugLog("Found activity rows:", rows.length);
+    const rows = Array.from(
+      activitiesContainer.querySelectorAll('.activity-row'),
+    );
+    debugLog('Found activity rows:', rows.length);
 
-                // Get ALL activities from DOM
-                const activities = rows.map((row, rowIndex) => {
-                        const dataId = row.getAttribute("data-id");
-                        const position = parseInt(
-                                row.getAttribute("data-position"),
-                                10,
-                        );
-                        const dataDefault = row.getAttribute("data-default");
-                        // Use position to get the activity from selectedActivities array
-                        const activity =
+    // Get ALL activities from DOM
+    const activities = rows.map((row, rowIndex) => {
+      const dataId = row.getAttribute('data-id');
+      const position = parseInt(
+        row.getAttribute('data-position'),
+        10,
+      );
+      const dataDefault = row.getAttribute('data-default');
+      // Use position to get the activity from selectedActivities array
+      const activity =
                                 this.selectedActivities[position] || {};
 
-                        const responsableInput =
-                                row.querySelector(".responsable-input");
-                        const responsableSelect = row.querySelector(
-                                ".activity-responsable",
-                        );
-                        const responsable = responsableInput
-                                ? responsableInput.value
-                                : responsableSelect
-                                  ? responsableSelect.value
-                                  : "";
+      const responsableInput =
+                                row.querySelector('.responsable-input');
+      const responsableSelect = row.querySelector(
+        '.activity-responsable',
+      );
+      const responsable = responsableInput
+        ? responsableInput.value
+        : responsableSelect
+          ? responsableSelect.value
+          : '';
 
-                        const activityInput =
-                                row.querySelector(".activity-input");
-                        const activitySelect =
-                                row.querySelector(".activity-select");
-                        const activityValue =
+      const activityInput =
+                                row.querySelector('.activity-input');
+      const activitySelect =
+                                row.querySelector('.activity-select');
+      const activityValue =
                                 activityInput?.value || activitySelect?.value;
 
-                        const timeValue =
-                                row.querySelector(".activity-time").value;
-                        const durationValue =
-                                row.querySelector(".activity-duration").value;
-                        const materielValue =
-                                row.querySelector(".activity-materiel").value;
+      const timeValue =
+                                row.querySelector('.activity-time').value;
+      const durationValue =
+                                row.querySelector('.activity-duration').value;
+      const materielValue =
+                                row.querySelector('.activity-materiel').value;
 
-                        // Achievement Data - read from summary panel data attributes
-                        const container = row.closest(
-                                ".activity-row-container",
-                        );
-                        const summaryPanel = container?.querySelector(
-                                ".achievement-summary",
-                        );
+      // Achievement Data - read from summary panel data attributes
+      const container = row.closest(
+        '.activity-row-container',
+      );
+      const summaryPanel = container?.querySelector(
+        '.achievement-summary',
+      );
 
-                        const badgeTemplateId =
+      const badgeTemplateId =
                                 summaryPanel?.dataset.badgeId || null;
-                        const starType = summaryPanel?.dataset.type || "proie";
-                        const participantIds = summaryPanel?.dataset
-                                .participants
-                                ? summaryPanel.dataset.participants
-                                          .split(",")
-                                          .filter(Boolean)
-                                : [];
+      const starType = summaryPanel?.dataset.type || 'proie';
+      const participantIds = summaryPanel?.dataset
+        .participants
+        ? summaryPanel.dataset.participants
+          .split(',')
+          .filter(Boolean)
+        : [];
 
-                        const result = {
-                                ...activity,
-                                position: position,
-                                id: dataId,
-                                time: timeValue,
-                                duration: durationValue,
-                                activity: activityValue,
-                                responsable: responsable,
-                                materiel: materielValue,
-                                badge_template_id: badgeTemplateId,
-                                star_type: starType,
-                                participant_ids: participantIds,
-                                processed: activity.processed || false,
-                                // Mark as non-default if it was modified or is AI-generated
-                                isDefault:
-                                        dataDefault === "true" &&
-                                        !dataId?.startsWith("ai-generated"),
-                        };
+      const result = {
+        ...activity,
+        position: position,
+        id: dataId,
+        time: timeValue,
+        duration: durationValue,
+        activity: activityValue,
+        responsable: responsable,
+        materiel: materielValue,
+        badge_template_id: badgeTemplateId,
+        star_type: starType,
+        participant_ids: participantIds,
+        processed: activity.processed || false,
+        // Mark as non-default if it was modified or is AI-generated
+        isDefault:
+                                        dataDefault === 'true' &&
+                                        !dataId?.startsWith('ai-generated'),
+      };
 
-                        debugLog(`  Activity ${rowIndex}:`, {
-                                time: timeValue,
-                                duration: durationValue,
-                                activity: activityValue,
-                                responsable: responsable,
-                                materiel: materielValue,
-                                isDefault: result.isDefault,
-                        });
+      debugLog(`  Activity ${rowIndex}:`, {
+        time: timeValue,
+        duration: durationValue,
+        activity: activityValue,
+        responsable: responsable,
+        materiel: materielValue,
+        isDefault: result.isDefault,
+      });
 
-                        return result;
-                });
+      return result;
+    });
 
-                debugLog("Total activities extracted:", activities.length);
-                return activities;
-        }
+    debugLog('Total activities extracted:', activities.length);
+    return activities;
+  }
 
-        /**
+  /**
          * Set selected activities
          */
-        setSelectedActivities(activities) {
-                this.selectedActivities = activities;
-        }
+  setSelectedActivities(activities) {
+    this.selectedActivities = activities;
+  }
 
-        /**
+  /**
          * Get selected activities
          */
-        getSelectedActivities() {
-                return this.selectedActivities;
-        }
+  getSelectedActivities() {
+    return this.selectedActivities;
+  }
 }

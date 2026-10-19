@@ -52,7 +52,7 @@ jest.mock('../../spa/modules/OfflineManager.js', () => ({
   },
 }));
 
-import { API } from '../../spa/api/api-core.js';
+import { API, makeApiRequestWithCache } from '../../spa/api/api-core.js';
 import {
   setCachedData,
   getCachedData,
@@ -62,8 +62,11 @@ import {
 import { buildScopedCacheKey } from '../../spa/utils/OfflineCacheKeys.js';
 import { planInvalidation, invalidateForWrite } from '../../spa/utils/CacheInvalidation.js';
 import {
+  getPageCachedRequests,
   notePageRequestPath,
   pageReadAnyOf,
+  pageReadsAreReplayable,
+  takeWriteState,
   resetPageReads,
   setLiveSyncClientId,
 } from '../../spa/modules/live-sync/LiveSyncState.js';
@@ -264,3 +267,145 @@ describe('whether the screen on display must be redrawn', () => {
     expect(pageReadAnyOf(invalidation)).toBe(false);
   });
 });
+
+describe('what live sync fetches again before redrawing a screen', () => {
+  test('the cached reads the screen made, as it made them, once each', async () => {
+    await API.get('v1/attendance', { date: '2026-09-27' }, { cacheKey: 'attendance_api_2026-09-27' });
+    await API.get('v1/attendance', { date: '2026-09-27' }, { cacheKey: 'attendance_api_2026-09-27' });
+    await API.get('v1/groups', {}, { cacheKey: 'groups', forceRefresh: true });
+
+    expect(getPageCachedRequests()).toEqual([
+      {
+        endpoint: 'v1/attendance',
+        options: { params: { date: '2026-09-27' } },
+        cacheOptions: { cacheKey: 'attendance_api_2026-09-27' },
+      },
+      { endpoint: 'v1/groups', options: { params: {} }, cacheOptions: { cacheKey: 'groups' } },
+    ]);
+    expect(pageReadsAreReplayable()).toBe(true);
+  });
+
+  test('only the latest filter read into a shared cache entry, so an older one cannot overwrite it', async () => {
+    await API.get('v1/expenses', { category: 'camp' }, { cacheKey: 'budget_expenses' });
+    await API.get('v1/expenses', { category: 'food' }, { cacheKey: 'budget_expenses' });
+
+    expect(getPageCachedRequests()).toEqual([
+      { endpoint: 'v1/expenses', options: { params: { category: 'food' } }, cacheOptions: { cacheKey: 'budget_expenses' } },
+    ]);
+  });
+
+  test('a snapshot a screen found in the cache cannot be fetched in advance', async () => {
+    await setCachedData('attendance_2026-09-27', { participants: [{ id: 42 }] }, ONE_HOUR);
+    resetPageReads();
+
+    await API.get('v1/groups', {}, { cacheKey: 'groups' });
+    await getCachedData('attendance_2026-09-27');
+
+    expect(pageReadsAreReplayable()).toBe(false);
+  });
+
+  test('a snapshot that was missing, then rebuilt from cached reads, can be', async () => {
+    await getCachedData('attendance_2026-09-27');
+    await API.get('v1/attendance', { date: '2026-09-27' }, { cacheKey: 'attendance_api_2026-09-27' });
+    await setCachedData('attendance_2026-09-27', { participants: [{ id: 42 }] }, ONE_HOUR);
+
+    expect(pageReadsAreReplayable()).toBe(true);
+  });
+
+  test('a cached read found in the cache can be fetched again', async () => {
+    await API.get('v1/groups', {}, { cacheKey: 'groups' });
+    resetPageReads();
+
+    await API.get('v1/groups', {}, { cacheKey: 'groups' });
+
+    expect(pageReadsAreReplayable()).toBe(true);
+  });
+
+  test('a replay the page no longer wants does not overwrite its entry, nor count as a read', async () => {
+    global.fetch = jest.fn((url) => Promise.resolve({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'application/json' },
+      json: () => Promise.resolve({ success: true, data: [String(url).includes('camp') ? 'camp' : 'food'] }),
+    }));
+    await API.get('v1/expenses', { category: 'food' }, { cacheKey: 'budget_expenses' });
+    const recorded = getPageCachedRequests();
+
+    await makeApiRequestWithCache('v1/expenses', { params: { category: 'camp' } }, {
+      cacheKey: 'budget_expenses',
+      forceRefresh: true,
+      isCurrent: () => false,
+    });
+
+    expect(getPageCachedRequests()).toEqual(recorded);
+    expect(await getCachedData('budget_expenses')).toEqual({ success: true, data: ['food'] });
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  test('a read no cache keeps cannot be fetched in advance', async () => {
+    await API.get('v1/groups', {}, { cacheKey: 'groups' });
+    await API.getNoCache('v1/walk-in-children');
+
+    expect(pageReadsAreReplayable()).toBe(false);
+
+    resetPageReads();
+
+    expect(pageReadsAreReplayable()).toBe(true);
+  });
+
+  test('nothing the previous screen read', async () => {
+    await API.get('v1/groups', {}, { cacheKey: 'groups' });
+
+    resetPageReads();
+
+    expect(getPageCachedRequests()).toEqual([]);
+  });
+});
+
+describe('whether this client has handled its own writes', () => {
+  test('a write the server confirmed is settled once its response is handled', async () => {
+    takeWriteState();
+    const sent = API.post('v1/points', { points: 1 });
+
+    expect(takeWriteState()).toBe('pending');
+    await sent;
+    expect(takeWriteState()).toBe('settled');
+  });
+
+  test('a write whose response was lost is unconfirmed, once', async () => {
+    takeWriteState();
+    global.fetch = jest.fn(() => Promise.reject(new TypeError('Failed to fetch')));
+
+    await API.post('v1/points', { points: 1 });
+
+    expect(takeWriteState()).toBe('unconfirmed');
+    expect(takeWriteState()).toBe('settled');
+  });
+
+  test('a refused write is unconfirmed', async () => {
+    takeWriteState();
+    global.fetch = jest.fn(() => Promise.resolve({
+      ok: false,
+      status: 403,
+      headers: { get: () => 'application/json' },
+      json: () => Promise.resolve({ success: false, message: 'forbidden' }),
+    }));
+
+    await expect(API.post('v1/points', { points: 1 })).rejects.toThrow();
+
+    expect(takeWriteState()).toBe('unconfirmed');
+  });
+
+  test('a write whose cache could not be cleared is unconfirmed', async () => {
+    takeWriteState();
+    const cacheInvalidation = jest.requireActual('../../spa/utils/CacheInvalidation.js');
+    const failure = jest.spyOn(cacheInvalidation, 'invalidateForWrite').mockRejectedValueOnce(new Error('quota'));
+
+    const result = await API.post('v1/points', { points: 1 });
+
+    expect(result.success).toBe(true);
+    expect(takeWriteState()).toBe('unconfirmed');
+    failure.mockRestore();
+  });
+});
+

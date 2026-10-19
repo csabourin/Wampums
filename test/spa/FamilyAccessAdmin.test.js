@@ -47,6 +47,7 @@ jest.mock('../../spa/utils/DOMUtils.js', () => {
 
 jest.mock('../../spa/api/api-parent-invitations.js', () => ({
   getParentInvitations: jest.fn(),
+  getLeaderInvitationRoles: jest.fn(),
   createParentInvitation: jest.fn(),
   resendParentInvitation: jest.fn(),
   revokeParentInvitation: jest.fn(),
@@ -107,6 +108,104 @@ beforeEach(() => {
   mockPermissions.clear();
   mockPermissions.add('users.invite');
   api.getParentInvitations.mockResolvedValue({ data: [] });
+});
+
+describe('inviting leaders', () => {
+  const ROLES = [
+    { id: 3, role_name: 'leader', display_name: 'Animateur', assignable: true },
+    { id: 4, role_name: 'u1_tresorier', display_name: '<b>Trésorier</b>', assignable: true },
+    { id: 1, role_name: 'district', display_name: 'District', assignable: false },
+  ];
+
+  beforeEach(() => {
+    mockPermissions.add('users.assign_roles');
+    api.getLeaderInvitationRoles.mockResolvedValue({ data: ROLES });
+  });
+
+  test('lists only leader invitations, with the role each one offers', async () => {
+    api.getParentInvitations.mockResolvedValue({
+      data: [{ id: 'a', email: 'baloo@example.org', state: 'pending', sent_at: null, roles: [{ id: 3, display_name: 'Animateur' }] }],
+    });
+
+    await new ParentInvitations({ lang: 'fr' }, { kind: 'leader' }).init();
+
+    expect(api.getParentInvitations).toHaveBeenCalledWith({ kind: 'leader' });
+    const root = document.getElementById('app');
+    expect(root.querySelector('h1').textContent).toBe('leader_invitations_title');
+    expect(root.textContent).toContain('leader_invitations_roles');
+    expect(root.textContent).toContain('Animateur');
+  });
+
+  test('the form proposes the leader role, and roles the inviter may not grant are disabled', async () => {
+    await new ParentInvitations({ lang: 'fr' }, { kind: 'leader' }).init();
+    document.getElementById('invite-parent-btn').click();
+
+    const select = document.getElementById('invite-role');
+    expect(document.querySelector('label[for="invite-role"]').textContent).toBe('leader_invitations_role');
+    expect(select.value).toBe('3');
+    expect(select.querySelector('option[value="1"]').disabled).toBe(true);
+    // Role names typed by people are text
+    expect(select.querySelector('b')).toBeNull();
+    expect(select.querySelector('option[value="4"]').textContent.trim()).toBe('<b>Trésorier</b>');
+  });
+
+  test('sends the chosen role with the invitation', async () => {
+    api.createParentInvitation.mockResolvedValue({ data: { email_sent: true } });
+    await new ParentInvitations({ lang: 'fr' }, { kind: 'leader' }).init();
+
+    openFormWith('baloo@example.org');
+    document.getElementById('invite-role').value = '4';
+    await send();
+
+    expect(api.createParentInvitation).toHaveBeenCalledWith({
+      email: 'baloo@example.org',
+      language: 'fr',
+      role_ids: [4],
+    });
+    expect(document.getElementById('parent-invitations-status').textContent).toBe('parent_invitations_sent');
+  });
+
+  test('a refused role reads as a refusal', async () => {
+    api.createParentInvitation.mockRejectedValueOnce(apiError(403, 'forbidden'));
+    await new ParentInvitations({ lang: 'fr' }, { kind: 'leader' }).init();
+
+    openFormWith('baloo@example.org');
+    await send();
+
+    expect(document.getElementById('parent-invitation-error').textContent).toBe('api_error_forbidden');
+  });
+
+  test('without users.assign_roles a leader cannot be invited', async () => {
+    mockPermissions.delete('users.assign_roles');
+
+    await new ParentInvitations({ lang: 'fr' }, { kind: 'leader' }).init();
+
+    expect(document.getElementById('invite-parent-btn')).toBeNull();
+    expect(api.getLeaderInvitationRoles).not.toHaveBeenCalled();
+  });
+
+  test('with no role the inviter may grant, the form says so and sends nothing', async () => {
+    api.getLeaderInvitationRoles.mockResolvedValue({ data: [{ ...ROLES[2] }] });
+    await new ParentInvitations({ lang: 'fr' }, { kind: 'leader' }).init();
+
+    openFormWith('baloo@example.org');
+    await send();
+
+    expect(document.querySelector('[role="alert"]').textContent).toBe('leader_invitations_no_role');
+    expect(api.createParentInvitation).not.toHaveBeenCalled();
+  });
+
+  test('the leader form has no accessibility violations', async () => {
+    const axe = require('axe-core');
+    await new ParentInvitations({ lang: 'fr' }, { kind: 'leader' }).init();
+    document.getElementById('invite-parent-btn').click();
+
+    const results = await axe.run(document.body, {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      rules: { 'color-contrast': { enabled: false } },
+    });
+    expect(results.violations).toEqual([]);
+  });
 });
 
 describe('inviting parents', () => {

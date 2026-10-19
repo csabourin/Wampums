@@ -1,26 +1,26 @@
 // router.js
 
 // Critical imports - loaded immediately (core functionality)
-import { Dashboard } from "./dashboard.js";
+import { Dashboard } from './modules/dashboard/Dashboard.js';
 // Login imported dynamically to avoid circular dependency
-import { translate } from "./app.js";
-import { debugLog, debugError, debugWarn, isDebugMode } from "./utils/DebugUtils.js";
-import { setContent } from "./utils/DOMUtils.js";
-import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
-import { checkSession } from "./utils/SessionUtils.js";
-import { dismissActiveDialog } from "./utils/DialogUtils.js";
+import { translate } from './app.js';
+import { debugLog, debugError, debugWarn, isDebugMode } from './utils/DebugUtils.js';
+import { setContent } from './utils/DOMUtils.js';
+import { buildNotFoundMarkup } from './utils/NotFoundUtils.js';
+import { checkSession } from './utils/SessionUtils.js';
+import { dismissActiveDialog } from './utils/DialogUtils.js';
 import { closeAllModals } from './utils/ModalUtils.js';
 import { buildLoginRedirect } from './utils/LoginRedirectUtils.js';
-import { releaseAllScrollLocks } from "./utils/ScrollLockUtils.js";
+import { releaseAllScrollLocks } from './utils/ScrollLockUtils.js';
 import { initScrollMemory, beginScrollNavigation, restoreScrollPosition } from './utils/ScrollMemory.js';
-import { resetPageReads } from "./modules/live-sync/LiveSyncState.js";
-import { TABBED_PAGES, MERGED_ROUTE_REDIRECTS } from "./config/tabbed-pages.js";
+import { resetPageReads } from './modules/live-sync/LiveSyncState.js';
+import { focusPageStart } from './utils/PageFocusUtils.js';
+import { TABBED_PAGES, MERGED_ROUTE_REDIRECTS } from './config/tabbed-pages.js';
 import {
   canApproveBadges,
   // ... (imports continue)
   canCreateOrganization,
   canManageActivities,
-  canManageAttendance,
   canManageBudget,
   canManageFinance,
   canManageFundraisers,
@@ -43,6 +43,7 @@ import {
   canViewInventory,
   canViewMedication,
   canViewParticipants,
+  canFollowPermissionSlips,
   canViewReports,
   canViewUsers,
   canViewIncidents,
@@ -52,7 +53,7 @@ import {
   hasPermission,
   isParent,
   holdsFamilyRole
-} from "./utils/PermissionUtils.js";
+} from './utils/PermissionUtils.js';
 
 function canAccessFinanceWorkspace() {
   return canViewFinance() || canManageFinance() || canViewBudget() || canManageBudget();
@@ -76,59 +77,60 @@ class NavigationCancelledError extends Error {
 // Lazy-loaded modules - loaded on demand for better performance
 // These will be dynamically imported when the route is accessed
 const lazyModules = {
-  ParentDashboard: () => import('./parent_dashboard.js').then(m => m.ParentDashboard),
-  ParentFinance: () => import('./parent_finance.js').then(m => m.ParentFinance),
+  ParentDashboard: () => import('./modules/dashboard/ParentDashboard.js').then(m => m.ParentDashboard),
+  ParentFinance: () => import('./modules/finance/ParentFinance.js').then(m => m.ParentFinance),
   ParentFundraisers: () => import('./modules/fundraising/ParentFundraisers.js').then(m => m.ParentFundraisers),
   ParentProgramProgress: () => import('./modules/program-progress/ParentProgramProgress.js').then(m => m.ParentProgramProgress),
-  FormulaireInscription: () => import('./formulaire_inscription.js').then(m => m.FormulaireInscription),
-  ManagePoints: () => import('./manage_points.js').then(m => m.ManagePoints),
-  TimeSinceRegistration: () => import('./time_since_registration.js').then(m => m.TimeSinceRegistration),
-  Attendance: () => import('./attendance.js').then(m => m.Attendance),
-  ManageHonors: () => import('./manage_honors.js').then(m => m.ManageHonors),
-  ManageParticipants: () => import('./manage_participants.js').then(m => m.ManageParticipants),
-  ManageUsersParticipants: () => import('./manage_users_participants.js').then(m => m.ManageUsersParticipants),
-  ManageGroups: () => import('./manage_groups.js').then(m => m.ManageGroups),
-  GuardianManagement: () => import('./guardian-management.js').then(m => m.initGuardianManagement),
-  ViewParticipantDocuments: () => import('./view_participant_documents.js').then(m => m.ViewParticipantDocuments),
-  ParentContactList: () => import('./parent_contact_list.js').then(m => m.ParentContactList),
-  BadgeTracker: () => import('./badge_tracker.js').then(m => m.BadgeTracker),
+  FormulaireInscription: () => import('./modules/participants/FormulaireInscription.js').then(m => m.FormulaireInscription),
+  ManagePoints: () => import('./modules/points/ManagePoints.js').then(m => m.ManagePoints),
+  TimeSinceRegistration: () => import('./modules/participants/TimeSinceRegistration.js').then(m => m.TimeSinceRegistration),
+  Attendance: () => import('./modules/attendance/Attendance.js').then(m => m.Attendance),
+  ManageHonors: () => import('./modules/honors/ManageHonors.js').then(m => m.ManageHonors),
+  ManageParticipants: () => import('./modules/participants/ManageParticipants.js').then(m => m.ManageParticipants),
+  ManageUsersParticipants: () => import('./modules/participants/ManageUsersParticipants.js').then(m => m.ManageUsersParticipants),
+  ManageGroups: () => import('./modules/groups/ManageGroups.js').then(m => m.ManageGroups),
+  GuardianManagement: () => import('./modules/participants/GuardianManagement.js').then(m => m.initGuardianManagement),
+  ViewParticipantDocuments: () => import('./modules/participants/ViewParticipantDocuments.js').then(m => m.ViewParticipantDocuments),
+  ParentContactList: () => import('./modules/participants/ParentContactList.js').then(m => m.ParentContactList),
+  BadgeTracker: () => import('./modules/badges/BadgeTracker.js').then(m => m.BadgeTracker),
   ProgramProgressDashboard: () => import('./modules/program-progress/ProgramProgressDashboard.js').then(m => m.ProgramProgressDashboard),
-  BadgeForm: () => import('./badge_form.js').then(m => m.BadgeForm),
-  Register: () => import('./register.js').then(m => m.Register),
-  Admin: () => import('./admin.js').then(m => m.Admin),
-  MailingList: () => import('./mailing_list.js').then(m => m.MailingList),
-  Calendars: () => import('./calendars.js').then(m => m.Calendars),
-  Fundraisers: () => import('./fundraisers.js').then(m => m.Fundraisers),
-  ResetPassword: () => import('./reset_password.js').then(m => m.ResetPassword),
+  BadgeForm: () => import('./modules/badges/BadgeForm.js').then(m => m.BadgeForm),
+  Register: () => import('./modules/session/Register.js').then(m => m.Register),
+  Admin: () => import('./modules/admin/Admin.js').then(m => m.Admin),
+  MailingList: () => import('./modules/mailing-list/MailingList.js').then(m => m.MailingList),
+  CommunicationHistory: () => import('./modules/communication-history/CommunicationHistory.js').then(m => m.CommunicationHistory),
+  Calendars: () => import('./modules/fundraising/Calendars.js').then(m => m.Calendars),
+  Fundraisers: () => import('./modules/fundraising/Fundraisers.js').then(m => m.Fundraisers),
+  ResetPassword: () => import('./modules/session/ResetPassword.js').then(m => m.ResetPassword),
   DynamicFormHandler: () => import('./dynamicFormHandler.js').then(m => m.DynamicFormHandler),
-  Reports: () => import('./reports.js').then(m => m.Reports),
+  Reports: () => import('./modules/reports/Reports.js').then(m => m.Reports),
   MeetingPrep: () => import('./modules/meetings/MeetingPrep.js').then(m => m.MeetingPrep),
-  CreateOrganization: () => import('./create_organization.js').then(m => m.CreateOrganization),
-  PrintableGroupParticipantReport: () => import('./group-participant-report.js').then(m => m.PrintableGroupParticipantReport),
-  UpcomingMeeting: () => import('./upcoming_meeting.js').then(m => m.UpcomingMeeting),
-  Finance: () => import('./finance.js').then(m => m.Finance),
-  Budgets: () => import('./budgets.js').then(m => m.Budgets),
-  ExternalRevenue: () => import('./external-revenue.js').then(m => m.ExternalRevenue),
-  Expenses: () => import('./expenses.js').then(m => m.Expenses),
-  RevenueDashboard: () => import('./revenue-dashboard.js').then(m => m.RevenueDashboard),
-  ResourceDashboard: () => import('./resource_dashboard.js').then(m => m.ResourceDashboard),
-  Inventory: () => import('./inventory.js').then(m => m.Inventory),
-  MaterialManagement: () => import('./material_management.js').then(m => m.MaterialManagement),
-  MedicationManagement: () => import('./medication_management.js').then(m => m.MedicationManagement),
-  MedicationReception: () => import('./medication_reception.js').then(m => m.MedicationReception),
-  PermissionSlipDashboard: () => import('./permission_slip_dashboard.js').then(m => m.PermissionSlipDashboard),
-  PermissionSlipSign: () => import('./permission_slip_sign.js').then(m => m.PermissionSlipSign),
+  CreateOrganization: () => import('./modules/organizations/CreateOrganization.js').then(m => m.CreateOrganization),
+  PrintableGroupParticipantReport: () => import('./modules/groups/GroupParticipantReport.js').then(m => m.PrintableGroupParticipantReport),
+  UpcomingMeeting: () => import('./modules/meetings/UpcomingMeeting.js').then(m => m.UpcomingMeeting),
+  Finance: () => import('./modules/finance/Finance.js').then(m => m.Finance),
+  Budgets: () => import('./modules/finance/Budgets.js').then(m => m.Budgets),
+  ExternalRevenue: () => import('./modules/finance/ExternalRevenue.js').then(m => m.ExternalRevenue),
+  Expenses: () => import('./modules/finance/Expenses.js').then(m => m.Expenses),
+  RevenueDashboard: () => import('./modules/finance/RevenueDashboard.js').then(m => m.RevenueDashboard),
+  ResourceDashboard: () => import('./modules/resources/ResourceDashboard.js').then(m => m.ResourceDashboard),
+  Inventory: () => import('./modules/resources/Inventory.js').then(m => m.Inventory),
+  MaterialManagement: () => import('./modules/resources/MaterialManagement.js').then(m => m.MaterialManagement),
+  MedicationManagement: () => import('./modules/medication/MedicationManagement.js').then(m => m.MedicationManagement),
+  MedicationReception: () => import('./modules/medication/MedicationReception.js').then(m => m.MedicationReception),
+  PermissionSlipDashboard: () => import('./modules/permission-slips/PermissionSlipDashboard.js').then(m => m.PermissionSlipDashboard),
+  PermissionSlipSign: () => import('./modules/permission-slips/PermissionSlipSign.js').then(m => m.PermissionSlipSign),
   AccountInfoModule: () => import('./modules/account-info.js').then(m => m.AccountInfoModule),
-  FormBuilder: () => import('./formBuilder.js').then(m => m.FormBuilder),
+  FormBuilder: () => import('./modules/forms/FormBuilder.js').then(m => m.FormBuilder),
   Activities: () => import('./modules/activities/Activities.js').then(m => m.Activities),
-  CarpoolLanding: () => import('./carpool.js').then(m => m.CarpoolLanding),
-  CarpoolDashboard: () => import('./carpool_dashboard.js').then(m => m.CarpoolDashboard),
-  RoleManagement: () => import('./role_management.js').then(m => m.RoleManagement),
-  DistrictManagement: () => import('./district_management.js').then(m => m.DistrictManagement),
-  FormPermissions: () => import('./form_permissions.js').then(m => m.initFormPermissions),
-  CommunicationSettings: () => import('./communication-settings.js').then(m => m.CommunicationSettings),
+  CarpoolLanding: () => import('./modules/carpool/CarpoolLanding.js').then(m => m.CarpoolLanding),
+  CarpoolDashboard: () => import('./modules/carpool/CarpoolDashboard.js').then(m => m.CarpoolDashboard),
+  RoleManagement: () => import('./modules/roles/RoleManagement.js').then(m => m.RoleManagement),
+  DistrictManagement: () => import('./modules/district/DistrictManagement.js').then(m => m.DistrictManagement),
+  FormPermissions: () => import('./modules/forms/FormPermissions.js').then(m => m.initFormPermissions),
+  CommunicationSettings: () => import('./modules/communication-settings/CommunicationSettings.js').then(m => m.CommunicationSettings),
   UnitSettings: () => import('./modules/unit-settings/unit-settings.js').then(m => m.UnitSettings),
-  OfflinePreparation: () => import('./offline_preparation.js').then(m => m.OfflinePreparation),
+  OfflinePreparation: () => import('./modules/offline/OfflinePreparation.js').then(m => m.OfflinePreparation),
   IncidentReport: () => import('./modules/incident-report/incident-report.js').then(m => m.IncidentReport),
   YearlyPlanner: () => import('./modules/yearly-planner/YearlyPlanner.js').then(m => m.YearlyPlanner),
   ScoutYearTransition: () => import('./modules/scout-year/ScoutYearTransition.js').then(m => m.ScoutYearTransition),
@@ -151,95 +153,97 @@ const debugMode = isDebugMode();
 
 const routes = {
 
-  "/": "dashboard",
-  "/admin": "admin",
+  '/': 'dashboard',
+  '/admin': 'admin',
   // Merged destinations (see spa/config/tabbed-pages.js); the pages they
   // replace stay reachable through MERGED_ROUTE_REDIRECTS.
-  "/progression": "progression",
-  "/reunions": "reunions",
-  "/district": "district",
-  "/dashboard": "dashboard",
-  "/main-dashboard": "mainDashboard",
-  "/login": "login",
-  "/logout": "logout",
-  "/parent-dashboard": "parentDashboard",
-  "/parent-finance": "parentFinance",
+  '/progression': 'progression',
+  '/reunions': 'reunions',
+  '/district': 'district',
+  '/dashboard': 'dashboard',
+  '/main-dashboard': 'mainDashboard',
+  '/login': 'login',
+  '/logout': 'logout',
+  '/parent-dashboard': 'parentDashboard',
+  '/parent-finance': 'parentFinance',
   '/parent-fundraisers': 'parentFundraisers',
-  "/formulaire-inscription": "formulaireInscription",
-  "/formulaire-inscription/:id": "formulaireInscription",
-  "/attendance": "attendance",
-  "/managePoints": "managePoints",
-  "/manage-points": "managePoints",
-  "/time-since-registration": "timeSinceRegistration",
-  "/manageHonors": "manageHonors",
-  "/manage-participants": "manageParticipants",
-  "/manage-groups": "manageGroups",
-  "/guardian-management": "guardianManagement",
-  "/view-participant-documents": "viewParticipantDocuments",
-  "/badge-tracker": "badgeTracker",
-  "/program-progress": "programProgressDashboard",
-  "/parent-program-progress": "parentProgramProgress",
-  "/parent-contact-list": "parentContactList",
-  "/mailing-list": "mailingList",
-  "/badge-form/:id": "badgeForm",
-  "/register": "register",
-  "/fundraisers": "fundraisers",
-  "/calendars/:id": "calendars",
-  "/reset-password": "resetPassword",
-  "/alumni-consent": "alumniConsent",
-  "/alumni-unsubscribe": "alumniUnsubscribe",
-  "/reactivate-account": "reactivateAccount",
-  "/complete-registration": "completeRegistration",
-  "/family-link": "familyLink",
-  "/parent-invitations": "parentInvitations",
-  "/participant-duplicates": "participantDuplicates",
-  "/parent-onboarding": "parentOnboarding",
-  "/family-access": "familyAccess",
-  "/walk-in-children": "walkInChildren",
+  '/formulaire-inscription': 'formulaireInscription',
+  '/formulaire-inscription/:id': 'formulaireInscription',
+  '/attendance': 'attendance',
+  '/managePoints': 'managePoints',
+  '/manage-points': 'managePoints',
+  '/time-since-registration': 'timeSinceRegistration',
+  '/manageHonors': 'manageHonors',
+  '/manage-participants': 'manageParticipants',
+  '/manage-groups': 'manageGroups',
+  '/guardian-management': 'guardianManagement',
+  '/view-participant-documents': 'viewParticipantDocuments',
+  '/badge-tracker': 'badgeTracker',
+  '/program-progress': 'programProgressDashboard',
+  '/parent-program-progress': 'parentProgramProgress',
+  '/parent-contact-list': 'parentContactList',
+  '/mailing-list': 'mailingList',
+  '/communication-history': 'communicationHistory',
+  '/badge-form/:id': 'badgeForm',
+  '/register': 'register',
+  '/fundraisers': 'fundraisers',
+  '/calendars/:id': 'calendars',
+  '/reset-password': 'resetPassword',
+  '/alumni-consent': 'alumniConsent',
+  '/alumni-unsubscribe': 'alumniUnsubscribe',
+  '/reactivate-account': 'reactivateAccount',
+  '/complete-registration': 'completeRegistration',
+  '/family-link': 'familyLink',
+  '/parent-invitations': 'parentInvitations',
+  '/leader-invitations': 'leaderInvitations',
+  '/participant-duplicates': 'participantDuplicates',
+  '/parent-onboarding': 'parentOnboarding',
+  '/family-access': 'familyAccess',
+  '/walk-in-children': 'walkInChildren',
   '/messages': 'messages',
   '/messages/:id': 'message',
-  "/reports": "reports",
-  "/preparation-reunions": "preparation_reunions",
-  "/preparation-reunions/:date": "preparation_reunions",
-  "/manage-users-participants": "manageUsersParticipants",
-  "/create-organization": "createOrganization",
-  "/group-participant-report": "PrintableGroupParticipantReport",
-  "/upcoming-meeting": "UpcomingMeeting",
-  "/finance": "finance",
-  "/budgets": "budgets",
-  "/external-revenue": "externalRevenue",
-  "/expenses": "expenses",
-  "/revenue-dashboard": "revenueDashboard",
-  "/resources": "resourceDashboard",
-  "/inventory": "inventory",
-  "/material-management": "materialManagement",
-  "/medication-management": "medicationPlanning",
-  "/medication-planning": "medicationPlanning",
-  "/medication-planning/:id": "medicationPlanningParticipant",
-  "/medication-authorizations/:id": "medicationAuthorizationsParticipant",
-  "/medication-dispensing": "medicationDispensing",
-  "/medication-reception": "medicationReception",
-  "/permission-slips": "permissionSlipDashboard",
-  "/permission-slips/:id": "permissionSlipDashboardActivity",
-  "/permission-slip/:token": "permissionSlipSign",
-  "/account-info": "accountInfo",
-  "/form-builder": "formBuilder",
-  "/activities": "activities",
-  "/carpool": "carpoolLanding",
-  "/carpool/:id": "carpool",
-  "/role-management": "roleManagement",
-  "/district-management": "districtManagement",
-  "/form-permissions": "formPermissions",
-  "/communications": "communications",
-  "/prepare-offline": "offlinePreparation",
-  "/incident-reports": "incidentReports",
-  "/incident-reports/new": "incidentReportNew",
-  "/incident-reports/:id": "incidentReportView",
-  "/incident-reports/:id/edit": "incidentReportEdit",
-  "/yearly-planner": "yearlyPlanner",
-  "/yearly-planner/:planId": "yearlyPlannerDetail",
-  "/unit-settings": "unitSettings",
-  "/scout-year": "scoutYear"
+  '/reports': 'reports',
+  '/preparation-reunions': 'preparation_reunions',
+  '/preparation-reunions/:date': 'preparation_reunions',
+  '/manage-users-participants': 'manageUsersParticipants',
+  '/create-organization': 'createOrganization',
+  '/group-participant-report': 'PrintableGroupParticipantReport',
+  '/upcoming-meeting': 'UpcomingMeeting',
+  '/finance': 'finance',
+  '/budgets': 'budgets',
+  '/external-revenue': 'externalRevenue',
+  '/expenses': 'expenses',
+  '/revenue-dashboard': 'revenueDashboard',
+  '/resources': 'resourceDashboard',
+  '/inventory': 'inventory',
+  '/material-management': 'materialManagement',
+  '/medication-management': 'medicationPlanning',
+  '/medication-planning': 'medicationPlanning',
+  '/medication-planning/:id': 'medicationPlanningParticipant',
+  '/medication-authorizations/:id': 'medicationAuthorizationsParticipant',
+  '/medication-dispensing': 'medicationDispensing',
+  '/medication-reception': 'medicationReception',
+  '/permission-slips': 'permissionSlipDashboard',
+  '/permission-slips/:id': 'permissionSlipDashboardActivity',
+  '/permission-slip/:token': 'permissionSlipSign',
+  '/account-info': 'accountInfo',
+  '/form-builder': 'formBuilder',
+  '/activities': 'activities',
+  '/carpool': 'carpoolLanding',
+  '/carpool/:id': 'carpool',
+  '/role-management': 'roleManagement',
+  '/district-management': 'districtManagement',
+  '/form-permissions': 'formPermissions',
+  '/communications': 'communications',
+  '/prepare-offline': 'offlinePreparation',
+  '/incident-reports': 'incidentReports',
+  '/incident-reports/new': 'incidentReportNew',
+  '/incident-reports/:id': 'incidentReportView',
+  '/incident-reports/:id/edit': 'incidentReportEdit',
+  '/yearly-planner': 'yearlyPlanner',
+  '/yearly-planner/:planId': 'yearlyPlannerDetail',
+  '/unit-settings': 'unitSettings',
+  '/scout-year': 'scoutYear'
 
 };
 
@@ -249,6 +253,22 @@ export class Router {
     // MEMORY LEAK FIX: Track current module instance for cleanup
     this.currentModuleInstance = null;
     this.navigationId = 0;
+    this.pendingRefresh = false;
+    this.refreshNavigationId = null;
+    // Each route() call, nested redirects included; only the latest one moves focus.
+    this.routeSequence = 0;
+    this.hasRouted = false;
+    this.routingFirstScreen = false;
+  }
+
+  /**
+   * Whether the screen being drawn replaces itself, with the same screen on
+   * display (live sync redrawing it), rather than being navigated to. Such a
+   * screen keeps what is on display while it loads instead of a skeleton.
+   * @returns {boolean} True during a refresh of the screen on display
+   */
+  isRefreshingScreen() {
+    return this.refreshNavigationId !== null && this.refreshNavigationId === this.navigationId;
   }
 
   /**
@@ -319,28 +339,51 @@ export class Router {
   }
 
   navigate(path) {
-    debugLog("Navigating to:", path);
-    history.pushState(null, "", path);
+    debugLog('Navigating to:', path);
+    history.pushState(null, '', path);
     this.route(path.split('#')[0]);
   }
 
   /**
    * Show the screen for a path, returning it to where it was last scrolled.
+   *
+   * After a navigation, focus moves to the new screen's heading so a screen
+   * reader announces it and Tab continues from there. The first screen after
+   * a page load keeps the browser's own start, and a screen drawn again in
+   * place (live sync) keeps focus where the person left it.
+   *
    * @param {string} path - Path and query string to show
+   * @param {{ refresh?: boolean, firstScreen?: boolean }} [options] -
+   *   `refresh`: the screen on display is drawn again with fresh data (see
+   *   isRefreshingScreen); `firstScreen`: a redirect carries on the route
+   *   that started it, page load or not
    * @returns {Promise<void>}
    */
-  async route(path) {
+  async route(path, { refresh = false, firstScreen } = {}) {
+    const sequence = ++this.routeSequence;
+    const previousFocus = document.activeElement;
+    // Settled now, not once drawn: a link followed while the first screen
+    // still loads is a navigation like any other.
+    const isFirstScreen = firstScreen ?? !this.hasRouted;
+    this.hasRouted = true;
+    this.routingFirstScreen = isFirstScreen;
+    this.pendingRefresh = refresh;
     const scrollToken = beginScrollNavigation(path);
     try {
       await this.renderRoute(path);
     } finally {
       restoreScrollPosition(scrollToken);
     }
+    if (sequence === this.routeSequence && !refresh && !isFirstScreen) {
+      focusPageStart({ previousFocus });
+    }
   }
 
   async renderRoute(path) {
     const navigationId = ++this.navigationId;
-    debugLog("Routing to:", path);
+    this.refreshNavigationId = this.pendingRefresh ? navigationId : null;
+    this.pendingRefresh = false;
+    debugLog('Routing to:', path);
 
     // MEMORY LEAK FIX: Clean up previous module before loading new one
     this.cleanupCurrentModule();
@@ -350,7 +393,7 @@ export class Router {
 
     // Guard against null, undefined, or empty paths
     if (!path || typeof path !== 'string') {
-      debugLog("Invalid path received, ignoring route:", path);
+      debugLog('Invalid path received, ignoring route:', path);
       return;
     }
 
@@ -362,11 +405,12 @@ export class Router {
 
     // Pages merged into a tabbed destination: keep old links, bookmarks and
     // service-worker-cached URLs working by sending them to the right tab.
-    const mergedTarget = MERGED_ROUTE_REDIRECTS[path.split("?")[0]];
+    const mergedTarget = MERGED_ROUTE_REDIRECTS[path.split('?')[0]];
     if (mergedTarget) {
-      debugLog("Redirecting merged route:", path, "->", mergedTarget);
-      history.replaceState(null, "", mergedTarget);
-      await this.route(mergedTarget);
+      debugLog('Redirecting merged route:', path, '->', mergedTarget);
+      history.replaceState(null, '', mergedTarget);
+      // Read before any await: it still describes the route() that called us.
+      await this.route(mergedTarget, { firstScreen: this.routingFirstScreen });
       return;
     }
     const [routeName, param] = this.getRouteNameAndParam(path);
@@ -386,6 +430,13 @@ export class Router {
       this.app.removeSettingsIcon();
     }
 
+    // The leaders' "now / next" bar lives outside #app: start it for a
+    // leader, stop it once signed out. Synced before any early return (a
+    // session that expired sends to login), and loaded only once needed.
+    import('./modules/programme-bar/ProgrammeBar.js')
+      .then((module) => module.syncProgrammeBar(this.app))
+      .catch((error) => debugError('[Router] Programme bar unavailable:', error));
+
     try {
       const guard = (condition) => {
         if (!condition) {
@@ -399,10 +450,10 @@ export class Router {
       // so requiring a session would make them unusable by design. The
       // invitation and family-link pages are reached by people who may have no
       // account at all yet -- creating one is what those pages are for.
-      if (!this.app.isLoggedIn && !["login", "register", "resetPassword", "permissionSlipSign", "alumniConsent", "alumniUnsubscribe", "reactivateAccount", "completeRegistration", "familyLink"].includes(routeName)) {
-        if (path !== "/login") {
+      if (!this.app.isLoggedIn && !['login', 'register', 'resetPassword', 'permissionSlipSign', 'alumniConsent', 'alumniUnsubscribe', 'reactivateAccount', 'completeRegistration', 'familyLink'].includes(routeName)) {
+        if (path !== '/login') {
           debugWarn('Redirecting to login from route:', routeName);
-          history.pushState(null, "", buildLoginRedirect(path, window.location.href));
+          history.pushState(null, '', buildLoginRedirect(path, window.location.href));
         }
         await this.loadLoginPage();
         return;
@@ -411,7 +462,7 @@ export class Router {
 
       // Any form type for one participant; checked after the session so a
       // signed-out visitor is sent to login like on every other private page.
-      const dynamicFormMatch = path.split("?")[0].match(/^\/dynamic-form\/([^/]+)\/(\d+)$/);
+      const dynamicFormMatch = path.split('?')[0].match(/^\/dynamic-form\/([^/]+)\/(\d+)$/);
       if (dynamicFormMatch) {
         if (guard(holdsFamilyRole() || canViewParticipants())) {
           await this.loadDynamicForm(decodeURIComponent(dynamicFormMatch[1]), dynamicFormMatch[2]);
@@ -421,18 +472,18 @@ export class Router {
 
 
       switch (routeName) {
-        case "dashboard":
+        case 'dashboard':
           if (isParent()) {
             await this.loadParentDashboard();
           } else {
             await this.loadDashboard();
           }
           break;
-        case "mainDashboard":
+        case 'mainDashboard':
           if (!guard(canAccessFinanceWorkspace())) {
             break;
           }
-          await this.loadDashboard({ mode: isParent() ? "finance-focused" : "default" });
+          await this.loadDashboard({ mode: isParent() ? 'finance-focused' : 'default' });
           break;
         case 'PrintableGroupParticipantReport':
           if (!guard(canViewReports())) {
@@ -443,20 +494,20 @@ export class Router {
           this.currentModuleInstance = report;
           await report.init();
           break;
-        case "admin":
+        case 'admin':
           if (!guard(canAccessAdminPanel())) {
             break;
           }
           await this.loadAdminPage();
           break;
-        case "fundraisers":
+        case 'fundraisers':
           // The screen and its API both need fundraisers.view.
           if (!guard(canViewFundraisers())) {
             break;
           }
           await this.loadFundraisersPage();
           break;
-        case "finance":
+        case 'finance':
           if (!guard(canViewFinance())) {
             break;
           }
@@ -465,7 +516,7 @@ export class Router {
           this.currentModuleInstance = finance;
           await finance.init();
           break;
-        case "budgets":
+        case 'budgets':
           if (!guard(canViewBudget() || canManageBudget() || canManageFinance())) {
             break;
           }
@@ -474,7 +525,7 @@ export class Router {
           this.currentModuleInstance = budgets; // Track for cleanup
           await budgets.init();
           break;
-        case "externalRevenue":
+        case 'externalRevenue':
           if (!guard(canManageFinance() || canViewFinance())) {
             break;
           }
@@ -483,7 +534,7 @@ export class Router {
           this.currentModuleInstance = externalRevenue;
           await externalRevenue.init();
           break;
-        case "expenses":
+        case 'expenses':
           if (!guard(canManageFinance() || canViewFinance())) {
             break;
           }
@@ -492,7 +543,7 @@ export class Router {
           this.currentModuleInstance = expenses;
           await expenses.init();
           break;
-        case "revenueDashboard":
+        case 'revenueDashboard':
           if (!guard(canViewFinance() || canViewFundraisers() || canViewBudget())) {
             break;
           }
@@ -501,7 +552,7 @@ export class Router {
           this.currentModuleInstance = revenueDashboard;
           await revenueDashboard.init();
           break;
-        case "resourceDashboard":
+        case 'resourceDashboard':
           if (!guard(canViewInventory())) {
             break;
           }
@@ -510,7 +561,7 @@ export class Router {
           this.currentModuleInstance = resourceDashboard;
           await resourceDashboard.init();
           break;
-        case "inventory":
+        case 'inventory':
           if (!guard(canViewInventory())) {
             break;
           }
@@ -519,48 +570,48 @@ export class Router {
           this.currentModuleInstance = inventory;
           await inventory.init();
           break;
-        case "medicationPlanning":
-        case "medicationDispensing":
+        case 'medicationPlanning':
+        case 'medicationDispensing':
           if (!guard(canViewMedication())) {
             break;
           }
           const MedicationManagement = await this.loadModule('MedicationManagement');
           const medicationManagement = new MedicationManagement(this.app, {
-            view: routeName === "medicationDispensing" ? "dispensing" : "planning",
-            enableAlerts: routeName === "medicationDispensing"
+            view: routeName === 'medicationDispensing' ? 'dispensing' : 'planning',
+            enableAlerts: routeName === 'medicationDispensing'
           });
           this.currentModuleInstance = medicationManagement;
           await medicationManagement.init();
           break;
-        case "medicationPlanningParticipant":
+        case 'medicationPlanningParticipant':
           if (!guard(holdsFamilyRole() || canViewMedication())) {
             break;
           }
           const MedicationManagementParticipant = await this.loadModule('MedicationManagement');
           const participantId = parseInt(param);
           const medicationManagementParticipant = new MedicationManagementParticipant(this.app, {
-            view: "planning",
+            view: 'planning',
             participantId: participantId,
             returnUrl: isParent() || !canViewMedication() ? '/parent-dashboard' : '/medication-reception'
           });
           this.currentModuleInstance = medicationManagementParticipant;
           await medicationManagementParticipant.init();
           break;
-        case "medicationAuthorizationsParticipant":
+        case 'medicationAuthorizationsParticipant':
           if (!guard(holdsFamilyRole() || canViewMedication())) {
             break;
           }
           const MedicationManagementAuth = await this.loadModule('MedicationManagement');
           const authParticipantId = parseInt(param);
           const medicationManagementAuth = new MedicationManagementAuth(this.app, {
-            view: "authorizations",
+            view: 'authorizations',
             participantId: authParticipantId,
             returnUrl: isParent() || !canViewMedication() ? '/parent-dashboard' : '/medication-planning'
           });
           this.currentModuleInstance = medicationManagementAuth;
           await medicationManagementAuth.init();
           break;
-        case "medicationReception":
+        case 'medicationReception':
           if (!guard(canViewMedication())) {
             break;
           }
@@ -569,7 +620,7 @@ export class Router {
           this.currentModuleInstance = medicationReception;
           await medicationReception.init();
           break;
-        case "materialManagement":
+        case 'materialManagement':
           if (!guard(canManageInventory() || canViewInventory())) {
             break;
           }
@@ -578,8 +629,8 @@ export class Router {
           this.currentModuleInstance = materialManagement;
           await materialManagement.init();
           break;
-        case "permissionSlipDashboard":
-          if (!guard(canViewParticipants())) {
+        case 'permissionSlipDashboard':
+          if (!guard(canFollowPermissionSlips())) {
             break;
           }
           const PermissionSlipDashboard = await this.loadModule('PermissionSlipDashboard');
@@ -587,8 +638,8 @@ export class Router {
           this.currentModuleInstance = permissionSlipDashboard;
           await permissionSlipDashboard.init();
           break;
-        case "permissionSlipDashboardActivity":
-          if (!guard(canViewParticipants())) {
+        case 'permissionSlipDashboardActivity':
+          if (!guard(canFollowPermissionSlips())) {
             break;
           }
           const PermissionSlipDashboardActivity = await this.loadModule('PermissionSlipDashboard');
@@ -597,21 +648,20 @@ export class Router {
           this.currentModuleInstance = permissionSlipDashboardActivity;
           await permissionSlipDashboardActivity.init();
           break;
-        case "permissionSlipSign":
+        case 'permissionSlipSign':
           // Public route - allow anyone to sign permission slips via email link
-          debugLog('[ROUTER DEBUG] Loading PermissionSlipSign with ID:', param);
           const PermissionSlipSign = await this.loadModule('PermissionSlipSign');
           const permissionSlipSign = new PermissionSlipSign(this.app, param);
           this.currentModuleInstance = permissionSlipSign;
           await permissionSlipSign.init();
           break;
-        case "calendars":
+        case 'calendars':
           if (!guard(canViewFundraisers() || canManageFundraisers())) {
             break;
           }
           await this.loadCalendarsPage(param);
           break;
-        case "createOrganization":
+        case 'createOrganization':
           if (!guard(canCreateOrganization())) {
             break;
           }
@@ -620,13 +670,13 @@ export class Router {
           this.currentModuleInstance = createOrganization;
           await createOrganization.init();
           break;
-        case "parentDashboard":
+        case 'parentDashboard':
           if (!guard(canAccessParentTools())) {
             break;
           }
           await this.loadParentDashboard();
           break;
-        case "parentFinance":
+        case 'parentFinance':
           if (!guard(canAccessParentTools())) {
             break;
           }
@@ -640,7 +690,7 @@ export class Router {
           }
           await this.loadParentFundraisers();
           break;
-        case "communications":
+        case 'communications':
           if (!guard(canSendCommunications() || canAccessAdminPanel())) {
             break;
           }
@@ -649,7 +699,7 @@ export class Router {
           this.currentModuleInstance = communicationSettings;
           await communicationSettings.init();
           break;
-        case "unitSettings":
+        case 'unitSettings':
           if (!guard(canAccessAdminPanel())) {
             break;
           }
@@ -658,7 +708,7 @@ export class Router {
           this.currentModuleInstance = unitSettings;
           await unitSettings.init();
           break;
-        case "scoutYear":
+        case 'scoutYear':
           if (!guard(hasPermission('scout_year.view') || hasPermission('scout_year.manage'))) {
             break;
           }
@@ -667,185 +717,197 @@ export class Router {
           this.currentModuleInstance = scoutYearTransition;
           await scoutYearTransition.init();
           break;
-        case "incidentReports":
-          if (!guard(canViewIncidents())) break;
+        case 'incidentReports':
+          if (!guard(canViewIncidents())) {break;}
           const IncidentReportList = await this.loadModule('IncidentReport');
           const incidentList = new IncidentReportList(this.app, { view: 'list' });
           this.currentModuleInstance = incidentList;
           await incidentList.init();
           break;
-        case "incidentReportNew":
-          if (!guard(canManageIncidents())) break;
+        case 'incidentReportNew':
+          if (!guard(canManageIncidents())) {break;}
           const IncidentReportCreate = await this.loadModule('IncidentReport');
           const incidentCreate = new IncidentReportCreate(this.app, { view: 'create' });
           this.currentModuleInstance = incidentCreate;
           await incidentCreate.init();
           break;
-        case "incidentReportView":
-          if (!guard(canViewIncidents())) break;
+        case 'incidentReportView':
+          if (!guard(canViewIncidents())) {break;}
           const IncidentReportView = await this.loadModule('IncidentReport');
           const incidentView = new IncidentReportView(this.app, { view: 'view', incidentId: parseInt(param) });
           this.currentModuleInstance = incidentView;
           await incidentView.init();
           break;
-        case "incidentReportEdit":
-          if (!guard(canManageIncidents())) break;
+        case 'incidentReportEdit':
+          if (!guard(canManageIncidents())) {break;}
           const IncidentReportEdit = await this.loadModule('IncidentReport');
           const incidentEdit = new IncidentReportEdit(this.app, { view: 'edit', incidentId: parseInt(param) });
           this.currentModuleInstance = incidentEdit;
           await incidentEdit.init();
           break;
-        case "yearlyPlanner":
-        case "yearlyPlannerDetail":
-          if (!guard(canViewMeetings())) break;
+        case 'yearlyPlanner':
+        case 'yearlyPlannerDetail':
+          if (!guard(canViewMeetings())) {break;}
           const YearlyPlanner = await this.loadModule('YearlyPlanner');
           const yearlyPlanner = new YearlyPlanner(this.app);
           this.currentModuleInstance = yearlyPlanner;
           await yearlyPlanner.init(routeName === 'yearlyPlannerDetail' ? parseInt(param, 10) : null);
           break;
-        case "offlinePreparation":
-          if (!guard(canViewActivities())) break;
+        case 'offlinePreparation':
+          if (!guard(canViewActivities())) {break;}
           const OfflinePreparation = await this.loadModule('OfflinePreparation');
           const offlinePreparation = new OfflinePreparation(this.app);
           this.currentModuleInstance = offlinePreparation;
           await offlinePreparation.init();
           break;
-        case "login":
+        case 'login':
           if (this.app.isLoggedIn) {
             // Redirect to appropriate dashboard if already logged in
             // (replaceState so the URL matches what is rendered)
-            const loginTarget = isParent() ? "/parent-dashboard" : "/dashboard";
-            history.replaceState(null, "", loginTarget);
+            const loginTarget = isParent() ? '/parent-dashboard' : '/dashboard';
+            history.replaceState(null, '', loginTarget);
             return this.route(loginTarget);
           } else {
             await this.loadLoginPage();
           }
           break;
-        case "logout":
+        case 'logout':
           await this.handleLogout();
           break;
-        case "resetPassword":
+        case 'resetPassword':
           await this.loadResetPasswordPage();
           break;
-        case "alumniConsent":
-          await this.loadAlumniLinkPage("consent");
+        case 'alumniConsent':
+          await this.loadAlumniLinkPage('consent');
           break;
-        case "alumniUnsubscribe":
-          await this.loadAlumniLinkPage("unsubscribe");
+        case 'alumniUnsubscribe':
+          await this.loadAlumniLinkPage('unsubscribe');
           break;
-        case "reactivateAccount":
+        case 'reactivateAccount':
           await this.loadReactivationPage();
           break;
-        case "completeRegistration":
+        case 'completeRegistration':
           await this.loadModuleInstance('CompleteRegistration');
           break;
-        case "familyLink":
+        case 'familyLink':
           await this.loadModuleInstance('FamilyLinkReview');
           break;
-        case "parentInvitations":
+        case 'parentInvitations':
           if (!guard(hasPermission('users.invite'))) {
             break;
           }
           await this.loadModuleInstance('ParentInvitations');
           break;
-        case "participantDuplicates":
+        case 'leaderInvitations':
+          // Inviting a leader also grants them a role
+          if (!guard(hasPermission('users.invite') && hasPermission('users.assign_roles'))) {
+            break;
+          }
+          await this.loadModuleInstance('ParentInvitations', { kind: 'leader' });
+          break;
+        case 'participantDuplicates':
           if (!guard(hasPermission('participants.edit'))) {
             break;
           }
           await this.loadModuleInstance('ParticipantDuplicates');
           break;
-        case "parentOnboarding":
+        case 'parentOnboarding':
           if (!guard(hasPermission('participants.create_own'))) {
             break;
           }
           await this.loadModuleInstance('ParentOnboarding');
           break;
-        case "familyAccess":
+        case 'familyAccess':
           if (!guard(hasPermission('participants.create_own'))) {
             break;
           }
           await this.loadModuleInstance('FamilyAccess');
           break;
-        case "walkInChildren":
+        case 'walkInChildren':
           if (!guard(hasPermission('participants.walk_in'))) {
             break;
           }
           await this.loadModuleInstance('WalkInChildren');
           break;
-        case "attendance":
+        case 'attendance':
           if (!guard(canViewAttendance())) {
             break;
           }
           await this.loadAttendance();
           break;
-        case "UpcomingMeeting":
+        case 'UpcomingMeeting':
           if (!guard(canViewActivities() || canViewParticipants())) {
             break;
           }
           await this.loadUpcomingMeeting();
           break;
-        case "formulaireInscription":
+        case 'formulaireInscription':
           if (!guard(holdsFamilyRole() || canViewParticipants())) {
             break;
           }
           await this.loadFormulaireInscription(param);
           break;
-        case "mailingList":
+        case 'mailingList':
           if (!guard(canSendCommunications())) {
             break;
           }
           await this.loadMailingList();
           break;
-        case "managePoints":
+        case 'communicationHistory':
+          // Every member reads the unit's news; the screen offers the sent messages
+          // and the archive only to those who may send communications.
+          await this.loadModuleInstance('CommunicationHistory');
+          break;
+        case 'managePoints':
           if (!guard(canManagePoints())) {
             break;
           }
           await this.loadManagePoints();
           break;
-        case "timeSinceRegistration":
+        case 'timeSinceRegistration':
           if (!guard(canViewReports())) {
             break;
           }
           await this.loadTimeSinceRegistration();
           break;
-        case "manageHonors":
+        case 'manageHonors':
           if (!guard(canManagePoints())) {
             break;
           }
           await this.loadManageHonors();
           break;
-        case "manageParticipants":
+        case 'manageParticipants':
           if (!guard(canViewParticipants())) {
             break;
           }
           await this.loadManageParticipants();
           break;
-        case "manageUsersParticipants":
+        case 'manageUsersParticipants':
           if (!guard(canViewUsers())) {
             break;
           }
           await this.loadManageUsersParticipants();
           break;
-        case "manageGroups":
+        case 'manageGroups':
           if (!guard(canViewGroups())) {
             break;
           }
           await this.loadManageGroups();
           break;
-        case "guardianManagement":
+        case 'guardianManagement':
           if (!guard(canViewParticipants())) {
             break;
           }
           const GuardianManagement = await this.loadModule('GuardianManagement');
-          await GuardianManagement(this.app);
+          this.currentModuleInstance = await GuardianManagement(this.app);
           break;
-        case "viewParticipantDocuments":
+        case 'viewParticipantDocuments':
           if (!guard(canViewParticipants())) {
             break;
           }
           await this.loadViewParticipantDocuments();
           break;
-        case "parentContactList":
+        case 'parentContactList':
           if (!guard(canSendCommunications() || canViewParticipants())) {
             break;
           }
@@ -857,43 +919,43 @@ export class Router {
           }
           await this.loadReports();
           break;
-        case "progression":
+        case 'progression':
           if (!guard(canViewBadges() || canApproveBadges() || canViewParticipants())) {
             break;
           }
-          await this.loadTabbedPage("progression");
+          await this.loadTabbedPage('progression');
           break;
-        case "reunions":
+        case 'reunions':
           if (!guard(canViewActivities() || canViewParticipants())) {
             break;
           }
-          await this.loadTabbedPage("reunions");
+          await this.loadTabbedPage('reunions');
           break;
-        case "district":
+        case 'district':
           if (!guard(canViewRoles() || canAccessAdminPanel())) {
             break;
           }
-          await this.loadTabbedPage("district");
+          await this.loadTabbedPage('district');
           break;
-        case "badgeTracker":
+        case 'badgeTracker':
           if (!guard(canViewBadges() || canApproveBadges())) {
             break;
           }
           await this.loadBadgeTracker();
           break;
-        case "programProgressDashboard":
+        case 'programProgressDashboard':
           if (!guard(canViewParticipants() || canViewBadges())) {
             break;
           }
           await this.loadProgramProgressDashboard();
           break;
-        case "parentProgramProgress":
+        case 'parentProgramProgress':
           if (!guard(holdsFamilyRole() || canViewParticipants())) {
             break;
           }
           await this.loadParentProgramProgress();
           break;
-        case "badgeForm":
+        case 'badgeForm':
           if (!guard(canViewBadges() || canApproveBadges())) {
             break;
           }
@@ -905,10 +967,10 @@ export class Router {
           }
           await this.loadPreparationReunions(param);
           break;
-        case "accountInfo":
+        case 'accountInfo':
           await this.loadAccountInfo();
           break;
-        case "formBuilder":
+        case 'formBuilder':
           if (!guard(canManageForms())) {
             break;
           }
@@ -917,7 +979,7 @@ export class Router {
           this.currentModuleInstance = formBuilder;
           await formBuilder.init();
           break;
-        case "activities":
+        case 'activities':
           if (!guard(canViewActivities() || canManageActivities())) {
             break;
           }
@@ -926,7 +988,7 @@ export class Router {
           this.currentModuleInstance = activities;
           await activities.init();
           break;
-        case "carpoolLanding":
+        case 'carpoolLanding':
           if (!guard(holdsFamilyRole() || canViewCarpools())) {
             break;
           }
@@ -944,7 +1006,7 @@ export class Router {
           await messages.init();
           break;
         }
-        case "carpool":
+        case 'carpool':
           if (!guard(holdsFamilyRole() || canViewCarpools())) {
             break;
           }
@@ -953,7 +1015,7 @@ export class Router {
           this.currentModuleInstance = carpoolDashboard;
           await carpoolDashboard.init();
           break;
-        case "roleManagement":
+        case 'roleManagement':
           // Only accessible by users with role management permissions
           // Permission check is done within the RoleManagement component
           if (!guard(canManageRoles() || canViewRoles())) {
@@ -964,7 +1026,7 @@ export class Router {
           this.currentModuleInstance = roleManagement;
           await roleManagement.init();
           break;
-        case "districtManagement":
+        case 'districtManagement':
           if (!guard(canViewRoles())) {
             break;
           }
@@ -973,20 +1035,20 @@ export class Router {
           this.currentModuleInstance = districtManagement;
           await districtManagement.init();
           break;
-        case "formPermissions":
-          // Only accessible by district and unitadmin
+        case 'formPermissions':
+          // Whoever may open the admin panel.
           if (!guard(canAccessAdminPanel())) {
             break;
           }
           const initFormPermissions = await this.loadModule('FormPermissions');
-          await initFormPermissions(this.app);
+          this.currentModuleInstance = await initFormPermissions(this.app);
           break;
-        case "register":
+        case 'register':
           if (this.app.isLoggedIn) {
             // Redirect to appropriate dashboard if already logged in
             // (replaceState so the URL matches what is rendered)
-            const registerTarget = isParent() ? "/parent-dashboard" : "/dashboard";
-            history.replaceState(null, "", registerTarget);
+            const registerTarget = isParent() ? '/parent-dashboard' : '/dashboard';
+            history.replaceState(null, '', registerTarget);
             return this.route(registerTarget);
           } else {
             await this.loadRegisterPage();
@@ -996,32 +1058,17 @@ export class Router {
         default:
           this.loadNotFoundPage();
       }
-
-      // Load activity widget only on dashboard/activity-related routes for better performance
-      const activityRoutes = ['dashboard', 'activities', 'carpool', 'carpoolLanding'];
-      const canShowActivityWidget = (canViewActivities() || canManageActivities() || canManageAttendance()) && !isParent();
-      if (
-        this.app.isLoggedIn &&
-        canShowActivityWidget &&
-        activityRoutes.includes(routeName) &&
-        !this.activityWidgetInitialized  // Check if the widget is already initialized
-      ) {
-        import('./init-activity-widget.js').then(module => {
-          module.initActivityWidget(this.app);
-        });
-        this.activityWidgetInitialized = true;  // Mark the widget as initialized
-      }
     } catch (error) {
       if (error instanceof NavigationCancelledError || navigationId !== this.navigationId) {
         debugLog('[Router] Ignoring superseded navigation');
       } else if (error instanceof OfflineModuleError) {
-        debugWarn("Offline module error:", error.message);
+        debugWarn('Offline module error:', error.message);
         this.app.renderError(translate('offline_page_unavailable'), {
           titleKey: 'offline_indicator',
           actions: [{ labelKey: 'back_to_home', href: '/' }]
         });
       } else {
-        debugError("Routing error:", error);
+        debugError('Routing error:', error);
         this.app.renderError(translate('error_loading_page'));
       }
     }
@@ -1049,7 +1096,7 @@ export class Router {
   }
 
   getRouteNameAndParam(path) {
-    const cleanPath = path.split("?")[0];
+    const cleanPath = path.split('?')[0];
 
     // Exact matches win over parameterized routes so static paths like
     // /incident-reports/new are not shadowed by /incident-reports/:id
@@ -1060,19 +1107,19 @@ export class Router {
 
     // Parameterized routes: match segment by segment. Supports any param
     // name (:id, :token, :date) at any position (/x/:id, /x/:id/edit).
-    const pathParts = cleanPath.split("/");
+    const pathParts = cleanPath.split('/');
     for (const [pattern, routeName] of Object.entries(routes)) {
-      if (!pattern.includes("/:")) {
+      if (!pattern.includes('/:')) {
         continue;
       }
-      const patternParts = pattern.split("/");
+      const patternParts = pattern.split('/');
       if (patternParts.length !== pathParts.length) {
         continue;
       }
       let param = null;
       let matched = true;
       for (let i = 0; i < patternParts.length; i++) {
-        if (patternParts[i].startsWith(":")) {
+        if (patternParts[i].startsWith(':')) {
           param = pathParts[i];
         } else if (patternParts[i] !== pathParts[i]) {
           matched = false;
@@ -1086,7 +1133,7 @@ export class Router {
     }
 
     debugLog('[ROUTER DEBUG] No route match for:', cleanPath);
-    return ["notFound", null];
+    return ['notFound', null];
   }
 
 
@@ -1203,10 +1250,10 @@ export class Router {
   async loadTabbedPage(key) {
     const config = TABBED_PAGES[key];
     if (!config) {
-      debugError("Unknown tabbed page:", key);
+      debugError('Unknown tabbed page:', key);
       return;
     }
-    const { TabbedPage } = await import("./modules/TabbedPage.js");
+    const { TabbedPage } = await import('./modules/TabbedPage.js');
     const page = new TabbedPage(this.app, config);
     this.currentModuleInstance = page;
     await page.init();
@@ -1270,9 +1317,9 @@ export class Router {
    * @param {string} moduleName - Key in the module registry
    * @returns {Promise<void>}
    */
-  async loadModuleInstance(moduleName) {
+  async loadModuleInstance(moduleName, options = undefined) {
     const PageModule = await this.loadModule(moduleName);
-    const instance = new PageModule(this.app);
+    const instance = new PageModule(this.app, options);
     this.currentModuleInstance = instance;
     await instance.init();
   }
@@ -1292,7 +1339,7 @@ export class Router {
   }
 
   async loadFormulaireInscription(participantId = null) {
-    debugLog("Initializing FormulaireInscription with participantId:", participantId);
+    debugLog('Initializing FormulaireInscription with participantId:', participantId);
     const FormulaireInscription = await this.loadModule('FormulaireInscription');
     const formulaireInscription = new FormulaireInscription(this.app);
     this.currentModuleInstance = formulaireInscription;
@@ -1349,13 +1396,13 @@ export class Router {
   }
 
   loadNotFoundPage() {
-    setContent(document.getElementById("app"), buildNotFoundMarkup({
+    setContent(document.getElementById('app'), buildNotFoundMarkup({
       titleKey: 'error_404_not_found'
     }));
   }
 
   loadNotAuthorizedPage() {
-    setContent(document.getElementById("app"), buildNotFoundMarkup({
+    setContent(document.getElementById('app'), buildNotFoundMarkup({
       titleKey: 'error_403_not_authorized',
       messageKey: 'error_403_not_authorized_message'
     }));
@@ -1374,18 +1421,18 @@ export class Router {
 
   async handleLogout() {
     try {
-      const { Login } = await import('./login.js');
+      const { Login } = await import('./modules/session/Login.js');
       await Login.logout();
       // Note: Login.logout() always redirects via window.location.href (never throws)
     } catch (error) {
       // Handle import failure
-      debugError("Failed to load logout module:", error);
-      window.location.href = "/login";
+      debugError('Failed to load logout module:', error);
+      window.location.href = '/login';
     }
   }
 
   async loadLoginPage() {
-    const { Login } = await import('./login.js');
+    const { Login } = await import('./modules/session/Login.js');
     const login = new Login(this.app);
     this.currentModuleInstance = login;
     login.init();
@@ -1397,31 +1444,31 @@ export function initRouter(app) {
   initScrollMemory();
 
   // Handle navigation
-  document.addEventListener("click", (e) => {
+  document.addEventListener('click', (e) => {
     if (!(e.target instanceof Element)) {
       return;
     }
 
-    const anchor = e.target.closest("a");
+    const anchor = e.target.closest('a');
     if (!anchor) {
       return;
     }
 
-    const href = anchor.getAttribute("href");
-    const target = anchor.getAttribute("target");
-    const isDownload = anchor.hasAttribute("download");
+    const href = anchor.getAttribute('href');
+    const target = anchor.getAttribute('target');
+    const isDownload = anchor.hasAttribute('download');
 
     // Allow browser default behavior for non-router links
     if (
       !href ||
-      href.startsWith("#") ||
+      href.startsWith('#') ||
       // eslint-disable-next-line no-script-url -- leaves javascript: links to the browser instead of routing them
-      href.startsWith("javascript:") ||
-      href.startsWith("blob:") ||
-      href.startsWith("mailto:") ||
-      href.startsWith("tel:") ||
+      href.startsWith('javascript:') ||
+      href.startsWith('blob:') ||
+      href.startsWith('mailto:') ||
+      href.startsWith('tel:') ||
       isDownload ||
-      target === "_blank" ||
+      target === '_blank' ||
       e.defaultPrevented ||
       e.metaKey ||
       e.ctrlKey ||
@@ -1436,7 +1483,7 @@ export function initRouter(app) {
     try {
       resolvedUrl = new URL(href, window.location.origin);
     } catch (error) {
-      debugWarn("Ignoring invalid navigation URL:", href, error);
+      debugWarn('Ignoring invalid navigation URL:', href, error);
       return;
     }
 
@@ -1447,13 +1494,13 @@ export function initRouter(app) {
     const routePath = `${resolvedUrl.pathname}${resolvedUrl.search}`;
     const historyPath = `${routePath}${resolvedUrl.hash}`;
     e.preventDefault();
-    history.pushState(null, "", historyPath);
+    history.pushState(null, '', historyPath);
     router.route(routePath);
   });
 
   // Handle back/forward browser buttons (keep the query string so
   // tab-parameterized pages like /finance?tab=reports restore correctly)
-  window.addEventListener("popstate", () => {
+  window.addEventListener('popstate', () => {
     router.route(`${window.location.pathname}${window.location.search}`);
   });
 
@@ -1464,11 +1511,11 @@ export function navigate(path) {
   if (
     window.app &&
     window.app.router &&
-    typeof window.app.router.navigate === "function"
+    typeof window.app.router.navigate === 'function'
   ) {
     window.app.router.navigate(path);
   } else {
-    debugWarn("Router not available, using window.location");
+    debugWarn('Router not available, using window.location');
     window.location.href = path;
   }
 }

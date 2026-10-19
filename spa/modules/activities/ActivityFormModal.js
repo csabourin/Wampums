@@ -11,7 +11,7 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { setButtonLoading } from '../../utils/SkeletonUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { getActivityEndDate, getActivityStartDate } from '../../utils/ActivityDateUtils.js';
-import { aiGenerateText } from '../AI.js';
+import { aiGenerateText } from '../../api/api-ai.js';
 import { attachInviteesPicker, buildInviteesFieldsetHTML } from './ActivityInviteesPicker.js';
 import {
   attachRichTextEditor,
@@ -326,10 +326,7 @@ function showMagicGenerateModal(app, formOverlay) {
       close();
     } catch (err) {
       debugError('Magic generate failed:', err);
-      const msg = err.error?.code === 'AI_BUDGET_EXCEEDED'
-        ? translate('ai_budget_exceeded')
-        : translate('magic_generate_error');
-      app.showMessage(msg, 'error');
+      app.showMessage(apiErrorMessage(err, 'magic_generate_error'), 'error');
     } finally {
       setButtonLoading(btn, false);
     }

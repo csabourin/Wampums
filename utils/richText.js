@@ -1,7 +1,7 @@
 /**
  * Basic rich text for emailed content (announcements, activity descriptions).
  *
- * The SPA's editor (spa/modules/form-builder/RichTextEditor.js) produces
+ * The SPA's editor (spa/modules/rich-text/RichTextEditor.js) produces
  * paragraphs, line breaks, bold, italic, bulleted and numbered lists, and
  * links. The server cannot trust what a client sends, and has no DOM to run
  * DOMPurify in, so this module rebuilds the HTML from scratch: it keeps only

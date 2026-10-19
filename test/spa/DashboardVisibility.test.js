@@ -73,17 +73,13 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   canAccessParentTools: jest.fn(() => mockIsParent),
   canCreateOrganization: jest.fn(() => false),
   canViewCarpools: jest.fn(() => false),
+  canFollowPermissionSlips: jest.fn(() => !mockIsParent
+    && ['activities.view', 'participants.view', 'groups.view'].every((permission) => mockPermissions.has(permission))),
   isParent: jest.fn(() => mockIsParent),
   holdsFamilyRole: jest.fn(() => mockIsParent),
 }));
 jest.mock('../../spa/utils/DashboardCacheManager.js', () => ({
   DashboardCacheManager: { preloadCachedData: jest.fn() },
-}));
-jest.mock('../../spa/modules/NewsFeed.js', () => ({
-  NewsFeed: class {
-    renderContent() { return ''; }
-    getIsLoading() { return false; }
-  },
 }));
 jest.mock('../../spa/modules/modals/CarpoolQuickAccessModal.js', () => ({ CarpoolQuickAccessModal: jest.fn() }));
 jest.mock('../../spa/utils/DashboardPreferences.js', () => ({
@@ -100,7 +96,7 @@ jest.mock('../../spa/modules/CommandPalette.js', () => ({
 jest.mock('../../spa/modules/DashboardSettingsModal.js', () => ({ DashboardSettingsModal: jest.fn() }));
 jest.mock('../../spa/modules/OfflineManager.js', () => ({ offlineManager: {} }));
 
-import { Dashboard } from '../../spa/dashboard.js';
+import { Dashboard } from '../../spa/modules/dashboard/Dashboard.js';
 import {
   DASHBOARD_TILES,
   FINANCE_WORKSPACE_EXTRA_TILES,
@@ -165,6 +161,12 @@ test('backend dashboard visibility keys match the current configurable tiles', (
   expect([...customizationConfig.dashboardFeatureKeys].sort()).toEqual(tileFeatureKeys);
 });
 
+test('the news screen is offered to every member of the dashboard, not only to those who send messages', () => {
+  const tile = DASHBOARD_TILES.find((candidate) => candidate.href === '/communication-history');
+
+  expect(tile.gate).toEqual({ check: 'member' });
+});
+
 describe('tool groups separate weekly work from unit set-up', () => {
   const routesIn = (domain) => DASHBOARD_TILES
     .filter((tile) => tile.moment === 'tools' && tile.domain === domain)
@@ -181,7 +183,9 @@ describe('tool groups separate weekly work from unit set-up', () => {
 
   test('"Administration de l\'unité" holds the settings changed a few times a year', () => {
     expect(routesIn('admin').sort()).toEqual([
+      '/communication-history',
       '/form-permissions',
+      '/leader-invitations',
       '/manage-groups',
       '/manage-participants',
       '/manage-users-participants',
@@ -190,6 +194,11 @@ describe('tool groups separate weekly work from unit set-up', () => {
       '/role-management',
       '/unit-settings',
     ]);
+  });
+
+  test('inviting leaders is offered only to those who may also grant them a role', () => {
+    const tile = DASHBOARD_TILES.find((item) => item.href === '/leader-invitations');
+    expect(tile.gate).toEqual({ all: ['users.invite', 'users.assign_roles'] });
   });
 
   test('"Administration" holds my account first, then district and system tools', () => {
@@ -244,6 +253,11 @@ describe('tiles follow the permissions their page acts on', () => {
     expect(renderAs(['org.edit'], { adminPanel: false }).has('/unit-settings')).toBe(false);
   });
 
+  test('the permission-slip tile needs every read its page makes, not participants.view alone', () => {
+    expect(renderAs(['participants.view']).has('/permission-slips')).toBe(false);
+    expect(renderAs(['activities.view', 'participants.view', 'groups.view']).has('/permission-slips')).toBe(true);
+  });
+
   test('unit set-up tiles land in "Administration de l\'unité"', () => {
     const { group } = renderAs(['users.invite', 'users.view', 'participants.edit', 'groups.view']);
     const links = Array.from(group('admin').querySelectorAll('a')).map((a) => a.getAttribute('href'));
@@ -252,6 +266,7 @@ describe('tiles follow the permissions their page acts on', () => {
       '/parent-invitations',
       '/manage-users-participants',
       '/participant-duplicates',
+      '/communication-history',
     ]);
   });
 });
@@ -300,6 +315,36 @@ describe('tool groups stay accessible', () => {
     renderAdmin();
     const toggle = document.querySelector('.dashboard-v2__group[data-group="system"] .dashboard-v2__group-toggle');
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  test('a tile count is read with its number, not only its unit', () => {
+    const dashboard = renderAdmin();
+    dashboard.participants = [{ id: 1 }, { id: 2 }];
+    dashboard.render();
+
+    const tile = document.querySelector('a[href="/parent-contact-list"]');
+    const count = tile.querySelector('.dashboard-v2__tile-stat');
+    expect(count.hasAttribute('aria-label')).toBe(false);
+    expect(count.textContent.replace(/\s+/g, ' ').trim()).toBe('2 contacts_short');
+  });
+
+  test('the page is titled by the unit\'s name, as its only <h1>', () => {
+    const dashboard = renderAdmin();
+    dashboard.organizationName = '6e Meute <img src=x onerror=alert(1)>';
+    dashboard.render();
+
+    const headings = document.querySelectorAll('#app h1');
+    expect(headings).toHaveLength(1);
+    expect(headings[0].textContent).toBe('6e Meute <img src=x onerror=alert(1)>');
+    expect(document.querySelector('#app img[src="x"]')).toBeNull();
+  });
+
+  test('a unit without a name still gets a page title', () => {
+    const dashboard = renderAdmin();
+    dashboard.organizationName = '';
+    dashboard.render();
+
+    expect(document.querySelector('#app h1').textContent).toBe('dashboard_title');
   });
 
   test('the tool section has no WCAG A/AA violations', async () => {

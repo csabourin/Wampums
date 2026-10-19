@@ -31,7 +31,7 @@ for (const key of Object.keys(creds).sort()) {
   }
 }
 
-console.log('\n\n' + '='.repeat(60));
+console.log(`\n\n${  '='.repeat(60)}`);
 console.log('KEY FINDINGS:');
 console.log('='.repeat(60));
 console.log('Has noiseKey?', !!creds.noiseKey);

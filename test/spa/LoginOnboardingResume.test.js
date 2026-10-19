@@ -44,7 +44,7 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
 jest.mock('../../spa/api/api-family.js', () => ({ getOnboardingContext: jest.fn() }));
 
 import { getOnboardingContext } from '../../spa/api/api-family.js';
-import { Login } from '../../spa/login.js';
+import { Login } from '../../spa/modules/session/Login.js';
 import { buildLoginRedirect } from '../../spa/utils/LoginRedirectUtils.js';
 
 /**

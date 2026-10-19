@@ -90,7 +90,7 @@ function flush() {
 function fill(values) {
   const set = (id, value) => {
     const input = document.getElementById(id);
-    if (input) input.value = value;
+    if (input) {input.value = value;}
   };
   set('account-first-name', values.first ?? 'Ada');
   set('account-last-name', values.last ?? 'Lovelace');

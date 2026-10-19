@@ -1,0 +1,220 @@
+import { translate } from '../../app.js';
+import * as ajaxFunctions from '../../ajax-functions.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+
+/** How long the success message stays before the sign-in page opens. */
+const REDIRECT_DELAY_MS = 3000;
+/** The password fields a password error is about. */
+const PASSWORD_FIELDS = ['password', 'confirm_password'];
+
+export class Register {
+  constructor(app) {
+    this.app = app;
+    this.redirectTimer = null;
+  }
+
+  /** Called by the router when the person leaves: no redirect fires after that. */
+  destroy() {
+    clearTimeout(this.redirectTimer);
+  }
+
+  render() {
+    const content = `
+            ${renderBackLink('/login')}
+            <form id="register-form">
+                <h1>${translate('register')}</h1>
+                <div id="error-message" class="error hidden" role="alert" aria-live="assertive"></div>
+                <div id="success-message" class="message hidden" role="status" aria-live="polite"></div>
+
+                <label for="full_name">${translate('register_full_name_label')}:</label>
+                <input type="text" id="full_name" name="full_name" autocomplete="name" aria-describedby="full_name_hint" required>
+                <small id="full_name_hint" class="password-hint">${translate('register_full_name_hint')}</small>
+
+                <label for="email">${translate('email')}:</label>
+                <input type="email" id="email" name="email" autocomplete="username" required>
+
+                <label for="password">${translate('password')}:</label>
+                <input type="password" id="password" name="password" autocomplete="new-password" required minlength="8" maxlength="255">
+                <small class="password-hint">${translate('password_requirements')}</small>
+
+                <label for="confirm_password">${translate(
+    'confirm_password'
+  )}:</label>
+                <input type="password" id="confirm_password" name="confirm_password" autocomplete="new-password" required minlength="8" maxlength="255">
+
+                <label for="account_creation_password">${translate(
+    'account_creation_password'
+  )}:</label>
+                <input type="password" id="account_creation_password" name="account_creation_password" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" required>
+
+                <label for="user_type">${translate('user_type')}:</label>
+                <select id="user_type" name="user_type" required>
+                    <option value="parent">${translate('parent')}</option>
+                    <option value="leader">${translate('leader')}</option>
+                    <option value="finance">${translate('finance')}</option>
+                    <option value="equipment">${translate('equipment') || translate('inventory')}</option>
+                    <option value="administration">${translate('administration')}</option>
+                </select>
+
+                <input id="register-submit" type="submit" value="${translate('register')}">
+            </form>
+            <p><a href="/login">${translate('already_have_account')}</a></p>
+        `;
+    setContent(document.getElementById('app'), content);
+    this.attachEventListeners();
+  }
+
+  attachEventListeners() {
+    const form = document.getElementById('register-form');
+    form.addEventListener('submit', (e) => this.handleSubmit(e));
+    // An error about the password clears as soon as either field changes.
+    PASSWORD_FIELDS.forEach((id) => {
+      document.getElementById(id)?.addEventListener('input', () => this.markPasswordInvalid(false));
+    });
+  }
+
+  /**
+   * Tie the error message to the password fields, or release them.
+   *
+   * @param {boolean} invalid - Whether the error is about the password
+   * @returns {void}
+   */
+  markPasswordInvalid(invalid) {
+    PASSWORD_FIELDS.forEach((id) => {
+      const field = document.getElementById(id);
+      if (!field) {
+        return;
+      }
+      field.setAttribute('aria-invalid', String(invalid));
+      if (invalid) {
+        field.setAttribute('aria-describedby', 'error-message');
+      } else {
+        field.removeAttribute('aria-describedby');
+      }
+    });
+    if (!invalid) {
+      document.getElementById('error-message')?.classList.add('hidden');
+    }
+  }
+
+  async handleSubmit(e) {
+    e.preventDefault();
+    const submitButton = document.getElementById('register-submit');
+    if (submitButton?.disabled) {return;}
+    const defaultSubmitLabel = submitButton?.value || translate('register');
+    const formData = new FormData(e.target);
+    const registerData = Object.fromEntries(formData.entries());
+
+    // Convert email to lowercase
+    registerData.email = registerData.email.toLowerCase();
+
+    if (registerData.password !== registerData.confirm_password) {
+      this.showError(translate('passwords_do_not_match'));
+      this.markPasswordInvalid(true);
+      return;
+    }
+
+    const passwordError = this.validatePassword(registerData.password);
+    if (passwordError) {
+      this.showError(passwordError);
+      this.markPasswordInvalid(true);
+      return;
+    }
+    this.markPasswordInvalid(false);
+
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.value = translate('loading');
+    }
+
+    try {
+      const result = await ajaxFunctions.register(registerData);
+      if (result.success) {
+        if (submitButton) {submitButton.dataset.completed = 'true';}
+        this.showSuccess(this.translateMessage(result.message, 'registration_successful'));
+        this.redirectTimer = setTimeout(() => this.app.router.navigate('/login'), REDIRECT_DELAY_MS);
+      } else {
+        this.showError(this.translateMessage(result.message, 'error_creating_account'));
+      }
+    } catch (error) {
+      // Extract validation errors and display them
+      let errorMessage = this.translateMessage(error.message, 'error_creating_account');
+
+      // An address that is already active here belongs to someone who should be
+      // signing in, so the reset page is the right destination.
+      if (error.message === 'account_already_exists') {
+        this.app.router.navigate('/reset-password?error=account_already_exists');
+        return;
+      }
+
+      // An address that exists but is deactivated here — or belongs to another
+      // unit — needs the reactivation page instead. Sending it to reset-password
+      // was the closed loop this flow used to fall into: the reset it asked for
+      // was refused just as silently.
+      if (error.message === 'account_exists_reactivation_available') {
+        this.app.router.navigate('/reactivate-account');
+        return;
+      }
+
+      // The server's validation details are English; the form already checks
+      // each rule in the page's language before sending.
+      if (error.message && error.message.includes('Validation failed:')) {
+        errorMessage = translate('api_error_invalid');
+      }
+
+      this.showError(errorMessage);
+    } finally {
+      if (submitButton && submitButton.dataset.completed !== 'true') {
+        submitButton.disabled = false;
+        submitButton.value = defaultSubmitLabel;
+      }
+    }
+  }
+
+  /**
+   * Translate API message keys while keeping a localized fallback for network
+   * errors and other messages that are not part of the language bundle.
+   *
+   * @param {string} message Message or translation key returned by the API
+   * @param {string} fallbackKey Translation key used when no translation exists
+   * @returns {string} Safe user-facing message
+   */
+  translateMessage(message, fallbackKey) {
+    if (!message) {return translate(fallbackKey);}
+    const translatedMessage = translate(message);
+    return translatedMessage && translatedMessage !== message
+      ? translatedMessage
+      : translate(fallbackKey);
+  }
+
+  validatePassword(password) {
+    if (password.length < 8) {return translate('password_min_length');}
+    if (password.length > 255) {return translate('password_max_length');}
+    if (!/[A-Z]/.test(password)) {return translate('password_needs_uppercase');}
+    if (!/[a-z]/.test(password)) {return translate('password_needs_lowercase');}
+    if (!/[0-9]/.test(password)) {return translate('password_needs_number');}
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {return translate('password_needs_special');}
+    return null;
+  }
+
+  showError(message) {
+    const errorElement = document.getElementById('error-message');
+    const successElement = document.getElementById('success-message');
+    if (!errorElement || !successElement) {return;}
+    errorElement.textContent = message;
+    errorElement.classList.remove('hidden');
+    successElement.classList.add('hidden');
+    errorElement.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  showSuccess(message) {
+    const successElement = document.getElementById('success-message');
+    const errorElement = document.getElementById('error-message');
+    if (!successElement || !errorElement) {return;}
+    successElement.textContent = message;
+    successElement.classList.remove('hidden');
+    errorElement.classList.add('hidden');
+    successElement.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+  }
+}

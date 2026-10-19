@@ -103,9 +103,9 @@ async function fetchSourceRows({
   ]);
 
   const selectParts = ['id', 'participant_id', 'organization_id'];
-  if (statusColumn) selectParts.push(`${statusColumn} AS status`);
-  if (dateColumn) selectParts.push(`${dateColumn} AS event_at`);
-  if (titleColumn) selectParts.push(`${titleColumn} AS title`);
+  if (statusColumn) {selectParts.push(`${statusColumn} AS status`);}
+  if (dateColumn) {selectParts.push(`${dateColumn} AS event_at`);}
+  if (titleColumn) {selectParts.push(`${titleColumn} AS title`);}
 
   const params = [organizationId, scoutYearId, rosterStatuses];
   let where = `organization_id = $1 AND EXISTS (

@@ -68,8 +68,15 @@
   line-height: 1.2;
 }
 
-.dashboard-v2__org-text strong {
+/* The unit's name is the page's <h1>, drawn as the compact label it was. */
+.dashboard-v2__org-name {
+  margin: 0;
+  max-width: none;
+  text-align: start;
   font-size: 0.95rem;
+  font-weight: 700;
+  line-height: inherit;
+  color: inherit;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -381,7 +388,11 @@
   align-items: center;
   gap: 0.3rem;
   padding: 0.2rem 0.55rem;
-  background: rgba(255, 255, 255, 0.22);
+  /* The tile's own colours, which every palette keeps at 4.5:1 or more; a
+     white wash brought white text down to 3.5:1. The ring, in the text
+     colour, keeps the pill distinct. */
+  background: transparent;
+  box-shadow: inset 0 0 0 1px currentColor;
   border-radius: 999px;
   font-size: 0.8rem;
   font-weight: 600;

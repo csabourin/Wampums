@@ -28,7 +28,7 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugError: jest.fn()
 }));
 
-import { canAccessParentTools, holdsFamilyRole, hasOrganizationScope, isParent } from '../../spa/utils/PermissionUtils.js';
+import { canAccessParentTools, canFollowPermissionSlips, holdsFamilyRole, hasOrganizationScope, isParent } from '../../spa/utils/PermissionUtils.js';
 import { roleLabel } from '../../spa/utils/RoleLabelUtils.js';
 
 /**
@@ -90,6 +90,34 @@ describe('canAccessParentTools', () => {
   });
 });
 
+describe('canFollowPermissionSlips', () => {
+  const SLIP_SCREEN_READS = ['activities.view', 'participants.view', 'groups.view'];
+
+  test('a parent, who sees activities and their own children, does not get the unit\'s slip screen', () => {
+    signIn(['parent'], 'linked');
+    mockApp.userPermissions = ['activities.view', 'participants.view', 'permission_slips.sign'];
+    expect(canFollowPermissionSlips()).toBe(false);
+  });
+
+  test('a leader holding every permission the screen reads follows the unit\'s slips', () => {
+    signIn(['leader'], 'organization');
+    mockApp.userPermissions = SLIP_SCREEN_READS;
+    expect(canFollowPermissionSlips()).toBe(true);
+  });
+
+  test('a parent who is also a leader follows them too', () => {
+    signIn(['leader', 'parent'], 'organization');
+    mockApp.userPermissions = [...SLIP_SCREEN_READS, 'permission_slips.sign'];
+    expect(canFollowPermissionSlips()).toBe(true);
+  });
+
+  test('a whole-unit role missing one of those reads does not, since the screen would fail to load', () => {
+    signIn(['leader'], 'organization');
+    mockApp.userPermissions = ['activities.view', 'participants.view'];
+    expect(canFollowPermissionSlips()).toBe(false);
+  });
+});
+
 describe('roleLabel', () => {
   test('names a built-in role in the interface language', () => {
     expect(roleLabel({ role_name: 'leader', display_name: 'Leader' })).toBe('Animateurs');
@@ -113,7 +141,7 @@ describe('guardian access is not a persona choice', () => {
   const fs = require('fs');
   const path = require('path');
   const routerSource = fs.readFileSync(path.join(__dirname, '../../spa/router.js'), 'utf8');
-  const dashboardSource = fs.readFileSync(path.join(__dirname, '../../spa/dashboard.js'), 'utf8');
+  const dashboardSource = fs.readFileSync(path.join(__dirname, '../../spa/modules/dashboard/Dashboard.js'), 'utf8');
 
   test('no page grants access because the person is parent-only', () => {
     // isParent() is false for a parent who is also a leader; as an access
@@ -124,10 +152,10 @@ describe('guardian access is not a persona choice', () => {
 
   test('a parent who is also a leader keeps their child\'s medication pages', () => {
     expect(routerSource).toMatch(
-      /case "medicationPlanningParticipant":\s*if \(!guard\(holdsFamilyRole\(\) \|\| canViewMedication\(\)\)\)/
+      /case ["']medicationPlanningParticipant["']:\s*if \(!guard\(holdsFamilyRole\(\) \|\| canViewMedication\(\)\)\)/
     );
     expect(routerSource).toMatch(
-      /case "medicationAuthorizationsParticipant":\s*if \(!guard\(holdsFamilyRole\(\) \|\| canViewMedication\(\)\)\)/
+      /case ["']medicationAuthorizationsParticipant["']:\s*if \(!guard\(holdsFamilyRole\(\) \|\| canViewMedication\(\)\)\)/
     );
   });
 });

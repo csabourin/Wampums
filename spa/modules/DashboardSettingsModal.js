@@ -6,15 +6,15 @@
  * Triggered from the dashboard header gear button.
  */
 
-import { translate } from "../app.js";
-import { escapeHTML } from "../utils/SecurityUtils.js";
-import { openModal } from "../utils/ModalUtils.js";
-import { PALETTES } from "../config/dashboard-customization.js";
+import { translate } from '../app.js';
+import { escapeHTML } from '../utils/SecurityUtils.js';
+import { openModal } from '../utils/ModalUtils.js';
+import { PALETTES } from '../config/dashboard-customization.js';
 import {
   getDashboardPrefs,
   setPaletteId,
   resetDashboardPrefs,
-} from "../utils/DashboardPreferences.js";
+} from '../utils/DashboardPreferences.js';
 
 export class DashboardSettingsModal {
   constructor({ onChange } = {}) {
@@ -23,17 +23,17 @@ export class DashboardSettingsModal {
   }
 
   open() {
-    if (this.modal) return;
+    if (this.modal) {return;}
     const prefs = getDashboardPrefs();
     const { body, footer } = this._render(prefs.paletteId);
 
     const { overlay, close } = openModal({
-      id: "dash-settings",
-      title: escapeHTML(translate("dashboard_settings")),
-      className: "dash-settings__panel",
+      id: 'dash-settings',
+      title: escapeHTML(translate('dashboard_settings')),
+      className: 'dash-settings__panel',
       body,
       footer,
-      initialFocus: ".dash-settings__palette.is-active",
+      initialFocus: '.dash-settings__palette.is-active',
       onClose: () => { this.modal = null; },
     });
     this.modal = overlay;
@@ -43,7 +43,7 @@ export class DashboardSettingsModal {
   }
 
   close() {
-    if (!this.modal) return;
+    if (!this.modal) {return;}
     this.closeModal(true);
   }
 
@@ -52,11 +52,11 @@ export class DashboardSettingsModal {
       .map((palette) => {
         const swatches = palette.swatches
           .map((c) => `<span class="dash-settings__swatch" style="background:${c}"></span>`)
-          .join("");
+          .join('');
         const isActive = palette.id === currentPaletteId;
         return `
           <button type="button"
-                  class="dash-settings__palette ${isActive ? "is-active" : ""}"
+                  class="dash-settings__palette ${isActive ? 'is-active' : ''}"
                   data-palette="${escapeHTML(palette.id)}"
                   aria-pressed="${isActive}">
             <span class="dash-settings__swatches" aria-hidden="true">${swatches}</span>
@@ -65,38 +65,38 @@ export class DashboardSettingsModal {
           </button>
         `;
       })
-      .join("");
+      .join('');
 
     return {
       body: `
         <section class="dash-settings__section">
-          <h3>${escapeHTML(translate("dashboard_palette"))}</h3>
-          <p class="dash-settings__hint">${escapeHTML(translate("dashboard_palette_hint"))}</p>
-          <div class="dash-settings__palettes" role="group" aria-label="${escapeHTML(translate("dashboard_palette"))}">
+          <h3>${escapeHTML(translate('dashboard_palette'))}</h3>
+          <p class="dash-settings__hint">${escapeHTML(translate('dashboard_palette_hint'))}</p>
+          <div class="dash-settings__palettes" role="group" aria-label="${escapeHTML(translate('dashboard_palette'))}">
             ${cards}
           </div>
         </section>
       `,
       footer: `
         <button type="button" class="button button--ghost" data-action="reset">
-          ${escapeHTML(translate("reset_to_defaults"))}
+          ${escapeHTML(translate('reset_to_defaults'))}
         </button>
         <button type="button" class="button button--primary" data-modal-close>
-          ${escapeHTML(translate("done"))}
+          ${escapeHTML(translate('done'))}
         </button>
       `,
     };
   }
 
   _wireEvents() {
-    this.modal.addEventListener("click", (e) => {
-      const palette = e.target.closest("[data-palette]");
+    this.modal.addEventListener('click', (e) => {
+      const palette = e.target.closest('[data-palette]');
       if (palette) {
         const id = palette.dataset.palette;
         setPaletteId(id);
-        this.modal.querySelectorAll(".dash-settings__palette").forEach((el) => {
-          el.classList.toggle("is-active", el.dataset.palette === id);
-          el.setAttribute("aria-pressed", String(el.dataset.palette === id));
+        this.modal.querySelectorAll('.dash-settings__palette').forEach((el) => {
+          el.classList.toggle('is-active', el.dataset.palette === id);
+          el.setAttribute('aria-pressed', String(el.dataset.palette === id));
         });
         this.onChange({ paletteId: id });
         return;
@@ -104,9 +104,9 @@ export class DashboardSettingsModal {
       if (e.target.closest('[data-action="reset"]')) {
         resetDashboardPrefs();
         const current = getDashboardPrefs().paletteId;
-        this.modal.querySelectorAll(".dash-settings__palette").forEach((el) => {
-          el.classList.toggle("is-active", el.dataset.palette === current);
-          el.setAttribute("aria-pressed", String(el.dataset.palette === current));
+        this.modal.querySelectorAll('.dash-settings__palette').forEach((el) => {
+          el.classList.toggle('is-active', el.dataset.palette === current);
+          el.setAttribute('aria-pressed', String(el.dataset.palette === current));
         });
         this.onChange({ paletteId: current, reset: true });
       }

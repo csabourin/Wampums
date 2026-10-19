@@ -24,6 +24,7 @@ const VOCABULARY_TEMPLATE_KEYS = Object.freeze({
   award_honor: 'vocabulary_award_honor',
   number_of_honors: 'vocabulary_number_of_honors',
   den_list_report: 'vocabulary_den_list_report',
+  den_list_empty: 'vocabulary_den_list_empty',
   unassigned_participants: 'vocabulary_unassigned_participants',
   badge_tracker_title: 'vocabulary_badge_tracker_title',
   badge_tracker_subtitle: 'vocabulary_badge_tracker_subtitle',

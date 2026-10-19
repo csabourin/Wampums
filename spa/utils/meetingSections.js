@@ -1,4 +1,4 @@
-import defaultMeetingSections from "../../config/meeting_sections.js";
+import defaultMeetingSections from '../../config/meeting_sections.js';
 
 /**
  * Merge custom meeting section configuration with defaults.
@@ -7,7 +7,7 @@ import defaultMeetingSections from "../../config/meeting_sections.js";
  * @returns {object} Combined configuration
  */
 export function mergeMeetingSectionConfig(customConfig) {
-  const resolvedConfig = typeof customConfig === "object" && customConfig !== null
+  const resolvedConfig = typeof customConfig === 'object' && customConfig !== null
     ? customConfig
     : {};
 
@@ -65,7 +65,7 @@ export function getHonorLabel(sectionConfig, translateFn) {
     return sectionConfig.honorField.label;
   }
 
-  const labelKey = sectionConfig?.honorField?.labelKey || "youth_of_honor";
+  const labelKey = sectionConfig?.honorField?.labelKey || 'youth_of_honor';
   return translateFn ? translateFn(labelKey) : labelKey;
 }
 

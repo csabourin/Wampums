@@ -13,12 +13,12 @@
 // Mock DateUtils to keep the test hermetic (no config/storage dependencies)
 jest.mock('../../spa/utils/DateUtils.js', () => ({
   parseDate: jest.fn((dateString) => {
-    if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return null;
+    if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {return null;}
     const [year, month, day] = dateString.split('-').map(Number);
     return new Date(year, month - 1, day);
   }),
   isoToDateString: jest.fn((value) => {
-    if (!value) return '';
+    if (!value) {return '';}
     if (value instanceof Date) {
       const y = value.getFullYear();
       const m = String(value.getMonth() + 1).padStart(2, '0');
@@ -33,6 +33,8 @@ import {
   toLocalDateString,
   normalizeDateString,
   getNextWeekdayDate,
+  firstUpcomingMeetingDate,
+  hasMeetingStarted,
   nextDateAfter,
   previousDateBefore,
   addOneWeek
@@ -86,6 +88,41 @@ describe('MeetingDateUtils', () => {
     test('falls back to the reference date for unknown day names', () => {
       const from = new Date(2026, 8, 7, 12, 0, 0);
       expect(getNextWeekdayDate('Notaday', from)).toBe('2026-09-07');
+    });
+  });
+
+  describe('planning on the evening of a meeting', () => {
+    // 2026-09-09 is a Wednesday; the unit meets at 18:30
+    const calendar = [
+      { date: '2026-09-02' },
+      { date: '2026-09-09T00:00:00Z' },
+      { date: '2026-09-16', is_cancelled: true },
+      { date: '2026-09-23' },
+    ];
+
+    test('before tonight\'s meeting starts, tonight is the meeting to plan', () => {
+      const now = new Date(2026, 8, 9, 17, 0, 0);
+      expect(firstUpcomingMeetingDate(calendar, { meetingTime: '18:30', now })).toBe('2026-09-09');
+    });
+
+    test('once tonight\'s meeting has started, it skips to the next meeting that is not cancelled', () => {
+      const now = new Date(2026, 8, 9, 18, 45, 0);
+      expect(firstUpcomingMeetingDate(calendar, { meetingTime: '18:30:00', now })).toBe('2026-09-23');
+    });
+
+    test('with no meeting left in the calendar there is no date', () => {
+      const now = new Date(2026, 8, 24, 9, 0, 0);
+      expect(firstUpcomingMeetingDate(calendar, { meetingTime: '18:30', now })).toBeNull();
+    });
+
+    test('without a calendar, the weekday fallback also skips tonight once it has started', () => {
+      expect(getNextWeekdayDate('Wednesday', new Date(2026, 8, 9, 19, 0, 0), '18:30')).toBe('2026-09-16');
+      expect(getNextWeekdayDate('Wednesday', new Date(2026, 8, 9, 18, 0, 0), '18:30')).toBe('2026-09-09');
+    });
+
+    test('without a start time, the evening cutoff decides', () => {
+      expect(hasMeetingStarted(null, new Date(2026, 8, 9, 19, 0, 0))).toBe(false);
+      expect(hasMeetingStarted(null, new Date(2026, 8, 9, 21, 0, 0))).toBe(true);
     });
   });
 

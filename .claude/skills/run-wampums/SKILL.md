@@ -46,8 +46,10 @@ every migration through the project's own runner. `seed.mjs` adds one unit with:
 | `leader@run.test` | `Wampums2026!` | leader: participants, attendance, points, badges, walk-ins; no `users.invite` |
 | `parent@run.test` | `Wampums2026!` | parent role (`linked` scope) with the real parent permissions; guardian of one child enrolled this year; standard forms installed |
 
-Two-factor sign-in is off for this unit only. `seed.json` is written to the
-cache for `start.sh`.
+It also holds one outing ("Sortie canot", a month away) with a slip pending
+Marie's signature for Léa. Two-factor sign-in is off for this unit only.
+`seed.json` (with the outing's `activityId`) is written to the cache for
+`start.sh`.
 
 ## Run (agent path)
 
@@ -108,6 +110,10 @@ After `start.sh`, open http://127.0.0.1:5173 and sign in with an account above.
 npm run test:quality
 TEST_DATABASE_URL="postgresql:///wampums_run?host=/var/run/postgresql" npx jest test/parent-invitations.integration.test.js test/parent-onboarding.integration.test.js test/family-links.integration.test.js test/participant-access.integration.test.js test/participant-duplicates.integration.test.js
 ```
+
+With the servers started, `npm run test:a11y` runs the real-browser
+accessibility suite (`e2e/`, Playwright + axe) against them, as the CI job
+"accessibility" does.
 
 The first runs without a database (integration suites skip). The second runs
 the family-access integration suites against the `db.sh` database: 96 tests.

@@ -40,14 +40,39 @@ const ACCEPTANCE_RESULT = {
 const PASSWORD_HASH_ROUNDS = 10;
 
 /**
- * Give the invited person a parent membership in the unit.
+ * Give the invited person a membership in the unit: the roles a leader's
+ * invitation carries, or else the parent role.
  *
  * @param {Object} client - Client inside the acceptance transaction
  * @param {string} userId - User UUID
  * @param {number} organizationId - Unit
+ * @param {number[]|null} [roleIds] - Roles of a leader's invitation
  * @returns {Promise<void>} Resolves once the membership exists
  */
-async function insertParentMembership(client, userId, organizationId) {
+async function insertParentMembership(client, userId, organizationId, roleIds = null) {
+  if (Array.isArray(roleIds) && roleIds.length > 0) {
+    await client.query(
+      `INSERT INTO user_organizations (user_id, organization_id, role_ids, status)
+       VALUES ($1, $2, $3, 'active')`,
+      [userId, organizationId, JSON.stringify(roleIds)]
+    );
+    return;
+  }
+
+  await client.query(
+    `INSERT INTO user_organizations (user_id, organization_id, role_ids, status)
+     VALUES ($1, $2, $3, 'active')`,
+    [userId, organizationId, JSON.stringify([await findParentRoleId(client)])]
+  );
+}
+
+/**
+ * The built-in parent role, which every family membership holds.
+ *
+ * @param {Object} client - Database client
+ * @returns {Promise<number>} Role id
+ */
+async function findParentRoleId(client) {
   const roleResult = await client.query(
     'SELECT id FROM roles WHERE role_name = $1',
     ['parent']
@@ -56,11 +81,63 @@ async function insertParentMembership(client, userId, organizationId) {
   if (roleResult.rows.length === 0) {
     throw new Error("Role 'parent' not found in roles table");
   }
+  return roleResult.rows[0].id;
+}
 
+/**
+ * Make an active member of the unit one of its families too: a member named
+ * a child's parent who holds no family (linked-scope) role receives the parent
+ * role, so the parent features reach them.
+ *
+ * @param {Object} client - Client inside the caller's transaction
+ * @param {string} userId - Member UUID
+ * @param {number} organizationId - Unit
+ * @returns {Promise<{previousRoleIds: number[], newRoleIds: number[]}|null>}
+ *   The change, or null when they already had a family role
+ */
+async function ensureFamilyRole(client, userId, organizationId) {
+  const membership = await client.query(
+    `SELECT uo.id, uo.role_ids,
+            EXISTS (
+              SELECT 1 FROM jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
+                JOIN roles r ON r.id = role_id_text::integer
+               WHERE r.data_scope = 'linked'
+            ) AS has_family_role
+       FROM user_organizations uo
+      WHERE uo.user_id = $1 AND uo.organization_id = $2
+      FOR UPDATE`,
+    [userId, organizationId]
+  );
+  const row = membership.rows[0];
+  if (!row || row.has_family_role) {
+    return null;
+  }
+  const previousRoleIds = (row.role_ids || []).map(Number);
+  await addMembershipRoles(client, row.id, [await findParentRoleId(client)]);
+  const updated = await client.query('SELECT role_ids FROM user_organizations WHERE id = $1', [row.id]);
+  return { previousRoleIds, newRoleIds: (updated.rows[0].role_ids || []).map(Number) };
+}
+
+/**
+ * Add a leader invitation's roles to a membership, keeping those it has.
+ *
+ * @param {Object} client - Client inside the acceptance transaction
+ * @param {number} membershipId - user_organizations id
+ * @param {number[]|null} roleIds - Roles to add
+ * @returns {Promise<void>}
+ */
+async function addMembershipRoles(client, membershipId, roleIds) {
+  if (!Array.isArray(roleIds) || roleIds.length === 0) {
+    return;
+  }
   await client.query(
-    `INSERT INTO user_organizations (user_id, organization_id, role_ids, status)
-     VALUES ($1, $2, $3, 'active')`,
-    [userId, organizationId, JSON.stringify([roleResult.rows[0].id])]
+    `UPDATE user_organizations
+        SET role_ids = (
+          SELECT COALESCE(jsonb_agg(DISTINCT (role.value #>> '{}')::int), '[]'::jsonb)
+            FROM jsonb_array_elements(COALESCE(role_ids, '[]'::jsonb) || $2::jsonb) AS role
+        )
+      WHERE id = $1`,
+    [membershipId, JSON.stringify(roleIds)]
   );
 }
 
@@ -188,9 +265,11 @@ async function upsertGuardianContact(client, {
  * @param {Object} [options] - Options
  * @param {boolean} [options.overrideDeactivation] - The inviting admin confirmed
  *   a hand deactivation should be undone
+ * @param {number[]|null} [options.roleIds] - Roles of a leader's invitation,
+ *   added to the membership whenever access is granted
  * @returns {Promise<string>} One of {@link ACCEPTANCE_RESULT}
  */
-async function attachExistingAccount(client, userId, organizationId, { overrideDeactivation = false } = {}) {
+async function attachExistingAccount(client, userId, organizationId, { overrideDeactivation = false, roleIds = null } = {}) {
   const membership = await client.query(
     `SELECT id, status, deactivated_reason
        FROM user_organizations
@@ -200,13 +279,14 @@ async function attachExistingAccount(client, userId, organizationId, { overrideD
   );
 
   if (membership.rows.length === 0) {
-    await insertParentMembership(client, userId, organizationId);
+    await insertParentMembership(client, userId, organizationId, roleIds);
     return ACCEPTANCE_RESULT.MEMBERSHIP_ADDED;
   }
 
   const existing = membership.rows[0];
 
   if (existing.status === 'active') {
+    await addMembershipRoles(client, existing.id, roleIds);
     return ACCEPTANCE_RESULT.ALREADY_MEMBER;
   }
 
@@ -220,6 +300,7 @@ async function attachExistingAccount(client, userId, organizationId, { overrideD
         WHERE id = $1`,
       [existing.id]
     );
+    await addMembershipRoles(client, existing.id, roleIds);
     return ACCEPTANCE_RESULT.MEMBERSHIP_ADDED;
   }
 
@@ -277,6 +358,7 @@ module.exports = {
   ACCEPTANCE_RESULT,
   PASSWORD_HASH_ROUNDS,
   insertParentMembership,
+  ensureFamilyRole,
   splitFullName,
   upsertGuardianContact,
   attachExistingAccount,

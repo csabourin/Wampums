@@ -48,7 +48,7 @@ function setupConditionalHelpers() {
     };
   }
 
-/**
+  /**
  * Helper to conditionally skip test cases
  *
  * @example
@@ -64,7 +64,7 @@ function setupConditionalHelpers() {
     };
   }
 
-/**
+  /**
  * Helper to conditionally run test cases
  * Opposite of skipIf - only runs if condition is TRUE
  *
@@ -81,7 +81,7 @@ function setupConditionalHelpers() {
     };
   }
 
-/**
+  /**
  * Helper for beforeEach conditional setup
  *
  * @example
@@ -106,7 +106,7 @@ function setupConditionalHelpers() {
     };
   }
 
-/**
+  /**
  * Similar helpers for afterEach
  */
   if (typeof afterEach !== 'undefined' && !afterEach.skipIf) {

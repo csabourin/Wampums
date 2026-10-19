@@ -6,9 +6,9 @@
  * not a cross-origin request.
  */
 const ALLOWED_ORIGIN_PATTERNS = [
-    /^https:\/\/([a-z0-9-]+\.)?wampums\.app$/,
-    /^http:\/\/localhost:\d+$/,
-    /^http:\/\/127\.0\.0\.1:\d+$/,
+  /^https:\/\/([a-z0-9-]+\.)?wampums\.app$/,
+  /^http:\/\/localhost:\d+$/,
+  /^http:\/\/127\.0\.0\.1:\d+$/,
 ];
 
 /**
@@ -16,7 +16,7 @@ const ALLOWED_ORIGIN_PATTERNS = [
  * @returns {boolean} Whether the origin is on the allow-list
  */
 function isAllowedOrigin(origin) {
-    return ALLOWED_ORIGIN_PATTERNS.some((pattern) => pattern.test(origin));
+  return ALLOWED_ORIGIN_PATTERNS.some((pattern) => pattern.test(origin));
 }
 
 /**
@@ -25,14 +25,14 @@ function isAllowedOrigin(origin) {
  * @returns {boolean} Whether the origin is this very host
  */
 function isSameHost(origin, host) {
-    if (!origin || !host) {
-        return false;
-    }
-    try {
-        return new URL(origin).host === host;
-    } catch {
-        return false;
-    }
+  if (!origin || !host) {
+    return false;
+  }
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -45,8 +45,8 @@ function isSameHost(origin, host) {
  * @param {function(string|null, boolean): void} callback - Socket.IO callback
  */
 function allowSocketRequest(req, callback) {
-    const { origin, host } = req.headers;
-    callback(null, !origin || isAllowedOrigin(origin) || isSameHost(origin, host));
+  const { origin, host } = req.headers;
+  callback(null, !origin || isAllowedOrigin(origin) || isSameHost(origin, host));
 }
 
 module.exports = { isAllowedOrigin, allowSocketRequest };

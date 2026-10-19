@@ -19,3 +19,14 @@ export function setUserMembershipStatus(userId, status, reason) {
   const payload = reason ? { status, reason } : { status };
   return API.patch(`v1/users/${userId}/membership`, payload);
 }
+
+/**
+ * Set the name the signed-in member goes by in the unit (a leader's totem
+ * name); an empty value clears it.
+ *
+ * @param {string} nickname - Nickname, or '' for none
+ * @returns {Promise<Object>} API response
+ */
+export function updateMyNickname(nickname) {
+  return API.patch('v1/users/me/nickname', { nickname });
+}

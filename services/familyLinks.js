@@ -105,13 +105,13 @@ function orderPair(a, b) {
  * @returns {string} One of {@link FAMILY_LINK_STATE}
  */
 function classifyFamilyLinkRequest(request, { accountExists, requesterActive, now = new Date() }) {
-  if (!request) return FAMILY_LINK_STATE.INVALID;
-  if (request.status === 'revoked') return FAMILY_LINK_STATE.REVOKED;
-  if (request.status === 'accepted') return FAMILY_LINK_STATE.ACCEPTED;
-  if (request.status === 'declined') return FAMILY_LINK_STATE.DECLINED;
-  if (request.status !== 'pending') return FAMILY_LINK_STATE.INVALID;
-  if (isInvitationExpired(request.expires_at, now)) return FAMILY_LINK_STATE.EXPIRED;
-  if (!requesterActive) return FAMILY_LINK_STATE.UNAVAILABLE;
+  if (!request) {return FAMILY_LINK_STATE.INVALID;}
+  if (request.status === 'revoked') {return FAMILY_LINK_STATE.REVOKED;}
+  if (request.status === 'accepted') {return FAMILY_LINK_STATE.ACCEPTED;}
+  if (request.status === 'declined') {return FAMILY_LINK_STATE.DECLINED;}
+  if (request.status !== 'pending') {return FAMILY_LINK_STATE.INVALID;}
+  if (isInvitationExpired(request.expires_at, now)) {return FAMILY_LINK_STATE.EXPIRED;}
+  if (!requesterActive) {return FAMILY_LINK_STATE.UNAVAILABLE;}
   return accountExists ? FAMILY_LINK_STATE.READY_EXISTING_ACCOUNT : FAMILY_LINK_STATE.READY_NEW_ACCOUNT;
 }
 
@@ -284,7 +284,7 @@ async function withdrawFamilyLinkRequest(pool, { requesterId, organizationId, re
  * @returns {string} HTML-safe text
  */
 function safeText(value) {
-  if (value === null || value === undefined) return '';
+  if (value === null || value === undefined) {return '';}
   return escapeHtml(String(value));
 }
 

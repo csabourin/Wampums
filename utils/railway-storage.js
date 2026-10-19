@@ -9,53 +9,53 @@ const {
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
-} = require("@aws-sdk/client-s3");
-const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
-const sharp = require("sharp");
+} = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const sharp = require('sharp');
 
 // Lazy-loaded to avoid adding HEIC conversion overhead when not needed.
 let heicConvert = null;
 
 const MAX_FILE_SIZE = 30 * 1024 * 1024;
-const OUTPUT_MIME_TYPE = "image/webp";
+const OUTPUT_MIME_TYPE = 'image/webp';
 const PHOTO_MAX_WIDTH = 640;
 const PHOTO_MAX_HEIGHT = 480;
 const PHOTO_WEBP_QUALITY = 82;
-const WEBP_EXTENSION = OUTPUT_MIME_TYPE.split("/")[1];
+const WEBP_EXTENSION = OUTPUT_MIME_TYPE.split('/')[1];
 const DEFAULT_SIGNED_URL_TTL_SECONDS = 60 * 60;
 const MAX_SIGNED_URL_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 const ALLOWED_MIME_TYPES = [
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/gif",
-  "image/heic",
-  "image/heif",
-  "image/heic-sequence",
-  "image/heif-sequence",
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/gif',
+  'image/heic',
+  'image/heif',
+  'image/heic-sequence',
+  'image/heif-sequence',
   OUTPUT_MIME_TYPE,
 ];
 const HEIC_MIME_TYPES = [
-  "image/heic",
-  "image/heif",
-  "image/heic-sequence",
-  "image/heif-sequence",
+  'image/heic',
+  'image/heif',
+  'image/heic-sequence',
+  'image/heif-sequence',
 ];
-const HEIC_EXTENSIONS = ["heic", "heif"];
+const HEIC_EXTENSIONS = ['heic', 'heif'];
 const ALLOWED_IMAGE_EXTENSIONS = [
-  "jpeg",
-  "jpg",
-  "png",
-  "gif",
-  "webp",
-  "heic",
-  "heif",
+  'jpeg',
+  'jpg',
+  'png',
+  'gif',
+  'webp',
+  'heic',
+  'heif',
 ];
 const GENERIC_MIME_TYPES = [
-  "",
-  "application/octet-stream",
-  "binary/octet-stream",
+  '',
+  'application/octet-stream',
+  'binary/octet-stream',
 ];
 
 let s3Client = null;
@@ -70,9 +70,9 @@ let s3ClientFingerprint = null;
 function getFirstEnvironmentValue(...names) {
   for (const name of names) {
     const value = process.env[name]?.trim();
-    if (value) return value;
+    if (value) {return value;}
   }
-  return "";
+  return '';
 }
 
 /**
@@ -81,38 +81,38 @@ function getFirstEnvironmentValue(...names) {
  */
 function getStorageConfig() {
   const urlStyle = getFirstEnvironmentValue(
-    "AWS_S3_URL_STYLE",
-    "RAILWAY_S3_URL_STYLE",
+    'AWS_S3_URL_STYLE',
+    'RAILWAY_S3_URL_STYLE',
   ).toLowerCase();
 
   return {
     endpoint: getFirstEnvironmentValue(
-      "AWS_ENDPOINT_URL",
-      "ENDPOINT",
-      "BUCKET_ENDPOINT",
+      'AWS_ENDPOINT_URL',
+      'ENDPOINT',
+      'BUCKET_ENDPOINT',
     ),
     accessKeyId: getFirstEnvironmentValue(
-      "AWS_ACCESS_KEY_ID",
-      "ACCESS_KEY_ID",
-      "BUCKET_ACCESS_KEY_ID",
+      'AWS_ACCESS_KEY_ID',
+      'ACCESS_KEY_ID',
+      'BUCKET_ACCESS_KEY_ID',
     ),
     secretAccessKey: getFirstEnvironmentValue(
-      "AWS_SECRET_ACCESS_KEY",
-      "SECRET_ACCESS_KEY",
-      "BUCKET_SECRET_ACCESS_KEY",
+      'AWS_SECRET_ACCESS_KEY',
+      'SECRET_ACCESS_KEY',
+      'BUCKET_SECRET_ACCESS_KEY',
     ),
     bucket: getFirstEnvironmentValue(
-      "AWS_S3_BUCKET_NAME",
-      "BUCKET",
-      "BUCKET_NAME",
+      'AWS_S3_BUCKET_NAME',
+      'BUCKET',
+      'BUCKET_NAME',
     ),
     region: getFirstEnvironmentValue(
-      "AWS_DEFAULT_REGION",
-      "AWS_REGION",
-      "REGION",
-      "BUCKET_REGION",
-    ) || "auto",
-    forcePathStyle: urlStyle === "path",
+      'AWS_DEFAULT_REGION',
+      'AWS_REGION',
+      'REGION',
+      'BUCKET_REGION',
+    ) || 'auto',
+    forcePathStyle: urlStyle === 'path',
   };
 }
 
@@ -124,11 +124,11 @@ function getStorageConfig() {
  * @returns {string[]}
  */
 function getStorageImageOrigins(config = getStorageConfig()) {
-  if (!config.endpoint) return [];
+  if (!config.endpoint) {return [];}
 
   try {
     const endpoint = new URL(config.endpoint);
-    if (!['http:', 'https:'].includes(endpoint.protocol)) return [];
+    if (!['http:', 'https:'].includes(endpoint.protocol)) {return [];}
 
     const origins = new Set([endpoint.origin]);
     const bucket = (config.bucket || '').trim();
@@ -162,7 +162,7 @@ function getS3Client() {
   const config = getStorageConfig();
   if (!isStorageConfigured(config)) {
     throw new Error(
-      "Railway bucket configuration missing. Connect the bucket to this service and inject its S3 credentials.",
+      'Railway bucket configuration missing. Connect the bucket to this service and inject its S3 credentials.',
     );
   }
 
@@ -190,7 +190,7 @@ function getS3Client() {
  */
 function validateFile(file) {
   if (!file) {
-    return { isValid: false, error: "No file provided" };
+    return { isValid: false, error: 'No file provided' };
   }
 
   if (file.size > MAX_FILE_SIZE) {
@@ -203,7 +203,7 @@ function validateFile(file) {
   if (!isAllowedImageType(file)) {
     return {
       isValid: false,
-      error: `Invalid file type. Allowed types: ${ALLOWED_MIME_TYPES.join(", ")}`,
+      error: `Invalid file type. Allowed types: ${ALLOWED_MIME_TYPES.join(', ')}`,
     };
   }
 
@@ -216,13 +216,13 @@ function validateFile(file) {
  * @returns {boolean}
  */
 function isAllowedImageType(file) {
-  if (!file) return false;
+  if (!file) {return false;}
 
-  const mimeType = (file.mimetype || "").toLowerCase().split(";")[0];
-  if (ALLOWED_MIME_TYPES.includes(mimeType)) return true;
+  const mimeType = (file.mimetype || '').toLowerCase().split(';')[0];
+  if (ALLOWED_MIME_TYPES.includes(mimeType)) {return true;}
 
-  const extension = (file.originalname || "").split(".").pop();
-  if (!extension) return false;
+  const extension = (file.originalname || '').split('.').pop();
+  if (!extension) {return false;}
 
   return (
     ALLOWED_IMAGE_EXTENSIONS.includes(extension.toLowerCase()) &&
@@ -239,17 +239,17 @@ function isAllowedImageType(file) {
  * @returns {Promise<Buffer>}
  */
 async function convertImageToWebP(fileBuffer, { mimeType, originalFilename }) {
-  const normalizedMime = (mimeType || "").toLowerCase().split(";")[0];
-  const extension = (originalFilename || "").split(".").pop()?.toLowerCase() || "";
+  const normalizedMime = (mimeType || '').toLowerCase().split(';')[0];
+  const extension = (originalFilename || '').split('.').pop()?.toLowerCase() || '';
   const shouldTreatAsHeic =
     HEIC_MIME_TYPES.includes(normalizedMime) || HEIC_EXTENSIONS.includes(extension);
 
   let workingBuffer = fileBuffer;
   if (shouldTreatAsHeic) {
-    if (!heicConvert) heicConvert = require("heic-convert");
+    if (!heicConvert) {heicConvert = require('heic-convert');}
     workingBuffer = await heicConvert({
       buffer: fileBuffer,
-      format: "JPEG",
+      format: 'JPEG',
       quality: 1,
     });
   }
@@ -258,7 +258,7 @@ async function convertImageToWebP(fileBuffer, { mimeType, originalFilename }) {
     .resize({
       width: PHOTO_MAX_WIDTH,
       height: PHOTO_MAX_HEIGHT,
-      fit: "inside",
+      fit: 'inside',
       withoutEnlargement: true,
     })
     .webp({ quality: PHOTO_WEBP_QUALITY })
@@ -282,12 +282,12 @@ function generateFilePath(
   const timestamp = Date.now();
   const normalizedExtension = (
     targetExtension ||
-    (originalFilename?.split(".").pop() ?? "")
+    (originalFilename?.split('.').pop() ?? '')
   )
-    .replace(/^\./, "")
+    .replace(/^\./, '')
     .toLowerCase();
   const extension = normalizedExtension || WEBP_EXTENSION;
-  return `org_${organizationId}/equipment_${equipmentId || "new"}_${timestamp}.${extension}`;
+  return `org_${organizationId}/equipment_${equipmentId || 'new'}_${timestamp}.${extension}`;
 }
 
 /**
@@ -311,7 +311,7 @@ async function uploadFile(fileBuffer, filePath, contentType) {
     );
     return { success: true, path: filePath };
   } catch (err) {
-    console.error("Railway storage upload error:", err.message);
+    console.error('Railway storage upload error:', err.message);
     return { success: false, error: err.message };
   }
 }
@@ -329,7 +329,7 @@ async function deleteFile(filePath) {
     );
     return { success: true };
   } catch (err) {
-    console.error("Railway storage delete error:", err.message);
+    console.error('Railway storage delete error:', err.message);
     return { success: false, error: err.message };
   }
 }
@@ -340,7 +340,7 @@ async function deleteFile(filePath) {
  * @returns {string|null}
  */
 function normalizeObjectKey(value) {
-  if (!value) return null;
+  if (!value) {return null;}
 
   let decoded;
   try {
@@ -349,10 +349,10 @@ function normalizeObjectKey(value) {
     return null;
   }
 
-  const key = decoded.replace(/^\/+/, "");
+  const key = decoded.replace(/^\/+/, '');
   if (
     !key ||
-    key.split("/").includes("..") ||
+    key.split('/').includes('..') ||
     /[\u0000-\u001f\u007f]/.test(key)
   ) {
     return null;
@@ -367,22 +367,22 @@ function normalizeObjectKey(value) {
  * @returns {string|null}
  */
 function extractPathFromUrl(photoReference) {
-  if (typeof photoReference !== "string" || !photoReference.trim()) return null;
+  if (typeof photoReference !== 'string' || !photoReference.trim()) {return null;}
 
   const reference = photoReference.trim();
-  if (!reference.includes("://")) return normalizeObjectKey(reference);
+  if (!reference.includes('://')) {return normalizeObjectKey(reference);}
 
   try {
     const parsedUrl = new URL(reference);
     const legacyStorageMarkers = [
-      "/storage/v1/object/public/",
-      "/storage/v1/object/sign/",
+      '/storage/v1/object/public/',
+      '/storage/v1/object/sign/',
     ];
     for (const marker of legacyStorageMarkers) {
       const markerIndex = parsedUrl.pathname.indexOf(marker);
       if (markerIndex !== -1) {
         const bucketAndKey = parsedUrl.pathname.slice(markerIndex + marker.length);
-        const separatorIndex = bucketAndKey.indexOf("/");
+        const separatorIndex = bucketAndKey.indexOf('/');
         return separatorIndex === -1
           ? null
           : normalizeObjectKey(bucketAndKey.slice(separatorIndex + 1));
@@ -390,14 +390,14 @@ function extractPathFromUrl(photoReference) {
     }
 
     const config = getStorageConfig();
-    if (!config.endpoint || !config.bucket) return null;
+    if (!config.endpoint || !config.bucket) {return null;}
     const endpointUrl = new URL(config.endpoint);
     const isVirtualHostedUrl =
       parsedUrl.hostname === `${config.bucket}.${endpointUrl.hostname}`;
-    if (isVirtualHostedUrl) return normalizeObjectKey(parsedUrl.pathname);
+    if (isVirtualHostedUrl) {return normalizeObjectKey(parsedUrl.pathname);}
 
     if (parsedUrl.hostname === endpointUrl.hostname) {
-      const path = parsedUrl.pathname.replace(/^\/+/, "");
+      const path = parsedUrl.pathname.replace(/^\/+/, '');
       const bucketPrefix = `${config.bucket}/`;
       return normalizeObjectKey(
         path.startsWith(bucketPrefix) ? path.slice(bucketPrefix.length) : path,
@@ -418,14 +418,14 @@ function extractPathFromUrl(photoReference) {
  */
 function getPhotoOrganizationId(photoReference) {
   const filePath = extractPathFromUrl(photoReference);
-  if (!filePath) return null;
+  if (!filePath) {return null;}
 
-  const pathParts = filePath.split("/");
+  const pathParts = filePath.split('/');
   const organizationMatch = /^org_(\d+)$/.exec(pathParts[0]);
   if (
     pathParts.length !== 2 ||
     !organizationMatch ||
-    !pathParts[1].startsWith("equipment_")
+    !pathParts[1].startsWith('equipment_')
   ) {
     return null;
   }
@@ -458,17 +458,17 @@ function isPhotoReferenceOwnedByOrganization(photoReference, organizationId) {
  */
 async function getSignedPhotoUrl(photoReference, organizationId) {
   const filePath = extractPathFromUrl(photoReference);
-  if (!filePath) return photoReference || null;
+  if (!filePath) {return photoReference || null;}
 
-  const pathParts = filePath.split("/");
+  const pathParts = filePath.split('/');
   const isEquipmentPhotoKey =
     pathParts.length === 2 &&
     /^org_\d+$/.test(pathParts[0]) &&
-    pathParts[1].startsWith("equipment_");
+    pathParts[1].startsWith('equipment_');
 
   if (!isEquipmentPhotoKey) {
     const isUrlReference =
-      typeof photoReference === "string" && photoReference.trim().includes("://");
+      typeof photoReference === 'string' && photoReference.trim().includes('://');
     return isUrlReference ? photoReference : null;
   }
 
@@ -478,7 +478,7 @@ async function getSignedPhotoUrl(photoReference, organizationId) {
     return null;
   }
 
-  if (!isStorageConfigured()) return photoReference || null;
+  if (!isStorageConfigured()) {return photoReference || null;}
 
   const rawTtl = Number.parseInt(
     process.env.RAILWAY_S3_SIGNED_URL_TTL_SECONDS,
@@ -496,7 +496,7 @@ async function getSignedPhotoUrl(photoReference, organizationId) {
       { expiresIn },
     );
   } catch (err) {
-    console.error("Railway storage URL signing error:", err.message);
+    console.error('Railway storage URL signing error:', err.message);
     return photoReference || null;
   }
 }

@@ -99,7 +99,7 @@ describe('GET /api/guardians', () => {
       permissions: ['guardians.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM participants p')) {
         // Verify participant exists in org
         return Promise.resolve({
@@ -152,7 +152,7 @@ describe('GET /api/guardians', () => {
       permissions: ['guardians.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM participants p')) {
         return Promise.resolve({ rows: [{ id: PARTICIPANT_ID }] });
       }
@@ -181,7 +181,7 @@ describe('GET /api/guardians', () => {
       permissions: [] // No permission
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] }); // No permission found
       }
@@ -204,7 +204,7 @@ describe('GET /api/guardians', () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken();
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (_query, _params) => {
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
     });
@@ -224,7 +224,7 @@ describe('GET /api/guardians', () => {
       permissions: ['guardians.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM participants p')) {
         return Promise.resolve({ rows: [] }); // Not found
       }
@@ -286,7 +286,7 @@ describe('GET /api/guardians', () => {
       permissions: ['guardians.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM participants p')) {
         return Promise.resolve({ rows: [{ id: PARTICIPANT_ID }] });
       }
@@ -344,7 +344,7 @@ describe('POST /api/guardians', () => {
     let guardianInserted = false;
     let linkInserted = false;
 
-    __mClient.query.mockImplementation((query, params) => {
+    __mClient.query.mockImplementation((query, _params) => {
       if (query === 'BEGIN') {
         transactionStarted = true;
         return Promise.resolve({ rows: [] });
@@ -397,7 +397,7 @@ describe('POST /api/guardians', () => {
 
     let updateCalled = false;
 
-    __mClient.query.mockImplementation((query, params) => {
+    __mClient.query.mockImplementation((query, _params) => {
       if (query === 'BEGIN') {
         return Promise.resolve({ rows: [] });
       }
@@ -440,7 +440,7 @@ describe('POST /api/guardians', () => {
       permissions: [] // No permission
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
       }
@@ -469,7 +469,7 @@ describe('POST /api/guardians', () => {
       permissions: ['guardians.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (_query, _params) => {
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
     });
@@ -493,7 +493,7 @@ describe('POST /api/guardians', () => {
       permissions: ['guardians.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (_query, _params) => {
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
     });
@@ -516,7 +516,7 @@ describe('POST /api/guardians', () => {
       permissions: ['guardians.manage']
     });
 
-    __mClient.query.mockImplementation((query, params) => {
+    __mClient.query.mockImplementation((query, _params) => {
       if (query === 'BEGIN') {
         return Promise.resolve({ rows: [] });
       }
@@ -549,7 +549,7 @@ describe('POST /api/guardians', () => {
       permissions: ['guardians.manage']
     });
 
-    __mClient.query.mockImplementation((query, params) => {
+    __mClient.query.mockImplementation((query, _params) => {
       if (query === 'BEGIN') {
         return Promise.resolve({ rows: [] });
       }
@@ -588,7 +588,7 @@ describe('POST /api/guardians', () => {
 
     let rollbackCalled = false;
 
-    __mClient.query.mockImplementation((query, params) => {
+    __mClient.query.mockImplementation((query, _params) => {
       if (query === 'BEGIN') {
         return Promise.resolve({ rows: [] });
       }
@@ -680,7 +680,7 @@ describe('DELETE /api/guardians', () => {
 
     let deleteCalled = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM participant_guardians pg')) {
         return Promise.resolve({
           rows: [{ guardian_id: GUARDIAN_ID }]
@@ -709,7 +709,7 @@ describe('DELETE /api/guardians', () => {
       permissions: [] // No permission
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
       }
@@ -731,7 +731,7 @@ describe('DELETE /api/guardians', () => {
       permissions: ['guardians.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (_query, _params) => {
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
     });
@@ -751,7 +751,7 @@ describe('DELETE /api/guardians', () => {
       permissions: ['guardians.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM participant_guardians pg')) {
         return Promise.resolve({ rows: [] }); // Link not found
       }
@@ -822,7 +822,7 @@ describe('Guardian Permission Enforcement', () => {
       permissions: ['guardians.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM participants p')) {
         return Promise.resolve({ rows: [{ id: PARTICIPANT_ID }] });
       }
@@ -853,7 +853,7 @@ describe('Guardian Permission Enforcement', () => {
       permissions: ['participants.view'] // Different permission
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
       }

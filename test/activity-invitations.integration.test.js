@@ -131,6 +131,7 @@ describe.skipIf(!DATABASE_URL)('Activities for some participants', () => {
     app.use('/api/v1/resources', require('../routes/resources')(pool));
     const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
     app.use('/api/v1/offline', require('../routes/offline')(pool, logger));
+    app.use('/api', require('../routes/medication')(pool, logger));
   });
 
   afterAll(async () => {
@@ -224,6 +225,33 @@ describe.skipIf(!DATABASE_URL)('Activities for some participants', () => {
       .send({ activity_id: ids.camp, participant_ids: [ids.older, ids.veteran] });
     expect(issued.status).toBe(201);
     expect(issued.body.data.count).toBe(2);
+  });
+
+  test('medication reception learns who takes part: invited, and no slip declined', async () => {
+    const nurseRole = await role(['activities.view', 'medication.view', 'medication.manage'], 'organization');
+    const nurse = await member(nurseRole, 'Camp Nurse');
+    const created = await call('post', '/api/v1/activities', ids.staff)
+      .send({ ...ACTIVITY, activity_start_date: '2026-11-07', activity_end_date: '2026-11-08',
+        invites_everyone: false, invited_participant_ids: [ids.older, ids.veteran] });
+    expect(created.status).toBe(201);
+    const outing = created.body.data.id;
+    // Older's guardian declined; Veteran's declined once, then signed.
+    await pool.query(`INSERT INTO permission_slips (organization_id, participant_id, activity_id, meeting_date, status)
+      VALUES ($1, $2, $4, '2026-11-07', 'declined'), ($1, $3, $4, '2026-11-07', 'declined'),
+             ($1, $3, $4, '2026-11-08', 'signed')`, [ids.unit, ids.older, ids.veteran, outing]);
+
+    const receptions = await call('get', `/api/v1/medication/receptions?activity_id=${outing}`, nurse);
+    expect(receptions.status).toBe(200);
+    expect(receptions.body.data.invited_participant_ids).toEqual([ids.older, ids.veteran].sort((a, b) => a - b));
+    expect(receptions.body.data.declined_participant_ids).toEqual([ids.older]);
+
+    const bundle = await call('post', '/api/v1/offline/prepare-activity', nurse)
+      .send({ activity_id: outing, start_date: '2026-11-07', end_date: '2026-11-08' });
+    expect(bundle.status).toBe(200);
+    expect(bundle.body.data.medications.participation).toEqual({
+      invited_participant_ids: receptions.body.data.invited_participant_ids,
+      declined_participant_ids: [ids.older],
+    });
   });
 
   test('a child from another unit cannot be invited', async () => {

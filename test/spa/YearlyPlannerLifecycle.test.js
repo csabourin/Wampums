@@ -27,7 +27,7 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
 
 jest.mock('../../spa/utils/DOMUtils.js', () => ({
   setContent: (element, content) => {
-    if (element) element.innerHTML = String(content ?? '');
+    if (element) {element.innerHTML = String(content ?? '');}
     return element;
   },
   loadStylesheet: jest.fn(() => Promise.resolve())

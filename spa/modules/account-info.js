@@ -11,15 +11,20 @@ import accountInfoStylesheetUrl from '../../css/account-info.css?url';
 import { makeApiRequest } from '../api/api-core.js';
 import { enablePushNotifications, disablePushNotifications, PushSetupError } from './push/PushSubscription.js';
 import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
-import { translate, app as appInstance } from '../app.js';
+import { translate } from '../app.js';
 import { escapeAttribute, escapeHTML } from '../utils/SecurityUtils.js';
 import { nativeLanguageName } from '../utils/InterfaceLanguageUtils.js';
 import { apiErrorMessage } from '../utils/ApiErrorUtils.js';
-import { holdsFamilyRole, isDemoUser, isParent } from '../utils/PermissionUtils.js';
-import { setContent, loadStylesheet } from '../utils/DOMUtils.js';
+import { canViewActivities, holdsFamilyRole, isDemoUser, isParent } from '../utils/PermissionUtils.js';
+import { CALENDAR_FEED_ANCHOR, CalendarFeedPanel } from './calendar-feed/CalendarFeedPanel.js';
+import { setContent, loadStylesheet, withFormBusy } from '../utils/DOMUtils.js';
+import { updateMyNickname } from '../api/api-members.js';
 import { confirm as confirmDialog } from '../utils/DialogUtils.js';
 import { getStorage, setStorage } from '../utils/StorageUtils.js';
 import { CONFIG, getStorageKey } from '../config.js';
+
+/** Longest a nickname may be, matching users.nickname. */
+const NICKNAME_MAX_LENGTH = 100;
 
 /**
  * Settings/Account Information Management Class
@@ -34,6 +39,13 @@ export class AccountInfoModule {
     this.holdsFamilyRole = false;
     this.pushEnabled = false;
     this.pushSupported = false;
+    // The calendar link serves the unit's activities: offered to those who see them.
+    this.calendarFeedPanel = canViewActivities() ? new CalendarFeedPanel(app) : null;
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.calendarFeedPanel?.destroy();
   }
 
   /**
@@ -227,10 +239,11 @@ export class AccountInfoModule {
                 autocomplete="name"
               />
             </div>
-            <button type="submit" class="btn btn-primary" id="fullname-submit">
+            <button type="submit" class="button button--primary" id="fullname-submit">
               ${translate('save_profile') || translate('account_info_fullname_button')}
             </button>
           </form>
+          ${isParent() ? '' : this.renderNicknameForm()}
         </section>
 
         <!-- Email Section -->
@@ -253,7 +266,7 @@ export class AccountInfoModule {
               />
               <small class="form-text">${translate('account_info_email_warning')}</small>
             </div>
-            <button type="submit" class="btn btn-primary" id="email-submit">
+            <button type="submit" class="button button--primary" id="email-submit">
               ${translate('account_info_email_button')}
             </button>
           </form>
@@ -356,7 +369,7 @@ export class AccountInfoModule {
                   ${translate('guardian_emergency_contact')}
                 </label>
               </div>
-              <button type="submit" class="btn btn-primary" id="guardian-submit" ${!hasParticipantLinks ? 'disabled' : ''}>
+              <button type="submit" class="button button--primary" id="guardian-submit" ${!hasParticipantLinks ? 'disabled' : ''}>
                 ${translate('guardian_save')}
               </button>
             </form>
@@ -404,7 +417,7 @@ export class AccountInfoModule {
                 autocomplete="new-password"
               />
             </div>
-            <button type="submit" class="btn btn-primary" id="password-submit">
+            <button type="submit" class="button button--primary" id="password-submit">
               ${translate('change_password') || translate('account_info_password_button')}
             </button>
           </form>
@@ -454,9 +467,13 @@ export class AccountInfoModule {
         </section>
         ` : ''}
 
+        ${this.calendarFeedPanel ? `
+        <section class="account-section calendar-feed" id="${CALENDAR_FEED_ANCHOR}" aria-labelledby="calendar-feed-heading"></section>
+        ` : ''}
+
         <!-- Account Actions -->
         <section class="account-section">
-          <button class="btn btn-danger" id="logout-btn">
+          <button class="button button--danger" id="logout-btn">
             ${translate('logout')}
           </button>
         </section>
@@ -470,6 +487,7 @@ export class AccountInfoModule {
     const appContainer = document.getElementById('app');
     if (appContainer) {
       setContent(appContainer, content);
+      this.calendarFeedPanel?.mount(document.getElementById(CALENDAR_FEED_ANCHOR));
     } else {
       debugError('App container not found');
     }
@@ -498,6 +516,9 @@ export class AccountInfoModule {
    * Attach event listeners to forms and buttons
    */
   attachEventListeners() {
+    document.getElementById('account-nickname-form')
+      ?.addEventListener('submit', (event) => this.handleNicknameUpdate(event));
+
     // Full name form
     const fullnameForm = document.getElementById('fullname-form');
     if (fullnameForm) {
@@ -635,6 +656,50 @@ export class AccountInfoModule {
         submitButton.textContent = translate('guardian_save');
       }
     }
+  }
+
+  /**
+   * The leader's nickname (totem name), shown in place of their full name.
+   * @returns {string} Form markup
+   */
+  renderNicknameForm() {
+    return `
+          <form id="account-nickname-form" class="account-form" novalidate>
+            <div class="form-group">
+              <label for="account-nickname-input">${translate('nickname')}</label>
+              <input
+                type="text"
+                id="account-nickname-input"
+                value="${escapeAttribute(this.userData?.nickname || '')}"
+                maxlength="${NICKNAME_MAX_LENGTH}"
+                autocomplete="nickname"
+                aria-describedby="account-nickname-hint"
+              />
+              <p class="form-help" id="account-nickname-hint">${translate('nickname_leader_hint')}</p>
+            </div>
+            <button type="submit" class="button button--primary">${translate('nickname_save')}</button>
+          </form>`;
+  }
+
+  /**
+   * Save the nickname; an empty field clears it.
+   * @param {SubmitEvent} event - Form submit event
+   * @returns {Promise<void>}
+   */
+  async handleNicknameUpdate(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const input = form.querySelector('#account-nickname-input');
+    await withFormBusy(form, async () => {
+      try {
+        const response = await updateMyNickname(input.value.trim());
+        this.userData.nickname = response?.data?.nickname ?? (input.value.trim() || null);
+        this.app.showMessage(translate(response?.queued ? 'nickname_saved_offline' : 'nickname_saved'), response?.queued ? 'info' : 'success');
+      } catch (error) {
+        debugError('Error updating nickname:', error);
+        this.app.showMessage(apiErrorMessage(error, 'nickname_save_failed'), 'error');
+      }
+    });
   }
 
   /**
@@ -995,7 +1060,7 @@ export class AccountInfoModule {
     }
 
     try {
-      const { Login } = await import('../login.js');
+      const { Login } = await import('./session/Login.js');
       await Login.logout();
       // Note: Login.logout() always redirects via window.location.href (never throws)
     } catch (error) {

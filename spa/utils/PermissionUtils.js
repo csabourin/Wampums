@@ -413,6 +413,23 @@ export function canManageActivities() {
 }
 
 /**
+ * What the permission-slip screen reads: the unit's activities, its roster
+ * and its groups. Its slip summary also needs a whole-unit role.
+ */
+export const PERMISSION_SLIP_SCREEN_PERMISSIONS = ['activities.view', 'participants.view', 'groups.view'];
+
+/**
+ * Whether the person can follow the unit's permission slips (/permission-slips):
+ * a whole-unit role holding every permission the screen reads. A parent signs
+ * their own children's slips from the parent dashboard instead.
+ *
+ * @returns {boolean} True when the permission-slip screen would load
+ */
+export function canFollowPermissionSlips() {
+  return hasOrganizationScope() && hasAllPermissions(...PERMISSION_SLIP_SCREEN_PERMISSIONS);
+}
+
+/**
  * Determine if the current user can view attendance data
  *
  * @returns {boolean} True when attendance view or manage permission is granted

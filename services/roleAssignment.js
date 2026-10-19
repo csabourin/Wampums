@@ -151,7 +151,49 @@ function permissionCountsAgainstGrantor(permission, role) {
   return !(permission.self_scoped && role.data_scope === 'linked');
 }
 
+/**
+ * Record a change to a member's roles, with the roles as they are now, so the
+ * history stays readable after a role is renamed or deleted. Nothing is
+ * written when the roles did not change.
+ *
+ * @param {Object} client - Client inside the change's transaction
+ * @param {Object} entry
+ * @param {number} entry.organizationId - Unit
+ * @param {string} entry.userId - Member UUID
+ * @param {string} entry.changedBy - UUID of the person making the change
+ * @param {number[]} entry.previousRoleIds - Roles before
+ * @param {number[]} entry.newRoleIds - Roles after
+ * @param {?string} entry.note - Optional reason
+ * @returns {Promise<void>}
+ */
+async function recordRoleChange(client, { organizationId, userId, changedBy, previousRoleIds, newRoleIds, note }) {
+  const before = normalizeRoleIds(previousRoleIds);
+  const after = normalizeRoleIds(newRoleIds);
+  const unchanged = before.length === after.length && before.every((id) => after.includes(id));
+  if (unchanged) {
+    return;
+  }
+
+  await client.query(
+    `WITH snapshot AS (
+       SELECT id, jsonb_build_object('id', id, 'role_name', role_name, 'display_name', display_name) AS role
+         FROM roles
+        WHERE id = ANY($4::int[]) OR id = ANY($5::int[])
+     )
+     INSERT INTO role_assignment_audit
+       (organization_id, user_id, changed_by, previous_roles, new_roles, note)
+     VALUES (
+       $1, $2, $3,
+       COALESCE((SELECT jsonb_agg(role ORDER BY id) FROM snapshot WHERE id = ANY($4::int[])), '[]'::jsonb),
+       COALESCE((SELECT jsonb_agg(role ORDER BY id) FROM snapshot WHERE id = ANY($5::int[])), '[]'::jsonb),
+       $6
+     )`,
+    [organizationId, userId, changedBy, before, after, note]
+  );
+}
+
 module.exports = {
+  recordRoleChange,
   findRolesInUnit,
   checkRoleChange,
   permissionCountsAgainstGrantor,

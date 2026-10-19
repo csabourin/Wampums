@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
-const { success, error, asyncHandler } = require('../middleware/response');
+const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const { carpoolRosterRestriction } = require('../services/carpoolAccess');
 const { findUninvitedParticipants } = require('../services/activityInvitations');
 
@@ -193,7 +193,7 @@ module.exports = (pool) => {
     const hasManagePermission = req.userPermissions && req.userPermissions.includes('carpools.manage');
 
     if (!isOwner && !hasManagePermission) {
-      return error(res, 'You do not have permission to update this carpool offer', 403);
+      return forbidden(res, 'You do not have permission to update this carpool offer', ['carpools.manage'], ['carpools.manage']);
     }
 
     // Validate trip direction if provided
@@ -264,7 +264,7 @@ module.exports = (pool) => {
     const hasManagePermission = req.userPermissions && req.userPermissions.includes('carpools.manage');
 
     if (!isOwner && !hasManagePermission) {
-      return error(res, 'You do not have permission to cancel this carpool offer', 403);
+      return forbidden(res, 'You do not have permission to cancel this carpool offer', ['carpools.manage'], ['carpools.manage']);
     }
 
     // Get affected participants and their guardians before deactivating
@@ -368,7 +368,7 @@ module.exports = (pool) => {
       );
 
       if (guardianCheck.rows.length === 0) {
-        return error(res, 'You can only assign your own children to carpools', 403);
+        return forbidden(res, 'You can only assign your own children to carpools', ['carpools.manage'], ['carpools.manage']);
       }
     }
 
@@ -466,7 +466,7 @@ module.exports = (pool) => {
       );
 
       if (guardianCheck.rows.length === 0) {
-        return error(res, 'You can only remove your own children from carpools', 403);
+        return forbidden(res, 'You can only remove your own children from carpools', ['carpools.manage'], ['carpools.manage']);
       }
     }
 

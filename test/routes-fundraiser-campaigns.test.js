@@ -34,7 +34,7 @@ function createFixture() {
   /** @type {Array<{query: string, params: Array}>} */
   const insertedCampaigns = [];
 
-  const respond = async (query, params = []) => {
+  const respond = async (query, _params = []) => {
     if (query.includes('information_schema.columns')) {
       // Migration 004 has been applied in this fixture.
       return { rows: [{ campaign_columns: '3', entry_columns: '3' }] };
@@ -435,7 +435,7 @@ describe('databases where migration 004 has not been applied', () => {
     };
 
     const pool = {
-      query: jest.fn(async (query, params = []) => {
+      query: jest.fn(async (query, _params = []) => {
         if (query.includes('information_schema.columns')) {
           // Legacy database: none of the new columns are present.
           return { rows: [{ campaign_columns: '0', entry_columns: '0' }] };

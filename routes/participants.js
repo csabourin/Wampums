@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, getUserDataScope, withScoutYear } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
+const { validateIdParam, validateNickname, checkValidation } = require('../middleware/validation');
 const { ensureActiveScoutYear, flagRequiredFormsForReview } = require('../services/scoutYear');
 const {
   ACCESS_SOURCE,
@@ -16,6 +17,7 @@ const { declaresMedication } = require('../utils/health-form');
 /** `GET /participants?include=medication` adds the per-child medication flags. */
 const MEDICATION_FLAGS_INCLUDE = 'medication';
 const BAD_REQUEST_STATUS = 400;
+const NOT_FOUND_STATUS = 404;
 const { eraseParticipant } = require('../services/erasure');
 
 /**
@@ -1679,6 +1681,44 @@ module.exports = (pool) => {
    *       200:
    *         description: Participant updated
    */
+  /**
+   * PATCH /api/v1/participants/:id/nickname
+   * Set the name a youth goes by in the unit, shown in place of the first
+   * name. An empty value clears it; the legal name is left as it is.
+   */
+  router.patch('/:id/nickname',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('participants.edit'),
+    validateIdParam('id'),
+    validateNickname,
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const participantId = Number(req.params.id);
+      const nickname = typeof req.body.nickname === 'string' && req.body.nickname.trim()
+        ? req.body.nickname.trim()
+        : null;
+
+      const result = await pool.query(
+        `UPDATE participants
+            SET nickname = $1
+          WHERE id = $2
+            AND EXISTS (
+              SELECT 1 FROM participant_organizations po
+               WHERE po.participant_id = $2 AND po.organization_id = $3
+            )
+          RETURNING id, first_name, last_name, nickname`,
+        [nickname, participantId, organizationId]
+      );
+
+      if (result.rows.length === 0) {
+        return error(res, 'Participant not found', NOT_FOUND_STATUS);
+      }
+      return success(res, result.rows[0], 'Nickname saved');
+    })
+  );
+
   router.put('/:id', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     if (!isPlainBodyObject(req.body)) {
       return error(res, 'Invalid request body. Expected JSON object payload.', 400);

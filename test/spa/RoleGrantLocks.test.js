@@ -73,8 +73,8 @@ jest.mock('../../spa/utils/DOMUtils.js', () => {
 
 import { updateUserRolesV1 as adminUpdateRoles } from '../../spa/ajax-functions.js';
 import * as endpoints from '../../spa/api/api-endpoints.js';
-import { Admin } from '../../spa/admin.js';
-import { RoleManagement } from '../../spa/role_management.js';
+import { Admin } from '../../spa/modules/admin/Admin.js';
+import { RoleManagement } from '../../spa/modules/roles/RoleManagement.js';
 
 const AXE_OPTIONS = {
   runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },

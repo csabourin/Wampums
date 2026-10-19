@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  *
- * User stories: attendance page (spa/attendance.js) with the real IndexedDB
+ * User stories: attendance page (spa/modules/attendance/Attendance.js) with the real IndexedDB
  * layer (fake-indexeddb) and real date/cache-parsing logic.
  *
  * Implements: US-ATT-001, US-ATT-002, US-ATT-004, US-ATT-005, US-ATT-006,
@@ -73,7 +73,7 @@ const { app: mockGlobalApp } = require('../../spa/app.js');
 const { getActivities } = require('../../spa/api/api-activities.js');
 const { setCachedData, getCachedData } = require('../../spa/indexedDB.js');
 const { formatDate, getTodayISO } = require('../../spa/utils/DateUtils.js');
-const { Attendance } = require('../../spa/attendance.js');
+const { Attendance } = require('../../spa/modules/attendance/Attendance.js');
 const {
   tr,
   flushPromises,
@@ -568,5 +568,50 @@ describe('US-NAV-002 — No attendance permission, no attendance page', () => {
 
     expect(appStub.router.navigate).toHaveBeenCalledWith('/dashboard');
     expect(ajax.getAttendanceDates).not.toHaveBeenCalled();
+  });
+});
+
+describe('US-ATT-A11Y — The page says what it is, in every state', () => {
+  const pageTitle = () => document.querySelectorAll('#app h1');
+
+  it('opens with a back link, then the page title, while loading', () => {
+    const page = new Attendance(makeAppStub());
+    page.renderSkeleton();
+
+    const first = document.querySelector('#app').firstElementChild;
+    expect(first.tagName).toBe('A');
+    expect(first.getAttribute('href')).toBe('/dashboard');
+    expect(pageTitle()).toHaveLength(1);
+    expect(pageTitle()[0].textContent).toBe(tr('attendance_page_title'));
+  });
+
+  it('keeps one page title once the unit is loaded', async () => {
+    seedStandardData();
+    await initPage();
+
+    expect(pageTitle()).toHaveLength(1);
+    expect(pageTitle()[0].textContent).toBe(tr('attendance_page_title'));
+    expect(document.querySelector('#app').firstElementChild.getAttribute('href')).toBe('/dashboard');
+  });
+
+  it('explains a failed load in the page, with a way back and a retry that loads again', async () => {
+    seedStandardData();
+    ajax.getAttendanceDates.mockRejectedValueOnce(new Error('offline'));
+    ajax.getParticipants.mockRejectedValueOnce(new Error('offline'));
+    await initPage();
+
+    expect(pageTitle()[0].textContent).toBe(tr('attendance_page_title'));
+    expect(document.querySelector('[role="alert"]').textContent).toBe(tr('error_loading_attendance'));
+    expect(document.querySelector('#app').firstElementChild.getAttribute('href')).toBe('/dashboard');
+
+    document.getElementById('attendance-retry').click();
+    // The reload goes through IndexedDB: wait for its outcome, not a fixed number of ticks.
+    for (let tick = 0; tick < 50 && document.querySelectorAll('.group-card:not(.skeleton)').length === 0; tick += 1) {
+      // eslint-disable-next-line no-await-in-loop -- polls until the page is drawn
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+    expect(document.querySelectorAll('.group-card')).toHaveLength(2);
   });
 });

@@ -3,7 +3,7 @@
  * Utilities for exporting data to various formats (CSV, etc.)
  */
 
-import { debugLog } from "./DebugUtils.js";
+import { debugLog } from './DebugUtils.js';
 
 /**
  * Export data to a CSV file and trigger download.
@@ -13,38 +13,38 @@ import { debugLog } from "./DebugUtils.js";
  * @param {string} filename - Desired filename (without extension)
  */
 export function exportToCSV(data, columns, filename) {
-    if (!data || !data.length) {
-        debugLog('ExportUtils: No data to export');
-        return;
-    }
+  if (!data || !data.length) {
+    debugLog('ExportUtils: No data to export');
+    return;
+  }
 
-    // 1. Create Header Row
-    const headerRow = columns.map(col => escapeCSV(col.label)).join(',');
+  // 1. Create Header Row
+  const headerRow = columns.map(col => escapeCSV(col.label)).join(',');
 
-    // 2. Create Data Rows
-    const rows = data.map(item => {
-        return columns.map(col => {
-            let value = item[col.key];
+  // 2. Create Data Rows
+  const rows = data.map(item => {
+    return columns.map(col => {
+      let value = item[col.key];
 
-            // Apply custom formatting if provided
-            if (col.format && typeof col.format === 'function') {
-                value = col.format(value, item);
-            }
+      // Apply custom formatting if provided
+      if (col.format && typeof col.format === 'function') {
+        value = col.format(value, item);
+      }
 
-            // Handle null/undefined
-            if (value === null || value === undefined) {
-                value = '';
-            }
+      // Handle null/undefined
+      if (value === null || value === undefined) {
+        value = '';
+      }
 
-            return escapeCSV(String(value));
-        }).join(',');
-    });
+      return escapeCSV(String(value));
+    }).join(',');
+  });
 
-    // 3. Combine with BOM for Excel UTF-8 support
-    const csvContent = '\uFEFF' + [headerRow, ...rows].join('\n');
+  // 3. Combine with BOM for Excel UTF-8 support
+  const csvContent = `\uFEFF${  [headerRow, ...rows].join('\n')}`;
 
-    // 4. Trigger Download
-    downloadBlob(csvContent, `${filename}.csv`, 'text/csv;charset=utf-8;');
+  // 4. Trigger Download
+  downloadBlob(csvContent, `${filename}.csv`, 'text/csv;charset=utf-8;');
 }
 
 /**
@@ -53,16 +53,16 @@ export function exportToCSV(data, columns, filename) {
  * @returns {string}
  */
 function escapeCSV(str) {
-    if (str === null || str === undefined) return '';
-    const stringValue = String(str);
+  if (str === null || str === undefined) {return '';}
+  const stringValue = String(str);
 
-    // Check if value contains special chars
-    if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
-        // Escape double quotes by doubling them
-        return `"${stringValue.replace(/"/g, '""')}"`;
-    }
+  // Check if value contains special chars
+  if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+    // Escape double quotes by doubling them
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
 
-    return stringValue;
+  return stringValue;
 }
 
 /**
@@ -72,17 +72,17 @@ function escapeCSV(str) {
  * @param {string} mimeType 
  */
 function downloadBlob(content, filename, mimeType) {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
 
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
 
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 
-    URL.revokeObjectURL(url);
+  URL.revokeObjectURL(url);
 }

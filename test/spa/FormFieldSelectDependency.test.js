@@ -44,7 +44,7 @@ jest.mock('../../spa/utils/DialogUtils.js', () => ({
   confirmDestructive: jest.fn()
 }));
 
-import { FormBuilder } from '../../spa/formBuilder.js';
+import { FormBuilder } from '../../spa/modules/forms/FormBuilder.js';
 import { JSONFormRenderer } from '../../spa/JSONFormRenderer.js';
 import { DynamicFormHandler } from '../../spa/dynamicFormHandler.js';
 import { confirmDestructive } from '../../spa/utils/DialogUtils.js';

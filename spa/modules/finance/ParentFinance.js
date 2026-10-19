@@ -1,0 +1,613 @@
+import {
+  getCurrentOrganizationId,
+  fetchParticipants,
+  getParticipantStatement
+} from '../../ajax-functions.js';
+import { createStripePaymentIntent } from '../../api/api-endpoints.js';
+import { clearFinanceRelatedCaches } from '../../indexedDB.js';
+import { debugLog, debugError } from '../../utils/DebugUtils.js';
+import { translate } from '../../app.js';
+import { CONFIG } from '../../config.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { LoadingStateManager, retryWithBackoff } from '../../utils/PerformanceUtils.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { openModal, closeModal } from '../../utils/ModalUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageError } from '../../utils/PageStateUtils.js';
+
+export class ParentFinance {
+  constructor(app) {
+    this.app = app;
+    this.participants = [];
+    this.participantStatements = new Map();
+    this.consolidatedTotals = {
+      total_billed: 0,
+      total_paid: 0,
+      total_outstanding: 0
+    };
+
+    // Loading state management
+    this.loadingManager = new LoadingStateManager();
+    this.isInitializing = false;
+
+    // Stripe integration
+    this.stripe = null;
+    this.elements = null;
+    this.paymentElement = null;
+    this.currentPaymentIntentId = null;
+    this.currentFeeId = null;
+    this.destroyed = false;
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
+  }
+
+  async init() {
+    // Prevent race conditions - only one init at a time
+    if (this.isInitializing) {
+      debugError('ParentFinance init already in progress, skipping duplicate call');
+      return;
+    }
+
+    this.isInitializing = true;
+    this.renderLoading();
+
+    try {
+      await this.initializeStripe();
+      await this.fetchParticipants();
+      await this.fetchAllStatements();
+    } catch (error) {
+      // A statement that did not arrive is never shown as nothing owed.
+      debugError('Error loading parent finance:', error);
+      this.renderError();
+      return;
+    } finally {
+      this.isInitializing = false;
+    }
+
+    if (this.destroyed) {
+      return;
+    }
+    this.calculateConsolidatedTotals();
+    this.render();
+    this.attachEventListeners();
+  }
+
+  /** The error state, with a retry. */
+  renderError() {
+    if (this.destroyed) {
+      return;
+    }
+    showPageError(document.getElementById('app'), {
+      title: translate('my_finances'),
+      className: 'parent-finance-page',
+    }, () => this.init());
+  }
+
+  async initializeStripe() {
+    // Without a key there is no online payment: Stripe's script is not loaded at all.
+    const publishableKey = CONFIG.PAYMENTS?.STRIPE_PUBLISHABLE_KEY;
+    if (!publishableKey) {
+      debugLog('Online payment is not configured');
+      return;
+    }
+    try {
+      // Load Stripe.js dynamically
+      if (!window.Stripe) {
+        const script = document.createElement('script');
+        script.src = 'https://js.stripe.com/v3/';
+        script.async = true;
+        document.head.appendChild(script);
+
+        await new Promise((resolve, reject) => {
+          script.onload = resolve;
+          script.onerror = reject;
+        });
+      }
+
+      this.stripe = window.Stripe(publishableKey);
+      debugLog('Stripe initialized successfully');
+    } catch (error) {
+      debugError('Error initializing Stripe:', error);
+    }
+  }
+
+  async fetchParticipants() {
+    return this.loadingManager.withLoading('participants', async () => {
+      try {
+        const response = await retryWithBackoff(
+          () => fetchParticipants(getCurrentOrganizationId()),
+          {
+            maxRetries: 2,
+            onRetry: (attempt, max, delay) => {
+              debugLog(`Retrying fetchParticipants (${attempt}/${max}) in ${delay}ms`);
+            }
+          }
+        );
+
+        const uniqueParticipants = new Map();
+
+        if (Array.isArray(response)) {
+          response.forEach(participant => {
+            if (!uniqueParticipants.has(participant.id)) {
+              uniqueParticipants.set(participant.id, participant);
+            }
+          });
+        }
+
+        this.participants = Array.from(uniqueParticipants.values());
+        debugLog('Fetched participants for finance:', this.participants);
+      } catch (error) {
+        debugError('Error fetching participants:', error);
+        this.participants = [];
+        throw error;
+      }
+    });
+  }
+
+  async fetchAllStatements() {
+    try {
+      // If there are no participants, skip fetching statements
+      if (!this.participants || this.participants.length === 0) {
+        debugLog('No participants to fetch statements for');
+        return;
+      }
+
+      const statementPromises = this.participants.map(participant =>
+        getParticipantStatement(participant.id)
+          .then(response => ({
+            participantId: participant.id,
+            statement: response?.data || response
+          }))
+      );
+
+      // Every child's statement or none: totals without one child would be wrong.
+      const statements = await Promise.all(statementPromises);
+      this.participantStatements = new Map();
+      statements.forEach(({ participantId, statement }) => {
+        if (statement) {
+          this.participantStatements.set(participantId, statement);
+        }
+      });
+
+      debugLog('Fetched all statements:', this.participantStatements);
+    } catch (error) {
+      debugError('Error fetching participant statements:', error);
+      throw error;
+    }
+  }
+
+  calculateConsolidatedTotals() {
+    this.consolidatedTotals = {
+      total_billed: 0,
+      total_paid: 0,
+      total_outstanding: 0
+    };
+
+    this.participantStatements.forEach(statement => {
+      const totals = statement?.totals || {};
+      this.consolidatedTotals.total_billed += Number(totals.total_billed) || 0;
+      this.consolidatedTotals.total_paid += Number(totals.total_paid) || 0;
+      this.consolidatedTotals.total_outstanding += Number(totals.total_outstanding) || 0;
+    });
+
+    debugLog('Consolidated totals:', this.consolidatedTotals);
+  }
+
+  formatCurrency(amount = 0) {
+    const numericValue = Number.parseFloat(amount);
+    if (!Number.isFinite(numericValue)) {
+      return this.formatCurrency(0);
+    }
+
+    const locale = this.app?.language || CONFIG.DEFAULT_LANG || 'en';
+    const currency = CONFIG.DEFAULT_CURRENCY || 'CAD';
+
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(numericValue);
+  }
+
+  renderLoading() {
+    const content = `
+      <section class="page parent-finance-page" aria-busy="true">
+        ${renderBackLink()}
+        <h1>${translate('my_finances')}</h1>
+        <div class="loading-container">
+          <div class="loading-spinner" aria-hidden="true"></div>
+          <p role="status">${translate('loading')}</p>
+        </div>
+      </section>
+    `;
+
+    setContent(document.getElementById('app'), content);
+  }
+
+  render() {
+    // /dashboard sends a parent to the parent dashboard and staff to theirs.
+    const content = `
+      <section class="page parent-finance-page">
+        ${renderBackLink()}
+        <header class="finance-header">
+          <div>
+            <h1>${translate('my_finances')}</h1>
+            <p class="finance-subtitle">${translate('view_your_financial_summary')}</p>
+          </div>
+        </header>
+
+        ${this.renderConsolidatedSummary()}
+
+        <div class="finance-section">
+          <h2>${translate('by_participant')}</h2>
+          ${this.renderParticipantStatements()}
+        </div>
+      </section>
+    `;
+
+    setContent(document.getElementById('app'), content);
+  }
+
+  renderConsolidatedSummary() {
+    if (this.participants.length === 0) {
+      return `<p class="finance-helper">${translate('no_participants')}</p>`;
+    }
+
+    return `
+      <article class="finance-card finance-card--highlight">
+        <h2>${translate('consolidated_balance')}</h2>
+        <div class="finance-stats">
+          <div>
+            <p class="finance-stat__label">${translate('total_billed')}</p>
+            <p class="finance-stat__value">${this.formatCurrency(this.consolidatedTotals.total_billed)}</p>
+          </div>
+          <div>
+            <p class="finance-stat__label">${translate('total_paid')}</p>
+            <p class="finance-stat__value">${this.formatCurrency(this.consolidatedTotals.total_paid)}</p>
+          </div>
+          <div>
+            <p class="finance-stat__label">${translate('outstanding_balance')}</p>
+            <p class="finance-stat__value finance-stat__value--alert">${this.formatCurrency(this.consolidatedTotals.total_outstanding)}</p>
+          </div>
+        </div>
+      </article>
+    `;
+  }
+
+  renderParticipantStatements() {
+    if (this.participants.length === 0) {
+      return `<p class="finance-helper">${translate('no_participants')}</p>`;
+    }
+
+    return this.participants
+      .map(participant => {
+        const statement = this.participantStatements.get(participant.id);
+        const totals = statement?.totals || {
+          total_billed: 0,
+          total_paid: 0,
+          total_outstanding: 0
+        };
+
+        const participantName = escapeHTML(`${participant.first_name} ${participant.last_name}`);
+        const fees = statement?.fees || [];
+
+        return `
+          <article class="finance-card" data-participant-id="${participant.id}">
+            <div class="finance-card__header">
+              <h3>${participantName}</h3>
+              ${totals.total_outstanding > 0
+    ? `<span class="finance-pill finance-pill--warning">${translate('amount_due')}</span>`
+    : `<span class="finance-pill finance-pill--success">${translate('paid')}</span>`
+}
+            </div>
+
+            <div class="finance-amounts">
+              <div>
+                <p class="finance-stat__label">${translate('total_billed')}</p>
+                <p class="finance-stat__value">${this.formatCurrency(totals.total_billed)}</p>
+              </div>
+              <div>
+                <p class="finance-stat__label">${translate('total_paid')}</p>
+                <p class="finance-stat__value">${this.formatCurrency(totals.total_paid)}</p>
+              </div>
+              <div>
+                <p class="finance-stat__label">${translate('outstanding_balance')}</p>
+                <p class="finance-stat__value finance-stat__value--alert">${this.formatCurrency(totals.total_outstanding)}</p>
+              </div>
+            </div>
+
+            ${fees.length > 0 ? `
+              <details class="finance-details">
+                <summary class="finance-details__summary">${translate('view_details')}</summary>
+                <div class="finance-details__content">
+                  ${this.renderFeeDetails(fees)}
+                </div>
+              </details>
+            ` : ''}
+          </article>
+        `;
+      })
+      .join('');
+  }
+
+  renderFeeDetails(fees) {
+    return fees
+      .map(fee => {
+        const yearRange = this.formatYearRange(fee.year_start, fee.year_end);
+        const statusLabel = translate(fee.status) || fee.status;
+        const hasOutstanding = fee.outstanding > 0;
+
+        return `
+          <div class="finance-list__row" data-fee-id="${fee.id}">
+            <div>
+              <p class="finance-meta"><strong>${yearRange}</strong></p>
+              <p class="finance-meta">${translate('status')}: ${statusLabel}</p>
+            </div>
+            <div class="finance-row-values">
+              <div>
+                <p class="finance-meta">${translate('total_billed')}</p>
+                <span>${this.formatCurrency(fee.total_amount)}</span>
+              </div>
+              <div>
+                <p class="finance-meta">${translate('total_paid')}</p>
+                <span>${this.formatCurrency(fee.total_paid)}</span>
+              </div>
+              <div>
+                <p class="finance-meta">${translate('outstanding_balance')}</p>
+                <span class="finance-stat__value--alert">${this.formatCurrency(fee.outstanding)}</span>
+              </div>
+            </div>
+            ${hasOutstanding ? `
+              <div class="finance-actions">
+                <button
+                  class="button button--primary pay-now-btn"
+                  data-fee-id="${fee.id}"
+                  data-amount="${fee.outstanding}"
+                  data-participant-name="${escapeHTML(fee.participant_name || '')}"
+                >
+                  💳 ${translate('pay_now')} (${this.formatCurrency(fee.outstanding)})
+                </button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  formatYearRange(start, end) {
+    const startYear = this.extractYear(start);
+    const endYear = this.extractYear(end);
+
+    if (startYear && endYear) {
+      return startYear === endYear
+        ? String(startYear)
+        : `${startYear}-${endYear}`;
+    }
+    if (startYear || endYear) {
+      return String(startYear || endYear);
+    }
+    return translate('unknown');
+  }
+
+  extractYear(dateValue) {
+    if (!dateValue) {return null;}
+    const parsedDate = new Date(dateValue);
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return parsedDate.getFullYear();
+    }
+
+    const match = String(dateValue).match(/\d{4}/);
+    return match ? Number(match[0]) : null;
+  }
+
+  attachEventListeners() {
+    // Attach pay now button listeners
+    const payButtons = document.querySelectorAll('.pay-now-btn');
+    payButtons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        const feeId = e.target.dataset.feeId;
+        const amount = parseFloat(e.target.dataset.amount);
+        const participantName = e.target.dataset.participantName;
+        this.openPaymentModal(feeId, amount, participantName);
+      });
+    });
+
+    debugLog('Parent finance event listeners attached');
+  }
+
+  openPaymentModal(feeId, amount, participantName) {
+    if (!this.stripe) {
+      this.app.showMessage(translate('payment_system_unavailable'), 'error');
+      return;
+    }
+
+    this.currentFeeId = feeId;
+
+    const submitBtn = this.renderPaymentModal(amount, participantName);
+    this.initializePayment(feeId, amount, submitBtn);
+  }
+
+  /**
+   * Open the payment dialog. It cannot be dismissed while a payment is being
+   * confirmed.
+   * @param {number} amount - Amount to pay
+   * @param {string} participantName - Child the fee belongs to
+   * @returns {HTMLButtonElement} The pay button, enabled once Stripe is ready
+   */
+  renderPaymentModal(amount, participantName) {
+    const { overlay } = openModal({
+      id: 'payment-modal',
+      title: `<span aria-hidden="true">💳</span> ${translate('make_payment')}`,
+      className: 'payment-modal',
+      body: `
+        <div class="payment-info">
+          <p><strong>${translate('participant')}:</strong> ${escapeHTML(participantName)}</p>
+          <p><strong>${translate('amount_to_pay')}:</strong> ${this.formatCurrency(amount)}</p>
+        </div>
+
+        <div class="payment-form-container">
+          <div id="payment-element"></div>
+          <div id="payment-error-message" class="error-message" role="alert"></div>
+        </div>
+      `,
+      footer: `
+        <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="button" class="button button--primary" id="submit-payment" disabled>
+          <span class="payment-btn-text">${translate('pay')} ${this.formatCurrency(amount)}</span>
+          <span class="payment-btn-spinner" style="display: none;">
+            <span class="spinner" aria-hidden="true"></span> ${translate('processing')}...
+          </span>
+        </button>
+      `,
+      initialFocus: false,
+      canClose: () => !this.paymentProcessing,
+      onClose: () => {
+        this.elements = null;
+        this.paymentElement = null;
+        this.currentPaymentIntentId = null;
+        this.currentFeeId = null;
+        this.paymentProcessing = false;
+      },
+    });
+    return overlay.querySelector('#submit-payment');
+  }
+
+  async initializePayment(feeId, amount, submitBtn) {
+    try {
+      // Create payment intent
+      const response = await createStripePaymentIntent(feeId, amount);
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to create payment intent');
+      }
+
+      const { clientSecret, paymentIntentId } = response.data;
+      this.currentPaymentIntentId = paymentIntentId;
+
+      // Create Stripe Elements
+      this.elements = this.stripe.elements({
+        clientSecret,
+        // Card errors come from Stripe; ask for them in the page's language.
+        locale: this.stripeLocale(),
+        appearance: {
+          theme: 'stripe',
+          variables: {
+            colorPrimary: '#0066cc',
+          }
+        }
+      });
+
+      // Create and mount payment element
+      this.paymentElement = this.elements.create('payment');
+      this.paymentElement.mount('#payment-element');
+
+      // Enable submit button when ready
+      this.paymentElement.on('ready', () => {
+        submitBtn.disabled = false;
+      });
+
+      // Handle payment submission
+      submitBtn.addEventListener('click', () => this.handlePaymentSubmit(submitBtn));
+
+    } catch (error) {
+      debugError('Error initializing payment:', error);
+      const errorDiv = document.getElementById('payment-error-message');
+      if (errorDiv) {
+        errorDiv.textContent = apiErrorMessage(error, 'payment_initialization_failed');
+      }
+      this.app.showMessage(translate('payment_initialization_failed'), 'error');
+    }
+  }
+
+  /**
+   * The language Stripe Elements writes the card form and its errors in: the
+   * page's own when Stripe has it, else the unit's fallback, which a page in an
+   * optional language falls back to. Stripe left to choose would follow the
+   * browser instead, mixing languages on the page.
+   * @returns {string} Stripe locale
+   */
+  stripeLocale() {
+    const supported = CONFIG.PAYMENTS.STRIPE_LOCALES;
+    const candidates = [this.app?.language, this.app?.fallbackLang, CONFIG.DEFAULT_LANG];
+    return candidates.find((lang) => supported.includes(lang)) || CONFIG.DEFAULT_LANG;
+  }
+
+  /**
+   * What to tell the payer about a failed payment. Stripe writes card and
+   * validation errors for the payer, in the Elements locale; anything else
+   * (network, API) is an English message for developers.
+   * @param {{type?: string, message?: string}} error - Stripe error
+   * @returns {string} Message to show
+   */
+  stripeErrorMessage(error) {
+    if (CONFIG.PAYMENTS.STRIPE_PAYER_ERROR_TYPES.includes(error?.type) && error.message) {
+      return error.message;
+    }
+    return translate('payment_failed');
+  }
+
+  async handlePaymentSubmit(submitBtn) {
+    // Disable submit button and show loading state
+    this.paymentProcessing = true;
+    submitBtn.disabled = true;
+    const btnText = submitBtn.querySelector('.payment-btn-text');
+    const btnSpinner = submitBtn.querySelector('.payment-btn-spinner');
+    btnText.style.display = 'none';
+    btnSpinner.style.display = 'inline-block';
+
+    const errorDiv = document.getElementById('payment-error-message');
+    errorDiv.textContent = '';
+
+    try {
+      // Confirm payment
+      const { error, paymentIntent } = await this.stripe.confirmPayment({
+        elements: this.elements,
+        confirmParams: {
+          return_url: `${window.location.origin  }/parent-finance`,
+        },
+        redirect: 'if_required'
+      });
+
+      if (error) {
+        // Payment failed
+        const message = this.stripeErrorMessage(error);
+        errorDiv.textContent = message;
+        btnText.style.display = 'inline-block';
+        btnSpinner.style.display = 'none';
+        submitBtn.disabled = false;
+        this.paymentProcessing = false;
+        this.app.showMessage(message, 'error');
+        debugError('Payment error:', error);
+      } else if (paymentIntent && paymentIntent.status === 'succeeded') {
+        // Payment succeeded
+        debugLog('Payment succeeded:', paymentIntent);
+        this.app.showMessage(translate('payment_successful'), 'success');
+
+        // CRITICAL: Invalidate finance caches immediately
+        await clearFinanceRelatedCaches(this.currentFeeId);
+
+        closeModal('payment-modal');
+
+        // Refresh data and re-render
+        await this.fetchAllStatements();
+        this.calculateConsolidatedTotals();
+        this.render();
+        this.attachEventListeners();
+      }
+    } catch (err) {
+      debugError('Payment submission error:', err);
+      errorDiv.textContent = translate('payment_failed');
+      btnText.style.display = 'inline-block';
+      btnSpinner.style.display = 'none';
+      submitBtn.disabled = false;
+      this.paymentProcessing = false;
+      this.app.showMessage(translate('payment_failed'), 'error');
+    }
+  }
+}

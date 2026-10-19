@@ -112,12 +112,12 @@ export function readAccountFields(root) {
  * @returns {string|null} Translation key of the first failed rule, or null
  */
 export function passwordProblem(password) {
-  if (password.length < PASSWORD_MIN_LENGTH) return 'password_min_length';
-  if (password.length > PASSWORD_MAX_LENGTH) return 'password_max_length';
-  if (!/[A-Z]/.test(password)) return 'password_needs_uppercase';
-  if (!/[a-z]/.test(password)) return 'password_needs_lowercase';
-  if (!/[0-9]/.test(password)) return 'password_needs_number';
-  if (!/[^A-Za-z0-9]/.test(password)) return 'password_needs_special';
+  if (password.length < PASSWORD_MIN_LENGTH) {return 'password_min_length';}
+  if (password.length > PASSWORD_MAX_LENGTH) {return 'password_max_length';}
+  if (!/[A-Z]/.test(password)) {return 'password_needs_uppercase';}
+  if (!/[a-z]/.test(password)) {return 'password_needs_lowercase';}
+  if (!/[0-9]/.test(password)) {return 'password_needs_number';}
+  if (!/[^A-Za-z0-9]/.test(password)) {return 'password_needs_special';}
   return null;
 }
 
@@ -134,7 +134,7 @@ export function accountProblem(values, { askNames = true } = {}) {
     return 'account_name_required';
   }
   const password = passwordProblem(values.password);
-  if (password) return password;
-  if (values.password !== values.password_confirm) return 'passwords_do_not_match';
+  if (password) {return password;}
+  if (values.password !== values.password_confirm) {return 'passwords_do_not_match';}
   return null;
 }

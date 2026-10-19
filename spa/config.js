@@ -8,8 +8,8 @@
  *   import { CONFIG } from './config.js';
  *   debugLog(CONFIG.API_BASE_URL);
  */
-import { debugLog } from "./utils/DebugUtils.js";
-import { DEFAULT_LANG, SUPPORTED_LANGS } from "./config/languages.js";
+import { debugLog } from './utils/DebugUtils.js';
+import { DEFAULT_LANG, SUPPORTED_LANGS } from './config/languages.js';
 
 /**
  * Determine if debug mode is enabled
@@ -17,277 +17,308 @@ import { DEFAULT_LANG, SUPPORTED_LANGS } from "./config/languages.js";
  * @returns {boolean} True if debug mode is active
  */
 function isDebugMode() {
-    // Production domains end with .app - never show debug logs in production
-    const isProduction = window.location.hostname.endsWith(".app");
+  // Production domains end with .app - never show debug logs in production
+  const isProduction = window.location.hostname.endsWith('.app');
 
-    return (
-        !isProduction &&
-        (import.meta.env?.VITE_DEBUG_MODE === "true" ||
+  return (
+    !isProduction &&
+        (import.meta.env?.VITE_DEBUG_MODE === 'true' ||
             import.meta.env?.DEV ||
-            window.location.hostname === "localhost" ||
-            window.location.hostname === "wampums-1.test" ||
-            window.location.hostname.includes("replit.dev"))
-    );
+            window.location.hostname === 'localhost' ||
+            window.location.hostname === 'wampums-1.test' ||
+            window.location.hostname.includes('replit.dev'))
+  );
 }
 
 /**
  * Application Configuration Object
  */
 export const CONFIG = {
-    /**
+  /**
      * Debug Mode
      * Enables verbose logging and development features
      */
-    debugMode: isDebugMode(),
+  debugMode: isDebugMode(),
 
-    /**
+  /**
      * API Base URL
      * Uses Vite environment variable if available, otherwise defaults to current origin
      */
-    API_BASE_URL: import.meta.env?.VITE_API_URL || window.location.origin,
+  API_BASE_URL: import.meta.env?.VITE_API_URL || window.location.origin,
 
   /** These workflows need a confirmed server result, never an offline replay. */
   ONLINE_REQUIRED_MUTATION_RESOURCES: [
     'parent-invitations', 'parent-onboarding', 'walk-in-children',
-    'family-links', 'family-link-requests',
+    'family-links', 'family-link-requests', 'calendar-feed',
   ],
-    /**
+  /**
      * Cache Duration Settings
      * Controls how long data is cached in IndexedDB
      */
-    CACHE_DURATION: {
-        SHORT: 5 * 60 * 1000, // 5 minutes
-        MEDIUM: 30 * 60 * 1000, // 30 minutes
-        LONG: 24 * 60 * 60 * 1000, // 24 hours
-        CAMP_MODE: 10 * 24 * 60 * 60 * 1000, // 10 days (for multi-day offline camps)
-    },
+  CACHE_DURATION: {
+    SHORT: 5 * 60 * 1000, // 5 minutes
+    MEDIUM: 30 * 60 * 1000, // 30 minutes
+    LONG: 24 * 60 * 60 * 1000, // 24 hours
+    CAMP_MODE: 10 * 24 * 60 * 60 * 1000, // 10 days (for multi-day offline camps)
+  },
 
-    /**
+  /**
      * Application Version
      */
-    VERSION: "3.1.0",
+  VERSION: '3.1.0',
 
-    /**
+  /**
      * Application Name
      */
-    APP_NAME: "Wampums",
+  APP_NAME: 'Wampums',
 
-    /**
+  /**
      * Default Language
      */
-    DEFAULT_LANG,
+  DEFAULT_LANG,
 
-    /**
+  /**
      * Default currency for financial displays
      */
-    DEFAULT_CURRENCY: "CAD",
+  DEFAULT_CURRENCY: 'CAD',
 
-    /**
+  /**
      * Default time format preference
      */
-    TIME_FORMAT: {
-        DEFAULT: "24h",
-    },
+  TIME_FORMAT: {
+    DEFAULT: '24h',
+  },
 
-    /**
+  /**
      * Supported Languages
      */
-    SUPPORTED_LANGS,
+  SUPPORTED_LANGS,
 
-    /**
+  /**
      * Storage Keys
      * Centralized storage key names to avoid typos and conflicts
      */
-    STORAGE_KEYS: {
-        JWT_TOKEN: "jwtToken",
-        ORGANIZATION_ID: "organizationId",
-        CURRENT_ORGANIZATION_ID: "currentOrganizationId",
-        USER_ROLE: "userRole",
-        USER_ID: "userId",
-        LANGUAGE: "language",
-        THEME: "theme",
-        TIME_FORMAT: "timeFormat",
-    },
+  STORAGE_KEYS: {
+    JWT_TOKEN: 'jwtToken',
+    ORGANIZATION_ID: 'organizationId',
+    CURRENT_ORGANIZATION_ID: 'currentOrganizationId',
+    USER_ROLE: 'userRole',
+    USER_ID: 'userId',
+    LANGUAGE: 'language',
+    THEME: 'theme',
+    TIME_FORMAT: 'timeFormat',
+  },
 
-    /**
+  /**
      * User Roles
      */
-    ROLES: {
-        DISTRICT: "district",
-        UNIT_ADMIN: "unitadmin",
-        LEADER: "leader",
-        PARENT: "parent",
-        FINANCE: "finance",
-        EQUIPMENT: "equipment",
-        ADMINISTRATION: "administration",
-        DEMO_ADMIN: "demoadmin",
-        DEMO_PARENT: "demoparent",
-    },
+  ROLES: {
+    DISTRICT: 'district',
+    UNIT_ADMIN: 'unitadmin',
+    LEADER: 'leader',
+    PARENT: 'parent',
+    FINANCE: 'finance',
+    EQUIPMENT: 'equipment',
+    ADMINISTRATION: 'administration',
+    DEMO_ADMIN: 'demoadmin',
+    DEMO_PARENT: 'demoparent',
+  },
 
-    /**
+  /**
      * Attendance Status Values
      */
-    ATTENDANCE_STATUS: {
-        PRESENT: "present",
-        ABSENT: "absent",
-        LATE: "late",
-        EXCUSED: "excused",
-    },
+  ATTENDANCE_STATUS: {
+    PRESENT: 'present',
+    ABSENT: 'absent',
+    LATE: 'late',
+    EXCUSED: 'excused',
+  },
 
-    /**
+  /**
      * Default Point Values
      * Used if organization hasn't configured custom values
      */
-    DEFAULT_POINTS: {
-        ATTENDANCE: {
-            PRESENT: 1,
-            ABSENT: 0,
-            LATE: 0.5,
-            EXCUSED: 0,
-        },
-        HONORS: {
-            AWARD: 5,
-        },
-        BADGES: {
-            EARN: 5,
-            LEVEL_UP: 10,
-        },
+  DEFAULT_POINTS: {
+    ATTENDANCE: {
+      PRESENT: 1,
+      ABSENT: 0,
+      LATE: 0.5,
+      EXCUSED: 0,
     },
-
-    PROGRAM_SECTIONS: {
-        DEFAULT: [
-            { key: "general", labelKey: "program_section_general" },
-            { key: "beavers", labelKey: "program_section_beavers" },
-            { key: "cubs", labelKey: "program_section_cubs" },
-            { key: "scouts", labelKey: "program_section_scouts" },
-            { key: "pioneers", labelKey: "program_section_pioneers" },
-            { key: "rovers", labelKey: "program_section_rovers" },
-        ],
+    HONORS: {
+      AWARD: 5,
     },
+    BADGES: {
+      EARN: 5,
+      LEVEL_UP: 10,
+    },
+  },
 
-    /**
+  PROGRAM_SECTIONS: {
+    DEFAULT: [
+      { key: 'general', labelKey: 'program_section_general' },
+      { key: 'beavers', labelKey: 'program_section_beavers' },
+      { key: 'cubs', labelKey: 'program_section_cubs' },
+      { key: 'scouts', labelKey: 'program_section_scouts' },
+      { key: 'pioneers', labelKey: 'program_section_pioneers' },
+      { key: 'rovers', labelKey: 'program_section_rovers' },
+    ],
+  },
+
+  /**
      * UI Settings
      */
-    UI: {
-        HOMEPAGE_URL: "https://wampums.app",
-        // Default number of items per page for paginated lists
-        DEFAULT_PAGE_SIZE: 50,
+  UI: {
+    HOMEPAGE_URL: 'https://wampums.app',
+    // Default number of items per page for paginated lists
+    DEFAULT_PAGE_SIZE: 50,
 
-        // Maximum file upload size (in bytes)
-        MAX_FILE_SIZE: 30 * 1024 * 1024, // 30MB
+    // Maximum file upload size (in bytes)
+    MAX_FILE_SIZE: 30 * 1024 * 1024, // 30MB
 
-        // Toast notification duration (in milliseconds)
-        TOAST_DURATION: 3000,
+    // Toast notification duration (in milliseconds)
+    TOAST_DURATION: 3000,
 
-        // Brief confirmation displayed in the fixed points action bar.
-        POINT_FEEDBACK_DURATION: 1800,
-        POINT_HIGHLIGHT_DURATION: 500,
+    // Brief confirmation displayed in the fixed points action bar.
+    POINT_FEEDBACK_DURATION: 1800,
+    POINT_HIGHLIGHT_DURATION: 500,
 
-        // Optional client-side HEIC to WebP converter URL (lazy-loaded only when needed)
-        HEIC_CONVERTER_URL:
-            "https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js",
+    // Optional client-side HEIC to WebP converter URL (lazy-loaded only when needed)
+    HEIC_CONVERTER_URL:
+            'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js',
 
-        // Success message display duration before redirect (in milliseconds)
-        SUCCESS_REDIRECT_DELAY: 3000,
+    // Success message display duration before redirect (in milliseconds)
+    SUCCESS_REDIRECT_DELAY: 3000,
 
-        // Debounce delay for search inputs (in milliseconds)
-        SEARCH_DEBOUNCE: 300,
+    // Debounce delay for search inputs (in milliseconds)
+    SEARCH_DEBOUNCE: 300,
 
-        // Skeleton loading minimum display time (in milliseconds)
-        MIN_LOADING_TIME: 300,
+    // Skeleton loading minimum display time (in milliseconds)
+    MIN_LOADING_TIME: 300,
 
-        // Service worker pending count message timeout (in milliseconds)
-        SW_PENDING_TIMEOUT: 3000,
+    // Service worker pending count message timeout (in milliseconds)
+    SW_PENDING_TIMEOUT: 3000,
 
-        // Meeting agenda reordering waits for an intentional hold on touch devices.
-        MEETING_REORDER_LONG_PRESS_DELAY: 450,
+    // Meeting agenda reordering waits for an intentional hold on touch devices.
+    MEETING_REORDER_LONG_PRESS_DELAY: 450,
 
-        // Cancel a pending touch reorder when the finger moves far enough to be a scroll.
-        MEETING_REORDER_MOVE_TOLERANCE: 10,
+    // Cancel a pending touch reorder when the finger moves far enough to be a scroll.
+    MEETING_REORDER_MOVE_TOLERANCE: 10,
 
-        // Quiet meeting-preparation autosave after the user pauses editing.
-        MEETING_AUTOSAVE_DELAY: 1000,
+    // Quiet meeting-preparation autosave after the user pauses editing.
+    MEETING_AUTOSAVE_DELAY: 1000,
 
-        // Coalesce rapid keystrokes before writing the local recovery draft.
-        MEETING_DRAFT_WRITE_DELAY: 150,
+    // Coalesce rapid keystrokes before writing the local recovery draft.
+    MEETING_DRAFT_WRITE_DELAY: 150,
 
-        // Recovery drafts expire after 30 days.
-        MEETING_DRAFT_EXPIRATION: 30 * 24 * 60 * 60 * 1000,
-    },
+    // Recovery drafts expire after 30 days.
+    MEETING_DRAFT_EXPIRATION: 30 * 24 * 60 * 60 * 1000,
+  },
 
-    /**
+  /**
      * Dashboard behavior settings
      */
-    DASHBOARD: {
-        // Promote medication dispensing only around the scheduled dose time.
-        MEDICATION_DUE_WINDOW_BEFORE_MINUTES: 90,
-        MEDICATION_DUE_WINDOW_AFTER_MINUTES: 15,
-    },
+  DASHBOARD: {
+    // Promote medication dispensing only around the scheduled dose time.
+    MEDICATION_DUE_WINDOW_BEFORE_MINUTES: 90,
+    MEDICATION_DUE_WINDOW_AFTER_MINUTES: 15,
+  },
 
-    /**
+  /**
      * Photo upload processing and safety constraints
      */
-    PHOTO_UPLOAD: {
-        // Max original file size accepted from the client (bytes)
-        MAX_ORIGINAL_SIZE_BYTES: 30 * 1024 * 1024, // 30MB
+  PHOTO_UPLOAD: {
+    // Max original file size accepted from the client (bytes)
+    MAX_ORIGINAL_SIZE_BYTES: 30 * 1024 * 1024, // 30MB
 
-        // Target long-edge resize for client-side optimization (pixels)
-        TARGET_MAX_EDGE_PX: 2048,
+    // Target long-edge resize for client-side optimization (pixels)
+    TARGET_MAX_EDGE_PX: 2048,
 
-        // Max desired upload payload size after optimization (bytes)
-        TARGET_MAX_BYTES: 5 * 1024 * 1024, // 5MB
+    // Max desired upload payload size after optimization (bytes)
+    TARGET_MAX_BYTES: 5 * 1024 * 1024, // 5MB
 
-        // Chunk size for streaming reads (bytes)
-        STREAM_CHUNK_SIZE: 512 * 1024, // 512KB
+    // Chunk size for streaming reads (bytes)
+    STREAM_CHUNK_SIZE: 512 * 1024, // 512KB
 
-        // Preferred and minimum WebP qualities for resize/export
-        WEBP_QUALITY: 0.82,
-        MIN_WEBP_QUALITY: 0.55,
+    // Preferred and minimum WebP qualities for resize/export
+    WEBP_QUALITY: 0.82,
+    MIN_WEBP_QUALITY: 0.55,
 
-        // Safety timeout (ms) for worker-based processing
-        WORKER_TIMEOUT_MS: 15000,
-    },
+    // Safety timeout (ms) for worker-based processing
+    WORKER_TIMEOUT_MS: 15000,
+  },
 
-    /**
+  /**
      * Push Notification Settings
      */
-    PUSH_NOTIFICATIONS: {
-        // VAPID public key for push notifications
-        // IMPORTANT: Set VITE_VAPID_PUBLIC environment variable in production
-        // The hardcoded fallback is for development only and should not be used in production
-        VAPID_PUBLIC_KEY:
+  PUSH_NOTIFICATIONS: {
+    // VAPID public key for push notifications
+    // IMPORTANT: Set VITE_VAPID_PUBLIC environment variable in production
+    // The hardcoded fallback is for development only and should not be used in production
+    VAPID_PUBLIC_KEY:
             import.meta.env?.VITE_VAPID_PUBLIC ||
-            "BPsOyoPVxNCN6BqsLdHwc5aaNPERFO2yq-xF3vqHJ7CdMlHRn5EBPnxcoOKGkeIO1_9zHnF5CRyD6RvLlOKPcTE",
-    },
+            'BPsOyoPVxNCN6BqsLdHwc5aaNPERFO2yq-xF3vqHJ7CdMlHRn5EBPnxcoOKGkeIO1_9zHnF5CRyD6RvLlOKPcTE',
+  },
 
-    /**
+  /**
+   * Online payments (Stripe). Without a publishable key, statements still
+   * show and online payment is not offered.
+   */
+  PAYMENTS: {
+    STRIPE_PUBLISHABLE_KEY: import.meta.env?.VITE_STRIPE_PUBLISHABLE_KEY || '',
+    // Interface languages Stripe Elements is written in (Ukrainian is not).
+    // https://docs.stripe.com/js/appendix/supported_locales
+    STRIPE_LOCALES: ['en', 'fr', 'it', 'id'],
+    // Stripe error types whose message is written for the payer, in the
+    // Elements locale; any other is an English message for developers.
+    STRIPE_PAYER_ERROR_TYPES: ['card_error', 'validation_error'],
+  },
+
+  /**
+   * The leaders' "now / next" bar during a planned meeting or camp day.
+   */
+  PROGRAMME_BAR: {
+    // Shown this long before the first activity starts.
+    LEAD_MINUTES: 15,
+    // The bar says so, and changes colour, this close to an activity's end.
+    ENDING_SOON_MINUTES: 5,
+    // A last activity planned without a duration is taken to last this long.
+    DEFAULT_LAST_ACTIVITY_MINUTES: 15,
+    // Opened after midnight but before this hour, the bar also looks for an
+    // activity of the evening before that is still on (a night game at camp).
+    CARRY_OVER_UNTIL_HOUR: 6,
+    // A programme read longer ago than this is read again when the app returns.
+    REFRESH_AFTER_MINUTES: 15,
+  },
+
+  /**
      * Feature Flags
      * Enable/disable features based on environment or rollout strategy
      */
-    FEATURES: {
-        PUSH_NOTIFICATIONS: true,
-        OFFLINE_MODE: true,
-        DARK_MODE: false,
-        EXPORT_REPORTS: true,
-        BADGE_SYSTEM: true,
-    },
+  FEATURES: {
+    PUSH_NOTIFICATIONS: true,
+    OFFLINE_MODE: true,
+    DARK_MODE: false,
+    EXPORT_REPORTS: true,
+    BADGE_SYSTEM: true,
+  },
 
-    /**
+  /**
      * IndexedDB Settings
      */
-    INDEXEDDB: {
-        DB_NAME: "WampumsDB",
-        DB_VERSION: 1,
-        STORE_NAME: "cachedData",
-    },
+  INDEXEDDB: {
+    DB_NAME: 'WampumsDB',
+    DB_VERSION: 1,
+    STORE_NAME: 'cachedData',
+  },
 
-    /**
+  /**
      * Service Worker Settings
      */
-    SERVICE_WORKER: {
-        ENABLED: "serviceWorker" in navigator,
-        PATH: "/src-sw.js",
-    },
+  SERVICE_WORKER: {
+    ENABLED: 'serviceWorker' in navigator,
+    PATH: '/src-sw.js',
+  },
 };
 
 /**
@@ -296,15 +327,15 @@ export const CONFIG = {
  * This is the only acceptable use of console.log in the codebase
  */
 if (CONFIG.debugMode) {
-    debugLog("=== Wampums Configuration ===");
-    debugLog("API Base URL:", CONFIG.API_BASE_URL);
-    debugLog("Debug Mode:", CONFIG.debugMode);
-    debugLog("Version:", CONFIG.VERSION);
-    debugLog("Environment:", import.meta.env?.MODE || "production");
-    debugLog("============================");
+  debugLog('=== Wampums Configuration ===');
+  debugLog('API Base URL:', CONFIG.API_BASE_URL);
+  debugLog('Debug Mode:', CONFIG.debugMode);
+  debugLog('Version:', CONFIG.VERSION);
+  debugLog('Environment:', import.meta.env?.MODE || 'production');
+  debugLog('============================');
 } else {
-    // In production, at least show the version for troubleshooting
-    debugLog(`Wampums v${CONFIG.VERSION} - Production Mode`);
+  // In production, at least show the version for troubleshooting
+  debugLog(`Wampums v${CONFIG.VERSION} - Production Mode`);
 }
 
 /**
@@ -313,15 +344,15 @@ if (CONFIG.debugMode) {
  * @returns {string} Full API URL
  */
 export function getApiUrl(endpoint) {
-    // Remove leading slash from endpoint if present
-    const path = endpoint.startsWith("/") ? endpoint.slice(1) : endpoint;
+  // Remove leading slash from endpoint if present
+  const path = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
 
-    // Ensure API_BASE_URL doesn't end with slash
-    const baseUrl = CONFIG.API_BASE_URL.endsWith("/")
-        ? CONFIG.API_BASE_URL.slice(0, -1)
-        : CONFIG.API_BASE_URL;
+  // Ensure API_BASE_URL doesn't end with slash
+  const baseUrl = CONFIG.API_BASE_URL.endsWith('/')
+    ? CONFIG.API_BASE_URL.slice(0, -1)
+    : CONFIG.API_BASE_URL;
 
-    return `${baseUrl}/${path}`;
+  return `${baseUrl}/${path}`;
 }
 
 /**
@@ -330,7 +361,7 @@ export function getApiUrl(endpoint) {
  * @returns {boolean} True if feature is enabled
  */
 export function isFeatureEnabled(featureName) {
-    return CONFIG.FEATURES[featureName] === true;
+  return CONFIG.FEATURES[featureName] === true;
 }
 
 /**
@@ -339,19 +370,19 @@ export function isFeatureEnabled(featureName) {
  * @returns {string} Storage key
  */
 export function getStorageKey(keyName) {
-    return CONFIG.STORAGE_KEYS[keyName] || keyName;
+  return CONFIG.STORAGE_KEYS[keyName] || keyName;
 }
 
 /**
  * Export individual settings for convenience
  */
 export const {
-    API_BASE_URL,
-    CACHE_DURATION,
-    STORAGE_KEYS,
-    ROLES,
-    ATTENDANCE_STATUS,
-    DEFAULT_POINTS,
+  API_BASE_URL,
+  CACHE_DURATION,
+  STORAGE_KEYS,
+  ROLES,
+  ATTENDANCE_STATUS,
+  DEFAULT_POINTS,
 } = CONFIG;
 
 // Make CONFIG immutable (prevent accidental modifications)

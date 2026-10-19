@@ -70,3 +70,11 @@ test('not-found and not-authorized pages open with it too, outside the centred c
   expect(document.querySelector('.not-found-state__card a')).toBeNull();
 });
 
+test('a not-authorized page is titled by its own heading, which focus and the tab title use', () => {
+  document.body.innerHTML = buildNotFoundMarkup({ titleKey: 'error_403_not_authorized' });
+
+  const headings = document.querySelectorAll('h1');
+  expect(headings).toHaveLength(1);
+  expect(headings[0].textContent).toBe('error_403_not_authorized');
+});
+

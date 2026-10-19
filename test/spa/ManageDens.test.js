@@ -21,7 +21,7 @@ import {
 
 const fr = JSON.parse(fs.readFileSync(path.join(__dirname, '../../lang/fr.json'), 'utf8'));
 const en = JSON.parse(fs.readFileSync(path.join(__dirname, '../../lang/en.json'), 'utf8'));
-const screenSource = fs.readFileSync(path.join(__dirname, '../../spa/manage_groups.js'), 'utf8');
+const screenSource = fs.readFileSync(path.join(__dirname, '../../spa/modules/groups/ManageGroups.js'), 'utf8');
 
 /**
  * Resolve a key the way translate() does: template lookup, then substitution.

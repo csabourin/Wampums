@@ -207,7 +207,7 @@ describe.skipIf(!DATABASE_URL)('Family links', () => {
   function tokenFromLastEmail() {
     const last = sentEmails[sentEmails.length - 1];
     const match = /family-link\?token=([^"\s&]+)/.exec(last.message);
-    if (!match) throw new Error('no review link in the email');
+    if (!match) {throw new Error('no review link in the email');}
     return decodeURIComponent(match[1]);
   }
 
@@ -271,7 +271,7 @@ describe.skipIf(!DATABASE_URL)('Family links', () => {
 
   afterAll(async () => {
     delete process.env.PUBLIC_BASE_URL;
-    if (pool) await pool.end();
+    if (pool) {await pool.end();}
   });
 
   beforeEach(async () => {

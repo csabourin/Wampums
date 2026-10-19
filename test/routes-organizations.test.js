@@ -103,7 +103,7 @@ describe('GET /api/v1/organizations/status', () => {
       organizationId: ORG_ID
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM organizations WHERE id')) {
         return Promise.resolve({
           rows: [{
@@ -230,7 +230,7 @@ describe('POST /api/v1/organizations/switch', () => {
       organizationId: ORG_ID
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (_query, _params) => {
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
     });
@@ -309,7 +309,7 @@ describe('POST /api/v1/organizations/switch', () => {
       permissions: [] // No permissions
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM user_organizations WHERE user_id')) {
         return Promise.resolve({
           rows: [] // User not a member of any org
@@ -343,7 +343,7 @@ describe('GET /api/v1/organizations/settings', () => {
 
     let queryCount = 0;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM organization_settings')) {
         queryCount++;
         return Promise.resolve({
@@ -397,7 +397,7 @@ describe('GET /api/v1/organizations/settings', () => {
 
     let updateCalled = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('INSERT INTO organization_settings')) {
         updateCalled = true;
         return Promise.resolve({ rows: [{}] });
@@ -718,7 +718,7 @@ describe('Organization domain mapping', () => {
 
     let domainQuery = '';
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM organization_domains')) {
         domainQuery = query;
         return Promise.resolve({
@@ -740,7 +740,7 @@ describe('Organization domain mapping', () => {
   test('falls back to default organization when domain not found', async () => {
     const { __mClient, __mPool } = require('pg');
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM organization_domains')) {
         return Promise.resolve({ rows: [] }); // No domain mapping
       }
@@ -760,6 +760,28 @@ describe('Organization domain mapping', () => {
 
     // Should not crash, might use default
     expect([200, 404, 500]).toContain(res.status);
+  });
+});
+
+describe('GET /api/v1/organizations/jwt', () => {
+  test('the public unit token names the unit the site serves, not one asked for in the query', async () => {
+    const { __mClient, __mPool } = require('pg');
+
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes('FROM organization_domains')) {
+        return Promise.resolve({ rows: [{ organization_id: ORG_ID }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .get('/api/v1/organizations/jwt')
+      .query({ organization_id: ORG_ID_2 })
+      .set('Host', 'scout.wampums.app');
+
+    expect(res.status).toBe(200);
+    expect(res.body.organizationId).toBe(ORG_ID);
+    expect(verifyToken(res.body.token).organizationId).toBe(ORG_ID);
   });
 });
 

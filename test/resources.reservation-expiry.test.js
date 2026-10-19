@@ -18,10 +18,10 @@
  * @module test/resources.reservation-expiry
  */
 
-const express = require("express");
-const request = require("supertest");
+const express = require('express');
+const request = require('supertest');
 
-jest.mock("../middleware/auth", () => ({
+jest.mock('../middleware/auth', () => ({
   authenticate: (req, _res, next) => {
     req.user = { id: 1, organizationId: 1 };
     return next();
@@ -32,20 +32,20 @@ jest.mock("../middleware/auth", () => ({
   getOrganizationId: jest.fn(async () => 1),
 }));
 
-jest.mock("../utils/railway-storage", () => ({
+jest.mock('../utils/railway-storage', () => ({
   MAX_FILE_SIZE: 1_000_000,
-  OUTPUT_MIME_TYPE: "image/webp",
+  OUTPUT_MIME_TYPE: 'image/webp',
   validateFile: () => ({ isValid: true }),
   isAllowedImageType: () => true,
   convertImageToWebP: async (buffer) => buffer,
-  generateFilePath: () => "path",
+  generateFilePath: () => 'path',
   getPhotoOrganizationId: () => null,
   getSignedPhotoUrl: async (reference) => `https://signed.example/${reference}`,
-  uploadFile: async () => ({ success: true, path: "path" }),
+  uploadFile: async () => ({ success: true, path: 'path' }),
   deleteFile: async () => true,
   extractPathFromUrl: (reference) => reference,
   isStorageConfigured: () => false,
-  WEBP_EXTENSION: ".webp",
+  WEBP_EXTENSION: '.webp',
 }));
 
 /**
@@ -64,12 +64,12 @@ jest.mock("../utils/railway-storage", () => ({
 function mountRouter(poolImpl) {
   let router;
   jest.isolateModules(() => {
-    router = require("../routes/resources")({ query: jest.fn(poolImpl) });
+    router = require('../routes/resources')({ query: jest.fn(poolImpl) });
   });
 
   const app = express();
   app.use(express.json());
-  app.use("/api/v1/resources", router);
+  app.use('/api/v1/resources', router);
   return app;
 }
 
@@ -81,7 +81,7 @@ let queries;
 /** Every statement whose text matches, normalised to single spaces. */
 const matching = (fragment) =>
   queries
-    .map((entry) => ({ ...entry, text: entry.text.replace(/\s+/g, " ") }))
+    .map((entry) => ({ ...entry, text: entry.text.replace(/\s+/g, ' ') }))
     .filter((entry) => entry.text.includes(fragment));
 
 beforeEach(() => {
@@ -99,7 +99,7 @@ beforeEach(() => {
         return { rows: [{ ok: 1 }] };
       }
       if (/COUNT\(\*\) as count/i.test(text)) {
-        return { rows: [{ count: "0" }] };
+        return { rows: [{ count: '0' }] };
       }
       return { rows: [] };
     }),
@@ -108,87 +108,87 @@ beforeEach(() => {
   app = mountRouter(pool.query);
 });
 
-describe("the expiry sweep", () => {
-  test("runs before equipment is listed, so availability reflects it", async () => {
-    await request(app).get("/api/v1/resources/equipment");
+describe('the expiry sweep', () => {
+  test('runs before equipment is listed, so availability reflects it', async () => {
+    await request(app).get('/api/v1/resources/equipment');
 
     const sweeps = matching("SET status = 'expired'");
     expect(sweeps).toHaveLength(1);
     expect(sweeps[0].params).toEqual([ORG_ID]);
   });
 
-  test("runs before reservations are listed", async () => {
-    await request(app).get("/api/v1/resources/equipment/reservations");
+  test('runs before reservations are listed', async () => {
+    await request(app).get('/api/v1/resources/equipment/reservations');
 
     expect(matching("SET status = 'expired'")).toHaveLength(1);
   });
 
-  test("only lapses reservations that were never picked up", async () => {
-    await request(app).get("/api/v1/resources/equipment");
+  test('only lapses reservations that were never picked up', async () => {
+    await request(app).get('/api/v1/resources/equipment');
 
     const [sweep] = matching("SET status = 'expired'");
     // 'confirmed' means the equipment went out. Whether it came back is a fact
     // for whoever checks it in, never one this sweep may invent.
     expect(sweep.text).toContain("AND status = 'reserved'");
-    expect(sweep.text).not.toContain("confirmed");
+    expect(sweep.text).not.toContain('confirmed');
   });
 
-  test("only lapses reservations whose last day has passed", async () => {
-    await request(app).get("/api/v1/resources/equipment");
+  test('only lapses reservations whose last day has passed', async () => {
+    await request(app).get('/api/v1/resources/equipment');
 
     const [sweep] = matching("SET status = 'expired'");
     expect(sweep.text).toContain(
-      "COALESCE(date_to, meeting_date) < CURRENT_DATE",
+      'COALESCE(date_to, meeting_date) < CURRENT_DATE',
     );
   });
 
-  test("is scoped to one organisation", async () => {
-    await request(app).get("/api/v1/resources/equipment");
+  test('is scoped to one organisation', async () => {
+    await request(app).get('/api/v1/resources/equipment');
 
     const [sweep] = matching("SET status = 'expired'");
-    expect(sweep.text).toContain("WHERE organization_id = $1");
+    expect(sweep.text).toContain('WHERE organization_id = $1');
   });
 });
 
-describe("queries that decide whether equipment is spoken for", () => {
-  test("availability counts only reservations that have not ended", async () => {
-    await request(app).get("/api/v1/resources/equipment");
+describe('queries that decide whether equipment is spoken for', () => {
+  test('availability counts only reservations that have not ended', async () => {
+    await request(app).get('/api/v1/resources/equipment');
 
-    const [listing] = matching("AS reserved_quantity");
+    const [listing] = matching('AS reserved_quantity');
     expect(listing).toBeDefined();
     expect(listing.text).toContain(
-      "COALESCE(er.date_to, er.meeting_date) >= CURRENT_DATE",
+      'COALESCE(er.date_to, er.meeting_date) >= CURRENT_DATE',
     );
   });
 
-  test("the delete guard counts only reservations that have not ended", async () => {
-    await request(app).delete("/api/v1/resources/equipment/5");
+  test('the delete guard counts only reservations that have not ended', async () => {
+    await request(app).delete('/api/v1/resources/equipment/5');
 
-    const [guard] = matching("COUNT(*) as count FROM equipment_reservations");
+    const [guard] = matching('COUNT(*) as count FROM equipment_reservations');
     expect(guard).toBeDefined();
     expect(guard.text).toContain(
-      "COALESCE(date_to, meeting_date) >= CURRENT_DATE",
+      'COALESCE(date_to, meeting_date) >= CURRENT_DATE',
     );
   });
 
-  test("neither query decides on status alone", async () => {
-    await request(app).get("/api/v1/resources/equipment");
-    await request(app).delete("/api/v1/resources/equipment/5");
+  test('neither query decides on status alone', async () => {
+    await request(app).get('/api/v1/resources/equipment');
+    await request(app).delete('/api/v1/resources/equipment/5');
 
     // The original bug in one line: a status filter with no date beside it.
     for (const entry of matching("status IN ('reserved', 'confirmed')")) {
-      expect(entry.text).toContain("CURRENT_DATE");
+      expect(entry.text).toContain('CURRENT_DATE');
     }
   });
 });
 
-describe("re-acquiring stock through a status change", () => {
+describe('re-acquiring stock through a status change', () => {
   /** Mount a router whose reservation row and equipment are fixed. */
   const mountWith = ({ status, reservedQuantity, quantityTotal, alreadyReserved }) => {
     const seen = [];
     const pool = {
       query: (async (text, params = []) => {
-        seen.push({ text: text.replace(/\s+/g, " "), params });
+        seen.push({ text: text.replace(/\s+/g, ' '), params });
         if (/^\s*UPDATE equipment_reservations/i.test(text)) {
           return { rows: [{ id: 9, status }] };
         }
@@ -197,8 +197,8 @@ describe("re-acquiring stock through a status change", () => {
             rows: [
               {
                 equipment_id: 3,
-                date_from: "2026-09-01",
-                date_to: "2026-09-02",
+                date_from: '2026-09-01',
+                date_to: '2026-09-02',
                 reserved_quantity: reservedQuantity,
                 status,
               },
@@ -206,7 +206,7 @@ describe("re-acquiring stock through a status change", () => {
           };
         }
         if (/SELECT name, quantity_total FROM equipment_items/i.test(text)) {
-          return { rows: [{ name: "Camp Stove", quantity_total: quantityTotal }] };
+          return { rows: [{ name: 'Camp Stove', quantity_total: quantityTotal }] };
         }
         if (/total_reserved/i.test(text)) {
           return { rows: [{ total_reserved: String(alreadyReserved) }] };
@@ -217,52 +217,52 @@ describe("re-acquiring stock through a status change", () => {
     return { app: mountRouter(pool.query), seen };
   };
 
-  test("a returned reservation cannot be re-confirmed beyond what the unit owns", async () => {
+  test('a returned reservation cannot be re-confirmed beyond what the unit owns', async () => {
     // Two stoves exist, both already spoken for by other reservations. Putting
     // this one back on the books would make three.
     const { app: local } = mountWith({
-      status: "returned",
+      status: 'returned',
       reservedQuantity: 1,
       quantityTotal: 2,
       alreadyReserved: 2,
     });
 
     const res = await request(local)
-      .patch("/api/v1/resources/equipment/reservations/9")
-      .send({ status: "confirmed" });
+      .patch('/api/v1/resources/equipment/reservations/9')
+      .send({ status: 'confirmed' });
 
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/not enough/i);
   });
 
-  test("the check uses the quantity already on the row, not one from the body", async () => {
+  test('the check uses the quantity already on the row, not one from the body', async () => {
     const { app: local, seen } = mountWith({
-      status: "cancelled",
+      status: 'cancelled',
       reservedQuantity: 1,
       quantityTotal: 5,
       alreadyReserved: 0,
     });
 
     const res = await request(local)
-      .patch("/api/v1/resources/equipment/reservations/9")
-      .send({ status: "reserved" });
+      .patch('/api/v1/resources/equipment/reservations/9')
+      .send({ status: 'reserved' });
 
     expect(res.status).toBe(200);
     // It looked the row up rather than trusting a quantity that was never sent.
     expect(seen.some((q) => /total_reserved/i.test(q.text))).toBe(true);
   });
 
-  test("releasing stock needs no availability check at all", async () => {
+  test('releasing stock needs no availability check at all', async () => {
     const { app: local, seen } = mountWith({
-      status: "confirmed",
+      status: 'confirmed',
       reservedQuantity: 1,
       quantityTotal: 2,
       alreadyReserved: 2,
     });
 
     const res = await request(local)
-      .patch("/api/v1/resources/equipment/reservations/9")
-      .send({ status: "returned" });
+      .patch('/api/v1/resources/equipment/reservations/9')
+      .send({ status: 'returned' });
 
     // Bringing equipment back can never overbook anything.
     expect(res.status).toBe(200);

@@ -98,7 +98,7 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
 
     let queryUsedOrganizationScope = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM participants p')) {
         // Organization-scoped query should NOT have user_participants join
         queryUsedOrganizationScope = !query.includes('user_participants');
@@ -162,7 +162,7 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
 
     let queryDidJoinUserParticipants = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM participants p')) {
         // Parent query SHOULD include user_participants join
         queryDidJoinUserParticipants = query.includes('user_participants');
@@ -421,7 +421,7 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
       permissions: [] // No permissions
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('data_scope')) {
         return Promise.resolve({
           rows: [{ data_scope: 'organization' }]
@@ -456,7 +456,7 @@ describe('POST /api/v1/participants', () => {
 
     let participantInserted = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('INSERT INTO participants')) {
         participantInserted = true;
         return Promise.resolve({
@@ -562,7 +562,7 @@ describe('POST /api/v1/participants', () => {
       permissions: ['participants.create']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'participants.create' }]
@@ -590,7 +590,7 @@ describe('POST /api/v1/participants', () => {
       permissions: ['participants.create']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'participants.create' }]
@@ -618,7 +618,7 @@ describe('POST /api/v1/participants', () => {
       permissions: ['participants.view'] // Can view, not manage
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'participants.view' }]
@@ -652,7 +652,7 @@ describe('POST /api/v1/participants', () => {
       permissions: ['participants.create']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('demoadmin') || query.includes('demoparent')) {
         return Promise.resolve({
           rows: [{ role_name: 'demoparent' }]
@@ -692,7 +692,7 @@ describe.skip('POST /api/v1/participants/:id/link-parent', () => {
 
     let linkInserted = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('INSERT INTO user_participants')) {
         linkInserted = true;
         return Promise.resolve({
@@ -742,7 +742,7 @@ describe.skip('POST /api/v1/participants/:id/link-parent', () => {
       permissions: ['participants.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('SELECT.*FROM participants WHERE id')) {
         return Promise.resolve({
           rows: [{ id: 50 }]
@@ -786,7 +786,7 @@ describe.skip('POST /api/v1/participants/:id/link-parent', () => {
       permissions: ['participants.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'participants.manage' }]
@@ -823,7 +823,7 @@ describe.skip('POST /api/v1/participants/:id/add-group', () => {
 
     let groupMembershipInserted = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('INSERT INTO participant_groups')) {
         groupMembershipInserted = true;
         return Promise.resolve({
@@ -878,7 +878,7 @@ describe.skip('POST /api/v1/participants/:id/add-group', () => {
       permissions: ['participants.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('SELECT id FROM groups WHERE id')) {
         return Promise.resolve({ rows: [] }); // Group not found
       }
@@ -1186,7 +1186,7 @@ describe('Multi-organization participant isolation', () => {
       organizationId: ORG_ID
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
       if (query.includes('FROM users WHERE id')) {
         return Promise.resolve({ rows: [] }); // User not found
       }

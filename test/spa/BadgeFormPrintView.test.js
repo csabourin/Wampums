@@ -44,7 +44,7 @@ jest.mock('../../spa/utils/DateUtils.js', () => ({
   formatDate: (value) => String(value ?? '')
 }));
 
-import { BadgeForm } from '../../spa/badge_form.js';
+import { BadgeForm } from '../../spa/modules/badges/BadgeForm.js';
 import { openPrintWindow, setPrintContent } from '../../spa/utils/PrintUtils.js';
 
 const CRAFTED_NAME = '<img src=x onerror=alert(1)>Kaa';

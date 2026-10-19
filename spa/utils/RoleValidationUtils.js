@@ -1,4 +1,4 @@
-import { DEFAULT_ROLE_SCOPE, ROLE_BUNDLES, ROLE_LEVELS } from "../../config/roles.js";
+import { DEFAULT_ROLE_SCOPE, ROLE_BUNDLES, ROLE_LEVELS } from '../../config/roles.js';
 
 /**
  * Merge live role records with client-side bundle metadata and permission lists.
@@ -13,22 +13,22 @@ export function buildRoleBundleIndex(roleCatalog = [], rolePermissions = {}) {
     const permissions = new Set();
 
     (metadata.permissions || []).forEach((permission) => {
-      if (permission) permissions.add(permission);
+      if (permission) {permissions.add(permission);}
     });
 
     (rolePermissions[role.id] || rolePermissions[role.role_name] || []).forEach((permission) => {
-      if (permission) permissions.add(permission);
+      if (permission) {permissions.add(permission);}
     });
 
     return {
       ...role,
       display_name: metadata.displayName || role.display_name || role.role_name,
-      description: metadata.description || role.description || "",
+      description: metadata.description || role.description || '',
       permissions: Array.from(permissions),
       scope: metadata.scope || DEFAULT_ROLE_SCOPE,
       conflictsWith: metadata.conflictsWith || [],
       crossOrgEligibleFor: metadata.crossOrgEligibleFor || [],
-      level: typeof metadata.level === "number" ? metadata.level : ROLE_LEVELS[role.role_name] || 0,
+      level: typeof metadata.level === 'number' ? metadata.level : ROLE_LEVELS[role.role_name] || 0,
       tags: metadata.tags || [],
       featureFlags: metadata.featureFlags || [],
     };
@@ -56,7 +56,7 @@ export function detectRoleConflicts(selectedRoleNames = [], roleIndex) {
     const bundle = roleIndex?.byName?.get(roleName);
     (bundle?.conflictsWith || []).forEach((conflictRole) => {
       if (selected.has(conflictRole)) {
-        const pair = [roleName, conflictRole].sort().join(" + ");
+        const pair = [roleName, conflictRole].sort().join(' + ');
         conflicts.add(pair);
       }
     });
@@ -83,7 +83,7 @@ export function calculatePermissionGaps(selectedRoleNames = [], roleIndex, actor
   selectedRoleNames.forEach((roleName) => {
     const bundle = roleIndex?.byName?.get(roleName);
     (bundle?.permissions || []).forEach((permission) => {
-      if (permission === "*") {
+      if (permission === '*') {
         requiresWildcard = true;
       } else {
         requiredPermissions.add(permission);
@@ -94,8 +94,8 @@ export function calculatePermissionGaps(selectedRoleNames = [], roleIndex, actor
   const actorSet = new Set(actorPermissions || []);
   const missing = new Set();
 
-  if (requiresWildcard && !actorSet.has("*")) {
-    missing.add("*");
+  if (requiresWildcard && !actorSet.has('*')) {
+    missing.add('*');
   }
 
   requiredPermissions.forEach((permission) => {
@@ -121,6 +121,6 @@ export function calculatePermissionGaps(selectedRoleNames = [], roleIndex, actor
 export function getLocalGroupEligibleRoles(selectedRoleNames = [], roleIndex) {
   return selectedRoleNames.filter((roleName) => {
     const bundle = roleIndex?.byName?.get(roleName);
-    return (bundle?.crossOrgEligibleFor || []).includes("local_group");
+    return (bundle?.crossOrgEligibleFor || []).includes('local_group');
   });
 }

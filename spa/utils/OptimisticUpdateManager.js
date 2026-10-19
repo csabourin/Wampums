@@ -347,7 +347,7 @@ export function isOptimistic(data) {
  * @returns {Object} Data without optimistic markers
  */
 export function cleanOptimisticMarkers(data) {
-  if (!data) return data;
+  if (!data) {return data;}
 
   const cleaned = { ...data };
   delete cleaned._optimistic;

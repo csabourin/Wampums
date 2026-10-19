@@ -18,7 +18,7 @@
  */
 
 /** Values that all count as "yes". */
-const AFFIRMATIVE = new Set(["yes", "oui", "true", "on", "1", "y"]);
+const AFFIRMATIVE = new Set(['yes', 'oui', 'true', 'on', '1', 'y']);
 
 /**
  * Normalize a stored or live answer for comparison.
@@ -28,7 +28,7 @@ const AFFIRMATIVE = new Set(["yes", "oui", "true", "on", "1", "y"]);
  */
 function normalize(input) {
   if (input === true) {
-    return "true";
+    return 'true';
   }
   return String(input).trim().toLowerCase();
 }
@@ -47,7 +47,7 @@ export function isDependencySatisfied(currentValue, expectedValue) {
   if (Array.isArray(currentValue)) {
     return currentValue.some((value) => isDependencySatisfied(value, expectedValue));
   }
-  if (currentValue === undefined || currentValue === null || currentValue === "") {
+  if (currentValue === undefined || currentValue === null || currentValue === '') {
     return false;
   }
 
@@ -107,8 +107,8 @@ export function isSavedAnswerMatching(controller, savedValue, expectedValue) {
   let values = [savedValue];
   if (Array.isArray(savedValue)) {
     values = savedValue;
-  } else if (controller?.multiple && typeof savedValue === "string") {
-    values = savedValue.split(",");
+  } else if (controller?.multiple && typeof savedValue === 'string') {
+    values = savedValue.split(',');
   }
 
   const optionValues = Array.isArray(controller?.options)
@@ -164,17 +164,17 @@ export function shouldKeepSavedDependency(controller, savedValue, shownValue, ex
 export function readControllingValue(elements, controller) {
   const [first] = elements;
   if (!first) {
-    return "";
+    return '';
   }
-  if (controller?.type === "select" && controller.multiple) {
+  if (controller?.type === 'select' && controller.multiple) {
     return elements.filter((element) => element.checked).map((element) => element.value);
   }
-  if (first.type === "radio") {
+  if (first.type === 'radio') {
     const checked = elements.find((element) => element.checked);
-    return checked ? checked.value : "";
+    return checked ? checked.value : '';
   }
-  if (first.type === "checkbox") {
-    return first.checked ? "yes" : "no";
+  if (first.type === 'checkbox') {
+    return first.checked ? 'yes' : 'no';
   }
   return first.value;
 }
@@ -214,21 +214,21 @@ export function clearDependentValues(elements) {
 
   elements.forEach((element) => {
     let changed = false;
-    if (element.type === "checkbox" || element.type === "radio") {
+    if (element.type === 'checkbox' || element.type === 'radio') {
       changed = element.checked;
       element.checked = false;
-    } else if (element.tagName === "SELECT") {
+    } else if (element.tagName === 'SELECT') {
       changed = element.selectedIndex !== -1;
       element.selectedIndex = -1;
     } else {
-      changed = element.value !== "";
-      element.value = "";
+      changed = element.value !== '';
+      element.value = '';
     }
 
     if (changed) {
       cleared = true;
-      element.dispatchEvent(new Event("input", { bubbles: true }));
-      element.dispatchEvent(new Event("change", { bubbles: true }));
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
     }
   });
 

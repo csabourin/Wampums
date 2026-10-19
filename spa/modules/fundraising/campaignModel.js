@@ -13,21 +13,21 @@
  * @type {Readonly<Object<string, {usesQuantity: boolean, usesHours: boolean, usesUnitPrice: boolean, usesDirectAmount: boolean}>>}
  */
 export const CAMPAIGN_TYPES = Object.freeze({
-	fixed_price_sale: { usesQuantity: true, usesHours: false, usesUnitPrice: true, usesDirectAmount: false },
-	variable_price_sale: { usesQuantity: true, usesHours: false, usesUnitPrice: false, usesDirectAmount: true },
-	container_deposit: { usesQuantity: true, usesHours: false, usesUnitPrice: true, usesDirectAmount: false },
-	hours_worked: { usesQuantity: false, usesHours: true, usesUnitPrice: true, usesDirectAmount: false },
-	direct_amount: { usesQuantity: false, usesHours: false, usesUnitPrice: false, usesDirectAmount: true },
-	donation: { usesQuantity: false, usesHours: false, usesUnitPrice: false, usesDirectAmount: true },
-	sponsored_activity: { usesQuantity: false, usesHours: false, usesUnitPrice: false, usesDirectAmount: true },
-	other: { usesQuantity: true, usesHours: true, usesUnitPrice: true, usesDirectAmount: true },
+  fixed_price_sale: { usesQuantity: true, usesHours: false, usesUnitPrice: true, usesDirectAmount: false },
+  variable_price_sale: { usesQuantity: true, usesHours: false, usesUnitPrice: false, usesDirectAmount: true },
+  container_deposit: { usesQuantity: true, usesHours: false, usesUnitPrice: true, usesDirectAmount: false },
+  hours_worked: { usesQuantity: false, usesHours: true, usesUnitPrice: true, usesDirectAmount: false },
+  direct_amount: { usesQuantity: false, usesHours: false, usesUnitPrice: false, usesDirectAmount: true },
+  donation: { usesQuantity: false, usesHours: false, usesUnitPrice: false, usesDirectAmount: true },
+  sponsored_activity: { usesQuantity: false, usesHours: false, usesUnitPrice: false, usesDirectAmount: true },
+  other: { usesQuantity: true, usesHours: true, usesUnitPrice: true, usesDirectAmount: true },
 });
 
 /** @type {string[]} Ordered campaign type keys, for select controls. */
 export const CAMPAIGN_TYPE_KEYS = Object.freeze(Object.keys(CAMPAIGN_TYPES));
 
 /** Campaign type used by campaigns created before the model was generalised. */
-export const DEFAULT_CAMPAIGN_TYPE = "fixed_price_sale";
+export const DEFAULT_CAMPAIGN_TYPE = 'fixed_price_sale';
 
 /**
  * Describe the measures a campaign type records.
@@ -36,7 +36,7 @@ export const DEFAULT_CAMPAIGN_TYPE = "fixed_price_sale";
  * @returns {{usesQuantity: boolean, usesHours: boolean, usesUnitPrice: boolean, usesDirectAmount: boolean}}
  */
 export function campaignTypeCapabilities(campaignType) {
-	return CAMPAIGN_TYPES[campaignType] || CAMPAIGN_TYPES[DEFAULT_CAMPAIGN_TYPE];
+  return CAMPAIGN_TYPES[campaignType] || CAMPAIGN_TYPES[DEFAULT_CAMPAIGN_TYPE];
 }
 
 /**
@@ -46,7 +46,7 @@ export function campaignTypeCapabilities(campaignType) {
  * @returns {string} Translation key
  */
 export function campaignTypeLabelKey(campaignType) {
-	return `campaign_type_${CAMPAIGN_TYPES[campaignType] ? campaignType : DEFAULT_CAMPAIGN_TYPE}`;
+  return `campaign_type_${CAMPAIGN_TYPES[campaignType] ? campaignType : DEFAULT_CAMPAIGN_TYPE}`;
 }
 
 /**
@@ -57,11 +57,11 @@ export function campaignTypeLabelKey(campaignType) {
  * @returns {number|null} Parsed number or null
  */
 export function toNullableNumber(value) {
-	if (value === null || value === undefined || value === "") {
-		return null;
-	}
-	const parsed = Number(value);
-	return Number.isFinite(parsed) ? parsed : null;
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 /**
@@ -74,20 +74,20 @@ export function toNullableNumber(value) {
  * @returns {number} Money raised by this entry
  */
 export function resolveEntryAmount(entry = {}, campaign = {}) {
-	const direct = toNullableNumber(entry.amount_raised);
-	if (direct !== null) {
-		return direct;
-	}
+  const direct = toNullableNumber(entry.amount_raised);
+  if (direct !== null) {
+    return direct;
+  }
 
-	const unitPrice = toNullableNumber(campaign.unit_price);
-	if (unitPrice !== null) {
-		const measure = campaign.campaign_type === "hours_worked"
-			? toNullableNumber(entry.hours)
-			: toNullableNumber(entry.quantity);
-		if (measure !== null) {
-			return measure * unitPrice;
-		}
-	}
+  const unitPrice = toNullableNumber(campaign.unit_price);
+  if (unitPrice !== null) {
+    const measure = campaign.campaign_type === 'hours_worked'
+      ? toNullableNumber(entry.hours)
+      : toNullableNumber(entry.quantity);
+    if (measure !== null) {
+      return measure * unitPrice;
+    }
+  }
 
-	return toNullableNumber(entry.calendar_amount ?? entry.amount) ?? 0;
+  return toNullableNumber(entry.calendar_amount ?? entry.amount) ?? 0;
 }

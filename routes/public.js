@@ -164,7 +164,7 @@ module.exports = (pool, logger) => {
       const result = await pool.query(
         `SELECT title, content, created_at
          FROM news
-         WHERE organization_id = $1
+         WHERE organization_id = $1 AND archived_at IS NULL
          ORDER BY created_at DESC
          LIMIT 3`,
         [organizationId]

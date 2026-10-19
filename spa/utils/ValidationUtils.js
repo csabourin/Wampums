@@ -12,9 +12,9 @@ import { isValidDate } from './DateUtils.js';
 import { sanitizeHTML as sanitizeHTMLFromSecurity } from './SecurityUtils.js';
 
 const PASSWORD_LENGTHS = Object.freeze({
-    MINIMUM: 8,
-    STRONG: 12,
-    MAXIMUM: 255
+  MINIMUM: 8,
+  STRONG: 12,
+  MAXIMUM: 255
 });
 
 /**
@@ -23,10 +23,10 @@ const PASSWORD_LENGTHS = Object.freeze({
  * @returns {boolean} True if valid email
  */
 export function validateEmail(email) {
-    if (!email || typeof email !== 'string') return false;
+  if (!email || typeof email !== 'string') {return false;}
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email.trim());
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email.trim());
 }
 
 /**
@@ -36,13 +36,13 @@ export function validateEmail(email) {
  * @returns {{valid: boolean, error: string|null}} Validation result
  */
 export function validateRequired(value, fieldName = 'Field') {
-    const isEmpty = value === null || value === undefined || value === '' ||
+  const isEmpty = value === null || value === undefined || value === '' ||
                     (typeof value === 'string' && value.trim() === '');
 
-    return {
-        valid: !isEmpty,
-        error: isEmpty ? `${fieldName} is required` : null
-    };
+  return {
+    valid: !isEmpty,
+    error: isEmpty ? `${fieldName} is required` : null
+  };
 }
 
 /**
@@ -53,18 +53,18 @@ export function validateRequired(value, fieldName = 'Field') {
  * @returns {{valid: boolean, error: string|null}} Validation result
  */
 export function validateMinLength(value, minLength, fieldName = 'Field') {
-    if (!value || typeof value !== 'string') {
-        return {
-            valid: false,
-            error: `${fieldName} must be at least ${minLength} characters`
-        };
-    }
-
-    const isValid = value.trim().length >= minLength;
+  if (!value || typeof value !== 'string') {
     return {
-        valid: isValid,
-        error: isValid ? null : `${fieldName} must be at least ${minLength} characters`
+      valid: false,
+      error: `${fieldName} must be at least ${minLength} characters`
     };
+  }
+
+  const isValid = value.trim().length >= minLength;
+  return {
+    valid: isValid,
+    error: isValid ? null : `${fieldName} must be at least ${minLength} characters`
+  };
 }
 
 /**
@@ -75,15 +75,15 @@ export function validateMinLength(value, minLength, fieldName = 'Field') {
  * @returns {{valid: boolean, error: string|null}} Validation result
  */
 export function validateMaxLength(value, maxLength, fieldName = 'Field') {
-    if (!value || typeof value !== 'string') {
-        return { valid: true, error: null };
-    }
+  if (!value || typeof value !== 'string') {
+    return { valid: true, error: null };
+  }
 
-    const isValid = value.trim().length <= maxLength;
-    return {
-        valid: isValid,
-        error: isValid ? null : `${fieldName} must be no more than ${maxLength} characters`
-    };
+  const isValid = value.trim().length <= maxLength;
+  return {
+    valid: isValid,
+    error: isValid ? null : `${fieldName} must be no more than ${maxLength} characters`
+  };
 }
 
 /**
@@ -92,48 +92,48 @@ export function validateMaxLength(value, maxLength, fieldName = 'Field') {
  * @returns {{valid: boolean, error: string|null, strength: string}} Validation result with strength
  */
 export function validatePassword(password) {
-    if (!password || typeof password !== 'string') {
-        return {
-            valid: false,
-            error: 'Password is required',
-            strength: 'none'
-        };
-    }
-
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasNumbers = /\d/.test(password);
-    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
-
-    if (password.length < PASSWORD_LENGTHS.MINIMUM) {
-        return {
-            valid: false,
-            error: `Password must be at least ${PASSWORD_LENGTHS.MINIMUM} characters`,
-            strength: 'weak'
-        };
-    }
-
-    if (password.length > PASSWORD_LENGTHS.MAXIMUM) {
-        return {
-            valid: false,
-            error: `Password must not exceed ${PASSWORD_LENGTHS.MAXIMUM} characters`,
-            strength: 'weak'
-        };
-    }
-
-    if (!hasUpperCase || !hasLowerCase || !hasNumbers || !hasSpecialChar) {
-        return {
-            valid: false,
-            error: 'Password must include uppercase, lowercase, number, and special characters',
-            strength: 'weak'
-        };
-    }
-
+  if (!password || typeof password !== 'string') {
     return {
-        valid: true,
-        error: null,
-        strength: password.length >= PASSWORD_LENGTHS.STRONG ? 'strong' : 'medium'
+      valid: false,
+      error: 'Password is required',
+      strength: 'none'
     };
+  }
+
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasNumbers = /\d/.test(password);
+  const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+  if (password.length < PASSWORD_LENGTHS.MINIMUM) {
+    return {
+      valid: false,
+      error: `Password must be at least ${PASSWORD_LENGTHS.MINIMUM} characters`,
+      strength: 'weak'
+    };
+  }
+
+  if (password.length > PASSWORD_LENGTHS.MAXIMUM) {
+    return {
+      valid: false,
+      error: `Password must not exceed ${PASSWORD_LENGTHS.MAXIMUM} characters`,
+      strength: 'weak'
+    };
+  }
+
+  if (!hasUpperCase || !hasLowerCase || !hasNumbers || !hasSpecialChar) {
+    return {
+      valid: false,
+      error: 'Password must include uppercase, lowercase, number, and special characters',
+      strength: 'weak'
+    };
+  }
+
+  return {
+    valid: true,
+    error: null,
+    strength: password.length >= PASSWORD_LENGTHS.STRONG ? 'strong' : 'medium'
+  };
 }
 
 /**
@@ -143,11 +143,11 @@ export function validatePassword(password) {
  * @returns {{valid: boolean, error: string|null}} Validation result
  */
 export function validatePasswordConfirm(password, confirmPassword) {
-    const isMatch = password === confirmPassword;
-    return {
-        valid: isMatch,
-        error: isMatch ? null : 'Passwords do not match'
-    };
+  const isMatch = password === confirmPassword;
+  return {
+    valid: isMatch,
+    error: isMatch ? null : 'Passwords do not match'
+  };
 }
 
 /**
@@ -156,13 +156,13 @@ export function validatePasswordConfirm(password, confirmPassword) {
  * @returns {boolean} True if valid phone number
  */
 export function validatePhone(phone) {
-    if (!phone || typeof phone !== 'string') return false;
+  if (!phone || typeof phone !== 'string') {return false;}
 
-    // Remove all non-digit characters
-    const digitsOnly = phone.replace(/\D/g, '');
+  // Remove all non-digit characters
+  const digitsOnly = phone.replace(/\D/g, '');
 
-    // Valid if between 10-15 digits (international format)
-    return digitsOnly.length >= 10 && digitsOnly.length <= 15;
+  // Valid if between 10-15 digits (international format)
+  return digitsOnly.length >= 10 && digitsOnly.length <= 15;
 }
 
 /**
@@ -173,51 +173,51 @@ export function validatePhone(phone) {
  * @returns {{valid: boolean, error: string|null}} Validation result
  */
 export function validateDateOfBirth(dateString, minAge = null, maxAge = null) {
-    if (!isValidDate(dateString)) {
-        return {
-            valid: false,
-            error: 'Invalid date format'
-        };
-    }
-
-    const birthDate = new Date(dateString);
-    const today = new Date();
-
-    if (birthDate >= today) {
-        return {
-            valid: false,
-            error: 'Date of birth must be in the past'
-        };
-    }
-
-    if (minAge !== null) {
-        const minDate = new Date();
-        minDate.setFullYear(minDate.getFullYear() - minAge);
-
-        if (birthDate > minDate) {
-            return {
-                valid: false,
-                error: `Must be at least ${minAge} years old`
-            };
-        }
-    }
-
-    if (maxAge !== null) {
-        const maxDate = new Date();
-        maxDate.setFullYear(maxDate.getFullYear() - maxAge);
-
-        if (birthDate < maxDate) {
-            return {
-                valid: false,
-                error: `Must be no more than ${maxAge} years old`
-            };
-        }
-    }
-
+  if (!isValidDate(dateString)) {
     return {
-        valid: true,
-        error: null
+      valid: false,
+      error: 'Invalid date format'
     };
+  }
+
+  const birthDate = new Date(dateString);
+  const today = new Date();
+
+  if (birthDate >= today) {
+    return {
+      valid: false,
+      error: 'Date of birth must be in the past'
+    };
+  }
+
+  if (minAge !== null) {
+    const minDate = new Date();
+    minDate.setFullYear(minDate.getFullYear() - minAge);
+
+    if (birthDate > minDate) {
+      return {
+        valid: false,
+        error: `Must be at least ${minAge} years old`
+      };
+    }
+  }
+
+  if (maxAge !== null) {
+    const maxDate = new Date();
+    maxDate.setFullYear(maxDate.getFullYear() - maxAge);
+
+    if (birthDate < maxDate) {
+      return {
+        valid: false,
+        error: `Must be no more than ${maxAge} years old`
+      };
+    }
+  }
+
+  return {
+    valid: true,
+    error: null
+  };
 }
 
 /**
@@ -226,32 +226,32 @@ export function validateDateOfBirth(dateString, minAge = null, maxAge = null) {
  * @returns {{valid: boolean, errors: Object}} Validation result with errors by field
  */
 export function validateParticipant(data) {
-    const errors = {};
+  const errors = {};
 
-    // Validate first name
-    const firstNameResult = validateRequired(data.first_name, 'First name');
-    if (!firstNameResult.valid) {
-        errors.first_name = firstNameResult.error;
+  // Validate first name
+  const firstNameResult = validateRequired(data.first_name, 'First name');
+  if (!firstNameResult.valid) {
+    errors.first_name = firstNameResult.error;
+  }
+
+  // Validate last name
+  const lastNameResult = validateRequired(data.last_name, 'Last name');
+  if (!lastNameResult.valid) {
+    errors.last_name = lastNameResult.error;
+  }
+
+  // Validate date of birth if provided
+  if (data.date_of_birth) {
+    const dobResult = validateDateOfBirth(data.date_of_birth);
+    if (!dobResult.valid) {
+      errors.date_of_birth = dobResult.error;
     }
+  }
 
-    // Validate last name
-    const lastNameResult = validateRequired(data.last_name, 'Last name');
-    if (!lastNameResult.valid) {
-        errors.last_name = lastNameResult.error;
-    }
-
-    // Validate date of birth if provided
-    if (data.date_of_birth) {
-        const dobResult = validateDateOfBirth(data.date_of_birth);
-        if (!dobResult.valid) {
-            errors.date_of_birth = dobResult.error;
-        }
-    }
-
-    return {
-        valid: Object.keys(errors).length === 0,
-        errors: errors
-    };
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors: errors
+  };
 }
 
 /**
@@ -260,18 +260,18 @@ export function validateParticipant(data) {
  * @returns {{valid: boolean, errors: Object}} Validation result with errors by field
  */
 export function validateGroup(data) {
-    const errors = {};
+  const errors = {};
 
-    // Validate name
-    const nameResult = validateRequired(data.name, 'Group name');
-    if (!nameResult.valid) {
-        errors.name = nameResult.error;
-    }
+  // Validate name
+  const nameResult = validateRequired(data.name, 'Group name');
+  if (!nameResult.valid) {
+    errors.name = nameResult.error;
+  }
 
-    return {
-        valid: Object.keys(errors).length === 0,
-        errors: errors
-    };
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors: errors
+  };
 }
 
 /**
@@ -280,37 +280,37 @@ export function validateGroup(data) {
  * @returns {{valid: boolean, errors: Object}} Validation result with errors by field
  */
 export function validateUserRegistration(data) {
-    const errors = {};
+  const errors = {};
 
-    // Validate email
-    if (!validateEmail(data.email)) {
-        errors.email = 'Invalid email address';
+  // Validate email
+  if (!validateEmail(data.email)) {
+    errors.email = 'Invalid email address';
+  }
+
+  // Validate password
+  const passwordResult = validatePassword(data.password);
+  if (!passwordResult.valid) {
+    errors.password = passwordResult.error;
+  }
+
+  // Validate password confirmation
+  if (data.confirm_password) {
+    const confirmResult = validatePasswordConfirm(data.password, data.confirm_password);
+    if (!confirmResult.valid) {
+      errors.confirm_password = confirmResult.error;
     }
+  }
 
-    // Validate password
-    const passwordResult = validatePassword(data.password);
-    if (!passwordResult.valid) {
-        errors.password = passwordResult.error;
-    }
+  // Validate full name
+  const nameResult = validateRequired(data.full_name, 'Full name');
+  if (!nameResult.valid) {
+    errors.full_name = nameResult.error;
+  }
 
-    // Validate password confirmation
-    if (data.confirm_password) {
-        const confirmResult = validatePasswordConfirm(data.password, data.confirm_password);
-        if (!confirmResult.valid) {
-            errors.confirm_password = confirmResult.error;
-        }
-    }
-
-    // Validate full name
-    const nameResult = validateRequired(data.full_name, 'Full name');
-    if (!nameResult.valid) {
-        errors.full_name = nameResult.error;
-    }
-
-    return {
-        valid: Object.keys(errors).length === 0,
-        errors: errors
-    };
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors: errors
+  };
 }
 
 /**
@@ -322,33 +322,33 @@ export function validateUserRegistration(data) {
  * @returns {{valid: boolean, error: string|null}} Validation result
  */
 export function validateNumeric(value, min = null, max = null, fieldName = 'Field') {
-    const numValue = Number(value);
+  const numValue = Number(value);
 
-    if (isNaN(numValue)) {
-        return {
-            valid: false,
-            error: `${fieldName} must be a number`
-        };
-    }
-
-    if (min !== null && numValue < min) {
-        return {
-            valid: false,
-            error: `${fieldName} must be at least ${min}`
-        };
-    }
-
-    if (max !== null && numValue > max) {
-        return {
-            valid: false,
-            error: `${fieldName} must be no more than ${max}`
-        };
-    }
-
+  if (isNaN(numValue)) {
     return {
-        valid: true,
-        error: null
+      valid: false,
+      error: `${fieldName} must be a number`
     };
+  }
+
+  if (min !== null && numValue < min) {
+    return {
+      valid: false,
+      error: `${fieldName} must be at least ${min}`
+    };
+  }
+
+  if (max !== null && numValue > max) {
+    return {
+      valid: false,
+      error: `${fieldName} must be no more than ${max}`
+    };
+  }
+
+  return {
+    valid: true,
+    error: null
+  };
 }
 
 /**
@@ -357,14 +357,14 @@ export function validateNumeric(value, min = null, max = null, fieldName = 'Fiel
  * @returns {boolean} True if valid URL
  */
 export function validateURL(url) {
-    if (!url || typeof url !== 'string') return false;
+  if (!url || typeof url !== 'string') {return false;}
 
-    try {
-        new URL(url);
-        return true;
-    } catch (error) {
-        return false;
-    }
+  try {
+    new URL(url);
+    return true;
+  } catch (error) {
+    return false;
+  }
 }
 
 /**
@@ -374,12 +374,12 @@ export function validateURL(url) {
  * @returns {{valid: boolean, error: string|null}} Validation result
  */
 export function validateArray(value, fieldName = 'Field') {
-    const isValidArray = Array.isArray(value) && value.length > 0;
+  const isValidArray = Array.isArray(value) && value.length > 0;
 
-    return {
-        valid: isValidArray,
-        error: isValidArray ? null : `${fieldName} must have at least one item`
-    };
+  return {
+    valid: isValidArray,
+    error: isValidArray ? null : `${fieldName} must have at least one item`
+  };
 }
 
 /**
@@ -388,9 +388,9 @@ export function validateArray(value, fieldName = 'Field') {
  * @returns {string} Sanitized HTML string
  */
 export function sanitizeHTML(html) {
-    if (!html || typeof html !== 'string') return '';
+  if (!html || typeof html !== 'string') {return '';}
 
-    return sanitizeHTMLFromSecurity(html, { stripAll: true });
+  return sanitizeHTMLFromSecurity(html, { stripAll: true });
 }
 
 /**
@@ -399,10 +399,10 @@ export function sanitizeHTML(html) {
  * @returns {string} Sanitized string
  */
 export function sanitizeInput(input) {
-    if (!input || typeof input !== 'string') return '';
+  if (!input || typeof input !== 'string') {return '';}
 
-    // Remove control characters and trim
-    return input.replace(/[\x00-\x1F\x7F]/g, '').trim();
+  // Remove control characters and trim
+  return input.replace(/[\x00-\x1F\x7F]/g, '').trim();
 }
 
 /**
@@ -412,67 +412,67 @@ export function sanitizeInput(input) {
  * @returns {{valid: boolean, errors: Object}} Validation result
  */
 export function validateForm(data, schema) {
-    const errors = {};
+  const errors = {};
 
-    for (const [field, rules] of Object.entries(schema)) {
-        const value = data[field];
+  for (const [field, rules] of Object.entries(schema)) {
+    const value = data[field];
 
-        // Check required
-        if (rules.required) {
-            const requiredResult = validateRequired(value, rules.label || field);
-            if (!requiredResult.valid) {
-                errors[field] = requiredResult.error;
-                continue;
-            }
-        }
-
-        // Skip other validations if value is empty and not required
-        if (!value && !rules.required) continue;
-
-        // Check type-specific validations
-        if (rules.type === 'email' && !validateEmail(value)) {
-            errors[field] = `${rules.label || field} must be a valid email`;
-        } else if (rules.type === 'phone' && !validatePhone(value)) {
-            errors[field] = `${rules.label || field} must be a valid phone number`;
-        } else if (rules.type === 'url' && !validateURL(value)) {
-            errors[field] = `${rules.label || field} must be a valid URL`;
-        } else if (rules.type === 'date' && !isValidDate(value)) {
-            errors[field] = `${rules.label || field} must be a valid date`;
-        } else if (rules.type === 'number') {
-            const numResult = validateNumeric(value, rules.min, rules.max, rules.label || field);
-            if (!numResult.valid) {
-                errors[field] = numResult.error;
-            }
-        }
-
-        // Check min/max length for strings
-        if (rules.minLength) {
-            const minResult = validateMinLength(value, rules.minLength, rules.label || field);
-            if (!minResult.valid) {
-                errors[field] = minResult.error;
-            }
-        }
-
-        if (rules.maxLength) {
-            const maxResult = validateMaxLength(value, rules.maxLength, rules.label || field);
-            if (!maxResult.valid) {
-                errors[field] = maxResult.error;
-            }
-        }
-
-        // Custom validation function
-        if (rules.validate && typeof rules.validate === 'function') {
-            const customResult = rules.validate(value, data);
-            if (customResult !== true) {
-                errors[field] = typeof customResult === 'string' ? customResult : `${rules.label || field} is invalid`;
-            }
-        }
+    // Check required
+    if (rules.required) {
+      const requiredResult = validateRequired(value, rules.label || field);
+      if (!requiredResult.valid) {
+        errors[field] = requiredResult.error;
+        continue;
+      }
     }
 
-    return {
-        valid: Object.keys(errors).length === 0,
-        errors: errors
-    };
+    // Skip other validations if value is empty and not required
+    if (!value && !rules.required) {continue;}
+
+    // Check type-specific validations
+    if (rules.type === 'email' && !validateEmail(value)) {
+      errors[field] = `${rules.label || field} must be a valid email`;
+    } else if (rules.type === 'phone' && !validatePhone(value)) {
+      errors[field] = `${rules.label || field} must be a valid phone number`;
+    } else if (rules.type === 'url' && !validateURL(value)) {
+      errors[field] = `${rules.label || field} must be a valid URL`;
+    } else if (rules.type === 'date' && !isValidDate(value)) {
+      errors[field] = `${rules.label || field} must be a valid date`;
+    } else if (rules.type === 'number') {
+      const numResult = validateNumeric(value, rules.min, rules.max, rules.label || field);
+      if (!numResult.valid) {
+        errors[field] = numResult.error;
+      }
+    }
+
+    // Check min/max length for strings
+    if (rules.minLength) {
+      const minResult = validateMinLength(value, rules.minLength, rules.label || field);
+      if (!minResult.valid) {
+        errors[field] = minResult.error;
+      }
+    }
+
+    if (rules.maxLength) {
+      const maxResult = validateMaxLength(value, rules.maxLength, rules.label || field);
+      if (!maxResult.valid) {
+        errors[field] = maxResult.error;
+      }
+    }
+
+    // Custom validation function
+    if (rules.validate && typeof rules.validate === 'function') {
+      const customResult = rules.validate(value, data);
+      if (customResult !== true) {
+        errors[field] = typeof customResult === 'string' ? customResult : `${rules.label || field} is invalid`;
+      }
+    }
+  }
+
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors: errors
+  };
 }
 
 /**
@@ -483,47 +483,47 @@ export function validateForm(data, schema) {
  * @returns {{valid: boolean, error: string|null, value: number|null}} Validation result
  */
 export function validateMoney(value, fieldName = 'Amount', options = {}) {
-    const { min = 0, max = Infinity, required = true } = options;
+  const { min = 0, max = Infinity, required = true } = options;
 
-    if (required && (value === null || value === undefined || value === '')) {
-        return {
-            valid: false,
-            error: `${fieldName} is required`,
-            value: null
-        };
-    }
+  if (required && (value === null || value === undefined || value === '')) {
+    return {
+      valid: false,
+      error: `${fieldName} is required`,
+      value: null
+    };
+  }
 
-    if (!required && (value === null || value === undefined || value === '')) {
-        return { valid: true, error: null, value: 0 };
-    }
+  if (!required && (value === null || value === undefined || value === '')) {
+    return { valid: true, error: null, value: 0 };
+  }
 
-    const numeric = parseFloat(value);
+  const numeric = parseFloat(value);
 
-    if (Number.isNaN(numeric)) {
-        return {
-            valid: false,
-            error: `${fieldName} must be a valid number`,
-            value: null
-        };
-    }
+  if (Number.isNaN(numeric)) {
+    return {
+      valid: false,
+      error: `${fieldName} must be a valid number`,
+      value: null
+    };
+  }
 
-    if (numeric < min) {
-        return {
-            valid: false,
-            error: `${fieldName} must be at least ${min}`,
-            value: null
-        };
-    }
+  if (numeric < min) {
+    return {
+      valid: false,
+      error: `${fieldName} must be at least ${min}`,
+      value: null
+    };
+  }
 
-    if (numeric > max) {
-        return {
-            valid: false,
-            error: `${fieldName} cannot exceed ${max}`,
-            value: null
-        };
-    }
+  if (numeric > max) {
+    return {
+      valid: false,
+      error: `${fieldName} cannot exceed ${max}`,
+      value: null
+    };
+  }
 
-    return { valid: true, error: null, value: numeric };
+  return { valid: true, error: null, value: numeric };
 }
 
 /**
@@ -534,47 +534,47 @@ export function validateMoney(value, fieldName = 'Amount', options = {}) {
  * @returns {{valid: boolean, error: string|null, value: Date|null}} Validation result
  */
 export function validateDateField(value, fieldName = 'Date', options = {}) {
-    const { required = true, minDate = null, maxDate = null } = options;
+  const { required = true, minDate = null, maxDate = null } = options;
 
-    if (required && !value) {
-        return {
-            valid: false,
-            error: `${fieldName} is required`,
-            value: null
-        };
-    }
+  if (required && !value) {
+    return {
+      valid: false,
+      error: `${fieldName} is required`,
+      value: null
+    };
+  }
 
-    if (!required && !value) {
-        return { valid: true, error: null, value: null };
-    }
+  if (!required && !value) {
+    return { valid: true, error: null, value: null };
+  }
 
-    if (!isValidDate(value)) {
-        return {
-            valid: false,
-            error: `${fieldName} must be a valid date`,
-            value: null
-        };
-    }
+  if (!isValidDate(value)) {
+    return {
+      valid: false,
+      error: `${fieldName} must be a valid date`,
+      value: null
+    };
+  }
 
-    const date = new Date(value);
+  const date = new Date(value);
 
-    if (minDate && date < new Date(minDate)) {
-        return {
-            valid: false,
-            error: `${fieldName} cannot be before ${minDate}`,
-            value: null
-        };
-    }
+  if (minDate && date < new Date(minDate)) {
+    return {
+      valid: false,
+      error: `${fieldName} cannot be before ${minDate}`,
+      value: null
+    };
+  }
 
-    if (maxDate && date > new Date(maxDate)) {
-        return {
-            valid: false,
-            error: `${fieldName} cannot be after ${maxDate}`,
-            value: null
-        };
-    }
+  if (maxDate && date > new Date(maxDate)) {
+    return {
+      valid: false,
+      error: `${fieldName} cannot be after ${maxDate}`,
+      value: null
+    };
+  }
 
-    return { valid: true, error: null, value: date };
+  return { valid: true, error: null, value: date };
 }
 
 /**
@@ -585,31 +585,31 @@ export function validateDateField(value, fieldName = 'Date', options = {}) {
  * @returns {{valid: boolean, error: string|null, value: number|null}} Validation result
  */
 export function validatePositiveInteger(value, fieldName = 'Number', options = {}) {
-    const { required = true, min = 1 } = options;
+  const { required = true, min = 1 } = options;
 
-    if (required && (value === null || value === undefined || value === '')) {
-        return {
-            valid: false,
-            error: `${fieldName} is required`,
-            value: null
-        };
-    }
+  if (required && (value === null || value === undefined || value === '')) {
+    return {
+      valid: false,
+      error: `${fieldName} is required`,
+      value: null
+    };
+  }
 
-    if (!required && (value === null || value === undefined || value === '')) {
-        return { valid: true, error: null, value: null };
-    }
+  if (!required && (value === null || value === undefined || value === '')) {
+    return { valid: true, error: null, value: null };
+  }
 
-    const numeric = parseInt(value, 10);
+  const numeric = parseInt(value, 10);
 
-    if (!Number.isInteger(numeric) || numeric < min) {
-        return {
-            valid: false,
-            error: `${fieldName} must be a positive integer`,
-            value: null
-        };
-    }
+  if (!Number.isInteger(numeric) || numeric < min) {
+    return {
+      valid: false,
+      error: `${fieldName} must be a positive integer`,
+      value: null
+    };
+  }
 
-    return { valid: true, error: null, value: numeric };
+  return { valid: true, error: null, value: numeric };
 }
 
 /**
@@ -618,8 +618,8 @@ export function validatePositiveInteger(value, fieldName = 'Number', options = {
  * @returns {string} Sanitized value
  */
 export function sanitizeMoneyInput(value) {
-    if (!value) return '';
-    return String(value).replace(/[^0-9.]/g, '');
+  if (!value) {return '';}
+  return String(value).replace(/[^0-9.]/g, '');
 }
 
 /**
@@ -629,9 +629,9 @@ export function sanitizeMoneyInput(value) {
  * @returns {string} Sanitized value
  */
 export function sanitizeTextInput(value, maxLength = 1000) {
-    if (!value) return '';
-    return String(value)
-        .trim()
-        .substring(0, maxLength)
-        .replace(/[<>]/g, ''); // Basic tag prevention
+  if (!value) {return '';}
+  return String(value)
+    .trim()
+    .substring(0, maxLength)
+    .replace(/[<>]/g, ''); // Basic tag prevention
 }

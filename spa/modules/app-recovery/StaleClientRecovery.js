@@ -76,7 +76,7 @@ function writeStoredBuildId(buildId) {
 function isRecoveryInProgress() {
   try {
     const startedAt = Number(sessionStorage.getItem(RECOVERY_FLAG_KEY));
-    if (!startedAt) return false;
+    if (!startedAt) {return false;}
     return Date.now() - startedAt < RECOVERY_WINDOW_MS;
   } catch (error) {
     debugLog('Cannot read recovery flag:', error);
@@ -248,7 +248,7 @@ async function recoverFromConfirmedStaleClient(reason) {
  */
 export async function checkForStaleClient() {
   const serverBuild = await fetchServerBuild();
-  if (!serverBuild) return false;
+  if (!serverBuild) {return false;}
 
   const storedBuildId = readStoredBuildId();
 

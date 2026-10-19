@@ -1,11 +1,11 @@
-require("dotenv").config();
-const createApp = require("./config/app");
-const logger = require("./config/logger");
-const { pool } = require("./config/database");
-const serviceManager = require("./services/manager");
+require('dotenv').config();
+const createApp = require('./config/app');
+const logger = require('./config/logger');
+const { pool } = require('./config/database');
+const serviceManager = require('./services/manager');
 
 const PORT = process.env.PORT || 5000;
-const HOST = "0.0.0.0";
+const HOST = '0.0.0.0';
 
 const { app, server, io } = createApp();
 
@@ -19,7 +19,7 @@ async function gracefulShutdown(signal) {
 
   // 1. Stop accepting new requests
   server.close(async () => {
-    logger.info("HTTP server closed.");
+    logger.info('HTTP server closed.');
 
     // 2. Stop background services
     serviceManager.shutdown();
@@ -27,19 +27,19 @@ async function gracefulShutdown(signal) {
     // 3. Close database pool
     try {
       await pool.end();
-      logger.info("Database pool closed.");
+      logger.info('Database pool closed.');
     } catch (err) {
-      logger.error("Error closing database pool:", err);
+      logger.error('Error closing database pool:', err);
     }
 
     // 4. Final cleanup
-    logger.info("Graceful shutdown complete.");
+    logger.info('Graceful shutdown complete.');
     process.exit(0);
   });
 
   // Force shutdown after 10s
   setTimeout(() => {
-    logger.error("Could not close connections in time, forcefully shutting down");
+    logger.error('Could not close connections in time, forcefully shutting down');
     process.exit(1);
   }, 10000);
 }
@@ -64,8 +64,8 @@ if (require.main === module) {
     }, 60000);
 
     // Register shutdown handlers
-    process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
   });
 }
 

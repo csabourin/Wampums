@@ -38,7 +38,7 @@ jest.mock('../../spa/api/api-endpoints.js', () => new Proxy({}, {
   get: () => jest.fn().mockResolvedValue({ data: [] }),
 }));
 
-import { Budgets } from '../../spa/budgets.js';
+import { Budgets } from '../../spa/modules/finance/Budgets.js';
 
 /**
  * @returns {Budgets} A budgets module bound to a stub app

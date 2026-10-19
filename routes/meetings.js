@@ -17,9 +17,12 @@ const { success, error, asyncHandler } = require('../middleware/response');
 const { validateDate, validateDateOptional, checkValidation } = require('../middleware/validation');
 const { getMeetingSectionConfig } = require('../utils/meeting-sections');
 const { getMeetingDefaults, computeEndTime, formatLocalDate } = require('../utils/meeting-defaults');
+const { durationToMinutes, getProgrammeForDate } = require('../services/meetingProgramme');
 
 const MINUTES_PER_HOUR = 60;
 const UNPROCESSED_MEETINGS_LIMIT = 10;
+/** Length of the date part of an ISO 8601 value (YYYY-MM-DD). */
+const ISO_DATE_LENGTH = 10;
 
 // Reading a meeting's plan: whoever prepares meetings, and the leaders who run
 // them (the same people the SPA shows the upcoming-meeting screen to).
@@ -50,29 +53,6 @@ function minutesToDuration(minutes) {
   const hours = Math.floor(total / MINUTES_PER_HOUR);
   const mins = total % MINUTES_PER_HOUR;
   return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
-}
-
-/**
- * Convert a legacy "HH:MM" duration (or plain minutes) to minutes.
- * @param {string|number|null} duration - Duration value
- * @returns {number|null}
- */
-function durationToMinutes(duration) {
-  if (duration === null || duration === undefined || duration === '') {
-    return null;
-  }
-  if (typeof duration === 'number') {
-    return duration;
-  }
-  const text = String(duration);
-  if (/^\d+$/.test(text)) {
-    return parseInt(text, 10);
-  }
-  const match = text.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) {
-    return null;
-  }
-  return parseInt(match[1], 10) * MINUTES_PER_HOUR + parseInt(match[2], 10);
 }
 
 /**
@@ -205,6 +185,25 @@ module.exports = (pool, logger) => {
       ]);
 
       return success(res, { meeting, meetingSections });
+    })
+  );
+
+  /**
+   * GET /v1/meetings/programme?date=YYYY-MM-DD
+   * The programme running on a day, for the leaders' "now / next" bar: a
+   * meeting's timeline, or the day of a camp that spans that date (null when
+   * nothing is planned). The phone sends its own date: the bar follows the
+   * leader's clock, not the server's.
+   */
+  router.get('/programme',
+    authenticate,
+    requirePermission('meetings.view'),
+    validateDate('date'),
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const programme = await getProgrammeForDate(pool, organizationId, String(req.query.date).slice(0, ISO_DATE_LENGTH));
+      return success(res, programme);
     })
   );
 

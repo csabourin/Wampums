@@ -97,7 +97,7 @@ function parseColumns(columnDefs) {
   
   lines.forEach(line => {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('--')) return;
+    if (!trimmed || trimmed.startsWith('--')) {return;}
     
     // Match: column_name TYPE [NOT NULL] [DEFAULT value]
     const match = trimmed.match(/^(\w+)\s+([\w\s\[\]()]+?)(?:\s+NOT NULL)?(?:\s+DEFAULT\s+(.+?))?(?:\s+CHECK.*)?(?:,|$)/);

@@ -30,7 +30,7 @@
   --gradient-surface: linear-gradient(180deg, #ffffff 0%, #f7fbf9 100%);
 
   /* Semantic Colors */
-  --color-success: #1a8f6b;
+  --color-success: #167a5c; /* 5.3:1 on white, 4.9:1 on --color-background, 4.6:1 on --color-secondary */
   --color-success-light: #20ad83;
   --color-error: #9a3f38;
   --color-error-light: #d45a51;
@@ -197,6 +197,13 @@ html {
   }
 }
 
+/* Live sync redraws a screen inside a view transition so its loading state
+   never shows. The refreshed screen replaces the old one at once: no fade. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
 body {
   min-block-size: 100%;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
@@ -209,6 +216,57 @@ body {
   overflow-x: hidden;
   word-wrap: break-word;
   overflow-wrap: break-word;
+}
+
+/* Skip link: first in the Tab order, shown only while it has focus */
+.skip-link {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  z-index: var(--z-toast);
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--touch-target-min);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-primary);
+  color: var(--color-selected-text);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  border-end-end-radius: var(--radius-md);
+  transform: translateY(-100%);
+}
+
+/* The global a:hover / a:focus-visible colour is dark blue: unreadable on green. */
+.skip-link:hover,
+.skip-link:focus-visible {
+  color: var(--color-selected-text);
+}
+
+.skip-link:focus {
+  transform: none;
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Error page (ErrorPageUtils): ways forward wrap on a phone */
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-block-start: var(--space-md);
+}
+
+/* The base button rule styles <button> only; the links here take its shape. */
+.error-actions a.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--touch-target-min);
+  padding: var(--space-md) var(--space-xl);
+  border-radius: var(--radius-lg);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+  text-decoration: none;
 }
 
 /* Main App Container */
@@ -464,7 +522,8 @@ a:focus-visible {
 
 button,
 input[type="submit"],
-.btn {
+.btn,
+.button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -487,6 +546,7 @@ input[type="submit"],
 
 /* Button Variants */
 .btn--primary,
+.button--primary,
 button,
 input[type="submit"] {
   background-color: var(--color-primary);
@@ -496,6 +556,7 @@ input[type="submit"] {
 }
 
 .btn--primary:hover:not(:disabled),
+.button--primary:hover:not(:disabled),
 :where(button:hover:not(:disabled), input[type="submit"]:hover:not(:disabled)) {
   /* Zero specificity for the bare-element part: a component that sets its own
      background keeps it on hover. At (0,2,1) this rule used to paint the dark
@@ -523,12 +584,14 @@ input[type="submit"] {
   box-shadow: var(--shadow-md);
 }
 
-.btn--success {
+.btn--success,
+.button--success {
   background-color: var(--color-success);
   color: white;
 }
 
-.btn--success:hover:not(:disabled) {
+.btn--success:hover:not(:disabled),
+.button--success:hover:not(:disabled) {
   background-color: var(--color-success-light);
 }
 
@@ -552,10 +615,21 @@ input[type="submit"] {
 
 button:disabled,
 .btn:disabled,
+.button:disabled,
 [disabled] {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none !important;
+}
+
+/* A live region stays in the page so assistive technology hears what arrives
+   in it; while it holds nothing it takes no room, whatever a page styles it with. */
+/* `html` lifts it above page rules such as `.status-message.error`, which load later. */
+html .status-message:empty,
+html [role="alert"]:empty {
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 /* ----------------------------------------------------------------------------
@@ -603,6 +677,23 @@ textarea {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   transition: all var(--transition-fast);
+}
+
+/* Fields the rule above leaves out kept the browser's 19px height, under the
+   WCAG 2.2 target size. They get the same look and a finger-sized height, but
+   not its full width: number fields sit inside table cells and toolbars. */
+input[type="search"],
+input[type="number"],
+input[type="url"],
+input[type="time"] {
+  min-block-size: var(--touch-target-min);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-base);
+  font-family: inherit;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
 }
 
 input:focus,
@@ -993,24 +1084,29 @@ tr:hover {
   background-color: rgb(24 178 154 / 0.08);
 }
 
-/* Responsive Table - Stack on Mobile */
+/* Responsive Table - Stack on Mobile
+
+   A table in the reports dialog keeps its columns and scrolls in a focusable
+   region instead: stacking it hides its header and, without a `data-label` on
+   each cell, leaves values in boxes no one can name. The `:where()` keeps each
+   selector's specificity what it was before the exclusion. */
 @media (width <=600px) {
 
-  table,
-  thead,
-  tbody,
-  th,
-  td {
+  table:where(:not(.report-modal-content table)),
+  thead:where(:not(.report-modal-content thead)),
+  tbody:where(:not(.report-modal-content tbody)),
+  th:where(:not(.report-modal-content th)),
+  td:where(:not(.report-modal-content td)) {
     display: block;
   }
 
-  thead tr {
+  thead tr:where(:not(.report-modal-content tr)) {
     position: absolute;
     inset-block-start: -9999px;
     inset-inline-start: -9999px;
   }
 
-  tr {
+  tr:where(:not(.report-modal-content tr)) {
     margin-block-end: var(--space-lg);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
@@ -1019,13 +1115,13 @@ tr:hover {
     flex-wrap: wrap;
   }
 
-  td {
+  td:where(:not(.report-modal-content td)) {
     border: none;
     position: relative;
     text-align: end;
   }
 
-  td::before {
+  td:where(:not(.report-modal-content td))::before {
     content: attr(data-label);
     position: absolute;
     inset-inline-start: var(--space-md);
@@ -1093,6 +1189,11 @@ tr:hover {
 }
 
 .participant-card__edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--touch-target-min);
+  min-inline-size: var(--touch-target-min);
   padding: var(--space-sm) var(--space-md);
   background-color: var(--color-primary);
   color: white;
@@ -4316,10 +4417,15 @@ tr:hover {
   .status-buttons,
   button,
   .btn,
+  .button,
   .dashboard-button,
   .toast,
   #offline-indicator,
-  #loading-indicator {
+  #loading-indicator,
+  .settings-icon,
+  .skip-link,
+  .privacy-policy-link,
+  #news-widget {
     display: none !important;
   }
 
@@ -6042,30 +6148,189 @@ body.online .pending-update {
 }
 
 /* ----------------------------------------------------------------------------
-   11.6 ACTIVITY WIDGET
+   11.6 PROGRAMME BAR — the leaders' "now / next" bar, pinned to the bottom
    ---------------------------------------------------------------------------- */
 
-.activity-widget {
-  background-color: var(--color-secondary);
-  padding: var(--space-lg);
-  border: 1px solid var(--color-border);
-  margin-block: var(--space-2xl) var(--space-lg);
-  border-radius: var(--radius-md);
-  text-align: center;
+html.has-programme-bar {
+  /* A default; the bar sets the room it actually takes when it draws. */
+  --programme-bar-space: calc(8.5rem + env(safe-area-inset-bottom, 0px));
+  /* A focused field scrolled into view is never left under the bar (WCAG 2.4.11). */
+  scroll-padding-block-end: var(--programme-bar-space);
+}
+
+html.has-programme-bar body {
+  padding-block-end: var(--programme-bar-space);
+}
+
+.programme-bar {
+  position: fixed;
+  inset-inline: var(--space-sm);
+  inset-block-end: calc(var(--space-sm) + env(safe-area-inset-bottom, 0px));
+  z-index: var(--z-fixed);
+  max-inline-size: 40rem;
+  margin-inline: auto;
+}
+
+.programme-bar[hidden] {
   display: none;
-  box-shadow: var(--shadow-base);
 }
 
-.activity-widget h3 {
-  margin: 0;
-  font-size: var(--font-size-xl);
-  color: var(--color-primary);
+.programme-bar__button {
+  inline-size: 100%;
+  min-block-size: 5.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.875rem 1rem;
+  border: 2px solid transparent;
+  border-radius: 1.125rem;
+  background: var(--color-primary-dark);
+  color: #ffffff;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgb(10 40 30 / 28%);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.activity-widget p {
-  margin: var(--space-sm) 0 0;
-  font-size: var(--font-size-base);
+.programme-bar__button:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 3px;
+}
+
+/* The last minutes: another colour, and the label says so too. */
+.programme-bar__button--soon {
+  background: var(--color-warning);
+  color: #17211d;
+  border-color: #17211d;
+  border-width: 3px;
+}
+
+.programme-bar__button--upcoming {
+  background: var(--color-surface);
   color: var(--color-text);
+  border-color: var(--color-primary-dark);
+}
+
+.programme-bar__button--upcoming .programme-bar__label {
+  color: var(--color-primary-dark);
+}
+
+.programme-bar__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  inline-size: 100%;
+}
+
+.programme-bar__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-inline-size: 0;
+}
+
+.programme-bar__label {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.programme-bar__name {
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.programme-bar__length {
+  font-size: 1.6rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.programme-bar__detail {
+  align-items: center;
+  font-size: 1rem;
+}
+
+.programme-bar__chevron {
+  flex: none;
+}
+
+.programme-sheet__when {
+  margin: 0 0 var(--space-md);
+  color: var(--color-text-muted);
+}
+
+.programme-sheet__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.programme-sheet__item {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding-block: 0.75rem;
+  border-block-start: 1px solid var(--color-border);
+}
+
+.programme-sheet__item--done {
+  color: var(--color-text-muted);
+}
+
+.programme-sheet__item--now {
+  margin-inline: -0.75rem;
+  padding-inline: 0.75rem;
+  border-radius: 0.75rem;
+  border-block-start-color: transparent;
+  background: var(--color-border-light);
+}
+
+.programme-sheet__time,
+.programme-sheet__name {
+  font-weight: 700;
+}
+
+.programme-sheet__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-inline-size: 0;
+}
+
+.programme-sheet__tag {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.programme-sheet__tag--now {
+  align-self: flex-start;
+  padding: 0.125rem 0.625rem;
+  border-radius: 999px;
+  background: var(--color-primary-dark);
+  color: #ffffff;
+}
+
+.programme-sheet__wake {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-block-size: var(--touch-target-min);
+  margin-block-start: var(--space-md);
+}
+
+.programme-sheet__wake input[type="checkbox"] {
+  flex: none;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  margin: 0;
+  accent-color: var(--color-primary-dark);
 }
 
 /* ----------------------------------------------------------------------------
@@ -7760,7 +8025,8 @@ details p {
 }
 
 .btn--danger,
-.dm-modal .btn--danger {
+.dm-modal .btn--danger,
+.dm-modal .button--danger {
   background-color: #b3261e;
   background-image: none;
   color: #fff;
@@ -7985,6 +8251,12 @@ details p {
   background: var(--color-background);
 }
 
+/* A report table wider than a phone scrolls in its own region, which takes
+   keyboard focus so it can be scrolled without a pointer. */
+.report-table-scroll {
+  overflow-x: auto;
+}
+
 /* Button variants for modal */
 .button--secondary {
   background: var(--color-secondary);
@@ -8044,12 +8316,19 @@ details p {
   text-decoration: none;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  box-shadow: none;
 }
 
 .button--ghost:hover,
 .button--ghost:focus-visible {
   background: var(--color-secondary);
   color: var(--color-text);
+}
+
+/* A smaller label, still a finger-sized target (the base rule keeps 44px). */
+.button--small {
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-sm);
 }
 
 .button-icon {
@@ -8211,7 +8490,8 @@ details p {
   gap: var(--space-sm, 0.5rem);
 }
 
-.permission-slip-response-actions .btn {
+.permission-slip-response-actions .btn,
+.permission-slip-response-actions .button {
   min-height: 44px;
 }
 
@@ -8589,7 +8869,8 @@ details p {
 
   .fundraiser-card-footer .btn-secondary,
   .fundraiser-card-footer .btn-danger,
-  .fundraiser-card-footer .btn-link {
+  .fundraiser-card-footer .btn-link,
+  .fundraiser-card-footer .button {
     width: 100%;
     text-align: center;
   }
@@ -8750,7 +9031,7 @@ details p {
 
 .finance-pill {
   background: #e5f1ff;
-  color: #0d6efd;
+  color: var(--color-link); /* 4.9:1 on this background */
   padding: 0.35rem 0.65rem;
   border-radius: 999px;
   font-weight: 700;
@@ -8819,26 +9100,37 @@ details p {
    ============================================================================ */
 
 /* ---------------------------------------------------------------------------
-   Health record report
+   Report cards
 
-   A health record carries far more fields than fit legibly in table columns on
-   a phone, so each participant is a card. The EpiPen marker uses a text label,
-   not colour alone, so it survives greyscale printing and colour blindness.
+   Every report in the reports dialog lists one card per youth or entry: the
+   columns of a table do not fit a phone, and a card leaves out what is not
+   filled in. Cards share the width on a wide screen. The EpiPen marker uses a
+   text label, not colour alone, so it survives greyscale printing and colour
+   blindness.
 --------------------------------------------------------------------------- */
-.health-records {
+.report-records {
   display: grid;
-  gap: var(--space-lg);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  gap: var(--space-md);
 }
 
-.health-record {
+.report-records-group + .report-records-group {
+  margin-block-start: var(--space-lg);
+}
+
+.report-records-group h3 {
+  margin: 0 0 var(--space-sm);
+}
+
+.report-record {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  padding: var(--space-lg);
+  padding: var(--space-md);
   box-shadow: var(--shadow-base);
 }
 
-.health-record__header {
+.report-record__header {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
@@ -8848,12 +9140,12 @@ details p {
   border-bottom: 1px solid var(--color-border-light);
 }
 
-.health-record__header h3 {
+.report-record__header :is(h3, h4) {
   margin: 0;
   font-size: var(--font-size-lg);
 }
 
-.health-record__group {
+.report-record__group {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
@@ -8870,60 +9162,193 @@ details p {
   letter-spacing: 0.03em;
 }
 
-.health-record__fields {
+.report-record__fields {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--space-sm) var(--space-lg);
+  gap: var(--space-xs);
   margin: 0;
 }
 
-.health-record__field dt {
+/* A short answer sits on the label's line, at its end; a long one wraps to
+   the full width below it. */
+.report-record__field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-md);
+}
+
+.report-record__field dt {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
 }
 
-.health-record__field dd {
-  margin: 0 0 var(--space-xs);
+.report-record__field dd {
+  margin: 0 0 0 auto;
+  overflow-wrap: anywhere;
 }
 
-.health-record__contacts {
+.report-record__contacts {
   margin-top: var(--space-md);
   padding-top: var(--space-md);
   border-top: 1px solid var(--color-border-light);
 }
 
-.health-record__contacts h4 {
+.report-record__contacts h4 {
   margin: 0 0 var(--space-sm);
   font-size: var(--font-size-base);
 }
 
-.health-record__contacts ul {
+.report-record__contacts ul {
   margin: 0;
   padding-left: var(--space-lg);
 }
 
-.health-record__contacts li {
+.report-record__contacts li {
   margin-bottom: var(--space-xs);
 }
 
-.health-record__contacts .contact-relationship,
-.health-record__contacts .contact-phone,
-.health-record__contacts .contact-email {
+.report-record__contacts .contact-relationship,
+.report-record__contacts .contact-phone,
+.report-record__contacts .contact-email {
   margin-left: var(--space-sm);
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
 
-.health-record__no-contacts {
+.report-record__no-contacts {
   margin: var(--space-md) 0 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
 
-@media (min-width: 640px) {
-  .health-record__fields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+/* ---------------------------------------------------------------------------
+   Den list (printable)
+
+   One card per den. On paper the cards flow in two columns at 10.5pt and a
+   den is never split between pages, so a pack fits on one sheet without
+   becoming hard to read. The leader's role is a word, not a colour.
+--------------------------------------------------------------------------- */
+.den-list-report__actions {
+  margin-block-end: var(--space-md);
+}
+
+.den-list-report__printed {
+  display: none;
+}
+
+.den-list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: var(--space-md);
+}
+
+.den-list-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  box-shadow: var(--shadow-base);
+}
+
+.den-list-card__title {
+  margin: 0 0 var(--space-sm);
+  padding-block-end: var(--space-xs);
+  font-size: var(--font-size-lg);
+  border-block-end: 1px solid var(--color-border-light);
+}
+
+.den-list-card__count {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+}
+
+.den-list-card__members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.den-list-card__member {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 var(--space-sm);
+  padding-block: var(--space-xs);
+  border-block-end: 1px solid var(--color-border-light);
+  overflow-wrap: anywhere;
+}
+
+.den-list-card__member:last-child {
+  border-block-end: none;
+}
+
+.den-list-card__role {
+  font-size: var(--font-size-sm);
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  .den-list-report {
+    font-size: 10.5pt;
+    line-height: 1.3;
+    padding: 0;
+  }
+
+  .den-list-report h1 {
+    font-size: 15pt;
+    margin: 0 0 2pt;
+  }
+
+  .den-list-report__printed {
+    display: block;
+    margin: 0 0 6pt;
+    font-size: 8.5pt;
+  }
+
+  .den-list-grid {
+    display: block;
+    column-count: 2;
+    column-gap: 6mm;
+  }
+
+  .den-list-card {
+    display: block;
+    box-sizing: border-box;
+    margin: 0 0 4mm;
+    padding: 3pt 6pt;
+    border: 0.75pt solid #777;
+    border-radius: 0;
+    box-shadow: none;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .den-list-card__title {
+    font-size: 11.5pt;
+    margin: 0 0 2pt;
+    padding-block-end: 2pt;
+    border-block-end: 0.75pt solid #777;
+  }
+
+  .den-list-card__count {
+    color: #000;
+    font-size: 9pt;
+  }
+
+  .den-list-card__member {
+    padding-block: 1.5pt;
+    border-block-end: 0.5pt solid #ccc;
+  }
+
+  .den-list-card__role {
+    font-size: 9.5pt;
   }
 }
 
@@ -9494,7 +9919,8 @@ details p {
 
   .sort-btn,
   .primary-btn,
-  .btn-secondary {
+  .btn-secondary,
+  .button--secondary {
     border-width: 2px;
   }
 }
@@ -9962,7 +10388,8 @@ details p {
   flex-wrap: wrap;
 }
 
-.action-buttons .btn {
+.action-buttons .btn,
+.action-buttons .button {
   min-height: 44px;
   /* Touch-friendly */
   padding: var(--space-sm) var(--space-lg);
@@ -10278,7 +10705,8 @@ details p {
     flex-direction: column;
   }
 
-  .action-buttons .btn {
+  .action-buttons .btn,
+  .action-buttons .button {
     width: 100%;
   }
 
@@ -10602,7 +11030,8 @@ details p {
   gap: 0.25rem;
 }
 
-.btn-icon {
+.btn-icon,
+.button--icon {
   background: var(--color-surface, #fff);
   /* The global button rule paints white text on a green gradient; without its
      own colour this button showed white arrows on a white background. */
@@ -10620,7 +11049,8 @@ details p {
   min-height: var(--touch-target-min, 44px);
 }
 
-.btn-icon:hover:not(:disabled) {
+.btn-icon:hover:not(:disabled),
+.button--icon:hover:not(:disabled) {
   background: var(--color-secondary, #f0f0f0);
   border-color: var(--color-primary);
   color: var(--color-primary-dark);
@@ -10628,7 +11058,8 @@ details p {
   box-shadow: none;
 }
 
-.btn-icon:disabled {
+.btn-icon:disabled,
+.button--icon:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -10703,7 +11134,8 @@ details p {
   flex: 1;
 }
 
-.input-with-button .btn {
+.input-with-button .btn,
+.input-with-button .button {
   white-space: nowrap;
 }
 
@@ -10836,7 +11268,8 @@ details p {
   min-width: 0;
 }
 
-.option-item .btn-icon {
+.option-item .btn-icon,
+.option-item .button--icon {
   flex-shrink: 0;
 }
 
@@ -10885,7 +11318,8 @@ details p {
     width: 100%;
   }
 
-  .editor-actions .btn {
+  .editor-actions .btn,
+  .editor-actions .button {
     flex: 1;
   }
 
@@ -10908,7 +11342,8 @@ details p {
     flex-direction: column;
   }
 
-  .form-actions .btn {
+  .form-actions .btn,
+  .form-actions .button {
     width: 100%;
   }
 
@@ -10920,7 +11355,8 @@ details p {
     flex-direction: column;
   }
 
-  .input-with-button .btn {
+  .input-with-button .btn,
+  .input-with-button .button {
     width: 100%;
   }
 }
@@ -10931,7 +11367,8 @@ details p {
     border-width: 3px;
   }
 
-  .btn {
+  .btn,
+  .button {
     border: 2px solid currentColor;
   }
 }
@@ -10942,6 +11379,7 @@ details p {
   .field-item,
   .format-card,
   .btn,
+  .button,
   .modal,
   .modal-content {
     transition: none;
@@ -11915,4 +12353,12 @@ body.modal-open {
 
 .delivery-log__what {
   font-weight: var(--font-weight-semibold);
+}
+
+/* Time since registration: each row is headed by the youth's name, which reads
+   as a name, not as a column header. */
+.time-since-registration tbody th {
+  background: none;
+  text-align: start;
+  font-weight: var(--font-weight-semibold, 600);
 }

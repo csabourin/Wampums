@@ -3,9 +3,9 @@
  * Handles caching strategy for dashboard data
  */
 
-import { getCachedData, setCachedData } from "../indexedDB.js";
-import { CONFIG } from "../ajax-functions.js";
-import { debugLog, debugError } from "./DebugUtils.js";
+import { getCachedData, setCachedData } from '../indexedDB.js';
+import { CONFIG } from '../ajax-functions.js';
+import { debugLog, debugError } from './DebugUtils.js';
 
 export class DashboardCacheManager {
   /**
@@ -15,8 +15,8 @@ export class DashboardCacheManager {
   static async preloadCachedData() {
     try {
       const [cachedGroups, cachedParticipants] = await Promise.all([
-        getCachedData("dashboard_groups"),
-        getCachedData("dashboard_participant_info"),
+        getCachedData('dashboard_groups'),
+        getCachedData('dashboard_participant_info'),
       ]);
 
       return {
@@ -26,7 +26,7 @@ export class DashboardCacheManager {
         hasParticipantsCache: !!cachedParticipants,
       };
     } catch (error) {
-      debugError("Error preloading cached data:", error);
+      debugError('Error preloading cached data:', error);
       return {
         groups: [],
         participants: [],
@@ -42,9 +42,9 @@ export class DashboardCacheManager {
    */
   static async cacheGroups(groups) {
     try {
-      await setCachedData("dashboard_groups", groups, 60 * 60 * 1000); // 1 hour
+      await setCachedData('dashboard_groups', groups, 60 * 60 * 1000); // 1 hour
     } catch (error) {
-      debugError("Error caching groups:", error);
+      debugError('Error caching groups:', error);
     }
   }
 
@@ -57,6 +57,7 @@ export class DashboardCacheManager {
       const minimalCache = participants.map((p) => ({
         id: p.id,
         first_name: p.first_name,
+        nickname: p.nickname || null,
         last_name: p.last_name,
         group_id: p.group_id,
         group_name: p.group_name,
@@ -66,28 +67,12 @@ export class DashboardCacheManager {
         is_second_leader: p.second_leader,
       }));
       await setCachedData(
-        "dashboard_participant_info",
+        'dashboard_participant_info',
         minimalCache,
         CONFIG.CACHE_DURATION.SHORT
       );
     } catch (error) {
-      debugError("Error caching participants:", error);
-    }
-  }
-
-  /**
-   * Cache news items
-   * @param {Array} newsItems - News items to cache
-   */
-  static async cacheNews(newsItems) {
-    try {
-      await setCachedData(
-        "dashboard_news",
-        newsItems,
-        CONFIG.CACHE_DURATION.SHORT
-      );
-    } catch (error) {
-      debugError("Error caching news:", error);
+      debugError('Error caching participants:', error);
     }
   }
 
@@ -98,9 +83,9 @@ export class DashboardCacheManager {
     try {
       // Note: clearActivityRelatedCaches is imported in dashboard.js when needed
       // This method clears dashboard-specific caches
-      debugLog("Clearing dashboard caches");
+      debugLog('Clearing dashboard caches');
     } catch (error) {
-      debugError("Error clearing dashboard caches:", error);
+      debugError('Error clearing dashboard caches:', error);
     }
   }
 }

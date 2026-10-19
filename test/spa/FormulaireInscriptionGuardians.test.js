@@ -61,7 +61,7 @@ jest.mock('../../spa/api/api-family.js', () => ({
 }));
 
 import { saveGuardian, saveFormSubmission } from '../../spa/ajax-functions.js';
-import { FormulaireInscription } from '../../spa/formulaire_inscription.js';
+import { FormulaireInscription } from '../../spa/modules/participants/FormulaireInscription.js';
 
 const CHILD_ID = 42;
 const EXISTING_GUARDIAN_ID = 7;

@@ -56,25 +56,25 @@ Positioning for regional decision-makers:
 
 | Promise | Backend modules (`routes/*.js`) | SPA modules (`spa/*`) | Operational value |
 |---|---|---|---|
-| Admin time reduction | `routes/forms.js`, `routes/finance.js`, `routes/carpools.js` | `spa/form_permissions.js`, `spa/finance.js`, `spa/carpool_dashboard.js` | Centralizes recurring work (submissions, payment tracking, carpool assignment) with actionable status data. |
-| Higher form completion rate | `routes/forms.js` | `spa/formulaire_inscription.js`, `spa/form_permissions.js`, `spa/formBuilder.js` | Structures forms, permissions, and standardized submission flow to reduce incomplete files. |
-| Fewer health follow-up incidents | `routes/medication.js`, `routes/forms.js` (health forms) | `spa/medication_management.js`, `spa/fiche_sante.js`, `spa/medication_reception.js` | Plans, records, and updates medication events with auditable statuses and operational alerts. |
+| Admin time reduction | `routes/forms.js`, `routes/finance.js`, `routes/carpools.js` | `spa/modules/forms/FormPermissions.js`, `spa/modules/finance/Finance.js`, `spa/modules/carpool/CarpoolDashboard.js` | Centralizes recurring work (submissions, payment tracking, carpool assignment) with actionable status data. |
+| Higher form completion rate | `routes/forms.js` | `spa/modules/participants/FormulaireInscription.js`, `spa/modules/forms/FormPermissions.js`, `spa/modules/forms/FormBuilder.js` | Structures forms, permissions, and standardized submission flow to reduce incomplete files. |
+| Fewer health follow-up incidents | `routes/medication.js`, `routes/forms.js` (health forms) | `spa/modules/medication/MedicationManagement.js`, `spa/dynamicFormHandler.js` (`fiche_sante` form), `spa/modules/medication/MedicationReception.js` | Plans, records, and updates medication events with auditable statuses and operational alerts. |
 
 ### Detailed alignment by promise
 
 #### Promise 1 — Admin time
 - **Forms:** creation/submission/approval workflows and status filtering in `routes/forms.js`.
-- **Finance:** fee definitions and participant fee generation in `routes/finance.js`, operated via `spa/finance.js`.
-- **Carpools:** offers + assignments + seat capacity in `routes/carpools.js`, coordinated through `spa/carpool_dashboard.js`.
+- **Finance:** fee definitions and participant fee generation in `routes/finance.js`, operated via `spa/modules/finance/Finance.js`.
+- **Carpools:** offers + assignments + seat capacity in `routes/carpools.js`, coordinated through `spa/modules/carpool/CarpoolDashboard.js`.
 
 #### Promise 2 — Form completion
 - `routes/forms.js` supports lifecycle states (draft/submitted/approved depending on form type).
-- `spa/form_permissions.js` controls who can view/submit/edit/approve.
-- `spa/formulaire_inscription.js` + `spa/formBuilder.js` support structured field data capture.
+- `spa/modules/forms/FormPermissions.js` controls who can view/submit/edit/approve.
+- `spa/modules/participants/FormulaireInscription.js` + `spa/modules/forms/FormBuilder.js` support structured field data capture.
 
 #### Promise 3 — Health follow-up
 - `routes/medication.js` covers requirements, dose scheduling, and status updates (`scheduled`, `given`, `missed`, `cancelled`).
-- `spa/medication_management.js` provides mobile-first execution with offline cache, alerts, and dispensing flow.
+- `spa/modules/medication/MedicationManagement.js` provides mobile-first execution with offline cache, alerts, and dispensing flow.
 - Health form data (`fiche_sante`) feeds medication preparation and follow-up.
 
 ---

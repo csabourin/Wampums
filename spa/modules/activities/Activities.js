@@ -4,7 +4,7 @@
 import { translate } from '../../app.js';
 import { getActivities, deleteActivity } from '../../api/api-activities.js';
 import { clearActivityRelatedCaches } from '../../indexedDB.js';
-import { canViewActivities, hasPermission } from '../../utils/PermissionUtils.js';
+import { canFollowPermissionSlips, canViewActivities, hasPermission } from '../../utils/PermissionUtils.js';
 import { skeletonActivityList, setButtonLoading } from '../../utils/SkeletonUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
@@ -111,6 +111,12 @@ export class Activities extends BaseModule {
             ` : ''}
           </div>
 
+          <p class="activities-page__subscribe">
+            <a href="/account-info#calendar-feed" class="button button--secondary button--small">
+              ${translate('calendar_feed_subscribe_link')}
+            </a>
+          </p>
+
           <div class="search-container">
             <input type="search" id="activities-search" class="search-input"
               placeholder="${translate('search')}..." value="${escapeHTML(this.searchTerm)}">
@@ -169,9 +175,9 @@ export class Activities extends BaseModule {
           <p class="activity-card__planner-link">
             ${escapeHTML(translate('yearly_planner_planned_on'))}
             ${escapeHTML(formatActivityDateRange({
-              activity_start_date: activity.linked_year_plan_meeting_date,
-              activity_end_date: activity.linked_year_plan_meeting_date
-            }, this.app.lang || 'fr'))}
+    activity_start_date: activity.linked_year_plan_meeting_date,
+    activity_end_date: activity.linked_year_plan_meeting_date
+  }, this.app.lang || 'fr'))}
             · <a href="/yearly-planner/${activity.linked_year_plan_id}">${escapeHTML(translate('yearly_planner_view_in_planner'))}</a>
           </p>
         ` : ''}
@@ -226,9 +232,10 @@ export class Activities extends BaseModule {
           <button class="button button--small button--secondary view-carpools-btn" data-activity-id="${activity.id}">
             ${translate('view_carpools')}
           </button>
-          <button class="button button--small button--secondary view-permission-slips-btn" data-activity-id="${activity.id}">
-            ${translate('manage_permission_slips')}
-          </button>
+          ${canFollowPermissionSlips() ? `
+            <button class="button button--small button--secondary view-permission-slips-btn" data-activity-id="${activity.id}">
+              ${translate('manage_permission_slips')}
+            </button>` : ''}
           ${isMultiDay && !isPast ? `
             <button class="button button--small button--secondary prepare-offline-btn"
                     data-activity-id="${activity.id}"

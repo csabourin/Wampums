@@ -13,7 +13,7 @@
  */
 
 const LEADERS_SQL = `
-  SELECT DISTINCT u.id, u.full_name
+  SELECT DISTINCT u.id, u.full_name, u.nickname
     FROM users u
     JOIN user_organizations uo ON uo.user_id = u.id
    CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
@@ -27,7 +27,7 @@ const LEADERS_SQL = `
  *
  * @param {import('pg').Pool|import('pg').PoolClient} db - Pool or client
  * @param {number} organizationId - Unit
- * @returns {Promise<Array<{id: string, full_name: string}>>} Leaders by name
+ * @returns {Promise<Array<{id: string, full_name: string, nickname: (string|null)}>>} Leaders by name
  */
 async function listUnitLeaders(db, organizationId) {
   const result = await db.query(`${LEADERS_SQL} ORDER BY u.full_name`, [organizationId]);
@@ -54,4 +54,65 @@ async function areUnitLeaders(db, organizationId, userIds) {
   return result.rows[0].found === wanted.length;
 }
 
-module.exports = { listUnitLeaders, areUnitLeaders };
+/** What following an activity's permission slips takes (GET /permission-slips, its page). */
+const SLIP_FOLLOWER_PERMISSIONS = ['activities.view', 'participants.view'];
+
+/**
+ * Leaders holding every given permission through their whole-unit roles, with
+ * an address to write to: the people who can act on what they are mailed about.
+ *
+ * Only whole-unit roles count, so a permission a family role happens to carry
+ * never makes a parent a recipient. Role names are not consulted: a custom or
+ * renamed staff role holding the permissions counts.
+ *
+ * @param {import('pg').Pool|import('pg').PoolClient} db - Pool or client
+ * @param {number} organizationId - Unit
+ * @param {string[]} permissionKeys - Permissions a recipient must hold, all of them
+ * @returns {Promise<Array<{id: string, full_name: string, email: string}>>}
+ */
+async function listLeaderContactsWithPermissions(db, organizationId, permissionKeys) {
+  const wanted = [...new Set(permissionKeys)];
+  const result = await db.query(
+    `SELECT u.id, u.full_name, u.email
+       FROM users u
+       JOIN user_organizations uo ON uo.user_id = u.id
+      CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
+       JOIN roles r ON r.id = role_id_text::integer
+       JOIN role_permissions rp ON rp.role_id = r.id
+       JOIN permissions p ON p.id = rp.permission_id
+      WHERE uo.organization_id = $1
+        AND uo.status = 'active'
+        AND r.data_scope = 'organization'
+        AND p.permission_key = ANY($2::text[])
+        AND u.email IS NOT NULL
+        AND u.email <> ''
+      GROUP BY u.id, u.full_name, u.email
+     HAVING COUNT(DISTINCT p.permission_key) = $3
+      ORDER BY u.full_name`,
+    [organizationId, wanted, wanted.length]
+  );
+  return result.rows;
+}
+
+/**
+ * Leaders who follow the unit's activities, with an address to write to.
+ *
+ * A leader here also holds, through their whole-unit roles, the permissions
+ * the permission-slip page needs (activities.view and participants.view), so
+ * the link in their copy opens; a staff role with nothing to do with outings
+ * (finance, equipment) is not mailed about them.
+ *
+ * @param {import('pg').Pool|import('pg').PoolClient} db - Pool or client
+ * @param {number} organizationId - Unit
+ * @returns {Promise<Array<{id: string, full_name: string, email: string}>>}
+ */
+function listActivityLeaderContacts(db, organizationId) {
+  return listLeaderContactsWithPermissions(db, organizationId, SLIP_FOLLOWER_PERMISSIONS);
+}
+
+module.exports = {
+  listUnitLeaders,
+  areUnitLeaders,
+  listLeaderContactsWithPermissions,
+  listActivityLeaderContacts,
+};

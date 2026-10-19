@@ -6,7 +6,7 @@ Wampums is a bilingual, multi-tenant scout management system with a Node.js/Expr
 
 Use executable artifacts before narrative documentation:
 
-1. Tests in `test/`, `tests/`, and `mobile/src/**/__tests__/` define verified behavior.
+1. Tests in `test/` and `mobile/src/**/__tests__/` define verified behavior.
 2. Route registration in `routes/index.js`, route modules in `routes/`, and middleware define the HTTP contract.
 3. `package.json`, `mobile/package.json`, configuration modules, and `.env.example` define commands and runtime configuration.
 4. SQL files in `migrations/` define repository-managed schema changes.
@@ -103,6 +103,7 @@ Re-running is a no-op once the schema is current.
 ```bash
 npm test
 npm run test:quality
+npm run test:a11y   # WCAG 2.2 AA in Chromium; needs the app running (run-wampums skill)
 npm run test:stories
 npm run build
 npm run lint:all   # every guardrail and ESLint, as CI runs them
@@ -122,7 +123,7 @@ The complete command list is authoritative in `package.json`.
 - `mobile/` — Expo/React Native application
 - `lang/` — English and French web translations; key parity is enforced by lint
 - `migrations/` — SQL schema and seed changes
-- `test/` and `tests/` — server, integration, security and user-story tests; `test/spa/` holds the jsdom tests of SPA screens
+- `test/` — server, integration, security and user-story tests; `test/spa/` holds the jsdom tests of SPA screens
 - `content/blog/` — published bilingual Markdown content, not developer documentation
 
 ## Maintained documentation

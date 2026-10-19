@@ -75,7 +75,7 @@ async function migrateSessionsToDatabase() {
         let keyCount = 0;
 
         for (const file of files) {
-          if (file === 'creds.json') continue;
+          if (file === 'creds.json') {continue;}
 
           const filePath = path.join(orgPath, file);
           const fileContent = await fs.readFile(filePath, 'utf8');

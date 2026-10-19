@@ -86,3 +86,15 @@ export function withdrawWalkInChild(participantId) {
 export function revokeWalkInInvitation(invitationId) {
   return API.delete(`v1/walk-in-children/invitations/${invitationId}`);
 }
+
+/**
+ * Invite another parent for a child, beside the parents it already has: an
+ * existing member is linked at once, anyone else receives an invitation.
+ *
+ * @param {number} participantId - The child
+ * @param {Object} invitation - `parent_email` and `language`
+ * @returns {Promise<Object>} API response: `parent` (what was done) and `email_sent`
+ */
+export function inviteAnotherParent(participantId, invitation) {
+  return API.post(`v1/walk-in-children/${encodeURIComponent(participantId)}/invite-another-parent`, invitation);
+}

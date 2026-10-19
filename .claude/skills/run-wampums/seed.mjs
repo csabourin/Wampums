@@ -81,7 +81,7 @@ try {
      SELECT $1, id FROM permissions
       WHERE permission_key IN ('participants.view', 'participants.create', 'participants.edit', 'participants.walk_in',
                                'attendance.view', 'attendance.manage', 'points.view', 'points.manage', 'activities.view',
-                               'groups.view', 'badges.view', 'badges.manage')
+                               'groups.view', 'badges.view', 'badges.manage', 'meetings.view')
      ON CONFLICT DO NOTHING`,
     [leaderRole]
   );
@@ -120,7 +120,7 @@ try {
     );
     return userId;
   };
-  await member('admin@run.test', 'Akela Admin', adminRole);
+  const adminId = await member('admin@run.test', 'Akela Admin', adminRole);
   await member('leader@run.test', 'Baloo Leader', leaderRole);
   const parentId = await member('parent@run.test', 'Marie Parent', parentRole);
 
@@ -145,6 +145,42 @@ try {
     [childId, guardianId]
   );
 
+  // An outing a month away, with a slip waiting for Marie's signature, so the
+  // activity, carpool and permission-slip screens have something to show.
+  const outingDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const activityId = await one(
+    `INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+                             meeting_time_going, departure_time_going, activity_start_date, activity_start_time,
+                             activity_end_date, activity_end_time)
+     VALUES ($1, $2, 'Sortie canot', $3, 'Local scout', '08:30', '09:00', $3, '09:00', $3, '16:00')
+     RETURNING id`,
+    [organizationId, adminId, outingDate]
+  );
+  await pool.query(
+    `INSERT INTO permission_slips (organization_id, participant_id, guardian_id, meeting_date, activity_id, activity_title)
+     VALUES ($1, $2, $3, $4, $5, 'Sortie canot')`,
+    [organizationId, childId, guardianId, outingDate, activityId]
+  );
+
+  // Tomorrow's meeting, with a timed programme, for the leaders' "now / next"
+  // bar: a browser check sets the page clock inside it. Tomorrow, so the bar
+  // never shows in checks that run on the real clock today.
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const programmeDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+  const meetingId = await one(
+    `INSERT INTO year_plan_meetings (organization_id, meeting_date, meeting_kind, theme)
+     VALUES ($1, $2, 'regular', 'La jungle') RETURNING id`,
+    [organizationId, programmeDate]
+  );
+  await pool.query(
+    `INSERT INTO year_plan_meeting_activities
+       (organization_id, meeting_id, name, start_time, duration_minutes, responsable, material, sort_order)
+     VALUES ($1, $2, 'Accueil et grand hurlement', '18:45', 15, 'Bagheera', NULL, 1),
+            ($1, $2, 'Jeu de la tanière', '19:00', 25, 'Baloo', 'Foulards, 4 cônes', 2),
+            ($1, $2, 'Histoire de la jungle', '19:25', 20, 'Akela', 'Livre', 3)`,
+    [organizationId, meetingId]
+  );
+
   // The standard forms (health, risk acceptance, registration...) with the
   // per-role rights a new unit receives, so the parent dashboard lists them.
   const { installDefaultFormFormats } = require(path.join(ROOT, 'services/defaultFormFormats.js'));
@@ -159,6 +195,9 @@ try {
     organizationId,
     database: `postgresql:///${DB}?host=/var/run/postgresql`,
     accounts: { admin: 'admin@run.test', leader: 'leader@run.test', parent: 'parent@run.test' },
+    activityId,
+    participantId: childId,
+    programmeDate,
     password: PASSWORD,
   };
   mkdirSync(CACHE, { recursive: true });

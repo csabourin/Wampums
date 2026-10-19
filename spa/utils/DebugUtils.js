@@ -16,52 +16,52 @@
  * @returns {boolean} True if debug mode is active
  */
 export function isDebugMode() {
-    // Production domains end with .app - never show debug logs in production
-    const isProduction = window.location.hostname.endsWith('.app');
+  // Production domains end with .app - never show debug logs in production
+  const isProduction = window.location.hostname.endsWith('.app');
 
-    return (
-        !isProduction && (
-            import.meta.env?.VITE_DEBUG_MODE === 'true' ||
+  return (
+    !isProduction && (
+      import.meta.env?.VITE_DEBUG_MODE === 'true' ||
             import.meta.env?.DEV ||
-            window.location.hostname === "localhost" ||
-            window.location.hostname === "wampums-1.test" ||
-            window.location.hostname.includes("replit.dev")
-        )
-    );
+            window.location.hostname === 'localhost' ||
+            window.location.hostname === 'wampums-1.test' ||
+            window.location.hostname.includes('replit.dev')
+    )
+  );
 }
 
 function redactString(value) {
-    return String(value)
-        .replace(/Bearer\s+[A-Za-z0-9._~-]+/gi, 'Bearer [REDACTED]')
-        .replace(/("(?:password|token|authorization|body)"\s*:\s*)"[^"]*"/gi, '$1"[REDACTED]"')
-        .slice(0, 1000);
+  return String(value)
+    .replace(/Bearer\s+[A-Za-z0-9._~-]+/gi, 'Bearer [REDACTED]')
+    .replace(/("(?:password|token|authorization|body)"\s*:\s*)"[^"]*"/gi, '$1"[REDACTED]"')
+    .slice(0, 1000);
 }
 
 function summarizeDebugValue(value) {
-    if (value instanceof Error) {
-        return {
-            name: value.name,
-            message: redactString(value.message),
-            status: value.status,
-        };
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: redactString(value.message),
+      status: value.status,
+    };
+  }
+  if (Array.isArray(value)) {
+    return `[Array(${value.length})]`;
+  }
+  if (value && typeof value === 'object') {
+    const summary = { keys: Object.keys(value).slice(0, 30) };
+    for (const key of ['success', 'status', 'queued', 'count', 'method', 'url']) {
+      if (['string', 'number', 'boolean'].includes(typeof value[key])) {
+        summary[key] = key === 'url' ? redactString(value[key]) : value[key];
+      }
     }
-    if (Array.isArray(value)) {
-        return `[Array(${value.length})]`;
-    }
-    if (value && typeof value === 'object') {
-        const summary = { keys: Object.keys(value).slice(0, 30) };
-        for (const key of ['success', 'status', 'queued', 'count', 'method', 'url']) {
-            if (['string', 'number', 'boolean'].includes(typeof value[key])) {
-                summary[key] = key === 'url' ? redactString(value[key]) : value[key];
-            }
-        }
-        return summary;
-    }
-    return typeof value === 'string' ? redactString(value) : value;
+    return summary;
+  }
+  return typeof value === 'string' ? redactString(value) : value;
 }
 
 function prepareDebugArgs(args) {
-    return args.map(summarizeDebugValue);
+  return args.map(summarizeDebugValue);
 }
 
 /**
@@ -69,9 +69,9 @@ function prepareDebugArgs(args) {
  * @param {...any} args - Arguments to log
  */
 export function debugLog(...args) {
-    if (isDebugMode()) {
-        console.log('[DEBUG]', ...prepareDebugArgs(args));
-    }
+  if (isDebugMode()) {
+    console.log('[DEBUG]', ...prepareDebugArgs(args));
+  }
 }
 
 /**
@@ -80,7 +80,7 @@ export function debugLog(...args) {
  * @param {...any} args - Arguments to log
  */
 export function debugError(...args) {
-    console.error('[ERROR]', ...prepareDebugArgs(args));
+  console.error('[ERROR]', ...prepareDebugArgs(args));
 }
 
 /**
@@ -88,9 +88,9 @@ export function debugError(...args) {
  * @param {...any} args - Arguments to log
  */
 export function debugWarn(...args) {
-    if (isDebugMode()) {
-        console.warn('[WARN]', ...prepareDebugArgs(args));
-    }
+  if (isDebugMode()) {
+    console.warn('[WARN]', ...prepareDebugArgs(args));
+  }
 }
 
 /**
@@ -98,9 +98,9 @@ export function debugWarn(...args) {
  * @param {...any} args - Arguments to log
  */
 export function debugInfo(...args) {
-    if (isDebugMode()) {
-        console.info('[INFO]', ...prepareDebugArgs(args));
-    }
+  if (isDebugMode()) {
+    console.info('[INFO]', ...prepareDebugArgs(args));
+  }
 }
 
 /**
@@ -110,9 +110,9 @@ export function debugInfo(...args) {
  * @param {string[]} columns - Optional columns to display
  */
 export function debugTable(data, columns) {
-    if (isDebugMode()) {
-        console.log('[DEBUG TABLE]', summarizeDebugValue(data), columns || []);
-    }
+  if (isDebugMode()) {
+    console.log('[DEBUG TABLE]', summarizeDebugValue(data), columns || []);
+  }
 }
 
 /**
@@ -120,9 +120,9 @@ export function debugTable(data, columns) {
  * @param {string} label - Label for the timer
  */
 export function debugTimeStart(label) {
-    if (isDebugMode()) {
-        console.time(`[TIMER] ${label}`);
-    }
+  if (isDebugMode()) {
+    console.time(`[TIMER] ${label}`);
+  }
 }
 
 /**
@@ -130,9 +130,9 @@ export function debugTimeStart(label) {
  * @param {string} label - Label for the timer
  */
 export function debugTimeEnd(label) {
-    if (isDebugMode()) {
-        console.timeEnd(`[TIMER] ${label}`);
-    }
+  if (isDebugMode()) {
+    console.timeEnd(`[TIMER] ${label}`);
+  }
 }
 
 /**
@@ -141,11 +141,11 @@ export function debugTimeEnd(label) {
  * @param {Function} callback - Function containing the grouped logs
  */
 export function debugGroup(label, callback) {
-    if (isDebugMode()) {
-        console.group(`[GROUP] ${label}`);
-        callback();
-        console.groupEnd();
-    }
+  if (isDebugMode()) {
+    console.group(`[GROUP] ${label}`);
+    callback();
+    console.groupEnd();
+  }
 }
 
 /**
@@ -153,7 +153,7 @@ export function debugGroup(label, callback) {
  * This allows existing code using CONFIG.debugMode to continue working
  */
 export const DEBUG_CONFIG = {
-    get debugMode() {
-        return isDebugMode();
-    }
+  get debugMode() {
+    return isDebugMode();
+  }
 };

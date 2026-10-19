@@ -185,6 +185,50 @@ async function getInvitedParticipantIds(db, activityId, organizationId) {
 }
 
 /**
+ * The children whose guardian declined an activity's permission slip and
+ * signed none: they do not take part in it.
+ * @param {Object} db - Pool or client
+ * @param {number} activityId
+ * @param {number} organizationId
+ * @param {number|null} [onlyParticipantId=null] - Limit the answer to this child
+ * @returns {Promise<number[]>}
+ */
+async function getDeclinedParticipantIds(db, activityId, organizationId, onlyParticipantId = null) {
+  const result = await db.query(
+    `SELECT ps.participant_id
+       FROM permission_slips ps
+      WHERE ps.activity_id = $1 AND ps.organization_id = $2
+        AND ($3::int IS NULL OR ps.participant_id = $3)
+      GROUP BY ps.participant_id
+     HAVING bool_or(ps.status = 'declined') AND NOT bool_or(ps.status = 'signed')`,
+    [activityId, organizationId, onlyParticipantId]
+  );
+  return result.rows.map((row) => Number(row.participant_id));
+}
+
+/**
+ * Who takes part in an activity, as the medication screens read it.
+ * @param {Object} db - Pool or client
+ * @param {number} activityId
+ * @param {number} organizationId
+ * @param {number|null} [onlyParticipantId=null] - Limit the answer to this child
+ * @returns {Promise<{invited_participant_ids: number[]|null, declined_participant_ids: number[]}>}
+ *   `invited_participant_ids` is null when the activity invites the whole unit
+ */
+async function getActivityParticipation(db, activityId, organizationId, onlyParticipantId = null) {
+  const [invited, declined] = await Promise.all([
+    getInvitedParticipantIds(db, activityId, organizationId),
+    getDeclinedParticipantIds(db, activityId, organizationId, onlyParticipantId)
+  ]);
+  return {
+    invited_participant_ids: invited === null || onlyParticipantId === null
+      ? invited
+      : invited.filter((id) => id === Number(onlyParticipantId)),
+    declined_participant_ids: declined
+  };
+}
+
+/**
  * Which of these participants an activity does not invite.
  * @param {Object} db - Pool or client
  * @param {number} activityId
@@ -220,5 +264,7 @@ module.exports = {
   readInvitation,
   saveInvitation,
   getInvitedParticipantIds,
+  getDeclinedParticipantIds,
+  getActivityParticipation,
   findUninvitedParticipants
 };

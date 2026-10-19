@@ -39,8 +39,8 @@ function jsFiles(dir) {
   (function walk(current) {
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
       const full = path.join(current, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else if (entry.name.endsWith('.js')) out.push(full);
+      if (entry.isDirectory()) {walk(full);}
+      else if (entry.name.endsWith('.js')) {out.push(full);}
     }
   }(path.join(ROOT, dir)));
   return out;
@@ -111,7 +111,7 @@ test('every key held in a lookup table by the family-access screens and emails e
   const uses = [];
   for (const file of FEATURE_FILES) {
     for (const match of code(file).matchAll(/['"`]([a-z0-9_]+)['"`]/g)) {
-      if (FEATURE_KEY.test(match[1])) uses.push([match[1], path.relative(ROOT, file)]);
+      if (FEATURE_KEY.test(match[1])) {uses.push([match[1], path.relative(ROOT, file)]);}
     }
   }
 
@@ -131,7 +131,7 @@ test('every key built from a state exists for each state the server returns', ()
 
 test('the dashboard tiles have labels in both languages', () => {
   const tiles = fs.readFileSync(path.join(ROOT, 'spa/config/dashboard-tiles.js'), 'utf8');
-  const labels = [...tiles.matchAll(/label: "([a-z0-9_]+)"/g)].map((m) => [m[1], 'dashboard-tiles']);
+  const labels = [...tiles.matchAll(/label: ["']([a-z0-9_]+)["']/g)].map((m) => [m[1], 'dashboard-tiles']);
 
   expect(labels.length).toBeGreaterThan(20);
   expect(missing(labels)).toEqual([]);

@@ -1,9 +1,9 @@
 // Resource and permission slip routes
 // Provides RESTful endpoints for equipment inventory, reservations, and guardian approvals
-const express = require("express");
-const { check, param, query } = require("express-validator");
+const express = require('express');
+const { check, param, query } = require('express-validator');
 const router = express.Router();
-const multer = require("multer");
+const multer = require('multer');
 
 const {
   authenticate,
@@ -11,13 +11,17 @@ const {
   requirePermission,
   blockDemoRoles,
   getUserDataScope,
-} = require("../middleware/auth");
-const { success, error, asyncHandler } = require("../middleware/response");
-const { checkValidation } = require("../middleware/validation");
-const { handleOrganizationResolutionError } = require("../utils/api-helpers");
-const { sendEmail, getUserEmailLanguage, getTranslationsByCode } = require("../utils/index");
-const { buildPermissionSlipEmailContent } = require("../utils/permission-slip-email");
-const { resolveOrganizationBaseUrl } = require("../utils/public-url");
+} = require('../middleware/auth');
+const { success, error, forbidden, asyncHandler } = require('../middleware/response');
+const { checkValidation, validateIdParam } = require('../middleware/validation');
+const { handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { sendEmail, getUserEmailLanguage, getTranslationsByCode } = require('../utils/index');
+const {
+  buildPermissionSlipEmailContent,
+  buildPermissionSlipLeaderCopyContent,
+} = require('../utils/permission-slip-email');
+const { listActivityLeaderContacts } = require('../services/unitLeaders');
+const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { findTestRecipient, markAsTestEmail } = require('../utils/test-email');
 const { findUninvitedParticipants } = require('../services/activityInvitations');
@@ -35,7 +39,7 @@ const {
   getPhotoOrganizationId,
   isStorageConfigured,
   WEBP_EXTENSION,
-} = require("../utils/railway-storage");
+} = require('../utils/railway-storage');
 
 // Configure multer for memory storage (30MB limit; client-side resize should reduce payloads)
 const upload = multer({
@@ -49,7 +53,7 @@ const upload = multer({
     } else {
       cb(
         new Error(
-          "Invalid file type. Only JPEG, PNG, GIF, HEIC, HEIF, and WebP images are allowed.",
+          'Invalid file type. Only JPEG, PNG, GIF, HEIC, HEIF, and WebP images are allowed.',
         ),
         false,
       );
@@ -58,10 +62,10 @@ const upload = multer({
 });
 
 const LOCATION_TYPES = [
-  "local_scout_hall",
-  "warehouse",
-  "leader_home",
-  "other",
+  'local_scout_hall',
+  'warehouse',
+  'leader_home',
+  'other',
 ];
 
 function parseDate(dateString) {
@@ -92,7 +96,7 @@ function parseDate(dateString) {
  * gone out; either way the units are not on the shelf. `returned`, `cancelled`
  * and `expired` have all released them.
  */
-const HOLDING_STATUSES = ["reserved", "confirmed"];
+const HOLDING_STATUSES = ['reserved', 'confirmed'];
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
 /** The email service did not accept a message. */
@@ -100,8 +104,8 @@ const HTTP_BAD_GATEWAY = 502;
 /** Slips one send or reminder request may name. */
 const MAX_SLIP_IDS_PER_REQUEST = 200;
 
-function activeReservationPredicate(alias = "") {
-  const prefix = alias ? `${alias}.` : "";
+function activeReservationPredicate(alias = '') {
+  const prefix = alias ? `${alias}.` : '';
   return `${prefix}status IN ('reserved', 'confirmed')
           AND COALESCE(${prefix}date_to, ${prefix}meeting_date) >= CURRENT_DATE`;
 }
@@ -141,14 +145,14 @@ async function expireLapsedReservations(pool, organizationId, logger) {
     );
 
     if (result.rows.length > 0) {
-      logger?.info?.("Expired lapsed equipment reservations", {
+      logger?.info?.('Expired lapsed equipment reservations', {
         organizationId,
         count: result.rows.length,
       });
     }
     return result.rows.length;
   } catch (err) {
-    logger?.warn?.("Could not expire lapsed reservations", {
+    logger?.warn?.('Could not expire lapsed reservations', {
       organizationId,
       error: err.message,
     });
@@ -156,7 +160,7 @@ async function expireLapsedReservations(pool, organizationId, logger) {
   }
 }
 
-module.exports = (pool) => {
+module.exports = (pool, logger) => {
   /**
    * Replace an internal or legacy photo reference with a temporary Railway S3
    * URL suitable for direct display in a browser.
@@ -164,7 +168,7 @@ module.exports = (pool) => {
    * @returns {Promise<Object>}
    */
   async function resolveEquipmentPhoto(equipment) {
-    if (!equipment?.photo_url) return equipment;
+    if (!equipment?.photo_url) {return equipment;}
     return {
       ...equipment,
       photo_url: await getSignedPhotoUrl(
@@ -187,7 +191,7 @@ module.exports = (pool) => {
     }
 
     const attributeFlag =
-      attributes && typeof attributes === "object"
+      attributes && typeof attributes === 'object'
         ? attributes.share_with_local_group
         : undefined;
     if (attributeFlag === undefined || attributeFlag === null) {
@@ -277,12 +281,12 @@ module.exports = (pool) => {
     }
 
     const meetingResult = await pool.query(
-      "SELECT id, meeting_date::text AS date FROM year_plan_meetings WHERE id = $1 AND organization_id = $2",
+      'SELECT id, meeting_date::text AS date FROM year_plan_meetings WHERE id = $1 AND organization_id = $2',
       [meetingId, organizationId],
     );
 
     if (meetingResult.rows.length === 0) {
-      throw new Error("Meeting not found for organization");
+      throw new Error('Meeting not found for organization');
     }
 
     return meetingResult.rows[0];
@@ -290,12 +294,12 @@ module.exports = (pool) => {
 
   async function verifyParticipant(participantId, organizationId) {
     const membership = await pool.query(
-      "SELECT 1 FROM participant_organizations WHERE participant_id = $1 AND organization_id = $2",
+      'SELECT 1 FROM participant_organizations WHERE participant_id = $1 AND organization_id = $2',
       [participantId, organizationId],
     );
 
     if (membership.rows.length === 0) {
-      throw new Error("Participant not linked to organization");
+      throw new Error('Participant not linked to organization');
     }
   }
 
@@ -321,10 +325,27 @@ module.exports = (pool) => {
    * @returns {Promise<boolean>} Whether the user may access the slip.
    */
   async function canAccessPermissionSlip(req, organizationId, participantId) {
-    const isStaff = (await getUserDataScope(req, pool)) === "organization";
+    const isStaff = (await getUserDataScope(req, pool)) === 'organization';
 
-    if (isStaff) return true;
+    if (isStaff) {return true;}
 
+    return isOwnChild(req.user.id, organizationId, participantId);
+  }
+
+  /**
+   * Whether the child is linked to this account in this unit.
+   *
+   * Signing or declining a slip records a guardian's consent, so it is open
+   * only to the child's own family. A leader sees every slip and receives a
+   * copy of the email for information, but answers only for their own
+   * children, like any other parent.
+   *
+   * @param {string} userId - Account answering
+   * @param {number} organizationId - Active organization
+   * @param {number} participantId - Permission slip participant
+   * @returns {Promise<boolean>}
+   */
+  async function isOwnChild(userId, organizationId, participantId) {
     const linkCheck = await pool.query(
       `SELECT 1
          FROM user_participants up
@@ -332,9 +353,114 @@ module.exports = (pool) => {
            ON po.participant_id = up.participant_id
           AND po.organization_id = $3
         WHERE up.user_id = $1 AND up.participant_id = $2`,
-      [req.user.id, participantId, organizationId],
+      [userId, participantId, organizationId],
     );
     return linkCheck.rows.length > 0;
+  }
+
+  /**
+   * Send the unit's leaders a copy, for information, of the request the
+   * families just received: once per leader and activity, without a signing
+   * link. A leader who is the parent of an invited child and received the
+   * parent's email, with its link, gets no copy: that delivery was recorded
+   * as their claim (recordFamilyDelivery). One whose family email failed
+   * still gets the copy.
+   *
+   * Each copy is claimed in permission_slip_leader_copies before it is sent,
+   * so the parallel requests of one large send mail each leader once. A copy
+   * the email service refused gives its claim back for the next send.
+   *
+   * @param {number} organizationId - Active organization
+   * @param {object[]} sentSlips - Slips whose email went to at least one family
+   * @param {object} sender - Unit email sender
+   * @returns {Promise<number>} Copies sent
+   */
+  /**
+   * What a slip was for, as permission_slip_leader_copies records it.
+   * @param {object} slip - Permission slip row
+   * @returns {string} 'activity:<id>' or 'meeting:<date>:<title>'
+   */
+  function slipGroupKey(slip) {
+    return slip.activity_id
+      ? `activity:${slip.activity_id}`
+      : `meeting:${parseDate(slip.meeting_date)}:${slip.activity_title || ''}`;
+  }
+
+  /**
+   * A family email reached this address: an account with it (a leader who is
+   * also a parent) has the request, with its signing link, and needs no copy.
+   *
+   * @param {number} organizationId - Active organization
+   * @param {object} slip - The slip emailed
+   * @param {string} email - Address that accepted it
+   * @returns {Promise<void>}
+   */
+  async function recordFamilyDelivery(organizationId, slip, email) {
+    await pool.query(
+      `INSERT INTO permission_slip_leader_copies (organization_id, group_key, user_id)
+       SELECT $1, $2, u.id FROM users u WHERE LOWER(u.email) = LOWER($3)
+       ON CONFLICT (organization_id, group_key, user_id) DO NOTHING`,
+      [organizationId, slipGroupKey(slip), email],
+    );
+  }
+
+  async function sendLeaderCopies(organizationId, sentSlips, sender) {
+    if (sentSlips.length === 0) {
+      return 0;
+    }
+    const leaders = await listActivityLeaderContacts(pool, organizationId);
+    if (leaders.length === 0) {
+      return 0;
+    }
+
+    const groups = new Map();
+    for (const slip of sentSlips) {
+      const groupKey = slipGroupKey(slip);
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, slip);
+      }
+    }
+    const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
+
+    const sentPerGroup = await Promise.all([...groups].map(async ([groupKey, slip]) => {
+      const followLink = slip.activity_id
+        ? `${baseUrl}/permission-slips/${slip.activity_id}`
+        : `${baseUrl}/permission-slips`;
+
+      const outcomes = await Promise.all(leaders
+        .map(async (leader) => {
+          const claim = await pool.query(
+            `INSERT INTO permission_slip_leader_copies (organization_id, group_key, user_id)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (organization_id, group_key, user_id) DO NOTHING
+             RETURNING id`,
+            [organizationId, groupKey, leader.id],
+          );
+          if (claim.rows.length === 0) {
+            return false;
+          }
+          const languageCode = await getUserEmailLanguage(pool, leader.email, organizationId);
+          const { subject, textBody, htmlBody } = buildPermissionSlipLeaderCopyContent({
+            activityTitle: slip.activity_title,
+            activityDescription: slip.activity_description,
+            activityDescriptionHtml: slip.activity_description_html,
+            meetingDate: slip.meeting_date,
+            deadlineDate: slip.deadline_date,
+            followLink,
+            languageCode,
+          });
+          const delivered = await sendEmail(leader.email, subject, textBody, htmlBody, sender);
+          if (!delivered) {
+            await pool.query(
+              'DELETE FROM permission_slip_leader_copies WHERE id = $1',
+              [claim.rows[0].id],
+            );
+          }
+          return Boolean(delivered);
+        }));
+      return outcomes.filter(Boolean).length;
+    }));
+    return sentPerGroup.reduce((total, count) => total + count, 0);
   }
 
   async function verifyEquipmentAccess(equipmentId, organizationId) {
@@ -364,7 +490,7 @@ module.exports = (pool) => {
     );
 
     if (accessResult.rows.length === 0) {
-      const accessError = new Error("Equipment not accessible for organization");
+      const accessError = new Error('Equipment not accessible for organization');
       accessError.statusCode = 403;
       throw accessError;
     }
@@ -374,9 +500,9 @@ module.exports = (pool) => {
   // Equipment inventory
   // ============================
   router.get(
-    "/equipment",
+    '/equipment',
     authenticate,
-    requirePermission("inventory.view"),
+    requirePermission('inventory.view'),
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
@@ -423,7 +549,7 @@ module.exports = (pool) => {
                     SELECT SUM(er.reserved_quantity)
                     FROM equipment_reservations er
                     WHERE er.equipment_id = e.id
-                      AND ${activeReservationPredicate("er")}
+                      AND ${activeReservationPredicate('er')}
                   ), 0) AS reserved_quantity,
                   COALESCE(shared_visibility.shared_organizations, '{}'::text[]) AS shared_organizations
              FROM accessible_equipment e
@@ -440,44 +566,44 @@ module.exports = (pool) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error fetching equipment", err.statusCode || 500);
+        return error(res, err.message || 'Error fetching equipment', err.statusCode || 500);
       }
     }),
   );
 
   router.post(
-    "/equipment",
+    '/equipment',
     authenticate,
     blockDemoRoles,
-    requirePermission("inventory.manage"),
+    requirePermission('inventory.manage'),
     [
-      check("name").isString().trim().isLength({ min: 2, max: 150 }),
-      check("category").optional().isString().trim().isLength({ max: 100 }),
-      check("description").optional().isString().trim().isLength({ max: 2000 }),
-      check("quantity_total").optional().isInt({ min: 0 }),
-      check("quantity_available").optional().isInt({ min: 0 }),
-      check("condition_note")
+      check('name').isString().trim().isLength({ min: 2, max: 150 }),
+      check('category').optional().isString().trim().isLength({ max: 100 }),
+      check('description').optional().isString().trim().isLength({ max: 2000 }),
+      check('quantity_total').optional().isInt({ min: 0 }),
+      check('quantity_available').optional().isInt({ min: 0 }),
+      check('condition_note')
         .optional()
         .isString()
         .trim()
         .isLength({ max: 500 }),
-      check("attributes").optional().isObject(),
-      check("shared_organization_ids").optional().isArray({ max: 50 }),
-      check("shared_organization_ids.*").optional().isInt({ min: 0 }),
-      check("item_value").optional().isNumeric(),
-      check("photo_url").optional().isString().trim().isLength({ max: 500 }),
-      check("acquisition_date").optional().isISO8601(),
-      check("location_type")
+      check('attributes').optional().isObject(),
+      check('shared_organization_ids').optional().isArray({ max: 50 }),
+      check('shared_organization_ids.*').optional().isInt({ min: 0 }),
+      check('item_value').optional().isNumeric(),
+      check('photo_url').optional().isString().trim().isLength({ max: 500 }),
+      check('acquisition_date').optional().isISO8601(),
+      check('location_type')
         .optional()
         .isString()
         .trim()
         .isIn(LOCATION_TYPES),
-      check("location_details")
+      check('location_details')
         .optional()
         .isString()
         .trim()
         .isLength({ max: 500 }),
-      check("share_with_local_group").optional().isBoolean(),
+      check('share_with_local_group').optional().isBoolean(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -500,7 +626,7 @@ module.exports = (pool) => {
         } = req.body;
 
         const attributesPayload =
-          attributes && typeof attributes === "object" ? attributes : {};
+          attributes && typeof attributes === 'object' ? attributes : {};
         const shareWithLocalGroup = resolveShareWithLocalGroup(
           attributesPayload,
           req.body.share_with_local_group,
@@ -525,7 +651,7 @@ module.exports = (pool) => {
           photoOrganizationId !== null &&
           photoOrganizationId !== organizationId
         ) {
-          return error(res, "equipment_photo_organization_mismatch", 400);
+          return error(res, 'equipment_photo_organization_mismatch', 400);
         }
         if (photoOrganizationId !== null) {
           storedPhotoReference = extractPathFromUrl(photo_url);
@@ -563,7 +689,7 @@ module.exports = (pool) => {
             storedPhotoReference,
             normalizedAcquisitionDate,
             location_type || LOCATION_TYPES[0],
-            location_details ?? "",
+            location_details ?? '',
           ],
         );
 
@@ -580,59 +706,59 @@ module.exports = (pool) => {
         return success(
           res,
           { equipment },
-          "Equipment saved",
+          'Equipment saved',
           201,
         );
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error saving equipment", err.statusCode || 500);
+        return error(res, err.message || 'Error saving equipment', err.statusCode || 500);
       }
     }),
   );
 
   router.put(
-    "/equipment/:id",
+    '/equipment/:id',
     authenticate,
     blockDemoRoles,
-    requirePermission("inventory.manage"),
+    requirePermission('inventory.manage'),
     [
-      param("id").isInt({ min: 1 }),
-      check("name").optional().isString().trim().isLength({ min: 2, max: 150 }),
-      check("category").optional().isString().trim().isLength({ max: 100 }),
-      check("description").optional().isString().trim().isLength({ max: 2000 }),
-      check("quantity_total").optional().isInt({ min: 0 }),
-      check("quantity_available").optional().isInt({ min: 0 }),
-      check("condition_note")
+      validateIdParam('id'),
+      check('name').optional().isString().trim().isLength({ min: 2, max: 150 }),
+      check('category').optional().isString().trim().isLength({ max: 100 }),
+      check('description').optional().isString().trim().isLength({ max: 2000 }),
+      check('quantity_total').optional().isInt({ min: 0 }),
+      check('quantity_available').optional().isInt({ min: 0 }),
+      check('condition_note')
         .optional()
         .isString()
         .trim()
         .isLength({ max: 500 }),
-      check("is_active").optional().isBoolean(),
-      check("attributes").optional().isObject(),
-      check("item_value").optional().isNumeric(),
-      check("photo_url").optional().isString().trim().isLength({ max: 500 }),
-      check("acquisition_date").optional().isISO8601(),
-      check("location_type")
+      check('is_active').optional().isBoolean(),
+      check('attributes').optional().isObject(),
+      check('item_value').optional().isNumeric(),
+      check('photo_url').optional().isString().trim().isLength({ max: 500 }),
+      check('acquisition_date').optional().isISO8601(),
+      check('location_type')
         .optional()
         .isString()
         .trim()
         .isIn(LOCATION_TYPES),
-      check("location_details")
+      check('location_details')
         .optional()
         .isString()
         .trim()
         .isLength({ max: 500 }),
-      check("shared_organization_ids").optional().isArray({ max: 50 }),
-      check("shared_organization_ids.*").optional().isInt({ min: 0 }),
-      check("share_with_local_group").optional().isBoolean(),
+      check('shared_organization_ids').optional().isArray({ max: 50 }),
+      check('shared_organization_ids.*').optional().isInt({ min: 0 }),
+      check('share_with_local_group').optional().isBoolean(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const equipmentId = parseInt(req.params.id, 10);
+        const equipmentId = Number(req.params.id);
         const sharedIdsProvided = Array.isArray(req.body.shared_organization_ids);
         const sanitizedSharedIds = sharedIdsProvided
           ? req.body.shared_organization_ids.filter((id) => Number.isInteger(id))
@@ -648,7 +774,7 @@ module.exports = (pool) => {
         );
 
         if (existingEquipment.rows.length === 0) {
-          return error(res, "Equipment not found", 404);
+          return error(res, 'Equipment not found', 404);
         }
 
         const ownerOrganizationId = existingEquipment.rows[0].organization_id;
@@ -664,7 +790,7 @@ module.exports = (pool) => {
             photoOrganizationId !== null &&
             photoOrganizationId !== ownerOrganizationId
           ) {
-            return error(res, "equipment_photo_organization_mismatch", 400);
+            return error(res, 'equipment_photo_organization_mismatch', 400);
           }
           if (photoOrganizationId !== null) {
             req.body.photo_url = extractPathFromUrl(req.body.photo_url);
@@ -672,18 +798,18 @@ module.exports = (pool) => {
         }
 
         const fields = [
-          "name",
-          "category",
-          "description",
-          "quantity_total",
-          "quantity_available",
-          "condition_note",
-          "is_active",
-          "item_value",
-          "photo_url",
-          "acquisition_date",
-          "location_type",
-          "location_details",
+          'name',
+          'category',
+          'description',
+          'quantity_total',
+          'quantity_available',
+          'condition_note',
+          'is_active',
+          'item_value',
+          'photo_url',
+          'acquisition_date',
+          'location_type',
+          'location_details',
         ];
         const updates = [];
         const values = [];
@@ -695,7 +821,7 @@ module.exports = (pool) => {
         });
 
         const currentAttributes =
-          existingEquipment.rows[0].attributes && typeof existingEquipment.rows[0].attributes === "object"
+          existingEquipment.rows[0].attributes && typeof existingEquipment.rows[0].attributes === 'object'
             ? existingEquipment.rows[0].attributes
             : {};
 
@@ -703,7 +829,7 @@ module.exports = (pool) => {
           req.body.attributes !== undefined || shareWithLocalGroupOverride !== undefined;
         if (attributesUpdateRequired) {
           const incomingAttributes =
-            req.body.attributes && typeof req.body.attributes === "object"
+            req.body.attributes && typeof req.body.attributes === 'object'
               ? req.body.attributes
               : {};
           const mergedAttributes = {
@@ -725,7 +851,7 @@ module.exports = (pool) => {
           shareWithLocalGroupOverride !== undefined;
 
         if (updates.length === 0 && !hasShareChanges) {
-          return success(res, null, "No changes detected");
+          return success(res, null, 'No changes detected');
         }
 
         if (updates.length === 0) {
@@ -747,19 +873,19 @@ module.exports = (pool) => {
           return success(
             res,
             { equipment },
-            "Equipment updated",
+            'Equipment updated',
           );
         }
 
         // Update equipment (any organization with access can update)
         const queryText = `UPDATE equipment_items
-          SET ${updates.join(", ")}, updated_at = CURRENT_TIMESTAMP
+          SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
           WHERE id = $1
           RETURNING *`;
         const result = await pool.query(queryText, [equipmentId, ...values]);
 
         if (result.rows.length === 0) {
-          return error(res, "Equipment not found", 404);
+          return error(res, 'Equipment not found', 404);
         }
 
         const shareWithLocalGroup = resolveShareWithLocalGroup(
@@ -777,12 +903,12 @@ module.exports = (pool) => {
         });
 
         const equipment = await resolveEquipmentPhoto(result.rows[0]);
-        return success(res, { equipment }, "Equipment updated");
+        return success(res, { equipment }, 'Equipment updated');
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error updating equipment", err.statusCode || 500);
+        return error(res, err.message || 'Error updating equipment', err.statusCode || 500);
       }
     }),
   );
@@ -793,16 +919,16 @@ module.exports = (pool) => {
    * image URL expires or immediately before opening a new preview.
    */
   router.get(
-    "/equipment/:id/photo",
+    '/equipment/:id/photo',
     authenticate,
-    requirePermission("inventory.view"),
-    [param("id").isInt({ min: 1 })],
+    requirePermission('inventory.view'),
+    [validateIdParam('id')],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const equipmentId = parseInt(req.params.id, 10);
-        res.set("Cache-Control", "private, no-store, max-age=0");
+        const equipmentId = Number(req.params.id);
+        res.set('Cache-Control', 'private, no-store, max-age=0');
 
         await verifyEquipmentAccess(equipmentId, organizationId);
 
@@ -815,7 +941,7 @@ module.exports = (pool) => {
         );
         const equipment = result.rows[0];
         if (!equipment?.photo_url) {
-          return error(res, "equipment_photo_not_found", 404);
+          return error(res, 'equipment_photo_not_found', 404);
         }
 
         const photoUrl = await getSignedPhotoUrl(
@@ -823,7 +949,7 @@ module.exports = (pool) => {
           equipment.organization_id,
         );
         if (!photoUrl) {
-          return error(res, "equipment_photo_not_found", 404);
+          return error(res, 'equipment_photo_not_found', 404);
         }
 
         return success(res, { photo_url: photoUrl });
@@ -833,7 +959,7 @@ module.exports = (pool) => {
         }
         return error(
           res,
-          err.message || "equipment_photo_refresh_error",
+          err.message || 'equipment_photo_refresh_error',
           err.statusCode || 500,
         );
       }
@@ -842,16 +968,16 @@ module.exports = (pool) => {
 
   // Delete equipment (soft delete by setting is_active = false)
   router.delete(
-    "/equipment/:id",
+    '/equipment/:id',
     authenticate,
     blockDemoRoles,
-    requirePermission("inventory.manage"),
-    [param("id").isInt({ min: 1 })],
+    requirePermission('inventory.manage'),
+    [validateIdParam('id')],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const equipmentId = parseInt(req.params.id, 10);
+        const equipmentId = Number(req.params.id);
 
         // Verify organization has access to this equipment (owner or shared)
         await verifyEquipmentAccess(equipmentId, organizationId);
@@ -867,7 +993,7 @@ module.exports = (pool) => {
         if (parseInt(reservationCheck.rows[0].count, 10) > 0) {
           return error(
             res,
-            "Cannot delete equipment with active reservations",
+            'Cannot delete equipment with active reservations',
             400,
           );
         }
@@ -882,7 +1008,7 @@ module.exports = (pool) => {
         );
 
         if (result.rows.length === 0) {
-          return error(res, "Equipment not found", 404);
+          return error(res, 'Equipment not found', 404);
         }
 
         // Delete photo from storage if exists
@@ -897,13 +1023,13 @@ module.exports = (pool) => {
         return success(
           res,
           { equipment: result.rows[0] },
-          "Equipment deleted successfully",
+          'Equipment deleted successfully',
         );
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error deleting equipment", err.statusCode || 500);
+        return error(res, err.message || 'Error deleting equipment', err.statusCode || 500);
       }
     }),
   );
@@ -912,38 +1038,38 @@ module.exports = (pool) => {
   // Equipment photo upload
   // ============================
   router.post(
-    "/equipment/:id/photo",
+    '/equipment/:id/photo',
     authenticate,
     blockDemoRoles,
-    requirePermission("inventory.manage"),
-    [param("id").isInt({ min: 1 })],
+    requirePermission('inventory.manage'),
+    [validateIdParam('id')],
     checkValidation,
-    upload.single("photo"),
+    upload.single('photo'),
     asyncHandler(async (req, res) => {
       try {
         // Check if storage is configured
         if (!isStorageConfigured()) {
           return error(
             res,
-            "Photo storage is not configured. Connect the Railway bucket to this service and inject its S3 credentials.",
+            'Photo storage is not configured. Connect the Railway bucket to this service and inject its S3 credentials.',
             503,
           );
         }
 
         const organizationId = await getOrganizationId(req, pool);
-        const equipmentId = parseInt(req.params.id, 10);
+        const equipmentId = Number(req.params.id);
 
         // Verify organization has access to this equipment (owner or shared)
         await verifyEquipmentAccess(equipmentId, organizationId);
 
         // Get current photo URL
         const equipmentCheck = await pool.query(
-          "SELECT id, organization_id, photo_url FROM equipment_items WHERE id = $1",
+          'SELECT id, organization_id, photo_url FROM equipment_items WHERE id = $1',
           [equipmentId],
         );
 
         if (equipmentCheck.rows.length === 0) {
-          return error(res, "Equipment not found", 404);
+          return error(res, 'Equipment not found', 404);
         }
 
         // Validate file
@@ -960,7 +1086,7 @@ module.exports = (pool) => {
             originalFilename: req.file.originalname,
           });
         } catch (processingError) {
-          return error(res, "Unable to process image upload", 400);
+          return error(res, 'Unable to process image upload', 400);
         }
 
         const oldPhotoUrl = equipmentCheck.rows[0].photo_url;
@@ -981,7 +1107,7 @@ module.exports = (pool) => {
         if (!uploadResult.success) {
           return error(
             res,
-            uploadResult.error || "Failed to upload photo",
+            uploadResult.error || 'Failed to upload photo',
             500,
           );
         }
@@ -1007,49 +1133,49 @@ module.exports = (pool) => {
         return success(
           res,
           { equipment, photo_url: equipment.photo_url },
-          "Photo uploaded successfully",
+          'Photo uploaded successfully',
         );
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
         // Handle multer errors
-        if (err.code === "LIMIT_FILE_SIZE") {
+        if (err.code === 'LIMIT_FILE_SIZE') {
           return error(
             res,
             `File size exceeds maximum allowed (${MAX_FILE_SIZE / 1024 / 1024}MB)`,
             400,
           );
         }
-        return error(res, err.message || "Error uploading photo", err.statusCode || 500);
+        return error(res, err.message || 'Error uploading photo', err.statusCode || 500);
       }
     }),
   );
 
   // Delete equipment photo
   router.delete(
-    "/equipment/:id/photo",
+    '/equipment/:id/photo',
     authenticate,
     blockDemoRoles,
-    requirePermission("inventory.manage"),
-    [param("id").isInt({ min: 1 })],
+    requirePermission('inventory.manage'),
+    [validateIdParam('id')],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const equipmentId = parseInt(req.params.id, 10);
+        const equipmentId = Number(req.params.id);
 
         // Verify organization has access to this equipment (owner or shared)
         await verifyEquipmentAccess(equipmentId, organizationId);
 
         // Get current photo URL
         const equipmentCheck = await pool.query(
-          "SELECT id, photo_url FROM equipment_items WHERE id = $1",
+          'SELECT id, photo_url FROM equipment_items WHERE id = $1',
           [equipmentId],
         );
 
         if (equipmentCheck.rows.length === 0) {
-          return error(res, "Equipment not found", 404);
+          return error(res, 'Equipment not found', 404);
         }
 
         const photoUrl = equipmentCheck.rows[0].photo_url;
@@ -1057,7 +1183,7 @@ module.exports = (pool) => {
           return success(
             res,
             { equipment: equipmentCheck.rows[0] },
-            "No photo to delete",
+            'No photo to delete',
           );
         }
 
@@ -1081,13 +1207,13 @@ module.exports = (pool) => {
         return success(
           res,
           { equipment: updateResult.rows[0] },
-          "Photo deleted successfully",
+          'Photo deleted successfully',
         );
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error deleting photo", err.statusCode || 500);
+        return error(res, err.message || 'Error deleting photo', err.statusCode || 500);
       }
     }),
   );
@@ -1096,14 +1222,14 @@ module.exports = (pool) => {
   // Equipment reservations
   // ============================
   router.get(
-    "/equipment/reservations",
+    '/equipment/reservations',
     authenticate,
-    requirePermission("inventory.view"),
+    requirePermission('inventory.view'),
     [
-      query("activity_id").optional().isInt({ min: 1 }),
-      query("meeting_date").optional().isISO8601(),
-      query("date_from").optional().isISO8601(),
-      query("date_to").optional().isISO8601(),
+      query('activity_id').optional().isInt({ min: 1 }),
+      query('meeting_date').optional().isISO8601(),
+      query('date_from').optional().isISO8601(),
+      query('date_to').optional().isISO8601(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -1121,21 +1247,21 @@ module.exports = (pool) => {
           : null;
         const dateTo = req.query.date_to ? parseDate(req.query.date_to) : null;
         const params = [organizationId];
-        let filter = "";
+        let filter = '';
 
         if (activityId) {
-          filter = "AND er.activity_id = $2";
+          filter = 'AND er.activity_id = $2';
           params.push(activityId);
         } else if (meetingDate) {
-          filter = "AND er.meeting_date = $2";
+          filter = 'AND er.meeting_date = $2';
           params.push(meetingDate);
         } else if (dateFrom && dateTo) {
           // Filter reservations that overlap with the requested date range
           // A reservation overlaps if: reservation.date_from <= requested.date_to AND reservation.date_to >= requested.date_from
-          filter = "AND er.date_from <= $3 AND er.date_to >= $2";
+          filter = 'AND er.date_from <= $3 AND er.date_to >= $2';
           params.push(dateFrom, dateTo);
         } else if (dateFrom) {
-          filter = "AND er.date_from >= $2";
+          filter = 'AND er.date_from >= $2';
           params.push(dateFrom);
         }
 
@@ -1214,28 +1340,28 @@ module.exports = (pool) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error fetching reservations", err.statusCode || 500);
+        return error(res, err.message || 'Error fetching reservations', err.statusCode || 500);
       }
     }),
   );
 
   router.post(
-    "/equipment/reservations",
+    '/equipment/reservations',
     authenticate,
     blockDemoRoles,
-    requirePermission("inventory.reserve"),
+    requirePermission('inventory.reserve'),
     [
-      check("equipment_id").isInt({ min: 1 }),
-      check("meeting_date").optional().isISO8601(),
-      check("date_from").optional().isISO8601(),
-      check("date_to").optional().isISO8601(),
-      check("meeting_id").optional().isInt({ min: 1 }),
-      check("reserved_quantity").optional().isInt({ min: 1 }),
-      check("reserved_for").optional().isString().trim().isLength({ max: 200 }),
-      check("status")
+      check('equipment_id').isInt({ min: 1 }),
+      check('meeting_date').optional().isISO8601(),
+      check('date_from').optional().isISO8601(),
+      check('date_to').optional().isISO8601(),
+      check('meeting_id').optional().isInt({ min: 1 }),
+      check('reserved_quantity').optional().isInt({ min: 1 }),
+      check('reserved_for').optional().isString().trim().isLength({ max: 200 }),
+      check('status')
         .optional()
-        .isIn(["reserved", "confirmed", "returned", "cancelled", "expired"]),
-      check("notes").optional().isString().trim().isLength({ max: 2000 }),
+        .isIn(['reserved', 'confirmed', 'returned', 'cancelled', 'expired']),
+      check('notes').optional().isString().trim().isLength({ max: 2000 }),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -1249,7 +1375,7 @@ module.exports = (pool) => {
           meeting_id,
           reserved_quantity = 1,
           reserved_for,
-          status = "reserved",
+          status = 'reserved',
           notes,
         } = req.body;
 
@@ -1266,13 +1392,13 @@ module.exports = (pool) => {
           normalizedDate = normalizedDateFrom; // Use date_from as meeting_date for backward compatibility
 
           if (!normalizedDateFrom || !normalizedDateTo) {
-            return error(res, "Invalid date range", 400);
+            return error(res, 'Invalid date range', 400);
           }
 
           if (normalizedDateFrom > normalizedDateTo) {
             return error(
               res,
-              "date_from must be before or equal to date_to",
+              'date_from must be before or equal to date_to',
               400,
             );
           }
@@ -1282,12 +1408,12 @@ module.exports = (pool) => {
           normalizedDateTo = normalizedDate;
 
           if (!normalizedDate) {
-            return error(res, "Invalid meeting date", 400);
+            return error(res, 'Invalid meeting date', 400);
           }
         } else {
           return error(
             res,
-            "Either meeting_date or date_from/date_to is required",
+            'Either meeting_date or date_from/date_to is required',
             400,
           );
         }
@@ -1301,7 +1427,7 @@ module.exports = (pool) => {
         );
 
         if (equipmentResult.rows.length === 0) {
-          return error(res, "Equipment not found", 404);
+          return error(res, 'Equipment not found', 404);
         }
 
         const { name: equipmentName, quantity_total: quantityTotal } =
@@ -1329,7 +1455,7 @@ module.exports = (pool) => {
             normalizedDateTo,
             organizationId,
             normalizedDate,
-            reserved_for ?? "",
+            reserved_for ?? '',
           ],
         );
 
@@ -1369,7 +1495,7 @@ module.exports = (pool) => {
             normalizedDateFrom,
             normalizedDateTo,
             reserved_quantity,
-            reserved_for ?? "",
+            reserved_for ?? '',
             status,
             notes,
             req.user?.id || null,
@@ -1379,38 +1505,38 @@ module.exports = (pool) => {
         return success(
           res,
           { reservation: insertResult.rows[0] },
-          "Reservation saved",
+          'Reservation saved',
           201,
         );
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error saving reservation", err.statusCode || 500);
+        return error(res, err.message || 'Error saving reservation', err.statusCode || 500);
       }
     }),
   );
 
   router.patch(
-    "/equipment/reservations/:id",
+    '/equipment/reservations/:id',
     authenticate,
     blockDemoRoles,
-    requirePermission("inventory.reserve"),
+    requirePermission('inventory.reserve'),
     [
-      param("id").isInt({ min: 1 }),
-      check("reserved_quantity").optional().isInt({ min: 1 }),
-      check("reserved_for").optional().isString().trim().isLength({ max: 200 }),
-      check("status")
+      validateIdParam('id'),
+      check('reserved_quantity').optional().isInt({ min: 1 }),
+      check('reserved_for').optional().isString().trim().isLength({ max: 200 }),
+      check('status')
         .optional()
-        .isIn(["reserved", "confirmed", "returned", "cancelled", "expired"]),
-      check("notes").optional().isString().trim().isLength({ max: 2000 }),
+        .isIn(['reserved', 'confirmed', 'returned', 'cancelled', 'expired']),
+      check('notes').optional().isString().trim().isLength({ max: 2000 }),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const reservationId = parseInt(req.params.id, 10);
-        const fields = ["reserved_quantity", "reserved_for", "status", "notes"];
+        const reservationId = Number(req.params.id);
+        const fields = ['reserved_quantity', 'reserved_for', 'status', 'notes'];
         const updates = [];
         const values = [];
         fields.forEach((field) => {
@@ -1421,7 +1547,7 @@ module.exports = (pool) => {
         });
 
         if (updates.length === 0) {
-          return success(res, null, "No changes detected");
+          return success(res, null, 'No changes detected');
         }
 
         // Re-check availability when this update could take stock back off the
@@ -1443,7 +1569,7 @@ module.exports = (pool) => {
           );
 
           if (currentReservation.rows.length === 0) {
-            return error(res, "Reservation not found", 404);
+            return error(res, 'Reservation not found', 404);
           }
 
           const reservation = currentReservation.rows[0];
@@ -1459,7 +1585,7 @@ module.exports = (pool) => {
             );
 
             if (equipmentResult.rows.length === 0) {
-              return error(res, "Equipment not found", 404);
+              return error(res, 'Equipment not found', 404);
             }
 
             const { name: equipmentName, quantity_total: quantityTotal } =
@@ -1508,7 +1634,7 @@ module.exports = (pool) => {
         }
 
         const queryText = `UPDATE equipment_reservations
-          SET ${updates.join(", ")}, updated_at = CURRENT_TIMESTAMP
+          SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
           WHERE id = $1 AND organization_id = $${updates.length + 2}
           RETURNING *`;
         const result = await pool.query(queryText, [
@@ -1518,38 +1644,38 @@ module.exports = (pool) => {
         ]);
 
         if (result.rows.length === 0) {
-          return error(res, "Reservation not found", 404);
+          return error(res, 'Reservation not found', 404);
         }
 
         return success(
           res,
           { reservation: result.rows[0] },
-          "Reservation updated",
+          'Reservation updated',
         );
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error updating reservation", err.statusCode || 500);
+        return error(res, err.message || 'Error updating reservation', err.statusCode || 500);
       }
     }),
   );
 
   // Bulk equipment reservations
   router.post(
-    "/equipment/reservations/bulk",
+    '/equipment/reservations/bulk',
     authenticate,
     blockDemoRoles,
-    requirePermission("inventory.reserve"),
+    requirePermission('inventory.reserve'),
     [
-      check("activity_id").optional().isInt({ min: 1 }),
-      check("date_from").optional().isISO8601(),
-      check("date_to").optional().isISO8601(),
-      check("reserved_for").isString().trim().isLength({ min: 1, max: 200 }),
-      check("notes").optional().isString().trim().isLength({ max: 2000 }),
-      check("items").isArray({ min: 1, max: 50 }),
-      check("items.*.equipment_id").isInt({ min: 1 }),
-      check("items.*.quantity").isInt({ min: 1 }),
+      check('activity_id').optional().isInt({ min: 1 }),
+      check('date_from').optional().isISO8601(),
+      check('date_to').optional().isISO8601(),
+      check('reserved_for').isString().trim().isLength({ min: 1, max: 200 }),
+      check('notes').optional().isString().trim().isLength({ max: 2000 }),
+      check('items').isArray({ min: 1, max: 50 }),
+      check('items.*.equipment_id').isInt({ min: 1 }),
+      check('items.*.quantity').isInt({ min: 1 }),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -1570,7 +1696,7 @@ module.exports = (pool) => {
           );
 
           if (activityResult.rows.length === 0) {
-            return error(res, "Activity not found or not accessible", 404);
+            return error(res, 'Activity not found or not accessible', 404);
           }
 
           const activity = activityResult.rows[0];
@@ -1580,7 +1706,7 @@ module.exports = (pool) => {
         } else {
           // If no activity_id, dates are required
           if (!date_from || !date_to) {
-            return error(res, "Either activity_id or both date_from and date_to must be provided", 400);
+            return error(res, 'Either activity_id or both date_from and date_to must be provided', 400);
           }
 
           normalizedDateFrom = parseDate(date_from);
@@ -1588,13 +1714,13 @@ module.exports = (pool) => {
         }
 
         if (!normalizedDateFrom || !normalizedDateTo) {
-          return error(res, "Invalid date range", 400);
+          return error(res, 'Invalid date range', 400);
         }
 
         if (normalizedDateFrom > normalizedDateTo) {
           return error(
             res,
-            "date_from must be before or equal to date_to",
+            'date_from must be before or equal to date_to',
             400,
           );
         }
@@ -1663,7 +1789,7 @@ module.exports = (pool) => {
               normalizedDateTo,
               item.quantity,
               reserved_for,
-              "reserved",
+              'reserved',
               notes || null,
               req.user?.id || null,
             ],
@@ -1678,14 +1804,14 @@ module.exports = (pool) => {
             reservations: createdReservations,
             count: createdReservations.length,
           },
-          "Bulk reservations saved",
+          'Bulk reservations saved',
           201,
         );
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error saving bulk reservations", err.statusCode || 500);
+        return error(res, err.message || 'Error saving bulk reservations', err.statusCode || 500);
       }
     }),
   );
@@ -1694,13 +1820,13 @@ module.exports = (pool) => {
   // Permission slips
   // ============================
   router.get(
-    "/permission-slips",
+    '/permission-slips',
     authenticate,
-    requirePermission("participants.view"),
+    requirePermission('participants.view'),
     [
-      query("meeting_date").optional().isISO8601(),
-      query("participant_id").optional().isInt({ min: 1 }),
-      query("activity_id").optional().isInt({ min: 1 }),
+      query('meeting_date').optional().isISO8601(),
+      query('participant_id').optional().isInt({ min: 1 }),
+      query('activity_id').optional().isInt({ min: 1 }),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -1716,16 +1842,16 @@ module.exports = (pool) => {
           ? parseInt(req.query.activity_id, 10)
           : null;
         const params = [organizationId];
-        let filter = "";
+        let filter = '';
 
-        const isParentOnly = (await getUserDataScope(req, pool)) !== "organization";
+        const isParentOnly = (await getUserDataScope(req, pool)) !== 'organization';
         if (isParentOnly) {
           const allowedParticipantIds = await getParentParticipantIds(
             req.user.id,
             organizationId,
           );
           if (participantId && !allowedParticipantIds.includes(participantId)) {
-            return error(res, "Permission denied for participant", 403);
+            return forbidden(res, 'Permission denied for participant', [], []);
           }
 
           if (!participantId) {
@@ -1758,7 +1884,12 @@ module.exports = (pool) => {
                   g.prenom AS guardian_first_name, g.nom AS guardian_last_name,
                   -- A slip's own copy of the activity (title, description) is
                   -- what its parents receive and sign: it is not overwritten.
-                  a.name AS activity_name, a.activity_date
+                  a.name AS activity_name, a.activity_date,
+                  -- Only a child's own family answers its slip, leaders included
+                  EXISTS (
+                    SELECT 1 FROM user_participants up
+                     WHERE up.user_id = $${params.length + 1} AND up.participant_id = ps.participant_id
+                  ) AS is_own_child
            FROM permission_slips ps
            JOIN participants p ON p.id = ps.participant_id
            LEFT JOIN parents_guardians g ON g.id = ps.guardian_id
@@ -1766,7 +1897,7 @@ module.exports = (pool) => {
            WHERE ps.organization_id = $1
              AND ps.status != 'archived' ${filter}
            ORDER BY ps.meeting_date DESC, p.first_name`,
-          params,
+          [...params, req.user.id],
         );
 
         return success(res, { permission_slips: result.rows });
@@ -1776,27 +1907,27 @@ module.exports = (pool) => {
         }
         return error(
           res,
-          err.message || "Error fetching permission slips",
+          err.message || 'Error fetching permission slips',
           err.statusCode || 500,
         );
       }
     }),
   );
   router.post(
-    "/permission-slips/send-emails",
+    '/permission-slips/send-emails',
     authenticate,
     blockDemoRoles,
-    requirePermission("communications.send"),
+    requirePermission('communications.send'),
     [
-      check("meeting_date").optional().isISO8601(),
-      check("activity_id").optional().isInt({ min: 1 }),
-      check("activity_title")
+      check('meeting_date').optional().isISO8601(),
+      check('activity_id').optional().isInt({ min: 1 }),
+      check('activity_title')
         .optional()
         .isString()
         .trim()
         .isLength({ max: 200 }),
-      check("participant_ids").optional().isArray({ max: 200 }),
-      check("participant_ids.*").optional().isInt({ min: 1 }),
+      check('participant_ids').optional().isArray({ max: 200 }),
+      check('participant_ids.*').optional().isInt({ min: 1 }),
       // Exact slips, for a page listing one activity's slips in several groups
       check('slip_ids').optional().isArray({ max: MAX_SLIP_IDS_PER_REQUEST }),
       check('slip_ids.*').optional().isInt({ min: 1 }),
@@ -1809,19 +1940,16 @@ module.exports = (pool) => {
 
         // Require either activity_id or meeting_date
         if (!activity_id && !meeting_date) {
-          return error(res, "Either activity_id or meeting_date must be provided", 400);
+          return error(res, 'Either activity_id or meeting_date must be provided', 400);
         }
 
         const normalizedDate = meeting_date ? parseDate(meeting_date) : null;
         if (meeting_date && !normalizedDate) {
-          return error(res, "Invalid meeting date", 400);
+          return error(res, 'Invalid meeting date', 400);
         }
 
-        // First, check if there are any pending permission slips at all (regardless of email status)
-        let pendingCheckQuery = `
-          SELECT
-            COUNT(*) FILTER (WHERE ps.email_sent = false) as unsent_count,
-            COUNT(*) FILTER (WHERE ps.email_sent = true) as sent_count
+        // The slips this request is about, counted by email status; shared with the leaders' retry below
+        let slipFilter = `
           FROM permission_slips ps
           WHERE ps.organization_id = $1
             AND ps.status = 'pending'`;
@@ -1830,39 +1958,66 @@ module.exports = (pool) => {
 
         if (activity_id) {
           pendingCheckParams.push(activity_id);
-          pendingCheckQuery += ` AND ps.activity_id = $${pendingCheckParams.length}`;
+          slipFilter += ` AND ps.activity_id = $${pendingCheckParams.length}`;
         } else if (normalizedDate) {
           pendingCheckParams.push(normalizedDate);
-          pendingCheckQuery += ` AND ps.meeting_date = $${pendingCheckParams.length}`;
+          slipFilter += ` AND ps.meeting_date = $${pendingCheckParams.length}`;
         }
 
         if (activity_title) {
           pendingCheckParams.push(activity_title);
-          pendingCheckQuery += ` AND ps.activity_title = $${pendingCheckParams.length}`;
+          slipFilter += ` AND ps.activity_title = $${pendingCheckParams.length}`;
         }
 
         if (participant_ids && participant_ids.length > 0) {
           pendingCheckParams.push(participant_ids);
-          pendingCheckQuery += ` AND ps.participant_id = ANY($${pendingCheckParams.length})`;
+          slipFilter += ` AND ps.participant_id = ANY($${pendingCheckParams.length})`;
         }
 
         if (slipIds && slipIds.length > 0) {
           pendingCheckParams.push(slipIds.map(Number));
-          pendingCheckQuery += ` AND ps.id = ANY($${pendingCheckParams.length}::int[])`;
+          slipFilter += ` AND ps.id = ANY($${pendingCheckParams.length}::int[])`;
         }
 
-        const pendingCheckResult = await pool.query(pendingCheckQuery, pendingCheckParams);
+        const pendingCheckResult = await pool.query(
+          `SELECT
+             COUNT(*) FILTER (WHERE ps.email_sent = false) as unsent_count,
+             COUNT(*) FILTER (WHERE ps.email_sent = true) as sent_count
+           ${slipFilter}`,
+          pendingCheckParams,
+        );
         const unsentCount = parseInt(pendingCheckResult.rows[0].unsent_count);
         const alreadySentCount = parseInt(pendingCheckResult.rows[0].sent_count);
 
         // If no pending slips exist at all
         if (unsentCount === 0 && alreadySentCount === 0) {
-          return success(res, { sent: 0, total: 0 }, "No pending permission slips found");
+          return success(res, { sent: 0, total: 0 }, 'No pending permission slips found');
         }
 
         // If pending slips exist but all have been sent already
         if (unsentCount === 0) {
-          return success(res, { sent: 0, total: alreadySentCount }, "All pending permission slips have already been emailed");
+          // A leader copy refused earlier gave its claim back: offer it again.
+          // Claims keep anyone already sent a copy from getting a second one.
+          let leaderCopiesSent = 0;
+          try {
+            const emailed = await pool.query(
+              `SELECT DISTINCT ON (ps.activity_id, ps.meeting_date, ps.activity_title) ps.*
+               ${slipFilter} AND ps.email_sent = true`,
+              pendingCheckParams,
+            );
+            leaderCopiesSent = await sendLeaderCopies(
+              organizationId,
+              emailed.rows,
+              await resolveOrganizationEmailSender(pool, organizationId),
+            );
+          } catch (copyError) {
+            logger?.error?.('Leader copies of permission slip emails failed:', copyError);
+          }
+          return success(
+            res,
+            { sent: 0, total: alreadySentCount, leader_copies_sent: leaderCopiesSent },
+            'All pending permission slips have already been emailed',
+          );
         }
 
         // Build query to find permission slips (without guardian join - we'll get all guardians separately)
@@ -1906,6 +2061,7 @@ module.exports = (pool) => {
         let emailsSentCount = 0;
         const failedEmails = [];
         const emailDetails = [];
+        const sentSlips = [];
         const sender = await resolveOrganizationEmailSender(pool, organizationId);
 
         for (const slip of slipsResult.rows) {
@@ -1967,7 +2123,7 @@ module.exports = (pool) => {
             failedEmails.push({
               participant_id: slip.participant_id,
               participant_name: `${slip.first_name} ${slip.last_name}`,
-              reason: "No guardian or parent email addresses found",
+              reason: 'No guardian or parent email addresses found',
             });
             continue;
           }
@@ -2011,6 +2167,8 @@ module.exports = (pool) => {
             if (emailSent) {
               slipSentCount++;
               emailsSentCount++;
+              // eslint-disable-next-line no-await-in-loop -- recorded as each email is accepted, like the sends around it
+              await recordFamilyDelivery(organizationId, slip, recipient.email);
               // Track guardian IDs that were emailed
               if (recipient.type === 'guardian' && !newGuardiansEmailed.includes(recipient.id)) {
                 newGuardiansEmailed.push(recipient.id);
@@ -2026,7 +2184,7 @@ module.exports = (pool) => {
                 participant_id: slip.participant_id,
                 participant_name: `${slip.first_name} ${slip.last_name}`,
                 email: recipient.email,
-                reason: "Email send failed",
+                reason: 'Email send failed',
               });
             }
           }
@@ -2039,7 +2197,16 @@ module.exports = (pool) => {
                WHERE id = $1`,
               [slip.id, JSON.stringify(newGuardiansEmailed)],
             );
+            sentSlips.push(slip);
           }
+        }
+
+        // The families have it: the leaders get a copy, for information.
+        let leaderCopiesSent = 0;
+        try {
+          leaderCopiesSent = await sendLeaderCopies(organizationId, sentSlips, sender);
+        } catch (copyError) {
+          logger?.error?.('Leader copies of permission slip emails failed:', copyError);
         }
 
         return success(
@@ -2049,6 +2216,7 @@ module.exports = (pool) => {
             total: slipsResult.rows.length,
             emails_sent: emailDetails,
             failed: failedEmails,
+            leader_copies_sent: leaderCopiesSent,
           },
           `${emailsSentCount} email(s) sent successfully to guardians/parents`,
         );
@@ -2056,27 +2224,27 @@ module.exports = (pool) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error sending emails", err.statusCode || 500);
+        return error(res, err.message || 'Error sending emails', err.statusCode || 500);
       }
     }),
   );
 
   // Send reminder emails for unsigned permission slips
   router.post(
-    "/permission-slips/send-reminders",
+    '/permission-slips/send-reminders',
     authenticate,
     blockDemoRoles,
-    requirePermission("communications.send"),
+    requirePermission('communications.send'),
     [
-      check("meeting_date").optional().isISO8601(),
-      check("activity_id").optional().isInt({ min: 1 }),
-      check("activity_title")
+      check('meeting_date').optional().isISO8601(),
+      check('activity_id').optional().isInt({ min: 1 }),
+      check('activity_title')
         .optional()
         .isString()
         .trim()
         .isLength({ max: 200 }),
-      check("participant_ids").optional().isArray({ max: 200 }),
-      check("participant_ids.*").optional().isInt({ min: 1 }),
+      check('participant_ids').optional().isArray({ max: 200 }),
+      check('participant_ids.*').optional().isInt({ min: 1 }),
       // Exact slips, for a page listing one activity's slips in several groups
       check('slip_ids').optional().isArray({ max: MAX_SLIP_IDS_PER_REQUEST }),
       check('slip_ids.*').optional().isInt({ min: 1 }),
@@ -2089,12 +2257,12 @@ module.exports = (pool) => {
 
         // Require either activity_id or meeting_date
         if (!activity_id && !meeting_date) {
-          return error(res, "Either activity_id or meeting_date must be provided", 400);
+          return error(res, 'Either activity_id or meeting_date must be provided', 400);
         }
 
         const normalizedDate = meeting_date ? parseDate(meeting_date) : null;
         if (meeting_date && !normalizedDate) {
-          return error(res, "Invalid meeting date", 400);
+          return error(res, 'Invalid meeting date', 400);
         }
 
         // First, check if there are any pending (unsigned) permission slips at all
@@ -2135,7 +2303,7 @@ module.exports = (pool) => {
 
         // If no pending slips exist (among those that received the initial email), all sent slips have been signed
         if (pendingCount === 0) {
-          return success(res, { sent: 0, total: 0 }, "All permission slips that were sent have been signed");
+          return success(res, { sent: 0, total: 0 }, 'All permission slips that were sent have been signed');
         }
 
         // Build query to find unsigned permission slips that can receive reminders
@@ -2180,7 +2348,7 @@ module.exports = (pool) => {
 
         // If pending slips exist but none are eligible (all reminded within 24 hours)
         if (slipsResult.rows.length === 0) {
-          return success(res, { sent: 0, total: pendingCount }, "Reminders were sent recently. Please wait 24 hours between reminders.");
+          return success(res, { sent: 0, total: pendingCount }, 'Reminders were sent recently. Please wait 24 hours between reminders.');
         }
 
         let sentCount = 0;
@@ -2246,7 +2414,7 @@ module.exports = (pool) => {
             failedEmails.push({
               participant_id: slip.participant_id,
               participant_name: `${slip.first_name} ${slip.last_name}`,
-              reason: "No guardian or parent email addresses found",
+              reason: 'No guardian or parent email addresses found',
             });
             continue;
           }
@@ -2300,7 +2468,7 @@ module.exports = (pool) => {
                 participant_id: slip.participant_id,
                 participant_name: `${slip.first_name} ${slip.last_name}`,
                 email: recipient.email,
-                reason: "Email send failed",
+                reason: 'Email send failed',
               });
             }
           }
@@ -2330,7 +2498,7 @@ module.exports = (pool) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error sending reminders", err.statusCode || 500);
+        return error(res, err.message || 'Error sending reminders', err.statusCode || 500);
       }
     }),
   );
@@ -2433,34 +2601,34 @@ module.exports = (pool) => {
   );
 
   router.post(
-    "/permission-slips",
+    '/permission-slips',
     authenticate,
     blockDemoRoles,
-    requirePermission("activities.edit"),
+    requirePermission('activities.edit'),
     [
-      check("participant_ids")
+      check('participant_ids')
         .optional({ nullable: true })
         .isArray({ max: 200 }),
-      check("participant_ids.*").optional({ nullable: true }).isInt({ min: 1 }),
-      check("participant_id").optional({ nullable: true }).isInt({ min: 1 }),
-      check("guardian_id").optional({ nullable: true }).isInt({ min: 1 }),
-      check("activity_id").optional({ nullable: true }).isInt({ min: 1 }),
-      check("meeting_date").optional({ nullable: true }).isISO8601(),
-      check("meeting_id").optional({ nullable: true }).isInt({ min: 1 }),
-      check("activity_title")
+      check('participant_ids.*').optional({ nullable: true }).isInt({ min: 1 }),
+      check('participant_id').optional({ nullable: true }).isInt({ min: 1 }),
+      check('guardian_id').optional({ nullable: true }).isInt({ min: 1 }),
+      check('activity_id').optional({ nullable: true }).isInt({ min: 1 }),
+      check('meeting_date').optional({ nullable: true }).isISO8601(),
+      check('meeting_id').optional({ nullable: true }).isInt({ min: 1 }),
+      check('activity_title')
         .optional({ nullable: true })
         .isString()
         .trim()
         .isLength({ max: 200 }),
-      check("activity_description")
+      check('activity_description')
         .optional({ nullable: true })
         .isString()
         .trim(),
-      check("deadline_date").optional({ nullable: true }).isISO8601(),
-      check("consent_payload").optional({ nullable: true }).isObject(),
-      check("status")
+      check('deadline_date').optional({ nullable: true }).isISO8601(),
+      check('consent_payload').optional({ nullable: true }).isObject(),
+      check('status')
         .optional({ nullable: true })
-        .isIn(["pending", "signed", "declined", "revoked", "expired", "archived"]),
+        .isIn(['pending', 'signed', 'declined', 'revoked', 'expired', 'archived']),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -2478,7 +2646,7 @@ module.exports = (pool) => {
           activity_description,
           deadline_date,
           consent_payload = {},
-          status = "pending",
+          status = 'pending',
         } = req.body;
 
         // Support both single participant and bulk creation
@@ -2488,7 +2656,7 @@ module.exports = (pool) => {
         if (participantIdsList.length === 0) {
           return error(
             res,
-            "At least one participant_id or participant_ids array is required",
+            'At least one participant_id or participant_ids array is required',
             400,
           );
         }
@@ -2538,7 +2706,7 @@ module.exports = (pool) => {
           if (!meeting_date) {
             return error(
               res,
-              "Either activity_id or meeting_date must be provided",
+              'Either activity_id or meeting_date must be provided',
               400
             );
           }
@@ -2550,7 +2718,7 @@ module.exports = (pool) => {
 
         const normalizedDate = parseDate(finalMeetingDate);
         if (!normalizedDate) {
-          return error(res, "Invalid meeting date", 400);
+          return error(res, 'Invalid meeting date', 400);
         }
 
         const normalizedDeadline = deadline_date
@@ -2634,28 +2802,28 @@ module.exports = (pool) => {
             count: createdSlips.length,
             answered_participant_ids: answeredParticipantIds,
           },
-          "Permission slip(s) saved",
+          'Permission slip(s) saved',
           201,
         );
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error saving permission slip", err.statusCode || 500);
+        return error(res, err.message || 'Error saving permission slip', err.statusCode || 500);
       }
     }),
   );
 
   // Secure route to view a permission slip (authentication required)
   router.get(
-    "/permission-slips/:id/view",
+    '/permission-slips/:id/view',
     authenticate,
-    requirePermission("activities.view"),
-    [param("id").isInt({ min: 1 })],
+    requirePermission('activities.view'),
+    [validateIdParam('id')],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const slipId = parseInt(req.params.id, 10);
+        const slipId = Number(req.params.id);
         const organizationId = await getOrganizationId(req, pool);
 
         const slipResult = await pool.query(
@@ -2668,7 +2836,7 @@ module.exports = (pool) => {
         );
 
         if (slipResult.rows.length === 0) {
-          return error(res, "Permission slip not found", 404);
+          return error(res, 'Permission slip not found', 404);
         }
         if (
           !(await canAccessPermissionSlip(
@@ -2677,50 +2845,51 @@ module.exports = (pool) => {
             slipResult.rows[0].participant_id,
           ))
         ) {
-          return error(res, "You can only view permission slips for your own children", 403);
+          return forbidden(res, 'You can only view permission slips for your own children', ['permission_slips.view'], []);
         }
 
         return success(res, slipResult.rows[0]);
       } catch (err) {
-        return error(res, err.message || "Error fetching permission slip", err.statusCode || 500);
+        return error(res, err.message || 'Error fetching permission slip', err.statusCode || 500);
       }
     }),
   );
 
   // Secure route to sign a permission slip (authentication required)
   router.patch(
-    "/permission-slips/:id/sign",
+    '/permission-slips/:id/sign',
     authenticate,
     blockDemoRoles,
-    requirePermission("permission_slips.sign"),
+    requirePermission('permission_slips.sign'),
     [
-      param("id").isInt({ min: 1 }),
-      check("signed_by").isString().trim().isLength({ min: 2, max: 200 }),
-      check("signed_at").optional().isISO8601(),
+      validateIdParam('id'),
+      check('signed_by').isString().trim().isLength({ min: 2, max: 200 }),
+      check('signed_at').optional().isISO8601(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const slipId = parseInt(req.params.id, 10);
+        const slipId = Number(req.params.id);
         const organizationId = await getOrganizationId(req, pool);
         const { signed_by, signed_at } = req.body;
 
         const slipResult = await pool.query(
-          "SELECT organization_id, participant_id, status FROM permission_slips WHERE id = $1 AND organization_id = $2",
+          'SELECT organization_id, participant_id, status FROM permission_slips WHERE id = $1 AND organization_id = $2',
           [slipId, organizationId],
         );
 
         if (slipResult.rows.length === 0) {
-          return error(res, "Permission slip not found", 404);
+          return error(res, 'Permission slip not found', 404);
         }
 
-        if (slipResult.rows[0].status !== "pending") {
-          return error(res, "Permission slip has already been answered", 409);
+        if (slipResult.rows[0].status !== 'pending') {
+          return error(res, 'Permission slip has already been answered', 409);
         }
 
         const participantId = slipResult.rows[0].participant_id;
-        if (!(await canAccessPermissionSlip(req, organizationId, participantId))) {
-          return error(res, "You can only respond to permission slips for your own children", 403);
+        if (!(await isOwnChild(req.user.id, organizationId, participantId))) {
+          // A translation key: the screen shows it as is
+          return forbidden(res, 'permission_slip_sign_own_children_only', ['permission_slips.sign'], []);
         }
 
         const updateResult = await pool.query(
@@ -2735,36 +2904,36 @@ module.exports = (pool) => {
         );
 
         if (updateResult.rows.length === 0) {
-          return error(res, "Permission slip has already been answered", 409);
+          return error(res, 'Permission slip has already been answered', 409);
         }
 
         return success(
           res,
           { permission_slip: updateResult.rows[0] },
-          "Permission slip signed",
+          'Permission slip signed',
         );
       } catch (err) {
-        return error(res, err.message || "Error signing permission slip", err.statusCode || 500);
+        return error(res, err.message || 'Error signing permission slip', err.statusCode || 500);
       }
     }),
   );
 
   // Secure route to decline a permission slip (authentication required)
   router.patch(
-    "/permission-slips/:id",
+    '/permission-slips/:id',
     authenticate,
     blockDemoRoles,
-    requirePermission("permission_slips.sign"),
+    requirePermission('permission_slips.sign'),
     [
-      param("id").isInt({ min: 1 }),
-      check("status").equals("declined"),
-      check("declined_by").isString().trim().isLength({ min: 2, max: 200 }),
-      check("declined_at").optional().isISO8601(),
+      validateIdParam('id'),
+      check('status').equals('declined'),
+      check('declined_by').isString().trim().isLength({ min: 2, max: 200 }),
+      check('declined_at').optional().isISO8601(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const slipId = parseInt(req.params.id, 10);
+        const slipId = Number(req.params.id);
         const organizationId = await getOrganizationId(req, pool);
         const { declined_by, declined_at } = req.body;
 
@@ -2776,19 +2945,14 @@ module.exports = (pool) => {
         );
 
         if (slipResult.rows.length === 0) {
-          return error(res, "Permission slip not found", 404);
+          return error(res, 'Permission slip not found', 404);
         }
-        if (slipResult.rows[0].status !== "pending") {
-          return error(res, "Permission slip has already been answered", 409);
+        if (slipResult.rows[0].status !== 'pending') {
+          return error(res, 'Permission slip has already been answered', 409);
         }
-        if (
-          !(await canAccessPermissionSlip(
-            req,
-            organizationId,
-            slipResult.rows[0].participant_id,
-          ))
-        ) {
-          return error(res, "You can only respond to permission slips for your own children", 403);
+        if (!(await isOwnChild(req.user.id, organizationId, slipResult.rows[0].participant_id))) {
+          // A translation key: the screen shows it as is
+          return forbidden(res, 'permission_slip_sign_own_children_only', ['permission_slips.sign'], []);
         }
 
         const updateResult = await pool.query(
@@ -2803,24 +2967,24 @@ module.exports = (pool) => {
         );
 
         if (updateResult.rows.length === 0) {
-          return error(res, "Permission slip has already been answered", 409);
+          return error(res, 'Permission slip has already been answered', 409);
         }
         return success(
           res,
           { permission_slip: updateResult.rows[0] },
-          "Permission slip declined",
+          'Permission slip declined',
         );
       } catch (err) {
-        if (handleOrganizationResolutionError(res, err)) return;
-        return error(res, err.message || "Error declining permission slip", err.statusCode || 500);
+        if (handleOrganizationResolutionError(res, err)) {return;}
+        return error(res, err.message || 'Error declining permission slip', err.statusCode || 500);
       }
     }),
   );
 
   // New Public route to view a permission slip by access_token
   router.get(
-    "/permission-slips/v/:token",
-    [param("token").isUUID()],
+    '/permission-slips/v/:token',
+    [param('token').isUUID()],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
@@ -2836,23 +3000,23 @@ module.exports = (pool) => {
         );
 
         if (slipResult.rows.length === 0) {
-          return error(res, "Permission slip not found", 404);
+          return error(res, 'Permission slip not found', 404);
         }
 
         return success(res, slipResult.rows[0]);
       } catch (err) {
-        return error(res, err.message || "Error fetching permission slip", err.statusCode || 500);
+        return error(res, err.message || 'Error fetching permission slip', err.statusCode || 500);
       }
     }),
   );
 
   // New Public route to sign a permission slip by access_token
   router.patch(
-    "/permission-slips/s/:token",
+    '/permission-slips/s/:token',
     [
-      param("token").isUUID(),
-      check("signed_by").isString().trim().isLength({ min: 2, max: 200 }),
-      check("signed_at").optional().isISO8601(),
+      param('token').isUUID(),
+      check('signed_by').isString().trim().isLength({ min: 2, max: 200 }),
+      check('signed_at').optional().isISO8601(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -2861,16 +3025,16 @@ module.exports = (pool) => {
         const { signed_by, signed_at } = req.body;
 
         const slipResult = await pool.query(
-          "SELECT id, status FROM permission_slips WHERE access_token = $1",
+          'SELECT id, status FROM permission_slips WHERE access_token = $1',
           [token],
         );
 
         if (slipResult.rows.length === 0) {
-          return error(res, "Permission slip not found", 404);
+          return error(res, 'Permission slip not found', 404);
         }
 
-        if (slipResult.rows[0].status !== "pending") {
-          return error(res, "Permission slip has already been answered", 409);
+        if (slipResult.rows[0].status !== 'pending') {
+          return error(res, 'Permission slip has already been answered', 409);
         }
 
         const updateResult = await pool.query(
@@ -2885,28 +3049,28 @@ module.exports = (pool) => {
         );
 
         if (updateResult.rows.length === 0) {
-          return error(res, "Permission slip has already been answered", 409);
+          return error(res, 'Permission slip has already been answered', 409);
         }
 
         return success(
           res,
           { permission_slip: updateResult.rows[0] },
-          "Permission slip signed",
+          'Permission slip signed',
         );
       } catch (err) {
-        return error(res, err.message || "Error signing permission slip", err.statusCode || 500);
+        return error(res, err.message || 'Error signing permission slip', err.statusCode || 500);
       }
     }),
   );
 
   // Public route to decline a permission slip by access token
   router.patch(
-    "/permission-slips/public/:token",
+    '/permission-slips/public/:token',
     [
-      param("token").isUUID(),
-      check("status").equals("declined"),
-      check("declined_by").isString().trim().isLength({ min: 2, max: 200 }),
-      check("declined_at").optional().isISO8601(),
+      param('token').isUUID(),
+      check('status').equals('declined'),
+      check('declined_by').isString().trim().isLength({ min: 2, max: 200 }),
+      check('declined_at').optional().isISO8601(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -2926,36 +3090,36 @@ module.exports = (pool) => {
 
         if (updateResult.rows.length === 0) {
           const slipResult = await pool.query(
-            "SELECT status FROM permission_slips WHERE access_token = $1",
+            'SELECT status FROM permission_slips WHERE access_token = $1',
             [token],
           );
           if (slipResult.rows.length === 0) {
-            return error(res, "Permission slip not found", 404);
+            return error(res, 'Permission slip not found', 404);
           }
-          return error(res, "Permission slip has already been answered", 409);
+          return error(res, 'Permission slip has already been answered', 409);
         }
 
         return success(
           res,
           { permission_slip: updateResult.rows[0] },
-          "Permission slip declined",
+          'Permission slip declined',
         );
       } catch (err) {
-        return error(res, err.message || "Error declining permission slip", err.statusCode || 500);
+        return error(res, err.message || 'Error declining permission slip', err.statusCode || 500);
       }
     }),
   );
 
   router.patch(
-    "/permission-slips/:id/archive",
+    '/permission-slips/:id/archive',
     authenticate,
     blockDemoRoles,
-    requirePermission("activities.edit"),
-    [param("id").isInt({ min: 1 })],
+    requirePermission('activities.edit'),
+    [validateIdParam('id')],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const slipId = parseInt(req.params.id, 10);
+        const slipId = Number(req.params.id);
         const organizationId = await getOrganizationId(req, pool);
 
         const updateResult = await pool.query(
@@ -2968,13 +3132,13 @@ module.exports = (pool) => {
         );
 
         if (updateResult.rows.length === 0) {
-          return error(res, "Permission slip not found", 404);
+          return error(res, 'Permission slip not found', 404);
         }
 
         return success(
           res,
           { permission_slip: updateResult.rows[0] },
-          "Permission slip archived",
+          'Permission slip archived',
         );
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
@@ -2982,7 +3146,7 @@ module.exports = (pool) => {
         }
         return error(
           res,
-          err.message || "Error archiving permission slip",
+          err.message || 'Error archiving permission slip',
           err.statusCode || 500,
         );
       }
@@ -2991,46 +3155,43 @@ module.exports = (pool) => {
 
   // Delete a permission slip (only if not sent)
   router.delete(
-    "/permission-slips/:id",
+    '/permission-slips/:id',
     authenticate,
     blockDemoRoles,
-    requirePermission("activities.edit"),
-    [param("id").isInt({ min: 1 })],
+    requirePermission('activities.edit'),
+    [validateIdParam('id')],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const slipId = parseInt(req.params.id, 10);
+        const slipId = Number(req.params.id);
         const organizationId = await getOrganizationId(req, pool);
 
         // Check if slip exists and belongs to organization
+        // Another unit's slip reads as missing: saying it exists would leak it.
         const slipResult = await pool.query(
-          "SELECT organization_id, email_sent FROM permission_slips WHERE id = $1",
-          [slipId],
+          'SELECT organization_id, email_sent FROM permission_slips WHERE id = $1 AND organization_id = $2',
+          [slipId, organizationId],
         );
 
         if (slipResult.rows.length === 0) {
-          return error(res, "Permission slip not found", 404);
-        }
-
-        if (slipResult.rows[0].organization_id !== organizationId) {
-          return error(res, "Permission denied", 403);
+          return error(res, 'Permission slip not found', 404);
         }
 
         // Prevent deletion if email has been sent
         if (slipResult.rows[0].email_sent) {
-          return error(res, "Cannot delete permission slip after email has been sent. Please archive instead.", 400);
+          return error(res, 'Cannot delete permission slip after email has been sent. Please archive instead.', 400);
         }
 
         // Delete the slip
         await pool.query(
-          "DELETE FROM permission_slips WHERE id = $1",
+          'DELETE FROM permission_slips WHERE id = $1',
           [slipId],
         );
 
         return success(
           res,
           null,
-          "Permission slip deleted",
+          'Permission slip deleted',
         );
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
@@ -3038,7 +3199,7 @@ module.exports = (pool) => {
         }
         return error(
           res,
-          err.message || "Error deleting permission slip",
+          err.message || 'Error deleting permission slip',
           err.statusCode || 500,
         );
       }
@@ -3046,11 +3207,11 @@ module.exports = (pool) => {
   );
 
   router.get(
-    "/status/dashboard",
+    '/status/dashboard',
     authenticate,
     // Unit-wide slip and reservation figures: not for a family role.
-    requirePermission({ permissions: ["activities.view"], organizationScope: true }),
-    [query("meeting_date").optional().isISO8601()],
+    requirePermission({ permissions: ['activities.view'], organizationScope: true }),
+    [query('meeting_date').optional().isISO8601()],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
@@ -3149,7 +3310,7 @@ module.exports = (pool) => {
         }
         return error(
           res,
-          err.message || "Error loading resource dashboard",
+          err.message || 'Error loading resource dashboard',
           err.statusCode || 500,
         );
       }

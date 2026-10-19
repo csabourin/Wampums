@@ -11,7 +11,9 @@ import { escapeHTML } from './SecurityUtils.js';
 import { renderBackLink } from './BackLinkUtils.js';
 
 /**
- * Build a consistent "not found" state markup.
+ * Build a consistent "not found" state markup. It is the whole page, so its
+ * title is the page's <h1>: focus lands there after a navigation, and the
+ * browser tab is named after it.
  * @param {Object} options
  * @param {string} [options.titleKey] - Translation key for the title.
  * @param {string} [options.messageKey] - Translation key for the message body.
@@ -31,7 +33,7 @@ export function buildNotFoundMarkup({
     ${renderBackLink(backHref)}
     <section class="page not-found-state">
       <div class="not-found-state__card">
-        <h2>${translate(titleKey)}</h2>
+        <h1>${translate(titleKey)}</h1>
         <p class="not-found-state__message">${translate(messageKey)}</p>
         ${safeLabel ? `<p class="not-found-state__detail">${safeLabel}</p>` : ''}
       </div>

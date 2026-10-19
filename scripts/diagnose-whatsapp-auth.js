@@ -174,7 +174,7 @@ async function diagnoseAuth() {
 
     if (issues.length > 0) {
       console.log('\n🔴 ISSUES FOUND:');
-      issues.forEach(issue => console.log('  ' + issue));
+      issues.forEach(issue => console.log(`  ${  issue}`));
 
       console.log('\n🔧 RECOMMENDED FIX:');
       console.log('  1. Clear current auth data from database');

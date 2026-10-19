@@ -7,13 +7,14 @@ import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { isoToDateString, formatDate } from '../../utils/DateUtils.js';
-import { formatHonorText } from '../../utils/HonorUtils.js';
+import { formatHonorText, honorForMeetingPlan } from '../../utils/HonorUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { setButtonLoading } from '../../utils/SkeletonUtils.js';
 import {
   getNextWeekdayDate,
+  firstUpcomingMeetingDate,
   nextDateAfter,
   previousDateBefore,
   normalizeDateString,
@@ -26,11 +27,12 @@ import {
   normalizeMeetingDurationMinutes,
 } from '../../utils/MeetingPlanUtils.js';
 import { getUnitVocabulary } from '../../utils/UnitVocabularyUtils.js';
+import { memberDisplayName } from '../../utils/DisplayNameUtils.js';
 import { deleteCachedData, clearYearlyPlannerCaches } from '../../indexedDB.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { ActivityManager } from '../ActivityManager.js';
 import { PrintManager } from '../PrintManager.js';
-import { aiGenerateText } from '../AI.js';
+import { aiGenerateText } from '../../api/api-ai.js';
 import { MeetingAutosave, MEETING_SAVE_STATES } from './MeetingAutosave.js';
 import {
   getMeetingActivities,
@@ -181,19 +183,15 @@ export class MeetingPrep extends BaseModule {
 
   /**
    * Pick the initial date: the next non-cancelled planned meeting, falling
-   * back to weekday arithmetic when no calendar exists yet.
+   * back to weekday arithmetic when no calendar exists yet. Once tonight's
+   * meeting has started, the leader is planning the next one.
    * @returns {string} Meeting date (YYYY-MM-DD)
    */
   getInitialDate() {
-    const today = new Date().toLocaleDateString('en-CA');
-    const upcoming = this.meetingDates
-      .filter(d => !d.is_cancelled && normalizeDateString(d.date) >= today)
-      .map(d => normalizeDateString(d.date))
-      .sort((a, b) => a.localeCompare(b));
-    if (upcoming.length > 0) {
-      return upcoming[0];
-    }
-    return getNextWeekdayDate(this.organizationSettings.organization_info?.meeting_day || 'Wednesday');
+    const organizationInfo = this.organizationSettings.organization_info || {};
+    const meetingTime = organizationInfo.meeting_time || null;
+    return firstUpcomingMeetingDate(this.meetingDates, { meetingTime })
+      || getNextWeekdayDate(organizationInfo.meeting_day || 'Wednesday', new Date(), meetingTime);
   }
 
   /**
@@ -362,7 +360,7 @@ export class MeetingPrep extends BaseModule {
    */
   setupAutosaveLifecycle() {
     this.addWindowEventListener('beforeunload', (event) => {
-      if (!this.meetingAutosave?.hasUnsafeChanges()) return;
+      if (!this.meetingAutosave?.hasUnsafeChanges()) {return;}
       event.preventDefault();
       event.returnValue = '';
     });
@@ -421,7 +419,7 @@ export class MeetingPrep extends BaseModule {
    * @returns {string} HTML, empty when embedded.
    */
   renderHeader() {
-    if (this.embedded) return '';
+    if (this.embedded) {return '';}
     return `<a href="/dashboard" class="button button--ghost button--sm">← ${translate('back')}</a>
             <h1>${translate('tile_preparation_reunions')}</h1>`;
   }
@@ -452,7 +450,7 @@ export class MeetingPrep extends BaseModule {
         this.saveState === MEETING_SAVE_STATES.SAVING ? 'true' : 'false'
       );
       const label = status.querySelector('.meeting-save-status__label');
-      if (label) label.textContent = translate(translationKey);
+      if (label) {label.textContent = translate(translationKey);}
     }
     if (saveButton) {
       saveButton.disabled = this.saveState === MEETING_SAVE_STATES.SAVED ||
@@ -524,7 +522,7 @@ export class MeetingPrep extends BaseModule {
               <label for="animateur-responsable">${translate('animateur_responsable')}:</label>
               <select id="animateur-responsable" required>
                 <option value="">${translate('select_animateur')}</option>
-                ${this.animateurs.map(a => `<option value="${a.id}" ${String(a.id) === String(meeting.animateur_responsable || '') ? 'selected' : ''}>${escapeHTML(a.full_name)}</option>`).join('')}
+                ${this.animateurs.map(a => `<option value="${a.id}" ${String(a.id) === String(meeting.animateur_responsable || '') ? 'selected' : ''}>${escapeHTML(memberDisplayName(a))}</option>`).join('')}
               </select>
             </div>
             <div class="form-group">
@@ -812,7 +810,7 @@ export class MeetingPrep extends BaseModule {
    * @param {boolean} [options.immediate] - Bypass server debounce for structural edits
    */
   scheduleMeetingAutosave({ immediate = false } = {}) {
-    if (!this.canManage || !this.meetingAutosave) return;
+    if (!this.canManage || !this.meetingAutosave) {return;}
     this.meetingAutosave.markDirty({ immediate });
   }
 
@@ -894,7 +892,7 @@ export class MeetingPrep extends BaseModule {
    */
   async applyAutosaveResponse(response, snapshot, { isLatest }) {
     const savedMeeting = response?.data;
-    if (!savedMeeting) return;
+    if (!savedMeeting) {return;}
 
     this.meeting = { ...this.meeting, ...savedMeeting };
     if (isLatest) {
@@ -1085,11 +1083,7 @@ export class MeetingPrep extends BaseModule {
           activity: translate(t.activityKey) || t.activityKey,
           type: translate(t.typeKey) || t.typeKey
         })),
-        recentHonor: mostRecentHonor ? {
-          name: mostRecentHonor.participant_name,
-          honor: mostRecentHonor.honor_name,
-          date: mostRecentHonor.date_awarded
-        } : null,
+        recentHonor: honorForMeetingPlan(mostRecentHonor, vocabulary.honor_singular),
         glossary,
         meetingDefaults: {
           mandatoryAgenda: [

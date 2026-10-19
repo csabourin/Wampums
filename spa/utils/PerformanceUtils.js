@@ -45,7 +45,7 @@ export async function withButtonLoading(button, asyncFn) {
     return asyncFn();
   }
 
-  if (button.disabled) return;
+  if (button.disabled) {return;}
 
   setButtonLoading(button, true);
   try {
@@ -73,7 +73,7 @@ export class CacheWithTTL {
 
   get(key) {
     const cached = this.cache.get(key);
-    if (!cached) return null;
+    if (!cached) {return null;}
 
     if (Date.now() > cached.expires) {
       this.cache.delete(key);

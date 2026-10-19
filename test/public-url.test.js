@@ -8,10 +8,10 @@ const originalPublicBaseUrl = process.env.PUBLIC_BASE_URL;
 const originalAppUrl = process.env.APP_URL;
 
 afterEach(() => {
-  if (originalPublicBaseUrl === undefined) delete process.env.PUBLIC_BASE_URL;
-  else process.env.PUBLIC_BASE_URL = originalPublicBaseUrl;
-  if (originalAppUrl === undefined) delete process.env.APP_URL;
-  else process.env.APP_URL = originalAppUrl;
+  if (originalPublicBaseUrl === undefined) {delete process.env.PUBLIC_BASE_URL;}
+  else {process.env.PUBLIC_BASE_URL = originalPublicBaseUrl;}
+  if (originalAppUrl === undefined) {delete process.env.APP_URL;}
+  else {process.env.APP_URL = originalAppUrl;}
 });
 
 test('prefers a configured trusted origin and strips paths', async () => {

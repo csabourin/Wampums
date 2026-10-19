@@ -17,9 +17,9 @@ const BLOG_DIR = path.join(process.cwd(), 'content', 'blog');
 // Renderer for marked that adds IDs to headings for ToC
 const renderer = new marked.Renderer();
 renderer.heading = function ({ tokens, depth }) {
-    const text = tokens.map(t => t.raw || t.text || '').join('');
-    const id = text.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-');
-    return `<h${depth} id="${id}">${text}</h${depth}>\n`;
+  const text = tokens.map(t => t.raw || t.text || '').join('');
+  const id = text.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-');
+  return `<h${depth} id="${id}">${text}</h${depth}>\n`;
 };
 
 marked.setOptions({ renderer, gfm: true, breaks: false });
@@ -45,7 +45,7 @@ marked.setOptions({ renderer, gfm: true, breaks: false });
  */
 
 /** @type {{ en: BlogPost[], fr: BlogPost[] }} */
-let index = { en: [], fr: [] };
+const index = { en: [], fr: [] };
 
 /** @type {Map<string, BlogPost>} slug → post */
 const slugMap = new Map();
@@ -56,13 +56,13 @@ const slugMap = new Map();
  * @returns {Array<{id: string, text: string, level: number}>}
  */
 function extractToc(html) {
-    const toc = [];
-    const re = /<h([23]) id="([^"]+)">([^<]+)<\/h[23]>/g;
-    let m;
-    while ((m = re.exec(html)) !== null) {
-        toc.push({ level: parseInt(m[1], 10), id: m[2], text: m[3] });
-    }
-    return toc;
+  const toc = [];
+  const re = /<h([23]) id="([^"]+)">([^<]+)<\/h[23]>/g;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    toc.push({ level: parseInt(m[1], 10), id: m[2], text: m[3] });
+  }
+  return toc;
 }
 
 /**
@@ -71,8 +71,8 @@ function extractToc(html) {
  * @returns {number}
  */
 function readingTime(markdown) {
-    const words = markdown.replace(/[^a-zA-ZÀ-ÿ\s]/g, '').split(/\s+/).filter(Boolean).length;
-    return Math.max(1, Math.round(words / 200));
+  const words = markdown.replace(/[^a-zA-ZÀ-ÿ\s]/g, '').split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / 200));
 }
 
 /**
@@ -82,41 +82,41 @@ function readingTime(markdown) {
  * @returns {BlogPost|null}
  */
 function parseFile(filepath, lang) {
-    try {
-        const src = fs.readFileSync(filepath, 'utf8');
-        const { data, content } = matter(src);
+  try {
+    const src = fs.readFileSync(filepath, 'utf8');
+    const { data, content } = matter(src);
 
-        if (!data.slug || !data.title) {
-            logger.warn(`[Blog] Skipping ${filepath}: missing slug or title`);
-            return null;
-        }
-
-        const html = marked(content);
-        const toc = extractToc(html);
-        const rt = readingTime(content);
-
-        return {
-            slug: data.slug,
-            title: data.title,
-            date: data.date || new Date().toISOString().slice(0, 10),
-            updated: data.updated || data.date || new Date().toISOString().slice(0, 10),
-            lang: data.lang || lang,
-            alternate: data.alternate || '',
-            description: data.description || '',
-            keywords: Array.isArray(data.keywords) ? data.keywords : [],
-            author: data.author || 'Wampums Team',
-            category: data.category || 'guides',
-            featured: data.featured || false,
-            image: data.image || '/images/og-wampums-1200x630.jpg',
-            imageAlt: data.imageAlt || data.title,
-            content: html,
-            readingTime: rt,
-            toc,
-        };
-    } catch (err) {
-        logger.error(`[Blog] Error parsing ${filepath}:`, err);
-        return null;
+    if (!data.slug || !data.title) {
+      logger.warn(`[Blog] Skipping ${filepath}: missing slug or title`);
+      return null;
     }
+
+    const html = marked(content);
+    const toc = extractToc(html);
+    const rt = readingTime(content);
+
+    return {
+      slug: data.slug,
+      title: data.title,
+      date: data.date || new Date().toISOString().slice(0, 10),
+      updated: data.updated || data.date || new Date().toISOString().slice(0, 10),
+      lang: data.lang || lang,
+      alternate: data.alternate || '',
+      description: data.description || '',
+      keywords: Array.isArray(data.keywords) ? data.keywords : [],
+      author: data.author || 'Wampums Team',
+      category: data.category || 'guides',
+      featured: data.featured || false,
+      image: data.image || '/images/og-wampums-1200x630.jpg',
+      imageAlt: data.imageAlt || data.title,
+      content: html,
+      readingTime: rt,
+      toc,
+    };
+  } catch (err) {
+    logger.error(`[Blog] Error parsing ${filepath}:`, err);
+    return null;
+  }
 }
 
 /**
@@ -125,36 +125,36 @@ function parseFile(filepath, lang) {
  * @returns {BlogPost[]}
  */
 function loadLang(lang) {
-    const dir = path.join(BLOG_DIR, lang);
-    if (!fs.existsSync(dir)) return [];
+  const dir = path.join(BLOG_DIR, lang);
+  if (!fs.existsSync(dir)) {return [];}
 
-    const files = fs.readdirSync(dir).filter(f => f.endsWith('.md'));
-    const posts = [];
+  const files = fs.readdirSync(dir).filter(f => f.endsWith('.md'));
+  const posts = [];
 
-    for (const file of files) {
-        const post = parseFile(path.join(dir, file), lang);
-        if (post) posts.push(post);
-    }
+  for (const file of files) {
+    const post = parseFile(path.join(dir, file), lang);
+    if (post) {posts.push(post);}
+  }
 
-    // Sort newest first
-    posts.sort((a, b) => b.date.localeCompare(a.date));
-    return posts;
+  // Sort newest first
+  posts.sort((a, b) => b.date.localeCompare(a.date));
+  return posts;
 }
 
 /**
  * Rebuild the in-memory index from disk.
  */
 function rebuild() {
-    slugMap.clear();
+  slugMap.clear();
 
-    index.en = loadLang('en');
-    index.fr = loadLang('fr');
+  index.en = loadLang('en');
+  index.fr = loadLang('fr');
 
-    for (const post of [...index.en, ...index.fr]) {
-        slugMap.set(`${post.lang}:${post.slug}`, post);
-    }
+  for (const post of [...index.en, ...index.fr]) {
+    slugMap.set(`${post.lang}:${post.slug}`, post);
+  }
 
-    logger.info(`[Blog] Index rebuilt: ${index.en.length} EN, ${index.fr.length} FR`);
+  logger.info(`[Blog] Index rebuilt: ${index.en.length} EN, ${index.fr.length} FR`);
 }
 
 /**
@@ -165,12 +165,12 @@ function rebuild() {
  * @returns {{ posts: BlogPost[], total: number, pages: number }}
  */
 function getPosts(lang, page = 1, perPage = 10) {
-    const all = index[lang] || [];
-    const total = all.length;
-    const pages = Math.max(1, Math.ceil(total / perPage));
-    const start = (page - 1) * perPage;
-    const posts = all.slice(start, start + perPage);
-    return { posts, total, pages };
+  const all = index[lang] || [];
+  const total = all.length;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  const start = (page - 1) * perPage;
+  const posts = all.slice(start, start + perPage);
+  return { posts, total, pages };
 }
 
 /**
@@ -180,7 +180,7 @@ function getPosts(lang, page = 1, perPage = 10) {
  * @returns {BlogPost|null}
  */
 function getPost(lang, slug) {
-    return slugMap.get(`${lang}:${slug}`) || null;
+  return slugMap.get(`${lang}:${slug}`) || null;
 }
 
 /**
@@ -189,12 +189,12 @@ function getPost(lang, slug) {
  * @returns {{ prev: BlogPost|null, next: BlogPost|null }}
  */
 function getAdjacentPosts(post) {
-    const all = index[post.lang] || [];
-    const idx = all.findIndex(p => p.slug === post.slug);
-    return {
-        prev: idx > 0 ? all[idx - 1] : null,
-        next: idx < all.length - 1 ? all[idx + 1] : null,
-    };
+  const all = index[post.lang] || [];
+  const idx = all.findIndex(p => p.slug === post.slug);
+  return {
+    prev: idx > 0 ? all[idx - 1] : null,
+    next: idx < all.length - 1 ? all[idx + 1] : null,
+  };
 }
 
 /**
@@ -202,7 +202,7 @@ function getAdjacentPosts(post) {
  * @returns {BlogPost[]}
  */
 function getAllPosts() {
-    return [...index.en, ...index.fr];
+  return [...index.en, ...index.fr];
 }
 
 // Initial load
@@ -210,17 +210,17 @@ rebuild();
 
 // Watch for changes in development
 if (process.env.NODE_ENV !== 'production') {
-    try {
-        fs.watch(BLOG_DIR, { recursive: true }, (event, filename) => {
-            if (filename && filename.endsWith('.md')) {
-                logger.info(`[Blog] File changed: ${filename}, rebuilding index…`);
-                rebuild();
-            }
-        });
-        logger.info('[Blog] Watching content/blog/ for changes');
-    } catch (err) {
-        logger.warn('[Blog] File watching not available:', err.message);
-    }
+  try {
+    fs.watch(BLOG_DIR, { recursive: true }, (event, filename) => {
+      if (filename && filename.endsWith('.md')) {
+        logger.info(`[Blog] File changed: ${filename}, rebuilding index…`);
+        rebuild();
+      }
+    });
+    logger.info('[Blog] Watching content/blog/ for changes');
+  } catch (err) {
+    logger.warn('[Blog] File watching not available:', err.message);
+  }
 }
 
 module.exports = { rebuild, getPosts, getPost, getAdjacentPosts, getAllPosts };

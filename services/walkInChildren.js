@@ -39,6 +39,11 @@ const { ensureActiveScoutYear } = require('./scoutYear');
 const { findMembershipStanding, classifyStanding } = require('./reactivation');
 const { ACCESS_SOURCE, grantParticipantAccess } = require('./participantAccess');
 const { createInvitation, resendInvitation } = require('./parentInvitations');
+const { ensureFamilyRole, upsertGuardianContact } = require('./accountProvisioning');
+const { recordRoleChange } = require('./roleAssignment');
+
+/** Note kept in role_assignment_audit when naming a member a child's parent adds the parent role. */
+const PARENT_LINK_AUDIT_NOTE = 'Named the parent of a child';
 const { isInvitationExpired } = require('../utils/invitation-tokens');
 
 /**
@@ -55,7 +60,11 @@ const PARENT_OUTCOME = {
   ADDED_TO_INVITATION: 'added_to_invitation',
   INVITED: 'invited',
   BLOCKED: 'manually_deactivated',
+  LEADER_INVITATION_PENDING: 'leader_invitation_pending',
 };
+
+/** Outcomes that leave nothing written: the caller rolls back and explains. */
+const REFUSED_OUTCOMES = new Set([PARENT_OUTCOME.BLOCKED, PARENT_OUTCOME.LEADER_INVITATION_PENDING]);
 
 /**
  * The unit's children who are on this year's roster but whom no account can
@@ -142,7 +151,7 @@ async function detachFromOtherInvitations(client, { organizationId, participantI
   );
 
   const touched = [...new Set(detached.rows.map((row) => row.invitation_id))];
-  if (touched.length === 0) return;
+  if (touched.length === 0) {return;}
 
   await client.query(
     `UPDATE parent_invitations
@@ -175,6 +184,7 @@ async function attachParent(client, {
   adminId,
   language,
   deactivationOverrideReason = null,
+  keepOtherInvitations = false,
   now = new Date(),
 }) {
   await client.query(
@@ -185,13 +195,33 @@ async function attachParent(client, {
   const standing = await findMembershipStanding(client, email, organizationId);
 
   if (classifyStanding(standing) === 'already_active') {
-    await detachFromOtherInvitations(client, { organizationId, participantId, keepEmail: null, adminId });
+    if (!keepOtherInvitations) {
+      await detachFromOtherInvitations(client, { organizationId, participantId, keepEmail: null, adminId });
+    }
     await grantParticipantAccess(client, {
       participantId,
       userId: standing.user_id,
       sourceType: ACCESS_SOURCE.ADMIN,
       sourceId: adminId,
       grantedBy: adminId,
+    });
+    // A member named as a parent -- a leader with a child here -- becomes one
+    // of the unit's families too: the parent role, and a contact record the
+    // unit can call.
+    const familyRole = await ensureFamilyRole(client, standing.user_id, organizationId);
+    if (familyRole) {
+      await recordRoleChange(client, {
+        organizationId,
+        userId: standing.user_id,
+        changedBy: adminId,
+        ...familyRole,
+        note: PARENT_LINK_AUDIT_NOTE,
+      });
+    }
+    await upsertGuardianContact(client, {
+      userId: standing.user_id,
+      email: standing.email || email,
+      accountFullName: standing.full_name,
     });
     await client.query(
       `INSERT INTO participant_guardians (guardian_id, participant_id)
@@ -212,6 +242,12 @@ async function attachParent(client, {
   let invitation = pending.rows[0] || null;
   let token = null;
   let kind = PARENT_OUTCOME.ADDED_TO_INVITATION;
+
+  // A leader's invitation grants team roles and no guardian record: a child
+  // attached to it would make its reader neither a parent nor reachable as one.
+  if (Array.isArray(invitation?.role_ids) && invitation.role_ids.length > 0) {
+    return { kind: PARENT_OUTCOME.LEADER_INVITATION_PENDING };
+  }
 
   if (!invitation) {
     const created = await createInvitation(client, {
@@ -241,7 +277,9 @@ async function attachParent(client, {
     token = resent.token;
   }
 
-  await detachFromOtherInvitations(client, { organizationId, participantId, keepEmail: email, adminId });
+  if (!keepOtherInvitations) {
+    await detachFromOtherInvitations(client, { organizationId, participantId, keepEmail: email, adminId });
+  }
   await client.query(
     `INSERT INTO parent_invitation_participants (invitation_id, participant_id, organization_id, added_by)
      VALUES ($1, $2, $3, $4)
@@ -335,9 +373,9 @@ async function createWalkInChild(pool, params) {
       now,
     });
 
-    if (parent.kind === PARENT_OUTCOME.BLOCKED) {
+    if (REFUSED_OUTCOMES.has(parent.kind)) {
       await client.query('ROLLBACK');
-      return { result: PARENT_OUTCOME.BLOCKED, blocked: parent.blocked };
+      return { result: parent.kind, blocked: parent.blocked };
     }
 
     await client.query('COMMIT');
@@ -355,10 +393,14 @@ async function createWalkInChild(pool, params) {
  * an address that needs correcting.
  *
  * Refused for a child an account can already see: that child has a parent, and
- * a second one joins through a family link, which asks the first parent.
+ * a second one joins through a family link, which asks the first parent --
+ * unless `additionalParent` is set. Then an administrator linking youth to
+ * parents invites another parent: the child's other parents and their
+ * pending invitations are left as they are.
  *
  * @param {Object} pool - Database pool
  * @param {Object} params - Child, parent address, acting administrator
+ * @param {boolean} [params.additionalParent] - Invite a parent beside those the child has
  * @returns {Promise<Object>} `{ result, parent?, invitation?, token?, blocked? }`
  */
 async function inviteParentForChild(pool, params) {
@@ -369,6 +411,7 @@ async function inviteParentForChild(pool, params) {
     parentEmail,
     language,
     deactivationOverrideReason = null,
+    additionalParent = false,
     now = new Date(),
   } = params;
 
@@ -388,7 +431,7 @@ async function inviteParentForChild(pool, params) {
       await client.query('ROLLBACK');
       return { result: 'not_found' };
     }
-    if (child.rows[0].has_parent) {
+    if (child.rows[0].has_parent && !additionalParent) {
       await client.query('ROLLBACK');
       return { result: 'already_has_parent' };
     }
@@ -400,12 +443,13 @@ async function inviteParentForChild(pool, params) {
       adminId,
       language,
       deactivationOverrideReason,
+      keepOtherInvitations: additionalParent,
       now,
     });
 
-    if (parent.kind === PARENT_OUTCOME.BLOCKED) {
+    if (REFUSED_OUTCOMES.has(parent.kind)) {
       await client.query('ROLLBACK');
-      return { result: PARENT_OUTCOME.BLOCKED, blocked: parent.blocked };
+      return { result: parent.kind, blocked: parent.blocked };
     }
 
     await client.query('COMMIT');

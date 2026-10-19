@@ -32,7 +32,7 @@ const {
  * @param {Object} logger - Winston logger instance
  * @returns {Router} Express router with fundraiser entry routes
  */
-module.exports = (pool, logger) => {
+module.exports = (pool, _logger) => {
   const router = express.Router();
   /**
    * @swagger
@@ -78,7 +78,7 @@ module.exports = (pool, logger) => {
       );
 
       if (fundraiserCheck.rows.length === 0) {
-        return error(res, 'Access denied to this fundraiser', 403);
+        return error(res, 'Fundraiser not found', 404);
       }
 
       const result = await pool.query(

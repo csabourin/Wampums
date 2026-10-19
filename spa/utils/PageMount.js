@@ -22,9 +22,9 @@
  * @module utils/PageMount
  */
 
-import { debugWarn } from "./DebugUtils.js";
+import { debugWarn } from './DebugUtils.js';
 
-export const APP_CONTAINER_ID = "app";
+export const APP_CONTAINER_ID = 'app';
 
 /**
  * Resolve the element a page should render into.
@@ -40,7 +40,7 @@ export const APP_CONTAINER_ID = "app";
 export function getMountPoint(page) {
   const id = page?.containerId || APP_CONTAINER_ID;
   const element = document.getElementById(id);
-  if (element) return element;
+  if (element) {return element;}
 
   if (id !== APP_CONTAINER_ID) {
     debugWarn(`Mount point "${id}" not found, falling back to #${APP_CONTAINER_ID}`);

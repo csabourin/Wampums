@@ -66,7 +66,7 @@ function makePool(overrides = {}) {
     }]],
     ['SELECT id FROM users', overrides.user || [{ id: USER_ID }]],
     ['SELECT id FROM roles', [{ id: 3 }]],
-    ["r.role_name IN ('district', 'unitadmin')", overrides.admins || [{ email: 'admin@example.org' }]],
+    ['p.permission_key = ANY', overrides.admins || [{ email: 'admin@example.org' }]],
     ['FROM organizations o', [{ name: '12e Meute' }]]
   ];
 
@@ -263,6 +263,10 @@ describe('confirmReactivation', () => {
     expect(issued(pool, "SET status = 'active'")).toBe(false);
     expect(sentEmails).toHaveLength(1);
     expect(sentEmails[0].to).toBe('admin@example.org');
+    // Told: the leaders who can decide it, whatever their role is called.
+    const recipients = pool.queries.find(({ sql }) => sql.includes('p.permission_key = ANY'));
+    expect(recipients.sql).not.toMatch(/role_name/);
+    expect(recipients.params).toEqual([ORG_ID, ['scout_year.manage'], 1]);
   });
 
   test('clicking the same link twice does not mail the leaders twice', async () => {

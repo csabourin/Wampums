@@ -35,7 +35,7 @@ function fingerprint(formData) {
  * @returns {boolean} Whether migration must stop to preserve both drafts
  */
 function hasDraftCollision(existingDraft, snapshot) {
-  if (!existingDraft?.formData || existingDraft.synchronized) return false;
+  if (!existingDraft?.formData || existingDraft.synchronized) {return false;}
   const existingFingerprint = existingDraft.fingerprint ||
     fingerprint(existingDraft.formData);
   return existingFingerprint !== snapshot.fingerprint;
@@ -157,8 +157,8 @@ export class MeetingAutosave {
         this.lastLocalRevision = this.revision;
         this.localDraftSafe = true;
       }
-      if (!this.localDraftSafe) return this.latestSnapshot;
-      if (!this.draftConflict) this.setStatus(MEETING_SAVE_STATES.LOCAL);
+      if (!this.localDraftSafe) {return this.latestSnapshot;}
+      if (!this.draftConflict) {this.setStatus(MEETING_SAVE_STATES.LOCAL);}
       return this.latestSnapshot;
     } catch (error) {
       debugError('Unable to restore meeting preparation draft:', error);
@@ -177,7 +177,7 @@ export class MeetingAutosave {
    * @returns {Object|null} New snapshot, or null when nothing changed
    */
   markDirty({ formData = null, immediate = false, force = false } = {}) {
-    if (this.destroyed) return null;
+    if (this.destroyed) {return null;}
 
     const captured = formData || this.capture();
     const nextFingerprint = fingerprint(captured);
@@ -237,7 +237,7 @@ export class MeetingAutosave {
    * @returns {Promise<boolean>} Whether the local draft is safely stored
    */
   persistDraft(snapshot = this.latestSnapshot) {
-    if (!snapshot) return this.localWritePromise.then(() => true);
+    if (!snapshot) {return this.localWritePromise.then(() => true);}
     if (
       this.localDraftSafe &&
       this.lastLocalRevision === snapshot.revision &&
@@ -338,7 +338,7 @@ export class MeetingAutosave {
     window.clearTimeout(this.serverTimer);
     this.serverTimer = null;
 
-    if (manual) this.manualErrorRequested = true;
+    if (manual) {this.manualErrorRequested = true;}
     if (!this.latestSnapshot) {
       this.manualErrorRequested = false;
       return true;
@@ -413,7 +413,7 @@ export class MeetingAutosave {
             ? MEETING_SAVE_STATES.LOCAL
             : MEETING_SAVE_STATES.ERROR
         );
-        if (manual || this.manualErrorRequested) this.onManualError(error);
+        if (manual || this.manualErrorRequested) {this.onManualError(error);}
         return false;
       }
     } while (this.saveAgain || this.latestSnapshot);
@@ -426,7 +426,7 @@ export class MeetingAutosave {
    * @param {string} state - One of MEETING_SAVE_STATES
    */
   setStatus(state) {
-    if (this.state === state) return;
+    if (this.state === state) {return;}
     this.state = state;
     this.onStatus(state);
   }
@@ -438,7 +438,7 @@ export class MeetingAutosave {
 
   /** Persist the latest snapshot and release timers for this editing context. */
   async destroy() {
-    if (this.destroyed) return;
+    if (this.destroyed) {return;}
     this.destroyed = true;
     window.clearTimeout(this.serverTimer);
     window.clearTimeout(this.localTimer);

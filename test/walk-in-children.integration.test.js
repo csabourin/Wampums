@@ -390,6 +390,136 @@ describe.skipIf(!DATABASE_URL)('Walk-in children', () => {
     expect(response.body.code).toBe('already_has_parent');
   });
 
+  describe('inviting another parent from the screen linking youth to parents', () => {
+    const inviteAnother = (userId, childId, body) => as(userId)
+      .post(`/api/v1/walk-in-children/${childId}/invite-another-parent`)
+      .send(body);
+
+    test('a child with a parent gets a second parent invited, and keeps the first', async () => {
+      const added = await walkIn(ids.leader.id, { parent_email: ids.parent.email });
+      const childId = added.body.data.participant_id;
+
+      const response = await inviteAnother(ids.admin.id, childId, { parent_email: `papa@new.${DOMAIN}` });
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toMatchObject({ parent: 'invited', email_sent: true });
+      expect(await sees(ids.parent.id, childId)).toBe(true);
+      expect(await one(
+        `SELECT count(*) FROM parent_invitation_participants pip
+           JOIN parent_invitations pi ON pi.id = pip.invitation_id
+          WHERE pi.email = $1 AND pip.participant_id = $2 AND pi.status = 'pending'`,
+        [`papa@new.${DOMAIN}`, childId]
+      )).toBe('1');
+    });
+
+    test('the first parent\'s pending invitation stays when a second one is invited', async () => {
+      const added = await walkIn(ids.leader.id, { parent_email: `maman@new.${DOMAIN}` });
+      const childId = added.body.data.participant_id;
+
+      await inviteAnother(ids.admin.id, childId, { parent_email: `papa@new.${DOMAIN}` });
+
+      expect(await one('SELECT status FROM parent_invitations WHERE email = $1', [`maman@new.${DOMAIN}`])).toBe('pending');
+      expect(await one('SELECT status FROM parent_invitations WHERE email = $1', [`papa@new.${DOMAIN}`])).toBe('pending');
+    });
+
+    test('an address that is already a member is linked to the child at once', async () => {
+      const added = await walkIn(ids.leader.id, { parent_email: `maman@new.${DOMAIN}` });
+      const childId = added.body.data.participant_id;
+      sentEmails.length = 0;
+
+      const response = await inviteAnother(ids.admin.id, childId, { parent_email: ids.parent.email });
+
+      expect(response.body.data.parent).toBe('linked_existing_account');
+      expect(await sees(ids.parent.id, childId)).toBe(true);
+      expect(sentEmails).toHaveLength(0);
+      expect(await one('SELECT status FROM parent_invitations WHERE email = $1', [`maman@new.${DOMAIN}`])).toBe('pending');
+    });
+
+    test('an address waiting on a leader invitation is refused, and the child is not attached to it', async () => {
+      const added = await walkIn(ids.leader.id, { parent_email: ids.parent.email });
+      const childId = added.body.data.participant_id;
+      const leaderInvitation = await one(
+        `INSERT INTO parent_invitations (organization_id, email, token_digest, expires_at, role_ids)
+         VALUES ($1, $2, encode(sha256(gen_random_uuid()::text::bytea), 'hex'), now() + interval '7 days', jsonb_build_array($3::int))
+         RETURNING id`,
+        [ids.unit, `akela@new.${DOMAIN}`, ids.leaderRole]
+      );
+
+      const response = await inviteAnother(ids.admin.id, childId, { parent_email: `akela@new.${DOMAIN}` });
+
+      expect(response.status).toBe(409);
+      expect(response.body.code).toBe('leader_invitation_pending');
+      expect(await one('SELECT count(*) FROM parent_invitation_participants WHERE invitation_id = $1', [leaderInvitation]))
+        .toBe('0');
+      // The walk-in linked an existing parent, and the refusal sent nothing
+      expect(sentEmails).toHaveLength(0);
+    });
+
+    test('a leader named a child\'s parent becomes one of the families: parent role, contact record, history', async () => {
+      const added = await walkIn(ids.leader.id, { parent_email: ids.parent.email });
+      const childId = added.body.data.participant_id;
+      const leaderParent = await member('Leader Parent', ids.leaderRole);
+
+      const response = await inviteAnother(ids.admin.id, childId, { parent_email: leaderParent.email });
+
+      expect(response.body.data.parent).toBe('linked_existing_account');
+      expect(await sees(leaderParent.id, childId)).toBe(true);
+      const roleIds = await one(
+        'SELECT role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+        [leaderParent.id, ids.unit]
+      );
+      expect(roleIds).toEqual(expect.arrayContaining([ids.leaderRole, ids.parentRole]));
+      const guardianId = await one('SELECT id FROM parents_guardians WHERE user_uuid = $1', [leaderParent.id]);
+      expect(guardianId).toBeDefined();
+      expect(await one(
+        'SELECT count(*) FROM participant_guardians WHERE guardian_id = $1 AND participant_id = $2',
+        [guardianId, childId]
+      )).toBe('1');
+      expect(await one(
+        'SELECT changed_by FROM role_assignment_audit WHERE user_id = $1 AND organization_id = $2',
+        [leaderParent.id, ids.unit]
+      )).toBe(ids.admin.id);
+    });
+
+    test('a member who is already a parent here keeps their roles as they are', async () => {
+      const added = await walkIn(ids.leader.id, { parent_email: `maman@new.${DOMAIN}` });
+      const before = await one(
+        'SELECT role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+        [ids.parent.id, ids.unit]
+      );
+
+      await inviteAnother(ids.admin.id, added.body.data.participant_id, { parent_email: ids.parent.email });
+
+      expect(await one(
+        'SELECT role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+        [ids.parent.id, ids.unit]
+      )).toEqual(before);
+    });
+
+    test('it takes users.invite as well as participants.edit', async () => {
+      const added = await walkIn(ids.leader.id, { parent_email: ids.parent.email });
+
+      const response = await inviteAnother(ids.leader.id, added.body.data.participant_id, { parent_email: `papa@new.${DOMAIN}` });
+
+      expect(response.status).toBe(403);
+      expect(response.body.missing).toEqual(['users.invite']);
+      expect(await one('SELECT count(*) FROM parent_invitations WHERE email = $1', [`papa@new.${DOMAIN}`])).toBe('0');
+    });
+
+    test('another unit\'s child is not found, and a malformed address is a bad request', async () => {
+      const foreignChild = await one(
+        "INSERT INTO participants (first_name, last_name) VALUES ('Far', 'Away') RETURNING id"
+      );
+      const missing = await inviteAnother(ids.admin.id, foreignChild, { parent_email: `papa@new.${DOMAIN}` });
+      expect(missing.status).toBe(404);
+      await pool.query('DELETE FROM participants WHERE id = $1', [foreignChild]);
+
+      const added = await walkIn(ids.leader.id, { parent_email: ids.parent.email });
+      const malformed = await inviteAnother(ids.admin.id, added.body.data.participant_id, { parent_email: 'not-an-address' });
+      expect(malformed.status).toBe(400);
+    });
+  });
+
   test('a leader cannot readmit someone an administrator removed; an admin can, with a reason', async () => {
     const removed = await one(
       "INSERT INTO users (email, password, full_name) VALUES ($1, 'x', 'Removed') RETURNING id",

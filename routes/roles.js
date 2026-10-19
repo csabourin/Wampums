@@ -289,7 +289,7 @@ module.exports = (pool, logger) => {
         }
 
         if (role.is_system_role) {
-          return error(res, 'Cannot modify system roles', 403);
+          return forbidden(res, 'Cannot modify system roles', [], []);
         }
 
         const permissionCheck = await pool.query(
@@ -395,7 +395,7 @@ module.exports = (pool, logger) => {
         }
 
         if (role.is_system_role) {
-          return error(res, 'Cannot delete system roles', 403);
+          return forbidden(res, 'Cannot delete system roles', [], []);
         }
 
         // Deleting a role takes its permissions from everyone holding it.

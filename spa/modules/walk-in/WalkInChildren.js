@@ -386,6 +386,7 @@ export class WalkInChildren {
       const key = {
         already_has_parent: 'walk_in_error_already_has_parent',
         manually_deactivated: 'walk_in_error_removed_member',
+        leader_invitation_pending: 'parent_error_leader_invitation_pending',
       }[error?.code] || 'walk_in_error_failed';
       this.showStatus(familyOperationErrorKey(error, key), 'error');
     } finally {
@@ -434,6 +435,10 @@ export class WalkInChildren {
       } else {
         this.showError('walk_in_error_removed_member');
       }
+      return;
+    }
+    if (error?.code === 'leader_invitation_pending') {
+      this.showError('parent_error_leader_invitation_pending');
       return;
     }
     debugError('Failed to add walk-in child:', error, body);

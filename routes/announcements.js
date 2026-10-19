@@ -7,14 +7,14 @@
 const { authenticate, blockDemoRoles, requirePermission, getOrganizationId } = require('../middleware/auth');
 const express = require('express');
 const { asyncHandler, error: errorResponse, success: successResponse } = require('../middleware/response');
-const { check } = require('express-validator');
+const { body, check } = require('express-validator');
 const router = express.Router();
 const {
   handleOrganizationResolutionError,
   escapeHtml,
 } = require('../utils/api-helpers');
 const { sanitizeInput, sendEmail, sendWhatsApp, getUserEmailLanguage } = require('../utils');
-const { checkValidation } = require('../middleware/validation');
+const { checkValidation, validateIdParam } = require('../middleware/validation');
 const { isTestEnvironment } = require('../test/test-helpers');
 const {
   listAlumni,
@@ -44,10 +44,27 @@ const MAX_ANNOUNCEMENT_GROUPS = 200;
 const HTTP_BAD_REQUEST = 400;
 /** The email service did not accept a message. */
 const HTTP_BAD_GATEWAY = 502;
+const HTTP_NOT_FOUND = 404;
+const HTTP_CONFLICT = 409;
+/** Statuses of a message that is still to go out: it cannot leave the history yet. */
+const PENDING_STATUSES = ['scheduled', 'sending'];
+/** Messages listed per page of the history, and the last page number accepted. */
+const HISTORY_PAGE_SIZE = 50;
+const MAX_HISTORY_PAGE = 100000;
 /** How often the scheduler re-checks with nothing else to wake it. */
 const FALLBACK_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const pg = require('pg');
 const { Client } = pg;
+
+/**
+ * Whether a request names at least one den to write to.
+ *
+ * @param {Object} body - Request body
+ * @returns {boolean}
+ */
+function hasRecipientGroups(body) {
+  return Array.isArray(body?.recipient_group_ids) && body.recipient_group_ids.length > 0;
+}
 
 /**
  * Normalize and sanitize announcement payload
@@ -121,6 +138,26 @@ async function filterRolesInUnit(pool, roleNames, organizationId) {
     [roleNames, organizationId],
   );
   return rows.map((row) => row.role_name);
+}
+
+/**
+ * Keep the dens that belong to the unit: one deleted since the page loaded,
+ * or another unit's, is dropped.
+ *
+ * @param {Object} pool - Database pool
+ * @param {Array<number>} groupIds - Requested den ids
+ * @param {number} organizationId - Organization ID
+ * @returns {Promise<Array<number>>} The unit's dens among them
+ */
+async function filterGroupsInUnit(pool, groupIds, organizationId) {
+  if (!groupIds.length) {
+    return [];
+  }
+  const { rows } = await pool.query(
+    'SELECT id FROM groups WHERE id = ANY($1::int[]) AND organization_id = $2',
+    [groupIds, organizationId],
+  );
+  return rows.map((row) => row.id);
 }
 
 /**
@@ -212,11 +249,17 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
   }
 
   const roleFilter = roles || [];
-  const includeParents = roleFilter.includes('parent');
-  const groupFilterClause = groupIds.length ? 'AND pgroups.group_id = ANY($2::int[])' : '';
+  // Dens chosen without any role: the message is for those dens' families.
+  const familiesOnly = !roleFilter.length && groupIds.length > 0;
+  const includeParents = familiesOnly || roleFilter.includes('parent');
+  const groupFilterClause = groupIds.length
+    ? 'AND pgroups.group_id = ANY($2::int[]) AND pgroups.organization_id = $1'
+    : '';
   const groupParams = groupIds.length ? [organizationId, groupIds] : [organizationId];
 
-  // User roles (admins/animation/parents as users) - get email and WhatsApp
+  // Members reached through their role. A den filter narrows family accounts
+  // (roles that see only their own children) to those linked to a youth of
+  // the den; leaders belong to no den and stay reached as their role was chosen.
   const userRoleQuery = `
     SELECT DISTINCT LOWER(u.email) AS email, u.id AS user_id, u.whatsapp_phone_number
     FROM user_organizations uo
@@ -224,10 +267,21 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
     JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
     WHERE uo.organization_id = $1
       AND uo.status = 'active'
-      AND r.role_name = ANY($${groupParams.length + 1}::text[])
-      AND u.email IS NOT NULL AND u.email <> ''
+      AND (r.role_name = ANY($3::text[]) OR ($4::boolean AND r.data_scope = 'linked'))
+      AND (
+        cardinality($2::int[]) = 0
+        OR r.data_scope IS DISTINCT FROM 'linked'
+        OR EXISTS (
+          SELECT 1
+          FROM user_participants up
+          JOIN participant_groups pgroups ON pgroups.participant_id = up.participant_id
+          WHERE up.user_id = u.id
+            AND pgroups.organization_id = $1
+            AND pgroups.group_id = ANY($2::int[])
+        )
+      )
   `;
-  const userRoleResult = await pool.query(userRoleQuery, [...groupParams, roleFilter]);
+  const userRoleResult = await pool.query(userRoleQuery, [organizationId, groupIds, roleFilter, familiesOnly]);
 
   // Guardian emails per participant (optional group filter)
   const guardianEmails = [];
@@ -278,18 +332,15 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
   const allEmails = [...roleEmails, ...guardianEmails, ...participantEmails].filter(Boolean);
   const uniqueEmails = [...new Set(allEmails)];
 
-  // Push subscribers limited to requested roles
+  // Push goes to the same members as above, den filter included.
+  const memberIds = [...new Set(userRoleResult.rows.map((row) => row.user_id))];
   const subscriberQuery = `
     SELECT DISTINCT s.endpoint, s.p256dh, s.auth, s.user_id
     FROM subscribers s
-    JOIN user_organizations uo ON uo.user_id = s.user_id
-    JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
     WHERE s.organization_id = $1
-      AND uo.organization_id = $1
-      AND uo.status = 'active'
-      AND r.role_name = ANY($2::text[])
+      AND s.user_id = ANY($2::uuid[])
   `;
-  const subscribersResult = await pool.query(subscriberQuery, [organizationId, roleFilter]);
+  const subscribersResult = await pool.query(subscriberQuery, [organizationId, memberIds]);
 
   return {
     emails: uniqueEmails,
@@ -857,11 +908,12 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
       check('subject').trim().notEmpty().withMessage('Subject is required'),
       check('message').trim().notEmpty().withMessage('Message is required'),
       check('audience').optional().isIn(ALLOWED_AUDIENCES).withMessage(`audience must be one of ${ALLOWED_AUDIENCES.join(', ')}`),
-      // An alumni mailing has no roles to pick from, so the requirement only
-      // applies to the unit's own audience.
+      // An alumni mailing has no roles to pick from, and a send to dens alone
+      // reaches their families: either way no role is required.
       check('recipient_roles')
-        .if((_value, { req }) => req.body?.audience !== ALUMNI_AUDIENCE)
-        .isArray({ min: 1 }).withMessage('recipient_roles must include at least one role'),
+        .if((_value, { req }) => req.body?.audience !== ALUMNI_AUDIENCE && !hasRecipientGroups(req.body))
+        .isArray({ min: 1 }).withMessage('announcement_recipients_required'),
+      check('recipient_roles').optional().isArray().withMessage('recipient_roles must be an array'),
       check('recipient_group_ids').optional().isArray().withMessage('recipient_group_ids must be an array'),
       check('scheduled_at').optional({ values: 'falsy' }).isISO8601().withMessage('scheduled_at must be a valid date'),
       check('save_as_draft').optional().isBoolean(),
@@ -873,10 +925,24 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
 
         const organizationId = await getOrganizationId(req, pool);
         const normalized = normalizeAnnouncementPayload(req.body);
-        normalized.roles = await filterRolesInUnit(pool, normalized.roles, organizationId);
+        const requestedRoleCount = normalized.roles.length;
+        const requestedGroupCount = normalized.groups.length;
+        [normalized.roles, normalized.groups] = await Promise.all([
+          filterRolesInUnit(pool, normalized.roles, organizationId),
+          filterGroupsInUnit(pool, normalized.groups, organizationId),
+        ]);
 
-        if (normalized.audience !== ALUMNI_AUDIENCE && !normalized.roles.length) {
-          return res.status(400).json({ success: false, message: 'No valid roles provided' });
+        if (normalized.audience !== ALUMNI_AUDIENCE) {
+          if (requestedRoleCount && !normalized.roles.length) {
+            return res.status(400).json({ success: false, message: 'No valid roles provided' });
+          }
+          // Dens that no longer exist would narrow the message to nobody.
+          if (requestedGroupCount && !normalized.groups.length) {
+            return errorResponse(res, 'announcement_groups_not_found', HTTP_BAD_REQUEST);
+          }
+          if (!normalized.roles.length && !normalized.groups.length) {
+            return errorResponse(res, 'announcement_recipients_required', HTTP_BAD_REQUEST);
+          }
         }
 
         const shouldSendNow = normalized.sendNow || !normalized.scheduledAt || normalized.scheduledAt <= new Date();
@@ -975,21 +1041,38 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
   );
 
   /**
-   * List announcements with delivery logs
+   * List announcements with delivery logs.
+   * `?archived=true` lists the archived ones instead of the active ones.
    */
-  router.get('/v1/announcements', authenticate, requirePermission(['communications.send']), asyncHandler(async (req, res) => {
+  router.get('/v1/announcements', authenticate, requirePermission(['communications.send']), [
+    check('archived').optional().isIn(['true', 'false']).withMessage('archived must be true or false'),
+    check('page').optional().isInt({ min: 1, max: MAX_HISTORY_PAGE }).withMessage('page must be a positive integer'),
+  ], checkValidation, asyncHandler(async (req, res) => {
     try {
 
       const organizationId = await getOrganizationId(req, pool);
+      const archived = req.query.archived === 'true';
+      const page = Number(req.query.page) || 1;
 
       const announcementsQuery = `
-        SELECT id, subject, message, recipient_roles, recipient_groups, audience, scheduled_at, sent_at, status, created_at
+        SELECT id, subject, message, recipient_roles, recipient_groups, audience, scheduled_at, sent_at, status, created_at, archived_at
         FROM announcements
         WHERE organization_id = $1
-        ORDER BY created_at DESC
-        LIMIT 50
+          AND (archived_at IS NOT NULL) = $2
+        ORDER BY created_at DESC, id DESC
+        LIMIT $3 OFFSET $4
       `;
-      const announcementsResult = await pool.query(announcementsQuery, [organizationId]);
+      const [announcementsResult, countResult, groupsResult] = await Promise.all([
+        pool.query(announcementsQuery, [organizationId, archived, HISTORY_PAGE_SIZE, (page - 1) * HISTORY_PAGE_SIZE]),
+        pool.query(
+          'SELECT COUNT(*)::int AS total FROM announcements WHERE organization_id = $1 AND (archived_at IS NOT NULL) = $2',
+          [organizationId, archived],
+        ),
+        // The groups' names label each message's recipients, so reading the history
+        // does not depend on holding groups.view as well.
+        pool.query('SELECT id, name FROM groups WHERE organization_id = $1 ORDER BY name', [organizationId]),
+      ]);
+      const total = countResult.rows[0]?.total || 0;
 
       const announcementIds = announcementsResult.rows.map((row) => row.id);
       let logsByAnnouncement = {};
@@ -1023,6 +1106,15 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
           message: escapeHtml(row.message),
           logs: logsByAnnouncement[row.id] || [],
         })),
+        pagination: {
+          page,
+          limit: HISTORY_PAGE_SIZE,
+          total,
+          totalPages: Math.ceil(total / HISTORY_PAGE_SIZE),
+          hasNext: page * HISTORY_PAGE_SIZE < total,
+          hasPrev: page > 1,
+        },
+        groups: groupsResult.rows,
         templates,
         roles,
       });
@@ -1034,6 +1126,45 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
       return errorResponse(res, 'internal_server_error', 500);
     }
   }));
+
+  /**
+   * Archive an announcement out of the history, or restore it.
+   * A message still waiting to go out (scheduled or sending) cannot be archived.
+   * Permission: communications.send
+   */
+  router.patch(
+    '/v1/announcements/:announcementId/archive',
+    authenticate, blockDemoRoles, requirePermission(['communications.send']),
+    validateIdParam('announcementId'),
+    [body('archived').isIn(['true', 'false']).withMessage('archived must be true or false in the request body')],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const archived = String(req.body.archived) === 'true';
+
+      const result = await pool.query(
+        `UPDATE announcements
+         SET archived_at = CASE WHEN $1::boolean THEN COALESCE(archived_at, NOW()) ELSE NULL END,
+             updated_at = NOW()
+         WHERE id = $2 AND organization_id = $3
+           AND (NOT $1::boolean OR status <> ALL($4::text[]))
+         RETURNING id, status, archived_at`,
+        [archived, Number(req.params.announcementId), organizationId, PENDING_STATUSES],
+      );
+      if (result.rows.length) {
+        return successResponse(res, result.rows[0], archived ? 'announcement_archived' : 'announcement_restored');
+      }
+
+      const exists = await pool.query(
+        'SELECT id FROM announcements WHERE id = $1 AND organization_id = $2',
+        [Number(req.params.announcementId), organizationId],
+      );
+      if (!exists.rows.length) {
+        return errorResponse(res, 'announcement_not_found', HTTP_NOT_FOUND);
+      }
+      return errorResponse(res, 'announcement_not_archivable', HTTP_CONFLICT);
+    }),
+  );
 
   return router;
 };

@@ -25,28 +25,28 @@ import {
   hasPermission,
   hasAnyPermission,
   canAccessAdminPanel,
-} from "../utils/PermissionUtils.js";
+} from '../utils/PermissionUtils.js';
 
 export const TABBED_PAGES = {
   progression: {
-    path: "/progression",
-    titleKey: "page_progression_title",
-    defaultTab: "badges",
+    path: '/progression',
+    titleKey: 'page_progression_title',
+    defaultTab: 'badges',
     tabs: [
       {
-        key: "badges",
-        labelKey: "tab_progression_badges",
+        key: 'badges',
+        labelKey: 'tab_progression_badges',
         // The route itself admits anyone who can see participants, so this tab
         // needs its own gate: without it a participants-only user lands on the
         // tracker's "not authorized" panel instead of the Programme tab.
-        gate: () => hasAnyPermission("badges.view", "badges.approve", "badges.manage"),
-        load: () => import("../badge_tracker.js").then((m) => m.BadgeTracker),
+        gate: () => hasAnyPermission('badges.view', 'badges.approve', 'badges.manage'),
+        load: () => import('../modules/badges/BadgeTracker.js').then((m) => m.BadgeTracker),
       },
       {
-        key: "programme",
-        labelKey: "tab_progression_program",
+        key: 'programme',
+        labelKey: 'tab_progression_program',
         load: () =>
-          import("../modules/program-progress/ProgramProgressDashboard.js").then(
+          import('../modules/program-progress/ProgramProgressDashboard.js').then(
             (m) => m.ProgramProgressDashboard,
           ),
       },
@@ -54,42 +54,42 @@ export const TABBED_PAGES = {
   },
 
   reunions: {
-    path: "/reunions",
-    titleKey: "page_meetings_title",
-    defaultTab: "prochaine",
+    path: '/reunions',
+    titleKey: 'page_meetings_title',
+    defaultTab: 'prochaine',
     tabs: [
       {
-        key: "prochaine",
-        labelKey: "tab_meetings_next",
-        load: () => import("../upcoming_meeting.js").then((m) => m.UpcomingMeeting),
+        key: 'prochaine',
+        labelKey: 'tab_meetings_next',
+        load: () => import('../modules/meetings/UpcomingMeeting.js').then((m) => m.UpcomingMeeting),
       },
       {
-        key: "preparation",
-        labelKey: "tab_meetings_prepare",
-        gate: () => hasAnyPermission("meetings.view", "meetings.manage"),
+        key: 'preparation',
+        labelKey: 'tab_meetings_prepare',
+        gate: () => hasAnyPermission('meetings.view', 'meetings.manage'),
         load: () =>
-          import("../modules/meetings/MeetingPrep.js").then((m) => m.MeetingPrep),
+          import('../modules/meetings/MeetingPrep.js').then((m) => m.MeetingPrep),
       },
     ],
   },
 
   district: {
-    path: "/district",
-    titleKey: "page_district_title",
-    defaultTab: "unites",
+    path: '/district',
+    titleKey: 'page_district_title',
+    defaultTab: 'unites',
     tabs: [
       {
-        key: "unites",
-        labelKey: "tab_district_units",
-        gate: () => hasPermission("roles.view"),
+        key: 'unites',
+        labelKey: 'tab_district_units',
+        gate: () => hasPermission('roles.view'),
         load: () =>
-          import("../district_management.js").then((m) => m.DistrictManagement),
+          import('../modules/district/DistrictManagement.js').then((m) => m.DistrictManagement),
       },
       {
-        key: "outils",
-        labelKey: "tab_district_tools",
+        key: 'outils',
+        labelKey: 'tab_district_tools',
         gate: () => canAccessAdminPanel(),
-        load: () => import("../admin.js").then((m) => m.Admin),
+        load: () => import('../modules/admin/Admin.js').then((m) => m.Admin),
       },
     ],
   },
@@ -104,13 +104,13 @@ export const TABBED_PAGES = {
  * one specific meeting and stays a standalone page.
  */
 export const MERGED_ROUTE_REDIRECTS = {
-  "/badge-tracker": "/progression?tab=badges",
+  '/badge-tracker': '/progression?tab=badges',
   // Former standalone badge pages; the Badges tab covers both.
   '/badge-dashboard': '/progression?tab=badges',
   '/approve-badges': '/progression?tab=badges',
-  "/program-progress": "/progression?tab=programme",
-  "/upcoming-meeting": "/reunions?tab=prochaine",
-  "/preparation-reunions": "/reunions?tab=preparation",
-  "/district-management": "/district?tab=unites",
-  "/admin": "/district?tab=outils",
+  '/program-progress': '/progression?tab=programme',
+  '/upcoming-meeting': '/reunions?tab=prochaine',
+  '/preparation-reunions': '/reunions?tab=preparation',
+  '/district-management': '/district?tab=unites',
+  '/admin': '/district?tab=outils',
 };

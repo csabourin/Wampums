@@ -1,33 +1,39 @@
 import '@fortawesome/fontawesome-free/css/fontawesome.min.css';
 import '@fortawesome/fontawesome-free/css/solid.min.css';
-import { initRouter, Router } from './router.js';
+import { initRouter } from './router.js';
 import { checkSession } from './utils/SessionUtils.js';
 import { getOrganizationSettings, getPublicOrganizationSettings, fetchOrganizationId, fetchOrganizationJwt } from './ajax-functions.js';
-import { makeApiRequest } from './api/api-core.js';
 import { CONFIG } from './config.js';
 import { debugLog, debugError, debugWarn, isDebugMode } from './utils/DebugUtils.js';
 import { getStorage, setStorage, setStorageMultiple } from './utils/StorageUtils.js';
 import { registerPushSubscription } from './modules/push/PushSubscription.js';
-import updateManager from './pwa-update-manager.js';
+import './pwa-update-manager.js';
 import { initOfflineSupport } from './offline-init.js';
 import { offlineManager } from './modules/OfflineManager.js';
 import { setContent, clearElement, createElement } from './utils/DOMUtils.js';
 import { applyPalette as applyDashboardPalette } from './utils/DashboardPreferences.js';
 import { checkForStaleClient, installChunkErrorRecovery } from './modules/app-recovery/StaleClientRecovery.js';
 import { localizeStaticChrome } from './utils/StaticChromeUtils.js';
+import { initPageTitleSync, initSkipLink, updateDocumentTitle } from './utils/PageFocusUtils.js';
 import { translateKey } from './utils/TranslationUtils.js';
+import { renderErrorPage, startupLanguage, startupTranslator } from './utils/ErrorPageUtils.js';
 import {
   fallbackLanguageFor,
   getUnitLanguages,
   resolveInterfaceLanguage,
 } from './utils/InterfaceLanguageUtils.js';
 import { FALLBACK_LANG_STORAGE_KEY, INTERFACE_LANGS } from './config/languages.js';
+import { startInstallPromptCapture } from './utils/InstallPromptUtils.js';
 
 const debugMode = isDebugMode();
 
 // Recover from a stale cached app shell (e.g. after the app moves hosts) before
 // anything tries to lazy-load a chunk that no longer exists.
 installChunkErrorRecovery();
+
+// The browser offers its install prompt once, early: catch it before any
+// screen loads, so the parent dashboard can offer it later.
+startInstallPromptCapture();
 
 // Service worker registration: vite-plugin-pwa injects registration at build time,
 // with a fallback in registerServiceWorker() if the injection is missing.
@@ -254,7 +260,7 @@ export const app = {
       const normalizedLang = INTERFACE_LANGS.includes(currentLang) ? currentLang : CONFIG.DEFAULT_LANG;
       this.lang = normalizedLang;
       this.language = normalizedLang;
-      this.fallbackLang = fallbackLanguageFor(normalizedLang, localStorage.getItem(FALLBACK_LANG_STORAGE_KEY));
+      this.fallbackLang = fallbackLanguageFor(normalizedLang, getStorage(FALLBACK_LANG_STORAGE_KEY));
       document.documentElement.lang = normalizedLang;
       debugLog(`Loading translations for ${normalizedLang} before routing...`);
       try {
@@ -267,6 +273,11 @@ export const app = {
       } catch (error) {
         debugWarn('Failed to load translations offline:', error);
       }
+
+      // Every screen names the browser tab after its heading, and the skip
+      // link lands on that heading.
+      initPageTitleSync(() => this.translate('app_title'));
+      initSkipLink();
 
       // Initialize router IMMEDIATELY (now that we have org ID and translations)
       debugLog('Initializing router...');
@@ -290,14 +301,38 @@ export const app = {
 
     } catch (error) {
       debugError('Initialization error:', error);
-      this.renderError(this.translate('error_loading_application'), {
-        titleKey: 'application_error',
-        showReload: true,
-        actions: [
-          { labelKey: 'go_to_homepage', href: CONFIG.UI.HOMEPAGE_URL }
-        ]
-      });
+      this.renderStartupError();
     }
+  },
+
+  /**
+   * The page shown when the app cannot start. The start can fail before the
+   * translations arrive (the unit lookup comes first), so it then speaks
+   * from the texts built into the code, in French or English, and puts the
+   * whole page in that language.
+   */
+  renderStartupError() {
+    // A bundle that failed to download is stored as {}: ask for the words
+    // themselves, not whether a bundle object exists.
+    const translationsLoaded = this.translate('error_loading_application') !== 'error_loading_application';
+    let text = this.translate.bind(this);
+    if (!translationsLoaded) {
+      // Storage may be refused (the reason the start failed): read it safely.
+      const requested = this.lang || getStorage('lang', false, CONFIG.DEFAULT_LANG);
+      const lang = startupLanguage(requested, getStorage(FALLBACK_LANG_STORAGE_KEY));
+      text = startupTranslator(lang);
+      document.documentElement.lang = lang;
+      localizeStaticChrome(text);
+    }
+    this.renderError(text('error_loading_application'), {
+      titleKey: 'application_error',
+      showReload: true,
+      actions: [
+        { labelKey: 'go_to_homepage', href: CONFIG.UI.HOMEPAGE_URL }
+      ],
+      text,
+    });
+    updateDocumentTitle(text('application_error'));
   },
 
   // Background initialization tasks (non-blocking)
@@ -309,7 +344,7 @@ export const app = {
       if (!token && this.organizationId) {
         try {
           debugLog('Fetching organization JWT...');
-          const data = await fetchOrganizationJwt(this.organizationId);
+          const data = await fetchOrganizationJwt();
           if (data.success && data.token) {
             setStorage('jwtToken', data.token);
             debugLog('Organization JWT obtained');
@@ -691,8 +726,7 @@ export const app = {
   },
 
   updatePageTitle() {
-    const title = this.translate('app_title');
-    document.title = `${title} - Wampums`;
+    updateDocumentTitle(this.translate('app_title'));
   },
 
   /**
@@ -768,11 +802,22 @@ export const app = {
     }
   },
 
+  /**
+   * Show an error page in place of the screen.
+   *
+   * @param {string} message - What went wrong, already translated
+   * @param {Object} [options]
+   * @param {string} [options.titleKey='error'] - Heading key
+   * @param {?Array<{labelKey: string, href: string}>} [options.actions] - Links offered
+   * @param {boolean} [options.showReload=false] - Offer to reload the page
+   * @param {function(string): string} [options.text] - Translate function for the labels
+   */
   renderError(message, options = {}) {
     const {
       titleKey = 'error',
       actions = null,
-      showReload = false
+      showReload = false,
+      text = this.translate.bind(this),
     } = options;
 
     const appContainer = document.getElementById('app');
@@ -781,49 +826,14 @@ export const app = {
       return;
     }
 
-    clearElement(appContainer);
-
-    // Signed in, the way back is the same link every screen opens with.
-    if (this.isLoggedIn) {
-      appContainer.appendChild(createElement('a', {
-        text: `← ${this.translate('back')}`,
-        className: 'button button--ghost',
-        attributes: { href: '/dashboard' }
-      }));
-    }
-
-    const container = createElement('div', { className: 'error-container' });
-    const title = createElement('h1', { text: this.translate(titleKey) });
-    const messageText = createElement('p', { text: message });
-    container.appendChild(title);
-    container.appendChild(messageText);
-
-    const actionItems = actions || (this.isLoggedIn ? [] : [{ labelKey: 'back_to_home', href: '/' }]);
-    if (actionItems.length || showReload) {
-      const actionsWrapper = createElement('div', { className: 'error-actions' });
-
-      if (showReload) {
-        const reloadButton = createElement('button', {
-          text: this.translate('reload'),
-          className: 'btn'
-        });
-        reloadButton.addEventListener('click', () => window.location.reload());
-        actionsWrapper.appendChild(reloadButton);
-      }
-
-      actionItems.forEach(action => {
-        const link = createElement('a', {
-          text: this.translate(action.labelKey),
-          className: 'btn',
-          attributes: { href: action.href }
-        });
-        actionsWrapper.appendChild(link);
-      });
-
-      container.appendChild(actionsWrapper);
-    }
-
-    appContainer.appendChild(container);
+    renderErrorPage(appContainer, {
+      title: text(titleKey),
+      message,
+      text,
+      isLoggedIn: this.isLoggedIn,
+      showReload,
+      actions,
+    });
   },
 
   translate(key) {
