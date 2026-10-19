@@ -423,6 +423,68 @@ describe.skipIf(!DATABASE_URL)('Transfer to a sister unit', () => {
     )).toBe(1);
   });
 
+  test('does not credit badge progress to another version of the same catalog badge', async () => {
+    const sourceTemplateId = await one(
+      `INSERT INTO badge_templates (organization_id, template_key, official_key, version, name, section)
+       VALUES ($1, 'transfer-version-test', 'transfer-version-test', 1, 'Version test', 'general') RETURNING id`,
+      [ids.originId]
+    );
+    const targetV1Id = await one(
+      `INSERT INTO badge_templates (organization_id, template_key, official_key, version, name, section)
+       VALUES ($1, 'transfer-version-test', 'transfer-version-test', 1, 'Version test', 'general') RETURNING id`,
+      [ids.targetId]
+    );
+    const targetV2Id = await one(
+      `INSERT INTO badge_templates (organization_id, template_key, official_key, version, name, section)
+       VALUES ($1, 'transfer-version-test-v2', 'transfer-version-test', 2, 'Version test', 'general') RETURNING id`,
+      [ids.targetId]
+    );
+    await pool.query(
+      `INSERT INTO badge_progress
+         (participant_id, organization_id, badge_template_id, territoire_chasse,
+          section, etoiles, status, approval_date)
+       VALUES ($1, $2, $3, 'Version test', 'general', 1, 'approved', now())`,
+      [ids.movingChildId, ids.originId, sourceTemplateId]
+    );
+
+    const response = await transfer(ids.movingChildId, ids.targetId);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({ badges_transferred: 1, badges_unmatched: 0 });
+    const credited = await pool.query(
+      `SELECT badge_template_id FROM badge_progress
+        WHERE participant_id = $1 AND organization_id = $2 AND source_type = 'transfer'`,
+      [ids.movingChildId, ids.targetId]
+    );
+    expect(credited.rows.map((row) => row.badge_template_id)).toEqual([targetV1Id]);
+    expect(credited.rows.map((row) => row.badge_template_id)).not.toContain(targetV2Id);
+  });
+
+  test('reports badge progress as unmatched when the destination has only another version', async () => {
+    const sourceTemplateId = await one(
+      `INSERT INTO badge_templates (organization_id, template_key, official_key, version, name, section)
+       VALUES ($1, 'transfer-only-v2', 'transfer-only-v2', 1, 'Only v2', 'general') RETURNING id`,
+      [ids.originId]
+    );
+    await one(
+      `INSERT INTO badge_templates (organization_id, template_key, official_key, version, name, section)
+       VALUES ($1, 'transfer-only-v2', 'transfer-only-v2', 2, 'Only v2', 'general') RETURNING id`,
+      [ids.targetId]
+    );
+    await pool.query(
+      `INSERT INTO badge_progress
+         (participant_id, organization_id, badge_template_id, territoire_chasse,
+          section, etoiles, status, approval_date)
+       VALUES ($1, $2, $3, 'Only v2', 'general', 1, 'approved', now())`,
+      [ids.movingChildId, ids.originId, sourceTemplateId]
+    );
+
+    const response = await transfer(ids.movingChildId, ids.targetId);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({ badges_transferred: 0, badges_unmatched: 1 });
+  });
+
   test('closes the origin membership of a parent with nobody left there', async () => {
     await transfer(ids.onlyChildId, ids.targetId);
 

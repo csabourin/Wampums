@@ -121,7 +121,7 @@ async function findLinkedUsers(client, participantId) {
 /** Match approved source badges to destination templates without writing. */
 async function planBadgeTransfer(client, participantId, organizationId, targetOrganizationId) {
   const source = await client.query(
-    `SELECT bp.*, bt.official_key, bt.template_key
+    `SELECT bp.*, bt.official_key, bt.template_key, bt.version AS template_version
        FROM badge_progress bp
        LEFT JOIN badge_templates bt ON bt.id = bp.badge_template_id
       WHERE bp.participant_id = $1 AND bp.organization_id = $2
@@ -130,7 +130,7 @@ async function planBadgeTransfer(client, participantId, organizationId, targetOr
     [participantId, organizationId]
   );
   const target = await client.query(
-    `SELECT id, official_key, template_key FROM badge_templates WHERE organization_id = $1`,
+    `SELECT id, official_key, template_key, version FROM badge_templates WHERE organization_id = $1`,
     [targetOrganizationId]
   );
   const targetLevels = await client.query(
@@ -138,7 +138,10 @@ async function planBadgeTransfer(client, participantId, organizationId, targetOr
       WHERE participant_id = $1 AND organization_id = $2`,
     [participantId, targetOrganizationId]
   );
-  const byOfficialKey = new Map(target.rows.filter((row) => row.official_key).map((row) => [row.official_key, row]));
+  // A catalog badge matches only the same version: another version has other requirements.
+  const officialKeys = new Set(target.rows.filter((row) => row.official_key).map((row) => row.official_key));
+  const byOfficialVersion = new Map(target.rows.filter((row) => row.official_key)
+    .map((row) => [`${row.official_key}:${row.version}`, row]));
   const byTemplateKey = new Map(target.rows.filter((row) => row.template_key).map((row) => [row.template_key, row]));
   const existingApproved = new Set(targetLevels.rows
     .filter((row) => row.status === 'approved')
@@ -150,8 +153,9 @@ async function planBadgeTransfer(client, participantId, organizationId, targetOr
   const matches = [];
   let unmatched = 0;
   for (const badge of source.rows) {
-    const template = (badge.official_key && byOfficialKey.get(badge.official_key))
-      || (badge.template_key && byTemplateKey.get(badge.template_key));
+    const template = badge.official_key && officialKeys.has(badge.official_key)
+      ? byOfficialVersion.get(`${badge.official_key}:${badge.template_version}`)
+      : badge.template_key && byTemplateKey.get(badge.template_key);
     if (!template) {
       unmatched += 1;
     } else {

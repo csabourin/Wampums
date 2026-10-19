@@ -424,7 +424,9 @@ module.exports = (pool, logger) => {
     try {
       await client.query('BEGIN');
       const participantOrg = await client.query(
-        'SELECT 1 FROM participant_organizations WHERE participant_id = $1 AND organization_id = $2',
+        // FOR UPDATE serializes concurrent history saves for this child, so two
+        // leaders cannot both pass the duplicate check below for the same level.
+        'SELECT 1 FROM participant_organizations WHERE participant_id = $1 AND organization_id = $2 FOR UPDATE',
         [participantId, organizationId]
       );
       if (!participantOrg.rowCount) {
