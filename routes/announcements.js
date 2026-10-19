@@ -23,6 +23,7 @@ const {
   UNSUBSCRIBE_PURPOSE
 } = require('../services/alumni');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
+const { WITHDRAWN_FAMILY_ACCOUNT_SQL } = require('../services/parentInvitations');
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { resolveDatabaseConnectionString } = require('../config/database-url');
 const {
@@ -264,6 +265,7 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
   // Members reached through their role. A den filter narrows family accounts
   // (roles that see only their own children) to those linked to a youth of
   // the den; leaders belong to no den and stay reached as their role was chosen.
+  // A family account whose invitation the unit withdrew is not reached.
   const userRoleQuery = `
     SELECT DISTINCT LOWER(u.email) AS email, u.id AS user_id, u.whatsapp_phone_number
     FROM user_organizations uo
@@ -272,6 +274,7 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
     WHERE uo.organization_id = $1
       AND uo.status = 'active'
       AND (r.role_name = ANY($3::text[]) OR ($4::boolean AND r.data_scope = 'linked'))
+      AND NOT (r.data_scope IS NOT DISTINCT FROM 'linked' AND ${WITHDRAWN_FAMILY_ACCOUNT_SQL})
       AND (
         cardinality($2::int[]) = 0
         OR r.data_scope IS DISTINCT FROM 'linked'
