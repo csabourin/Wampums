@@ -1263,6 +1263,8 @@ export class BadgeTracker {
     const { overlay, close: closeDialog } = openModal({
       id: 'badge-history-modal',
       canClose: () => !saving,
+      // A stray click outside must not discard the levels already ticked.
+      closeOnBackdrop: false,
       title: translate('badge_update_history'),
       className: 'badge-tracker__modal',
       size: 'large',

@@ -33,8 +33,15 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   canViewBadges: jest.fn(() => true)
 }));
 
+import axe from 'axe-core';
 import { BadgeTracker } from '../../spa/modules/badges/BadgeTracker.js';
 import { saveBadgeHistory } from '../../spa/api/api-badges.js';
+
+const AXE_OPTIONS = {
+  runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+  // jsdom does no layout, so contrast cannot be computed here.
+  rules: { 'color-contrast': { enabled: false } },
+};
 
 const TEMPLATE_ID = 5;
 const ON_ROSTER_ID = 1;
@@ -254,5 +261,62 @@ describe('Badge tracker backlog', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(modal.isConnected).toBe(false);
+  });
+
+  describe('history dialog accessibility', () => {
+    beforeEach(() => {
+      tracker.canManage = true;
+      tracker.templates = [
+        { id: TEMPLATE_ID, name: 'Akela', level_count: 2 },
+        { id: 6, name: '<img src=x onerror=alert(1)>', level_count: 1 },
+      ];
+      tracker.badges = [{ participant_id: ON_ROSTER_ID, badge_template_id: TEMPLATE_ID, etoiles: 1 }];
+    });
+
+    test('has no WCAG A/AA violations, with a level already recorded', async () => {
+      tracker.openBadgeHistoryModal(ON_ROSTER_ID);
+      const overlay = document.querySelector('#badge-history-modal');
+
+      const results = await axe.run(overlay, AXE_OPTIONS);
+
+      expect(results.violations).toEqual([]);
+      expect(overlay.querySelector('[role="dialog"]')).not.toBeNull();
+      expect(overlay.querySelector('input[value="5:1"]').disabled).toBe(true);
+    });
+
+    test('shows a badge name from a person as text, not markup', () => {
+      tracker.openBadgeHistoryModal(ON_ROSTER_ID);
+      const overlay = document.querySelector('#badge-history-modal');
+
+      expect(overlay.querySelector('img')).toBeNull();
+      expect(overlay.textContent).toContain('<img src=x onerror=alert(1)>');
+    });
+
+    test('moves focus into the dialog, closes on Escape and returns focus to the opener', () => {
+      const opener = document.createElement('button');
+      opener.textContent = 'badge_update_history';
+      document.body.appendChild(opener);
+      opener.focus();
+
+      tracker.openBadgeHistoryModal(ON_ROSTER_ID);
+      const overlay = document.querySelector('#badge-history-modal');
+      expect(overlay.contains(document.activeElement)).toBe(true);
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+      expect(overlay.isConnected).toBe(false);
+      expect(document.activeElement).toBe(opener);
+    });
+
+    test('a click outside the dialog does not discard the ticked levels', () => {
+      tracker.openBadgeHistoryModal(ON_ROSTER_ID);
+      const overlay = document.querySelector('#badge-history-modal');
+      overlay.querySelector('input[value="5:2"]').checked = true;
+
+      overlay.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+      expect(overlay.isConnected).toBe(true);
+      expect(overlay.querySelector('input[value="5:2"]').checked).toBe(true);
+    });
   });
 });
